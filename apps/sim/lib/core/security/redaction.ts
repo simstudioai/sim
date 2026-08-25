@@ -73,13 +73,14 @@ const SENSITIVE_VALUE_PATTERNS: Array<{
   },
   /** Form-encoded credentials, including OAuth token endpoint request bodies. */
   {
-    pattern: /\b((?:access_|refresh_|auth_)?token|client_secret|password|api[_-]?key)=([^&\s]+)/gi,
+    pattern:
+      /\b(?!nextPageToken=)([A-Za-z0-9_-]*(?:token|password|secret|credential|api[_-]?key))=([^&\s]+)/gi,
     replacement: `$1=${REDACTED_MARKER}`,
   },
   /** The same fields after URL encoding (`=` -> `%3D`, `&` -> `%26`). */
   {
     pattern:
-      /\b((?:access_|refresh_|auth_)?token|client_secret|password|api[_-]?key)%3D.*?(?=%26|&|\s|$)/gi,
+      /\b(?!nextPageToken%3D)([A-Za-z0-9_-]*(?:token|password|secret|credential|api[_-]?key))%3D.*?(?=%26|&|\s|$)/gi,
     replacement: `$1%3D${REDACTED_MARKER}`,
   },
 ]

@@ -565,8 +565,10 @@ export function mergeHydratedDocument(
  * A skipped hydration did not verify indexable content, so its provider-specific
  * fallback hash cannot supersede the listing hash used by the next sync's change
  * classification. Keeping the listing hash makes a newly persisted skip stable
- * until the source metadata changes, while still carrying the reason and metadata
- * discovered during hydration.
+ * until the source metadata changes. A connector can explicitly provide
+ * `skippedRetryContentHash` when the skip must be retried independently of that
+ * metadata, such as a Notion nested block whose access changes without editing
+ * its parent page.
  */
 export function mergeHydratedSkippedDocument(
   stub: ExternalDocument,
@@ -575,6 +577,7 @@ export function mergeHydratedSkippedDocument(
   return {
     ...stub,
     content: '',
+    contentHash: hydrated.skippedRetryContentHash ?? stub.contentHash,
     contentDeferred: false,
     skippedReason: hydrated.skippedReason,
     skippedExistingDisposition: hydrated.skippedExistingDisposition,
@@ -2334,6 +2337,11 @@ export async function executeSync(
       // flagged either at listing time (skip ops here) or discovered only at fetch
       // time during hydration below; both are collected and persisted after hydration.
       const skipOps = rawBatch.filter((op) => op.type === 'skip')
+      const skippedRetryHashUpdates: Array<{
+        existingId: string
+        externalId: string
+        contentHash: string
+      }> = []
 
       const contentOps = rawBatch.filter((op) => op.type !== 'skip')
       const deferredOps = contentOps.filter((op) => op.extDoc.contentDeferred)
@@ -2372,6 +2380,13 @@ export async function executeSync(
                     extDoc: mergeHydratedSkippedDocument(op.extDoc, fullDoc),
                   })
                 } else {
+                  if (fullDoc.skippedRetryContentHash) {
+                    skippedRetryHashUpdates.push({
+                      existingId: op.existingId,
+                      externalId: op.extDoc.externalId,
+                      contentHash: fullDoc.skippedRetryContentHash,
+                    })
+                  }
                   /** Preserve last-known-good content and replay the unverified source change. */
                   recordUnverifiedExistingRefresh(result, failedExternalIds, op.extDoc.externalId)
                 }
@@ -2417,6 +2432,29 @@ export async function executeSync(
               error: getErrorMessage(outcome.reason),
             })
           }
+        }
+      }
+
+      if (skippedRetryHashUpdates.length > 0) {
+        try {
+          const missedExternalIds = await persistSkippedRetryHashes(
+            connector.knowledgeBaseId,
+            connectorId,
+            skippedRetryHashUpdates
+          )
+          if (missedExternalIds.length > 0) {
+            logger.warn('Skipped retry hashes were not persisted for detached documents', {
+              connectorId,
+              externalIds: missedExternalIds,
+            })
+          }
+        } catch (error) {
+          logger.error('Failed to persist skipped document retry hashes', {
+            connectorId,
+            count: skippedRetryHashUpdates.length,
+            error: toError(error).message,
+          })
+          throw error
         }
       }
 
@@ -3318,6 +3356,41 @@ export async function persistSkippedDocuments(
   }
 
   return skipOps.length
+}
+
+/**
+ * Persists only connector-owned retry hashes for skipped refreshes of existing
+ * documents. Indexed content and processing state stay last-known-good while the
+ * hash guarantees that unchanged listing metadata still re-enters hydration.
+ */
+export async function persistSkippedRetryHashes(
+  knowledgeBaseId: string,
+  connectorId: string,
+  updates: Array<{ existingId: string; externalId: string; contentHash: string }>
+): Promise<string[]> {
+  if (updates.length === 0) return []
+
+  const missedExternalIds: string[] = []
+
+  await db.transaction(async (tx) => {
+    const isActive = await isKnowledgeBaseActiveInTx(tx, knowledgeBaseId)
+    if (!isActive) {
+      throw new Error(`Knowledge base ${knowledgeBaseId} is deleted`)
+    }
+
+    for (const update of updates) {
+      const persisted = await tx
+        .update(document)
+        .set({ contentHash: update.contentHash })
+        .where(connectorDocumentSyncTarget(update.existingId, knowledgeBaseId, connectorId))
+        .returning({ id: document.id })
+      if (persisted.length === 0) {
+        missedExternalIds.push(update.externalId)
+      }
+    }
+  })
+
+  return missedExternalIds
 }
 
 /**

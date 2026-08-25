@@ -15,13 +15,17 @@ function getMaxBase64EncodedLength(maxBytes: number): number {
   return Math.ceil(maxBytes / 3) * 4
 }
 
+function getBase64WhitespaceAllowance(maxEncodedLength: number): number {
+  return Math.min(Math.max(1024, Math.ceil(maxEncodedLength / 32)), MAX_BASE64_WHITESPACE_BYTES)
+}
+
 function getMaxBase64TransportLength(maxEncodedLength: number): number {
   if (maxEncodedLength === Number.MAX_SAFE_INTEGER) return Number.MAX_SAFE_INTEGER
-  const whitespaceAllowance = Math.min(
-    Math.max(1024, Math.ceil(maxEncodedLength / 32)),
-    MAX_BASE64_WHITESPACE_BYTES
-  )
-  return Math.min(maxEncodedLength + whitespaceAllowance, Number.MAX_SAFE_INTEGER)
+  const whitespaceAllowance = getBase64WhitespaceAllowance(maxEncodedLength)
+  if (maxEncodedLength > Math.floor((Number.MAX_SAFE_INTEGER - whitespaceAllowance) / 3)) {
+    return Number.MAX_SAFE_INTEGER
+  }
+  return maxEncodedLength * 3 + whitespaceAllowance
 }
 
 function getMaxPercentEncodedLength(maxBytes: number): number {
@@ -68,9 +72,31 @@ export function decodeDataUriWithinLimit(dataUri: string, maxBytes: number): Dec
 
   if (isBase64) {
     const maxBase64EncodedLength = getMaxBase64EncodedLength(maxBytes)
+    const whitespaceAllowance = getBase64WhitespaceAllowance(maxBase64EncodedLength)
     let base64CharacterCount = 0
+    let whitespaceTransportLength = 0
     for (let index = payloadStart; index < dataUri.length; index++) {
-      if (/\s/.test(dataUri[index])) continue
+      let character = dataUri[index]
+      let transportLength = 1
+      if (character === '%') {
+        const hex = dataUri.slice(index + 1, index + 3)
+        if (!/^[0-9A-Fa-f]{2}$/.test(hex)) {
+          throw new FileParserError('invalid_format', 'Invalid percent-encoded data URI payload')
+        }
+        character = String.fromCharCode(Number.parseInt(hex, 16))
+        transportLength = 3
+        index += 2
+      }
+      if (/\s/.test(character)) {
+        whitespaceTransportLength += transportLength
+        if (whitespaceTransportLength > whitespaceAllowance) {
+          throw new FileParserError(
+            'complexity_limit',
+            `Data URI encoded payload exceeds the safe limit for a ${maxBytes}-byte file`
+          )
+        }
+        continue
+      }
       base64CharacterCount++
       if (base64CharacterCount > maxBase64EncodedLength) {
         throw new FileParserError(
@@ -85,7 +111,11 @@ export function decodeDataUriWithinLimit(dataUri: string, maxBytes: number): Dec
 
   let buffer: Buffer
   if (isBase64) {
-    const compactPayload = encodedPayload.replace(/\s/g, '')
+    const compactPayload = encodedPayload
+      .replace(/%([0-9A-Fa-f]{2})/g, (_, hex: string) =>
+        String.fromCharCode(Number.parseInt(hex, 16))
+      )
+      .replace(/\s/g, '')
     const paddingIndex = compactPayload.indexOf('=')
     const unpaddedLength = paddingIndex === -1 ? compactPayload.length : paddingIndex
     const paddingLength = compactPayload.length - unpaddedLength

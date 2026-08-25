@@ -257,6 +257,33 @@ describe('googleDocsConnector', () => {
                   },
                 },
               },
+              {
+                documentTab: {
+                  body: { content: [] },
+                  headers: {
+                    siblingHeader: {
+                      content: [
+                        {
+                          paragraph: {
+                            elements: [{ textRun: { content: 'Sibling header\n' } }],
+                          },
+                        },
+                      ],
+                    },
+                  },
+                  footnotes: {
+                    siblingFootnote: {
+                      content: [
+                        {
+                          paragraph: {
+                            elements: [{ textRun: { content: 'Sibling footnote\n' } }],
+                          },
+                        },
+                      ],
+                    },
+                  },
+                },
+              },
             ],
           }),
           { status: 200 }
@@ -266,7 +293,8 @@ describe('googleDocsConnector', () => {
       await expect(
         googleDocsConnector.getDocument(ACCESS_TOKEN, {}, DOCUMENT_ID)
       ).resolves.toMatchObject({
-        content: 'Header text\nAug 24, 2026\nFooter text\nFootnote text',
+        content:
+          'Header text\nAug 24, 2026\nFooter text\nFootnote text\nSibling header\nSibling footnote',
         contentDeferred: false,
       })
     })

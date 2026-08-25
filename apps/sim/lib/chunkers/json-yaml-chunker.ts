@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import * as yaml from 'js-yaml'
-import { ChunkBudget } from '@/lib/chunkers/chunk-budget'
+import { ChunkBudget, ChunkLimitExceededError } from '@/lib/chunkers/chunk-budget'
 import type { Chunk, ChunkerOptions } from '@/lib/chunkers/types'
 import { estimateTokens, iterateLines } from '@/lib/chunkers/utils'
 
@@ -39,25 +39,26 @@ export class JsonYamlChunker {
   }
 
   async chunk(content: string): Promise<Chunk[]> {
-    let data: JsonValue
     try {
+      let data: JsonValue
       try {
         data = JSON.parse(content) as JsonValue
       } catch {
         data = yaml.load(content) as JsonValue
       }
+
+      const chunks: Chunk[] = []
+      this.chunkStructuredData(data, [], 0, chunks, new ChunkBudget(this.maxChunks))
+
+      const totalTokens = chunks.reduce((sum, c) => sum + c.tokenCount, 0)
+      logger.info(`JSON chunking complete: ${chunks.length} chunks, ${totalTokens} total tokens`)
+
+      return chunks
     } catch (error) {
-      logger.info('JSON parsing failed, falling back to text chunking')
+      if (error instanceof ChunkLimitExceededError) throw error
+      logger.info('Structured data chunking failed, falling back to text chunking')
       return this.chunkAsText(content, new ChunkBudget(this.maxChunks))
     }
-
-    const chunks: Chunk[] = []
-    this.chunkStructuredData(data, [], 0, chunks, new ChunkBudget(this.maxChunks))
-
-    const totalTokens = chunks.reduce((sum, c) => sum + c.tokenCount, 0)
-    logger.info(`JSON chunking complete: ${chunks.length} chunks, ${totalTokens} total tokens`)
-
-    return chunks
   }
 
   private chunkStructuredData(

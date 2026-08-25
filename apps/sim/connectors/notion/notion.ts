@@ -531,11 +531,12 @@ export const notionConnector: ConnectorConfig = {
           ...markSkipped(stub, error.message),
           /**
            * Access to a nested block can change without moving the parent page's
-           * `last_edited_time`. Persist a connector-owned retry marker rather than
-           * the listing hash so the next listing classifies this document as changed
-           * and retries hydration. Existing indexed content remains last-known-good.
+           * `last_edited_time`. Supply a connector-owned retry marker for the sync
+           * engine to persist instead of the listing hash, so the next listing
+           * classifies this document as changed and retries hydration. Existing
+           * indexed content remains last-known-good.
            */
-          contentHash: `notion:retry:v1:${stub.externalId}`,
+          skippedRetryContentHash: `notion:retry:v1:${stub.externalId}`,
         }
       }
       throw error

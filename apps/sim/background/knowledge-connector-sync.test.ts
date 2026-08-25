@@ -1,6 +1,8 @@
 /**
  * @vitest-environment node
  */
+
+import { AbortTaskRunError } from '@trigger.dev/sdk'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockAssertConnectorSyncPayload, mockExecuteSync, mockTask } = vi.hoisted(() => ({
@@ -128,13 +130,14 @@ describe('knowledge connector sync worker', () => {
       processingDispatch: { requested: 2, accepted: 1, failed: 1 },
     })
 
-    await expect(
-      executeConnectorSyncJob({
-        connectorId: 'connector-1',
-        requestId: 'request-1',
-        billingAttribution: BILLING_ATTRIBUTION,
-      })
-    ).rejects.toThrow('Connector sync partially failed')
+    const run = executeConnectorSyncJob({
+      connectorId: 'connector-1',
+      requestId: 'request-1',
+      billingAttribution: BILLING_ATTRIBUTION,
+    })
+
+    await expect(run).rejects.toBeInstanceOf(AbortTaskRunError)
+    await expect(run).rejects.toThrow('Connector sync partially failed')
   })
 
   it('does not turn intentionally skipped source files into a task failure', () => {
@@ -217,13 +220,14 @@ describe('knowledge connector sync worker', () => {
       error: 'provider unavailable',
     })
 
-    await expect(
-      executeConnectorSyncJob({
-        connectorId: 'connector-1',
-        requestId: 'request-1',
-        billingAttribution: BILLING_ATTRIBUTION,
-      })
-    ).rejects.toThrow('Connector sync failed for connector-1: provider unavailable')
+    const run = executeConnectorSyncJob({
+      connectorId: 'connector-1',
+      requestId: 'request-1',
+      billingAttribution: BILLING_ATTRIBUTION,
+    })
+
+    await expect(run).rejects.toBeInstanceOf(AbortTaskRunError)
+    await expect(run).rejects.toThrow('Connector sync failed for connector-1: provider unavailable')
   })
 
   it('returns an explicit skipped outcome for a superseded task', async () => {

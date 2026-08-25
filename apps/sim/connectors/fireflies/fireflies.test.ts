@@ -221,6 +221,28 @@ describe('fireflies listDocuments', () => {
   })
 
   it.each([
+    ['HTTP', { status: 500, body: { message: 'Temporary upstream failure' } }],
+    [
+      'GraphQL',
+      {
+        body: {
+          errors: [{ message: 'Temporary resolver failure', extensions: { status: 500 } }],
+        },
+      },
+    ],
+  ])('retries a transient %s 5xx response', async (_kind, failure) => {
+    vi.useFakeTimers()
+    mockGraphQL([failure, page(2)])
+
+    const pending = firefliesConnector.listDocuments('key', {}, undefined, {})
+    await vi.runAllTimersAsync()
+    const result = await pending
+
+    expect(result.documents).toHaveLength(2)
+    expect(global.fetch).toHaveBeenCalledTimes(2)
+  })
+
+  it.each([
     [520, 60],
     [522, 120],
   ])('respects Retry-After and retries Cloudflare %i', async (status, retryAfterSeconds) => {

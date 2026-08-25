@@ -76,13 +76,16 @@ export function isPermanentDocumentProcessingError(
 }
 
 const OFFICE_REPAIR_EXTENSIONS = new Set([
+  'doc',
   'docx',
   'docm',
   'dotx',
+  'xls',
   'xlsx',
   'xlsm',
   'xlsb',
   'xltx',
+  'ppt',
   'pptx',
   'pptm',
   'potx',

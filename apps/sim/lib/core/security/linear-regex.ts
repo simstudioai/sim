@@ -285,29 +285,26 @@ export function compileLookaroundSplit(
     return { start: matcher.start('mid'), end: matcher.end('mid') }
   }
 
+  const iterateSplits = function* (text: string): Generator<string> {
+    let cursor = 0
+    let searchFrom = 0
+    while (searchFrom <= text.length) {
+      const span = delimiterAt(text, searchFrom)
+      if (!span) break
+      searchFrom = span.end > span.start ? span.end : span.start + 1
+      if (span.start < cursor || span.start >= text.length) continue
+      if (span.start === cursor && span.end === cursor) continue
+      yield text.slice(cursor, span.start)
+      cursor = span.end
+    }
+    if (cursor < text.length || cursor === 0) yield text.slice(cursor)
+  }
+
   return {
     test: (text) => compiled.matcher(text).find(),
     find: (text) => delimiterAt(text, 0)?.start ?? -1,
-    iterateSplits: function* (text) {
-      let cursor = 0
-      let searchFrom = 0
-      while (searchFrom <= text.length) {
-        const span = delimiterAt(text, searchFrom)
-        if (!span) break
-        // Always advance, so a zero-width delimiter cannot spin.
-        searchFrom = span.end > span.start ? span.end : span.start + 1
-        // Skip a boundary behind the cursor, or one that would only emit an
-        // empty leading or trailing segment.
-        if (span.start < cursor || span.start >= text.length) continue
-        if (span.start === cursor && span.end === cursor) continue
-        yield text.slice(cursor, span.start)
-        cursor = span.end
-      }
-      if (cursor < text.length || cursor === 0) yield text.slice(cursor)
-    },
-    split(text) {
-      return Array.from(this.iterateSplits(text))
-    },
+    iterateSplits,
+    split: (text) => Array.from(iterateSplits(text)),
   }
 }
 

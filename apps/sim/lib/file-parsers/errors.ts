@@ -1,5 +1,8 @@
 import { getErrorMessage } from '@sim/utils/errors'
+import { truncate } from '@sim/utils/string'
 import { ArchiveIntegrityError, ZipBombError } from '@/lib/file-parsers/ooxml-limits'
+
+const FILE_PARSER_DIAGNOSTIC_MAX_LENGTH = 500
 
 export const FILE_PARSER_ERROR_CODES = [
   'empty_input',
@@ -30,7 +33,7 @@ export function isFileParserError(error: unknown): error is FileParserError {
 
 /**
  * Wraps an untyped parser-library exception without erasing a typed inner cause.
- * Archive safety failures remain {@link ZipBombError} so every caller can enforce
+ * Archive safety and integrity failures remain typed so every caller can enforce
  * the guard without knowing which parser happened to receive the archive.
  */
 export function toFileParserError(
@@ -45,7 +48,15 @@ export function toFileParserError(
   ) {
     return error
   }
-  return new FileParserError(code, `${message}: ${getErrorMessage(error)}`, error)
+  const diagnostic = truncate(
+    getErrorMessage(error, 'Unknown parser error')
+      .replace(/[\u0000-\u001f\u007f]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim() || 'Unknown parser error',
+    FILE_PARSER_DIAGNOSTIC_MAX_LENGTH,
+    ''
+  )
+  return new FileParserError(code, `${message}: ${diagnostic}`, error)
 }
 
 /**

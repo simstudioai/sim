@@ -44,6 +44,7 @@ vi.mock('@/lib/knowledge/documents/document-processor', () => ({
 }))
 
 vi.mock('@/lib/knowledge/embedding-models', () => ({
+  EMBEDDING_DIMENSIONS: 1536,
   getEmbeddingModelInfo: vi.fn(() => ({ tokenizerProvider: 'openai' })),
 }))
 
@@ -471,7 +472,10 @@ describe('processDocumentAsync write guards', () => {
     const completion = dbChainMockFns.set.mock.calls.find(
       (call) => (call[0] as Record<string, unknown> | undefined)?.processingStatus === 'completed'
     )
-    expect(completion?.[0]).toMatchObject({ processingQueueToken: null })
+    expect(completion?.[0]).toMatchObject({
+      processingQueueToken: null,
+      processingQueuedAt: null,
+    })
   })
 
   it('does not process or bill a document it failed to claim', async () => {

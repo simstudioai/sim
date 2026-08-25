@@ -308,6 +308,16 @@ export async function readResponseToBufferWithLimit(
   },
   options: ReadResponseWithLimitOptions
 ): Promise<Buffer> {
+  const isSemanticallyBodyless =
+    response.status === 204 ||
+    response.status === 205 ||
+    response.status === 304 ||
+    options.requestMethod?.toUpperCase() === 'HEAD'
+  if (isSemanticallyBodyless) {
+    await response.body?.cancel().catch(() => {})
+    return Buffer.alloc(0)
+  }
+
   const contentLength = getContentLength(response.headers ?? options.headers)
   try {
     if (contentLength !== null) {
@@ -318,13 +328,6 @@ export async function readResponseToBufferWithLimit(
       await response.body?.cancel(error).catch(() => {})
     }
     throw error
-  }
-  const isSemanticallyBodyless =
-    response.status === 204 ||
-    response.status === 205 ||
-    options.requestMethod?.toUpperCase() === 'HEAD'
-  if (!response.body && isSemanticallyBodyless) {
-    return Buffer.alloc(0)
   }
   if (!options.allowNoBodyFallback && !response.body && contentLength === null) {
     throw new PayloadSizeLimitError({

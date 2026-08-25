@@ -108,6 +108,9 @@ const BATCH_TOKEN_TARGET = 8192
  */
 export const MAX_EMBEDDING_SUCCESS_RESPONSE_BYTES = 16 * 1024 * 1024
 
+/** Bounds vectors retained across batches, aligned with the app's 100 MiB response ceiling. */
+export const MAX_EMBEDDING_AGGREGATE_RESPONSE_BYTES = 100 * 1024 * 1024
+
 /** Leaves room for the provider envelope, usage metadata, indices, and delimiters. */
 const EMBEDDING_RESPONSE_ENVELOPE_RESERVE_BYTES = 64 * 1024
 
@@ -154,6 +157,15 @@ class EmbeddingResponseValidationError extends EmbeddingAPIError {
   constructor(message: string) {
     super(`Embedding API returned an invalid success response: ${message}`, 502)
     this.name = 'EmbeddingResponseValidationError'
+  }
+}
+
+export class EmbeddingOutputLimitError extends Error {
+  constructor(itemCount: number, dimensions: number, estimatedBytes: number) {
+    super(
+      `Embedding output for ${itemCount} inputs at ${dimensions} dimensions is estimated at ${estimatedBytes} bytes, exceeding the safe aggregate limit of ${MAX_EMBEDDING_AGGREGATE_RESPONSE_BYTES} bytes`
+    )
+    this.name = 'EmbeddingOutputLimitError'
   }
 }
 
@@ -607,6 +619,7 @@ async function embedWithProvider(
   requestedDimensions: number | undefined,
   provider: ResolvedProvider
 ): Promise<EmbedResult> {
+  assertEmbeddingAggregateResponseWithinLimit(boundedInputs.length, provider.dimensions)
   const batches = createEmbeddingBatches(
     boundedInputs,
     model,
@@ -704,6 +717,26 @@ function createEmbeddingBatches(
     : tokenBatches
 }
 
+function assertEmbeddingAggregateResponseWithinLimit(itemCount: number, dimensions: number): void {
+  if (itemCount <= getEmbeddingAggregateItemLimit(dimensions)) return
+
+  const estimatedBytes =
+    EMBEDDING_RESPONSE_ENVELOPE_RESERVE_BYTES +
+    itemCount *
+      (dimensions * EMBEDDING_RESPONSE_BYTES_PER_DIMENSION + EMBEDDING_RESPONSE_BYTES_PER_ITEM)
+  throw new EmbeddingOutputLimitError(itemCount, dimensions, estimatedBytes)
+}
+
+export function getEmbeddingAggregateItemLimit(dimensions: number): number {
+  if (!Number.isInteger(dimensions) || dimensions <= 0) {
+    throw new Error('Embedding dimensions must be a positive integer')
+  }
+  return Math.floor(
+    (MAX_EMBEDDING_AGGREGATE_RESPONSE_BYTES - EMBEDDING_RESPONSE_ENVELOPE_RESERVE_BYTES) /
+      (dimensions * EMBEDDING_RESPONSE_BYTES_PER_DIMENSION + EMBEDDING_RESPONSE_BYTES_PER_ITEM)
+  )
+}
+
 function combineEmbeddingBatches(
   batchResults: readonly { embeddings: number[][]; totalTokens: number; dimensions: number }[]
 ): { embeddings: number[][]; totalTokens: number; dimensions: number | undefined } {
@@ -766,14 +799,10 @@ export async function embedOpenRouter(
     nativeDimensions: options.dimensions ?? 0,
   })
   const quotaCircuitIdentity = createEmbeddingQuotaCircuitIdentity('openrouter', options.apiKey)
-  const batches = createEmbeddingBatches(
-    boundedInputs,
-    model,
-    limits,
-    adapter.maxItemsPerRequest,
-    options.dimensions
-  )
-  const batchResults = await mapWithConcurrency(batches, MAX_CONCURRENT_BATCHES, async (batch) =>
+  const callOpenRouterBatch = (
+    batch: string[],
+    expectedDimensions: number | undefined
+  ): Promise<{ embeddings: number[][]; totalTokens: number; dimensions: number }> =>
     callEmbeddingAPI(
       batch,
       adapter,
@@ -782,9 +811,41 @@ export async function embedOpenRouter(
       'openrouter',
       quotaCircuitIdentity,
       options.dimensions,
+      expectedDimensions
+    )
+
+  let batchResults: { embeddings: number[][]; totalTokens: number; dimensions: number }[]
+  if (options.dimensions === undefined) {
+    const firstInput = boundedInputs[0]
+    if (firstInput === undefined) {
+      throw new EmbeddingResponseValidationError('the response did not contain any vectors')
+    }
+    const firstResult = await callOpenRouterBatch([firstInput], undefined)
+    assertEmbeddingAggregateResponseWithinLimit(boundedInputs.length, firstResult.dimensions)
+    const batches = createEmbeddingBatches(
+      boundedInputs.slice(1),
+      model,
+      limits,
+      adapter.maxItemsPerRequest,
+      firstResult.dimensions
+    )
+    const remainingResults = await mapWithConcurrency(batches, MAX_CONCURRENT_BATCHES, (batch) =>
+      callOpenRouterBatch(batch, firstResult.dimensions)
+    )
+    batchResults = [firstResult, ...remainingResults]
+  } else {
+    assertEmbeddingAggregateResponseWithinLimit(boundedInputs.length, options.dimensions)
+    const batches = createEmbeddingBatches(
+      boundedInputs,
+      model,
+      limits,
+      adapter.maxItemsPerRequest,
       options.dimensions
     )
-  )
+    batchResults = await mapWithConcurrency(batches, MAX_CONCURRENT_BATCHES, (batch) =>
+      callOpenRouterBatch(batch, options.dimensions)
+    )
+  }
   const result = combineEmbeddingBatches(batchResults)
 
   const dimensions = result.dimensions
@@ -823,6 +884,7 @@ export async function embedKnowledgeForDeployment(
   }
 
   const dimensions = resolveDimensions(info, options.dimensions)
+  assertEmbeddingAggregateResponseWithinLimit(texts.length, dimensions)
   const taskType = options.taskType ?? 'document'
   const boundedInputs = prepareEmbeddingInputs(
     texts,

@@ -761,6 +761,72 @@ describe('persistSkippedDocuments', () => {
   })
 })
 
+describe('persistSkippedRetryHashes', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('updates only the retry hash for a last-known-good connector document', async () => {
+    const { classifyExternalDoc, persistSkippedRetryHashes } = await import(
+      '@/lib/knowledge/connectors/sync-engine'
+    )
+    queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'doc-1' }])
+
+    await expect(
+      persistSkippedRetryHashes('kb-1', 'connector-1', [
+        {
+          existingId: 'doc-1',
+          externalId: 'page-1',
+          contentHash: 'notion:retry:v1:page-1',
+        },
+      ])
+    ).resolves.toEqual([])
+
+    expect(dbChainMockFns.set).toHaveBeenCalledOnce()
+    expect(dbChainMockFns.set).toHaveBeenCalledWith({
+      contentHash: 'notion:retry:v1:page-1',
+    })
+    expect(dbChainMockFns.delete).not.toHaveBeenCalled()
+    expect(
+      classifyExternalDoc(
+        {
+          content: '',
+          contentDeferred: true,
+          contentHash: 'notion:v3:page-1:unchanged',
+        },
+        { id: 'doc-1', contentHash: 'notion:retry:v1:page-1' }
+      )
+    ).toEqual({ type: 'update', existingId: 'doc-1' })
+  })
+
+  it('commits live retry hashes when another document is no longer a connector target', async () => {
+    const { persistSkippedRetryHashes } = await import('@/lib/knowledge/connectors/sync-engine')
+    queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'live-doc' }]).mockResolvedValueOnce([])
+
+    await expect(
+      persistSkippedRetryHashes('kb-1', 'connector-1', [
+        {
+          existingId: 'live-doc',
+          externalId: 'live-page',
+          contentHash: 'notion:retry:v1:live-page',
+        },
+        {
+          existingId: 'detached-doc',
+          externalId: 'detached-page',
+          contentHash: 'notion:retry:v1:detached-page',
+        },
+      ])
+    ).resolves.toEqual(['detached-page'])
+
+    expect(dbChainMockFns.set).toHaveBeenCalledWith({
+      contentHash: 'notion:retry:v1:live-page',
+    })
+  })
+})
+
 describe('chunkOpsByByteBudget', () => {
   const MB = 1024 * 1024
   const addOp = (sizeBytes?: number) => ({
@@ -1245,6 +1311,25 @@ describe('mergeHydratedSkippedDocument', () => {
         duration: 45,
       },
     })
+  })
+
+  it('persists an explicit connector retry hash for a skipped hydration', () => {
+    const listed: ExternalDocument = {
+      externalId: 'page-1',
+      title: 'Restricted page',
+      content: '',
+      contentDeferred: true,
+      mimeType: 'text/markdown',
+      contentHash: 'notion:v3:page-1:unchanged',
+    }
+    const skipped: ExternalDocument = {
+      ...listed,
+      contentDeferred: false,
+      skippedReason: 'Nested block is inaccessible',
+      skippedRetryContentHash: 'notion:retry:v1:page-1',
+    }
+
+    expect(mergeHydratedSkippedDocument(listed, skipped).contentHash).toBe('notion:retry:v1:page-1')
   })
 })
 

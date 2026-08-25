@@ -220,11 +220,11 @@ describe('stream limits', () => {
     expect(explicitlyBounded).toBe('hello')
   })
 
-  it.each([204, 205])('accepts a semantically bodyless HTTP %i response', async (status) => {
+  it.each([204, 205, 304])('accepts a semantically bodyless HTTP %i response', async (status) => {
     const text = vi.fn(async () => 'must not be materialized')
 
     const result = await readResponseTextWithLimit(
-      { status, body: null, text },
+      { status, headers: headers('1000'), body: null, text },
       { maxBytes: 100, label: 'bodyless response' }
     )
 
@@ -236,7 +236,7 @@ describe('stream limits', () => {
     const text = vi.fn(async () => 'must not be materialized')
 
     const result = await readResponseTextWithLimit(
-      { status: 200, body: null, text },
+      { status: 200, headers: headers('1000'), body: null, text },
       { maxBytes: 100, label: 'HEAD response', requestMethod: 'HEAD' }
     )
 

@@ -4,6 +4,8 @@ import { readBodyWithLimit } from '@/connectors/utils'
 
 const GOOGLE_ERROR_BODY_MAX_BYTES = 64 * 1024
 const GOOGLE_ERROR_MESSAGE_MAX_LENGTH = 500
+const GOOGLE_ERROR_REASON_MAX_COUNT = 16
+const GOOGLE_ERROR_REASON_MAX_LENGTH = 100
 
 const EXPORT_TOO_LARGE_REASONS = new Set(['exportSizeLimitExceeded'])
 const PERMISSION_REASONS = new Set([
@@ -87,6 +89,15 @@ function normalizeMessage(message: string | undefined): string | undefined {
     : undefined
 }
 
+function normalizeReason(reason: string): string | undefined {
+  const singleLine = reason
+    .replace(/[\u0000-\u001f\u007f]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  if (!singleLine) return undefined
+  return truncate(redactSensitiveValues(singleLine), GOOGLE_ERROR_REASON_MAX_LENGTH, '')
+}
+
 function classifyGoogleDriveError(
   status: number,
   reasons: readonly string[]
@@ -139,7 +150,11 @@ export async function readGoogleDriveApiError(response: Response): Promise<Googl
   }
 
   const entries = parsedBody?.error?.errors ?? []
-  const reasons = [...new Set(entries.flatMap((entry) => (entry.reason ? [entry.reason] : [])))]
+  const rawReasons = [...new Set(entries.flatMap((entry) => (entry.reason ? [entry.reason] : [])))]
+  const reasons = [...new Set(rawReasons.flatMap((reason) => normalizeReason(reason) ?? []))].slice(
+    0,
+    GOOGLE_ERROR_REASON_MAX_COUNT
+  )
   const providerMessage = normalizeMessage(
     parsedBody?.error?.message ?? entries.find((entry) => entry.message)?.message
   )
@@ -147,7 +162,7 @@ export async function readGoogleDriveApiError(response: Response): Promise<Googl
   return new GoogleDriveApiError(
     response.status,
     reasons,
-    classifyGoogleDriveError(response.status, reasons),
+    classifyGoogleDriveError(response.status, rawReasons),
     providerMessage
   )
 }

@@ -8,6 +8,7 @@ vi.mock('@/lib/knowledge/embeddings', () => ({
   getConfiguredEmbeddingModel: vi.fn(() => 'test-model'),
 }))
 
+import { ChunkLimitExceededError } from '@/lib/chunkers/chunk-budget'
 import { DocsChunker } from '@/lib/chunkers/docs-chunker'
 
 function cleanContent(content: string): string {
@@ -127,5 +128,17 @@ describe('cleanContent scaffolding strips', () => {
     expect(cleaned).not.toContain('props.title')
     expect(cleaned).toContain('Visible prose')
     expect(cleaned).toContain('Inside text stays')
+  })
+})
+
+describe('DocsChunker output budget', () => {
+  it('enforces maxChunks after oversized chunks are split into final chunks', () => {
+    const chunker = new DocsChunker({ chunkSize: 30, maxChunks: 1 })
+    const enforceSizeLimit = (
+      chunker as unknown as { enforceSizeLimit(chunks: string[]): string[] }
+    ).enforceSizeLimit.bind(chunker)
+    const longLine = 'a'.repeat(120)
+
+    expect(() => enforceSizeLimit([`${longLine}\n${longLine}`])).toThrow(ChunkLimitExceededError)
   })
 })

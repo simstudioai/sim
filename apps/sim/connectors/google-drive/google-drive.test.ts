@@ -106,6 +106,31 @@ describe('Google Drive API error parsing', () => {
     expect(error.providerMessage).not.toContain('private-token')
     expect(error.message).not.toContain('private-token')
   })
+
+  it('bounds and redacts provider reasons without losing classification', async () => {
+    const secret = 'sk-provider-controlled-secret-value'
+    const reasons = [
+      ...Array.from({ length: 20 }, (_, index) => `${index}-${secret}-${'x'.repeat(200)}`),
+      'quotaExceeded',
+    ]
+    const error = await readGoogleDriveApiError(
+      jsonResponse(
+        {
+          error: {
+            errors: reasons.map((reason) => ({ reason })),
+            message: 'Provider message',
+          },
+        },
+        403
+      )
+    )
+
+    expect(error.kind).toBe('quota')
+    expect(error.reasons).toHaveLength(16)
+    expect(error.reasons.every((reason) => reason.length <= 100)).toBe(true)
+    expect(JSON.stringify(error.reasons)).not.toContain(secret)
+    expect(error.message).not.toContain(secret)
+  })
 })
 
 describe('Google Drive export failures', () => {

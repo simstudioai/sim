@@ -34,8 +34,10 @@ function getRequestCredentialValues(options: SecureFetchOptions): string[] {
     if (/^Basic\s+/i.test(value)) {
       const decoded = Buffer.from(value.slice(schemeSeparator + 1), 'base64').toString('utf8')
       values.push(decoded)
-      const credentialSeparator = decoded.lastIndexOf(':')
-      if (credentialSeparator >= 0) values.push(decoded.slice(credentialSeparator + 1))
+      const credentialSeparator = decoded.indexOf(':')
+      if (credentialSeparator >= 0) {
+        values.push(decoded.slice(0, credentialSeparator), decoded.slice(credentialSeparator + 1))
+      }
     }
   }
   return values

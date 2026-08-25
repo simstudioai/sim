@@ -82,8 +82,8 @@ describe('XlsxParser preview bound', () => {
   })
 
   it('hard-caps rendered content and bounds sampled metadata independently', async () => {
-    const repeatedCell = 'x'.repeat(1050)
-    const rows = Array.from({ length: 45 }, () => Array.from({ length: 256 }, () => repeatedCell))
+    const repeatedCell = 'x'.repeat(500)
+    const rows = Array.from({ length: 100 }, () => Array.from({ length: 256 }, () => repeatedCell))
     const sheet = XLSX.utils.aoa_to_sheet(rows)
     const book = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(book, sheet, 'Dense')
@@ -97,7 +97,7 @@ describe('XlsxParser preview bound', () => {
     expect(result.content.length).toBeLessThan(10 * 1024 * 1024 + 200)
     expect(sampledData.every((row) => row.length <= 32)).toBe(true)
     expect(sampledData.flat().every((value) => value.length <= 256)).toBe(true)
-    expect(sampledCharacters).toBeLessThanOrEqual(1024 * 1024)
+    expect(sampledCharacters).toBe(100 * 32 * 256)
   })
 
   it('still reports the workbook the sheet declares', async () => {

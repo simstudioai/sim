@@ -24,9 +24,12 @@ describe('embedding quota circuit', () => {
   const values = new Map<string, string>()
   const redis = {
     get: vi.fn(async (key: string) => values.get(key) ?? null),
-    set: vi.fn(async (key: string, value: string) => {
-      values.set(key, value)
-      return 'OK'
+    eval: vi.fn(async (_script: string, _keyCount: number, key: string, value: string) => {
+      const current = Number(values.get(key))
+      const proposed = Number(value)
+      const expiry = Number.isFinite(current) ? Math.max(current, proposed) : proposed
+      values.set(key, String(expiry))
+      return expiry
     }),
   }
 
@@ -59,15 +62,35 @@ describe('embedding quota circuit', () => {
     resetEmbeddingQuotaCircuitsForTesting()
 
     expect(await isEmbeddingQuotaCircuitOpen(identity, openedAt + 1)).toBe(true)
-    expect(redis.set).toHaveBeenCalledWith(
+    expect(redis.eval).toHaveBeenCalledWith(
+      expect.stringContaining("'PXAT'"),
+      1,
       expect.stringContaining('embedding-quota-circuit:openai:'),
-      String(openedAt + EMBEDDING_QUOTA_CIRCUIT_TTL_MS),
-      'PX',
-      EMBEDDING_QUOTA_CIRCUIT_TTL_MS
+      String(openedAt + EMBEDDING_QUOTA_CIRCUIT_TTL_MS)
     )
     expect(
       await isEmbeddingQuotaCircuitOpen(identity, openedAt + EMBEDDING_QUOTA_CIRCUIT_TTL_MS + 1)
     ).toBe(false)
+  })
+
+  it('does not shorten an existing expiry when an older observation completes later', async () => {
+    const identity = createEmbeddingQuotaCircuitIdentity('openai', 'sk-concurrent')
+    const olderObservation = 1_000_000
+    const newerObservation = olderObservation + 60_000
+
+    await openEmbeddingQuotaCircuit(identity, newerObservation)
+    await openEmbeddingQuotaCircuit(identity, olderObservation)
+    resetEmbeddingQuotaCircuitsForTesting()
+
+    expect(
+      await isEmbeddingQuotaCircuitOpen(
+        identity,
+        olderObservation + EMBEDDING_QUOTA_CIRCUIT_TTL_MS + 1
+      )
+    ).toBe(true)
+    expect([...values.values()]).toEqual([
+      String(newerObservation + EMBEDDING_QUOTA_CIRCUIT_TTL_MS),
+    ])
   })
 
   it('isolates different providers and credentials', async () => {

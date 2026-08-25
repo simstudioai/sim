@@ -181,12 +181,21 @@ describe('redactSensitiveValues', () => {
 
   it.concurrent('should redact form and percent-encoded OAuth credentials', () => {
     const input =
-      'refresh_token=secret-one&client_secret=secret-two refresh_token%3Dsecret-three%26scope%3Dx'
+      'refresh_token=secret-one&client_secret=secret-two&oauth_token=secret-three&client_password=secret-four oauth_token%3Dsecret-five%26client_password%3Dsecret-six%26scope%3Dx'
     const result = redactSensitiveValues(input)
 
     expect(result).not.toContain('secret-one')
     expect(result).not.toContain('secret-two')
     expect(result).not.toContain('secret-three')
+    expect(result).not.toContain('secret-four')
+    expect(result).not.toContain('secret-five')
+    expect(result).not.toContain('secret-six')
+  })
+
+  it.concurrent('preserves non-secret pagination tokens in form-encoded strings', () => {
+    const input = 'nextPageToken=page-one nextPageToken%3Dpage-two'
+
+    expect(redactSensitiveValues(input)).toBe(input)
   })
 
   it.concurrent('should redact exact secrets echoed in free-form text', () => {

@@ -14,6 +14,16 @@ export const EMBEDDING_QUOTA_CIRCUIT_TTL_MS = 5 * 60 * 1000
 
 const REDIS_KEY_PREFIX = 'embedding-quota-circuit:'
 const MAX_LOCAL_CIRCUITS = 1024
+const OPEN_QUOTA_CIRCUIT_SCRIPT = `
+local current = tonumber(redis.call('GET', KEYS[1]))
+local proposed = tonumber(ARGV[1])
+local expiry = proposed
+if current and current > proposed then
+  expiry = current
+end
+redis.call('SET', KEYS[1], tostring(expiry), 'PXAT', expiry)
+return expiry
+`
 
 export interface EmbeddingQuotaCircuitIdentity {
   readonly providerId: EmbeddingProviderKind
@@ -26,6 +36,11 @@ const localCircuits = new Map<string, number>()
 function writeLocalCircuit(key: string, expiresAt: number, now: number): void {
   for (const [candidateKey, candidateExpiry] of localCircuits) {
     if (candidateExpiry <= now) localCircuits.delete(candidateKey)
+  }
+  const currentExpiry = localCircuits.get(key)
+  if (currentExpiry !== undefined) {
+    localCircuits.set(key, Math.max(currentExpiry, expiresAt))
+    return
   }
   while (localCircuits.size >= MAX_LOCAL_CIRCUITS) {
     const oldestKey = localCircuits.keys().next().value
@@ -107,7 +122,7 @@ export async function openEmbeddingQuotaCircuit(
   try {
     const redis = getRedisClient()
     if (!redis) return
-    await redis.set(redisKey(identity), String(expiresAt), 'PX', EMBEDDING_QUOTA_CIRCUIT_TTL_MS)
+    await redis.eval(OPEN_QUOTA_CIRCUIT_SCRIPT, 1, redisKey(identity), String(expiresAt))
   } catch (error) {
     logger.warn('Failed to share embedding quota circuit; process-local circuit remains active', {
       providerId: identity.providerId,

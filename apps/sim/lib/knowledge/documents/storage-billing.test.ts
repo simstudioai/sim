@@ -472,12 +472,86 @@ describe('knowledge document storage attribution', () => {
       left: schemaMock.document.knowledgeBaseId,
       right: 'knowledge-base-1',
     })
+    expect(conditions).toContainEqual({
+      type: 'eq',
+      left: schemaMock.document.userExcluded,
+      right: false,
+    })
+    expect(conditions).toContainEqual({
+      type: 'isNull',
+      column: schemaMock.document.archivedAt,
+    })
+    expect(conditions).toContainEqual({
+      type: 'eq',
+      left: schemaMock.knowledgeConnector.id,
+      right: 'connector-1',
+    })
+    expect(conditions).toContainEqual({
+      type: 'eq',
+      left: schemaMock.knowledgeConnector.knowledgeBaseId,
+      right: 'knowledge-base-1',
+    })
+    expect(conditions).toContainEqual({
+      type: 'eq',
+      left: schemaMock.knowledgeConnector.status,
+      right: 'syncing',
+    })
+    expect(conditions).toContainEqual({
+      type: 'eq',
+      left: schemaMock.knowledgeConnector.syncLockToken,
+      right: 'sync-1',
+    })
+    expect(conditions).toContainEqual({
+      type: 'isNull',
+      column: schemaMock.knowledgeConnector.archivedAt,
+    })
+    expect(conditions).toContainEqual({
+      type: 'isNull',
+      column: schemaMock.knowledgeConnector.deletedAt,
+    })
+    expect(conditions).toContainEqual({
+      type: 'isNull',
+      column: schemaMock.knowledgeBase.deletedAt,
+    })
     expect(conditions).not.toContainEqual({
       type: 'isNull',
       column: schemaMock.document.deletedAt,
     })
     expect(dbChainMockFns.for).toHaveBeenCalledTimes(3)
     expect(dbChainMockFns.for).toHaveBeenLastCalledWith('update')
+  })
+
+  it('does not delete a document detached from the connector before the locked recheck', async () => {
+    const connectorDocument = {
+      id: 'connector-doc',
+      knowledgeBaseId: 'knowledge-base-1',
+      fileUrl: 'data:text/plain;base64,QQ==',
+      fileSize: 500,
+      uploadedBy: null,
+      connectorId: 'connector-1',
+      workspaceId: 'workspace-1',
+      kbUserId: 'knowledge-owner',
+    }
+    queueTableRows(schemaMock.document, [connectorDocument])
+    queueTableRows(schemaMock.knowledgeBase, [
+      { id: 'knowledge-base-1', workspaceId: 'workspace-1', userId: 'knowledge-owner' },
+    ])
+    queueTableRows(schemaMock.knowledgeConnector, [{ id: 'connector-1' }])
+    queueTableRows(schemaMock.document, [])
+    dbChainMockFns.returning.mockResolvedValueOnce([])
+
+    await expect(
+      hardDeleteDocuments(['connector-doc'], 'request-1', undefined, undefined, {
+        connectorId: 'connector-1',
+        knowledgeBaseId: 'knowledge-base-1',
+        syncLockToken: 'sync-1',
+      })
+    ).resolves.toBe(0)
+
+    expect(mockApplyStorageUsageDeltasInTx).toHaveBeenCalledWith(expect.anything(), {
+      workspaceDeltas: [],
+      legacyDeltas: [],
+    })
   })
 
   it('splits hard deletion into bounded 250-document transactions', async () => {

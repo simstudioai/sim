@@ -763,4 +763,26 @@ describe('secureFetchWithRetry', () => {
     expect(error?.message).toContain('[REDACTED]')
     expect(error?.message).not.toContain(accessToken)
   })
+
+  it('redacts both Basic-auth fields using the first colon as the separator', async () => {
+    const username = 'basic-user-private'
+    const password = 'basic-password:with:colons'
+    const authorization = `Basic ${Buffer.from(`${username}:${password}`).toString('base64')}`
+    mockSecureFetchWithValidation.mockResolvedValue(
+      new Response(`echo: ${username} / ${password}`, { status: 503 }) as never
+    )
+
+    const error = await secureFetchWithRetry(
+      'https://example.com/api',
+      { method: 'GET', headers: { Authorization: authorization } },
+      { ...FAST_RETRY, maxRetries: 0 }
+    ).then(
+      () => undefined,
+      (caught) => caught as Error
+    )
+
+    expect(error?.message).toContain('[REDACTED]')
+    expect(error?.message).not.toContain(username)
+    expect(error?.message).not.toContain(password)
+  })
 })

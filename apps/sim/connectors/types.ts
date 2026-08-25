@@ -56,6 +56,11 @@ export interface ExternalDocument {
   sourceUrl?: string
   /** Hash of content for change detection (format varies by connector) */
   contentHash: string
+  /**
+   * Connector-owned hash to persist for a skipped hydration that must be retried
+   * even when the source's listing metadata is unchanged.
+   */
+  skippedRetryContentHash?: string
   /** When true, content is empty and will be fetched via getDocument for new/changed docs only */
   contentDeferred?: boolean
   /**

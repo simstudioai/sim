@@ -61,7 +61,11 @@ import { getCostMultiplier, isTriggerDevEnabled } from '@/lib/core/config/env-fl
 import { isInsideTriggerRun } from '@/lib/core/config/trigger-runtime'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
-import { EMBEDDING_QUOTA_EXHAUSTED_MESSAGE, isEmbeddingQuotaExhaustion } from '@/lib/embeddings'
+import {
+  EMBEDDING_QUOTA_EXHAUSTED_MESSAGE,
+  getEmbeddingAggregateItemLimit,
+  isEmbeddingQuotaExhaustion,
+} from '@/lib/embeddings'
 import {
   type DurableSecretProvenance,
   durableSecretProvenanceFromRegistry,
@@ -99,7 +103,7 @@ import {
   QUEUED_DISPATCH_GRACE_MS,
   type SortOrder,
 } from '@/lib/knowledge/documents/types'
-import { getEmbeddingModelInfo } from '@/lib/knowledge/embedding-models'
+import { EMBEDDING_DIMENSIONS, getEmbeddingModelInfo } from '@/lib/knowledge/embedding-models'
 import { generateEmbeddings } from '@/lib/knowledge/embeddings'
 import { runWithKnowledgeModelInputProvenance } from '@/lib/knowledge/model-input-provenance'
 import {
@@ -295,7 +299,10 @@ const TIMEOUTS = {
 
 const LARGE_DOC_CONFIG = {
   MAX_CHUNKS_PER_BATCH: 500,
-  MAX_EMBEDDING_BATCH: envNumber(env.KB_CONFIG_BATCH_SIZE, 2000),
+  MAX_EMBEDDING_BATCH: Math.min(
+    envNumber(env.KB_CONFIG_BATCH_SIZE, 2000, { min: 1, integer: true }),
+    getEmbeddingAggregateItemLimit(EMBEDDING_DIMENSIONS)
+  ),
   MAX_FILE_SIZE: 100 * 1024 * 1024,
 }
 
@@ -1534,6 +1541,7 @@ export async function processDocumentAsync(
                 // from a full allowance rather than inheriting a stale count.
                 processingAttempts: 0,
                 processingQueueToken: null,
+                processingQueuedAt: null,
               })
               .where(
                 and(

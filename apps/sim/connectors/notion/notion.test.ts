@@ -139,7 +139,8 @@ describe('notion markdown hydration', () => {
     expect(document).toMatchObject({
       content: '',
       contentDeferred: false,
-      contentHash: 'notion:retry:v1:page-1',
+      contentHash: 'notion:v3:page-1:2026-08-02T00:00:00.000Z',
+      skippedRetryContentHash: 'notion:retry:v1:page-1',
       skippedReason:
         'Notion page contains blocks the connection cannot access and was not indexed completely',
     })
@@ -172,7 +173,8 @@ describe('notion markdown hydration', () => {
 
     expect(document).toMatchObject({
       content: '',
-      contentHash: 'notion:retry:v1:page-1',
+      contentHash: 'notion:v3:page-1:2026-08-02T00:00:00.000Z',
+      skippedRetryContentHash: 'notion:retry:v1:page-1',
       skippedReason:
         'Notion page contains blocks the connection cannot access and was not indexed completely',
     })

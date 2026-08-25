@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockAssertBillingAttributionSnapshot,
@@ -81,6 +81,10 @@ describe('knowledge processing worker', () => {
     mockProcessDocumentAsync.mockResolvedValue(undefined)
     mockResolveTriggerRegion.mockResolvedValue('us-east-1')
     mockTrigger.mockResolvedValue({ id: 'quota-continuation-run' })
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
   })
 
   it('rejects workspace work without attribution before document processing starts', async () => {

@@ -55,18 +55,18 @@ export class PptxParser implements FileParser {
         },
       }
     } catch (extractError) {
-      const isZipFile = buffer.length >= 2 && buffer[0] === 0x50 && buffer[1] === 0x4b
-      if (!isZipFile) {
-        logger.warn('officeparser failed for legacy PowerPoint, using fallback:', extractError)
-        return this.fallbackExtraction(buffer)
-      }
-
       if (isEncryptedOfficeParserError(extractError)) {
         throw new FileParserError(
           'encrypted_file',
           'This presentation is encrypted or password-protected',
           extractError
         )
+      }
+
+      const isZipFile = buffer.length >= 2 && buffer[0] === 0x50 && buffer[1] === 0x4b
+      if (!isZipFile) {
+        logger.warn('officeparser failed for legacy PowerPoint, using fallback:', extractError)
+        return this.fallbackExtraction(buffer)
       }
 
       throw new FileParserError(

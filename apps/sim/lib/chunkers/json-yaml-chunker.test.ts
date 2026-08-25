@@ -269,6 +269,17 @@ server:
 
       expect(chunks.length).toBeGreaterThan(0)
     })
+
+    it('should fall back to bounded text chunking when YAML traversal fails', async () => {
+      const chunker = new JsonYamlChunker({ chunkSize: 1000, minCharactersPerChunk: 1 })
+      const cyclicYaml = ['root: &root', '  value: readable', '  self: *root'].join('\n')
+
+      const chunks = await chunker.chunk(cyclicYaml)
+
+      expect(chunks).toHaveLength(1)
+      expect(chunks[0].text).toContain('&root')
+      expect(chunks[0].text).toContain('readable')
+    })
   })
 
   describe('large inputs', () => {

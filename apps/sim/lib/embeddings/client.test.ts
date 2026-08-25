@@ -7,6 +7,7 @@ import {
   clampEmbeddingConcurrency,
   EMBEDDING_MAX_RETRIES,
   EmbeddingAPIError,
+  EmbeddingOutputLimitError,
   EmbeddingQuotaExhaustedError,
   embed,
   embedKnowledgeForDeployment,
@@ -630,18 +631,17 @@ describe('embed', () => {
 
 describe('embedOpenRouter', () => {
   it('uses a dynamic model and reports the returned native dimensions', async () => {
-    fetchMock.mockResolvedValue(
-      jsonResponse(
+    fetchMock.mockImplementation(async (_url, init) => {
+      const body = JSON.parse((init as RequestInit).body as string)
+      const inputs = body.input as string[]
+      return jsonResponse(
         openAIBody(
-          [
-            [1, 2, 3],
-            [4, 5, 6],
-          ],
-          7,
+          inputs.map((input) => (input === 'alpha' ? [1, 2, 3] : [4, 5, 6])),
+          inputs[0] === 'alpha' ? 3 : 4,
           null
         )
       )
-    )
+    })
 
     const result = await embedOpenRouter(['alpha', 'beta'], {
       model: 'openrouter/qwen/qwen3-embedding-8b',
@@ -653,9 +653,13 @@ describe('embedOpenRouter', () => {
     const [url, init] = fetchMock.mock.calls[0]
     expect(url).toBe('https://openrouter.ai/api/v1/embeddings')
     expect(JSON.parse((init as RequestInit).body as string)).toMatchObject({
-      input: ['alpha', 'beta'],
+      input: ['alpha'],
       model: 'qwen/qwen3-embedding-8b',
     })
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(
+      JSON.parse((fetchMock.mock.calls[1][1] as RequestInit).body as string)
+    ).not.toHaveProperty('dimensions')
     expect(result).toMatchObject({
       embeddings: [
         [1, 2, 3],
@@ -677,22 +681,25 @@ describe('embedOpenRouter', () => {
         model: 'openrouter/qwen/qwen3-embedding-8b',
         apiKey: 'or-test',
         maxInputTokens: 32768,
+        dimensions: 2,
         projectInputs: null,
       })
     ).rejects.toThrow('returned 1 embeddings for 2 inputs')
   })
 
   it('fails when OpenRouter returns inconsistent vector dimensions', async () => {
-    fetchMock.mockResolvedValue(jsonResponse(openAIBody([[1, 2], [3]], 5, null)))
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(openAIBody([[1, 2]], 1, null)))
+      .mockResolvedValueOnce(jsonResponse(openAIBody([[3, 4], [5]], 2, null)))
 
     await expect(
-      embedOpenRouter(['alpha', 'beta'], {
+      embedOpenRouter(['alpha', 'beta', 'gamma'], {
         model: 'openrouter/qwen/qwen3-embedding-8b',
         apiKey: 'or-test',
         maxInputTokens: 32768,
         projectInputs: null,
       })
-    ).rejects.toThrow('inconsistent dimensions')
+    ).rejects.toThrow('vector 1 has 1 unexpected dimensions; expected 2')
   })
 
   it('fails when OpenRouter violates an explicitly requested dimension', async () => {
@@ -710,7 +717,7 @@ describe('embedOpenRouter', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
-  it('rejects inconsistent dimensions across concurrent dynamic-model batches', async () => {
+  it('rejects a dynamic-model batch that differs from the learned dimension', async () => {
     const inputs = Array.from({ length: 2049 }, (_, index) => `i${index}`)
     fetchMock.mockImplementation(async (_url, init) => {
       const body = JSON.parse((init as RequestInit).body as string)
@@ -732,7 +739,7 @@ describe('embedOpenRouter', () => {
         maxInputTokens: 32768,
         projectInputs: null,
       })
-    ).rejects.toThrow('concurrent batches returned inconsistent dimensions (2 and 3)')
+    ).rejects.toThrow('vector 0 has 2 unexpected dimensions; expected 3')
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
@@ -802,6 +809,75 @@ describe('embedOpenRouter', () => {
     expect(result.embeddings[0]).toEqual([0])
     expect(result.embeddings[2048]).toEqual([2048])
   })
+
+  it('learns a dynamic model dimension before response-safe batching', async () => {
+    const dimensions = 32_768
+    const inputs = Array.from({ length: 17 }, (_, index) => `i${index}`)
+    fetchMock.mockImplementation(async (_url, init) => {
+      const body = JSON.parse((init as RequestInit).body as string)
+      const batch = body.input as string[]
+      return jsonResponse(
+        openAIBody(
+          batch.map((input) => sizedVector([Number(input.slice(1))], dimensions)),
+          batch.length,
+          null
+        )
+      )
+    })
+
+    const result = await embedOpenRouter(inputs, {
+      model: 'openrouter/example/high-dimensional-model',
+      apiKey: 'or-test',
+      maxInputTokens: 32768,
+      projectInputs: null,
+    })
+
+    expect(
+      fetchMock.mock.calls
+        .map(([, init]) => JSON.parse((init as RequestInit).body as string).input.length)
+        .sort((a, b) => a - b)
+    ).toEqual([1, 1, 15])
+    expect(result.dimensions).toBe(dimensions)
+    expect(result.embeddings.map(([first]) => first)).toEqual(
+      Array.from({ length: 17 }, (_, index) => index)
+    )
+  })
+
+  it('rejects an oversized dynamic aggregate after discovery and before fan-out', async () => {
+    const dimensions = 32_768
+    fetchMock.mockResolvedValue(jsonResponse(openAIBody([sizedVector([1], dimensions)], 1, null)))
+
+    await expect(
+      embedOpenRouter(
+        Array.from({ length: 100 }, (_, index) => `i${index}`),
+        {
+          model: 'openrouter/example/high-dimensional-model',
+          apiKey: 'or-test',
+          maxInputTokens: 32768,
+          projectInputs: null,
+        }
+      )
+    ).rejects.toThrow('Embedding output')
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('rejects an oversized explicit-dimension aggregate before making a request', async () => {
+    await expect(
+      embedOpenRouter(
+        Array.from({ length: 1000 }, (_, index) => `i${index}`),
+        {
+          model: 'openrouter/example/high-dimensional-model',
+          apiKey: 'or-test',
+          maxInputTokens: 32768,
+          dimensions: 4096,
+          projectInputs: null,
+        }
+      )
+    ).rejects.toThrow('Embedding output')
+
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
 })
 
 describe('embedding concurrency admission', () => {
@@ -845,6 +921,18 @@ describe('knowledge embedding transport fallback', () => {
     })
     expect(result.embeddings[0].slice(0, 2)).toEqual([1, 2])
     expect(result.embeddings[0]).toHaveLength(1536)
+  })
+
+  it('rejects aggregate output above the safe limit before selecting a transport', async () => {
+    setEnv({ OPENROUTER_API_KEY: 'or-test' })
+    const texts = Array.from({ length: 5000 }, (_, index) => `input-${index}`)
+    const projectInputs = vi.fn((inputs: string[]) => inputs)
+
+    await expect(
+      embedKnowledgeForDeployment(texts, { ...options, projectInputs }, false)
+    ).rejects.toBeInstanceOf(EmbeddingOutputLimitError)
+    expect(projectInputs).not.toHaveBeenCalled()
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 
   it('keeps the original OpenAI path when OpenRouter is not configured', async () => {

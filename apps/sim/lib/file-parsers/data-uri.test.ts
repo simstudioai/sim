@@ -22,6 +22,18 @@ describe('decodeDataUriWithinLimit', () => {
     expect(decoded.buffer.toString('utf8')).toBe('hi')
   })
 
+  it('accepts percent-escaped base64 bytes before validating padding', () => {
+    const decoded = decodeDataUriWithinLimit('data:text/plain;base64,aGk%3D', 2)
+
+    expect(decoded.buffer.toString('utf8')).toBe('hi')
+  })
+
+  it('rejects malformed percent escapes in a base64 payload', () => {
+    expect(() => decodeDataUriWithinLimit('data:text/plain;base64,aGk%ZZ', 2)).toThrowError(
+      expect.objectContaining({ code: 'invalid_format' })
+    )
+  })
+
   it('accepts a base64 payload at the encoded boundary, including whitespace', () => {
     const payload = Buffer.from('12345').toString('base64')
     const decoded = decodeDataUriWithinLimit(

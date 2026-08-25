@@ -130,6 +130,7 @@ function isRetryableFirefliesError(error: unknown): boolean {
   if (error instanceof FirefliesMalformedResponseError) return true
   if (error instanceof FirefliesApiError) {
     return (
+      (error.status !== undefined && error.status >= 500 && error.status <= 599) ||
       Boolean(error.code && FIREFLIES_RETRYABLE_ERROR_CODES.has(error.code)) ||
       isRetryableError(error)
     )

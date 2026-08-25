@@ -11,9 +11,11 @@ export {
 } from '@/lib/embeddings/catalog'
 export {
   EMBEDDING_QUOTA_EXHAUSTED_MESSAGE,
+  EmbeddingOutputLimitError,
   embed,
   embedKnowledge,
   embedOpenRouter,
+  getEmbeddingAggregateItemLimit,
   isEmbeddingQuotaExhaustion,
 } from '@/lib/embeddings/client'
 export { DEFAULT_OPENROUTER_EMBEDDING_MODEL } from '@/lib/embeddings/openrouter-models'

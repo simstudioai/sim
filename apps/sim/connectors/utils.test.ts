@@ -1189,10 +1189,13 @@ describe('readBodyWithLimit', () => {
 
   it('returns null as soon as the streamed cap is exceeded', async () => {
     const chunk = new Uint8Array(1024).fill(65)
-    // Cap is 2048; the third 1KB chunk pushes the total to 3072 and trips the cap,
-    // so the remaining body is never buffered into memory.
-    const result = await readBodyWithLimit(streamResponse([chunk, chunk, chunk]), 2048)
+    const onCancel = vi.fn()
+    const result = await readBodyWithLimit(
+      streamResponse([chunk, chunk, chunk, chunk], onCancel),
+      2048
+    )
     expect(result).toBeNull()
+    expect(onCancel).toHaveBeenCalledOnce()
   })
 
   it('does not materialize a bodyless response whose size is unknown', async () => {

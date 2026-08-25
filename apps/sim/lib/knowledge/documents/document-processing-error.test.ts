@@ -79,6 +79,22 @@ describe('document processing failure taxonomy', () => {
     expect(toPermanentDocumentProcessingError(error, 'Contract.doc')).toBe(error)
   })
 
+  it.each(['Contract.doc', 'Budget.xls', 'Deck.ppt'])(
+    'classifies an unreadable legacy Office file as repairable: %s',
+    (filename) => {
+      const failure = classifyDocumentProcessingFailure(
+        new FileParserError('invalid_format', 'The legacy Office file could not be parsed'),
+        filename
+      )
+
+      expect(failure).toMatchObject({
+        disposition: 'permanent',
+        code: 'unreadable_office_file',
+        userMessage: expect.stringContaining('re-save'),
+      })
+    }
+  )
+
   it.each<{
     parserCode: FileParserErrorCode
     filename: string
