@@ -4,6 +4,24 @@ import {
   type LargeValueRef,
 } from '@/lib/execution/payloads/large-value-ref'
 
+/**
+ * In-memory retention for large execution values. Durable storage is the
+ * source of truth — every recoverable entry also exists in object storage and
+ * transparently re-fetches through the async materialize path on a miss — so
+ * this layer is an accelerator plus one deliberate exception: an entry whose
+ * durable persist failed (`recoverable: false`) is the value's ONLY copy, and
+ * pressure eviction must never remove it (losing it fails the execution that
+ * stored it; expiry is its only exit).
+ *
+ * Lifetimes are IDLE TTLs, not absolute: every successful read refreshes the
+ * entry and moves it to the back of the eviction order, so a value a live run
+ * keeps referencing cannot expire mid-use, and pressure eviction always takes
+ * the least-recently-used recoverable entry. The TTL must comfortably outlive
+ * the gap between an execution's warm pass (`warmLargeValueRefs`, which runs
+ * ONCE at execution start over the resumed snapshot) and that value's first
+ * sync reference during the run — shorten it only if the warm becomes
+ * per-block.
+ */
 const FALLBACK_TTL_MS = 15 * 60 * 1000
 const MAX_IN_MEMORY_BYTES = 256 * 1024 * 1024
 const SWEEP_INTERVAL_MS = 60 * 1000
@@ -169,6 +187,14 @@ export function materializeLargeValueRefSync(
   if (!cached || !scopeMatchesRef(ref, cached.scope, callerScope)) {
     return undefined
   }
+  // Idle-TTL touch on every authorized read: refresh expiry and move the entry
+  // to the back of the eviction order. A value a live run keeps referencing can
+  // therefore never expire or be pressure-evicted mid-use — expiry and eviction
+  // only ever take entries nothing has read for a full TTL. Touching must stay
+  // behind the scope check so an unauthorized probe cannot extend a lifetime.
+  cached.expiresAt = Date.now() + FALLBACK_TTL_MS
+  inMemoryValues.delete(ref.id)
+  inMemoryValues.set(ref.id, cached)
   return cached.value
 }
 

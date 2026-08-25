@@ -6,7 +6,26 @@ import {
   cacheLargeValue,
   clearLargeValueCacheForTests,
   getLargeValueCacheStats,
+  materializeLargeValueRefSync,
 } from '@/lib/execution/payloads/cache'
+import {
+  LARGE_VALUE_REF_VERSION,
+  type LargeValueRef,
+} from '@/lib/execution/payloads/large-value-ref'
+
+const MB = 1024 * 1024
+const SCOPE = { executionId: 'exec-1' }
+
+function makeRef(id: string, size: number): LargeValueRef {
+  return {
+    __simLargeValueRef: true,
+    version: LARGE_VALUE_REF_VERSION,
+    id,
+    kind: 'object',
+    size,
+    executionId: 'exec-1',
+  }
+}
 
 describe('large value cache sweep', () => {
   beforeEach(() => {
@@ -47,5 +66,68 @@ describe('large value cache sweep', () => {
     vi.advanceTimersByTime(5 * 60 * 1000)
 
     expect(getLargeValueCacheStats()).toEqual({ entries: 1, trackedBytes: 16 })
+  })
+})
+
+describe('large value cache retention policy', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    clearLargeValueCacheForTests()
+  })
+
+  afterEach(() => {
+    clearLargeValueCacheForTests()
+    vi.useRealTimers()
+  })
+
+  it('refreshes the idle TTL on every read so in-use values outlive the absolute window', () => {
+    cacheLargeValue('lv_touchedvalue', { data: 'v' }, 32, SCOPE)
+
+    vi.advanceTimersByTime(10 * 60 * 1000)
+    expect(materializeLargeValueRefSync(makeRef('lv_touchedvalue', 32), SCOPE)).toEqual({
+      data: 'v',
+    })
+
+    vi.advanceTimersByTime(10 * 60 * 1000)
+    expect(materializeLargeValueRefSync(makeRef('lv_touchedvalue', 32), SCOPE)).toEqual({
+      data: 'v',
+    })
+
+    vi.advanceTimersByTime(16 * 60 * 1000)
+    expect(materializeLargeValueRefSync(makeRef('lv_touchedvalue', 32), SCOPE)).toBeUndefined()
+  })
+
+  it('pressure-evicts the least-recently-read recoverable entry, not the oldest-inserted', () => {
+    cacheLargeValue('lv_aaaaaaaaaaaa', { name: 'a' }, 120 * MB, SCOPE, { recoverable: true })
+    cacheLargeValue('lv_bbbbbbbbbbbb', { name: 'b' }, 120 * MB, SCOPE, { recoverable: true })
+
+    expect(materializeLargeValueRefSync(makeRef('lv_aaaaaaaaaaaa', 120 * MB), SCOPE)).toEqual({
+      name: 'a',
+    })
+
+    expect(
+      cacheLargeValue('lv_cccccccccccc', { name: 'c' }, 60 * MB, SCOPE, { recoverable: true })
+    ).toBe(true)
+
+    expect(materializeLargeValueRefSync(makeRef('lv_aaaaaaaaaaaa', 120 * MB), SCOPE)).toEqual({
+      name: 'a',
+    })
+    expect(
+      materializeLargeValueRefSync(makeRef('lv_bbbbbbbbbbbb', 120 * MB), SCOPE)
+    ).toBeUndefined()
+    expect(getLargeValueCacheStats()).toEqual({ entries: 2, trackedBytes: 180 * MB })
+  })
+
+  it('never pressure-evicts a sole-copy entry; admission fails instead', () => {
+    cacheLargeValue('lv_nnnnnnnnnnnn', { name: 'sole-copy' }, 200 * MB, SCOPE)
+
+    expect(
+      cacheLargeValue('lv_rrrrrrrrrrrr', { name: 'r' }, 100 * MB, SCOPE, { recoverable: true })
+    ).toBe(false)
+
+    expect(materializeLargeValueRefSync(makeRef('lv_nnnnnnnnnnnn', 200 * MB), SCOPE)).toEqual({
+      name: 'sole-copy',
+    })
+    expect(getLargeValueCacheStats()).toEqual({ entries: 1, trackedBytes: 200 * MB })
   })
 })
