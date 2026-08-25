@@ -71,7 +71,6 @@ export interface ToolCatalogEntry {
     | 'load_deployment'
     | 'load_integration_tool'
     | 'load_skill'
-    | 'load_slide_layout'
     | 'manage_credential'
     | 'manage_custom_tool'
     | 'manage_knowledge_base'
@@ -200,7 +199,6 @@ export interface ToolCatalogEntry {
     | 'load_deployment'
     | 'load_integration_tool'
     | 'load_skill'
-    | 'load_slide_layout'
     | 'manage_credential'
     | 'manage_custom_tool'
     | 'manage_knowledge_base'
@@ -3139,24 +3137,6 @@ export const LoadSkill: ToolCatalogEntry = {
         type: 'string',
         description:
           "Skill name exactly as it appears in the Loadable Skills index (e.g. 'pptx-writing').",
-      },
-    },
-    required: ['name'],
-  },
-}
-
-export const LoadSlideLayout: ToolCatalogEntry = {
-  id: 'load_slide_layout',
-  name: 'load_slide_layout',
-  route: 'go',
-  mode: 'sync',
-  parameters: {
-    type: 'object',
-    properties: {
-      name: {
-        type: 'string',
-        description:
-          "Layout name exactly as it appears in the Layout Library index (e.g. 'metric-cards').",
       },
     },
     required: ['name'],
@@ -7064,7 +7044,6 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [LoadDeployment.id]: LoadDeployment,
   [LoadIntegrationTool.id]: LoadIntegrationTool,
   [LoadSkill.id]: LoadSkill,
-  [LoadSlideLayout.id]: LoadSlideLayout,
   [ManageCredential.id]: ManageCredential,
   [ManageCustomTool.id]: ManageCustomTool,
   [ManageKnowledgeBase.id]: ManageKnowledgeBase,
