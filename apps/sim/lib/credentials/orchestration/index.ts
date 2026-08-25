@@ -11,7 +11,7 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, sql } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
-import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestration/types'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { decryptSecret } from '@/lib/core/security/encryption'
 import { listSlackCredentialGroupConfigurationsForBot } from '@/lib/credential-groups/provider-configuration'
 import {
@@ -45,7 +45,6 @@ import {
   SLACK_CUSTOM_BOT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_SECRET_TYPE,
 } from '@/lib/oauth/types'
-import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('CredentialOrchestration')
 type CredentialRow = typeof credential.$inferSelect
@@ -617,90 +616,4 @@ export async function deleteCredentialRecord(
     workspaceId: credentialRow.workspaceId,
     reason: params.reason,
   })
-}
-
-/** Preserves the legacy callers while application adapters migrate to the manager above. */
-export async function performDeleteCredential(
-  params: CredentialActorParams
-): Promise<PerformCredentialResult> {
-  try {
-    const access = await getCredentialActorContext(params.credentialId, params.userId)
-    if (!access.credential) {
-      return { success: false, error: 'Credential not found', errorCode: 'not_found' }
-    }
-    if (access.credential.type === 'managed_oauth') {
-      return { success: false, error: 'Credential not found', errorCode: 'not_found' }
-    }
-    if (!access.hasWorkspaceAccess || !access.isAdmin) {
-      return {
-        success: false,
-        error: 'Credential admin permission required',
-        errorCode: 'forbidden',
-      }
-    }
-    if (params.allowedTypes && !params.allowedTypes.includes(access.credential.type)) {
-      return {
-        success: false,
-        error: `Only ${params.allowedTypes.join(', ')} credentials can be managed with this tool.`,
-        errorCode: 'validation',
-      }
-    }
-
-    const reason = params.reason ?? 'user_delete'
-    await deleteCredentialRecord({ credential: access.credential, reason })
-
-    captureServerEvent(
-      params.userId,
-      'credential_deleted',
-      {
-        credential_type: access.credential.type,
-        provider_id:
-          access.credential.providerId ?? access.credential.envKey ?? params.credentialId,
-        workspace_id: access.credential.workspaceId,
-      },
-      { groups: { workspace: access.credential.workspaceId } }
-    )
-
-    const envDescription =
-      access.credential.type === 'env_personal'
-        ? `Deleted personal env credential "${access.credential.envKey}"`
-        : access.credential.type === 'env_workspace'
-          ? `Deleted workspace env credential "${access.credential.envKey}"`
-          : `Deleted ${access.credential.type} credential "${access.credential.displayName}" (${reason})`
-    recordAudit({
-      workspaceId: access.credential.workspaceId,
-      actorId: params.userId,
-      actorName: params.actorName ?? undefined,
-      actorEmail: params.actorEmail ?? undefined,
-      action: AuditAction.CREDENTIAL_DELETED,
-      resourceType: AuditResourceType.CREDENTIAL,
-      resourceId: params.credentialId,
-      resourceName: access.credential.displayName,
-      description: envDescription,
-      metadata: {
-        reason,
-        credentialType: access.credential.type,
-        providerId: access.credential.providerId,
-        accountId: access.credential.accountId,
-        envKey: access.credential.envKey,
-      },
-      request: params.request,
-    })
-
-    return { success: true, workspaceId: access.credential.workspaceId }
-  } catch (error) {
-    const orchestrationError = asOrchestrationError(error)
-    if (orchestrationError) {
-      if (orchestrationError.code !== 'not_found' && orchestrationError.code !== 'conflict') {
-        throw orchestrationError
-      }
-      return {
-        success: false,
-        error: orchestrationError.message,
-        errorCode: orchestrationError.code,
-      }
-    }
-    logger.error('Failed to delete credential', { error })
-    return { success: false, error: 'Internal server error', errorCode: 'internal' }
-  }
 }

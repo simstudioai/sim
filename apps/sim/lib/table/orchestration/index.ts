@@ -6,6 +6,5 @@ export {
   performDeleteTableRow,
   performMoveTableToFolder,
   performRenameTable,
-  performUpdateTableDescription,
   performUpdateTableLocks,
 } from './tables'
