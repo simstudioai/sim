@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { generateId } from '@sim/utils/id'
 import {
   MOTHERSHIP_NAVIGATION_REQUEST_EVENT,
   type MothershipNavigationRequestDetail,
@@ -39,7 +40,7 @@ export function useResourceTransitionGuard(): ResourceTransitionGuard {
 
   const seedHistorySentinel = useCallback(() => {
     if (historySentinelRef.current) return
-    const sentinel = { token: crypto.randomUUID(), url: window.location.href }
+    const sentinel = { token: generateId(), url: window.location.href }
     const currentState = window.history.state
     window.history.pushState(
       {
