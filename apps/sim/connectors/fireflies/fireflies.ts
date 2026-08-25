@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
+import { isPlainRecord } from '@sim/utils/object'
 import { isPayloadSizeLimitError, readResponseTextWithLimit } from '@/lib/core/utils/stream-limits'
 import {
   isRetryableError,
@@ -14,6 +15,7 @@ import {
   ConnectorFileTooLargeError,
   computeContentHash,
   markSkipped,
+  parseOptionalUnlimitedSafeInteger,
   parseTagDate,
 } from '@/connectors/utils'
 
@@ -29,22 +31,11 @@ const FIREFLIES_EXTRACTED_CONTENT_SKIP_REASON =
   'Transcript exceeds the 8MB extracted-content limit and was not indexed'
 const FIREFLIES_RESPONSE_SKIP_REASON =
   'Transcript response exceeds the 16MB safe hydration limit and was not indexed'
+const MAX_TRANSCRIPTS_VALIDATION_ERROR =
+  'Max transcripts must be a positive safe integer, or 0 for unlimited'
 
 function parseMaxTranscripts(value: unknown): number {
-  if (value === undefined || value === null) return 0
-  if (typeof value !== 'string' && typeof value !== 'number') {
-    throw new Error('Max transcripts must be a positive safe integer, or 0 for unlimited')
-  }
-  const normalized = typeof value === 'string' ? value.trim() : value
-  if (normalized === '') return 0
-  if (typeof normalized === 'string' && !/^\d+$/.test(normalized)) {
-    throw new Error('Max transcripts must be a positive safe integer, or 0 for unlimited')
-  }
-  const parsed = Number(normalized)
-  if (!Number.isSafeInteger(parsed) || parsed < 0) {
-    throw new Error('Max transcripts must be a positive safe integer, or 0 for unlimited')
-  }
-  return parsed
+  return parseOptionalUnlimitedSafeInteger(value, MAX_TRANSCRIPTS_VALIDATION_ERROR)
 }
 
 function parsePaginationCursor(cursor?: string): number {
@@ -83,6 +74,19 @@ interface FirefliesTranscript {
     overview?: string
     short_summary?: string
   }
+}
+
+function isFirefliesTranscript(value: unknown): value is FirefliesTranscript {
+  return (
+    isPlainRecord(value) &&
+    typeof value.id === 'string' &&
+    value.id.length > 0 &&
+    typeof value.title === 'string' &&
+    typeof value.date === 'number' &&
+    Number.isFinite(value.date) &&
+    typeof value.duration === 'number' &&
+    Number.isFinite(value.duration)
+  )
 }
 
 interface FirefliesGraphQLError {
@@ -459,9 +463,13 @@ export const firefliesConnector: ConnectorConfig = {
       variables
     )
 
-    const transcripts = (
-      Array.isArray(data.transcripts) ? data.transcripts : []
-    ) as FirefliesTranscript[]
+    if (!Array.isArray(data.transcripts)) {
+      throw new Error('Fireflies API returned malformed transcript-list data')
+    }
+    if (!data.transcripts.every(isFirefliesTranscript)) {
+      throw new Error('Fireflies API returned malformed transcript metadata')
+    }
+    const transcripts = data.transcripts as FirefliesTranscript[]
 
     const allStubs = await Promise.all(
       transcripts.filter((t) => Boolean(t?.id)).map(transcriptToStub)
@@ -542,8 +550,10 @@ export const firefliesConnector: ConnectorConfig = {
         { id: externalId }
       )
 
-      const transcript = data.transcript as FirefliesTranscript | null
-      if (!transcript?.id) return null
+      const transcript = data.transcript
+      if (!isFirefliesTranscript(transcript) || transcript.id !== externalId) {
+        throw new Error('Fireflies API returned malformed transcript metadata')
+      }
 
       const stub = await transcriptToStub(transcript)
       let content: string

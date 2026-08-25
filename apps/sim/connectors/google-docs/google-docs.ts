@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { isPlainRecord } from '@sim/utils/object'
 import {
   fetchWithRetry,
   readBoundedHttpErrorBody,
@@ -13,6 +14,7 @@ import {
   joinTagArray,
   markSkipped,
   parseMultiValue,
+  parseOptionalUnlimitedSafeInteger,
   parseTagDate,
   readBodyWithLimit,
   sizeLimitSkipReason,
@@ -38,27 +40,13 @@ const MAX_DOCS_VALIDATION_ERROR =
   'Max documents must be a positive safe integer, or 0 for unlimited'
 
 function parseMaxDocs(value: unknown): number {
-  if (value === undefined || value === null) return 0
-  if (typeof value !== 'string' && typeof value !== 'number') {
-    throw new Error(MAX_DOCS_VALIDATION_ERROR)
-  }
-  const normalized = typeof value === 'string' ? value.trim() : value
-  if (normalized === '') return 0
-  if (typeof normalized === 'string' && !/^\d+$/.test(normalized)) {
-    throw new Error(MAX_DOCS_VALIDATION_ERROR)
-  }
-  const parsed = Number(normalized)
-  if (!Number.isSafeInteger(parsed) || parsed < 0) {
-    throw new Error(MAX_DOCS_VALIDATION_ERROR)
-  }
-  return parsed
+  return parseOptionalUnlimitedSafeInteger(value, MAX_DOCS_VALIDATION_ERROR)
 }
 
 /**
  * `includeTabsContent=true` switches the Docs response to the tab representation.
  * Request only that representation because the legacy top-level `body` is empty
- * in tab mode. Google accepts `fields=tabs`; the historical hydration failures
- * did not retain enough provider detail to attribute their exact cause.
+ * in tab mode. Google accepts `fields=tabs`.
  */
 const GOOGLE_DOC_CONTENT_FIELDS = 'tabs'
 
@@ -73,6 +61,40 @@ interface DriveFile {
   createdTime?: string
   webViewLink?: string
   owners?: { displayName?: string; emailAddress?: string }[]
+}
+
+function isDriveFileMetadata(
+  value: unknown,
+  expectedId: string
+): value is DriveFile & { trashed?: boolean } {
+  return (
+    isPlainRecord(value) &&
+    value.id === expectedId &&
+    typeof value.name === 'string' &&
+    typeof value.mimeType === 'string' &&
+    (value.trashed === undefined || typeof value.trashed === 'boolean')
+  )
+}
+
+function isDriveFileListItem(value: unknown): value is DriveFile {
+  return (
+    isPlainRecord(value) &&
+    typeof value.id === 'string' &&
+    value.id.length > 0 &&
+    typeof value.name === 'string' &&
+    typeof value.mimeType === 'string' &&
+    typeof value.modifiedTime === 'string'
+  )
+}
+
+function parseDriveFileMetadata(
+  value: unknown,
+  expectedId: string
+): DriveFile & { trashed?: boolean } {
+  if (!isDriveFileMetadata(value, expectedId)) {
+    throw new Error('Google Drive API returned malformed file metadata')
+  }
+  return value
 }
 
 /**
@@ -141,6 +163,59 @@ interface DocsTab {
  */
 interface DocsDocument {
   tabs?: DocsTab[]
+}
+
+function isDocsTab(value: unknown): value is DocsTab {
+  if (!isPlainRecord(value)) return false
+  if (value.childTabs !== undefined) {
+    if (!Array.isArray(value.childTabs) || !value.childTabs.every(isDocsTab)) return false
+  }
+  if (value.documentTab !== undefined) {
+    if (!isPlainRecord(value.documentTab)) return false
+    const body = value.documentTab.body
+    if (
+      body !== undefined &&
+      (!isPlainRecord(body) || (body.content !== undefined && !Array.isArray(body.content)))
+    ) {
+      return false
+    }
+    return true
+  }
+  return Array.isArray(value.childTabs) && value.childTabs.length > 0
+}
+
+function parseDriveFileListResponse(value: unknown): {
+  files: DriveFile[]
+  incompleteSearch: boolean
+  nextPageToken?: string
+} {
+  if (!isPlainRecord(value)) {
+    throw new Error('Google Drive API returned malformed file-list metadata')
+  }
+  const rawFiles = value.files
+  if (rawFiles === undefined && value.kind !== 'drive#fileList') {
+    throw new Error('Google Drive API returned malformed file-list metadata')
+  }
+  if (
+    rawFiles !== undefined &&
+    (!Array.isArray(rawFiles) || rawFiles.some((file) => !isDriveFileListItem(file)))
+  ) {
+    throw new Error('Google Drive API returned malformed file-list metadata')
+  }
+  if (
+    value.nextPageToken !== undefined &&
+    (typeof value.nextPageToken !== 'string' || value.nextPageToken.length === 0)
+  ) {
+    throw new Error('Google Drive API returned malformed file-list metadata')
+  }
+  if (value.incompleteSearch !== undefined && typeof value.incompleteSearch !== 'boolean') {
+    throw new Error('Google Drive API returned malformed file-list metadata')
+  }
+  return {
+    files: rawFiles ?? [],
+    incompleteSearch: value.incompleteSearch === true,
+    ...(typeof value.nextPageToken === 'string' ? { nextPageToken: value.nextPageToken } : {}),
+  }
 }
 
 /** Describes a Google API failure without leaking an unbounded response body. */
@@ -367,8 +442,11 @@ async function fetchDocContent(
   const buffer = await readBodyWithLimit(response, MAX_DOCS_RESPONSE_BYTES)
   if (!buffer) throw new ConnectorFileTooLargeError(MAX_DOCS_RESPONSE_BYTES)
 
-  const doc = JSON.parse(buffer.toString('utf8')) as DocsDocument
-  return extractTextFromDocument(doc)
+  const parsed: unknown = JSON.parse(buffer.toString('utf8'))
+  if (!isPlainRecord(parsed) || !Array.isArray(parsed.tabs) || !parsed.tabs.every(isDocsTab)) {
+    throw new Error('Google Docs API returned a malformed document response')
+  }
+  return extractTextFromDocument({ tabs: parsed.tabs })
 }
 
 /**
@@ -448,7 +526,7 @@ export const googleDocsConnector: ConnectorConfig = {
       pageSize: String(pageSize),
       orderBy: 'modifiedTime desc',
       fields:
-        'nextPageToken,incompleteSearch,files(id,name,mimeType,modifiedTime,createdTime,webViewLink,owners)',
+        'kind,nextPageToken,incompleteSearch,files(id,name,mimeType,modifiedTime,createdTime,webViewLink,owners)',
       supportsAllDrives: 'true',
       includeItemsFromAllDrives: 'true',
     })
@@ -478,8 +556,8 @@ export const googleDocsConnector: ConnectorConfig = {
       throw new Error(`Failed to list Google Docs: ${failure}`)
     }
 
-    const data = await response.json()
-    const files = (data.files || []) as DriveFile[]
+    const data = parseDriveFileListResponse(await response.json())
+    const files = data.files
 
     /**
      * Drive sets `incompleteSearch` when it could not search every corpus (it
@@ -546,7 +624,7 @@ export const googleDocsConnector: ConnectorConfig = {
       )
     }
 
-    const file = (await response.json()) as DriveFile & { trashed?: boolean }
+    const file = parseDriveFileMetadata(await response.json(), externalId)
 
     if (file.trashed) return null
     if (file.mimeType !== GOOGLE_DOC_MIME_TYPE) {

@@ -13,14 +13,16 @@ vi.mock('@/lib/knowledge/documents/utils', () => ({
 vi.mock('@/components/icons', () => ({ MicrosoftSharepointIcon: () => null }))
 
 import {
-  appendPendingSharePointFolders,
   normalizeSegment,
   resolveFolderTarget,
-  SHAREPOINT_MAX_PENDING_FOLDERS,
   serverRelativePathFromUrl,
   sharepointConnector,
 } from '@/connectors/sharepoint/sharepoint'
-import { encodeMicrosoftGraphTraversalCursor } from '@/connectors/utils'
+import {
+  appendPendingMicrosoftGraphFolders,
+  encodeMicrosoftGraphTraversalCursor,
+  MICROSOFT_GRAPH_MAX_PENDING_FOLDERS,
+} from '@/connectors/utils'
 
 const GRAPH = 'https://graph.microsoft.com/v1.0'
 const SITE_ID = 'contoso.sharepoint.com,site-guid,web-guid'
@@ -346,7 +348,7 @@ describe('resolveFolderTarget', () => {
 })
 
 const ITEM_SELECT =
-  'id,name,webUrl,size,file,folder,lastModifiedDateTime,createdDateTime,createdBy,parentReference'
+  'id,name,webUrl,size,file,folder,package,remoteItem,lastModifiedDateTime,createdDateTime,createdBy,parentReference'
 
 /** File-shaped drive item for children listings. */
 function file(id: string, name: string) {
@@ -430,7 +432,7 @@ describe('listDocuments', () => {
     const cursor = encodeMicrosoftGraphTraversalCursor(
       {
         folderStack: Array.from(
-          { length: SHAREPOINT_MAX_PENDING_FOLDERS },
+          { length: MICROSOFT_GRAPH_MAX_PENDING_FOLDERS },
           (_, index) => `pending-${index}`
         ),
       },
@@ -551,25 +553,25 @@ describe('validateConfig', () => {
 describe('SharePoint traversal working-set bound', () => {
   it('accepts discovered folders up to the pending-folder ceiling', () => {
     const pending = Array.from(
-      { length: SHAREPOINT_MAX_PENDING_FOLDERS - 2 },
+      { length: MICROSOFT_GRAPH_MAX_PENDING_FOLDERS - 2 },
       (_, index) => `pending-${index}`
     )
 
-    appendPendingSharePointFolders(pending, ['last-1', 'last-2'])
+    appendPendingMicrosoftGraphFolders(pending, ['last-1', 'last-2'], 'SharePoint')
 
-    expect(pending).toHaveLength(SHAREPOINT_MAX_PENDING_FOLDERS)
+    expect(pending).toHaveLength(MICROSOFT_GRAPH_MAX_PENDING_FOLDERS)
   })
 
   it('stops before retaining a folder page beyond the ceiling', () => {
     const pending = Array.from(
-      { length: SHAREPOINT_MAX_PENDING_FOLDERS },
+      { length: MICROSOFT_GRAPH_MAX_PENDING_FOLDERS },
       (_, index) => `pending-${index}`
     )
 
-    expect(() => appendPendingSharePointFolders(pending, ['overflow'])).toThrow(
+    expect(() => appendPendingMicrosoftGraphFolders(pending, ['overflow'], 'SharePoint')).toThrow(
       /Narrow the connector/
     )
-    expect(pending).toHaveLength(SHAREPOINT_MAX_PENDING_FOLDERS)
+    expect(pending).toHaveLength(MICROSOFT_GRAPH_MAX_PENDING_FOLDERS)
   })
 })
 
@@ -597,6 +599,21 @@ describe('getDocument content extraction', () => {
       listContext()
     )
   }
+
+  it.each([{}, { id: 'f1', name: 'Missing facet' }, file('different', 'a.txt')])(
+    'rejects malformed metadata instead of replacing retained content',
+    async (metadata) => {
+      mockGraph({
+        [`${GRAPH}/drives/${DEFAULT_DRIVE_ID}/items/f1?$select=${ITEM_SELECT}`]: {
+          body: metadata,
+        },
+      })
+
+      await expect(get('f1')).rejects.toThrow(
+        'Microsoft Graph returned malformed SharePoint item metadata'
+      )
+    }
+  )
 
   /**
    * The connector hands an Office document over untouched so the shared pipeline

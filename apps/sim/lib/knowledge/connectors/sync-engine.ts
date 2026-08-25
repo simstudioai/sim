@@ -339,10 +339,7 @@ export function isStuckDocumentSweepEligible(doc: StuckDocumentSweepCandidate, n
     }
     case 'pending': {
       if (doc.processingDeferredUntil) {
-        return (
-          now.getTime() - doc.processingDeferredUntil.getTime() >
-          STALE_PROCESSING_MINUTES * 60 * 1000
-        )
+        return now.getTime() - doc.processingDeferredUntil.getTime() > QUEUED_DISPATCH_GRACE_MS
       }
       const queuedAt = doc.processingQueuedAt ?? doc.uploadedAt
       return now.getTime() - queuedAt.getTime() > QUEUED_DISPATCH_GRACE_MS
@@ -465,6 +462,9 @@ type DocClassification =
  *   content stays last-known-good unless the connector marks the skip authoritative.
  * - `drop`: empty, non-deferred content that cannot be indexed.
  * - `add` / `update` / `unchanged`: normal content reconciliation by content hash.
+ * - A deferred listing always rehydrates an existing content-less placeholder,
+ *   even when its listing hash is unchanged, so a prior hydration-time skip can
+ *   recover when the source becomes indexable.
  *
  * `forceRehydrate` (set on a full resync of a `rehydrateOnFullSync` connector) promotes
  * an otherwise-`unchanged` deferred document to `update` so its content is re-fetched —
@@ -496,6 +496,9 @@ export function classifyExternalDoc(
   }
   if (!existing) {
     return { type: 'add' }
+  }
+  if (existing.storageKey === null && extDoc.contentDeferred) {
+    return { type: 'update', existingId: existing.id }
   }
   if (existing.contentHash !== extDoc.contentHash) {
     return { type: 'update', existingId: existing.id }
@@ -1219,7 +1222,7 @@ export function classifySuspectListing(
 /**
  * Decides whether a suspect listing may still reconcile deletions.
  *
- * A suspect listing is only acted on once the *same* observation repeats on a
+ * A suspect listing is only acted on after a consecutive suspect observation, so a
  * consecutive sync, so a single transient upstream fault can never remove
  * documents — not even reversibly, since a soft delete hides them from search
  * immediately. A genuinely emptied source keeps reconciling: its second sync
@@ -2781,6 +2784,7 @@ export async function executeSync(
       )
     }
     for (let i = 0; i < safeHardDeleteIds.length; i += HARD_DELETE_CHUNK_SIZE) {
+      await beatIfDue()
       try {
         result.docsDeleted += await hardDeleteDocuments(
           safeHardDeleteIds.slice(i, i + HARD_DELETE_CHUNK_SIZE),
@@ -2853,7 +2857,7 @@ export async function executeSync(
               or(
                 and(
                   isNotNull(document.processingDeferredUntil),
-                  lt(document.processingDeferredUntil, processingStaleCutoff)
+                  lt(document.processingDeferredUntil, queuedGraceCutoff)
                 ),
                 and(
                   isNull(document.processingDeferredUntil),

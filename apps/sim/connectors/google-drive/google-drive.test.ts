@@ -83,7 +83,6 @@ describe('Google Drive API error parsing', () => {
     expect(error).toBeInstanceOf(GoogleDriveApiError)
     expect(error.kind).toBe(kind)
     expect(error.reasons).toEqual([reason])
-    expect(error.providerMessage).toBeUndefined()
   })
 
   it('classifies retryable statuses even without a structured reason', async () => {
@@ -92,7 +91,6 @@ describe('Google Drive API error parsing', () => {
     )
 
     expect(error.kind).toBe('transient')
-    expect(error.providerMessage).toBeUndefined()
     expect(error.message).not.toContain('upstream unavailable')
   })
 
@@ -102,7 +100,6 @@ describe('Google Drive API error parsing', () => {
       driveErrorResponse('insufficientFilePermissions', message)
     )
 
-    expect(error.providerMessage).toBeUndefined()
     expect(error.message).not.toContain('private-token')
   })
 
@@ -145,9 +142,26 @@ describe('Google Drive API error parsing', () => {
 
     expect(error.kind).toBe('unknown')
     expect(error.reasons).toEqual([])
-    expect(error.providerMessage).toBeUndefined()
     expect(error.message).not.toContain(sentinel)
   })
+})
+
+describe('Google Drive metadata hydration', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.stubGlobal('fetch', mockFetch)
+  })
+
+  it.each([{}, { ...fileMetadata(), id: 'different-file' }])(
+    'rejects malformed metadata instead of replacing retained content',
+    async (metadata) => {
+      mockFetch.mockResolvedValueOnce(jsonResponse(metadata))
+
+      await expect(googleDriveConnector.getDocument('token', {}, FILE_ID)).rejects.toThrow(
+        'Google Drive API returned malformed file metadata'
+      )
+    }
+  )
 })
 
 describe('Google Drive export failures', () => {
@@ -383,6 +397,34 @@ describe('Google Drive connector limits', () => {
     expect(result.documents.map((document) => document.externalId)).toEqual([FILE_ID])
     expect(result.reconciliationSafe).toBe(false)
     expect(syncContext.listingCapped).toBe(true)
+  })
+
+  it('rejects a malformed successful file-list envelope', async () => {
+    mockFetch.mockResolvedValueOnce(jsonResponse({}))
+
+    await expect(googleDriveConnector.listDocuments('token', {}, undefined, {})).rejects.toThrow(
+      'Google Drive API returned malformed file-list metadata'
+    )
+  })
+
+  it('accepts a discriminator-only empty file-list envelope', async () => {
+    mockFetch.mockResolvedValueOnce(jsonResponse({ kind: 'drive#fileList' }))
+
+    await expect(
+      googleDriveConnector.listDocuments('token', {}, undefined, {})
+    ).resolves.toMatchObject({ documents: [], hasMore: false })
+  })
+
+  it.each([
+    { files: [{ name: 'Missing ID', mimeType: 'text/plain', modifiedTime: '2026-01-01' }] },
+    { files: [], nextPageToken: 123 },
+    { files: [], incompleteSearch: 'true' },
+  ])('rejects malformed file-list metadata', async (body) => {
+    mockFetch.mockResolvedValueOnce(jsonResponse(body))
+
+    await expect(googleDriveConnector.listDocuments('token', {}, undefined, {})).rejects.toThrow(
+      'Google Drive API returned malformed file-list metadata'
+    )
   })
 
   it.each(['1.5', 'Infinity', 1.5, Number.POSITIVE_INFINITY])(

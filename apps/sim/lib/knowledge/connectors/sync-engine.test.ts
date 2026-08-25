@@ -504,6 +504,17 @@ describe('classifyExternalDoc', () => {
     ).toEqual({ type: 'skip', existingId: 'doc-1' })
   })
 
+  it('rehydrates a content-less placeholder even when its listing hash is unchanged', async () => {
+    const { classifyExternalDoc } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    expect(
+      classifyExternalDoc(
+        { ...base, content: '', contentDeferred: true },
+        { id: 'doc-1', contentHash: 'h1', storageKey: null }
+      )
+    ).toEqual({ type: 'update', existingId: 'doc-1' })
+  })
+
   it('replaces stale indexed content for an authoritative skip', async () => {
     const { classifyExternalDoc } = await import('@/lib/knowledge/connectors/sync-engine')
 
@@ -1477,19 +1488,19 @@ describe('isStuckDocumentSweepEligible', () => {
   it('reclaims a quota-deferred document only after its due time is stale', () => {
     expect(
       isStuckDocumentSweepEligible(
-        candidate('pending', { processingDeferredUntil: minutesBefore(44) }),
+        candidate('pending', { processingDeferredUntil: minutesBefore(239) }),
         now
       )
     ).toBe(false)
     expect(
       isStuckDocumentSweepEligible(
-        candidate('pending', { processingDeferredUntil: minutesBefore(45) }),
+        candidate('pending', { processingDeferredUntil: minutesBefore(240) }),
         now
       )
     ).toBe(false)
     expect(
       isStuckDocumentSweepEligible(
-        candidate('pending', { processingDeferredUntil: minutesBefore(46) }),
+        candidate('pending', { processingDeferredUntil: minutesBefore(241) }),
         now
       )
     ).toBe(true)
@@ -1644,7 +1655,7 @@ describe('selectStuckDocumentSweepCandidates', () => {
       stale: {
         processingStatus: 'pending',
         ...oldCandidate,
-        processingDeferredUntil: minutesBefore(60),
+        processingDeferredUntil: minutesBefore(300),
       },
       fresh: {
         processingStatus: 'pending',
@@ -3093,6 +3104,30 @@ describe('executeSync hard-delete reconciliation', () => {
       expect((call[0] as string[]).length).toBeLessThanOrEqual(25)
     }
     expect(calls.flatMap((call) => call[0] as string[])).toEqual(missingIds)
+  })
+
+  it('stops deletion between chunks when the sync lock was reclaimed', async () => {
+    const { executeSync } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { SYNC_LOCK_HEARTBEAT_INTERVAL_MS } = await import(
+      '@/lib/knowledge/connectors/sync-limits'
+    )
+    const { hardDeleteDocuments } = await import('@/lib/knowledge/documents/service')
+
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-25T00:00:00.000Z'))
+    primeReconciliation()
+    vi.mocked(hardDeleteDocuments).mockImplementation(async () => {
+      vi.setSystemTime(new Date(Date.now() + SYNC_LOCK_HEARTBEAT_INTERVAL_MS + 1))
+      return 0
+    })
+
+    const result = await executeSync('c-1', {
+      billingAttribution: { workspaceId: 'ws-1' } as never,
+      fullSync: true,
+    })
+
+    expect(hardDeleteDocuments).toHaveBeenCalledTimes(1)
+    expect(result.skipReason).toBe('sync_superseded')
   })
 
   it('bounds and orders the stuck-document sweep instead of draining a backlog at once', async () => {

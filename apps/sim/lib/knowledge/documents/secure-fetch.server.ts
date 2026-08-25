@@ -57,11 +57,8 @@ export async function secureFetchWithRetry(
      */
     if (!response.ok && isRetryableError({ status: response.status, headers: response.headers })) {
       const errorText = await readBoundedHttpErrorBody(response)
-      const error: HTTPError = new Error(
-        `HTTP ${response.status}: ${response.statusText} - ${errorText}`
-      )
+      const error: HTTPError = new Error(`HTTP ${response.status} - ${errorText}`)
       error.status = response.status
-      error.statusText = response.statusText
       attachRetryHeaders(error, response.headers)
 
       const waitMs = resolveRetryDelayMs(response.headers)

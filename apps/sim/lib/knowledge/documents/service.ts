@@ -77,8 +77,10 @@ import {
 import {
   assertDocumentChunkCountWithinLimit,
   isPermanentDocumentProcessingError,
+  isUsageLimitDocumentProcessingError,
   PermanentDocumentProcessingError,
   toPermanentDocumentProcessingError,
+  UsageLimitDocumentProcessingError,
 } from '@/lib/knowledge/documents/document-processing-error'
 import { processDocument } from '@/lib/knowledge/documents/document-processor'
 import {
@@ -821,11 +823,13 @@ async function markDocumentsQueued(
         processingQueueToken: queueToken,
         processingStartedAt: null,
         processingDeferredUntil: null,
-        // Spent here because this is the one write every dispatch passes through,
-        // and it is already guarded — so the budget cannot be charged twice for a
-        // single dispatch, nor skipped by a caller that dispatches another way.
-        // Refunded by `clearDocumentsQueued` when the dispatch provably never
-        // happened, so only attempts a worker could have seen are ever spent.
+        /**
+         * Spent here because this is the one write every dispatch passes through,
+         * and it is already guarded — so the budget cannot be charged twice for a
+         * single dispatch, nor skipped by a caller that dispatches another way.
+         * Refunded by `clearDocumentsQueued` when the dispatch provably never
+         * happened, so only attempts a worker could have seen are ever spent.
+         */
         processingAttempts: sql`${document.processingAttempts} + 1`,
       })
       .where(
@@ -1522,27 +1526,9 @@ export async function processDocumentAsync(
       : await checkActorUsageLimits(documentActorUserId)
     if (usageGate.isExceeded) {
       logger.warn(`[${documentId}] Usage limit reached — skipping document indexing`)
-      await db
-        .update(document)
-        .set({
-          processingStatus: 'failed',
-          processingError:
-            usageGate.message ?? 'Usage limit exceeded. Please upgrade your plan to continue.',
-          processingDeferredUntil: null,
-          processingCompletedAt: new Date(),
-        })
-        .where(
-          and(
-            eq(document.id, documentId),
-            eq(document.processingStatus, 'processing'),
-            eq(document.processingStartedAt, processingStartedAt),
-            ...queueGenerationConditions(attemptContext),
-            eq(document.userExcluded, false),
-            isNull(document.archivedAt),
-            isNull(document.deletedAt)
-          )
-        )
-      return
+      throw new UsageLimitDocumentProcessingError(
+        usageGate.message ?? 'Usage limit exceeded. Please upgrade your plan to continue.'
+      )
     }
     let billableEmbeddingTokens = 0
     let embeddingModelName = kbEmbeddingModel
@@ -1861,6 +1847,7 @@ export async function processDocumentAsync(
   } catch (error) {
     const processingTime = Date.now() - startTime
     const embeddingQuotaExhausted = isEmbeddingQuotaExhaustion(error)
+    const usageLimitExceeded = isUsageLimitDocumentProcessingError(error)
     const permanentError = toPermanentDocumentProcessingError(error, processingFilename)
     let recordedError = permanentError ?? error
     let quotaDeferredUntil: Date | null = null
@@ -1888,7 +1875,11 @@ export async function processDocumentAsync(
     const logMessage = quotaDeferredUntil
       ? `[${documentId}] Deferred document processing after ${processingTime}ms:`
       : `[${documentId}] Failed to process document after ${processingTime}ms:`
-    if ((embeddingQuotaExhausted && !quotaContinuationFailed) || permanentError) {
+    if (
+      (embeddingQuotaExhausted && !quotaContinuationFailed) ||
+      usageLimitExceeded ||
+      permanentError
+    ) {
       logger.warn(logMessage, logContext)
     } else {
       logger.error(logMessage, logContext)
@@ -1908,7 +1899,7 @@ export async function processDocumentAsync(
         ...(permanentError ||
         (embeddingQuotaExhausted && attemptContext?.quotaContinuationExhausted)
           ? { processingAttempts: MAX_PROCESSING_ATTEMPTS }
-          : embeddingQuotaExhausted && attemptContext?.chargedAtDispatch
+          : (embeddingQuotaExhausted || usageLimitExceeded) && attemptContext?.chargedAtDispatch
             ? { processingAttempts: sql`GREATEST(${document.processingAttempts} - 1, 0)` }
             : {}),
       })

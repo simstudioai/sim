@@ -31,6 +31,24 @@ async function buildZip(
 const CENTRAL_DIRECTORY_HEADER_SIGNATURE = 0x02014b50
 const LOCAL_FILE_HEADER_SIGNATURE = 0x04034b50
 
+function buildCentralDirectoryOnly(entryCount: number, extraFieldBytesPerEntry = 0): Buffer {
+  const recordSize = 46 + extraFieldBytesPerEntry
+  const centralDirectory = Buffer.alloc(recordSize * entryCount)
+  for (let index = 0; index < entryCount; index++) {
+    const offset = index * recordSize
+    centralDirectory.writeUInt32LE(CENTRAL_DIRECTORY_HEADER_SIGNATURE, offset)
+    centralDirectory.writeUInt16LE(extraFieldBytesPerEntry, offset + 30)
+  }
+
+  const eocd = Buffer.alloc(22)
+  eocd.writeUInt32LE(0x06054b50, 0)
+  eocd.writeUInt16LE(entryCount, 8)
+  eocd.writeUInt16LE(entryCount, 10)
+  eocd.writeUInt32LE(centralDirectory.length, 12)
+  eocd.writeUInt32LE(0, 16)
+  return Buffer.concat([centralDirectory, eocd])
+}
+
 /**
  * Rewrite every declared uncompressed size — in both the central directory and
  * the local file headers — so the archive under-reports how much it expands to.
@@ -89,6 +107,22 @@ describe('assertOoxmlArchiveWithinLimits', () => {
   it('accepts a well-formed archive within limits', async () => {
     const buffer = await buildZip({ 'word/document.xml': '<xml>hello world</xml>' })
     expect(() => assertOoxmlArchiveWithinLimits(buffer, HIGH_LIMITS)).not.toThrow()
+  })
+
+  it('rejects a small archive with an excessive central-directory object count', () => {
+    const buffer = buildCentralDirectoryOnly(10_001)
+
+    expect(() => assertOoxmlArchiveWithinLimits(buffer)).toThrow(
+      /10001 entries, exceeding the maximum allowed 10000/
+    )
+  })
+
+  it('rejects excessive central-directory extra-field metadata', () => {
+    const buffer = buildCentralDirectoryOnly(65, 65_535)
+
+    expect(() => assertOoxmlArchiveWithinLimits(buffer)).toThrow(
+      /central-directory metadata .* exceeds the maximum allowed 4194304 bytes/
+    )
   })
 
   it('rejects an archive whose declared expanded size exceeds the absolute cap', async () => {

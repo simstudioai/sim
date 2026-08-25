@@ -47,6 +47,20 @@ describe('googleDocsConnector', () => {
   })
 
   describe('getDocument', () => {
+    it.each([{}, { ...DRIVE_FILE, id: 'different-document' }])(
+      'rejects malformed Drive metadata instead of replacing retained content',
+      async (metadata) => {
+        vi.stubGlobal(
+          'fetch',
+          vi.fn(async () => new Response(JSON.stringify(metadata), { status: 200 }))
+        )
+
+        await expect(
+          googleDocsConnector.getDocument(ACCESS_TOKEN, {}, DOCUMENT_ID)
+        ).rejects.toThrow('Google Drive API returned malformed file metadata')
+      }
+    )
+
     it('authoritatively skips a listed document that changed type', async () => {
       vi.stubGlobal(
         'fetch',
@@ -255,6 +269,42 @@ describe('googleDocsConnector', () => {
         skippedExistingDisposition: 'replace',
         skippedReason: 'Document contains no extractable text',
       })
+    })
+
+    it('rejects a successful response that omits the required tabs array', async () => {
+      stubFetchDocument(new Response('{}', { status: 200 }))
+
+      await expect(googleDocsConnector.getDocument(ACCESS_TOKEN, {}, DOCUMENT_ID)).rejects.toThrow(
+        'Google Docs API returned a malformed document response'
+      )
+    })
+
+    it('rejects an empty tab object instead of replacing retained content', async () => {
+      stubFetchDocument(new Response(JSON.stringify({ tabs: [{}] }), { status: 200 }))
+
+      await expect(googleDocsConnector.getDocument(ACCESS_TOKEN, {}, DOCUMENT_ID)).rejects.toThrow(
+        'Google Docs API returned a malformed document response'
+      )
+    })
+
+    it('rejects malformed nested tab content instead of dropping it', async () => {
+      stubFetchDocument(
+        new Response(
+          JSON.stringify({
+            tabs: [
+              {
+                documentTab: { body: { content: [] } },
+                childTabs: [{}],
+              },
+            ],
+          }),
+          { status: 200 }
+        )
+      )
+
+      await expect(googleDocsConnector.getDocument(ACCESS_TOKEN, {}, DOCUMENT_ID)).rejects.toThrow(
+        'Google Docs API returned a malformed document response'
+      )
     })
 
     it('maps an oversized chunked hydration response to a visible skip', async () => {
@@ -473,6 +523,46 @@ describe('googleDocsConnector', () => {
   })
 
   describe('listDocuments', () => {
+    it('rejects a malformed successful Drive list envelope', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status: 200 })))
+
+      await expect(
+        googleDocsConnector.listDocuments(ACCESS_TOKEN, {}, undefined, {})
+      ).rejects.toThrow('Google Drive API returned malformed file-list metadata')
+    })
+
+    it('accepts a discriminator-only empty Drive list envelope', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi
+          .fn()
+          .mockResolvedValue(
+            new Response(JSON.stringify({ kind: 'drive#fileList' }), { status: 200 })
+          )
+      )
+
+      await expect(
+        googleDocsConnector.listDocuments(ACCESS_TOKEN, {}, undefined, {})
+      ).resolves.toMatchObject({ documents: [], hasMore: false })
+    })
+
+    it.each([
+      {
+        files: [{ name: 'Missing ID', mimeType: DRIVE_FILE.mimeType, modifiedTime: '2026-01-01' }],
+      },
+      { files: [], nextPageToken: 123 },
+      { files: [], incompleteSearch: 'true' },
+    ])('rejects malformed Drive list metadata', async (body) => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue(new Response(JSON.stringify(body), { status: 200 }))
+      )
+
+      await expect(
+        googleDocsConnector.listDocuments(ACCESS_TOKEN, {}, undefined, {})
+      ).rejects.toThrow('Google Drive API returned malformed file-list metadata')
+    })
+
     it('does not issue another Drive request after a lowered cap is already exhausted', async () => {
       const fetchMock = vi.fn()
       vi.stubGlobal('fetch', fetchMock)
@@ -586,9 +676,7 @@ describe('googleDocsConnector', () => {
       async (maxDocs) => {
         const fetchMock = vi
           .fn()
-          .mockResolvedValue(
-            new Response(JSON.stringify({ files: [], nextPageToken: null }), { status: 200 })
-          )
+          .mockResolvedValue(new Response(JSON.stringify({ files: [] }), { status: 200 }))
         vi.stubGlobal('fetch', fetchMock)
 
         await expect(

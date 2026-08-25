@@ -20,7 +20,6 @@ import {
   readBoundedHttpErrorPayload,
   resolveRetryDelayMs,
   retryWithExponentialBackoff,
-  sanitizeHttpErrorDiagnostic,
 } from './utils'
 
 /** Case-insensitive header reader over a plain lowercase-keyed record. */
@@ -47,20 +46,6 @@ function fakeResponse(
 }
 
 const FAST_RETRY = { initialDelayMs: 1, maxDelayMs: 2, maxRetries: 3, retryBudgetMs: 1_000 }
-
-describe('sanitizeHttpErrorDiagnostic', () => {
-  it('fails closed when valid structured input is too deep to sanitize recursively', () => {
-    const secret = 'top-secret-value-that-must-not-escape'
-    const depth = 10_000
-    const body = `{"authorization":"${secret}","nested":${'{"x":'.repeat(depth)}null${'}'.repeat(depth)}}`
-
-    const diagnostic = sanitizeHttpErrorDiagnostic(body)
-
-    expect(new TextEncoder().encode(body).byteLength).toBeLessThan(64 * 1024)
-    expect(diagnostic).toBe('[response body omitted]')
-    expect(diagnostic).not.toContain(secret)
-  })
-})
 
 describe('readBoundedHttpErrorPayload', () => {
   it('returns a typed failure and cancels a response body that exceeds 64KiB', async () => {
@@ -502,7 +487,7 @@ describe('fetchWithRetry rate-limit handling', () => {
     globalThis.fetch = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ authorization: `Bearer ${secret}` }), {
         status: 522,
-        statusText: 'Connection timed out',
+        statusText: `Connection timed out: ${secret}`,
       })
     )
 

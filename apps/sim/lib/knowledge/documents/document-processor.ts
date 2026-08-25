@@ -249,13 +249,6 @@ export async function processDocument(
       )
     }
 
-    if (parseResult.metadata?.truncated) {
-      throw new PermanentDocumentProcessingError(
-        'document_complexity_limit',
-        'This document exceeds the complete-extraction limit and was not indexed. Split it into smaller files and retry.'
-      )
-    }
-
     let chunks: Chunk[]
     const metadata: FileParseMetadata = parseResult.metadata ?? {}
 
@@ -679,12 +672,11 @@ async function makeOCRRequest(
     }
 
     if (!response.ok) {
-      throw new APIError(`OCR failed: ${response.status} ${response.statusText}`, response.status)
+      throw new APIError(`OCR failed: ${response.status}`, response.status)
     }
 
     return new Response(responseText, {
       status: response.status,
-      statusText: response.statusText,
       headers: response.headers,
     })
   } catch (error) {
@@ -1134,23 +1126,14 @@ async function ocrPdfInChunks(
     )
   }
 
-  const emptyChunks = outcomes.filter((outcome) => outcome.kind === 'empty')
-  if (emptyChunks.length > 0 && emptyChunks.length < outcomes.length) {
-    throw new Error(
-      `OCR returned no text for ${emptyChunks.length} of ${chunkCount} chunks; indexing the document would omit those pages`
-    )
-  }
-
   const recovered = outcomes
     .sort((a, b) => a.index - b.index)
     .flatMap((outcome) => (outcome.kind === 'content' ? [outcome.content] : []))
 
   /**
-   * Each chunk has already exhausted its own retries, so a missing one is a real
-   * failure rather than a blip. Failing the document leaves it visible with a
-   * reason and eligible for the stuck-document sweep, which can retry it and
-   * produce a complete result — whereas indexing what came back would be
-   * indistinguishable from a document that never had those pages.
+   * Provider-specific checks already proved that every requested page was
+   * represented. If every complete range is nevertheless blank, the document
+   * has no text to index; a mixture of blank and nonblank pages remains valid.
    */
   if (recovered.length === 0) {
     throw new PermanentDocumentProcessingError(

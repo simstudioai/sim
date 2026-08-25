@@ -1,6 +1,5 @@
 import { createLogger } from '@sim/logger'
 import { chunkArray } from '@sim/utils/helpers'
-import { truncate } from '@sim/utils/string'
 import { getBYOKKey } from '@/lib/api-key/byok'
 import { getRotatingApiKey } from '@/lib/core/config/api-keys'
 import { env, envNumber } from '@/lib/core/config/env'
@@ -13,7 +12,6 @@ import { isHosted } from '@/lib/core/config/env-flags'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
-  isPayloadSizeLimitError,
   readResponseJsonWithLimit,
   readResponseTextWithLimit,
 } from '@/lib/core/utils/stream-limits'
@@ -226,28 +224,15 @@ function isQuotaExhaustionBody(errorText: string): boolean {
   }
 }
 
-interface EmbeddingErrorBody {
-  classificationBody: string
-  diagnostic: string
-}
-
-/** Reads the complete bounded JSON for classification and truncates only display text. */
-async function readEmbeddingErrorBody(response: Response): Promise<EmbeddingErrorBody> {
+/** Reads a bounded provider body only for internal quota classification. */
+async function readEmbeddingErrorBody(response: Response): Promise<string> {
   try {
-    const classificationBody = await readResponseTextWithLimit(response, {
+    return await readResponseTextWithLimit(response, {
       maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
       label: 'Embedding API error response',
     })
-    return {
-      classificationBody,
-      diagnostic: truncate(classificationBody, 2_000),
-    }
-  } catch (error) {
-    if (isPayloadSizeLimitError(error)) {
-      const omitted = `[response body omitted: exceeded ${DEFAULT_MAX_ERROR_BODY_BYTES} bytes]`
-      return { classificationBody: '', diagnostic: omitted }
-    }
-    return { classificationBody: '', diagnostic: '[response body unavailable]' }
+  } catch {
+    return ''
   }
 }
 
@@ -474,13 +459,13 @@ async function callEmbeddingAPI(
       }).finally(() => clearTimeout(timeout))
 
       if (!response.ok) {
-        const errorBody = await readEmbeddingErrorBody(response)
+        const classificationBody = await readEmbeddingErrorBody(response)
         const error = new EmbeddingAPIError(
-          `Embedding API failed: ${response.status} ${response.statusText} - ${errorBody.diagnostic}`,
+          `Embedding API failed: ${response.status}`,
           response.status
         )
         error.quotaExhausted =
-          isQuotaExhaustionBody(errorBody.classificationBody) ||
+          isQuotaExhaustionBody(classificationBody) ||
           (providerId === 'openrouter' && response.status === 402)
 
         if (error.quotaExhausted) {

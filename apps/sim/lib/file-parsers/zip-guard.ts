@@ -2,6 +2,8 @@ import { inflateRawSync } from 'zlib'
 import { createLogger } from '@sim/logger'
 import {
   ArchiveIntegrityError,
+  MAX_OOXML_CENTRAL_DIRECTORY_EXTRA_BYTES,
+  MAX_OOXML_CENTRAL_DIRECTORY_RECORDS,
   MAX_OOXML_ENTRY_UNCOMPRESSED_BYTES,
   MAX_OOXML_TOTAL_UNCOMPRESSED_BYTES,
   ZipBombError,
@@ -225,6 +227,10 @@ interface DeclaredSizeStats {
   total: number
   /** Largest single entry's declared uncompressed size. */
   largestEntry: number
+  /** Records a downstream ZIP parser would materialize. */
+  entryCount: number
+  /** Summed central-directory extra-field bytes retained by ZIP parsers. */
+  totalExtraFieldBytes: number
 }
 
 /**
@@ -268,6 +274,7 @@ function sumDeclaredUncompressedSize(
   let total = 0
   let largestEntry = 0
   let counted = 0
+  let totalExtraFieldBytes = 0
   let cursor = location.offset
   while (
     cursor + CENTRAL_DIRECTORY_HEADER_MIN_SIZE <= buffer.length &&
@@ -283,12 +290,13 @@ function sumDeclaredUncompressedSize(
       fileNameLength,
       extraFieldLength
     ).uncompressedSize
+    totalExtraFieldBytes += extraFieldLength
     total += entryBytes
     if (entryBytes > largestEntry) {
       largestEntry = entryBytes
     }
     if (total > limits.maxTotalUncompressedBytes || entryBytes > limits.maxEntryUncompressedBytes) {
-      return { total, largestEntry }
+      return { total, largestEntry, entryCount: counted + 1, totalExtraFieldBytes }
     }
 
     counted += 1
@@ -301,7 +309,7 @@ function sumDeclaredUncompressedSize(
     return null
   }
 
-  return { total, largestEntry }
+  return { total, largestEntry, entryCount: counted, totalExtraFieldBytes }
 }
 
 /**
@@ -514,7 +522,7 @@ export function assertOoxmlArchiveWithinLimits(
     return
   }
 
-  const { total: totalUncompressed, largestEntry } = declared
+  const { total: totalUncompressed, largestEntry, entryCount, totalExtraFieldBytes } = declared
 
   if (largestEntry > limits.maxEntryUncompressedBytes) {
     logger.warn('Rejected OOXML archive: a single entry exceeds the per-entry limit', {
@@ -535,6 +543,28 @@ export function assertOoxmlArchiveWithinLimits(
     })
     throw new ZipBombError(
       `Decompressed size (${totalUncompressed} bytes) exceeds the maximum allowed ${limits.maxTotalUncompressedBytes} bytes`
+    )
+  }
+
+  if (entryCount > MAX_OOXML_CENTRAL_DIRECTORY_RECORDS) {
+    logger.warn('Rejected OOXML archive: central-directory record count exceeds limit', {
+      entryCount,
+      maxEntryCount: MAX_OOXML_CENTRAL_DIRECTORY_RECORDS,
+      compressedBytes: buffer.length,
+    })
+    throw new ZipBombError(
+      `Archive contains ${entryCount} entries, exceeding the maximum allowed ${MAX_OOXML_CENTRAL_DIRECTORY_RECORDS}`
+    )
+  }
+
+  if (totalExtraFieldBytes > MAX_OOXML_CENTRAL_DIRECTORY_EXTRA_BYTES) {
+    logger.warn('Rejected OOXML archive: central-directory metadata exceeds limit', {
+      totalExtraFieldBytes,
+      maxExtraFieldBytes: MAX_OOXML_CENTRAL_DIRECTORY_EXTRA_BYTES,
+      compressedBytes: buffer.length,
+    })
+    throw new ZipBombError(
+      `Archive central-directory metadata (${totalExtraFieldBytes} bytes) exceeds the maximum allowed ${MAX_OOXML_CENTRAL_DIRECTORY_EXTRA_BYTES} bytes`
     )
   }
 

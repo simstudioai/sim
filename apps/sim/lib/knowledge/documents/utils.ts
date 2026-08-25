@@ -53,28 +53,17 @@ export interface RetryOptions {
 const MAX_HTTP_ERROR_DIAGNOSTIC_CHARS = 2000
 const HTTP_ERROR_BODY_OMITTED = '[response body omitted]'
 
-/** Produces a redacted, bounded diagnostic from an already byte-bounded body. */
-export function sanitizeHttpErrorDiagnostic(
-  _body: string,
-  _options: { sensitiveValues?: string[] } = {}
-): string {
-  return HTTP_ERROR_BODY_OMITTED
-}
-
 /**
  * Reads an upstream error body without allowing a provider or proxy error page
  * to become an unbounded task error, log entry, or Trigger output. The HTTP
  * status remains the retry signal when the body exceeds the byte ceiling.
  */
-export async function readBoundedHttpErrorBody(
-  response: {
-    headers?: { get(name: string): string | null }
-    body?: ReadableStream<Uint8Array> | null
-    arrayBuffer?: () => Promise<ArrayBuffer>
-    text?: () => Promise<string>
-  },
-  _options: { sensitiveValues?: string[] } = {}
-): Promise<string> {
+export async function readBoundedHttpErrorBody(response: {
+  headers?: { get(name: string): string | null }
+  body?: ReadableStream<Uint8Array> | null
+  arrayBuffer?: () => Promise<ArrayBuffer>
+  text?: () => Promise<string>
+}): Promise<string> {
   const payload = await readBoundedHttpErrorPayload(response)
   if (payload.ok) {
     return HTTP_ERROR_BODY_OMITTED
@@ -88,7 +77,7 @@ export async function readBoundedHttpErrorBody(
 export type BoundedHttpErrorPayload =
   | { ok: true; body: string }
   | { ok: false; reason: 'too_large' }
-  | { ok: false; reason: 'unavailable'; message: string }
+  | { ok: false; reason: 'unavailable' }
 
 /**
  * Reads a byte-bounded upstream error payload for structured parsing. The raw
@@ -113,7 +102,7 @@ export async function readBoundedHttpErrorPayload(response: {
     if (isPayloadSizeLimitError(error)) {
       return { ok: false, reason: 'too_large' }
     }
-    return { ok: false, reason: 'unavailable', message: toError(error).message }
+    return { ok: false, reason: 'unavailable' }
   }
 }
 
@@ -268,8 +257,8 @@ export function isRetryableError(error: unknown): boolean {
   /**
    * Retryable status codes. Cloudflare documents 520 as an unexpected origin
    * response and 522 as an origin connection timeout; both are transient edge
-   * failures observed in connector traffic. 529 is not an IANA-registered
-   * status, but Notion documents it as `service_overload` — "Notion is temporarily overloaded.
+   * failures. 529 is not an IANA-registered status, but Notion documents it as
+   * `service_overload` — "Notion is temporarily overloaded.
    * Respect the `Retry-After` response header and try again later" — and says
    * to "retry it the same way as a 429". Without it every Notion call fails
    * hard the moment their API sheds load.
@@ -474,11 +463,8 @@ export async function fetchWithRetry(
 
     if (!response.ok && isRetryableError({ status: response.status, headers: response.headers })) {
       const errorText = await readBoundedHttpErrorBody(response)
-      const error: HTTPError = new Error(
-        `HTTP ${response.status}: ${response.statusText} - ${errorText}`
-      )
+      const error: HTTPError = new Error(`HTTP ${response.status} - ${errorText}`)
       error.status = response.status
-      error.statusText = response.statusText
       // The retry loop re-runs the retry condition against this error, so the
       // headers must travel with it or a rate-limit 403 would throw immediately.
       attachRetryHeaders(error, response.headers)

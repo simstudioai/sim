@@ -32,14 +32,12 @@ export type GoogleDriveErrorKind =
   | 'unsupported_export'
 
 interface GoogleErrorEntry {
-  message?: string
   reason?: string
 }
 
 interface ParsedGoogleErrorBody {
   error?: {
     errors?: GoogleErrorEntry[]
-    message?: string
   }
 }
 
@@ -59,7 +57,6 @@ function parseErrorBody(value: unknown): ParsedGoogleErrorBody | undefined {
         if (!isRecord(entry)) return []
         return [
           {
-            message: optionalString(entry.message),
             reason: optionalString(entry.reason),
           },
         ]
@@ -69,7 +66,6 @@ function parseErrorBody(value: unknown): ParsedGoogleErrorBody | undefined {
   return {
     error: {
       errors: entries,
-      message: optionalString(value.error.message),
     },
   }
 }
@@ -107,8 +103,7 @@ export class GoogleDriveApiError extends Error {
   constructor(
     readonly status: number,
     readonly reasons: readonly string[],
-    readonly kind: GoogleDriveErrorKind,
-    readonly providerMessage?: string
+    readonly kind: GoogleDriveErrorKind
   ) {
     const reasonSuffix = reasons.length > 0 ? ` (${reasons.join(', ')})` : ''
     super(`Google Drive API request failed with HTTP ${status}${reasonSuffix}`)
@@ -118,8 +113,8 @@ export class GoogleDriveApiError extends Error {
 
 /**
  * Parses Google's structured error envelope without retaining or logging the raw
- * response body. Error payloads are byte-bounded and provider messages are reduced
- * to a single capped line before they can reach diagnostics.
+ * response body. Error payloads are byte-bounded, free-form provider messages
+ * are omitted, and only validated machine-readable reason tokens survive.
  */
 export async function readGoogleDriveApiError(response: Response): Promise<GoogleDriveApiError> {
   const body = await readBodyWithLimit(response, GOOGLE_ERROR_BODY_MAX_BYTES).catch(() => null)
@@ -142,7 +137,6 @@ export async function readGoogleDriveApiError(response: Response): Promise<Googl
   return new GoogleDriveApiError(
     response.status,
     reasons,
-    classifyGoogleDriveError(response.status, rawReasons),
-    undefined
+    classifyGoogleDriveError(response.status, rawReasons)
   )
 }

@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
+import { isPlainRecord } from '@sim/utils/object'
 import {
   attachRetryHeaders,
   isRetryableError,
@@ -23,6 +24,7 @@ import {
   joinTagArray,
   markSkipped,
   parseMultiValue,
+  parseOptionalUnlimitedSafeInteger,
   parseTagDate,
   readBodyWithLimit,
   sizeLimitSkipReason,
@@ -55,20 +57,7 @@ const MAX_EXPORT_SIZE = 10 * 1024 * 1024
 const MAX_FILES_VALIDATION_ERROR = 'Max files must be a positive safe integer, or 0 for unlimited'
 
 function parseMaxFiles(value: unknown): number {
-  if (value === undefined || value === null) return 0
-  if (typeof value !== 'string' && typeof value !== 'number') {
-    throw new Error(MAX_FILES_VALIDATION_ERROR)
-  }
-  const normalized = typeof value === 'string' ? value.trim() : value
-  if (normalized === '') return 0
-  if (typeof normalized === 'string' && !/^\d+$/.test(normalized)) {
-    throw new Error(MAX_FILES_VALIDATION_ERROR)
-  }
-  const parsed = Number(normalized)
-  if (!Number.isSafeInteger(parsed) || parsed < 0) {
-    throw new Error(MAX_FILES_VALIDATION_ERROR)
-  }
-  return parsed
+  return parseOptionalUnlimitedSafeInteger(value, MAX_FILES_VALIDATION_ERROR)
 }
 
 function googleDriveErrorLogFields(error: unknown): Record<string, unknown> {
@@ -77,7 +66,6 @@ function googleDriveErrorLogFields(error: unknown): Record<string, unknown> {
       error: error.message,
       status: error.status,
       reasons: error.reasons,
-      providerMessage: error.providerMessage,
     }
   }
   return { error: toError(error).message }
@@ -218,9 +206,71 @@ interface DriveFile {
 }
 
 interface DriveFileListResponse {
+  kind?: string
   files?: DriveFile[]
   incompleteSearch?: boolean
   nextPageToken?: string
+}
+
+function parseDriveFileListResponse(
+  value: unknown
+): DriveFileListResponse & { files: DriveFile[] } {
+  if (!isPlainRecord(value)) {
+    throw new Error('Google Drive API returned malformed file-list metadata')
+  }
+  const rawFiles = value.files
+  if (rawFiles === undefined && value.kind !== 'drive#fileList') {
+    throw new Error('Google Drive API returned malformed file-list metadata')
+  }
+  if (
+    rawFiles !== undefined &&
+    (!Array.isArray(rawFiles) || rawFiles.some((file) => !isDriveFileListItem(file)))
+  ) {
+    throw new Error('Google Drive API returned malformed file-list metadata')
+  }
+  if (
+    value.nextPageToken !== undefined &&
+    (typeof value.nextPageToken !== 'string' || value.nextPageToken.length === 0)
+  ) {
+    throw new Error('Google Drive API returned malformed file-list metadata')
+  }
+  if (value.incompleteSearch !== undefined && typeof value.incompleteSearch !== 'boolean') {
+    throw new Error('Google Drive API returned malformed file-list metadata')
+  }
+  return {
+    kind: typeof value.kind === 'string' ? value.kind : undefined,
+    files: rawFiles ?? [],
+    incompleteSearch: value.incompleteSearch === true,
+    nextPageToken: typeof value.nextPageToken === 'string' ? value.nextPageToken : undefined,
+  }
+}
+
+function isDriveFileMetadata(value: unknown, expectedId: string): value is DriveFile {
+  return (
+    isPlainRecord(value) &&
+    value.id === expectedId &&
+    typeof value.name === 'string' &&
+    typeof value.mimeType === 'string' &&
+    (value.trashed === undefined || typeof value.trashed === 'boolean')
+  )
+}
+
+function isDriveFileListItem(value: unknown): value is DriveFile {
+  return (
+    isPlainRecord(value) &&
+    typeof value.id === 'string' &&
+    value.id.length > 0 &&
+    typeof value.name === 'string' &&
+    typeof value.mimeType === 'string' &&
+    typeof value.modifiedTime === 'string'
+  )
+}
+
+function parseDriveFileMetadata(value: unknown, expectedId: string): DriveFile {
+  if (!isDriveFileMetadata(value, expectedId)) {
+    throw new Error('Google Drive API returned malformed file metadata')
+  }
+  return value
 }
 
 function buildQuery(sourceConfig: Record<string, unknown>): string {
@@ -309,7 +359,7 @@ export const googleDriveConnector: ConnectorConfig = {
       pageSize: String(effectivePageSize),
       orderBy: 'modifiedTime desc',
       fields:
-        'nextPageToken,incompleteSearch,files(id,name,mimeType,modifiedTime,createdTime,webViewLink,owners,size,starred)',
+        'kind,nextPageToken,incompleteSearch,files(id,name,mimeType,modifiedTime,createdTime,webViewLink,owners,size,starred)',
       supportsAllDrives: 'true',
       includeItemsFromAllDrives: 'true',
     })
@@ -336,8 +386,8 @@ export const googleDriveConnector: ConnectorConfig = {
       throw error
     }
 
-    const data = (await response.json()) as DriveFileListResponse
-    const files = data.files ?? []
+    const data = parseDriveFileListResponse(await response.json())
+    const files = data.files
 
     /**
      * Drive sets `incompleteSearch` when it could not search every corpus (it
@@ -408,7 +458,7 @@ export const googleDriveConnector: ConnectorConfig = {
       throw error
     }
 
-    const file = (await response.json()) as DriveFile
+    const file = parseDriveFileMetadata(await response.json(), externalId)
 
     if (file.trashed) return null
 

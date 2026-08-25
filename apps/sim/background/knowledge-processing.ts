@@ -2,7 +2,10 @@ import { createLogger } from '@sim/logger'
 import { task } from '@trigger.dev/sdk'
 import { env, envNumber } from '@/lib/core/config/env'
 import { EMBEDDING_QUOTA_EXHAUSTED_MESSAGE, isEmbeddingQuotaExhaustion } from '@/lib/embeddings'
-import { isPermanentDocumentProcessingError } from '@/lib/knowledge/documents/document-processing-error'
+import {
+  isPermanentDocumentProcessingError,
+  isUsageLimitDocumentProcessingError,
+} from '@/lib/knowledge/documents/document-processing-error'
 import {
   assertDocumentProcessingPayload,
   type DocumentProcessingBillingContext,
@@ -79,6 +82,19 @@ export async function runDocumentProcessing(
       processingTime: Date.now() - startedAt,
     }
   } catch (error) {
+    if (isUsageLimitDocumentProcessingError(error)) {
+      logger.warn(`[${requestId}] Document processing is blocked by the current usage limit`, {
+        filename: docData.filename,
+      })
+      return {
+        success: false,
+        outcome: 'usage_limit' as const,
+        documentId,
+        filename: docData.filename,
+        error: error.message,
+        processingTime: Date.now() - startedAt,
+      }
+    }
     if (isEmbeddingQuotaExhaustion(error)) {
       const outcome = canScheduleQuotaContinuation ? 'quota_deferred' : 'quota_exhausted'
       logger.warn(`[${requestId}] Embedding quota is exhausted`, {
@@ -127,12 +143,8 @@ export const processDocument = task({
     maxTimeoutInMs: envNumber(env.KB_CONFIG_MAX_TIMEOUT, 10000),
     /**
      * `maxAttempts` does not cover an out-of-memory kill — Trigger.dev retries
-     * `TASK_PROCESS_OOM_KILLED` only when a larger preset is named here. Eleven
-     * documents were killed in one afternoon and every one recorded
-     * `attempt_count = 1`, so each was left `failed` with no retry at all. The
-     * escalation is a safety net, not the fix: the workbook parser's allocation
-     * no longer scales with a sheet's declared range, and fleet p99 memory is
-     * 691 MB against this machine's 8 GB.
+     * `TASK_PROCESS_OOM_KILLED` only when a larger preset is named here. The
+     * escalation is a safety net after parser allocations have been bounded.
      */
     outOfMemory: { machine: 'large-2x' },
   },

@@ -441,6 +441,35 @@ describe('notion listing completeness', () => {
     mockFetchWithRetry.mockReset()
   })
 
+  it('rejects a malformed workspace search result list', async () => {
+    mockFetchWithRetry.mockResolvedValueOnce(notionResponse({ has_more: false }))
+
+    await expect(notionConnector.listDocuments('token', {}, undefined, {})).rejects.toThrow(
+      'Notion workspace search returned a malformed results list'
+    )
+  })
+
+  it('rejects a malformed configured data-source result list', async () => {
+    mockFetchWithRetry
+      .mockResolvedValueOnce(
+        notionResponse({
+          object: 'database',
+          id: 'database-1',
+          data_sources: [{ id: 'source-1', name: 'Primary' }],
+        })
+      )
+      .mockResolvedValueOnce(notionResponse({ has_more: false }))
+
+    await expect(
+      notionConnector.listDocuments(
+        'token',
+        { scope: 'database', databaseId: 'database-1' },
+        undefined,
+        {}
+      )
+    ).rejects.toThrow('Notion data source source-1 query returned a malformed results list')
+  })
+
   it('does not mark an exactly exhausted workspace listing as capped', async () => {
     mockFetchWithRetry.mockResolvedValueOnce(
       notionResponse({

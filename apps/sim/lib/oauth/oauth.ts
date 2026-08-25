@@ -2056,9 +2056,7 @@ function oauthResponseRecord(value: unknown): Record<string, unknown> | undefine
     : undefined
 }
 
-function safeOAuthDiagnostic(_responseText: string, _secrets: string[]): string {
-  return '[token endpoint response omitted]'
-}
+const OAUTH_RESPONSE_OMITTED = '[token endpoint response omitted]'
 
 async function refreshInstagramLongLivedToken(
   config: ProviderAuthConfig,
@@ -2083,12 +2081,10 @@ async function refreshInstagramLongLivedToken(
 
   if (!response.ok) {
     const exactSecrets = [longLivedToken, config.clientSecret ?? '']
-    const errorSummary = safeOAuthDiagnostic(responseText, exactSecrets)
     const errorCode = safeOAuthErrorCode(responseData, exactSecrets)
     logger.error('Instagram long-lived token refresh failed:', {
       status: response.status,
-      statusText: response.statusText,
-      error: errorSummary,
+      error: OAUTH_RESPONSE_OMITTED,
       errorCode,
       providerId,
       tokenEndpoint: config.tokenEndpoint,
@@ -2096,7 +2092,7 @@ async function refreshInstagramLongLivedToken(
     return {
       ok: false,
       errorCode,
-      message: `Failed to refresh token: ${response.status} ${errorSummary}`,
+      message: `Failed to refresh token: ${response.status} ${OAUTH_RESPONSE_OMITTED}`,
     }
   }
 
@@ -2152,13 +2148,11 @@ export async function refreshOAuthToken(
     const responseData = parseOAuthResponse(responseText)
 
     if (!response.ok) {
-      const errorSummary = safeOAuthDiagnostic(responseText, exactSecrets)
       const errorCode = safeOAuthErrorCode(responseData, exactSecrets)
 
       logger.error('Token refresh failed:', {
         status: response.status,
-        statusText: response.statusText,
-        error: errorSummary,
+        error: OAUTH_RESPONSE_OMITTED,
         errorCode,
         providerId,
         tokenEndpoint: config.tokenEndpoint,
@@ -2169,7 +2163,7 @@ export async function refreshOAuthToken(
       return {
         ok: false,
         errorCode,
-        message: `Failed to refresh token: ${response.status} ${errorSummary}`,
+        message: `Failed to refresh token: ${response.status} ${OAUTH_RESPONSE_OMITTED}`,
       }
     }
 
@@ -2181,14 +2175,9 @@ export async function refreshOAuthToken(
 
     if (data.ok === false) {
       const errorCode = safeOAuthErrorCode(data, exactSecrets)
-      const safeError = safeOAuthDiagnostic(
-        typeof data.error === 'string' ? data.error : 'unknown',
-        exactSecrets
-      )
       logger.error('Token refresh failed:', {
         status: response.status,
-        statusText: response.statusText,
-        error: safeError,
+        error: OAUTH_RESPONSE_OMITTED,
         errorCode,
         providerId,
         tokenEndpoint: config.tokenEndpoint,
@@ -2199,7 +2188,7 @@ export async function refreshOAuthToken(
       return {
         ok: false,
         errorCode,
-        message: `Failed to refresh token: ${safeError}`,
+        message: `Failed to refresh token: ${OAUTH_RESPONSE_OMITTED}`,
       }
     }
 

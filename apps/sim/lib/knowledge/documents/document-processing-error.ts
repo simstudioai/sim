@@ -50,6 +50,25 @@ export class PermanentDocumentProcessingError extends Error {
 }
 
 /**
+ * A mutable billing gate that must stop this attempt without consuming the
+ * document's unattended retry budget. A plan upgrade or credit top-up can make
+ * the same bytes processable, so this is intentionally not a permanent input
+ * failure and must not be retried immediately by Trigger.dev.
+ */
+export class UsageLimitDocumentProcessingError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'UsageLimitDocumentProcessingError'
+  }
+}
+
+export function isUsageLimitDocumentProcessingError(
+  error: unknown
+): error is UsageLimitDocumentProcessingError {
+  return error instanceof UsageLimitDocumentProcessingError
+}
+
+/**
  * Maximum vectors and embedding records retained before the atomic index swap.
  *
  * Each knowledge-base vector is 1,536 JavaScript numbers. The old 100,000-chunk

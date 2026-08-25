@@ -76,17 +76,23 @@ describe('document chunk production ceiling', () => {
     } satisfies Partial<PermanentDocumentProcessingError>)
   })
 
-  it('does not index a parser preview as the complete document', async () => {
+  it('preserves bounded partial indexing for a parser-limited document', async () => {
+    const content = 'name,value\nfirst,1\nsecond,2\n[Content truncated: showing first 1,000 rows]'
     mockParseBuffer.mockResolvedValue({
-      content: 'first 1,000 spreadsheet rows',
-      metadata: { truncated: true },
+      content,
+      metadata: { truncated: true, headers: ['name', 'value'], rowCount: 2_000 },
     })
 
-    await expect(
-      processDocument('data:text/csv;base64,dGVzdA==', 'large.csv', 'text/csv', 100, 0, 10)
-    ).rejects.toMatchObject({
-      name: 'PermanentDocumentProcessingError',
-      code: 'document_complexity_limit',
-    } satisfies Partial<PermanentDocumentProcessingError>)
+    const result = await processDocument(
+      'data:text/csv;base64,dGVzdA==',
+      'large.csv',
+      'text/csv',
+      100,
+      0,
+      10
+    )
+
+    expect(result.chunks.length).toBeGreaterThan(0)
+    expect(result.metadata.characterCount).toBe(content.length)
   })
 })

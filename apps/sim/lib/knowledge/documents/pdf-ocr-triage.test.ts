@@ -322,7 +322,7 @@ describe('Azure OCR chunking', () => {
     expect(error).toMatchObject({ message: expect.stringMatching(/OCR completed 1 of 2 chunks/) })
   })
 
-  it('rejects a blank chunk when another chunk contains text', async () => {
+  it('accepts a page-complete blank range when another range contains text', async () => {
     Object.assign(env, {
       OCR_PROVIDER: 'azure-mistral',
       OCR_AZURE_API_KEY: 'key',
@@ -348,8 +348,9 @@ describe('Azure OCR chunking', () => {
       })
     )
 
-    await expect(parse()).rejects.toThrow(
-      'OCR returned no text for 1 of 2 chunks; indexing the document would omit those pages'
-    )
+    const result = await parse()
+
+    expect(result.chunks.some((chunk) => chunk.text.includes('First half'))).toBe(true)
+    expect(result.metadata.processingMethod).toBe('mistral-ocr')
   })
 })

@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
+import { isPlainRecord } from '@sim/utils/object'
 import {
   fetchWithRetry,
   readBoundedHttpErrorPayload,
@@ -13,6 +14,7 @@ import {
   joinTagArray,
   markSkipped,
   parseMultiValue,
+  parseOptionalUnlimitedSafeInteger,
   parseTagDate,
   readBodyWithLimit,
   sizeLimitSkipReason,
@@ -85,6 +87,45 @@ interface NotionListResponse {
   }
 }
 
+function requireNotionResults(
+  data: NotionListResponse,
+  description: string
+): Record<string, unknown>[] {
+  if (
+    !Array.isArray(data.results) ||
+    typeof data.has_more !== 'boolean' ||
+    !data.results.every(
+      (result) => isPlainRecord(result) && typeof result.id === 'string' && result.id.length > 0
+    )
+  ) {
+    throw new Error(`Notion ${description} returned a malformed results list`)
+  }
+  return data.results
+}
+
+function isNotionPageMetadata(value: unknown): value is Record<string, unknown> & { id: string } {
+  return (
+    isPlainRecord(value) &&
+    value.object === 'page' &&
+    typeof value.id === 'string' &&
+    value.id.length > 0 &&
+    isPlainRecord(value.properties) &&
+    typeof value.url === 'string' &&
+    typeof value.last_edited_time === 'string'
+  )
+}
+
+function requireNotionPages(
+  values: Record<string, unknown>[],
+  description: string
+): (Record<string, unknown> & { id: string })[] {
+  const pages = values.filter((value) => value.object === 'page')
+  if (!pages.every(isNotionPageMetadata)) {
+    throw new Error(`Notion ${description} returned malformed page metadata`)
+  }
+  return pages
+}
+
 async function readNotionJsonObject<T extends object>(
   response: Response,
   maxBytes: number,
@@ -107,20 +148,7 @@ async function readNotionJsonObject<T extends object>(
 }
 
 function parseMaxPages(value: unknown): number {
-  if (value === undefined || value === null) return 0
-  if (typeof value !== 'string' && typeof value !== 'number') {
-    throw new Error(MAX_PAGES_VALIDATION_ERROR)
-  }
-  const normalized = typeof value === 'string' ? value.trim() : value
-  if (normalized === '') return 0
-  if (typeof normalized === 'string' && !/^\d+$/.test(normalized)) {
-    throw new Error(MAX_PAGES_VALIDATION_ERROR)
-  }
-  const parsed = Number(normalized)
-  if (!Number.isSafeInteger(parsed) || parsed < 0) {
-    throw new Error(MAX_PAGES_VALIDATION_ERROR)
-  }
-  return parsed
+  return parseOptionalUnlimitedSafeInteger(value, MAX_PAGES_VALIDATION_ERROR)
 }
 
 class NotionApiError extends Error {
@@ -537,6 +565,9 @@ export const notionConnector: ConnectorConfig = {
       MAX_PAGE_METADATA_RESPONSE_BYTES,
       `page ${externalId} metadata`
     )
+    if (!isNotionPageMetadata(page) || page.id !== externalId) {
+      throw new Error(`Notion page ${externalId} returned malformed metadata`)
+    }
     if (isPageTrashed(page)) return null
 
     /**
@@ -709,8 +740,10 @@ async function listFromWorkspace(
     MAX_LIST_RESPONSE_BYTES,
     'workspace search response'
   )
-  const results = data.results ?? []
-  const pages = results.filter((result) => result.object === 'page' && !isPageTrashed(result))
+  const results = requireNotionResults(data, 'workspace search')
+  const pages = requireNotionPages(results, 'workspace search').filter(
+    (result) => !isPageTrashed(result)
+  )
 
   const documents = pages.map(pageToStub)
 
@@ -1014,8 +1047,10 @@ async function listFromDatabases(
       MAX_LIST_RESPONSE_BYTES,
       `data source ${dataSourceId} query response`
     )
-    const results = data.results ?? []
-    const pages = results.filter((result) => result.object === 'page' && !isPageTrashed(result))
+    const results = requireNotionResults(data, `data source ${dataSourceId} query`)
+    const pages = requireNotionPages(results, `data source ${dataSourceId} query`).filter(
+      (result) => !isPageTrashed(result)
+    )
     documents.push(...pages.map(pageToStub))
 
     queryResultIncomplete =
@@ -1105,7 +1140,7 @@ async function listFromParentPage(
     MAX_LIST_RESPONSE_BYTES,
     `page ${rootPageId} child-block response`
   )
-  const blockResults = data.results ?? []
+  const blockResults = requireNotionResults(data, `page ${rootPageId} child-block listing`)
 
   // Filter to child_page blocks only (child_database blocks cannot be fetched via the Pages API)
   const childPageIds = blockResults
@@ -1154,6 +1189,9 @@ async function listFromParentPage(
             MAX_PAGE_METADATA_RESPONSE_BYTES,
             `page ${pageId} metadata`
           )
+          if (!isNotionPageMetadata(page) || page.id !== pageId) {
+            throw new Error(`Notion page ${pageId} returned malformed or mismatched metadata`)
+          }
           if (isPageTrashed(page)) return null
           return pageToStub(page)
         } catch (error) {

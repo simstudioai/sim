@@ -128,6 +128,43 @@ Bob,25`
       expect(chunks.length).toBeGreaterThan(1)
     })
 
+    it('splits a maximum-length spreadsheet cell without dropping its content', async () => {
+      const value = `START-${'x'.repeat(32_755)}-END`
+      const chunks = await StructuredDataChunker.chunkStructuredData(`value\n${value}`, {
+        chunkSize: 1024,
+      })
+
+      expect(chunks.length).toBeGreaterThan(1)
+      expect(chunks.every((chunk) => chunk.tokenCount <= 1024)).toBe(true)
+      expect(chunks[0].text).toContain('START-')
+      expect(chunks.at(-1)?.text).toContain('-END')
+    })
+
+    it('splits an oversized header without repeating it into every row segment', async () => {
+      const header = `HEADER-${'h'.repeat(5_000)}-END`
+      const row = `ROW-${'r'.repeat(10_000)}-END`
+
+      const chunks = await StructuredDataChunker.chunkStructuredData(`${header}\n${row}`, {
+        chunkSize: 1024,
+      })
+
+      expect(chunks.length).toBeGreaterThan(1)
+      expect(chunks.length).toBeLessThan(20)
+      expect(chunks.every((chunk) => chunk.tokenCount <= 1024)).toBe(true)
+      expect(chunks.some((chunk) => chunk.text.includes('HEADER-'))).toBe(true)
+      expect(chunks.some((chunk) => chunk.text.includes('ROW-'))).toBe(true)
+    })
+
+    it('does not let the minimum row target exceed the token target', async () => {
+      const row = 'x'.repeat(2_900)
+      const content = ['value', row, row, row, row, row].join('\n')
+
+      const chunks = await StructuredDataChunker.chunkStructuredData(content, { chunkSize: 1024 })
+
+      expect(chunks.length).toBe(5)
+      expect(chunks.every((chunk) => chunk.tokenCount <= 1024)).toBe(true)
+    })
+
     it.concurrent('should include token count in chunk metadata', async () => {
       const csv = `name,age
 Alice,30

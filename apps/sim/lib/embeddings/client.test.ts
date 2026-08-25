@@ -330,11 +330,17 @@ describe('embed', () => {
   })
 
   it('surfaces a non-retryable provider error with its status', async () => {
-    fetchMock.mockResolvedValue(jsonResponse({ error: 'bad key' }, 401))
+    const echoedSecret = 'sk-provider-echoed-secret'
+    fetchMock.mockResolvedValue(jsonResponse({ error: `bad key: ${echoedSecret}` }, 401))
 
-    await expect(
-      embed(['hello'], { model: 'text-embedding-3-small', apiKey: 'sk-bad' })
-    ).rejects.toThrow(/Embedding API failed: 401/)
+    const error = await embed(['hello'], {
+      model: 'text-embedding-3-small',
+      apiKey: 'sk-bad',
+    }).catch((caught) => caught)
+
+    expect(error).toBeInstanceOf(Error)
+    expect((error as Error).message).toMatch(/Embedding API failed: 401/)
+    expect((error as Error).message).not.toContain(echoedSecret)
     // 401 is not retryable, so exactly one attempt is made.
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })

@@ -2,7 +2,12 @@ import { createLogger } from '@sim/logger'
 import * as yaml from 'js-yaml'
 import { ChunkBudget, ChunkLimitExceededError } from '@/lib/chunkers/chunk-budget'
 import type { Chunk, ChunkerOptions } from '@/lib/chunkers/types'
-import { estimateTokens, iterateLines } from '@/lib/chunkers/utils'
+import {
+  estimateTokens,
+  iterateLines,
+  iterateWordBoundaryChunks,
+  tokensToChars,
+} from '@/lib/chunkers/utils'
 
 const logger = createLogger('JsonYamlChunker')
 
@@ -92,7 +97,7 @@ export class JsonYamlChunker {
     }
 
     const text = contextHeader + content
-    budget.add(chunks, {
+    this.addBoundedChunk(chunks, budget, {
       text,
       tokenCount: estimateTokens(text),
       metadata: { startIndex: 0, endIndex: text.length },
@@ -118,8 +123,9 @@ export class JsonYamlChunker {
 
       if (itemTokens > this.chunkSize) {
         if (currentBatch.length > 0) {
-          budget.add(
+          this.addBoundedChunk(
             chunks,
+            budget,
             this.buildBatchChunk(contextHeader, currentBatch, i - currentBatch.length, i - 1)
           )
           currentBatch = []
@@ -129,15 +135,12 @@ export class JsonYamlChunker {
         if (depth < MAX_DEPTH && typeof item === 'object' && item !== null) {
           this.chunkStructuredData(item, [...path, `[${i}]`], depth + 1, chunks, budget)
         } else {
-          budget.add(chunks, {
-            text: contextHeader + itemStr,
-            tokenCount: itemTokens,
-            metadata: { startIndex: i, endIndex: i },
-          })
+          this.chunkAsText(contextHeader + itemStr, budget, chunks)
         }
       } else if (currentTokens + itemTokens > this.chunkSize && currentBatch.length > 0) {
-        budget.add(
+        this.addBoundedChunk(
           chunks,
+          budget,
           this.buildBatchChunk(contextHeader, currentBatch, i - currentBatch.length, i - 1)
         )
         currentBatch = [item]
@@ -149,8 +152,9 @@ export class JsonYamlChunker {
     }
 
     if (currentBatch.length > 0) {
-      budget.add(
+      this.addBoundedChunk(
         chunks,
+        budget,
         this.buildBatchChunk(
           contextHeader,
           currentBatch,
@@ -176,7 +180,7 @@ export class JsonYamlChunker {
     if (fullTokens <= this.chunkSize) {
       const contextHeader = path.length > 0 ? `// ${path.join('.')}\n` : ''
       const text = contextHeader + fullContent
-      budget.add(chunks, {
+      this.addBoundedChunk(chunks, budget, {
         text,
         tokenCount: estimateTokens(text),
         metadata: { startIndex: 0, endIndex: text.length },
@@ -195,7 +199,7 @@ export class JsonYamlChunker {
       if (valueTokens > this.chunkSize) {
         if (Object.keys(currentObj).length > 0) {
           const objContent = contextHeader + JSON.stringify(currentObj, null, 2)
-          budget.add(chunks, {
+          this.addBoundedChunk(chunks, budget, {
             text: objContent,
             tokenCount: estimateTokens(objContent),
             metadata: { startIndex: 0, endIndex: objContent.length },
@@ -207,18 +211,14 @@ export class JsonYamlChunker {
         if (depth < MAX_DEPTH && typeof value === 'object' && value !== null) {
           this.chunkStructuredData(value, [...path, key], depth + 1, chunks, budget)
         } else {
-          budget.add(chunks, {
-            text: contextHeader + valueStr,
-            tokenCount: valueTokens,
-            metadata: { startIndex: 0, endIndex: valueStr.length },
-          })
+          this.chunkAsText(contextHeader + valueStr, budget, chunks)
         }
       } else if (
         currentTokens + valueTokens > this.chunkSize &&
         Object.keys(currentObj).length > 0
       ) {
         const objContent = contextHeader + JSON.stringify(currentObj, null, 2)
-        budget.add(chunks, {
+        this.addBoundedChunk(chunks, budget, {
           text: objContent,
           tokenCount: estimateTokens(objContent),
           metadata: { startIndex: 0, endIndex: objContent.length },
@@ -233,7 +233,7 @@ export class JsonYamlChunker {
 
     if (Object.keys(currentObj).length > 0) {
       const objContent = contextHeader + JSON.stringify(currentObj, null, 2)
-      budget.add(chunks, {
+      this.addBoundedChunk(chunks, budget, {
         text: objContent,
         tokenCount: estimateTokens(objContent),
         metadata: { startIndex: 0, endIndex: objContent.length },
@@ -255,6 +255,23 @@ export class JsonYamlChunker {
     }
   }
 
+  private addBoundedChunk(chunks: Chunk[], budget: ChunkBudget, chunk: Chunk): void {
+    if (chunk.tokenCount <= this.chunkSize) {
+      budget.add(chunks, chunk)
+      return
+    }
+
+    let startIndex = chunk.metadata.startIndex
+    for (const segment of iterateWordBoundaryChunks(chunk.text, tokensToChars(this.chunkSize))) {
+      budget.add(chunks, {
+        text: segment,
+        tokenCount: estimateTokens(segment),
+        metadata: { startIndex, endIndex: startIndex + segment.length },
+      })
+      startIndex += segment.length
+    }
+  }
+
   private chunkAsText(content: string, budget: ChunkBudget, chunks: Chunk[] = []): Chunk[] {
     let currentChunk = ''
     let currentTokens = 0
@@ -262,6 +279,29 @@ export class JsonYamlChunker {
 
     for (const line of iterateLines(content)) {
       const lineTokens = estimateTokens(line)
+
+      if (lineTokens > this.chunkSize) {
+        if (currentChunk) {
+          budget.add(chunks, {
+            text: currentChunk,
+            tokenCount: currentTokens,
+            metadata: { startIndex, endIndex: startIndex + currentChunk.length },
+          })
+          startIndex += currentChunk.length + 1
+          currentChunk = ''
+          currentTokens = 0
+        }
+        for (const segment of iterateWordBoundaryChunks(line, tokensToChars(this.chunkSize))) {
+          budget.add(chunks, {
+            text: segment,
+            tokenCount: estimateTokens(segment),
+            metadata: { startIndex, endIndex: startIndex + segment.length },
+          })
+          startIndex += segment.length
+        }
+        startIndex += 1
+        continue
+      }
 
       if (currentTokens + lineTokens > this.chunkSize && currentChunk) {
         budget.add(chunks, {

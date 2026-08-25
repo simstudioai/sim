@@ -57,13 +57,30 @@ function mockGraph(routes: Record<string, GraphRoute>) {
   return requested
 }
 
-const ROOT_URL = `${GRAPH}/me/drive/root/children?$top=200&$select=id,name,webUrl,size,file,folder,lastModifiedDateTime,createdBy,parentReference`
+const ROOT_URL = `${GRAPH}/me/drive/root/children?$top=200&$select=id,name,webUrl,size,file,folder,package,remoteItem,lastModifiedDateTime,createdBy,parentReference`
 const childrenUrl = (id: string) =>
-  `${GRAPH}/me/drive/items/${id}/children?$top=200&$select=id,name,webUrl,size,file,folder,lastModifiedDateTime,createdBy,parentReference`
+  `${GRAPH}/me/drive/items/${id}/children?$top=200&$select=id,name,webUrl,size,file,folder,package,remoteItem,lastModifiedDateTime,createdBy,parentReference`
 
 describe('onedrive listDocuments', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+  })
+
+  it('rejects a malformed successful list envelope', async () => {
+    mockGraph({ [ROOT_URL]: { body: {} } })
+
+    await expect(onedriveConnector.listDocuments('token', {}, undefined, {})).rejects.toThrow(
+      'Microsoft Graph returned malformed OneDrive list metadata'
+    )
+  })
+
+  it.each([
+    { value: [{ id: 'f1', name: 'Missing facet' }] },
+    { value: [], '@odata.nextLink': 'https://evil.example/items' },
+  ])('rejects ambiguous or unsafe list metadata', async (body) => {
+    mockGraph({ [ROOT_URL]: { body } })
+
+    await expect(onedriveConnector.listDocuments('token', {}, undefined, {})).rejects.toThrow()
   })
 
   it('walks nested folders within a single call', async () => {
@@ -218,7 +235,7 @@ describe('onedrive listDocuments', () => {
   })
 
   it('encodes the configured folder path', async () => {
-    const url = `${GRAPH}/me/drive/root:/My%20Docs/Q1%20%26%20Q2:/children?$top=200&$select=id,name,webUrl,size,file,folder,lastModifiedDateTime,createdBy,parentReference`
+    const url = `${GRAPH}/me/drive/root:/My%20Docs/Q1%20%26%20Q2:/children?$top=200&$select=id,name,webUrl,size,file,folder,package,remoteItem,lastModifiedDateTime,createdBy,parentReference`
     const requested = mockGraph({ [url]: { body: { value: [] } } })
 
     await onedriveConnector.listDocuments(
@@ -284,9 +301,25 @@ describe('onedrive getDocument', () => {
     expect(doc).toBeNull()
   })
 
+  it.each([{}, { id: 'f1', name: 'Missing facet' }, file('different', 'a.txt')])(
+    'rejects malformed metadata instead of replacing retained content',
+    async (metadata) => {
+      mockGraph({
+        [`${GRAPH}/me/drive/items/f1?$select=id,name,webUrl,size,file,folder,package,remoteItem,lastModifiedDateTime,createdBy,parentReference`]:
+          {
+            body: metadata,
+          },
+      })
+
+      await expect(onedriveConnector.getDocument!('token', {}, 'f1')).rejects.toThrow(
+        'Microsoft Graph returned malformed OneDrive item metadata'
+      )
+    }
+  )
+
   it('authoritatively skips a listed file that changed to a folder', async () => {
     mockGraph({
-      [`${GRAPH}/me/drive/items/f1?$select=id,name,webUrl,size,file,folder,lastModifiedDateTime,createdBy,parentReference`]:
+      [`${GRAPH}/me/drive/items/f1?$select=id,name,webUrl,size,file,folder,package,remoteItem,lastModifiedDateTime,createdBy,parentReference`]:
         {
           body: folder('f1', 'Former document'),
         },
@@ -299,11 +332,25 @@ describe('onedrive getDocument', () => {
     })
   })
 
+  it('authoritatively skips a listed file that changed to a package', async () => {
+    mockGraph({
+      [`${GRAPH}/me/drive/items/f1?$select=id,name,webUrl,size,file,folder,package,remoteItem,lastModifiedDateTime,createdBy,parentReference`]:
+        {
+          body: { id: 'f1', name: 'Former document', package: { type: 'oneNote' } },
+        },
+    })
+
+    await expect(onedriveConnector.getDocument!('token', {}, 'f1')).resolves.toMatchObject({
+      skippedExistingDisposition: 'replace',
+      skippedReason: 'File is no longer an indexable document',
+    })
+  })
+
   it('produces the same contentHash as the listing stub', async () => {
     const item = file('f1', 'a.txt')
     mockGraph({
       [ROOT_URL]: { body: { value: [item] } },
-      [`${GRAPH}/me/drive/items/f1?$select=id,name,webUrl,size,file,folder,lastModifiedDateTime,createdBy,parentReference`]:
+      [`${GRAPH}/me/drive/items/f1?$select=id,name,webUrl,size,file,folder,package,remoteItem,lastModifiedDateTime,createdBy,parentReference`]:
         { body: item },
     })
 

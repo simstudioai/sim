@@ -1,3 +1,4 @@
+import { isPlainRecord } from '@sim/utils/object'
 import type { SecureFetchResponse } from '@/lib/core/security/input-validation.server'
 import {
   isPayloadSizeLimitError,
@@ -23,7 +24,7 @@ export const MICROSOFT_GRAPH_MAX_PENDING_FOLDERS = 10_000
 
 /**
  * Graph IDs are opaque strings with no documented maximum. This ceiling is far
- * above observed drive-item IDs while making the traversal's string working set
+ * above ordinary identifiers while making the traversal's string working set
  * provably bounded even if a provider response or stored cursor is malformed.
  */
 export const MICROSOFT_GRAPH_MAX_ITEM_ID_BYTES = 512
@@ -35,12 +36,72 @@ export const MICROSOFT_GRAPH_MAX_NEXT_LINK_BYTES = 16 * 1024
 export const MICROSOFT_GRAPH_MAX_CURSOR_JSON_BYTES = 8 * 1024 * 1024
 export const MICROSOFT_GRAPH_MAX_CURSOR_ENCODED_BYTES = 12 * 1024 * 1024
 
+/** Parses an optional connector limit where zero or omission means unlimited. */
+export function parseOptionalUnlimitedSafeInteger(value: unknown, errorMessage: string): number {
+  if (value === undefined || value === null) return 0
+  if (typeof value !== 'string' && typeof value !== 'number') {
+    throw new Error(errorMessage)
+  }
+
+  const normalized = typeof value === 'string' ? value.trim() : value
+  if (normalized === '') return 0
+  if (typeof normalized === 'string' && !/^\d+$/.test(normalized)) {
+    throw new Error(errorMessage)
+  }
+
+  const parsed = Number(normalized)
+  if (!Number.isSafeInteger(parsed) || parsed < 0) {
+    throw new Error(errorMessage)
+  }
+  return parsed
+}
+
 const MICROSOFT_GRAPH_ORIGIN = 'https://graph.microsoft.com'
 
 export interface MicrosoftGraphTraversalState {
   nextLink?: string
   currentFolder?: string
   folderStack: string[]
+}
+
+export interface MicrosoftGraphDriveItemShape {
+  id: string
+  name: string
+  file?: Record<string, unknown>
+  folder?: Record<string, unknown>
+  package?: Record<string, unknown>
+  remoteItem?: Record<string, unknown>
+}
+
+export function isMicrosoftGraphDriveItem(value: unknown): value is MicrosoftGraphDriveItemShape {
+  return (
+    isPlainRecord(value) &&
+    typeof value.id === 'string' &&
+    value.id.length > 0 &&
+    typeof value.name === 'string' &&
+    value.name.length > 0 &&
+    (isPlainRecord(value.file) ||
+      isPlainRecord(value.folder) ||
+      isPlainRecord(value.package) ||
+      isPlainRecord(value.remoteItem))
+  )
+}
+
+export function parseMicrosoftGraphDriveItemList(
+  value: unknown,
+  label: string
+): { value: MicrosoftGraphDriveItemShape[]; nextLink?: string } {
+  if (!isPlainRecord(value) || !Array.isArray(value.value)) {
+    throw new Error(`Microsoft Graph returned malformed ${label} list metadata`)
+  }
+  if (!value.value.every(isMicrosoftGraphDriveItem)) {
+    throw new Error(`Microsoft Graph returned malformed ${label} item metadata`)
+  }
+  const nextLink =
+    value['@odata.nextLink'] === undefined
+      ? undefined
+      : assertMicrosoftGraphNextLink(value['@odata.nextLink'])
+  return { value: value.value, nextLink }
 }
 
 function assertBoundedGraphString(

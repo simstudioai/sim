@@ -75,7 +75,10 @@ import {
 } from '@/lib/core/config/trigger-runtime'
 import { EMBEDDING_QUOTA_EXHAUSTED_MESSAGE } from '@/lib/embeddings'
 import { EmbeddingQuotaExhaustedError } from '@/lib/embeddings/client'
-import { PermanentDocumentProcessingError } from '@/lib/knowledge/documents/document-processing-error'
+import {
+  PermanentDocumentProcessingError,
+  UsageLimitDocumentProcessingError,
+} from '@/lib/knowledge/documents/document-processing-error'
 import { processDocumentAsync, processDocumentsWithQueue } from '@/lib/knowledge/documents/service'
 import { MAX_PROCESSING_ATTEMPTS } from '@/lib/knowledge/documents/types'
 
@@ -594,6 +597,47 @@ describe('processDocumentAsync write guards', () => {
     )
     expect(completion).toBeDefined()
     expect((completion?.[0] as Record<string, unknown>).processingAttempts).toBe(0)
+  })
+
+  it('records a mutable usage-limit failure and refunds a charged dispatch attempt', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([PERSISTED_CONTEXT])
+    mockCheckActorUsageLimits.mockResolvedValue({
+      isExceeded: true,
+      message: 'Usage limit exceeded. Upgrade to continue.',
+    })
+
+    await expect(
+      processDocumentAsync(
+        'knowledge-base-1',
+        'document-1',
+        {
+          filename: 'a.pdf',
+          fileUrl: 'https://example.com/a.pdf',
+          fileSize: 1,
+          mimeType: 'text/plain',
+        },
+        {},
+        undefined,
+        undefined,
+        {
+          chargedAtDispatch: true,
+          processingQueuedAt: new Date('2026-08-24T22:00:00.000Z'),
+        }
+      )
+    ).rejects.toBeInstanceOf(UsageLimitDocumentProcessingError)
+
+    expect(mockProcessDocument).not.toHaveBeenCalled()
+    const failure = dbChainMockFns.set.mock.calls.find(
+      (call) => (call[0] as Record<string, unknown> | undefined)?.processingStatus === 'failed'
+    )
+    expect(failure?.[0]).toMatchObject({
+      processingError: 'Usage limit exceeded. Upgrade to continue.',
+    })
+    const attempts = (failure?.[0] as Record<string, unknown>).processingAttempts as {
+      toSQL: () => { params: unknown[]; sql: string }
+    }
+    expect(attempts.toSQL().sql).toBe('GREATEST(? - 1, 0)')
+    expect(attempts.toSQL().params).toEqual([schemaMock.document.processingAttempts])
   })
 
   it('fails before embedding when a stored chunk exceeds the model input ceiling', async () => {

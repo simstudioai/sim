@@ -28,7 +28,10 @@ vi.mock('@/lib/knowledge/documents/service', () => ({
 
 import { EmbeddingQuotaExhaustedError } from '@/lib/embeddings/client'
 import { EMBEDDING_QUOTA_CIRCUIT_TTL_MS } from '@/lib/embeddings/quota-circuit'
-import { PermanentDocumentProcessingError } from '@/lib/knowledge/documents/document-processing-error'
+import {
+  PermanentDocumentProcessingError,
+  UsageLimitDocumentProcessingError,
+} from '@/lib/knowledge/documents/document-processing-error'
 import { MAX_QUOTA_CONTINUATION_ATTEMPTS } from '@/lib/knowledge/documents/processing-quota-continuation'
 import {
   resolveQuotaContinuationDelayMs,
@@ -306,6 +309,25 @@ describe('knowledge processing worker', () => {
       outcome: 'permanent_failure',
       code: 'archive_safety_limit',
       error: 'This file expands beyond the safe processing limit.',
+    })
+  })
+
+  it('reports a mutable usage-limit outcome without requesting an immediate retry', async () => {
+    mockProcessDocumentAsync.mockRejectedValue(
+      new UsageLimitDocumentProcessingError('Usage limit exceeded. Upgrade to continue.')
+    )
+
+    await expect(
+      runDocumentProcessing({
+        ...BASE_PAYLOAD,
+        billingScope: 'non-workspace',
+        actorUserId: 'legacy-owner',
+        workspaceId: null,
+      })
+    ).resolves.toMatchObject({
+      success: false,
+      outcome: 'usage_limit',
+      error: 'Usage limit exceeded. Upgrade to continue.',
     })
   })
 

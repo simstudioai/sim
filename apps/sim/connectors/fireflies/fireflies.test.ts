@@ -208,6 +208,22 @@ describe('fireflies listDocuments', () => {
     await pending
   })
 
+  it('throws rather than reporting an empty listing when transcripts are missing', async () => {
+    mockGraphQL([{ body: { data: {} } }])
+
+    await expect(firefliesConnector.listDocuments('key', {}, undefined, {})).rejects.toThrow(
+      'Fireflies API returned malformed transcript-list data'
+    )
+  })
+
+  it('rejects malformed transcript rows instead of silently filtering them', async () => {
+    mockGraphQL([{ body: { data: { transcripts: [{}] } } }])
+
+    await expect(firefliesConnector.listDocuments('key', {}, undefined, {})).rejects.toThrow(
+      'Fireflies API returned malformed transcript metadata'
+    )
+  })
+
   it('retries one malformed page without discarding the sync', async () => {
     vi.useFakeTimers()
     mockGraphQL([{ body: {} }, page(2)])
@@ -371,6 +387,17 @@ describe('fireflies getDocument', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
+
+  it.each([null, {}, transcript('different')])(
+    'rejects malformed or mismatched successful transcript metadata',
+    async (value) => {
+      mockGraphQL([{ body: { data: { transcript: value } } }])
+
+      await expect(firefliesConnector.getDocument('key', {}, 't0')).rejects.toThrow(
+        'Fireflies API returned malformed transcript metadata'
+      )
+    }
+  )
 
   it('declares the transcript id as String! and reuses the stub contentHash', async () => {
     const calls = mockGraphQL([

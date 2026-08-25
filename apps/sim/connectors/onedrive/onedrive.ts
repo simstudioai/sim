@@ -18,9 +18,12 @@ import {
   extractConnectorText,
   hasIndexablePayload,
   isIndexableConnectorFile,
+  isMicrosoftGraphDriveItem,
   isSkippedDocument,
   type MicrosoftGraphTraversalState,
   markSkipped,
+  parseMicrosoftGraphDriveItemList,
+  parseOptionalUnlimitedSafeInteger,
   parseTagDate,
   pipelineParsedMimeType,
   readBodyWithLimit,
@@ -43,7 +46,8 @@ const GRAPH_BASE_URL = `${GRAPH_API_ORIGIN}/v1.0`
  * The exact driveItem fields the stub is built from. Graph returns the full
  * driveItem otherwise, which is an order of magnitude larger per item.
  */
-const ITEM_SELECT = 'id,name,webUrl,size,file,folder,lastModifiedDateTime,createdBy,parentReference'
+const ITEM_SELECT =
+  'id,name,webUrl,size,file,folder,package,remoteItem,lastModifiedDateTime,createdBy,parentReference'
 
 /**
  * Requested page size for a children collection, matching Graph's own default.
@@ -69,20 +73,10 @@ const PAGE_SIZE = 200
 const MAX_LIST_REQUESTS_PER_CALL = 25
 
 function parseMaxFiles(value: unknown): number {
-  if (value === undefined || value === null) return 0
-  if (typeof value !== 'string' && typeof value !== 'number') {
-    throw new Error('Max files must be a positive safe integer, or 0 for unlimited')
-  }
-  const normalized = typeof value === 'string' ? value.trim() : value
-  if (normalized === '') return 0
-  if (typeof normalized === 'string' && !/^\d+$/.test(normalized)) {
-    throw new Error('Max files must be a positive safe integer, or 0 for unlimited')
-  }
-  const parsed = Number(normalized)
-  if (!Number.isSafeInteger(parsed) || parsed < 0) {
-    throw new Error('Max files must be a positive safe integer, or 0 for unlimited')
-  }
-  return parsed
+  return parseOptionalUnlimitedSafeInteger(
+    value,
+    'Max files must be a positive safe integer, or 0 for unlimited'
+  )
 }
 
 interface OneDriveItem {
@@ -90,6 +84,8 @@ interface OneDriveItem {
   name: string
   file?: { mimeType: string }
   folder?: { childCount: number }
+  package?: Record<string, unknown>
+  remoteItem?: Record<string, unknown>
   size?: number
   webUrl?: string
   lastModifiedDateTime?: string
@@ -97,9 +93,15 @@ interface OneDriveItem {
   parentReference?: { path?: string }
 }
 
-interface OneDriveListResponse {
-  value: OneDriveItem[]
-  '@odata.nextLink'?: string
+function isOneDriveItemMetadata(value: unknown, expectedId: string): value is OneDriveItem {
+  return isMicrosoftGraphDriveItem(value) && value.id === expectedId
+}
+
+function parseOneDriveItemMetadata(value: unknown, expectedId: string): OneDriveItem {
+  if (!isOneDriveItemMetadata(value, expectedId)) {
+    throw new Error('Microsoft Graph returned malformed OneDrive item metadata')
+  }
+  return value
 }
 
 /**
@@ -196,11 +198,9 @@ function buildListUrl(folderPath: string | undefined, folderId: string | undefin
 
 /**
  * Asserts a paging URL points at Microsoft Graph before it is followed with the
- * bearer token in the `Authorization` header. The `@odata.nextLink` this connector
- * follows is persisted into the sync cursor, so it round-trips through storage
- * rather than arriving straight off a TLS response — a tampered cursor must never
- * be able to redirect the access token to a third-party host. Mirrors
- * `assertGraphNextPageUrl` used by the Graph tool routes.
+ * bearer token in the `Authorization` header. Provider-controlled continuation
+ * state must never be able to redirect the access token to a third-party host.
+ * Mirrors `assertGraphNextPageUrl` used by the Graph tool routes.
  */
 function assertGraphNextLink(nextLink: string): string {
   return assertMicrosoftGraphNextLink(nextLink)
@@ -266,8 +266,8 @@ export const onedriveConnector: ConnectorConfig = {
         throw new Error(`Failed to list OneDrive files: ${response.status}`)
       }
 
-      const data = (await response.json()) as OneDriveListResponse
-      const items = data.value || []
+      const data = parseMicrosoftGraphDriveItemList(await response.json(), 'OneDrive')
+      const items = data.value as OneDriveItem[]
 
       const files: OneDriveItem[] = []
       const subfolders: string[] = []
@@ -311,7 +311,7 @@ export const onedriveConnector: ConnectorConfig = {
       documents.push(...take.documents)
       totalFetched += take.indexableCount
 
-      const nextLink = data['@odata.nextLink']
+      const nextLink = data.nextLink
 
       if (take.capReached) {
         done = true
@@ -389,7 +389,7 @@ export const onedriveConnector: ConnectorConfig = {
       throw new Error(`Failed to get OneDrive file: ${response.status}`)
     }
 
-    const item = (await response.json()) as OneDriveItem
+    const item = parseOneDriveItemMetadata(await response.json(), externalId)
 
     if (!item.file || !isIndexableConnectorFile(item.name)) {
       return {

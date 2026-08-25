@@ -22,7 +22,6 @@ const CONFIG = {
   MAX_SAMPLE_COLUMNS: 32,
   MAX_SAMPLE_CELL_LENGTH: 256,
   MAX_SAMPLE_CHARACTERS: 1024 * 1024,
-  MAX_CELL_LENGTH: 1000, // Truncate very long cell values
   MAX_CONTENT_SIZE: 10 * 1024 * 1024, // 10MB max content size
 }
 
@@ -287,15 +286,18 @@ export class XlsxParser implements FileParser {
     }
   }
 
-  private truncateCell(cell: unknown, maxLength = CONFIG.MAX_CELL_LENGTH): string {
+  private truncateCell(cell: unknown, maxLength?: number): string {
     if (cell === null || cell === undefined) {
       return ''
     }
 
     let cellStr = String(cell)
 
-    // Truncate very long cells
-    if (cellStr.length > maxLength) {
+    /**
+     * Samples are previews; canonical content is bounded only by the aggregate
+     * output ceiling so an otherwise valid long cell is never silently partial.
+     */
+    if (maxLength !== undefined && cellStr.length > maxLength) {
       cellStr = truncate(cellStr, Math.max(0, maxLength - 3))
     }
 

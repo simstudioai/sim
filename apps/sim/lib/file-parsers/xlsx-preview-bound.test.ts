@@ -141,6 +141,19 @@ describe('XlsxParser preview bound', () => {
     expect(result.content).not.toContain('total rows, showing first')
   })
 
+  it('preserves a long cell in full when the aggregate output remains within budget', async () => {
+    const longCell = 'x'.repeat(2_000)
+    const sheet = XLSX.utils.aoa_to_sheet([['header'], [longCell]])
+    const book = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(book, sheet, 'Long cell')
+    const buffer = XLSX.write(book, { type: 'buffer', bookType: 'xlsx' }) as Buffer
+
+    const result = await new XlsxParser().parseBuffer(buffer)
+
+    expect(result.metadata?.truncated).toBe(false)
+    expect(result.content).toContain(longCell)
+  })
+
   it.each(['', '   '])(
     'does not treat an empty-string cell as extractable content',
     async (cell) => {

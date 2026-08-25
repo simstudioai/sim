@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { ChunkBudget } from '@/lib/chunkers/chunk-budget'
 import type { Chunk, StructuredDataOptions } from '@/lib/chunkers/types'
-import { iterateLines } from '@/lib/chunkers/utils'
+import { iterateLines, iterateWordBoundaryChunks } from '@/lib/chunkers/utils'
 
 /** Structured data is denser in tokens (~3 chars/token vs ~4 for prose) */
 function estimateStructuredTokens(text: string): number {
@@ -62,14 +62,48 @@ export class StructuredDataChunker {
       if (i < dataStartIndex) continue
       const rowTokens = estimateStructuredTokens(row)
 
+      const standaloneRow = StructuredDataChunker.formatChunk(headerLine, [row], options.sheetName)
+      if (estimateStructuredTokens(standaloneRow) > targetChunkSize) {
+        if (currentChunkRows.length > 0) {
+          const chunkContent = StructuredDataChunker.formatChunk(
+            headerLine,
+            currentChunkRows,
+            options.sheetName
+          )
+          budget.add(chunks, StructuredDataChunker.createChunk(chunkContent, chunkStartRow, i - 1))
+          currentChunkRows = []
+          currentTokenEstimate = 0
+        }
+        const emptyRowOverhead = estimateStructuredTokens(
+          StructuredDataChunker.formatChunk(headerLine, [''], options.sheetName)
+        )
+        if (emptyRowOverhead >= targetChunkSize) {
+          for (const segment of iterateWordBoundaryChunks(standaloneRow, targetChunkSize * 3)) {
+            budget.add(chunks, StructuredDataChunker.createChunk(segment, i, i))
+          }
+          chunkStartRow = i + 1
+          continue
+        }
+        const rowSegmentChars = Math.max(1, (targetChunkSize - emptyRowOverhead) * 3)
+        for (const segment of iterateWordBoundaryChunks(row, rowSegmentChars)) {
+          const segmentContent = StructuredDataChunker.formatChunk(
+            headerLine,
+            [segment],
+            options.sheetName
+          )
+          budget.add(chunks, StructuredDataChunker.createChunk(segmentContent, i, i))
+        }
+        chunkStartRow = i + 1
+        continue
+      }
+
       const projectedTokens =
         currentTokenEstimate +
         rowTokens +
         (DEFAULT_CONFIG.INCLUDE_HEADERS_IN_EACH_CHUNK ? headerTokens : 0)
 
       const shouldCreateChunk =
-        (projectedTokens > targetChunkSize &&
-          currentChunkRows.length >= DEFAULT_CONFIG.MIN_ROWS_PER_CHUNK) ||
+        (projectedTokens > targetChunkSize && currentChunkRows.length > 0) ||
         currentChunkRows.length >= optimalRowsPerChunk
 
       if (shouldCreateChunk && currentChunkRows.length > 0) {
