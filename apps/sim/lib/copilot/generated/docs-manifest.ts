@@ -219,6 +219,7 @@ export const DOCS_MANIFEST: readonly string[] = [
   'integrations/microsoft_excel.mdx',
   'integrations/microsoft_planner.mdx',
   'integrations/microsoft_teams.mdx',
+  'integrations/microsoft_word.mdx',
   'integrations/millionverifier.mdx',
   'integrations/mintlify.mdx',
   'integrations/mistral_parse.mdx',
