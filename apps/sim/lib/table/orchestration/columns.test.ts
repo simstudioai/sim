@@ -13,6 +13,7 @@ const {
   mockUpdateColumnOptions,
   mockUpdateColumnConstraints,
   mockUpdateColumnCurrency,
+  mockUpdateColumnReference,
   mockRecordAudit,
 } = vi.hoisted(() => ({
   mockRenameColumn: vi.fn(),
@@ -20,6 +21,7 @@ const {
   mockUpdateColumnOptions: vi.fn(),
   mockUpdateColumnConstraints: vi.fn(),
   mockUpdateColumnCurrency: vi.fn(),
+  mockUpdateColumnReference: vi.fn(),
   mockRecordAudit: vi.fn(),
 }))
 
@@ -33,6 +35,7 @@ vi.mock('@/lib/table/columns/service', () => ({
   renameColumn: mockRenameColumn,
   updateColumnConstraints: mockUpdateColumnConstraints,
   updateColumnCurrency: mockUpdateColumnCurrency,
+  updateColumnReference: mockUpdateColumnReference,
   updateColumnOptions: mockUpdateColumnOptions,
   updateColumnType: mockUpdateColumnType,
 }))
@@ -48,12 +51,18 @@ const SELECT_COLUMN = {
   options: [{ id: 'opt_open', name: 'Open' }],
 }
 const TEXT_COLUMN = { id: 'col-2', name: 'Priority', type: 'text' as const }
+const REFERENCE_COLUMN = {
+  id: 'col-3',
+  name: 'Account',
+  type: 'reference' as const,
+  referenceTableId: 'tbl_accounts',
+}
 
 const TABLE = {
   id: 'table-1',
   name: 'Tasks',
   workspaceId: 'ws-1',
-  schema: { columns: [SELECT_COLUMN, TEXT_COLUMN] },
+  schema: { columns: [SELECT_COLUMN, TEXT_COLUMN, REFERENCE_COLUMN] },
 } as unknown as TableDefinition
 
 const UPDATED = { schema: { columns: [SELECT_COLUMN] } } as unknown as TableDefinition
@@ -76,6 +85,7 @@ describe('performUpdateTableColumn', () => {
     mockUpdateColumnOptions.mockResolvedValue(UPDATED)
     mockUpdateColumnConstraints.mockResolvedValue(UPDATED)
     mockUpdateColumnCurrency.mockResolvedValue(UPDATED)
+    mockUpdateColumnReference.mockResolvedValue(UPDATED)
   })
 
   it('refuses to make a select column unique before writing anything', async () => {
@@ -159,6 +169,54 @@ describe('performUpdateTableColumn', () => {
 
     expect(result.errorCode).toBe('validation')
     expect(mockUpdateColumnType).not.toHaveBeenCalled()
+  })
+
+  it('carries the target through a conversion to reference', async () => {
+    await run({ type: 'reference', referenceTableId: 'tbl_accounts' }, 'Priority')
+
+    expect(mockUpdateColumnReference).not.toHaveBeenCalled()
+    expect(mockUpdateColumnType).toHaveBeenCalledWith(
+      expect.objectContaining({
+        newType: 'reference',
+        referenceTableId: 'tbl_accounts',
+      }),
+      'req-1'
+    )
+  })
+
+  it('routes a target-only reference update through the schema-only service', async () => {
+    await run({ referenceTableId: 'tbl_companies' }, 'Account')
+
+    expect(mockUpdateColumnType).not.toHaveBeenCalled()
+    expect(mockUpdateColumnReference).toHaveBeenCalledWith(
+      expect.objectContaining({
+        columnName: 'col-3',
+        referenceTableId: 'tbl_companies',
+      }),
+      'req-1'
+    )
+  })
+
+  it('folds reference metadata, constraints, and rename into one schema write', async () => {
+    await run({ referenceTableId: 'tbl_companies', required: true, name: 'Company' }, 'Account')
+
+    expect(mockRenameColumn).not.toHaveBeenCalled()
+    expect(mockUpdateColumnConstraints).not.toHaveBeenCalled()
+    expect(mockUpdateColumnReference).toHaveBeenCalledWith(
+      expect.objectContaining({
+        referenceTableId: 'tbl_companies',
+        required: true,
+        newName: 'Company',
+      }),
+      'req-1'
+    )
+  })
+
+  it('rejects reference metadata when the resulting type is not reference', async () => {
+    const result = await run({ referenceTableId: 'tbl_accounts' }, 'Priority')
+
+    expect(result).toMatchObject({ success: false, errorCode: 'validation' })
+    expect(mockUpdateColumnReference).not.toHaveBeenCalled()
   })
 
   it('reports an empty payload as a validation failure', async () => {

@@ -962,6 +962,21 @@ export interface UpdateColumnCurrencyData {
   currencyCode: string
 }
 
+/**
+ * Payload for changing the table targeted by a `reference` column. Cells keep
+ * storing the same row-ID strings, so this is a schema-only update.
+ */
+export interface UpdateColumnReferenceData {
+  tableId: string
+  columnName: string
+  /** A rename to apply in the SAME transaction as this write. */
+  newName?: string
+  /** Constraints to apply in the SAME transaction as this write. */
+  unique?: boolean
+  required?: boolean
+  referenceTableId: string
+}
+
 export interface UpdateColumnConstraintsData {
   tableId: string
   columnName: string

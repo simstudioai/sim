@@ -57,6 +57,7 @@ import type {
   UpdateColumnConstraintsData,
   UpdateColumnCurrencyData,
   UpdateColumnOptionsData,
+  UpdateColumnReferenceData,
   UpdateColumnTypeData,
 } from '@/lib/table/types'
 import { validateColumnDefinition } from '@/lib/table/validation'
@@ -128,6 +129,7 @@ export async function addTableColumn(
     options?: SelectOption[]
     multiple?: boolean
     currencyCode?: string
+    referenceTableId?: string
   },
   requestId: string,
   options?: ColumnMutationOptions
@@ -181,6 +183,9 @@ export async function addTableColumn(
         unique: column.unique ?? false,
         ...(column.options ? { options: column.options } : {}),
         ...(column.multiple ? { multiple: true } : {}),
+        ...(column.referenceTableId !== undefined
+          ? { referenceTableId: column.referenceTableId }
+          : {}),
         ...columnTypeById(column.type).defaultMetadata?.(column as ColumnDefinition),
       }
 
@@ -904,7 +909,8 @@ export async function updateColumnType(
           data.unique !== undefined ||
           data.options !== undefined ||
           data.multiple !== undefined ||
-          data.currencyCode !== undefined
+          data.currencyCode !== undefined ||
+          data.referenceTableId !== undefined
         if (carriesOtherWork) {
           throw new OrchestrationError(
             'validation',
@@ -1465,6 +1471,88 @@ export async function updateColumnCurrency(
       )
 
       return { ...table, schema: updatedSchema, updatedAt: now }
+    },
+    { expectedWorkspaceId: options?.expectedWorkspaceId }
+  )
+}
+
+/**
+ * Changes the table targeted by a `reference` column.
+ *
+ * Cells already store plain row-ID strings, so changing the target updates only
+ * the column schema. The target is deliberately not loaded or validated here;
+ * dangling table and row IDs are valid reference values for now.
+ */
+export async function updateColumnReference(
+  data: UpdateColumnReferenceData,
+  requestId: string,
+  options?: ColumnMutationOptions
+): Promise<TableDefinition> {
+  return withLockedTable(
+    data.tableId,
+    async (table, trx) => {
+      assertSchemaMutable(table)
+
+      const schema = table.schema
+      const columnIndex = schema.columns.findIndex((column) =>
+        columnMatchesRef(column, data.columnName)
+      )
+      if (columnIndex === -1) {
+        throw new OrchestrationError('not_found', `Column "${data.columnName}" not found`)
+      }
+
+      const column = schema.columns[columnIndex]
+      if (column.type !== 'reference') {
+        throw new OrchestrationError(
+          'validation',
+          `Cannot set a reference table on column "${column.name}" of type "${column.type}"`
+        )
+      }
+
+      const updatedColumn: ColumnDefinition = {
+        ...column,
+        referenceTableId: data.referenceTableId,
+      }
+      const columnValidation = validateColumnDefinition(updatedColumn)
+      if (!columnValidation.valid) {
+        throw new OrchestrationError(
+          'validation',
+          `Invalid column: ${columnValidation.errors.join('; ')}`
+        )
+      }
+
+      const constrained = await applyConstraints(
+        trx,
+        data.tableId,
+        table.workspaceId,
+        updatedColumn,
+        getColumnId(column),
+        data
+      )
+      const renamePending = data.newName !== undefined && data.newName !== column.name
+      if (
+        constrained === updatedColumn &&
+        updatedColumn.referenceTableId === column.referenceTableId &&
+        !renamePending
+      ) {
+        return table
+      }
+
+      const withReference = schema.columns.map((existing, index) =>
+        index === columnIndex ? constrained : existing
+      )
+      const updatedColumns = withReference.map((existing, index) =>
+        index === columnIndex
+          ? applyPendingRename(withReference, columnIndex, data.newName)
+          : existing
+      )
+      const updated = await persistColumns(trx, table, updatedColumns)
+
+      logger.info(
+        `[${requestId}] Set reference table for column "${column.name}" to "${data.referenceTableId}" in table ${data.tableId}`
+      )
+
+      return updated
     },
     { expectedWorkspaceId: options?.expectedWorkspaceId }
   )
