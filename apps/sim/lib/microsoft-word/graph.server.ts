@@ -2,6 +2,7 @@ import {
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
+import { DOCX_MIME_TYPE } from '@/lib/microsoft-word/document.server'
 import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
 import { parseGraphErrorMessage } from '@/tools/microsoft_excel/utils'
 import type { MicrosoftWordDocumentMetadata } from '@/tools/microsoft_word/types'
@@ -115,7 +116,27 @@ export async function fetchDocumentItem(
       400
     )
   }
+  if (!isWordDocument(item)) {
+    throw new GraphRequestError(
+      `"${item.name ?? 'The selected item'}" is not a Word document. Every Microsoft Word operation reads or writes a .docx file.`,
+      400
+    )
+  }
   return item
+}
+
+/**
+ * Whether a drive item is a `.docx` package.
+ *
+ * The name suffix is accepted alongside the MIME type because Graph does not
+ * always populate `file.mimeType`. Getting this wrong is destructive rather than
+ * merely wrong: without the check, pointing Replace Content at a PDF would
+ * overwrite it with generated WordprocessingML bytes.
+ */
+function isWordDocument(item: GraphDriveItem): boolean {
+  return (
+    item.file?.mimeType === DOCX_MIME_TYPE || Boolean(item.name?.toLowerCase().endsWith('.docx'))
+  )
 }
 
 /**

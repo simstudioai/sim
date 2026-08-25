@@ -44,22 +44,38 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
   try {
     const basePath = getDocumentBasePath(documentId, driveId ?? undefined)
-    const contentTag = getContentTag(await fetchDocumentItem(basePath, accessToken))
+    const existingItem = await fetchDocumentItem(basePath, accessToken)
+    const contentTag = getContentTag(existingItem)
 
     const existingBuffer = await downloadDocumentContent(basePath, accessToken)
-    const updatedBuffer = await appendParagraphsToDocx(existingBuffer, content)
+    const { buffer, paragraphsAppended } = await appendParagraphsToDocx(existingBuffer, content)
+
+    if (paragraphsAppended === 0) {
+      logger.info(`[${requestId}] No paragraphs to append; document left untouched`, { documentId })
+      return NextResponse.json({
+        success: true,
+        output: {
+          updatedContent: false,
+          metadata: toDocumentMetadata(existingItem, documentId),
+        },
+      })
+    }
 
     await assertContentUnchanged(basePath, accessToken, contentTag)
 
     const item = await uploadDocumentContent(
       `${basePath}/content`,
       accessToken,
-      updatedBuffer,
+      buffer,
       DOCX_MIME_TYPE,
       contentTag
     )
 
-    logger.info(`[${requestId}] Appended to Word document`, { documentId, size: item.size })
+    logger.info(`[${requestId}] Appended to Word document`, {
+      documentId,
+      paragraphsAppended,
+      size: item.size,
+    })
 
     return NextResponse.json({
       success: true,

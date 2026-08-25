@@ -12,7 +12,12 @@ import type { ToolConfig } from '@/tools/types'
 const DEFAULT_PAGE_SIZE = 50
 const MAX_PAGE_SIZE = 200
 
-const DRIVE_ITEM_SELECT = 'id,name,size,webUrl,createdDateTime,lastModifiedDateTime,file'
+/**
+ * `folder` must be selected: the result filter rejects folders via `!item.folder`,
+ * and without the field every item looks like a file — so a folder named
+ * `Something.docx` would be returned as a document.
+ */
+const DRIVE_ITEM_SELECT = 'id,name,size,webUrl,createdDateTime,lastModifiedDateTime,file,folder'
 
 /** Microsoft Graph `driveItem` fields this tool projects. */
 interface GraphDriveItem {
@@ -71,7 +76,7 @@ export const listTool: ToolConfig<MicrosoftWordToolParams, MicrosoftWordListResp
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: `Maximum number of items to request from Microsoft Graph (1-${MAX_PAGE_SIZE}, default ${DEFAULT_PAGE_SIZE})`,
+      description: 'Maximum number of items to request from Microsoft Graph (1-200, default 50)',
     },
     pageToken: {
       type: 'string',
@@ -97,7 +102,7 @@ export const listTool: ToolConfig<MicrosoftWordToolParams, MicrosoftWordListResp
       const requestedSize = Number(params.pageSize)
       const top =
         Number.isFinite(requestedSize) && requestedSize > 0
-          ? Math.min(Math.trunc(requestedSize), MAX_PAGE_SIZE)
+          ? Math.max(1, Math.min(Math.trunc(requestedSize), MAX_PAGE_SIZE))
           : DEFAULT_PAGE_SIZE
 
       const search = new URLSearchParams({ $select: DRIVE_ITEM_SELECT, $top: String(top) })

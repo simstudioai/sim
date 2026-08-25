@@ -145,14 +145,19 @@ function escapeXmlText(value: string): string {
  * user-owned and may not define `Heading1` or a numbering definition, and a
  * dangling reference renders unpredictably in Word.
  */
-function buildAppendedParagraphsXml(content: string): string {
-  return (content ?? '')
+function buildAppendedParagraphsXml(content: string): { xml: string; paragraphs: number } {
+  const lines = (content ?? '')
     .replace(/\r\n?/g, '\n')
     .split('\n')
     .map((line) => line.trimEnd())
     .filter((line) => line.trim().length > 0)
-    .map((line) => `<w:p><w:r><w:t xml:space="preserve">${escapeXmlText(line)}</w:t></w:r></w:p>`)
-    .join('')
+
+  return {
+    xml: lines
+      .map((line) => `<w:p><w:r><w:t xml:space="preserve">${escapeXmlText(line)}</w:t></w:r></w:p>`)
+      .join(''),
+    paragraphs: lines.length,
+  }
 }
 
 /**
@@ -180,7 +185,10 @@ function findBodyInsertionIndex(xml: string): number {
  * the body of `word/document.xml`. Every other part — styles, numbering, images,
  * headers — is repacked untouched, so existing content and formatting survive.
  */
-export async function appendParagraphsToDocx(existing: Buffer, content: string): Promise<Buffer> {
+export async function appendParagraphsToDocx(
+  existing: Buffer,
+  content: string
+): Promise<{ buffer: Buffer; paragraphsAppended: number }> {
   assertOoxmlArchiveWithinLimits(existing)
 
   const zip = await JSZip.loadAsync(existing)
@@ -189,15 +197,26 @@ export async function appendParagraphsToDocx(existing: Buffer, content: string):
     throw new Error(`Document is not a valid Word file: missing ${DOCUMENT_PART_PATH}`)
   }
 
+  const appended = buildAppendedParagraphsXml(content)
+  if (appended.paragraphs === 0) {
+    // Whitespace-only input contributes no paragraph. Returning the original
+    // package unchanged lets the caller skip the upload rather than rewrite the
+    // document with identical content and bump its modified time.
+    return { buffer: existing, paragraphsAppended: 0 }
+  }
+
   const xml = await documentPart.async('string')
   const insertionIndex = findBodyInsertionIndex(xml)
 
   zip.file(
     DOCUMENT_PART_PATH,
-    xml.slice(0, insertionIndex) + buildAppendedParagraphsXml(content) + xml.slice(insertionIndex)
+    xml.slice(0, insertionIndex) + appended.xml + xml.slice(insertionIndex)
   )
 
-  return zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' })
+  return {
+    buffer: await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' }),
+    paragraphsAppended: appended.paragraphs,
+  }
 }
 
 /**
@@ -205,8 +224,32 @@ export async function appendParagraphsToDocx(existing: Buffer, content: string):
  * Word documents read the same way here as everywhere else in Sim.
  */
 export async function extractDocxText(buffer: Buffer): Promise<string> {
-  const result = await new DocxParser().parseBuffer(buffer)
-  return result.content
+  try {
+    const result = await new DocxParser().parseBuffer(buffer)
+    return result.content
+  } catch (error) {
+    // The shared parser treats "extracted nothing" as a failure, which is right
+    // for a corrupt upload but wrong for a document a user simply has not typed
+    // in yet. Only a structurally valid, genuinely empty package is rescued.
+    if (await isEmptyWordPackage(buffer)) {
+      return ''
+    }
+    throw error
+  }
+}
+
+/** Whether the buffer is a valid Word package whose body holds no text. */
+async function isEmptyWordPackage(buffer: Buffer): Promise<boolean> {
+  try {
+    const zip = await JSZip.loadAsync(buffer)
+    const part = zip.file(DOCUMENT_PART_PATH)
+    if (!part) return false
+
+    const xml = await part.async('string')
+    return collectTextNodes(xml).every((node) => node.text.trim().length === 0)
+  } catch {
+    return false
+  }
 }
 
 /** Decodes the XML entities WordprocessingML uses inside a `<w:t>` text node. */

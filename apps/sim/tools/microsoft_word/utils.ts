@@ -65,6 +65,9 @@ export function getFolderBasePath(folderId: string, driveId?: string): string {
  */
 export function ensureDocxExtension(name: string): string {
   const trimmed = name.trim()
+  if (!trimmed) {
+    throw new Error('Document name is required')
+  }
   return trimmed.toLowerCase().endsWith('.docx') ? trimmed : `${trimmed}.docx`
 }
 

@@ -257,6 +257,8 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'Calendars.ReadWrite': 'Read and manage Outlook calendar events',
   'Files.Read': 'Read OneDrive files',
   'Files.ReadWrite': 'Read and write OneDrive files',
+  'Files.Read.All': 'Read files shared with you, including SharePoint libraries',
+  'Files.ReadWrite.All': 'Read and write files you have access to, including SharePoint libraries',
   'Tasks.ReadWrite': 'Read and manage Planner tasks',
   'Sites.Read.All': 'Read Sharepoint sites',
   'Sites.ReadWrite.All': 'Read and write Sharepoint sites',
@@ -483,8 +485,11 @@ const PROVIDER_SCOPE_DESCRIPTIONS: Readonly<Record<string, Readonly<Record<strin
    * SharePoint libraries the same scopes cover.
    */
   'microsoft-word': {
-    'Files.Read': 'Read your Word documents in OneDrive and SharePoint',
-    'Files.ReadWrite': 'Read, create, and edit your Word documents in OneDrive and SharePoint',
+    'Files.Read': 'Read your Word documents in OneDrive',
+    'Files.ReadWrite': 'Read, create, and edit your Word documents in OneDrive',
+    'Files.Read.All': 'Read Word documents shared with you, including SharePoint libraries',
+    'Files.ReadWrite.All':
+      'Read, create, and edit Word documents you have access to, including SharePoint libraries',
   },
   bitbucket: {
     account: 'View your Bitbucket account and workspace memberships',

@@ -111,6 +111,47 @@ export const dataverseUploadFileBodySchema = z.object({
  */
 const MAX_DOCUMENT_CONTENT_LENGTH = 2_000_000
 
+/**
+ * Ceiling on the serialized placeholder map. Replacement values are substituted
+ * into a package that is rewritten in memory, so they need the same kind of
+ * bound the generated document text has.
+ */
+const MAX_REPLACEMENTS_LENGTH = 200_000
+
+/** Whether a string parses as a JSON object (not an array or scalar). */
+function isJsonObjectString(value: string): boolean {
+  if (!value.trim()) return true
+  try {
+    const parsed: unknown = JSON.parse(value)
+    return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
+  } catch {
+    return false
+  }
+}
+
+/**
+ * The placeholder map, accepted either as an object from the editor or as the
+ * JSON string a variable reference resolves to. Both forms are bounded and both
+ * must describe an object, so malformed caller input is a 400 rather than a 500
+ * raised later while the template is being filled.
+ */
+const wordReplacementsSchema = z
+  .union([
+    z
+      .string()
+      .refine(
+        isJsonObjectString,
+        'Placeholder values must be a JSON object mapping each placeholder to its value'
+      ),
+    z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])),
+  ])
+  .refine(
+    (value) =>
+      (typeof value === 'string' ? value.length : JSON.stringify(value).length) <=
+      MAX_REPLACEMENTS_LENGTH,
+    'Placeholder values are too long'
+  )
+
 const wordDocumentIdSchema = z.string().min(1, 'Document ID is required')
 const wordDriveIdSchema = z.string().optional().nullable()
 
@@ -148,13 +189,7 @@ export const microsoftWordCreateFromTemplateBodySchema = z.object({
   accessToken: accessTokenSchema,
   templateDocumentId: z.string().min(1, 'Template document ID is required'),
   name: z.string().min(1, 'Document name is required').max(255, 'Document name is too long'),
-  replacements: z
-    .union([
-      z.string(),
-      z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])),
-    ])
-    .optional()
-    .nullable(),
+  replacements: wordReplacementsSchema.optional().nullable(),
   matchCase: z.boolean().optional().nullable(),
   folderId: z.string().optional().nullable(),
   driveId: wordDriveIdSchema,

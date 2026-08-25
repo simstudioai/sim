@@ -34,6 +34,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     const validation = onedriveFoldersQuerySchema.safeParse({
       credentialId: searchParams.get('credentialId') ?? '',
       query: searchParams.get('query') ?? undefined,
+      driveId: searchParams.get('driveId') ?? undefined,
     })
     if (!validation.success) {
       logger.warn(`[${requestId}] Invalid folders request data`, {
@@ -44,7 +45,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         { status: 400 }
       )
     }
-    const { credentialId } = validation.data
+    const { credentialId, driveId } = validation.data
     const query = validation.data.query ?? ''
 
     const credentialIdValidation = validateMicrosoftGraphId(credentialId, 'credentialId')
@@ -70,7 +71,19 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'Failed to obtain valid access token' }, { status: 401 })
     }
 
-    let url = `https://graph.microsoft.com/v1.0/me/drive/root/children?$filter=folder ne null&$select=id,name,folder,webUrl,createdDateTime,lastModifiedDateTime&$top=${ONEDRIVE_FOLDERS_PAGE_SIZE}`
+    // Scope to the requested drive so a SharePoint-targeted block does not list
+    // the signed-in user's personal OneDrive folders instead.
+    let drivePath = 'me/drive'
+    if (driveId) {
+      const driveIdValidation = validateMicrosoftGraphId(driveId, 'driveId')
+      if (!driveIdValidation.isValid) {
+        logger.warn(`[${requestId}] Invalid drive ID`, { error: driveIdValidation.error })
+        return NextResponse.json({ error: driveIdValidation.error }, { status: 400 })
+      }
+      drivePath = `drives/${driveId}`
+    }
+
+    let url = `https://graph.microsoft.com/v1.0/${drivePath}/root/children?$filter=folder ne null&$select=id,name,folder,webUrl,createdDateTime,lastModifiedDateTime&$top=${ONEDRIVE_FOLDERS_PAGE_SIZE}`
 
     if (query) {
       url += `&$search="${encodeURIComponent(query)}"`

@@ -248,7 +248,7 @@ List or search Microsoft Word (.docx) documents in OneDrive or SharePoint. Non-W
 | `query` | string | No | Search text matched against file name, metadata, and content. If omitted, the documents directly inside the folder are listed. |
 | `folderId` | string | No | The ID of the folder to list or search within. If omitted, the drive root is used. |
 | `driveId` | string | No | The ID of the drive to list from. Required for SharePoint. If omitted, uses the personal OneDrive. |
-| `pageSize` | number | No | Maximum number of items to request from Microsoft Graph \(1-$\{MAX_PAGE_SIZE\}, default $\{DEFAULT_PAGE_SIZE\}\) |
+| `pageSize` | number | No | Maximum number of items to request from Microsoft Graph \(1-200, default 50\) |
 | `pageToken` | string | No | Continuation URL from a previous response's nextPageToken, used to fetch the next page |
 
 #### Output

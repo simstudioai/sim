@@ -455,9 +455,25 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
          * writes them through the Files permissions rather than a Word-specific
          * scope — Microsoft Graph exposes no Word API of its own.
          *
+         * The `.All` variants are what make the SharePoint drive the block
+         * exposes actually work: `Files.ReadWrite` alone covers only the signed-in
+         * user's own OneDrive, so a document library would be rejected for
+         * insufficient privileges. Both are user-consentable, so this does not
+         * push the integration behind admin consent, and neither grants access to
+         * anything the signed-in account could not already open.
+         *
          * @see https://learn.microsoft.com/en-us/graph/permissions-reference
          */
-        scopes: ['openid', 'profile', 'email', 'Files.Read', 'Files.ReadWrite', 'offline_access'],
+        scopes: [
+          'openid',
+          'profile',
+          'email',
+          'Files.Read',
+          'Files.ReadWrite',
+          'Files.Read.All',
+          'Files.ReadWrite.All',
+          'offline_access',
+        ],
       },
       outlook: {
         name: 'Outlook',

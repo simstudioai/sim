@@ -129,6 +129,49 @@ describe('POST /api/tools/microsoft_word/append', () => {
     )
   })
 
+  it('refuses to write Word bytes over a drive item that is not a .docx', async () => {
+    const pdf = {
+      id: 'doc-abc',
+      name: 'invoice.pdf',
+      cTag: 'tag-1',
+      file: { mimeType: 'application/pdf' },
+    }
+    mockSecureFetchWithPinnedIP.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      statusText: '',
+      headers: new Headers(),
+      body: null,
+      text: async () => JSON.stringify(pdf),
+      json: async () => pdf,
+      arrayBuffer: async () => new ArrayBuffer(0),
+    })
+
+    const response = await POST(createMockRequest('POST', baseBody))
+
+    expect(response.status).toBe(400)
+    const data = (await response.json()) as { error: string }
+    expect(data.error).toMatch(/not a Word document/)
+    expect(mockSecureFetchWithPinnedIP.mock.calls.some((call) => call[2]?.method === 'PUT')).toBe(
+      false
+    )
+  })
+
+  it('reports a no-op without writing when the content adds no paragraph', async () => {
+    mockSecureFetchWithPinnedIP
+      .mockResolvedValueOnce(itemResponse('tag-1'))
+      .mockResolvedValueOnce(await docxResponse())
+
+    const response = await POST(createMockRequest('POST', { ...baseBody, content: '   \n  \n' }))
+
+    expect(response.status).toBe(200)
+    const data = (await response.json()) as { output: { updatedContent: boolean } }
+    expect(data.output.updatedContent).toBe(false)
+    expect(mockSecureFetchWithPinnedIP.mock.calls.some((call) => call[2]?.method === 'PUT')).toBe(
+      false
+    )
+  })
+
   it('surfaces a 412 from the upload precondition as the same conflict', async () => {
     mockSecureFetchWithPinnedIP
       .mockResolvedValueOnce(itemResponse('tag-1'))

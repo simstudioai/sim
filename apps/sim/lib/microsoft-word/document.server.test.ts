@@ -100,7 +100,7 @@ describe('buildDocxFromContent', () => {
 describe('appendParagraphsToDocx', () => {
   it('keeps the existing content and adds the new paragraphs after it', async () => {
     const original = await buildDocxFromContent('Existing paragraph')
-    const updated = await appendParagraphsToDocx(original, 'Appended paragraph')
+    const { buffer: updated } = await appendParagraphsToDocx(original, 'Appended paragraph')
     const text = await extractDocxText(updated)
 
     expect(text).toContain('Existing paragraph')
@@ -110,7 +110,7 @@ describe('appendParagraphsToDocx', () => {
 
   it('inserts before the body-level section properties', async () => {
     const original = await buildDocxFromContent('Existing paragraph')
-    const updated = await appendParagraphsToDocx(original, 'Appended paragraph')
+    const { buffer: updated } = await appendParagraphsToDocx(original, 'Appended paragraph')
     const xml = await readDocumentXml(updated)
 
     const appendedIndex = xml.indexOf('Appended paragraph')
@@ -122,7 +122,7 @@ describe('appendParagraphsToDocx', () => {
 
   it('preserves every other part of the original package', async () => {
     const original = await buildDocxFromContent('# Heading\n- bullet')
-    const updated = await appendParagraphsToDocx(original, 'More')
+    const { buffer: updated } = await appendParagraphsToDocx(original, 'More')
 
     const originalNames = Object.keys((await JSZip.loadAsync(original)).files).sort()
     const updatedNames = Object.keys((await JSZip.loadAsync(updated)).files).sort()
@@ -132,7 +132,7 @@ describe('appendParagraphsToDocx', () => {
 
   it('escapes XML metacharacters instead of emitting broken markup', async () => {
     const original = await buildDocxFromContent('Existing')
-    const updated = await appendParagraphsToDocx(original, 'a < b & c > d')
+    const { buffer: updated } = await appendParagraphsToDocx(original, 'a < b & c > d')
     const xml = await readDocumentXml(updated)
 
     expect(xml).toContain('a &lt; b &amp; c &gt; d')
@@ -141,10 +141,25 @@ describe('appendParagraphsToDocx', () => {
 
   it('skips blank lines so appended text does not grow trailing paragraphs', async () => {
     const original = await buildDocxFromContent('Existing')
-    const updated = await appendParagraphsToDocx(original, 'one\n\n\ntwo')
+    const { buffer: updated } = await appendParagraphsToDocx(original, 'one\n\n\ntwo')
     const xml = await readDocumentXml(updated)
 
     expect(xml.match(/<w:p><w:r><w:t xml:space="preserve">/g)).toHaveLength(2)
+  })
+
+  it('reports a no-op for whitespace-only content and leaves the package untouched', async () => {
+    const original = await buildDocxFromContent('Existing')
+    const result = await appendParagraphsToDocx(original, '   \n\n  \n')
+
+    expect(result.paragraphsAppended).toBe(0)
+    expect(result.buffer).toBe(original)
+  })
+
+  it('reports how many paragraphs it appended', async () => {
+    const original = await buildDocxFromContent('Existing')
+    const result = await appendParagraphsToDocx(original, 'one\ntwo\nthree')
+
+    expect(result.paragraphsAppended).toBe(3)
   })
 
   it('rejects an archive that is not a Word package', async () => {
@@ -155,6 +170,22 @@ describe('appendParagraphsToDocx', () => {
     await expect(appendParagraphsToDocx(buffer, 'anything')).rejects.toThrow(
       /missing word\/document\.xml/
     )
+  })
+})
+
+describe('extractDocxText', () => {
+  it('reads a blank Word document as empty text rather than failing', async () => {
+    const blank = await buildDocxFromContent('')
+
+    await expect(extractDocxText(blank)).resolves.toBe('')
+  })
+
+  it('still fails on an archive that is not a Word package', async () => {
+    const zip = new JSZip()
+    zip.file('hello.txt', 'not a word document')
+    const buffer = await zip.generateAsync({ type: 'nodebuffer' })
+
+    await expect(extractDocxText(buffer)).rejects.toThrow()
   })
 })
 
