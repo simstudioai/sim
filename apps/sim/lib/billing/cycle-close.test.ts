@@ -12,6 +12,7 @@ const {
   mockEnqueueOutboxEvent,
   mockGetPlanPricing,
   mockGetPlanTierDollars,
+  mockResolveSubscriptionUsagePeriod,
   mockIsEnterprise,
   mockIsFree,
   mockRecordAudit,
@@ -24,6 +25,7 @@ const {
   mockEnqueueOutboxEvent: vi.fn(),
   mockGetPlanPricing: vi.fn(),
   mockGetPlanTierDollars: vi.fn(),
+  mockResolveSubscriptionUsagePeriod: vi.fn(),
   mockIsEnterprise: vi.fn(),
   mockIsFree: vi.fn(),
   mockRecordAudit: vi.fn(),
@@ -42,7 +44,7 @@ vi.mock('@/lib/billing/core/billing', () => ({
 }))
 
 vi.mock('@/lib/billing/core/reporting-period', () => ({
-  ENTERPRISE_REPORTING_PERIOD_ANCHOR_METADATA_KEY: 'reportingPeriodAnchorDate',
+  resolveSubscriptionUsagePeriod: mockResolveSubscriptionUsagePeriod,
 }))
 
 vi.mock('@/lib/billing/core/usage-log', () => ({
@@ -141,6 +143,7 @@ describe('closeElapsedBillingPeriod', () => {
     mockIsSubscriptionOrgScoped.mockResolvedValue(true)
     mockIsEnterprise.mockReturnValue(false)
     mockIsFree.mockReturnValue(false)
+    mockResolveSubscriptionUsagePeriod.mockReturnValue(null)
     mockGetPlanTierDollars.mockReturnValue(40)
     mockGetPlanPricing.mockReturnValue({ basePrice: 40 })
     mockComputeDailyRefreshConsumed.mockResolvedValue(0)
@@ -364,6 +367,7 @@ describe('closeElapsedBillingPeriod', () => {
 
   it('only advances the marker for enterprise orgs on reporting anchors', async () => {
     mockIsEnterprise.mockReturnValue(true)
+    mockResolveSubscriptionUsagePeriod.mockReturnValue({ source: 'reporting' })
 
     const result = await closeElapsedBillingPeriod(
       subRow({ plan: 'enterprise', metadata: { reportingPeriodAnchorDate: '2026-05-01' } })
@@ -400,6 +404,7 @@ describe('writeFinalPeriodBookkeeping', () => {
     resetDbChainMock()
     mockIsSubscriptionOrgScoped.mockResolvedValue(true)
     mockIsEnterprise.mockReturnValue(false)
+    mockResolveSubscriptionUsagePeriod.mockReturnValue(null)
     mockGetStampedPeriodRangeUsageCostByUser.mockResolvedValue(new Map([['owner-1', 25]]))
     dbChainMockFns.returning.mockResolvedValue([{ id: 'sub-1' }])
   })
@@ -428,6 +433,7 @@ describe('writeFinalPeriodBookkeeping', () => {
 
   it('only claims the marker for reporting-anchor enterprise subscriptions', async () => {
     mockIsEnterprise.mockReturnValue(true)
+    mockResolveSubscriptionUsagePeriod.mockReturnValue({ source: 'reporting' })
 
     await writeFinalPeriodBookkeeping({
       id: 'sub-1',

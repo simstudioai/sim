@@ -9,11 +9,10 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { isRecordLike } from '@sim/utils/object'
 import { and, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 import { BILLING_LOCK_TIMEOUT_MS } from '@/lib/billing/constants'
 import { computeOrgOverageAmount, isSubscriptionOrgScoped } from '@/lib/billing/core/billing'
-import { ENTERPRISE_REPORTING_PERIOD_ANCHOR_METADATA_KEY } from '@/lib/billing/core/reporting-period'
+import { resolveSubscriptionUsagePeriod } from '@/lib/billing/core/reporting-period'
 import {
   COPILOT_USAGE_SOURCES,
   getStampedPeriodRangeUsageCostByUser,
@@ -82,12 +81,21 @@ function rosterSignature(rows: { userId: string; role: string }[]): string {
     .join('|')
 }
 
-function hasEnterpriseReportingAnchor(sub: { plan: string | null; metadata?: unknown }): boolean {
-  return (
-    isEnterprise(sub.plan) &&
-    isRecordLike(sub.metadata) &&
-    typeof sub.metadata[ENTERPRISE_REPORTING_PERIOD_ANCHOR_METADATA_KEY] === 'string'
-  )
+/**
+ * Whether this subscription's usage windows derive from an enterprise
+ * reporting anchor. Asks the same resolver the usage math uses, so a
+ * malformed anchor (hand-edited Stripe metadata) that the resolver rejects —
+ * falling back to Stripe bounds — is treated identically here: the ledger
+ * rows are stamped with Stripe windows, and the close books them normally.
+ */
+function usesReportingWindows(sub: {
+  plan?: string | null
+  billingInterval?: string | null
+  metadata?: unknown
+  periodStart?: Date | null
+  periodEnd?: Date | null
+}): boolean {
+  return resolveSubscriptionUsagePeriod(sub)?.source === 'reporting'
 }
 
 /**
@@ -260,7 +268,7 @@ export async function closeElapsedBillingPeriod(sub: SubscriptionRow): Promise<C
   const closedRange = { from: closeFrom, to: periodStart }
 
   const enterprise = isEnterprise(sub.plan)
-  if (enterprise && hasEnterpriseReportingAnchor(sub)) {
+  if (enterprise && usesReportingWindows(sub)) {
     // Reporting-anchor orgs derive every usage window live from the anchor;
     // there is nothing to bill or book here. Advance the marker so the sweep
     // stays quiet.
@@ -611,7 +619,7 @@ export async function writeFinalPeriodBookkeeping(sub: {
   if (!sub.periodStart) return
   const periodStart = sub.periodStart
 
-  if (hasEnterpriseReportingAnchor(sub)) {
+  if (usesReportingWindows(sub)) {
     await db.transaction(async (tx) => claimCloseMarker(tx, sub.id, periodStart))
     return
   }
