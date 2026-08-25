@@ -580,22 +580,23 @@ async function executeWebhookJobInternal(
       : loadDeployedWorkflowState(payload.workflowId, workspaceId)
     const warmWebhookRecord =
       warmContext?.webhookRecord?.id === payload.webhookId ? warmContext.webhookRecord : undefined
-    const [workflowData, webhookRows, resolvedCredentialUserId] = await Promise.all([
+    /**
+     * Started here, awaited only where the owner id is first needed (formatInput),
+     * so its two serial reads overlap the state load and provider-config
+     * resolution instead of gating them. The empty catch marks the chain observed
+     * for the gap; the later await still surfaces the real error.
+     */
+    const credentialAccountUserIdPromise = payload.credentialId
+      ? resolveCredentialAccountUserId(payload.credentialId)
+      : Promise.resolve(undefined)
+    credentialAccountUserIdPromise.catch(() => {})
+    const [workflowData, webhookRows] = await Promise.all([
       workflowStatePromise,
       warmWebhookRecord
         ? Promise.resolve([warmWebhookRecord])
         : db.select().from(webhook).where(eq(webhook.id, payload.webhookId)).limit(1),
-      payload.credentialId
-        ? resolveCredentialAccountUserId(payload.credentialId)
-        : Promise.resolve(undefined),
     ])
     const loadsEndedAt = Date.now()
-    const credentialAccountUserId = resolvedCredentialUserId
-    if (payload.credentialId && !credentialAccountUserId) {
-      logger.warn(
-        `[${requestId}] Failed to resolve credential account for credential ${payload.credentialId}`
-      )
-    }
 
     if (!workflowData) {
       throw new Error(
@@ -654,6 +655,20 @@ async function executeWebhookJobInternal(
     )
     const providerConfigEndedAt = Date.now()
 
+    const credentialAccountUserId = await credentialAccountUserIdPromise
+    if (payload.credentialId && !credentialAccountUserId) {
+      logger.warn(
+        `[${requestId}] Failed to resolve credential account for credential ${payload.credentialId}`
+      )
+    }
+    const resolvedProviderConfig = resolvedWebhookRecord.providerConfig
+    const formatInputCredentialOwnerUserId =
+      credentialAccountUserId &&
+      payload.credentialId &&
+      resolvedProviderConfig.credentialId === payload.credentialId
+        ? credentialAccountUserId
+        : undefined
+
     if (handler.formatInput) {
       const result = await handler.formatInput({
         webhook: resolvedWebhookRecord,
@@ -663,6 +678,9 @@ async function executeWebhookJobInternal(
         query: payload.query ?? {},
         method: payload.method ?? '',
         requestId,
+        ...(formatInputCredentialOwnerUserId
+          ? { credentialOwnerUserId: formatInputCredentialOwnerUserId }
+          : {}),
       })
       input = result.input as Record<string, unknown> | null
       skipMessage = result.skip?.message

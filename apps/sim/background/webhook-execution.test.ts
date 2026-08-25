@@ -389,6 +389,40 @@ describe('executeWebhookJob fault vs error handling', () => {
     )
   })
 
+  it('forwards the resolved credential owner into formatInput when the credential matches', async () => {
+    const formatInput = vi.fn().mockResolvedValue({ input: { event: {} } })
+    mockGetProviderHandler.mockReturnValue({ formatInput })
+    const { resolveOAuthAccountId } = await import('@/lib/oauth/credential-service')
+    vi.mocked(resolveOAuthAccountId).mockResolvedValue({
+      accountId: 'account-1',
+    } as never)
+    dbChainMockFns.limit.mockResolvedValue([{ userId: 'owner-1' }])
+    mockExecuteWorkflowCore.mockResolvedValue({
+      success: true,
+      status: 'completed',
+      output: {},
+      logs: [],
+      executionState: {
+        blockStates: {},
+        executedBlocks: [],
+        blockLogs: [],
+        decisions: {},
+        completedLoops: [],
+        activeExecutionPath: [],
+      },
+    })
+    const warmContext = {
+      workflowRecord: { id: 'workflow-1', workspaceId: 'workspace-1', userId: 'user-1' },
+      webhookRecord: { id: 'webhook-1', providerConfig: { credentialId: 'credential-1' } },
+    } as unknown as NonNullable<Parameters<typeof executeWebhookJob>[2]>
+
+    await executeWebhookJob({ ...payload, credentialId: 'credential-1' }, undefined, warmContext)
+
+    expect(formatInput).toHaveBeenCalledWith(
+      expect.objectContaining({ credentialOwnerUserId: 'owner-1' })
+    )
+  })
+
   it('loads rows and keeps account checks without warm context', async () => {
     mockExecuteWorkflowCore.mockResolvedValue({
       success: true,

@@ -38,6 +38,12 @@ export interface FormatInputContext {
   /** HTTP method of the delivering request. Empty on legacy queued jobs. */
   method: string
   requestId: string
+  /**
+   * Owner of the webhook's OAuth credential, when the worker already resolved
+   * it for execution metadata. Lets a provider skip re-resolving the same
+   * credential → account → owner chain; absent on paths that never resolved it.
+   */
+  credentialOwnerUserId?: string
 }
 
 /** Result of custom input preparation. */
