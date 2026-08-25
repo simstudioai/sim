@@ -211,6 +211,19 @@ export interface CommandSpec {
   expandedTrace?: boolean
   /** Dot path to a nested result array rendered as the command's human list. */
   itemsPath?: string
+  /**
+   * A page-envelope field that qualifies the whole list, stated once for the
+   * human formats.
+   *
+   * `billing logs` answers a different question depending on the kind of API
+   * key that asked — a personal key sees the caller's own events, a workspace
+   * key the whole workspace ledger — and the response says which. The value
+   * belongs to the query rather than to any row, so it is not a column; it goes
+   * to stderr so that a `--output text` consumer cutting tab-separated fields
+   * still reads only rows. The machine formats print the envelope whole and
+   * carry it already.
+   */
+  pageNote?: { path: string; label: string }
   /** Allow an optional workspaceId field to omit the configured workspace filter. */
   allWorkspaces?: boolean
   /**

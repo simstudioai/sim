@@ -212,6 +212,81 @@ describe('connector sync queue', () => {
     expect(mockExecuteSync).not.toHaveBeenCalled()
   })
 
+  /**
+   * Every guard here used to return `void`, so a caller could not tell a queued
+   * sync from a skipped one and reported — and audited — work that never
+   * started.
+   */
+  it('reports the queue outcome to the caller', async () => {
+    const result = await dispatchSync('connector-1', {
+      billingAttribution: BILLING_ATTRIBUTION,
+      requestId: 'request-1',
+    })
+
+    expect(result).toEqual({ queued: true })
+  })
+
+  it('reports why an automatic dispatch on a paused connector was not queued', async () => {
+    resetDbChainMock()
+    queueTableRows(schemaMock.knowledgeConnector, [
+      {
+        knowledgeBaseId: 'knowledge-base-1',
+        connectorStatus: 'paused',
+        connectorArchivedAt: null,
+        connectorDeletedAt: null,
+        connectorNextSyncAt: NEXT_SYNC_AT,
+        workspaceId: 'workspace-paid',
+        kbDeletedAt: null,
+      },
+    ])
+
+    const result = await dispatchSync('connector-1', {
+      billingAttribution: BILLING_ATTRIBUTION,
+      expectedNextSyncAt: NEXT_SYNC_AT,
+      requireRunnable: true,
+      requestId: 'request-1',
+    })
+
+    expect(result.queued).toBe(false)
+    expect(result.reason).toContain('paused')
+  })
+
+  it('reports why a connector that is not accepting a queued sync was skipped', async () => {
+    /** `markSyncPending` took nothing: the row already carries a queue entry. */
+    dbChainMockFns.returning.mockResolvedValue([])
+
+    const result = await dispatchSync('connector-1', {
+      billingAttribution: BILLING_ATTRIBUTION,
+      requestId: 'request-1',
+    })
+
+    expect(result).toEqual({
+      queued: false,
+      reason: 'A sync is already queued or running for this connector',
+    })
+    expect(mockTrigger).not.toHaveBeenCalled()
+  })
+
+  it('reports why a connector whose knowledge base is gone was skipped', async () => {
+    resetDbChainMock()
+    queueTableRows(schemaMock.knowledgeConnector, [
+      {
+        knowledgeBaseId: 'knowledge-base-1',
+        connectorArchivedAt: null,
+        connectorDeletedAt: null,
+        workspaceId: 'workspace-paid',
+        kbDeletedAt: new Date('2026-08-20T00:00:00.000Z'),
+      },
+    ])
+
+    const result = await dispatchSync('connector-1', {
+      billingAttribution: BILLING_ATTRIBUTION,
+      requestId: 'request-1',
+    })
+
+    expect(result).toEqual({ queued: false, reason: 'Knowledge base has been deleted' })
+  })
+
   it('releases the lock when it errors a connector whose knowledge base is gone', async () => {
     resetDbChainMock()
     queueTableRows(schemaMock.knowledgeConnector, [

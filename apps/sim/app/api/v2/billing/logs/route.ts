@@ -60,7 +60,8 @@ export const GET = defineV2JsonRoute({
     }
   },
   useCase: listBillingLogs,
-  present: ({ usage, creditsByLogId }, { query }) => ({
+  present: ({ usage, creditsByLogId, scope }, { query }) => ({
+    scope,
     data: usage.logs.map((log) => ({
       id: log.id,
       createdAt: log.createdAt,

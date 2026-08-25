@@ -98,7 +98,7 @@ describe('the command tree', () => {
     for (const operation of Object.keys(V2_OPERATIONS) as V2OperationName[]) {
       if (CLI_CONTRACT[operation]?.hidden) continue
       const spec = V2_OPERATIONS[operation] as OperationSpec
-      for (const slot of ['query', 'body'] as const) {
+      for (const slot of ['query', 'body', 'headers'] as const) {
         for (const field of Object.keys(spec[slot] ?? {})) {
           if (flagSpecFor(operation, field).omit) continue
           const names = flagsByField.get(field) ?? new Set<string>()
@@ -112,9 +112,12 @@ describe('the command tree', () => {
       .filter(([, names]) => names.size > 1)
       .map(([field, names]) => `${field}: ${[...names].sort().join(', ')}`)
 
-    // `rowIds` is the one field still spelled two ways: `tables rows
-    // batch-delete` deliberately takes a singular repeated `--row`.
-    expect(divergent).toEqual(['rowIds: row, row-ids'])
+    // `rowIds` is spelled two ways because `tables rows batch-delete`
+    // deliberately takes a singular repeated `--row`. `limit` is two concepts
+    // sharing a name on the wire: a page size everywhere else, and on `tables
+    // dispatches create` an object capping eligible rows, which is why that one
+    // is `--max-rows`.
+    expect(divergent).toEqual(['rowIds: row, row-ids', 'limit: limit, max-rows'])
   })
 })
 
@@ -238,5 +241,213 @@ describe('folder-path fields', () => {
     // every CI job that points the CLI at a scratch directory.
     expect(HELP_EPILOGUE).toContain('~/.sim/config')
     expect(HELP_EPILOGUE).toContain('SIM_CONFIG_DIR')
+  })
+})
+
+describe('confirm gates say what is actually at stake', () => {
+  it('gates the two workflow writes that change what production serves', () => {
+    // `undeploy` takes the workflow offline for every consumer, its published
+    // MCP tools included. `rollback` changes which version is live, while the
+    // gated `revert` only overwrites the draft.
+    const undeploy = CLI_CONTRACT.undeployWorkflow?.confirm ?? ''
+    expect(undeploy).toContain('offline')
+    expect(undeploy).toMatch(/MCP/)
+    // The outage is temporary: MCP registrations are archived, and deploying
+    // again republishes the workflow on the servers it was on before. Saying
+    // they are lost for good would be the same false-warning defect this batch
+    // exists to remove.
+    expect(undeploy).toContain('until it is deployed again')
+    expect(undeploy).not.toMatch(/does not restore|not recoverable|cannot be undone/)
+    expect(CLI_CONTRACT.rollbackWorkflow?.confirm).toBeTruthy()
+  })
+
+  it('does not promise irreversible loss for a recoverable delete', () => {
+    // `tables restore`, `knowledge restore` and `workflows restore` all ship, so
+    // these three archive rather than destroy — the wording `deleteFile`
+    // already uses.
+    for (const [operation, restore] of [
+      ['deleteTable', 'tables restore'],
+      ['deleteKnowledgeBase', 'knowledge restore'],
+      ['deleteWorkflow', 'workflows restore'],
+    ] as const) {
+      const confirm = CLI_CONTRACT[operation]?.confirm ?? ''
+      expect(confirm).toContain('archives')
+      expect(confirm).toContain(restore)
+    }
+  })
+})
+
+describe('records show what the API actually returns', () => {
+  it('summarizes log stats instead of dumping the raw payload', () => {
+    const fields = CLI_CONTRACT.getLogStats?.fields ?? []
+    const paths = fields.map((field) => field.path ?? field.header)
+
+    expect(paths).toContain('totalRuns')
+    expect(paths).toContain('timeBounds.start')
+    // `avgLatency` is the one duration in the response whose key the `Ms`
+    // suffix does not rescue, so it printed as a raw float.
+    expect(fields.find((field) => field.path === 'avgLatency')?.format).toBe('duration')
+    // A nested array cannot be a column, so the raw JSON dump was the only
+    // thing standing in for the per-workflow series.
+    expect(fields.find((field) => field.header === 'workflows')?.format).toBe('count')
+  })
+
+  it('reports the storage quota billing returns beside the credits', () => {
+    const spec = CLI_CONTRACT.getBillingStatus
+    const paths = (spec?.fields ?? []).map((field) => field.path ?? field.header)
+
+    expect(paths).toContain('storage.usedBytes')
+    expect(paths).toContain('storage.limitBytes')
+    expect(paths).toContain('storage.percentUsed')
+    // Credits and storage are both null for a workspace API key, so the record
+    // has to say why it is showing em-dashes.
+    expect(spec?.describe).toContain('personal API key')
+  })
+
+  it('describes a workspace with the fields the strict schema has', () => {
+    const paths = (CLI_CONTRACT.getWorkspace?.fields ?? []).map(
+      (field) => field.path ?? field.header
+    )
+
+    // `mode` is not on the strict v2 workspace schema, so it could only ever
+    // render an em-dash; `color` and `logoUrl` are returned and were missing.
+    expect(paths).not.toContain('mode')
+    expect(paths).toContain('color')
+    expect(paths).toContain('logoUrl')
+  })
+})
+
+describe('list columns', () => {
+  it('shows which secrets are unredacted', () => {
+    // An unredacted secret's value reaches run logs, model-visible content and
+    // shared log links in plaintext; table and text are the default formats, so
+    // omitting the column hid that from the operator entirely.
+    const columns = CLI_CONTRACT.listSecrets?.columns ?? []
+    const unredacted = columns.find((column) => (column.path ?? column.header) === 'unredacted')
+
+    expect(unredacted?.format).toBe('bool')
+    // `--output text` is positional: the new column has to trail the ones a
+    // script already cuts.
+    expect(columns[columns.length - 1]).toBe(unredacted)
+  })
+
+  it('keeps the workflow-MCP listings scannable', () => {
+    const servers = CLI_CONTRACT.listWorkflowMcpServers?.columns ?? []
+    const tools = CLI_CONTRACT.listWorkflowMcpTools?.columns ?? []
+
+    expect(servers.length).toBeGreaterThan(0)
+    expect(tools.length).toBeGreaterThan(0)
+    // Inferred, these were 8 and 10 columns wide, both timestamps included.
+    expect(servers.length).toBeLessThanOrEqual(6)
+    expect(tools.length).toBeLessThanOrEqual(5)
+    expect(servers.map((column) => column.path ?? column.header)).toContain('toolCount')
+    const toolPaths = tools.map((column) => column.path ?? column.header)
+    // Two truncated URLs side by side told the reader nothing; `workflowId` is
+    // what `tools delete` addresses.
+    expect(toolPaths).not.toContain('mcpServerUrl')
+    expect(toolPaths).not.toContain('apiEndpoint')
+    expect(toolPaths).toContain('workflowId')
+  })
+
+  it('lists the audit-log id its own get command takes', () => {
+    expect(
+      (CLI_CONTRACT.listAuditLogs?.columns ?? []).map((column) => column.path ?? column.header)
+    ).toContain('id')
+  })
+})
+
+describe('help states the shape of a JSON flag', () => {
+  it('names the dispatch row cap for what it caps, and spells it out', () => {
+    const help = commandAt('tables', 'dispatches', 'create').helpInformation()
+
+    // Every other `--limit` in the CLI is a bare integer, so `--limit 2` here
+    // failed with "expected object, received number".
+    expect(help).toContain('--max-rows <json|@file>')
+    expect(help).toContain('{"type":"rows","max":100}')
+    expect(help).not.toMatch(/--limit\b/)
+  })
+
+  it('shows one example per arm of the workflow operation batches', () => {
+    const operations = commandAt('workflows', 'operations', 'apply').helpInformation()
+    expect(operations).toContain('"operation_type":"add"')
+    expect(operations).toContain('"operation_type":"edit"')
+    expect(operations).toContain('"operation_type":"delete"')
+    expect(operations).toContain('subflowId')
+    expect(operations).toContain('"enabled":false')
+
+    const variables = commandAt('workflows', 'variables', 'update').helpInformation()
+    expect(variables).toContain('"operation":"add"')
+    expect(variables).toContain('"operation":"edit"')
+    expect(variables).toContain('"operation":"delete"')
+  })
+
+  it('shows the parameter-description shape MCP tool publishing takes', () => {
+    expect(commandAt('workflow-mcp-servers', 'tools', 'create').helpInformation()).toContain(
+      '[{"name":"email","description":"Customer email address"}]'
+    )
+  })
+})
+
+/**
+ * Help text as one line.
+ *
+ * Commander wraps a description to the terminal width, so a phrase this file
+ * asserts on can straddle a newline and several spaces of indent — which makes
+ * a `not.toContain` on a wrapped phrase pass whether or not the phrase is
+ * there.
+ */
+function flatHelp(...names: string[]): string {
+  return commandAt(...names)
+    .helpInformation()
+    .replace(/\s+/g, ' ')
+}
+
+describe('help and gates state what is actually true', () => {
+  it('warns about the chunk batch in terms true of every operation it accepts', () => {
+    // `--operation` takes enable, disable, or delete. The first two are
+    // reversible and destroy nothing, so a gate message promising a possible
+    // irreversible delete on every invocation is false two times in three —
+    // and a warning the caller learns to disbelieve is how `--yes` becomes
+    // reflexive.
+    const confirm = CLI_CONTRACT.bulkUpdateKnowledgeChunks?.confirm ?? ''
+
+    expect(confirm).toBeTruthy()
+    expect(confirm).toContain('--operation delete')
+    // The unconditional claim: true only of the delete arm.
+    expect(confirm).not.toMatch(/^This can delete every named chunk/)
+  })
+
+  it('names the flag the terminal actually has for a full tag cleanup', () => {
+    const help = flatHelp('knowledge', 'tags', 'cleanup')
+
+    // The API's prose named a wire spelling with no terminal form; `--no-unused`
+    // is printed on the next line of this same help.
+    expect(help).toContain('--no-unused')
+    expect(help).not.toContain('unused=false')
+  })
+
+  /**
+   * `--organization` became optional server-side: the caller's sole organization
+   * is derived, and only a multi-organization account has to name one. Help that
+   * still read like a plain ID field sent people looking up an id they did not
+   * need.
+   */
+  it('says --organization defaults to the caller only organization', () => {
+    for (const names of [
+      ['audit-logs', 'list'],
+      ['audit-logs', 'get'],
+    ]) {
+      const help = flatHelp(...names)
+
+      expect(help).toContain('--organization')
+      expect(help).toContain('defaults to your only organization')
+      expect(help).toContain('personal API key required')
+    }
+  })
+
+  it('states the tag field type it falls back to', () => {
+    // Undocumented, the default surfaces as `Tag slot "number3" is not valid
+    // for field type "text"` — blaming a field type the caller never typed.
+    expect(flatHelp('knowledge', 'tags', 'create')).toContain('Defaults to text')
   })
 })

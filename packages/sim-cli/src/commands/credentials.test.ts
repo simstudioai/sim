@@ -241,3 +241,37 @@ describe('credential connection commands', () => {
     expect(vi.mocked(console.log).mock.calls.flat().join('\n')).toContain('authorizationUrl')
   })
 })
+
+describe('credentials update --name', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks()
+    output.format = 'json'
+    mockRequest.mockReset()
+    mockRequest.mockResolvedValue({ data: { id: 'cred-1', displayName: 'renamed' } })
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+  })
+
+  async function update(...argv: string[]): Promise<void> {
+    await program().parseAsync(['node', 'sim', 'credentials', 'update', 'cred-1', ...argv])
+  }
+
+  it('accepts --name as an alias for --display-name', async () => {
+    await update('--name', 'renamed')
+
+    expect(mockRequest).toHaveBeenCalledOnce()
+    expect(mockRequest.mock.calls[0][1].body).toMatchObject({ displayName: 'renamed' })
+  })
+
+  it('keeps --display-name working', async () => {
+    await update('--display-name', 'renamed')
+
+    expect(mockRequest.mock.calls[0][1].body).toMatchObject({ displayName: 'renamed' })
+  })
+
+  it('refuses both spellings of the same field', async () => {
+    await expect(update('--name', 'one', '--display-name', 'two')).rejects.toThrow(
+      '--name and --display-name are the same field; pass one, not both'
+    )
+    expect(mockRequest).not.toHaveBeenCalled()
+  })
+})

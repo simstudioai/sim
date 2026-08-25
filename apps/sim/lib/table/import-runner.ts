@@ -11,6 +11,7 @@ import {
   CSV_MAX_BATCH_SIZE_BYTES,
   CSV_SCHEMA_SAMPLE_SIZE,
   type CsvHeaderMapping,
+  type CsvSkippedRecord,
   coerceRowsForTable,
   inferColumnType,
   inferSchemaFromCsv,
@@ -32,6 +33,7 @@ import { createCsvParser } from '@/lib/table/import-stream'
 import {
   markJobFailedInWorkspace,
   markJobReadyInWorkspace,
+  recordImportRejections,
   updateJobProgressInWorkspace,
 } from '@/lib/table/jobs/service'
 import { assertRowDelete, assertRowInsert, assertSchemaMutable } from '@/lib/table/mutation-locks'
@@ -45,6 +47,13 @@ const logger = createLogger('TableImportRunner')
 
 /** Emit a progress event / DB update at most every this many rows. */
 const PROGRESS_INTERVAL_ROWS = 5000
+
+/**
+ * How many dropped records are kept as a sample on the import record. Bounded because a
+ * systematically malformed million-row file would otherwise accumulate a million entries in
+ * worker memory and then write them all into the job payload.
+ */
+const MAX_REJECTED_SAMPLES = 5
 
 /**
  * Thrown when this worker discovers it no longer owns the table's import (the stale-job janitor
@@ -102,6 +111,11 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
   // Hoisted so `finally` can destroy it on any failure — otherwise the storage HTTP body leaks
   // open until it times out.
   let source: Readable | undefined
+  // Hoisted alongside `source` so the `finally` can persist the summary on every exit path —
+  // ready, failed, canceled or superseded.
+  let rowsRejected = 0
+  let cellsRejected = 0
+  const rejectedSamples: CsvSkippedRecord[] = []
 
   try {
     if (!(await updateJobProgressInWorkspace(tableId, workspaceId, 0, importId))) {
@@ -185,9 +199,19 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
     })
 
     let csvHeaders: string[] = []
-    const parser = createCsvParser(sniffed.delimiter, (headers) => {
-      csvHeaders = headers
-    })
+    // Rejections are counted, never thrown: `skip_records_with_error` is what lets a file with
+    // one bad record still import the rest. Counting them is what stops that from reading as a
+    // clean import — the summary lands on the job payload in `finally`.
+    const parser = createCsvParser(
+      sniffed.delimiter,
+      (headers) => {
+        csvHeaders = headers
+      },
+      (skipped) => {
+        rowsRejected++
+        if (rejectedSamples.length < MAX_REJECTED_SAMPLES) rejectedSamples.push(skipped)
+      }
+    )
     // `.pipe` doesn't forward source errors; forward so the iterator throws.
     csvStream.on('error', (err) => parser.destroy(err))
     byteCounter.on('error', (err) => parser.destroy(err))
@@ -280,9 +304,19 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
       // may own. Runs per batch (not just at the emit cadence) so we stop within one batch.
       const owns = await updateJobProgressInWorkspace(tableId, workspaceId, inserted, importId)
       if (!owns) throw new ImportSupersededError()
-      const coerced = coerceRowsForTable(rows, schema, headerToColumn, {
-        timezone: payload.timezone,
-      })
+      // Held per batch and folded into the run total only once the rows commit: an
+      // assertRowCapacity rejection or a failed insert below discards this batch entirely,
+      // and counting its blanked cells would report loss for rows that never landed.
+      let batchCellsRejected = 0
+      const coerced = coerceRowsForTable(
+        rows,
+        schema,
+        headerToColumn,
+        { timezone: payload.timezone },
+        () => {
+          batchCellsRejected++
+        }
+      )
       const rowLimit = await assertRowCapacity({
         workspaceId,
         currentRowCount: existingRowCount + inserted,
@@ -309,11 +343,21 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
       })
       inserted += result.inserted
       lastOrderKey = result.lastOrderKey
+      cellsRejected += batchCellsRejected
       // Emit after the first batch, then every interval, so the bar appears early without flooding.
       if (
         inserted - lastReported >= PROGRESS_INTERVAL_ROWS ||
         (lastReported === 0 && inserted > 0)
       ) {
+        // Persist the post-insert count. The ownership gate above necessarily writes the count
+        // as it stood *before* this batch, so without this an in-flight or canceled import
+        // reports a `rowsProcessed` a whole batch behind the rows actually committed —
+        // CSV_MAX_BATCH_SIZE rows, which reads as a ~50x under-count on the progress line. A
+        // no-op once a newer run owns the job, exactly like the gate. Gated on the emit
+        // cadence because the next batch's gate persists the count anyway: writing it every
+        // batch doubles an import's UPDATE volume purely to freshen a display counter, and
+        // the run's terminal write after the last flush pins the final number.
+        await updateJobProgressInWorkspace(tableId, workspaceId, inserted, importId)
         lastReported = inserted
         // Exact, monotonic completion from bytes consumed — no wobbly row estimate.
         const percent =
@@ -488,8 +532,27 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
       )
     }
   } finally {
-    // Release the storage stream so its HTTP connection doesn't leak on failure.
+    // Release the storage stream first: it holds an open HTTP response body, and the
+    // rejection-summary write below is a database round trip that would otherwise keep that
+    // connection pinned for its duration on every import.
     source?.destroy()
+    // Written whatever the outcome (ready, failed, canceled, superseded) so a partial import
+    // is observable on the import record instead of only in this worker's memory.
+    if (rowsRejected > 0 || cellsRejected > 0) {
+      try {
+        await recordImportRejections(tableId, workspaceId, importId, {
+          rowsRejected,
+          cellsRejected,
+          rejectedSamples,
+        })
+      } catch (summaryError) {
+        logger.error(`[${requestId}] Failed to record import rejections`, {
+          tableId,
+          importId,
+          error: getErrorMessage(summaryError, 'Unknown rejection-summary error'),
+        })
+      }
+    }
     // The uploaded source file is single-use (a fresh upload per import) — delete it once the
     // import is terminal so the workspace bucket doesn't accumulate. Best-effort. Skipped for
     // persistent workspace files (deleteSourceFile: false).

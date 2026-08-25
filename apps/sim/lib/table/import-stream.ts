@@ -12,7 +12,7 @@
  */
 
 import { type Parser, parse as parseCsvStream } from 'csv-parse'
-import { csvParseOptions } from '@/lib/table/import'
+import { type CsvSkippedRecord, csvParseOptions } from '@/lib/table/import'
 
 /**
  * Returns a streaming `csv-parse` parser (a `Transform`/async-iterable). Pipe a
@@ -21,7 +21,12 @@ import { csvParseOptions } from '@/lib/table/import'
  * so the file is never fully buffered in memory.
  *
  * `onHeaders` fires once, before the first record, with the full header row.
+ * `onSkip` fires once per source record the parser had to drop.
  */
-export function createCsvParser(delimiter = ',', onHeaders?: (headers: string[]) => void): Parser {
-  return parseCsvStream(csvParseOptions(delimiter, onHeaders))
+export function createCsvParser(
+  delimiter = ',',
+  onHeaders?: (headers: string[]) => void,
+  onSkip?: (skipped: CsvSkippedRecord) => void
+): Parser {
+  return parseCsvStream(csvParseOptions(delimiter, onHeaders, onSkip))
 }

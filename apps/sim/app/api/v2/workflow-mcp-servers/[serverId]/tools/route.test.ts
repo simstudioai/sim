@@ -50,6 +50,7 @@ vi.mock('@/lib/mcp/queries', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/mcp/queries')>()),
   getWorkflowMcpServerById: mocks.getServer,
   getLiveWorkflowMcpTool: mocks.getLiveTool,
+  getWorkflowMcpToolIncludingArchived: mocks.getLiveTool,
   listLiveWorkflowMcpTools: mocks.listTools,
   getWorkflowMcpPublishableWorkflow: mocks.getWorkflow,
 }))

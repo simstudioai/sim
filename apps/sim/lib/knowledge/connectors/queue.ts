@@ -100,6 +100,26 @@ export function assertConnectorSyncPayload(value: unknown): ConnectorSyncPayload
 export const SYNC_DISPATCH_FAILED_ERROR = 'Sync could not be queued'
 
 /**
+ * The skip both queue-entry guards report: the row already carries a queued or
+ * running sync, or moved to a status a run cannot start from.
+ */
+const SYNC_ALREADY_QUEUED_REASON = 'A sync is already queued or running for this connector'
+
+/**
+ * Whether a dispatch actually put a run on the queue.
+ *
+ * Every guard in {@link dispatchSync} used to return `void`, so a caller could
+ * not tell a queued sync from one that was silently skipped, and reported — and
+ * audited — work that was never started. `reason` is worded for whoever reads
+ * it in an API response or a log, not as an internal token.
+ */
+export interface SyncDispatchResult {
+  queued: boolean
+  /** Present only when the sync was not queued. */
+  reason?: string
+}
+
+/**
  * Marks the connector as having a sync queued, and returns the token that owns
  * that queued sync.
  *
@@ -217,7 +237,7 @@ async function releaseFailedDispatch(
 export async function dispatchSync(
   connectorId: string,
   options: DispatchSyncOptions
-): Promise<void> {
+): Promise<SyncDispatchResult> {
   if (!isNonEmptyString(connectorId)) {
     throw new Error('Connector sync dispatch requires a connector ID')
   }
@@ -257,7 +277,7 @@ export async function dispatchSync(
   const row = connectorRows[0]
   if (!row) {
     logger.warn('Skipping sync dispatch: connector not found', { connectorId, requestId })
-    return
+    return { queued: false, reason: 'Connector no longer exists' }
   }
   if (row.kbDeletedAt) {
     logger.warn('Skipping sync dispatch: knowledge base is deleted', {
@@ -287,14 +307,14 @@ export async function dispatchSync(
         updatedAt: new Date(),
       })
       .where(eq(knowledgeConnector.id, connectorId))
-    return
+    return { queued: false, reason: 'Knowledge base has been deleted' }
   }
   if (row.connectorArchivedAt || row.connectorDeletedAt) {
     logger.warn('Skipping sync dispatch: connector is archived or deleted', {
       connectorId,
       requestId,
     })
-    return
+    return { queued: false, reason: 'Connector has been archived or deleted' }
   }
   if (payload.requireRunnable && !isConnectorRunnableStatus(row.connectorStatus)) {
     logger.info('Skipping automatic sync dispatch: connector is not runnable', {
@@ -302,7 +322,10 @@ export async function dispatchSync(
       status: row.connectorStatus,
       requestId,
     })
-    return
+    return {
+      queued: false,
+      reason: `Connector is ${row.connectorStatus} and is not synced automatically`,
+    }
   }
   if (
     options.expectedNextSyncAt &&
@@ -312,7 +335,10 @@ export async function dispatchSync(
       connectorId,
       requestId,
     })
-    return
+    return {
+      queued: false,
+      reason: 'The connector sync schedule changed after this run was scheduled',
+    }
   }
   if (!row.workspaceId) {
     throw new Error(`Connector ${connectorId} is missing workspace billing context`)
@@ -337,7 +363,7 @@ export async function dispatchSync(
         connectorId,
         requestId,
       })
-      return
+      return { queued: false, reason: SYNC_ALREADY_QUEUED_REASON }
     }
 
     /**
@@ -368,7 +394,7 @@ export async function dispatchSync(
       throw error
     }
     logger.info('Dispatched connector sync to Trigger.dev', { connectorId, requestId })
-    return
+    return { queued: true }
   }
 
   const dispatchToken = await markSyncPending(connectorId)
@@ -377,7 +403,7 @@ export async function dispatchSync(
       connectorId,
       requestId,
     })
-    return
+    return { queued: false, reason: SYNC_ALREADY_QUEUED_REASON }
   }
 
   executeSync(connectorId, {
@@ -398,4 +424,6 @@ export async function dispatchSync(
      */
     await releaseFailedDispatch(connectorId, dispatchToken, error)
   })
+
+  return { queued: true }
 }

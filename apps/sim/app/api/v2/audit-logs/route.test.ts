@@ -69,13 +69,32 @@ describe('v2 audit-log routes', () => {
     mocks.get.mockResolvedValue({ log })
   })
 
-  it('authenticates and rate-limits before validating organization input', async () => {
-    const response = await listLogs(new NextRequest('http://localhost:3000/api/v2/audit-logs'))
+  it('authenticates and rate-limits before validating query input', async () => {
+    const response = await listLogs(
+      new NextRequest('http://localhost:3000/api/v2/audit-logs?organisationId=org-1')
+    )
 
     expect(response.status).toBe(400)
     expect(v2RouteMocks.authenticate).toHaveBeenCalled()
     expect(v2RouteMocks.operationRate).toHaveBeenCalledTimes(2)
     expect(mocks.list).not.toHaveBeenCalled()
+  })
+
+  /**
+   * No API-key-reachable surface publishes an organization id, so a required
+   * `organizationId` made the resource unreachable from a key. The use case
+   * derives it from the caller, which means the route has to let it through
+   * unset rather than refusing the request itself.
+   */
+  it('admits a request that names no organization', async () => {
+    const response = await listLogs(new NextRequest('http://localhost:3000/api/v2/audit-logs'))
+
+    expect(response.status).toBe(200)
+    expect(mocks.list).toHaveBeenCalledWith({
+      principal: auth.principal,
+      input: expect.objectContaining({ organizationId: undefined }),
+      request: expect.anything(),
+    })
   })
 
   it('maps list filters into the authorized application operation', async () => {
@@ -207,6 +226,42 @@ describe('v2 audit-log routes', () => {
     expect(resumed.status).toBe(200)
     expect(mocks.list).toHaveBeenCalled()
   })
+
+  /**
+   * `organizationId` selects nothing: an account belongs to at most one
+   * organization, so naming it and letting it be derived are two spellings of
+   * one sequence. Binding the cursor to the spelling refused the genuine next
+   * page the moment a caller started supplying the id mid-walk.
+   */
+  it.each([
+    ['derived then named', '', 'organizationId=org-1&'],
+    ['named then derived', 'organizationId=org-1&', ''],
+  ])(
+    'resumes a cursor across both spellings of the organization (%s)',
+    async (_l, minting, replaying) => {
+      const minted = await listLogs(
+        new NextRequest(
+          `http://localhost:3000/api/v2/audit-logs?${minting}actorEmail=ada%40example.com`
+        )
+      )
+      const { nextCursor } = await minted.json()
+      expect(nextCursor).toEqual(expect.any(String))
+
+      mocks.list.mockClear()
+      const resumed = await listLogs(
+        new NextRequest(
+          `http://localhost:3000/api/v2/audit-logs?${replaying}actorEmail=ada%40example.com&cursor=${encodeURIComponent(nextCursor)}`
+        )
+      )
+
+      expect(resumed.status).toBe(200)
+      expect(mocks.list).toHaveBeenCalledWith({
+        principal: auth.principal,
+        input: expect.objectContaining({ cursor: 'next-1' }),
+        request: expect.anything(),
+      })
+    }
+  )
 
   it('still refuses a cursor replayed under a different resourceType set', async () => {
     const minted = await listLogs(

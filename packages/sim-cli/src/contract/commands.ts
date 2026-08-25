@@ -11,6 +11,24 @@ const KNOWLEDGE_TAG_DEFINITIONS_HELP =
   'Tag definitions: [{"tagSlot":"tag1","displayName":"category","fieldType":"text"}]'
 const CUSTOM_TOOL_SCHEMA_HELP =
   'OpenAI function schema: {"type":"function","function":{"name":"...","parameters":{"type":"object","properties":{}}}}'
+const DISPATCH_ROW_LIMIT_HELP =
+  'Cap on eligible rows to run, as an object rather than a count: {"type":"rows","max":100}'
+/**
+ * The shapes behind the graph-write batches.
+ *
+ * Both fields are `z.array(z.unknown())` on the wire, so the generated help
+ * said only `<json|@file>` and the discriminant that decides what an entry even
+ * means appeared nowhere in the terminal. One example per arm is what makes the
+ * shape guessable, the same way `TABLE_FILTER_HELP` does for the predicate.
+ */
+const WORKFLOW_OPERATIONS_HELP =
+  'Edits to apply, in a single batch, keyed by operation_type: [{"operation_type":"add","block_id":"my-fn","params":{"type":"function","name":"My Fn","inputs":{"code":"return {ok:true}"}}},{"operation_type":"edit","block_id":"<uuid>","params":{"name":"Renamed","connections":{"success":"my-fn"}}},{"operation_type":"delete","block_id":"<uuid>"}]. Also insert_into_subflow and extract_from_subflow, whose params carry {"subflowId":"<loop-id>"}'
+const WORKFLOW_SET_BLOCK_ENABLED_HELP =
+  'Blocks to enable or disable, applied after --operations: [{"block_id":"<uuid>","enabled":false}]. Disabling a loop or parallel cascades to its unlocked descendants; enabling a block whose container is disabled is declined'
+const WORKFLOW_VARIABLE_OPERATIONS_HELP =
+  'Variable changes to apply in order, keyed by operation: [{"operation":"add","name":"my_var","type":"string","value":"hello"},{"operation":"edit","name":"my_var","value":"updated"},{"operation":"delete","name":"my_var"}]'
+const MCP_PARAMETER_DESCRIPTIONS_HELP =
+  'Per-field description overrides applied to the schema generated from the deployed workflow inputs, as [{"name":"email","description":"Customer email address"}]. A name matching no input field is ignored'
 /**
  * Every folder-path input the API accepts.
  *
@@ -97,7 +115,12 @@ export const CLI_CONTRACT: CliContract = {
   getBillingStatus: {
     command: 'billing status',
     allWorkspaces: true,
-    describe: 'Show billing status and current-period credit usage',
+    // The credit and storage figures are the payer's, and the API returns null
+    // for both to a workspace API key. Said here because the three credit
+    // fields otherwise render as an unexplained em-dash for exactly the key
+    // most people run the CLI with.
+    describe:
+      'Show billing status and current-period credit usage (credits and storage require a personal API key)',
     fields: [
       { header: 'plan' },
       { header: 'status' },
@@ -107,6 +130,11 @@ export const CLI_CONTRACT: CliContract = {
       { header: 'used credits', path: 'credits.used' },
       { header: 'limit credits', path: 'credits.limit' },
       { header: 'remaining credits', path: 'credits.remaining' },
+      // `fields` is what drives table and text output, so the storage quota the
+      // API returns beside the credits was visible only in JSON or YAML.
+      { header: 'used storage', path: 'storage.usedBytes', format: 'bytes' },
+      { header: 'limit storage', path: 'storage.limitBytes', format: 'bytes' },
+      { header: 'storage used %', path: 'storage.percentUsed' },
     ],
   },
   listBillingLogs: {
@@ -119,6 +147,10 @@ export const CLI_CONTRACT: CliContract = {
       startDate: { describe: 'Custom period start (ISO 8601)' },
       endDate: { describe: 'Custom period end (ISO 8601)' },
     },
+    // Which ledger answered: a personal key reports only the calling user's
+    // events, a workspace key the whole workspace. The difference was silent —
+    // same workspace, same window, same flags, a strictly smaller result.
+    pageNote: { path: 'scope', label: 'scope' },
     columns: [
       { header: 'at', path: 'createdAt', format: 'timestamp' },
       { header: 'workspace', path: 'workspaceId' },
@@ -178,7 +210,15 @@ export const CLI_CONTRACT: CliContract = {
     // `--operation delete` reaches the same destructive path as `knowledge
     // chunks delete`, which is confirm-gated, so the bulk form is gated too.
     // The document batch-update above is not: it only enables or disables.
-    confirm: 'This can delete every named chunk and its embedding, and cannot be undone.',
+    //
+    // `confirm` is one message for the whole command, and the operation is a
+    // flag value, so the gate cannot branch on it here. The message therefore
+    // has to be true of an `enable` as well — both are reversible and neither
+    // destroys anything. Claiming a possible irreversible delete on every
+    // invocation is what teaches the reflexive `--yes` the gate depends on
+    // nobody learning.
+    confirm:
+      'This applies --operation to every named chunk; with --operation delete it deletes them and their embeddings, which cannot be undone.',
   },
   createKnowledgeConnector: {
     pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
@@ -212,6 +252,18 @@ export const CLI_CONTRACT: CliContract = {
   undeployWorkflow: {
     command: 'workflows undeploy',
     describe: 'Take a workflow out of deployment',
+    // Nothing about the name says "delete", so the destructive sweep never
+    // reached it — yet every consumer of the workflow breaks the moment it
+    // runs, the published MCP tools included.
+    //
+    // The outage is the whole of it: a workflow's MCP registrations are
+    // archived rather than deleted, and deploying again republishes it on
+    // exactly the servers it was on before. So the message says "until it is
+    // deployed again" and claims no permanent loss — a warning that overstates
+    // is the same defect as one that is silent, and this gate only works while
+    // callers believe it.
+    confirm:
+      'This takes the workflow offline for every API and chat consumer, and agents calling its MCP tools lose access until it is deployed again.',
   },
   // `GET /workflows/[id]/deployment` is a collection-shaped path holding one
   // record, so the derived `list` promised a page of deployments there is no
@@ -225,13 +277,22 @@ export const CLI_CONTRACT: CliContract = {
   setSecret: { hidden: true },
 
   // ─── Destructive single-resource operations ───────────────────────────────
-  deleteTable: { confirm: 'This deletes the table and all of its rows.' },
+  // Soft deletes, all three: `tables restore`, `knowledge restore` and
+  // `workflows restore` bring the resource back with its contents intact. The
+  // messages promised an irreversible loss, which is the one thing a confirm
+  // gate must get right — `deleteFile` already says "archives".
+  deleteTable: {
+    confirm: 'This archives the table and all of its rows; restore with `tables restore`.',
+  },
   deleteTableRow: { confirm: 'This deletes the row.' },
   deleteTableColumn: {
     confirm: 'This deletes the column and its values in every row.',
     fields: [{ header: 'remaining columns', path: 'columns', format: 'count' }],
   },
-  deleteKnowledgeBase: { confirm: 'This deletes the knowledge base and every document in it.' },
+  deleteKnowledgeBase: {
+    confirm:
+      'This archives the knowledge base and every document in it; restore with `knowledge restore`.',
+  },
   deleteKnowledgeDocument: {
     pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
     confirm: 'This deletes the document and its embeddings.',
@@ -256,7 +317,9 @@ export const CLI_CONTRACT: CliContract = {
   deleteSecret: {
     confirm: 'This deletes the secret; anything using it may stop working.',
   },
-  deleteWorkflow: { confirm: 'This deletes the workflow and its run history.' },
+  deleteWorkflow: {
+    confirm: 'This archives the workflow and its run history; restore with `workflows restore`.',
+  },
   deleteTableView: { confirm: 'This deletes the saved view and its filters.' },
   deleteWorkflowGroup: {
     // Not just the grouping: the documented behaviour is that every column the
@@ -337,6 +400,20 @@ export const CLI_CONTRACT: CliContract = {
     command: 'logs stats',
     describe: 'Summarize run counts, failures, and cost over a window',
     flags: LOG_LIST_FILTER_FLAGS,
+    // Undeclared, the summary fell through to the generic key dump: the whole
+    // `workflows` series printed as one truncated line of raw JSON, the window
+    // as another, and `avgLatency` as a raw float — the one duration in the
+    // response the `Ms` suffix does not rescue.
+    fields: [
+      { header: 'runs', path: 'totalRuns' },
+      { header: 'errors', path: 'totalErrors' },
+      { header: 'avg latency', path: 'avgLatency', format: 'duration' },
+      { header: 'window start', path: 'timeBounds.start', format: 'timestamp' },
+      { header: 'window end', path: 'timeBounds.end', format: 'timestamp' },
+      { header: 'bucket width', path: 'segmentMs', format: 'duration' },
+      { header: 'workflows', format: 'count' },
+      { header: 'workflows truncated', path: 'workflowsTruncated', format: 'bool' },
+    ],
   },
   readFileText: {
     command: 'files read',
@@ -348,6 +425,35 @@ export const CLI_CONTRACT: CliContract = {
   },
   deleteWorkflowMcpServer: {
     confirm: 'This deletes the MCP server, and any agent calling its tools loses access.',
+  },
+  deployWorkflowMcpTool: {
+    flags: {
+      parameterDescriptions: { json: true, describe: MCP_PARAMETER_DESCRIPTIONS_HELP },
+    },
+  },
+  // The same miss the comment on `listMcpServers` describes, one family over:
+  // undeclared, these dumped every scalar — both timestamps and, on the tools
+  // list, `mcpServerUrl` and `apiEndpoint` truncated side by side — while
+  // `toolCount`, the field you scan a server list for, came last.
+  listWorkflowMcpServers: {
+    columns: [
+      { header: 'id' },
+      { header: 'name' },
+      { header: 'tools', path: 'toolCount' },
+      { header: 'public', path: 'isPublic', format: 'bool' },
+      { header: 'url', path: 'mcpServerUrl' },
+      { header: 'updated', path: 'updatedAt', format: 'timestamp' },
+    ],
+  },
+  listWorkflowMcpTools: {
+    // `workflowId`, not the tool's own id: it is what `tools delete` addresses
+    // the tool by.
+    columns: [
+      { header: 'tool', path: 'toolName' },
+      { header: 'workflow', path: 'workflowId' },
+      { header: 'description', path: 'toolDescription' },
+      { header: 'updated', path: 'updatedAt', format: 'timestamp' },
+    ],
   },
   undeployWorkflowMcpTool: {
     confirm: 'This withdraws the tool, and any agent calling it loses access.',
@@ -374,9 +480,16 @@ export const CLI_CONTRACT: CliContract = {
   applyWorkflowOperations: {
     command: 'workflows operations apply',
     confirm: 'This edits the draft graph, and a delete operation removes blocks and their edges.',
+    flags: {
+      operations: { json: true, describe: WORKFLOW_OPERATIONS_HELP },
+      setBlockEnabled: { json: true, describe: WORKFLOW_SET_BLOCK_ENABLED_HELP },
+    },
   },
   applyWorkflowVariables: {
     confirm: 'This replaces the workflow’s variables and cannot be undone.',
+    flags: {
+      operations: { json: true, describe: WORKFLOW_VARIABLE_OPERATIONS_HELP },
+    },
   },
   // A revert is a graph write too: it overwrites the draft with an older
   // deployment's graph. Nothing about the name says "delete", so the destructive
@@ -384,6 +497,14 @@ export const CLI_CONTRACT: CliContract = {
   // draft right now.
   revertWorkflowVersion: {
     confirm: 'This overwrites the draft graph with the selected version and cannot be undone.',
+  },
+  // A rollback is the deployed counterpart of that revert, and the more
+  // consequential of the two: a revert only rewrites the draft, while this
+  // changes which version production serves. Gating the draft write and not the
+  // live one had it backwards.
+  rollbackWorkflow: {
+    confirm:
+      'This changes which deployed version runs in production for every API and chat consumer.',
   },
   // POST derives to `... create`, which creates nothing here. Named for the
   // operation instead, matching the shipped `files move`.
@@ -561,7 +682,18 @@ export const CLI_CONTRACT: CliContract = {
   getKnowledgeDocument: { pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT },
   updateKnowledgeDocument: { pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT },
   listKnowledgeTags: { pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT },
-  createKnowledgeTag: { pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT },
+  createKnowledgeTag: {
+    pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
+    flags: {
+      // The default is silent in help, and it is the field a rejected
+      // `--tag-slot` is blamed on: `--tag-slot number3` alone fails with `not
+      // valid for field type "text"`, naming a type the caller never typed.
+      fieldType: {
+        describe:
+          'Value type stored in the slot; it decides which slots are usable and which filter operators apply. Defaults to text, so a number, date, or boolean slot must name its type here. Slot capacity per type: text 7, number 5, date 2, boolean 3',
+      },
+    },
+  },
   updateKnowledgeTag: { pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT },
   deleteKnowledgeTag: {
     pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
@@ -675,22 +807,34 @@ export const CLI_CONTRACT: CliContract = {
     ],
   },
   listSecrets: {
-    // `description` trails the existing columns: `--output text` is positional,
-    // so inserting ahead of `updated` would shift every field a script already cuts.
+    // `description` and `unredacted` trail the existing columns: `--output
+    // text` is positional, so inserting ahead of `updated` would shift every
+    // field a script already cuts.
+    //
+    // `unredacted` is the one property of a secret an operator has to be able
+    // to see from a listing: it means the stored value appears in plaintext in
+    // run logs, model-visible content, and publicly shared log links. Omitting
+    // it left the table and text formats — the defaults — unable to answer
+    // which secrets are in that state at all.
     columns: [
       { header: 'name' },
       { header: 'scope' },
       { header: 'role' },
       { header: 'updated', path: 'updatedAt', format: 'timestamp' },
       { header: 'description' },
+      { header: 'unredacted', format: 'bool' },
     ],
   },
   getWorkspace: {
     profileWorkspacePath: true,
+    // `mode` is not a field of the strict v2 workspace schema, so it rendered
+    // an em-dash on every call; `color` and `logoUrl` are returned and were the
+    // two the record left out.
     fields: [
       { header: 'id' },
       { header: 'name' },
-      { header: 'mode' },
+      { header: 'color' },
+      { header: 'logo', path: 'logoUrl' },
       { header: 'members', path: 'memberCount' },
       { header: 'created', path: 'createdAt', format: 'timestamp' },
       { header: 'updated', path: 'updatedAt', format: 'timestamp' },
@@ -714,7 +858,8 @@ export const CLI_CONTRACT: CliContract = {
     flags: {
       organizationId: {
         name: 'organization',
-        describe: 'Organization ID (personal API key required)',
+        describe:
+          'Organization ID; defaults to your only organization, and is required when your account belongs to more than one (personal API key required)',
       },
     },
     columns: [
@@ -723,13 +868,17 @@ export const CLI_CONTRACT: CliContract = {
       { header: 'actor', path: 'actorEmail' },
       { header: 'action' },
       { header: 'resource', path: 'resourceName' },
+      // `audit-logs get` takes this id, and the listing is the only place to
+      // read one — the same reason `logs list` renders `run`.
+      { header: 'id' },
     ],
   },
   getAuditLog: {
     flags: {
       organizationId: {
         name: 'organization',
-        describe: 'Organization ID (personal API key required)',
+        describe:
+          'Organization ID; defaults to your only organization, and is required when your account belongs to more than one (personal API key required)',
       },
     },
   },
@@ -856,6 +1005,15 @@ export const CLI_CONTRACT: CliContract = {
     command: 'knowledge tags cleanup',
     pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
     describe: 'Remove tag definitions no document still uses',
+    flags: {
+      // The API's own prose names a wire spelling the terminal does not have:
+      // there is no `unused=false` to pass, and the flag that does it is
+      // `--no-unused`, printed on the very next line of the same help.
+      unused: {
+        describe:
+          'Whether to remove only the tag definitions no document in the knowledge base still carries a value for. Defaults to true. Pass --no-unused to delete every definition on the knowledge base, which also clears its slot on every document and chunk and is not recoverable',
+      },
+    },
     confirm:
       'This deletes every tag definition no document still uses. Their slots become free for a different field.',
   },
@@ -1077,6 +1235,17 @@ export const CLI_CONTRACT: CliContract = {
       rowIds: { list: true },
       excludeRowIds: { list: true },
       filter: { json: true, describe: TABLE_FILTER_HELP },
+      // Every other `--limit` in the CLI is a page size typed as a bare
+      // integer, so this one — an object naming the unit it caps — answered
+      // `--limit 2` with "expected object, received number" and the flag name
+      // was the reason anyone typed that. Renamed to say what it caps, with the
+      // shape spelled out; `--limit` still resolves for an existing script.
+      limit: {
+        name: 'max-rows',
+        renamedFrom: ['limit'],
+        json: true,
+        describe: DISPATCH_ROW_LIMIT_HELP,
+      },
     },
   },
   runRowEnrichment: {
@@ -1134,6 +1303,19 @@ export const CLI_CONTRACT: CliContract = {
       stream: { omit: true },
       includeThinking: { omit: true },
       includeToolCalls: { omit: true },
+      // Exposed under its domain name: every other flag in the CLI is one, and
+      // `--x-run-id` would be the only place the raw HTTP header spelling
+      // surfaced. The describe states the one-shot semantics because the name
+      // reads like an idempotency key and the header is not one.
+      'x-run-id': {
+        name: 'run-id',
+        describe:
+          'Claim this run identifier, so a retried invocation cannot start a second run; reusing a value already claimed fails with RUN_ID_CONFLICT rather than replaying the first result',
+      },
+      // The call-chain marker Sim writes for itself on a workflow-to-workflow
+      // hop. A CLI invocation is always the first hop, so the only thing a flag
+      // for it could do is forge a chain the caller was never part of.
+      'x-sim-via': { omit: true },
     },
   },
   getWorkflowRun: {

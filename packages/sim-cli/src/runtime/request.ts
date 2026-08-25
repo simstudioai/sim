@@ -9,6 +9,8 @@ import { camel, kebab } from './derive'
 export interface FieldSpec {
   kind: 'string' | 'number' | 'integer' | 'boolean' | 'enum' | 'array' | 'object' | 'unknown'
   required?: boolean
+  /** Whether the route contract accepts JSON `null` for this field. */
+  nullable?: boolean
   values?: readonly string[]
   default?: unknown
   /** The field's `.describe()` from the route contract, used as `--help` text. */
@@ -36,9 +38,49 @@ export function flagSpecFor(operation: V2OperationName, field: string): FlagSpec
   return CLI_CONTRACT[operation]?.flags?.[field] ?? {}
 }
 
+/**
+ * Long and short flags the root program has already claimed.
+ *
+ * Commander matches the root's own options across the whole of argv, including
+ * after a subcommand name, so a leaf that declares one of these never sees what
+ * the caller typed. The two failure modes differ only in how loud they are:
+ * `--version` and `--help` terminate, so `sim workflows rollback wf_1 --version
+ * 1` printed the CLI version and exited `0` without issuing a request; the
+ * root's value flags do not terminate, so a colliding leaf simply reads
+ * `undefined` and acts as though the flag were never typed.
+ */
+export const RESERVED_PROGRAM_FLAGS: ReadonlySet<string> = new Set([
+  '--version',
+  '-V',
+  '--help',
+  '-h',
+  '--profile',
+  '-P',
+  '--endpoint',
+  '--workspace',
+  '-w',
+  '--output',
+])
+
+/**
+ * Spellings a derived flag name is moved to when it would be shadowed.
+ *
+ * Only the name the CLI derives is rewritten. A name the contract states
+ * outright is left as written and caught by the build-time collision check
+ * instead — an explicit spelling is somebody's decision, and quietly serving a
+ * different flag than the one they wrote is how the shadowing went unnoticed in
+ * the first place.
+ */
+const RESERVED_FLAG_REPLACEMENTS: Readonly<Record<string, string>> = {
+  version: 'to-version',
+}
+
 /** The flag name a field is exposed under, honouring any contract override. */
 export function flagNameFor(operation: V2OperationName, field: string): string {
-  return flagSpecFor(operation, field).name ?? kebab(field)
+  const declared = flagSpecFor(operation, field).name
+  if (declared) return declared
+  const derived = kebab(field)
+  return RESERVED_FLAG_REPLACEMENTS[derived] ?? derived
 }
 
 /** The named option used for a path parameter that is contextual rather than primary. */
@@ -98,7 +140,7 @@ function readStdin(): string {
  * quoted form is easy to get wrong. JSON never starts with `@`; primitive list
  * flags reserve it for this explicit file-input form.
  */
-function readArgumentSource(raw: string, flagName: string): { text: string; from: string } {
+export function readArgumentSource(raw: string, flagName: string): { text: string; from: string } {
   if (!raw.startsWith('@')) return { text: raw, from: '' }
 
   const path = raw.slice(1)
@@ -238,6 +280,14 @@ export function coerce(raw: unknown, field: FieldSpec, flag: FlagSpec, flagName:
   if (raw === undefined) return undefined
 
   /**
+   * The clearing companion, `--no-<flag>`. Commander stores a negated option as
+   * `false`, which on a field the API types as nullable and not boolean can only
+   * have come from that flag. Typing the word `null` as a value stays the four
+   * characters it is, which is the only way to store that text literally.
+   */
+  if (raw === false && field.nullable && field.kind !== 'boolean' && !flag.boolean) return null
+
+  /**
    * A repeated flag. `list` says the CLI accepts several values; the *wire*
    * encoding follows the field's own kind, because the two are not the same
    * question:
@@ -294,6 +344,8 @@ export interface BuiltRequest {
   path: string
   query: Record<string, QueryValue>
   body: Record<string, unknown> | undefined
+  /** Contract-declared request headers, absent when the operation declares none. */
+  headers?: Record<string, string>
 }
 
 /**
@@ -330,6 +382,7 @@ export function buildRequest(
     pathParams: readonly string[]
     query?: Record<string, FieldSpec>
     body?: Record<string, FieldSpec>
+    headers?: Record<string, FieldSpec>
     opaqueBody?: boolean
   }
 
@@ -366,8 +419,9 @@ export function buildRequest(
 
   const query: Record<string, QueryValue> = {}
   const body: Record<string, unknown> = {}
+  const headers: Record<string, string> = {}
 
-  for (const slot of ['query', 'body'] as const) {
+  for (const slot of ['query', 'body', 'headers'] as const) {
     for (const [field, descriptor] of Object.entries(spec[slot] ?? {})) {
       const flag = flagSpecFor(operation, field)
       if (flag.omit) continue
@@ -403,9 +457,18 @@ export function buildRequest(
       }
 
       if (slot === 'query') query[field] = asQueryValue(value)
+      // A header is a wire string: the contracts declare only string headers,
+      // and anything else would reach `fetch` as `[object Object]`.
+      else if (slot === 'headers') headers[field] = String(value)
       else body[field] = value
     }
   }
+
+  /**
+   * Left off entirely when the operation declared none, so a request without
+   * contract headers is byte-for-byte the request it was before.
+   */
+  const headerSlot = Object.keys(headers).length > 0 ? { headers } : {}
 
   // A union body comes in whole through `--body`, merged over the fields the
   // branches share. Replacing outright dropped the profile's `workspaceId`,
@@ -432,7 +495,7 @@ export function buildRequest(
       ) {
         throw new SimApiError(`--${variant.name} must be a JSON ${variant.kind}`, 0)
       }
-      return { path, query, body: { ...body, [variant.property]: parsed } }
+      return { path, query, body: { ...body, [variant.property]: parsed }, ...headerSlot }
     }
 
     const raw = flags.body
@@ -441,7 +504,7 @@ export function buildRequest(
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
       throw new SimApiError('--body must be a JSON object', 0)
     }
-    return { path, query, body: { ...body, ...(parsed as Record<string, unknown>) } }
+    return { path, query, body: { ...body, ...(parsed as Record<string, unknown>) }, ...headerSlot }
   }
 
   return {
@@ -452,5 +515,6 @@ export function buildRequest(
      * Sending no bytes makes the server reject before field defaults can apply.
      */
     body: spec.body ? body : undefined,
+    ...headerSlot,
   }
 }

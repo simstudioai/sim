@@ -7,11 +7,16 @@ import {
   knowledgeBaseTagDefinitions,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNotNull, isNull, or, sql } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
-import { getSlotsForFieldType, SUPPORTED_FIELD_TYPES } from '@/lib/knowledge/constants'
+import {
+  getSlotsForFieldType,
+  isValidSlotForFieldType,
+  SUPPORTED_FIELD_TYPES,
+} from '@/lib/knowledge/constants'
 import type { BulkTagDefinitionsData, DocumentTagDefinition } from '@/lib/knowledge/tags/types'
 import type {
   CreateTagDefinitionData,
@@ -161,7 +166,7 @@ function getFieldTypeForSlot(tagSlot: string): string | null {
 export async function getNextAvailableSlot(
   knowledgeBaseId: string,
   fieldType: string,
-  existingBySlot?: Map<string, any>
+  existingBySlot?: Map<string, { fieldType: string }>
 ): Promise<string | null> {
   const availableSlots = getSlotsForFieldType(fieldType)
   let usedSlots: Set<string>
@@ -245,7 +250,26 @@ export async function getTagDefinitions(knowledgeBaseId: string): Promise<TagDef
 }
 
 /**
- * Create or update tag definitions in bulk
+ * Normalizes a tag display name for uniqueness comparison.
+ *
+ * Display names are the user-facing filter keys, so two tags differing only in
+ * case are indistinguishable in every surface that reads them. The stored value
+ * keeps the caller's casing; only the comparison is case-insensitive.
+ */
+export function normalizeDisplayName(displayName: string): string {
+  return displayName.trim().toLowerCase()
+}
+
+/**
+ * Declare tag definitions in bulk.
+ *
+ * The call is declarative and idempotent: a definition that already matches the
+ * declaration is reported in `updated` without a write, an explicitly requested
+ * `tagSlot` is honored or reported as an error (it is never silently relocated),
+ * a slot already held by a differently named tag is a collision rather than a
+ * rename (renaming says so through `originalDisplayName`), and a slot whose
+ * family does not match `fieldType` is rejected the same way single-tag
+ * creation rejects it.
  */
 export async function createOrUpdateTagDefinitionsBulk(
   knowledgeBaseId: string,
@@ -263,7 +287,9 @@ export async function createOrUpdateTagDefinitionsBulk(
 
   const existingDefinitions = await getDocumentTagDefinitions(knowledgeBaseId)
   const existingBySlot = new Map(existingDefinitions.map((def) => [def.tagSlot, def]))
-  const existingByDisplayName = new Map(existingDefinitions.map((def) => [def.displayName, def]))
+  const existingByDisplayName = new Map(
+    existingDefinitions.map((def) => [normalizeDisplayName(def.displayName), def])
+  )
 
   for (const defData of definitions) {
     try {
@@ -274,17 +300,78 @@ export async function createOrUpdateTagDefinitionsBulk(
         continue
       }
 
-      const isUpdate = !!originalDisplayName
+      const normalizedDisplayName = normalizeDisplayName(displayName)
 
-      if (isUpdate) {
-        const existingDef = existingByDisplayName.get(originalDisplayName!)
-        if (!existingDef) {
-          errors.push(`Tag definition with display name "${originalDisplayName}" not found`)
+      const slotOccupant = tagSlot ? existingBySlot.get(tagSlot) : undefined
+
+      /**
+       * A definition is identified by its slot when one is declared, and by its
+       * display name otherwise. `originalDisplayName` renames the tag that
+       * currently carries that name.
+       */
+      const target = originalDisplayName
+        ? existingByDisplayName.get(normalizeDisplayName(originalDisplayName))
+        : tagSlot
+          ? slotOccupant
+          : existingByDisplayName.get(normalizedDisplayName)
+
+      if (originalDisplayName && !target) {
+        errors.push(`Tag definition with display name "${originalDisplayName}" not found`)
+        continue
+      }
+
+      if (tagSlot && !isValidSlotForFieldType(tagSlot, fieldType)) {
+        errors.push(`Tag slot "${tagSlot}" is not valid for field type "${fieldType}"`)
+        continue
+      }
+
+      if (target) {
+        /**
+         * A declared slot is an identity assertion, never a move order: the tag
+         * values already written into the old slot on every document stay where
+         * they are, so honouring a relocation would relabel data that never
+         * moved.
+         */
+        if (tagSlot && target.tagSlot !== tagSlot) {
+          errors.push(
+            `Tag "${target.displayName}" occupies slot "${target.tagSlot}"; a tag's slot cannot change`
+          )
           continue
         }
 
-        if (displayName !== originalDisplayName && existingByDisplayName.has(displayName)) {
+        /**
+         * An occupied slot declared with a different name is a collision, not a
+         * rename. Document values are keyed by slot and are untouched by a
+         * rename, so silently relabelling the occupant would give every document
+         * a new label for old data and break saved filters keyed on the old
+         * name. A genuine rename says so through `originalDisplayName`.
+         */
+        if (
+          !originalDisplayName &&
+          slotOccupant &&
+          normalizeDisplayName(slotOccupant.displayName) !== normalizedDisplayName
+        ) {
+          errors.push(
+            `Tag slot "${tagSlot}" is already in use by "${slotOccupant.displayName}"; supply originalDisplayName to rename it`
+          )
+          continue
+        }
+
+        if (target.fieldType !== fieldType) {
+          errors.push(
+            `Tag "${target.displayName}" occupies slot "${target.tagSlot}", which is not valid for field type "${fieldType}"`
+          )
+          continue
+        }
+
+        const nameOwner = existingByDisplayName.get(normalizedDisplayName)
+        if (nameOwner && nameOwner.id !== target.id) {
           errors.push(`Display name "${displayName}" already exists`)
+          continue
+        }
+
+        if (target.displayName === displayName) {
+          updated.push(target)
           continue
         }
 
@@ -296,62 +383,57 @@ export async function createOrUpdateTagDefinitionsBulk(
             fieldType,
             updatedAt: now,
           })
-          .where(eq(knowledgeBaseTagDefinitions.id, existingDef.id))
+          .where(eq(knowledgeBaseTagDefinitions.id, target.id))
 
-        updated.push({
-          id: existingDef.id,
+        const renamed: DocumentTagDefinition = {
+          id: target.id,
           knowledgeBaseId,
-          tagSlot: existingDef.tagSlot,
+          tagSlot: target.tagSlot,
           displayName,
           fieldType,
-          createdAt: existingDef.createdAt,
-          updatedAt: now,
-        })
-      } else {
-        let finalTagSlot = tagSlot
-
-        if (!finalTagSlot || existingBySlot.has(finalTagSlot)) {
-          const nextSlot = await getNextAvailableSlot(knowledgeBaseId, fieldType, existingBySlot)
-          if (!nextSlot) {
-            errors.push(`No available slots for field type "${fieldType}"`)
-            continue
-          }
-          finalTagSlot = nextSlot
-        }
-
-        if (existingBySlot.has(finalTagSlot)) {
-          errors.push(`Tag slot "${finalTagSlot}" is already in use`)
-          continue
-        }
-
-        if (existingByDisplayName.has(displayName)) {
-          errors.push(`Display name "${displayName}" already exists`)
-          continue
-        }
-
-        const id = generateId()
-        const now = new Date()
-
-        const newDefinition = {
-          id,
-          knowledgeBaseId,
-          tagSlot: finalTagSlot as ValidTagSlot,
-          displayName,
-          fieldType,
-          createdAt: now,
+          createdAt: target.createdAt,
           updatedAt: now,
         }
-
-        await db.insert(knowledgeBaseTagDefinitions).values(newDefinition)
-
-        // Add to maps to track for subsequent definitions in this batch
-        existingBySlot.set(finalTagSlot, newDefinition)
-        existingByDisplayName.set(displayName, newDefinition)
-
-        created.push(newDefinition as DocumentTagDefinition)
+        existingBySlot.set(target.tagSlot, renamed)
+        existingByDisplayName.delete(normalizeDisplayName(target.displayName))
+        existingByDisplayName.set(normalizedDisplayName, renamed)
+        updated.push(renamed)
+        continue
       }
+
+      if (existingByDisplayName.has(normalizedDisplayName)) {
+        errors.push(`Display name "${displayName}" already exists`)
+        continue
+      }
+
+      let finalTagSlot = tagSlot
+      if (!finalTagSlot) {
+        const nextSlot = await getNextAvailableSlot(knowledgeBaseId, fieldType, existingBySlot)
+        if (!nextSlot) {
+          errors.push(`No available slots for field type "${fieldType}"`)
+          continue
+        }
+        finalTagSlot = nextSlot
+      }
+
+      const newDefinition = {
+        id: generateId(),
+        knowledgeBaseId,
+        tagSlot: finalTagSlot as ValidTagSlot,
+        displayName,
+        fieldType,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }
+
+      await db.insert(knowledgeBaseTagDefinitions).values(newDefinition)
+
+      existingBySlot.set(finalTagSlot, newDefinition)
+      existingByDisplayName.set(normalizedDisplayName, newDefinition)
+
+      created.push(newDefinition as DocumentTagDefinition)
     } catch (error) {
-      errors.push(`Error processing definition "${defData.displayName}": ${error}`)
+      errors.push(`Error processing definition "${defData.displayName}": ${getErrorMessage(error)}`)
     }
   }
 

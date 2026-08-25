@@ -148,10 +148,17 @@ export const v2GetBillingStatusContract = defineRouteContract({
 export const v2BillingLogsQuerySchema = z
   .object({
     source: usageLogSourceSchema.optional().describe('Restrict results to one usage source.'),
-    /** See {@link v2BillingStatusQuerySchema}'s `workspaceId` — same pinning rules. */
+    /**
+     * See {@link v2BillingStatusQuerySchema}'s `workspaceId` — same pinning rules.
+     *
+     * This narrows the rows; it does not change *whose* rows they are. That is
+     * decided by the kind of key, and the response reports it as `scope`.
+     */
     workspaceId: workspaceIdSchema
       .optional()
-      .describe('Restrict results to one workspace whose payer the caller can inspect.'),
+      .describe(
+        "Narrow the ledger to usage events attributed to one workspace. It does not change whose events are reported — a personal API key always reports the usage of the person holding it, and a workspace API key always reports its own workspace's complete ledger across every member. The response `scope` field says which of the two you received. A workspace API key is pinned to its own workspace: any other id answers `404 Workspace not found`, which is also what an id that does not exist answers."
+      ),
     period: usageLogPeriodSchema
       .optional()
       .default('30d')
@@ -203,10 +210,21 @@ export const v2BillingLogsQuerySchema = z
    * `createdAt >= start AND createdAt <= end` produces.
    */
   .refine(
-    (query) =>
-      !query.startDate ||
-      !query.endDate ||
-      Date.parse(query.startDate) <= Date.parse(query.endDate),
+    (query) => {
+      if (!query.startDate || !query.endDate) return true
+      const start = Date.parse(query.startDate)
+      const end = Date.parse(query.endDate)
+      /**
+       * A bound that already failed its own format check still reaches this
+       * comparison — an object refinement runs whatever its shape reported — and
+       * arrives as `NaN`, which compares false against everything. Ordering is a
+       * question about two instants, so it can only be asked once both bounds
+       * are instants; otherwise the caller is told its window is inverted on top
+       * of the issue naming the value that is not a timestamp at all.
+       */
+      if (Number.isNaN(start) || Number.isNaN(end)) return true
+      return start <= end
+    },
     {
       error: 'startDate must be before or equal to endDate',
       path: ['startDate'],
@@ -252,12 +270,27 @@ export const v2BillingLogEntrySchema = z
   })
 export type V2BillingLogEntry = z.output<typeof v2BillingLogEntrySchema>
 
+/**
+ * Which question the page answers, reported because the two are otherwise
+ * indistinguishable on the wire. The same workspace, window, and filters return
+ * a strict subset of the rows on `user` scope that they return on `workspace`
+ * scope, and nothing else in the response says which set arrived — a caller
+ * auditing a workspace's spend with a personal key would silently undercount.
+ */
+export const v2BillingLogsScopeSchema = z
+  .enum(['user', 'workspace'])
+  .describe(
+    "Whose usage this page reports. `user` — the events of the person whose personal API key made the request, narrowed by `workspaceId` when one was given; this omits other members' usage. `workspace` — every member's events for the workspace a workspace API key is pinned to."
+  )
+
 export const v2ListBillingLogsContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/billing/logs',
   query: v2BillingLogsQuerySchema,
   response: {
     mode: 'json',
-    schema: v2CursorListResponse(v2BillingLogEntrySchema),
+    schema: v2CursorListResponse(v2BillingLogEntrySchema).extend({
+      scope: v2BillingLogsScopeSchema,
+    }),
   },
 })

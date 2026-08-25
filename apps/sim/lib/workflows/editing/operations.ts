@@ -30,6 +30,17 @@ import {
 const logger = createLogger('EditWorkflowServerTool')
 
 /**
+ * A parallel container's iteration count, under either key it arrives as.
+ *
+ * The read view (`sanitizeForCopilot`) exports `block.data.count` as
+ * `iterations` for both container types, so a caller editing what it just read
+ * sends `iterations` back. Reading only `count` dropped that write silently.
+ */
+function parallelCountInput(inputs: Record<string, any> | undefined): any {
+  return inputs?.count ?? inputs?.iterations
+}
+
+/**
  * Applies loop/parallel container config from `inputs` onto a block state (data.loopType, etc.).
  */
 function applyLoopOrParallelContainerData(block: any, params: Record<string, any>): void {
@@ -61,7 +72,8 @@ function applyLoopOrParallelContainerData(block: any, params: Record<string, any
       parallelType,
       ...(parallelType === 'collection' &&
         params.inputs?.collection && { collection: params.inputs.collection }),
-      ...(parallelType === 'count' && params.inputs?.count && { count: params.inputs.count }),
+      ...(parallelType === 'count' &&
+        parallelCountInput(params.inputs) && { count: parallelCountInput(params.inputs) }),
     }
   }
 }
@@ -165,8 +177,8 @@ function updateLoopOrParallelContainerData(block: any, params: Record<string, an
       }
     }
     const effectiveParallelType = params.inputs?.parallelType ?? block.data.parallelType ?? 'count'
-    if (params.inputs?.count && effectiveParallelType === 'count') {
-      block.data.count = params.inputs.count
+    if (parallelCountInput(params.inputs) && effectiveParallelType === 'count') {
+      block.data.count = parallelCountInput(params.inputs)
     }
     if (params.inputs?.collection && effectiveParallelType === 'collection') {
       block.data.collection = params.inputs.collection
@@ -539,8 +551,8 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
       }
       const effectiveParallelType = params.inputs.parallelType ?? block.data.parallelType ?? 'count'
       // count only valid for 'count' parallelType
-      if (params.inputs.count !== undefined && effectiveParallelType === 'count') {
-        block.data.count = params.inputs.count
+      if (parallelCountInput(params.inputs) !== undefined && effectiveParallelType === 'count') {
+        block.data.count = parallelCountInput(params.inputs)
       }
       // collection only valid for 'collection' parallelType
       if (params.inputs.collection !== undefined && effectiveParallelType === 'collection') {

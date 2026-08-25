@@ -380,16 +380,22 @@ export async function batchChunkOperation(
   } else {
     const enabled = operation === 'enable'
 
-    await db
+    const updatedChunks = await db
       .update(embedding)
       .set({
         enabled,
         updatedAt: new Date(),
       })
       .where(and(eq(embedding.documentId, documentId), inArray(embedding.id, chunkIds)))
+      .returning({ id: embedding.id })
 
-    // For enable/disable, we assume all chunks were processed successfully
-    successCount = chunkIds.length
+    successCount = updatedChunks.length
+
+    const matchedIds = new Set(updatedChunks.map(({ id }) => id))
+    const unmatchedIds = chunkIds.filter((chunkId) => !matchedIds.has(chunkId))
+    if (unmatchedIds.length > 0) {
+      errors.push(`No matching chunks found to ${operation}: ${unmatchedIds.join(', ')}`)
+    }
   }
 
   logger.info(

@@ -1,3 +1,4 @@
+import chalk from 'chalk'
 import type { OutputFormat } from '../config/index'
 import type { ColumnSpec, CommandSpec } from '../contract/types'
 import type { V2OperationName } from '../generated/v2-api'
@@ -273,12 +274,34 @@ function unwrapResource(data: unknown): unknown {
   return value && typeof value === 'object' && !Array.isArray(value) ? value : data
 }
 
-export function renderPage(format: OutputFormat, rows: unknown[], spec: CommandSpec): void {
+export function renderPage(
+  format: OutputFormat,
+  rows: unknown[],
+  spec: CommandSpec,
+  envelope?: unknown
+): void {
+  writePageNote(spec, envelope)
   printList(
     format,
     rows,
     spec.columns ? columnsFrom(spec.columns) : inferColumns(rows, spec.expand)
   )
+}
+
+/**
+ * States a page-envelope fact once, above the rows, on stderr.
+ *
+ * stdout is the rows and stays byte-for-byte what it was: `--output text` is
+ * positional and tab-separated, and a script cutting fields from it must not
+ * have to skip a header it did not ask for. Every format gets the note, the
+ * machine ones included — a paginated command walks the pages itself and prints
+ * the accumulated rows, so the envelope reaches no output format on stdout.
+ */
+function writePageNote(spec: CommandSpec, envelope: unknown): void {
+  if (!spec.pageNote) return
+  const value = at(envelope, spec.pageNote.path)
+  if (value === undefined || value === null) return
+  process.stderr.write(chalk.dim(`${spec.pageNote.label}: ${String(value)}\n`))
 }
 
 /** Renders one non-paginated operation result according to its CLI contract. */

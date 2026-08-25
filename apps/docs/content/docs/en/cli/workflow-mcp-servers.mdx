@@ -78,7 +78,7 @@ sim workflow-mcp-servers tools create <serverId> [options]
 | `--workflow-id <value>` | Yes | Deployed workflow to publish. The workflow must already be deployed. |
 | `--tool-name <value>` | No | Name MCP clients call. Normalized to the MCP tool-name grammar, and derived from the workflow name when omitted. |
 | `--tool-description <value>` | No | Description shown to MCP clients. Derived from the workflow name when omitted. |
-| `--parameter-descriptions <json\|@file>` | No | Per-field description overrides applied to the schema generated from the deployed workflow inputs. A name matching no input field is ignored. (JSON, or @path / @- to read a file or stdin). |
+| `--parameter-descriptions <json\|@file>` | No | Per-field description overrides applied to the schema generated from the deployed workflow inputs, as [&#123;"name":"email","description":"Customer email address"&#125;]. A name matching no input field is ignored (JSON, or @path / @- to read a file or stdin). |
 
 </CommandTable>
 
@@ -182,7 +182,8 @@ sim workflow-mcp-servers update <serverId> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--name <value>` | No | Server display name, shown to connecting MCP clients. |
-| `--description <value>` | No | New server description, or null to clear it. |
+| `--description <value>` | No | New server description, or null to clear it. (--no-description clears it). |
+| `--no-description` | No | Send --description as null to clear it. |
 | `--is-public` | No | Whether the server answers MCP clients without a Sim API key. |
 | `--no-is-public` | No | Send --is-public as false. |
 

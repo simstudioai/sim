@@ -148,4 +148,86 @@ describe('tables import output', () => {
       folderPath: '/Q1%20%28draft%29',
     })
   })
+
+  it('rejects an extra positional instead of silently dropping the file it names', async () => {
+    await expect(runImport(['alpha.csv', 'beta.csv'])).rejects.toThrow(/too many arguments/)
+    expect(mockRequest).not.toHaveBeenCalled()
+  })
+})
+
+describe('tables import rejection reporting', () => {
+  /** A settled session never enters the poll loop, so the import returns at once. */
+  function completedImport(extra: Record<string, unknown>) {
+    return {
+      data: {
+        session: {
+          id: 'import_1',
+          status: 'completed',
+          tableId: 'table_1',
+          rowsProcessed: 1,
+          rowsRejected: 0,
+          cellsRejected: 0,
+          rejectedSamples: [],
+          error: null,
+          ...extra,
+        },
+        uploadToken: null,
+        transfer: null,
+      },
+    }
+  }
+
+  async function importAndCapture(extra: Record<string, unknown>): Promise<string> {
+    mockRequest.mockResolvedValue(completedImport(extra))
+    const logged: string[] = []
+    vi.spyOn(console, 'log').mockImplementation((line: string) => logged.push(line))
+    await runImport(['--file-id', 'file_1', '--name', 'Customers'])
+    return logged[0]
+  }
+
+  it('reports the rejected rows a completed import dropped', async () => {
+    const line = await importAndCapture({
+      rowsRejected: 1,
+      cellsRejected: 0,
+      rejectedSamples: [{ code: 'CSV_PARSE_ERROR', line: 2, message: 'unterminated quote' }],
+    })
+
+    expect(JSON.parse(line)).toMatchObject({
+      rowsProcessed: 1,
+      rowsRejected: 1,
+      cellsRejected: 0,
+      rejectedSamples: ['line 2: unterminated quote (CSV_PARSE_ERROR)'],
+    })
+  })
+
+  /** A whole-file rejection carries no line number, and `line null` is not one. */
+  it('names a rejection with no line without inventing one', async () => {
+    const line = await importAndCapture({
+      rowsRejected: 1,
+      cellsRejected: 0,
+      rejectedSamples: [{ code: 'CSV_HEADER_INVALID', line: null, message: 'no header row' }],
+    })
+
+    expect(JSON.parse(line)).toMatchObject({
+      rejectedSamples: ['no header row (CSV_HEADER_INVALID)'],
+    })
+  })
+
+  it('reports rejected cells even when every row landed', async () => {
+    const line = await importAndCapture({ rowsRejected: 0, cellsRejected: 3, rejectedSamples: [] })
+
+    expect(JSON.parse(line)).toMatchObject({ rowsRejected: 0, cellsRejected: 3 })
+  })
+
+  /** A clean import keeps exactly the output it always had. */
+  it('adds nothing when nothing was rejected', async () => {
+    const line = await importAndCapture({})
+
+    expect(JSON.parse(line)).toEqual({
+      id: 'import_1',
+      status: 'completed',
+      tableId: 'table_1',
+      rowsProcessed: 1,
+    })
+  })
 })

@@ -11,6 +11,7 @@ export function attachFileUpload(files: Command): void {
   files
     .command('upload')
     .argument('<path>', 'Local file to upload')
+    .allowExcessArguments(false)
     .description('Upload a file to the workspace')
     .option('--folder <path>', 'Folder path as shown in the app; defaults to the root folder')
     .option('--name <name>', 'Store it under a different name')
@@ -52,6 +53,23 @@ export function attachFileUpload(files: Command): void {
       if (!completed.file) {
         throw new Error(`File upload ${session.id} completed without a file`)
       }
-      printProtocolResult(profile.output, completed.file)
+      /**
+       * The session the bytes went through, alongside the file they became.
+       *
+       * `sim files uploads get` exists for a caller that lost track of a
+       * transfer, and it needs the session id to ask — the CLI ran the whole
+       * handshake internally and printed only the finished file record, so the
+       * one thing that could not inspect its own uploads was the CLI.
+       *
+       * The upload token is deliberately not printed in any format. It is a
+       * live credential that also authorizes aborting and completing the
+       * transfer, and `sim files upload` runs in CI, where stdout is retained
+       * and broadly readable. `sim files uploads get --upload-token` accepts it
+       * from a caller that holds one; nothing has to mint it into a log.
+       */
+      printProtocolResult(profile.output, {
+        ...completed.file,
+        uploadId: session.id,
+      })
     })
 }

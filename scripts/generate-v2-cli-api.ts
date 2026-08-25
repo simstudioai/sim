@@ -29,9 +29,10 @@
 import { spawnSync } from 'node:child_process'
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { z } from 'zod'
 
-const ROOT = path.resolve(import.meta.dir, '..')
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const CONTRACTS_DIR = path.join(ROOT, 'apps/sim/lib/api/contracts/v2')
 const OUTPUT = path.join(ROOT, 'packages/sim-cli/src/generated/v2-api.ts')
 const DOCS_DIR = path.join(ROOT, 'apps/docs')
@@ -361,6 +362,23 @@ function fieldKind(schema: JsonSchema): FieldKind {
 }
 
 /**
+ * Whether the contract lets this field be sent as JSON `null`.
+ *
+ * Read at the reference site as well as through `$defs`, because a field is
+ * usually made nullable where it is used rather than in the shared schema it
+ * points at. The CLI has no way to type `null` into a string flag, so five
+ * fields whose prose said "null clears it" could not be cleared at all — the
+ * word `null` was stored as the four characters it is. Emitting the fact is
+ * what lets the runtime offer a flag that means it.
+ */
+export function isNullable(schema: JsonSchema): boolean {
+  if (Array.isArray(schema.type)) return schema.type.includes('null')
+  const variants = schema.anyOf ?? schema.oneOf
+  if (variants) return variants.some((variant: JsonSchema) => variant.type === 'null')
+  return false
+}
+
+/**
  * Describes one request slot's fields for the runtime that builds flags.
  *
  * Emitted as data rather than baked into types because the CLI has to *iterate*
@@ -378,7 +396,28 @@ function isUnionSlot(schema: z.ZodType): boolean {
   return Object.keys(json.properties ?? {}).length === 0 && Boolean(json.anyOf ?? json.oneOf)
 }
 
-function renderSlotMap(schema: z.ZodType | undefined, indent: string): string | null {
+/**
+ * Headers the CLI sets itself, which must never become flags.
+ *
+ * `options.headers` is spread last over the client's own header block, so a
+ * flag spelled `--x-api-key` would let argv replace the profile's credential —
+ * a footgun on every command that carries it, and an authentication decision
+ * argv has no business making. No contract declares one of these today; the
+ * exclusion exists so that adding one does not quietly grow a flag for it.
+ */
+export const CLI_MANAGED_HEADERS: ReadonlySet<string> = new Set([
+  'x-api-key',
+  'authorization',
+  'accept',
+  'content-type',
+  'user-agent',
+])
+
+export function renderSlotMap(
+  schema: z.ZodType | undefined,
+  indent: string,
+  exclude?: ReadonlySet<string>
+): string | null {
   if (!schema) return null
 
   const json = z.toJSONSchema(schema, { io: 'input', unrepresentable: 'any' }) as JsonSchema
@@ -401,7 +440,7 @@ function renderSlotMap(schema: z.ZodType | undefined, indent: string): string | 
     }
   }
 
-  const keys = Object.keys(properties)
+  const keys = Object.keys(properties).filter((key) => !exclude?.has(key))
 
   // A union body (e.g. single-row vs batch insert) has no flat field list. The
   // caller marks it `opaqueBody` so the runtime can offer the whole body as one
@@ -427,6 +466,7 @@ function renderSlotMap(schema: z.ZodType | undefined, indent: string): string | 
     const property = deref(properties[key])
     const parts = [`kind: '${fieldKind(property)}'`]
     if (required.has(key)) parts.push('required: true')
+    if (isNullable(properties[key]) || isNullable(property)) parts.push('nullable: true')
     if (property.enum) {
       parts.push(
         `values: [${property.enum.map((v: unknown) => JSON.stringify(v)).join(', ')}] as const`
@@ -495,11 +535,12 @@ function render(operations: Operation[]): string {
   out.push('/**')
   out.push(' * Every v2 operation, keyed by name.')
   out.push(' *')
-  out.push(' * `query` and `body` describe each field well enough for the CLI to build a')
-  out.push(' * flag for it and coerce the string argv gives back: its kind, whether it is')
-  out.push(' * required, its enum values, and its server-side default. A slot the contract')
-  out.push(' * does not declare — or one whose shape is a union with no flat field list —')
-  out.push(' * is absent, and the runtime falls back to taking it as JSON.')
+  out.push(' * `query`, `body`, and `headers` describe each field well enough for the CLI')
+  out.push(' * to build a flag for it and coerce the string argv gives back: its kind,')
+  out.push(' * whether it is required, its enum values, and its server-side default. A slot')
+  out.push(' * the contract does not declare — or one whose shape is a union with no flat')
+  out.push(' * field list — is absent, and the runtime falls back to taking it as JSON.')
+  out.push(' * Headers the CLI sets itself, such as the API key, are never listed.')
   out.push(' *')
   out.push(" * `summary` is the operation's one-line description, lifted from the OpenAPI")
   out.push(' * specs so `--help` reuses prose that is already written and already checked.')
@@ -536,6 +577,12 @@ function render(operations: Operation[]): string {
         out.push(`    opaqueBody: true,`)
       }
     }
+    // Contract headers are request input like any other slot: `upload-token`
+    // is what addresses an upload session, and leaving it out of this table
+    // meant the runtime could not build a flag for it, so `files uploads get`
+    // was rejected as invalid input on every call it could ever make.
+    const headers = renderSlotMap(op.contract.headers, '    ', CLI_MANAGED_HEADERS)
+    if (headers) out.push(`    headers: ${headers},`)
     out.push('  },')
   }
   out.push('} as const')
@@ -606,4 +653,6 @@ async function main() {
   )
 }
 
-main()
+// Guarded so the pure helpers above can be imported by tests without the
+// generator writing a file as a side effect of the import.
+if (import.meta.main) main()

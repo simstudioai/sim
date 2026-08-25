@@ -31,8 +31,10 @@ sim mcp-servers create [options]
 | `--retries <value>` | No | Number of retries per request. Applied server-side as 3 when omitted on create. |
 | `--enabled` | No | Whether the server tools are available to workflows. Applied server-side as true when omitted on create. |
 | `--no-enabled` | No | Send --enabled as false. |
-| `--oauth-client-id <value>` | No | Pre-registered OAuth client identifier. Changing it on update revokes the stored OAuth grant and forces reauthorization. |
-| `--oauth-client-secret <value>` | No | Write-only pre-registered OAuth client secret. Sending it on update as null or a new value revokes the stored OAuth grant and forces reauthorization, as does switching away from OAuth authentication. |
+| `--oauth-client-id <value>` | No | Pre-registered OAuth client identifier. Changing it on update revokes the stored OAuth grant and forces reauthorization. (--no-oauth-client-id clears it). |
+| `--no-oauth-client-id` | No | Send --oauth-client-id as null to clear it. |
+| `--oauth-client-secret <value>` | No | Write-only pre-registered OAuth client secret. Sending it on update as null or a new value revokes the stored OAuth grant and forces reauthorization, as does switching away from OAuth authentication. (--no-oauth-client-secret clears it). |
+| `--no-oauth-client-secret` | No | Send --oauth-client-secret as null to clear it. |
 
 </CommandTable>
 
@@ -156,7 +158,9 @@ sim mcp-servers update <mcpServerId> [options]
 | `--retries <value>` | No | Number of retries per request. Applied server-side as 3 when omitted on create. |
 | `--enabled` | No | Whether the server tools are available to workflows. Applied server-side as true when omitted on create. |
 | `--no-enabled` | No | Send --enabled as false. |
-| `--oauth-client-id <value>` | No | Pre-registered OAuth client identifier. Changing it on update revokes the stored OAuth grant and forces reauthorization. |
-| `--oauth-client-secret <value>` | No | Write-only pre-registered OAuth client secret. Sending it on update as null or a new value revokes the stored OAuth grant and forces reauthorization, as does switching away from OAuth authentication. |
+| `--oauth-client-id <value>` | No | Pre-registered OAuth client identifier. Changing it on update revokes the stored OAuth grant and forces reauthorization. (--no-oauth-client-id clears it). |
+| `--no-oauth-client-id` | No | Send --oauth-client-id as null to clear it. |
+| `--oauth-client-secret <value>` | No | Write-only pre-registered OAuth client secret. Sending it on update as null or a new value revokes the stored OAuth grant and forces reauthorization, as does switching away from OAuth authentication. (--no-oauth-client-secret clears it). |
+| `--no-oauth-client-secret` | No | Send --oauth-client-secret as null to clear it. |
 
 </CommandTable>

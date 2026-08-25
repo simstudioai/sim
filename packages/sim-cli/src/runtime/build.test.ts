@@ -1,6 +1,7 @@
 import { Command } from 'commander'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { buildGeneratedCommands } from './build'
+import { buildProgram } from '../program'
+import { assertNoReservedProgramFlags, buildGeneratedCommands } from './build'
 import { resetRenameWarnings } from './renamed'
 
 /**
@@ -1158,6 +1159,32 @@ describe('boolean flags', () => {
   })
 })
 
+describe('clearing a nullable field', () => {
+  /**
+   * The three spellings a caller reaches for, all the way through commander.
+   * The unit tests below this seam feed `coerce` a value already keyed by flag
+   * name, so none of them can tell that `--no-description` reached the request
+   * at all.
+   */
+  it('sends null for --no-<flag>, and a string for anything typed', async () => {
+    const [, cleared] = await run(['workflows', 'update', 'wf_1', '--no-description'], {
+      data: { id: 'wf_1' },
+    })
+    expect(cleared.body).toMatchObject({ description: null })
+
+    const [, empty] = await run(['workflows', 'update', 'wf_1', '--description', ''], {
+      data: { id: 'wf_1' },
+    })
+    expect(empty.body).toMatchObject({ description: '' })
+
+    // The word, not the value: a caller who types `null` typed four characters.
+    const [, literal] = await run(['workflows', 'update', 'wf_1', '--description', 'null'], {
+      data: { id: 'wf_1' },
+    })
+    expect(literal.body).toMatchObject({ description: 'null' })
+  })
+})
+
 describe('bodies and fields the generator cannot flatten', () => {
   it('sends a union body whole, with the profile workspace merged in', async () => {
     // `createTableRows` is `z.union([batch, single])`, so there is no field list
@@ -1344,5 +1371,254 @@ describe('spellings the CLI has retired', () => {
       }
     }
     walk(program(), [])
+  })
+})
+
+describe('flags the root program would swallow', () => {
+  /**
+   * Commander matches the root's own options anywhere in argv, including after a
+   * subcommand name, so a leaf declaring one never sees it: `sim workflows
+   * rollback wf_1 --version 1` printed the CLI version and exited 0 without
+   * issuing a request — a rollback that silently did nothing, with no output to
+   * tell anyone. The generic sweep is the point; the rollback assertion below
+   * only records the one case that got through.
+   */
+  it('declares no leaf flag the root program already owns', () => {
+    const walk = (command: Command) => {
+      for (const option of command.options) {
+        expect([option.long, option.short].filter(Boolean)).not.toContain('--version')
+        expect([option.long, option.short].filter(Boolean)).not.toContain('-V')
+        expect([option.long, option.short].filter(Boolean)).not.toContain('--help')
+        expect([option.long, option.short].filter(Boolean)).not.toContain('-h')
+      }
+      command.commands.forEach(walk)
+    }
+    walk(program())
+  })
+
+  it('exposes the rollback target version under a name of its own', async () => {
+    const [path, init] = await run(
+      ['workflows', 'rollback', 'wf_1', '--to-version', '3', '--yes'],
+      {
+        data: {},
+      }
+    )
+
+    expect(path).toBe('/api/v2/workflows/wf_1/rollback')
+    expect(init.body).toMatchObject({ version: 3 })
+  })
+})
+
+describe('a leaf that only gained hidden renamed children', () => {
+  /**
+   * Commander derives the usage line from `commands.length` alone, so hanging
+   * the retired `files restore create` under the live `files restore` leaf made
+   * it the only leaf of the surface advertising a `[command]` slot with nothing
+   * visible to put in it.
+   */
+  it('does not advertise a subcommand slot', () => {
+    const files = program().commands.find((command) => command.name() === 'files')
+    const restore = files?.commands.find((command) => command.name() === 'restore')
+
+    expect(restore?.usage()).not.toContain('[command]')
+    expect(restore?.usage()).toContain('<fileId>')
+  })
+
+  it('still routes the retired spelling', async () => {
+    const [path] = await run(['files', 'restore', 'create', 'wf_file_1'], { data: {} })
+
+    expect(path).toContain('wf_file_1')
+  })
+})
+
+describe('headers the route contract declares', () => {
+  /**
+   * `getFileUpload` addresses its session with an `upload-token` header. The
+   * operation table carried only params and query, so there was no field to
+   * build a flag from and every call — valid id or not — came back as
+   * `upload-token: Invalid input: expected string, received undefined`.
+   */
+  it('sends a required header the caller supplies', async () => {
+    const [path, options] = await run(
+      ['files', 'uploads', 'get', 'up_1', '--upload-token', 'tok_1'],
+      { data: { id: 'up_1', status: 'completed' } }
+    )
+
+    expect(path).toBe('/api/v2/files/uploads/up_1')
+    expect(options.headers).toEqual({ 'upload-token': 'tok_1' })
+    expect(options.query).toMatchObject({ workspaceId: 'ws_local' })
+  })
+
+  it('refuses to call at all when a required header is missing', async () => {
+    await expect(run(['files', 'uploads', 'get', 'up_1'])).rejects.toThrow(/--upload-token/)
+  })
+
+  it('leaves an optional header out when it is not passed', async () => {
+    // Paired with the set case: the negative alone also passes when the flag is
+    // spelled wrong, or dropped from the contract entirely.
+    const [, sent] = await run(['tables', 'imports', 'get', 'imp_1', '--upload-token', 'tok_1'], {
+      data: { id: 'imp_1', status: 'completed' },
+    })
+    expect(sent.headers).toEqual({ 'upload-token': 'tok_1' })
+
+    const [, options] = await run(['tables', 'imports', 'get', 'imp_1'], {
+      data: { id: 'imp_1', status: 'completed' },
+    })
+    expect(options.headers).toBeUndefined()
+  })
+
+  it('sends no headers for an operation whose contract declares none', async () => {
+    // Same pairing: an operation that does declare one proves the slot is sent
+    // when there is something to send, so the absence below means "declares
+    // none" rather than "never sends headers".
+    const [, sent] = await run(['files', 'uploads', 'get', 'up_1', '--upload-token', 'tok_1'], {
+      data: { id: 'up_1', status: 'completed' },
+    })
+    expect(sent.headers).toEqual({ 'upload-token': 'tok_1' })
+
+    const [, options] = await run(['tables', 'list'])
+    expect(options.headers).toBeUndefined()
+  })
+
+  /**
+   * The call-chain marker is Sim's own; a CLI invocation is always the first
+   * hop, so a flag for it could only forge a chain the caller was never in.
+   */
+  it('does not expose the call-chain header Sim writes for itself', async () => {
+    await expect(
+      run(['workflows', 'run', 'wf_1', '--x-sim-via', 'wf_0'], { data: { status: 'completed' } })
+    ).rejects.toThrow(/unknown option/)
+  })
+
+  /**
+   * The run-uniqueness claim is the caller's to make, so it is exposed — but
+   * under its domain name. `--x-run-id` would be the only flag in the CLI
+   * spelled as a raw HTTP header.
+   */
+  it('exposes the run-id header under a domain name, not its wire spelling', async () => {
+    const [, options] = await run(['workflows', 'run', 'wf_1', '--run-id', 'run_mine'], {
+      data: { status: 'completed' },
+    })
+    expect(options.headers).toEqual({ 'x-run-id': 'run_mine' })
+
+    await expect(
+      run(['workflows', 'run', 'wf_1', '--x-run-id', 'run_mine'], { data: { status: 'completed' } })
+    ).rejects.toThrow(/unknown option/)
+  })
+
+  /**
+   * A header field reaching a command under its wire spelling is a generator
+   * output nobody decided on. Every other flag in the CLI is a domain name, so
+   * the sweep is over the whole assembled tree rather than the one header that
+   * got through.
+   */
+  it('exposes no flag spelled as a raw HTTP header', () => {
+    const offenders: string[] = []
+    const walk = (command: Command, prefix: string[]): void => {
+      const path = [...prefix, command.name()]
+      for (const option of command.options) {
+        if (option.long?.startsWith('--x-')) offenders.push(`sim ${path.join(' ')} ${option.long}`)
+      }
+      for (const child of command.commands) walk(child, path)
+    }
+    for (const group of buildGeneratedCommands()) walk(group, [])
+    expect(offenders).toEqual([])
+  })
+})
+
+describe('flags the root program already owns', () => {
+  /**
+   * The per-operation guard runs inside `configureOperation`, so it sees only
+   * generated leaves: a hand-attached command, or an option added to a leaf
+   * after it is built, was never checked. The assembled tree is what covers
+   * both, which is why the sweep runs on the finished program.
+   */
+  it('accepts the program as assembled', () => {
+    expect(() => buildProgram()).not.toThrow()
+  })
+
+  it('refuses a hand-attached command that redeclares a root value flag', () => {
+    const program = buildProgram()
+    program.addCommand(new Command('widgets').option('--endpoint <url>', 'Where to send it'))
+
+    expect(() => assertNoReservedProgramFlags(program)).toThrow(/--endpoint/)
+  })
+
+  /**
+   * `profiles add` declares `-w, --workspace` for its help text and reads the
+   * root's value in its action, so the collision is deliberate and inert.
+   */
+  it('exempts the one command that redeclares a root flag on purpose', () => {
+    const program = buildProgram()
+    const add = program.commands
+      .find((command) => command.name() === 'profiles')
+      ?.commands.find((command) => command.name() === 'add')
+
+    expect(add?.options.some((option) => option.long === '--workspace')).toBe(true)
+    expect(() => assertNoReservedProgramFlags(program)).not.toThrow()
+  })
+})
+
+describe('the billing ledger a key can see', () => {
+  /**
+   * The defect was silence, not the scoping: a personal key reports the calling
+   * user's own events and a workspace key the whole workspace ledger, and the
+   * two answers were indistinguishable — same workspace, same window, same
+   * flags, a strictly smaller result and nothing saying why.
+   */
+  it('states the scope once, on stderr, in every format', async () => {
+    const rows = [
+      { id: 'ev_1', createdAt: '2026-08-01T00:00:00.000Z', source: 'workflow', creditCost: 1 },
+    ]
+
+    for (const format of ['table', 'text', 'json'] as const) {
+      const errors: string[] = []
+      const written = vi
+        .spyOn(process.stderr, 'write')
+        .mockImplementation((chunk: string | Uint8Array) => {
+          errors.push(String(chunk))
+          return true
+        })
+      output.format = format
+      try {
+        await run(['billing', 'logs'], { data: rows, nextCursor: null, scope: 'workspace' })
+      } finally {
+        output.format = 'json'
+        written.mockRestore()
+      }
+
+      expect(errors.join('')).toContain('scope: workspace')
+    }
+  })
+
+  /**
+   * `text` is positional and scripts cut fields from it, so the note must not
+   * reach stdout: the rows have to stay exactly the rows.
+   */
+  it('leaves the parsed rows untouched', async () => {
+    const lines: string[] = []
+    mockRequest.mockReset()
+    mockRequest.mockResolvedValue({
+      data: [
+        { id: 'ev_1', createdAt: '2026-08-01T00:00:00.000Z', source: 'workflow', creditCost: 1 },
+      ],
+      nextCursor: null,
+      scope: 'workspace',
+    })
+    const logged = vi
+      .spyOn(console, 'log')
+      .mockImplementation((line: string) => lines.push(line) as unknown as undefined)
+    const written = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
+    output.format = 'text'
+    try {
+      await program().parseAsync(['node', 'sim', 'billing', 'logs'])
+    } finally {
+      output.format = 'json'
+      logged.mockRestore()
+      written.mockRestore()
+    }
+
+    expect(lines).toHaveLength(1)
+    expect(lines[0].split('\t')[2]).toBe('workflow')
   })
 })

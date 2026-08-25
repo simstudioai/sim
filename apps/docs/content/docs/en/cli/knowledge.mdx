@@ -84,7 +84,7 @@ sim knowledge tags create <knowledgeBaseId> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--display-name <value>` | Yes | Name tag filters and document reads use for this tag. |
-| `--field-type <value>` | No | Value type stored in the slot; it decides which slots are usable and which filter operators apply. Slot capacity per type: text 7, number 5, date 2, boolean 3. Accepted values: `text`, `number`, `date`, `boolean`. |
+| `--field-type <value>` | No | Value type stored in the slot; it decides which slots are usable and which filter operators apply. Defaults to text, so a number, date, or boolean slot must name its type here. Slot capacity per type: text 7, number 5, date 2, boolean 3. Accepted values: `text`, `number`, `date`, `boolean`. |
 | `--tag-slot <value>` | No | Slot to store the tag in. Omit to take the next free slot for the field type; a slot that does not belong to the field type, or one already in use, is rejected. Accepted values: `tag1`, `tag2`, `tag3`, `tag4`, `tag5`, `tag6`, `tag7`, `number1`, `number2`, `number3`, `number4`, `number5`, `date1`, `date2`, `boolean1`, `boolean2`, `boolean3`. |
 
 </CommandTable>
@@ -138,7 +138,7 @@ sim knowledge tags cleanup <knowledgeBaseId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--unused` | No | Whether to remove only the tag definitions no document in the knowledge base still carries a value for. Defaults to true. Pass `unused=false` to delete every definition on the knowledge base, which also clears its slot on every document and chunk and is not recoverable. |
+| `--unused` | No | Whether to remove only the tag definitions no document in the knowledge base still carries a value for. Defaults to true. Pass --no-unused to delete every definition on the knowledge base, which also clears its slot on every document and chunk and is not recoverable. |
 | `--no-unused` | No | Send --unused as false. |
 | `-y, --yes` | Yes | Confirm this destructive operation. |
 

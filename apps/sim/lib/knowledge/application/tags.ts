@@ -26,6 +26,7 @@ import {
   getTagDefinitions,
   getTagUsage,
   getTagUsageStats,
+  normalizeDisplayName,
   updateTagDefinition,
 } from '@/lib/knowledge/tags/service'
 import type { BulkTagDefinitionsData } from '@/lib/knowledge/tags/types'
@@ -150,8 +151,29 @@ export const createKnowledgeTag = defineAuthorizedKnowledgeUseCase({
     if (!(SUPPORTED_FIELD_TYPES as readonly string[]).includes(fieldType)) {
       throw new OrchestrationError('validation', 'Invalid field type')
     }
+    const existingDefinitions = await getDocumentTagDefinitions(context.knowledgeBaseId)
+    /**
+     * The unique index on display name is case-sensitive, so it lets through
+     * names that differ only in case. Two such tags are indistinguishable in
+     * every surface that filters by name, so reject them here.
+     */
+    if (
+      existingDefinitions.some(
+        (definition) =>
+          normalizeDisplayName(definition.displayName) === normalizeDisplayName(input.displayName)
+      )
+    ) {
+      throw new OrchestrationError(
+        'conflict',
+        'A tag with that name already exists in this knowledge base'
+      )
+    }
+    const existingBySlot = new Map(
+      existingDefinitions.map((definition) => [definition.tagSlot, definition])
+    )
     const tagSlot =
-      input.tagSlot ?? (await getNextAvailableSlot(context.knowledgeBaseId, fieldType))
+      input.tagSlot ??
+      (await getNextAvailableSlot(context.knowledgeBaseId, fieldType, existingBySlot))
     if (!tagSlot) {
       throw new OrchestrationError(
         'validation',
@@ -211,6 +233,29 @@ export const updateKnowledgeTag = defineAuthorizedKnowledgeUseCase({
      * every read of it would then interpret text as the wrong type. The same
      * two checks as create, in the same order.
      */
+    /**
+     * A rename reaches the same case-sensitive display-name index create does,
+     * so it can land `CLITEST-CAT` beside an existing `clitest-cat` — the state
+     * create rejects. The same check, against the definitions of the same
+     * knowledge base, excluding the one being renamed.
+     */
+    const { displayName } = input.updates
+    if (displayName !== undefined) {
+      const existingDefinitions = await getDocumentTagDefinitions(context.knowledgeBaseId)
+      if (
+        existingDefinitions.some(
+          (definition) =>
+            definition.id !== context.tagDefinitionId &&
+            normalizeDisplayName(definition.displayName) === normalizeDisplayName(displayName)
+        )
+      ) {
+        throw new OrchestrationError(
+          'conflict',
+          'A tag with that name already exists in this knowledge base'
+        )
+      }
+    }
+
     const { fieldType } = input.updates
     if (fieldType !== undefined) {
       if (!(SUPPORTED_FIELD_TYPES as readonly string[]).includes(fieldType)) {

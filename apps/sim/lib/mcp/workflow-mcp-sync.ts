@@ -1,8 +1,8 @@
 import { db, workflowMcpServer, workflowMcpTool } from '@sim/db'
 import { createLogger } from '@sim/logger'
-import { and, asc, eq, gt, inArray, isNull } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, inArray, isNotNull, isNull } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
-import { MAX_MCP_SERVERS_PER_WORKFLOW } from '@/lib/mcp/constants'
+import { MAX_MCP_SERVERS_PER_WORKFLOW, MAX_MCP_TOOLS_PER_SERVER } from '@/lib/mcp/constants'
 import { acquireWorkflowMcpServerLock } from '@/lib/mcp/server-locks'
 import {
   addMcpToolMetadataUsageRow,
@@ -109,6 +109,149 @@ async function collectWorkflowMcpToolServerIds(
   return [...serverIds].sort().map((serverId) => ({ serverId }))
 }
 
+interface RestoreCandidate {
+  id: string
+  serverId: string
+  toolName: string
+  toolDescription: string | null
+  parameterSchema: unknown
+}
+
+/**
+ * Re-run, against a candidate's already-locked server, the invariants
+ * `performCreateWorkflowMcpTool` enforces when a registration is first created.
+ * Returns the reason the candidate must stay archived, or `null` when it is
+ * safe to revive.
+ */
+async function getRestoreSkipReason(
+  tx: DbOrTx,
+  candidate: RestoreCandidate
+): Promise<string | null> {
+  const liveTools = await tx
+    .select({ id: workflowMcpTool.id, toolName: workflowMcpTool.toolName })
+    .from(workflowMcpTool)
+    .where(
+      and(eq(workflowMcpTool.serverId, candidate.serverId), isNull(workflowMcpTool.archivedAt))
+    )
+    .limit(MAX_MCP_TOOLS_PER_SERVER)
+
+  if (liveTools.length >= MAX_MCP_TOOLS_PER_SERVER) {
+    return `server already has the maximum of ${MAX_MCP_TOOLS_PER_SERVER} tools`
+  }
+
+  if (liveTools.some((tool) => tool.toolName === candidate.toolName)) {
+    return `another live tool on this server already uses the name "${candidate.toolName}"`
+  }
+
+  const usage = getMcpToolMetadataUsageFromRows(
+    await getMcpServerToolMetadataUsageRows(tx, candidate.serverId)
+  )
+  if (
+    exceedsMcpServerToolMetadataBudget(usage, {
+      toolName: candidate.toolName,
+      toolDescription: candidate.toolDescription,
+      parameterSchema: candidate.parameterSchema,
+    })
+  ) {
+    return 'restoring it would exceed the server tools/list metadata budget'
+  }
+
+  return null
+}
+
+/**
+ * Un-archive the registrations an earlier undeploy withdrew, so redeploying a
+ * workflow republishes it on exactly the servers it was published on before.
+ *
+ * A server is skipped when it already carries a live registration for the
+ * workflow — the `(server_id, workflow_id)` uniqueness that
+ * `workflow_mcp_tool_server_workflow_unique` enforces over unarchived rows only
+ * holds if restore never adds a second one — and only the most recently updated
+ * archived row per server is revived, so a stale generation cannot outrank it.
+ *
+ * A candidate is also dropped when reviving it would break an invariant that
+ * `performCreateWorkflowMcpTool` enforces on create but that archiving silently
+ * relaxes: archiving frees both the tool name and the server slot, so while a
+ * workflow sits undeployed another workflow can take its name on the server or
+ * fill the server to `MAX_MCP_TOOLS_PER_SERVER`, and no database constraint
+ * covers either case. Restore therefore re-checks, per candidate server, the
+ * live tool count, a `toolName` collision, and the server's tools/list metadata
+ * budget. A dropped candidate stays archived and is logged as a warning naming
+ * the workflow, the server, and the reason: restore runs inside the deploy
+ * transaction, so throwing would fail an otherwise valid deploy over a
+ * registration the user can restore by hand, while silently skipping would
+ * leave the operator with no signal at all.
+ *
+ * Locks are taken in sorted server order before any of those checks read the
+ * server's live rows, matching every other writer here, so concurrent syncs
+ * neither deadlock against each other nor race the checks.
+ */
+async function restoreArchivedMcpToolsForWorkflow(
+  tx: DbOrTx,
+  workflowId: string,
+  requestId: string
+): Promise<void> {
+  const archived = await tx
+    .select({
+      id: workflowMcpTool.id,
+      serverId: workflowMcpTool.serverId,
+      toolName: workflowMcpTool.toolName,
+      toolDescription: workflowMcpTool.toolDescription,
+      parameterSchema: workflowMcpTool.parameterSchema,
+    })
+    .from(workflowMcpTool)
+    .where(and(eq(workflowMcpTool.workflowId, workflowId), isNotNull(workflowMcpTool.archivedAt)))
+    .orderBy(desc(workflowMcpTool.updatedAt), desc(workflowMcpTool.id))
+    .limit(MAX_MCP_SERVERS_PER_WORKFLOW)
+
+  if (archived.length === 0) return
+
+  const liveRows = await tx
+    .select({ serverId: workflowMcpTool.serverId })
+    .from(workflowMcpTool)
+    .where(and(eq(workflowMcpTool.workflowId, workflowId), isNull(workflowMcpTool.archivedAt)))
+    .limit(MAX_MCP_SERVERS_PER_WORKFLOW)
+  const liveServerIds = new Set(liveRows.map((row) => row.serverId))
+
+  const candidateByServer = new Map<string, RestoreCandidate>()
+  for (const row of archived) {
+    if (liveServerIds.has(row.serverId)) continue
+    if (candidateByServer.has(row.serverId)) continue
+    candidateByServer.set(row.serverId, row)
+  }
+  if (candidateByServer.size === 0) return
+
+  const candidateServerIds = [...candidateByServer.keys()].sort()
+  for (const serverId of candidateServerIds) {
+    await acquireWorkflowMcpServerLock(tx, serverId)
+  }
+
+  const restorableIds: string[] = []
+  for (const serverId of candidateServerIds) {
+    const candidate = candidateByServer.get(serverId)
+    if (!candidate) continue
+
+    const skipReason = await getRestoreSkipReason(tx, candidate)
+    if (skipReason) {
+      logger.warn(
+        `[${requestId}] Skipped restoring archived MCP tool "${candidate.toolName}" for workflow ${workflowId} on server ${serverId}: ${skipReason}`
+      )
+      continue
+    }
+    restorableIds.push(candidate.id)
+  }
+  if (restorableIds.length === 0) return
+
+  await tx
+    .update(workflowMcpTool)
+    .set({ archivedAt: null })
+    .where(inArray(workflowMcpTool.id, restorableIds))
+
+  logger.info(
+    `[${requestId}] Restored ${restorableIds.length} archived MCP tool(s) for workflow: ${workflowId}`
+  )
+}
+
 /**
  * Generate MCP tool parameter schema from workflow blocks.
  */
@@ -211,6 +354,8 @@ export async function syncMcpToolsForWorkflow(
     if (!hasValidStartBlockInState(state as WorkflowState | null)) {
       return await removeMcpToolsForWorkflow(workflowId, requestId, tx, true)
     }
+
+    await restoreArchivedMcpToolsForWorkflow(tx, workflowId, requestId)
 
     const generatedParameterSchema = state.blocks
       ? generateSchemaFromBlocks(state.blocks)
@@ -320,8 +465,15 @@ export async function syncMcpToolsForWorkflow(
 }
 
 /**
- * Remove all MCP tools for a workflow (used when undeploying).
- * Queries affected tools before deleting so their servers can be notified.
+ * Withdraw every MCP tool registration for a workflow (used when undeploying).
+ * Queries affected tools before withdrawing so their servers can be notified.
+ *
+ * Rows are archived, not deleted. Deploy/undeploy is a reversible lifecycle:
+ * an undeploy that destroyed the registrations would force the user to re-create
+ * by hand every server entry that published the workflow, with no warning and no
+ * way back. {@link restoreArchivedMcpToolsForWorkflow} brings them back on the
+ * next deploy. Deleting a tool through the MCP server surface stays a hard
+ * delete, so a registration the user removed on purpose is never resurrected.
  *
  * Server notification is strictly post-commit: the standalone path notifies
  * after the transaction opened here commits; when `tx` is provided the
@@ -350,12 +502,15 @@ export async function removeMcpToolsForWorkflow(
       await acquireWorkflowMcpServerLock(tx, serverId)
     }
 
-    await tx.delete(workflowMcpTool).where(eq(workflowMcpTool.workflowId, workflowId))
-    logger.info(`[${requestId}] Removed MCP tools for workflow: ${workflowId}`)
+    await tx
+      .update(workflowMcpTool)
+      .set({ archivedAt: new Date() })
+      .where(and(eq(workflowMcpTool.workflowId, workflowId), isNull(workflowMcpTool.archivedAt)))
+    logger.info(`[${requestId}] Archived MCP tools for workflow: ${workflowId}`)
 
     return tools
   } catch (error) {
-    logger.error(`[${requestId}] Error removing MCP tools:`, error)
+    logger.error(`[${requestId}] Error archiving MCP tools:`, error)
     if (throwOnError) throw error
     return []
   }

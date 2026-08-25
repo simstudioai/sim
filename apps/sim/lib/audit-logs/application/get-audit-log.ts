@@ -7,7 +7,8 @@ import { buildOrgScopeCondition, getOrgWorkspaceIds } from '@/lib/audit-logs/que
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
 export interface GetAuditLogInput {
-  organizationId: string
+  /** Omitted when the caller belongs to exactly one organization and let it be derived. */
+  organizationId?: string
   id: string
 }
 

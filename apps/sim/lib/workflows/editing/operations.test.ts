@@ -379,6 +379,67 @@ describe('handleEditOperation dependent inputs', () => {
   })
 })
 
+function makeParallelWorkflow() {
+  const workflow = makeLoopWorkflow()
+  workflow.blocks['loop-1'].type = 'parallel'
+  workflow.blocks['loop-1'].data = { parallelType: 'count', count: 5 }
+  return workflow
+}
+
+describe('handleEditOperation container inputs', () => {
+  it('reports an unknown loop input field instead of discarding it silently', () => {
+    const workflow = makeLoopWorkflow()
+
+    const { state, validationErrors } = applyOperationsToWorkflowState(workflow, [
+      { operation_type: 'edit', block_id: 'loop-1', params: { inputs: { count: 3 } } },
+    ])
+
+    expect(validationErrors).toHaveLength(1)
+    expect(validationErrors[0]).toMatchObject({ blockId: 'loop-1', field: 'count' })
+    expect(validationErrors[0].error).toContain('iterations')
+    expect(state.blocks['loop-1'].data.count).toBe(5)
+  })
+
+  it('reports an unknown parallel input field', () => {
+    const workflow = makeParallelWorkflow()
+
+    const { validationErrors } = applyOperationsToWorkflowState(workflow, [
+      { operation_type: 'edit', block_id: 'loop-1', params: { inputs: { maxConcurrency: 3 } } },
+    ])
+
+    expect(validationErrors).toHaveLength(1)
+    expect(validationErrors[0]).toMatchObject({ blockId: 'loop-1', field: 'maxConcurrency' })
+  })
+
+  it('accepts `iterations` on a parallel container, the key the read view exports', () => {
+    const workflow = makeParallelWorkflow()
+
+    const { state, validationErrors } = applyOperationsToWorkflowState(workflow, [
+      { operation_type: 'edit', block_id: 'loop-1', params: { inputs: { iterations: 3 } } },
+    ])
+
+    expect(validationErrors).toEqual([])
+    expect(state.blocks['loop-1'].data.count).toBe(3)
+  })
+
+  it('still applies a loop edit that uses the real input keys', () => {
+    const workflow = makeLoopWorkflow()
+
+    const { state, validationErrors, skippedItems } = applyOperationsToWorkflowState(workflow, [
+      {
+        operation_type: 'edit',
+        block_id: 'loop-1',
+        params: { inputs: { loopType: 'for', iterations: 3 } },
+      },
+    ])
+
+    expect(validationErrors).toEqual([])
+    expect(skippedItems).toEqual([])
+    expect(state.blocks['loop-1'].data.count).toBe(3)
+    expect(state.blocks['loop-1'].data.loopType).toBe('for')
+  })
+})
+
 describe('handleEditOperation nestedNodes merge', () => {
   it('preserves existing child block IDs when editing a loop with nestedNodes', () => {
     const workflow = makeLoopWorkflow()

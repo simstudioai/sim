@@ -11,6 +11,7 @@ import { ALL_TAG_SLOTS, type AllTagSlot } from '@/lib/knowledge/constants'
 import {
   DOCUMENT_PROCESSING_STATUSES,
   type DocumentProcessingStatus,
+  toDocumentExtractionMethod,
 } from '@/lib/knowledge/documents/types'
 import type { DocumentTagDefinition } from '@/lib/knowledge/tags/types'
 import type { KnowledgeBaseWithCounts } from '@/lib/knowledge/types'
@@ -78,6 +79,7 @@ interface V2DocumentSummarySource {
   characterCount: number
   enabled: boolean
   uploadedAt: Date | string | null | undefined
+  extractionMethod?: string | null
 }
 
 /**
@@ -113,6 +115,7 @@ export function toV2TaggedDocument(
   return {
     ...toV2DocumentSummary(document),
     tags: toV2DocumentTags(document, tagDefinitions),
+    extractionMethod: toDocumentExtractionMethod(document.extractionMethod),
   }
 }
 

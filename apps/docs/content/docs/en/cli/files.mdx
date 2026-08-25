@@ -246,7 +246,7 @@ sim files share set <fileId> [options]
 ## Get file upload
 
 ```bash
-sim files uploads get <uploadId>
+sim files uploads get <uploadId> [options]
 ```
 
 **Arguments**
@@ -256,6 +256,16 @@ sim files uploads get <uploadId>
 | Argument | Required | Description |
 | --- | --- | --- |
 | `uploadId` | Yes | Upload session identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--upload-token <value>` | Yes | Signed upload control token returned when the upload session was created. |
 
 </CommandTable>
 

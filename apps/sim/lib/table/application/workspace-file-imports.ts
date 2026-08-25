@@ -144,12 +144,12 @@ async function resolveSafeSourceFile(
     if (reference.replace(/^\/+/, '').startsWith('uploads/')) {
       throw new OrchestrationError(
         'validation',
-        `Cannot import "${reference}": chat uploads are not workspace files. Use save_upload to save it to a files/... path first, then pass that canonical path.`
+        `Cannot import "${reference}": chat uploads are not workspace files. Save it to a files/... workspace path first, then pass that canonical path.`
       )
     }
     throw new OrchestrationError(
       'not_found',
-      `File not found: "${reference}". Use glob("files/**") and read the canonical file path metadata to find workspace files.`
+      `File not found: "${reference}". List the workspace files to find the canonical files/... path.`
     )
   }
   const canonical = await loadActiveWorkspaceFileContext(file.id)

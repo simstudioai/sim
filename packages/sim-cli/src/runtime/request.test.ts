@@ -342,3 +342,61 @@ describe('folder paths are typed by the name the app shows', () => {
     expect(coerce(local, { kind: 'string' }, {}, 'file')).toBe(local)
   })
 })
+
+describe('clearing a nullable field', () => {
+  const NULLABLE_STRING: FieldSpec = { kind: 'string', nullable: true }
+
+  /**
+   * Five contract fields documented "null clears it" and no flag could express
+   * it: every one is a string, so the word `null` was stored as its four
+   * characters. `--no-<flag>` reaches `coerce` as `false`, which on a nullable
+   * non-boolean field can only have come from that companion.
+   */
+  it('sends null when the companion flag was used', () => {
+    expect(coerce(false, NULLABLE_STRING, {}, 'description')).toBeNull()
+  })
+
+  it('keeps the literal text null typed as a value', () => {
+    expect(coerce('null', NULLABLE_STRING, {}, 'description')).toBe('null')
+  })
+
+  it('leaves a field the contract does not make nullable alone', () => {
+    expect(coerce(false, { kind: 'string' }, {}, 'name')).toBe(false)
+  })
+
+  it('leaves a boolean field to its own negation', () => {
+    expect(coerce(false, { kind: 'boolean', nullable: true }, {}, 'is-public')).toBe(false)
+  })
+})
+
+describe('contract-declared headers', () => {
+  it('builds a header slot from the flag the contract declares', () => {
+    const built = buildRequest('getFileUpload', ['up_1'], { uploadToken: 'tok_1' }, WORKSPACE)
+    expect(built.headers).toEqual({ 'upload-token': 'tok_1' })
+  })
+
+  it('raises before the request when a required header is absent', () => {
+    expect(() => buildRequest('getFileUpload', ['up_1'], {}, WORKSPACE)).toThrow(
+      /--upload-token is required/
+    )
+  })
+
+  /**
+   * Absent rather than empty: the client builds its own header block, and an
+   * empty object spread over it must not be what a headerless request looks
+   * like.
+   */
+  it('omits the slot for an operation that declares no headers', () => {
+    expect(buildRequest('listTables', [], {}, WORKSPACE)).not.toHaveProperty('headers')
+  })
+
+  it('omits an optional header the caller left unset', () => {
+    // Paired with the set case: on its own the assertion also passes when the
+    // operation never had the header at all, or when the flag name it is keyed
+    // by is wrong — which is the class of bug this file exists to catch.
+    expect(
+      buildRequest('getTableImport', ['imp_1'], { uploadToken: 'tok_1' }, WORKSPACE).headers
+    ).toEqual({ 'upload-token': 'tok_1' })
+    expect(buildRequest('getTableImport', ['imp_1'], {}, WORKSPACE)).not.toHaveProperty('headers')
+  })
+})

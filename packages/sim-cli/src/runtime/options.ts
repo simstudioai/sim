@@ -37,11 +37,24 @@ function describeField(
   return flag.describe ?? descriptor.describe ?? `Set ${name.replaceAll('-', ' ') || field}`
 }
 
+/**
+ * How a nullable field is cleared, said in the flag's own help.
+ *
+ * The route contracts describe several of these as "send null to clear it",
+ * which was true of the API and impossible from the terminal: every such flag is
+ * a string, so the word `null` arrived as its four characters. Naming the
+ * companion here is what stops the help promising something the CLI cannot do.
+ */
+function clearingHint(name: string): string {
+  return ` (--no-${name} clears it)`
+}
+
 function addFieldOption(
   command: Command,
   operation: V2OperationName,
   field: string,
-  descriptor: FieldSpec
+  descriptor: FieldSpec,
+  slot: 'query' | 'body' | 'headers'
 ): void {
   if (field === PROFILE_INJECTED_FIELD || field === 'cursor') return
 
@@ -85,13 +98,28 @@ function addFieldOption(
   const wantsJson = takesJson(descriptor, flag)
   const placeholder = takesList ? '<value...>' : wantsJson ? '<json|@file>' : '<value>'
   const choices = flag.choices ?? descriptor.values
+  /**
+   * Whether the field has a clear to offer.
+   *
+   * Only a body field can carry an explicit null — a query string has no way to
+   * spell one — and only a field without a default is actually cleared by it:
+   * where the contract declares one, the server substitutes it for the null and
+   * the companion would advertise a clear that never happens.
+   */
+  const clearable =
+    slot === 'body' &&
+    descriptor.nullable === true &&
+    !descriptor.required &&
+    descriptor.default === undefined &&
+    !takesList &&
+    !wantsJson
   const describe = `${documented}${
     takesList
       ? ' (space-separated, or @path / @- with one value per line)'
       : wantsJson
         ? ' (JSON, or @path / @- to read a file or stdin)'
         : ''
-  }${descriptor.required ? ' (required)' : ''}`
+  }${descriptor.required ? ' (required)' : ''}${clearable ? clearingHint(name) : ''}`
 
   const renamedFrom = flag.renamedFrom ?? []
   const option = new Option(`${short}--${name} ${placeholder}`, describe)
@@ -107,6 +135,10 @@ function addFieldOption(
   // spelling once both have had their chance to supply the value.
   if (descriptor.required && renamedFrom.length === 0) option.makeOptionMandatory()
   command.addOption(option)
+
+  // Added after the positive flag so Commander does not default the field to
+  // `true`, exactly as the boolean twin above relies on.
+  if (clearable) command.option(`--no-${name}`, `Send --${name} as null to clear it`)
 
   for (const previous of renamedFrom) {
     const retired = new Option(`--${previous} ${placeholder}`).hideHelp()
@@ -136,11 +168,11 @@ export function addOperationOptions(
     )
   }
 
-  for (const slot of ['query', 'body'] as const) {
+  for (const slot of ['query', 'body', 'headers'] as const) {
     for (const [field, descriptor] of Object.entries(operationSpec[slot] ?? {})) {
       if (commandSpec.requestFields && !commandSpec.requestFields.includes(field)) continue
       if (commandSpec.positionals?.includes(field)) continue
-      addFieldOption(command, operation, field, descriptor)
+      addFieldOption(command, operation, field, descriptor, slot)
     }
   }
 

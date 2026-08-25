@@ -32,7 +32,14 @@ export function parseIni(text: string): IniDocument {
   const doc: IniDocument = { preamble: [], sections: [] }
   let current: Section | null = null
 
-  for (const line of text.split('\n')) {
+  const lines = text.split('\n')
+  // The file's terminating newline splits into a trailing empty element. Kept,
+  // it became a blank `raw` entry owned by the last section, and
+  // `setSectionValues` appended every later key after it — so each successive
+  // write opened another gap between that section's keys.
+  if (lines.length > 1 && lines[lines.length - 1] === '') lines.pop()
+
+  for (const line of lines) {
     const sectionMatch = SECTION_PATTERN.exec(line)
     if (sectionMatch) {
       current = { name: sectionMatch[1].trim(), entries: [] }
@@ -75,13 +82,23 @@ export function serializeIni(doc: IniDocument): string {
   return lines.length > 0 ? `${lines.join('\n')}\n` : ''
 }
 
+/**
+ * Reads a section's keys, merging every block that repeats its name.
+ *
+ * A hand-edited file can carry two `[default]` blocks; reading only the first
+ * silently dropped the second's keys and reported them as unset. The merge is
+ * **first wins** per key, matching {@link setSectionValues}, which upserts into
+ * the first block — so a value written through this module is the one read back.
+ */
 export function getSection(doc: IniDocument, name: string): Record<string, string> | null {
-  const section = doc.sections.find((s) => s.name === name)
-  if (!section) return null
+  const sections = doc.sections.filter((s) => s.name === name)
+  if (sections.length === 0) return null
 
   const values: Record<string, string> = {}
-  for (const entry of section.entries) {
-    if (entry.kind === 'kv') values[entry.key] = entry.value
+  for (const section of sections) {
+    for (const entry of section.entries) {
+      if (entry.kind === 'kv' && !Object.hasOwn(values, entry.key)) values[entry.key] = entry.value
+    }
   }
   return values
 }

@@ -81,6 +81,11 @@ function program(): Command {
   const root = new Command('sim').exitOverride()
   for (const group of buildGeneratedCommands()) root.addCommand(group)
   attachProtocolCommands(root)
+  const override = (command: Command) => {
+    command.exitOverride()
+    command.commands.forEach(override)
+  }
+  override(root)
   return root
 }
 
@@ -297,5 +302,12 @@ describe('files get', () => {
         Reflect.deleteProperty(process.stdout, 'isTTY')
       }
     }
+  })
+
+  it('rejects an extra positional rather than reading only the first file', async () => {
+    await expect(
+      program().parseAsync(['node', 'sim', 'file', 'get', 'file_1', 'file_2'])
+    ).rejects.toThrow(/too many arguments/)
+    expect(requestRaw).not.toHaveBeenCalled()
   })
 })

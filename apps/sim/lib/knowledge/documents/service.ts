@@ -1333,6 +1333,14 @@ export async function processDocumentAsync(
                 chunkCount: processed.metadata.chunkCount,
                 tokenCount: processed.metadata.tokenCount,
                 characterCount: processed.metadata.characterCount,
+                /**
+                 * Recorded with the counts it qualifies. `characterCount` and
+                 * `chunkCount` both measure the text that was stored, so they
+                 * agree with each other whether that text came out of the file
+                 * or out of an OCR model. This is the only field that says
+                 * which.
+                 */
+                extractionMethod: processed.metadata.processingMethod,
                 processingStatus: 'completed',
                 processingCompletedAt: now,
                 processingError: null,
@@ -1881,6 +1889,7 @@ export async function getDocuments(
     processingStartedAt: Date | null
     processingCompletedAt: Date | null
     processingError: string | null
+    extractionMethod: string | null
     enabled: boolean
     uploadedAt: Date
     tag1: string | null
@@ -1994,6 +2003,7 @@ export async function getDocuments(
       processingStartedAt: document.processingStartedAt,
       processingCompletedAt: document.processingCompletedAt,
       processingError: document.processingError,
+      extractionMethod: document.extractionMethod,
       enabled: document.enabled,
       uploadedAt: document.uploadedAt,
       tag1: document.tag1,
@@ -2043,6 +2053,7 @@ export async function getDocuments(
       processingStartedAt: doc.processingStartedAt,
       processingCompletedAt: doc.processingCompletedAt,
       processingError: doc.processingError,
+      extractionMethod: doc.extractionMethod,
       enabled: doc.enabled,
       uploadedAt: doc.uploadedAt,
       tag1: doc.tag1,

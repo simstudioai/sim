@@ -1,3 +1,4 @@
+import { isValidUuid } from '@sim/utils/id'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   FUNCTIONAL_OUTPUTS_UNAVAILABLE_MESSAGE,
@@ -12,6 +13,29 @@ import {
   type WorkflowRunFileDescriptor,
 } from '@/lib/workflows/executor/execution-run-files'
 import { getWorkflowExecutionStatus } from '@/lib/workflows/executor/execution-status'
+
+/**
+ * Selectors this resource can never answer, so the caller hears about them.
+ *
+ * This resource reads a recorded run and deliberately never loads the
+ * workflow's blocks, so it matches block *ids* only. A selector headed by
+ * something that is not a block id — a block name, the shape the streaming
+ * execute request accepts — has nothing to resolve against and used to come
+ * back as an empty `blockOutputs` with a `200`, which reads exactly like "that
+ * block produced nothing".
+ *
+ * A head that *is* a well-formed id but produced no output stays a legitimate
+ * empty answer: the block may simply not have run on this path.
+ */
+function unresolvableSelectors(
+  selectedOutputs: readonly string[],
+  blockOutputs: Record<string, unknown> | null
+): string[] {
+  if (!blockOutputs) return []
+  return selectedOutputs.filter(
+    (selector) => !Object.hasOwn(blockOutputs, selector) && !isValidUuid(selector.split('.')[0])
+  )
+}
 
 export interface ReadWorkflowRunInput {
   workflowId: string
@@ -38,6 +62,14 @@ export const readWorkflowRun = defineAuthorizedWorkflowUseCase({
         selectedOutputs: input.selectedOutputs,
       })
       if (!status) throw new OrchestrationError('not_found', 'Run not found')
+
+      const unresolvable = unresolvableSelectors(input.selectedOutputs, status.blockOutputs)
+      if (unresolvable.length > 0) {
+        throw new OrchestrationError(
+          'validation',
+          `selectedOutputs did not resolve to any block on this run: ${unresolvable.join(', ')}. This resource matches block ids only — pass "blockId" or "blockId.path", not a block name.`
+        )
+      }
 
       /**
        * File descriptors follow `output`'s gating: they describe the run's

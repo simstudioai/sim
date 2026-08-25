@@ -47,8 +47,17 @@ vi.mock('@/lib/knowledge/tags/service', () => ({
   createTagDefinition: vi.fn(),
 }))
 vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mockCaptureServerEvent }))
+vi.mock('@/connectors/registry.server', () => ({
+  CONNECTOR_REGISTRY: {
+    notion: {
+      auth: { mode: 'apiKey', optional: true },
+      validateConfig: vi.fn().mockResolvedValue({ valid: true }),
+    },
+  },
+}))
 
 import {
+  performCreateKnowledgeConnector,
   performDeleteKnowledgeConnector,
   performSyncKnowledgeConnector,
   performUpdateKnowledgeConnector,
@@ -58,6 +67,82 @@ const KB = { id: 'kb-1', name: 'Docs', workspaceId: 'ws-1' }
 const ACTOR = { userId: 'user-1', source: 'agent' as const, requestId: 'req-1' }
 const BILLING = { actorUserId: 'user-1', workspaceId: 'ws-1' } as never
 const resolveBillingAttribution = vi.fn().mockResolvedValue(BILLING)
+
+describe('performCreateKnowledgeConnector', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    mockHasWorkspaceLiveSyncAccess.mockResolvedValue(true)
+    mockDispatchSync.mockResolvedValue({ queued: true })
+  })
+
+  afterAll(resetDbChainMock)
+
+  function queueSuccessfulInsert() {
+    dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'kb-1' }])
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      { id: 'conn-1', connectorType: 'notion', encryptedApiKey: null },
+    ])
+  }
+
+  const createParams = {
+    ...ACTOR,
+    knowledgeBase: KB,
+    connectorType: 'notion',
+    sourceConfig: {},
+    syncIntervalMinutes: 60,
+    resolveBillingAttribution,
+    resolveAccessToken: vi.fn(),
+  }
+
+  /**
+   * A detached dispatch settles after the caller has already been handed the
+   * connector, so its outcome could never reach the response.
+   */
+  it('waits for the initial sync dispatch before returning', async () => {
+    queueSuccessfulInsert()
+    let dispatchSettled = false
+    mockDispatchSync.mockImplementationOnce(() =>
+      new Promise<void>((resolve) => {
+        setTimeout(resolve, 1)
+      }).then(() => {
+        dispatchSettled = true
+        return { queued: true }
+      })
+    )
+
+    const outcome = await performCreateKnowledgeConnector(createParams)
+
+    expect(dispatchSettled).toBe(true)
+    expect(outcome).toMatchObject({ success: true, initialSyncQueued: true })
+  })
+
+  it('reports a failed initial dispatch instead of claiming the sync was queued', async () => {
+    queueSuccessfulInsert()
+    mockDispatchSync.mockRejectedValueOnce(new Error('queue unavailable'))
+
+    const outcome = await performCreateKnowledgeConnector(createParams)
+
+    expect(outcome).toMatchObject({ success: true, initialSyncQueued: false })
+  })
+
+  /**
+   * A dispatch that declines to queue is as invisible to the caller as one that
+   * throws: the connector is created either way, so the only signal that its
+   * first sync never started is this flag.
+   */
+  it('reports a skipped initial dispatch the same as a failed one', async () => {
+    queueSuccessfulInsert()
+    mockDispatchSync.mockResolvedValueOnce({
+      queued: false,
+      reason: 'A sync is already queued or running for this connector',
+    })
+
+    const outcome = await performCreateKnowledgeConnector(createParams)
+
+    expect(outcome).toMatchObject({ success: true, initialSyncQueued: false })
+  })
+})
 
 describe('performDeleteKnowledgeConnector', () => {
   beforeEach(() => {
@@ -143,7 +228,7 @@ describe('performUpdateKnowledgeConnector', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
-    mockDispatchSync.mockResolvedValue(undefined)
+    mockDispatchSync.mockResolvedValue({ queued: true })
     resolveBillingAttribution.mockResolvedValue(BILLING)
   })
 
@@ -656,7 +741,7 @@ describe('performSyncKnowledgeConnector', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
-    mockDispatchSync.mockResolvedValue(undefined)
+    mockDispatchSync.mockResolvedValue({ queued: true })
   })
 
   afterAll(resetDbChainMock)
@@ -782,6 +867,54 @@ describe('performSyncKnowledgeConnector', () => {
 
     expect(outcome).toMatchObject({ success: true })
     expect(mockDispatchSync).toHaveBeenCalledOnce()
+    expect(mockRecordAudit).not.toHaveBeenCalled()
+    expect(mockCaptureServerEvent).not.toHaveBeenCalled()
+  })
+
+  it('reports a failed dispatch instead of claiming the sync was queued', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { id: 'conn-1', connectorType: 'notion', status: 'active' },
+    ])
+    mockDispatchSync.mockRejectedValueOnce(new Error('queue unavailable'))
+
+    const outcome = await performSyncKnowledgeConnector({
+      ...ACTOR,
+      knowledgeBase: KB,
+      connectorId: 'conn-1',
+      resolveBillingAttribution,
+    })
+
+    expect(outcome).toMatchObject({ success: false })
+    expect(mockRecordAudit).not.toHaveBeenCalled()
+    expect(mockCaptureServerEvent).not.toHaveBeenCalled()
+  })
+
+  /**
+   * The dispatch guards run after this operation's own, so they see state that
+   * changed underneath it. Reporting their verdict is what stops a sync that was
+   * never queued from being audited and reported as one that was.
+   */
+  it('reports a skipped dispatch, and records neither the audit nor the product event', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { id: 'conn-1', connectorType: 'notion', status: 'active' },
+    ])
+    mockDispatchSync.mockResolvedValueOnce({
+      queued: false,
+      reason: 'A sync is already queued or running for this connector',
+    })
+
+    const outcome = await performSyncKnowledgeConnector({
+      ...ACTOR,
+      knowledgeBase: KB,
+      connectorId: 'conn-1',
+      resolveBillingAttribution,
+    })
+
+    expect(outcome).toMatchObject({
+      success: false,
+      errorCode: 'conflict',
+      error: 'A sync is already queued or running for this connector',
+    })
     expect(mockRecordAudit).not.toHaveBeenCalled()
     expect(mockCaptureServerEvent).not.toHaveBeenCalled()
   })

@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   listProfiles: vi.fn<() => string[]>(() => []),
   request: vi.fn(),
   readCredentialsProfile: vi.fn<() => Record<string, string>>(() => ({})),
+  ProfileConfigError: class ProfileConfigError extends Error {},
   resolveAuthenticationProfileName: vi.fn((profile: string) => profile),
   pollForKey: vi.fn(async () => ({
     apiKey: 'sim-key',
@@ -47,6 +48,7 @@ vi.mock('../config/index', () => ({
   deleteProfile: mocks.deleteProfile,
   listAuthenticationDependents: mocks.listAuthenticationDependents,
   listProfiles: mocks.listProfiles,
+  ProfileConfigError: mocks.ProfileConfigError,
   readCredentialsProfile: mocks.readCredentialsProfile,
   resolveAuthenticationProfileName: mocks.resolveAuthenticationProfileName,
   writeConfigProfile: mocks.writeConfigProfile,
@@ -137,6 +139,19 @@ describe('login command', () => {
 
     expect(mocks.createInterface).not.toHaveBeenCalled()
     expect(mocks.createAuthRequest).toHaveBeenCalledOnce()
+  })
+
+  it('resolves a profile name that does not exist yet, because login creates it', async () => {
+    // Resolution rejects an unknown --profile so a typo cannot silently talk to
+    // production. `login` is one of the two commands exempt: it is how the
+    // profile comes into existence.
+    setInteractive(false)
+    await login()
+
+    expect(mocks.profileFrom).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ allowUnknownProfile: true })
+    )
   })
 
   it('refuses to replace authentication through a shared workspace profile', async () => {
@@ -455,6 +470,27 @@ describe('profiles command', () => {
     expect(output).toContain('acme  (auth: default)')
     expect(output).not.toContain('acme  (no key)')
   })
+
+  it('marks a broken profile and still lists the rest', async () => {
+    // `profiles` is the command someone runs *because* a profile is broken, and
+    // one bad auth_profile used to abort the listing with nothing shown at all.
+    mocks.listProfiles.mockReturnValue(['broken', 'default', 'dev'])
+    mocks.resolveAuthenticationProfileName.mockImplementation((profile) => {
+      if (profile === 'broken') {
+        throw new mocks.ProfileConfigError(
+          'Profile "broken" references missing auth_profile "gone".'
+        )
+      }
+      return profile
+    })
+
+    await profiles('list')
+
+    const output = vi.mocked(console.log).mock.calls.flat().join('\n')
+    expect(output).toContain('references missing auth_profile "gone"')
+    expect(output).toContain('default')
+    expect(output).toContain('dev')
+  })
 })
 
 describe('logout command', () => {
@@ -528,13 +564,20 @@ describe('whoami command', () => {
     }
   }
 
+  /** Answers `/api/v2/meta` and the workspace read separately, as the API does. */
+  function respond(meta: unknown = { data: { keyType: 'personal' } }) {
+    mocks.request.mockImplementation(async (path: string) =>
+      path === '/api/v2/meta'
+        ? meta
+        : { data: { id: 'ws_1', name: "Waleed Latif's Workspace", memberCount: 3 } }
+    )
+  }
+
   beforeEach(() => {
     vi.clearAllMocks()
     process.exitCode = undefined
     mocks.profileFrom.mockReturnValue(configured())
-    mocks.request.mockResolvedValue({
-      data: { id: 'ws_1', name: "Waleed Latif's Workspace", memberCount: 3 },
-    })
+    respond()
     vi.spyOn(console, 'log').mockImplementation(() => {})
   })
 
@@ -645,7 +688,10 @@ describe('whoami command', () => {
 
     await whoami()
 
-    expect(mocks.request).not.toHaveBeenCalled()
+    // The key kind is still read: a profile with no workspace is exactly where
+    // an unusable key most looks like a merely unconfigured one.
+    expect(mocks.request).toHaveBeenCalledTimes(1)
+    expect(mocks.request).toHaveBeenCalledWith('/api/v2/meta', { method: 'GET' })
     const output = vi.mocked(console.log).mock.calls.flat().join('\n')
     expect(output).toContain('no workspace to check against')
     expect(process.exitCode).toBe(2)
@@ -670,7 +716,46 @@ describe('whoami command', () => {
     expect(mocks.request).not.toHaveBeenCalled()
     expect(process.exitCode).toBeUndefined()
     expect(JSON.parse(String(vi.mocked(console.log).mock.calls[0][0]))).toMatchObject({
-      verification: { status: 'disabled', workspace: null },
+      verification: { status: 'disabled', workspace: null, keyType: null },
     })
+  })
+
+  it('reports which kind of key is in play, the diagnostic a green check hid', async () => {
+    // Six agents blocked by PRINCIPAL_KIND_NOT_PERMITTED ran `whoami` and saw a
+    // green ✓, because personal and workspace keys printed identically.
+    for (const keyType of ['personal', 'workspace']) {
+      vi.mocked(console.log).mockClear()
+      respond({ data: { keyType } })
+
+      await whoami()
+
+      expect(mocks.request).toHaveBeenCalledWith('/api/v2/meta', { method: 'GET' })
+      expect(vi.mocked(console.log).mock.calls.flat().join('\n')).toContain(`Key type\t${keyType}`)
+    }
+  })
+
+  it('carries the key kind into machine output', async () => {
+    mocks.profileFrom.mockReturnValue(configured({ output: 'json' }))
+    respond({ data: { keyType: 'workspace' } })
+
+    await whoami()
+
+    expect(JSON.parse(String(vi.mocked(console.log).mock.calls[0][0]))).toMatchObject({
+      verification: { status: 'verified', keyType: 'workspace' },
+    })
+  })
+
+  it('does not let an unreadable key kind change the verdict or the exit code', async () => {
+    mocks.request.mockImplementation(async (path: string) => {
+      if (path === '/api/v2/meta') throw new SimApiError('Not Found', 404)
+      return { data: { id: 'ws_1', name: 'Acme', memberCount: 1 } }
+    })
+
+    await whoami()
+
+    const output = vi.mocked(console.log).mock.calls.flat().join('\n')
+    expect(output).toContain('Key type\tunknown')
+    expect(output).toContain('Acme')
+    expect(process.exitCode).toBeUndefined()
   })
 })
