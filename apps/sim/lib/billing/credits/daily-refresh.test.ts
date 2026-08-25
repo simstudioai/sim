@@ -136,6 +136,28 @@ describe('computeDailyRefreshConsumed', () => {
     expect(drizzleOrmMock.inArray).not.toHaveBeenCalled()
   })
 
+  it('keeps straggler rows stamped to the period but written after its end', async () => {
+    // A run that started before the rollover inserts rows stamped with the
+    // elapsed period after it ended; the stamp-based close bills them, so the
+    // deduction must include them too (clamped into the final day bucket).
+    dbChainMockFns.groupBy.mockResolvedValueOnce([{ dayIndex: 30, dayTotal: '0.30' }])
+    const periodStart = new Date('2026-03-01')
+    const periodEnd = new Date('2026-04-01')
+
+    const result = await computeDailyRefreshConsumed({
+      billingEntity: { type: 'user', id: 'user-1' },
+      periodStart,
+      periodEnd,
+      planDollars: 25,
+    })
+
+    expect(result).toBe(0.25)
+    // Membership is stamp-only: no created-at bound may exclude a row the
+    // stamped ledger total includes.
+    expect(drizzleOrmMock.lt).not.toHaveBeenCalledWith(schemaMock.usageLog.createdAt, periodEnd)
+    expect(drizzleOrmMock.gte).not.toHaveBeenCalled()
+  })
+
   it('rejects windows beyond the supported annual bound', async () => {
     await expect(
       computeDailyRefreshConsumed({

@@ -45,7 +45,9 @@ interface BillingPeriodUsageWithDailyRefreshParams {
  *
  * The two aggregates intentionally keep different predicates. Ledger totals
  * use both captured period bounds (or a reporting-time window), while refresh
- * uses the captured period start plus a created-at day window.
+ * membership is the captured period-start stamp alone — created-at only
+ * buckets rows into days, clamped into the period (see
+ * `computeDailyRefreshConsumed` for why).
  */
 export async function computeBillingPeriodUsageWithDailyRefresh(
   params: BillingPeriodUsageWithDailyRefreshParams,
@@ -64,11 +66,7 @@ export async function computeBillingPeriodUsageWithDailyRefresh(
   const dailyRefreshDollars = planDollars * DAILY_REFRESH_RATE * seats
   const refreshWindowActive = cap > refreshPeriodStart
   const refreshFilter = refreshWindowActive
-    ? and(
-        eq(usageLog.billingPeriodStart, refreshPeriodStart),
-        gte(usageLog.createdAt, refreshPeriodStart),
-        lt(usageLog.createdAt, cap)
-      )
+    ? eq(usageLog.billingPeriodStart, refreshPeriodStart)
     : sql<boolean>`false`
   const ledgerPeriodFilter =
     billingPeriod.source === 'reporting'
@@ -81,22 +79,18 @@ export async function computeBillingPeriodUsageWithDailyRefresh(
   const sameCapturedPeriodStart =
     billingPeriod.source !== 'reporting' &&
     billingPeriod.start.getTime() === refreshPeriodStart.getTime()
-  const reportingWindowContainsRefresh =
-    billingPeriod.source === 'reporting' &&
-    refreshPeriodStart >= billingPeriod.start &&
-    cap <= billingPeriod.end
   const scanFilter = !refreshWindowActive
     ? ledgerPeriodFilter
     : sameCapturedPeriodStart
       ? eq(usageLog.billingPeriodStart, billingPeriod.start)
-      : reportingWindowContainsRefresh
-        ? ledgerPeriodFilter
-        : or(ledgerPeriodFilter, refreshFilter)
+      : or(ledgerPeriodFilter, refreshFilter)
 
+  const startEpoch = Math.floor(refreshPeriodStart.getTime() / 1000)
+  const capEpoch = Math.floor(cap.getTime() / 1000)
   const rows = await executor
     .select({
       dayIndex:
-        sql<number>`FLOOR((EXTRACT(EPOCH FROM ${usageLog.createdAt}) - ${Math.floor(refreshPeriodStart.getTime() / 1000)}) / 86400)`.as(
+        sql<number>`FLOOR((LEAST(GREATEST(EXTRACT(EPOCH FROM ${usageLog.createdAt}), ${startEpoch}), ${capEpoch - 1}) - ${startEpoch}) / 86400)`.as(
           'day_index'
         ),
       ledgerTotal:
@@ -167,10 +161,17 @@ export async function computeDailyRefreshConsumed(
     throw new Error('Billing period exceeds the supported annual bound')
   }
 
+  // Membership mirrors the ledger sums exactly: the entity and period stamps
+  // alone. Created-at only assigns the day bucket, clamped into the period —
+  // a straggler row written after the rollover (billing attribution is frozen
+  // at run start) is billed by the stamp-based close, so it must consume
+  // refresh on the period's final day rather than fall out of the deduction.
+  const startEpoch = Math.floor(periodStart.getTime() / 1000)
+  const capEpoch = Math.floor(cap.getTime() / 1000)
   const rows = await executor
     .select({
       dayIndex:
-        sql<number>`FLOOR((EXTRACT(EPOCH FROM ${usageLog.createdAt}) - ${Math.floor(periodStart.getTime() / 1000)}) / 86400)`.as(
+        sql<number>`FLOOR((LEAST(GREATEST(EXTRACT(EPOCH FROM ${usageLog.createdAt}), ${startEpoch}), ${capEpoch - 1}) - ${startEpoch}) / 86400)`.as(
           'day_index'
         ),
       dayTotal: sum(usageLog.cost).as('day_total'),
@@ -180,9 +181,7 @@ export async function computeDailyRefreshConsumed(
       and(
         eq(usageLog.billingEntityType, billingEntity.type),
         eq(usageLog.billingEntityId, billingEntity.id),
-        eq(usageLog.billingPeriodStart, periodStart),
-        gte(usageLog.createdAt, periodStart),
-        lt(usageLog.createdAt, cap)
+        eq(usageLog.billingPeriodStart, periodStart)
       )
     )
     .groupBy(sql`day_index`)
