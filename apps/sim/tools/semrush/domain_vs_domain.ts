@@ -37,6 +37,42 @@ function toNumber(value: string | undefined): number | null {
   return Number.isFinite(parsed) ? parsed : null
 }
 
+/**
+ * Header labels of the trailing metric columns, in the order they are asked for.
+ * They mark where the per-domain position columns stop: the compared domains are
+ * whatever sits between the keyword column and the first metric, so a position
+ * column the API omits shortens that run instead of pushing a metric into it.
+ */
+const METRIC_COLUMNS = [
+  { label: 'competition', key: 'competition' },
+  { label: 'search volume', key: 'searchVolume' },
+  { label: 'cpc', key: 'cpc' },
+] as const
+
+type MetricKey = (typeof METRIC_COLUMNS)[number]['key']
+
+function normalizeLabel(value: string): string {
+  return value.trim().replace(/\s+/g, ' ').toLowerCase()
+}
+
+/** Locates each metric column by its own header, leaving an absent one unmapped. */
+function indexMetrics(headers: string[]): {
+  firstMetricIndex: number
+  metricIndexes: Partial<Record<MetricKey, number>>
+} {
+  const labels = headers.map(normalizeLabel)
+  const metricIndexes: Partial<Record<MetricKey, number>> = {}
+  let firstMetricIndex = headers.length
+
+  for (const { label, key } of METRIC_COLUMNS) {
+    const index = labels.indexOf(label)
+    if (index === -1) continue
+    metricIndexes[key] = index
+    firstMetricIndex = Math.min(firstMetricIndex, index)
+  }
+  return { firstMetricIndex, metricIndexes }
+}
+
 export const semrushDomainVsDomainTool: ToolConfig<
   SemrushDomainVsDomainParams,
   SemrushDomainVsDomainResponse
@@ -69,31 +105,31 @@ export const semrushDomainVsDomainTool: ToolConfig<
     competitionType: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Which keyword set to compare: or for organic or ad for paid',
     },
     limit: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Maximum number of rows to return, capped at 100,000',
     },
     offset: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Number of rows to skip, for pagination',
     },
     displaySort: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Sort order, for example nq_desc or cp_desc',
     },
     displayFilter: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Semrush display_filter expression, for example +|Nq|Gt|1000',
     },
   },
@@ -121,10 +157,10 @@ export const semrushDomainVsDomainTool: ToolConfig<
     headers: () => ({ Accept: 'text/csv' }),
   },
 
-  transformResponse: async (response: Response, params) => {
+  transformResponse: async (response: Response) => {
     const { headers, rows } = await readSemrushReportWithHeader(response)
-    const domainCount = parseDomains(params?.domains ?? '').length
-    const comparedDomains = headers.slice(1, 1 + domainCount)
+    const { firstMetricIndex, metricIndexes } = indexMetrics(headers)
+    const comparedDomains = headers.slice(1, firstMetricIndex)
 
     const keywords: SemrushDomainVsDomainRow[] = rows.map((values) => {
       const positions: Record<string, number | null> = {}
@@ -132,12 +168,17 @@ export const semrushDomainVsDomainTool: ToolConfig<
         positions[domain] = toNumber(values[1 + index])
       })
 
+      const metric = (key: MetricKey) => {
+        const index = metricIndexes[key]
+        return index === undefined ? null : toNumber(values[index])
+      }
+
       return {
         keyword: values[0]?.trim() || null,
         positions,
-        competition: toNumber(values[1 + domainCount]),
-        searchVolume: toNumber(values[2 + domainCount]),
-        cpc: toNumber(values[3 + domainCount]),
+        competition: metric('competition'),
+        searchVolume: metric('searchVolume'),
+        cpc: metric('cpc'),
       }
     })
 

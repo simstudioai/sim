@@ -45,13 +45,13 @@ export const semrushDomainPlaCopiesTool: ToolConfig<
     limit: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Maximum number of rows to return, capped at 100,000',
     },
     offset: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Number of rows to skip, for pagination',
     },
   },

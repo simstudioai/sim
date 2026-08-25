@@ -326,9 +326,14 @@ export function buildSemrushUrl(baseUrl: string, query: SemrushQuery): string {
   return url.toString()
 }
 
-/** Clamps a user- or model-supplied row limit to the range a workflow can hold. */
+/**
+ * Clamps a user- or model-supplied row limit to the range a workflow can hold.
+ *
+ * A positive fraction floors to zero, and `display_limit=0` is a different
+ * request from the one the caller asked for, so the floor is held at one row.
+ */
 export function normalizeLimit(limit: number | string | undefined, fallback: number): number {
   const parsed = Number(limit)
   if (!Number.isFinite(parsed) || parsed <= 0) return fallback
-  return Math.min(Math.floor(parsed), SEMRUSH_MAX_ROWS)
+  return Math.min(Math.max(Math.floor(parsed), 1), SEMRUSH_MAX_ROWS)
 }

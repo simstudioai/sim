@@ -44,25 +44,25 @@ export const semrushDomainOverviewHistoryTool: ToolConfig<
     limit: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Maximum number of rows to return, capped at 100,000',
     },
     offset: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Number of rows to skip, for pagination',
     },
     displayDaily: {
       type: 'boolean',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Return daily data points for the last 31 days instead of monthly ones',
     },
     displaySort: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Sort order, for example dt_desc or dt_asc',
     },
   },
@@ -98,7 +98,7 @@ export const semrushDomainOverviewHistoryTool: ToolConfig<
   outputs: {
     history: {
       type: 'array',
-      description: 'Historical data points, newest first',
+      description: 'Historical data points, in the requested sort order',
       items: {
         type: 'object',
         properties: {

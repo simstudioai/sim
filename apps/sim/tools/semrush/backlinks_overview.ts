@@ -49,8 +49,8 @@ export const semrushBacklinksOverviewTool: ToolConfig<
     targetType: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Scope of the target: root_domain, domain, or url',
+      visibility: 'user-or-llm',
+      description: 'Scope of the target: root_domain, domain, or url. Defaults to root_domain',
     },
   },
 

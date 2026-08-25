@@ -46,19 +46,19 @@ export const semrushBacklinksCompetitorsTool: ToolConfig<
     targetType: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Scope of the target: root_domain, domain, or url',
+      visibility: 'user-or-llm',
+      description: 'Scope of the target: root_domain, domain, or url. Defaults to root_domain',
     },
     limit: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Maximum number of rows to return, capped at 100,000',
     },
     offset: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Number of rows to skip, for pagination',
     },
   },

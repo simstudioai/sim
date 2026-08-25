@@ -44,25 +44,25 @@ export const semrushDomainOrganicCompetitorsTool: ToolConfig<
     limit: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Maximum number of rows to return, capped at 100,000',
     },
     offset: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Number of rows to skip, for pagination',
     },
     displayDate: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Historical month in YYYYMM15 format',
     },
     displaySort: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Sort order, for example np_desc or cr_desc',
     },
   },
@@ -122,25 +122,27 @@ export const semrushDomainOrganicCompetitorsTool: ToolConfig<
           },
           organicKeywords: {
             type: 'number',
-            description: 'Keywords bringing users via the Google top 100 organic results',
+            description:
+              'Keywords this competing domain ranks for in the Google top 100 organic results',
             optional: true,
             nullable: true,
           },
           organicTraffic: {
             type: 'number',
-            description: 'Traffic brought via the Google top 100 organic results',
+            description:
+              'Traffic this competing domain gets from the Google top 100 organic results',
             optional: true,
             nullable: true,
           },
           organicCost: {
             type: 'number',
-            description: 'Estimated Google Ads price of the organic keywords',
+            description: 'Estimated Google Ads price of this competing domain organic keywords',
             optional: true,
             nullable: true,
           },
           paidKeywords: {
             type: 'number',
-            description: 'Keywords the target is buying in Google Ads',
+            description: 'Keywords this competing domain is buying in Google Ads',
             optional: true,
             nullable: true,
           },

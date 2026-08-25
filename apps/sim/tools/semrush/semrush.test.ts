@@ -28,6 +28,13 @@ function csvResponse(body: string, status = 200): Response {
   return new Response(body, { status })
 }
 
+/** Builds a tool's request URL with its own parameter type, not an erased one. */
+function requestUrl<P>(tool: ToolConfig<P, never>, params: P): URL {
+  const { url } = tool.request
+  if (typeof url !== 'function') throw new Error(`${tool.id} has a static request URL`)
+  return new URL(url(params))
+}
+
 describe('semrush domain overview', () => {
   it('maps the documented CSV row onto the overview output', async () => {
     const body = [
@@ -72,8 +79,11 @@ describe('semrush domain overview', () => {
   })
 
   it('requests the columns it decodes', () => {
-    const url = semrushDomainOverviewTool.request.url as (params: any) => string
-    const parsed = new URL(url({ apiKey: 'k', domain: 'seobook.com', database: 'us' }))
+    const parsed = requestUrl(semrushDomainOverviewTool, {
+      apiKey: 'k',
+      domain: 'seobook.com',
+      database: 'us',
+    })
 
     expect(parsed.searchParams.get('type')).toBe('domain_rank')
     expect(parsed.searchParams.get('export_columns')).toBe('Dn,Rk,Or,Ot,Oc,Ad,At,Ac')
@@ -223,9 +233,24 @@ describe('semrush domain organic keywords', () => {
     expect(result.output.keywords[0].trends).toEqual([])
   })
 
+  it('never sends a zero row limit for a positive fractional one', () => {
+    const parsed = requestUrl(semrushDomainOrganicKeywordsTool, {
+      apiKey: 'k',
+      domain: 'a.com',
+      database: 'us',
+      limit: 0.5,
+    })
+
+    expect(parsed.searchParams.get('display_limit')).toBe('1')
+  })
+
   it('clamps the row limit to the ceiling a workflow can hold', () => {
-    const url = semrushDomainOrganicKeywordsTool.request.url as (params: any) => string
-    const parsed = new URL(url({ apiKey: 'k', domain: 'a.com', database: 'us', limit: 999999 }))
+    const parsed = requestUrl(semrushDomainOrganicKeywordsTool, {
+      apiKey: 'k',
+      domain: 'a.com',
+      database: 'us',
+      limit: 999999,
+    })
 
     expect(parsed.searchParams.get('display_limit')).toBe('100000')
   })
@@ -283,8 +308,10 @@ describe('semrush backlinks reports', () => {
   })
 
   it('defaults the referring domains target scope to the whole root domain', () => {
-    const url = semrushReferringDomainsTool.request.url as (params: any) => string
-    const parsed = new URL(url({ apiKey: 'k', target: 'searchenginejournal.com' }))
+    const parsed = requestUrl(semrushReferringDomainsTool, {
+      apiKey: 'k',
+      target: 'searchenginejournal.com',
+    })
 
     expect(parsed.origin + parsed.pathname).toBe('https://api.semrush.com/analytics/v1/')
     expect(parsed.searchParams.get('target_type')).toBe('root_domain')
@@ -315,8 +342,7 @@ describe('semrush domain vs. domain', () => {
   const params = { apiKey: 'k', domains: 'nike.com, adidas.com, reebok.com', database: 'us' }
 
   it('asks for one position column per submitted domain', () => {
-    const url = semrushDomainVsDomainTool.request.url as (p: any) => string
-    const parsed = new URL(url(params))
+    const parsed = requestUrl(semrushDomainVsDomainTool, params)
 
     expect(parsed.searchParams.get('export_columns')).toBe('Ph,P0,P1,P2,Co,Nq,Cp')
     expect(parsed.searchParams.get('domains')).toBe('*|or|nike.com|*|or|adidas.com|*|or|reebok.com')
@@ -328,7 +354,7 @@ describe('semrush domain vs. domain', () => {
       'shoes;69;33;81;1.00;1500000;0.91',
     ].join('\n')
 
-    const result = await semrushDomainVsDomainTool.transformResponse!(csvResponse(body), params)
+    const result = await semrushDomainVsDomainTool.transformResponse!(csvResponse(body))
 
     expect(result.output.domains).toEqual(['nike.com', 'adidas.com', 'reebok.com'])
     expect(result.output.keywords[0]).toEqual({
@@ -336,6 +362,38 @@ describe('semrush domain vs. domain', () => {
       positions: { 'nike.com': 69, 'adidas.com': 33, 'reebok.com': 81 },
       competition: 1,
       searchVolume: 1500000,
+      cpc: 0.91,
+    })
+  })
+
+  it('locates the metric columns by header when a position column is missing', async () => {
+    const body = [
+      'Keyword;nike.com;reebok.com;Competition;Search Volume;CPC',
+      'shoes;69;81;1.00;1500000;0.91',
+    ].join('\n')
+
+    const result = await semrushDomainVsDomainTool.transformResponse!(csvResponse(body))
+
+    expect(result.output.domains).toEqual(['nike.com', 'reebok.com'])
+    expect(result.output.keywords[0]).toEqual({
+      keyword: 'shoes',
+      positions: { 'nike.com': 69, 'reebok.com': 81 },
+      competition: 1,
+      searchVolume: 1500000,
+      cpc: 0.91,
+    })
+  })
+
+  it('leaves a metric null when the report omits its column', async () => {
+    const body = ['Keyword;nike.com;Competition;CPC', 'shoes;69;1.00;0.91'].join('\n')
+
+    const result = await semrushDomainVsDomainTool.transformResponse!(csvResponse(body))
+
+    expect(result.output.keywords[0]).toEqual({
+      keyword: 'shoes',
+      positions: { 'nike.com': 69 },
+      competition: 1,
+      searchVolume: null,
       cpc: 0.91,
     })
   })
@@ -357,7 +415,7 @@ describe('semrush registry surface', () => {
    */
   it('resolves every column code the tools request', () => {
     for (const [, tool] of semrushTools) {
-      const url = (tool as ToolConfig).request.url
+      const url = (tool as ToolConfig<Record<string, string>, never>).request.url
       if (typeof url !== 'function') continue
       const built = url({
         apiKey: 'k',

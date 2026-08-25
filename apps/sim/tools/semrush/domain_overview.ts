@@ -40,7 +40,7 @@ export const semrushDomainOverviewTool: ToolConfig<
     displayDate: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Historical month in YYYYMM15 format',
     },
   },

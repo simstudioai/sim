@@ -128,7 +128,7 @@ Get the historical trend of a domain rank plus its organic and paid search total
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `history` | array | Historical data points, newest first |
+| `history` | array | Historical data points, in the requested sort order |
 |   ↳ `date` | string | Data collection date in YYYYMMDD or YYYYMM format |
 |   ↳ `rank` | number | Semrush popularity rating of the target, based on organic traffic |
 |   ↳ `organicKeywords` | number | Keywords bringing users via the Google top 100 organic results |
@@ -211,7 +211,7 @@ List the keywords a domain buys in Google Ads, with ad position, copy, and traff
 |   ↳ `description` | string | Ad text |
 |   ↳ `traffic` | number | Estimated traffic driven by this keyword |
 |   ↳ `trafficPercent` | number | Share of the traffic to the target driven by this keyword |
-|   ↳ `trafficCost` | number | Share of the traffic cost of the target attributed to this keyword |
+|   ↳ `trafficCost` | number | Estimated traffic cost attributed to this keyword |
 |   ↳ `competition` | number | Competitive density of advertisers bidding on the keyword \(0-1\) |
 |   ↳ `numberOfResults` | number | Total organic results returned for the keyword |
 
@@ -298,10 +298,10 @@ List the domains competing with a target domain in Google organic search results
 |   ↳ `domain` | string | Domain name |
 |   ↳ `competitorRelevance` | number | Competition level based on the total keyword count of each domain |
 |   ↳ `commonKeywords` | number | Keywords both domains rank for in the top 100 organic results |
-|   ↳ `organicKeywords` | number | Keywords bringing users via the Google top 100 organic results |
-|   ↳ `organicTraffic` | number | Traffic brought via the Google top 100 organic results |
-|   ↳ `organicCost` | number | Estimated Google Ads price of the organic keywords |
-|   ↳ `paidKeywords` | number | Keywords the target is buying in Google Ads |
+|   ↳ `organicKeywords` | number | Keywords this competing domain ranks for in the Google top 100 organic results |
+|   ↳ `organicTraffic` | number | Traffic this competing domain gets from the Google top 100 organic results |
+|   ↳ `organicCost` | number | Estimated Google Ads price of this competing domain organic keywords |
+|   ↳ `paidKeywords` | number | Keywords this competing domain is buying in Google Ads |
 
 ### Semrush Paid Competitors
 
@@ -327,10 +327,10 @@ List the domains competing with a target domain in Google paid search results.
 |   ↳ `domain` | string | Domain name |
 |   ↳ `competitorRelevance` | number | Competition level based on the total keyword count of each domain |
 |   ↳ `commonKeywords` | number | Keywords both domains rank for in the top 100 organic results |
-|   ↳ `paidKeywords` | number | Keywords the target is buying in Google Ads |
-|   ↳ `paidTraffic` | number | Traffic brought via paid search results |
-|   ↳ `paidCost` | number | Estimated monthly Google Ads budget |
-|   ↳ `organicKeywords` | number | Keywords bringing users via the Google top 100 organic results |
+|   ↳ `paidKeywords` | number | Keywords this competing domain is buying in Google Ads |
+|   ↳ `paidTraffic` | number | Traffic this competing domain gets from paid search results |
+|   ↳ `paidCost` | number | Estimated monthly Google Ads budget of this competing domain |
+|   ↳ `organicKeywords` | number | Keywords this competing domain ranks for in the Google top 100 organic results |
 
 ### Semrush Domain PLA Keywords
 
@@ -497,7 +497,7 @@ Get the historical trend of a subdomain organic and paid search totals.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `history` | array | Historical data points, newest first |
+| `history` | array | Historical data points, in the requested sort order |
 |   ↳ `date` | string | Data collection date in YYYYMMDD or YYYYMM format |
 |   ↳ `rank` | number | Semrush popularity rating of the target, based on organic traffic |
 |   ↳ `organicKeywords` | number | Keywords bringing users via the Google top 100 organic results |
@@ -580,7 +580,7 @@ List the keywords a subdomain buys in Google Ads.
 |   ↳ `description` | string | Ad text |
 |   ↳ `traffic` | number | Estimated traffic driven by this keyword |
 |   ↳ `trafficPercent` | number | Share of the traffic to the target driven by this keyword |
-|   ↳ `trafficCost` | number | Share of the traffic cost of the target attributed to this keyword |
+|   ↳ `trafficCost` | number | Estimated traffic cost attributed to this keyword |
 |   ↳ `competition` | number | Competitive density of advertisers bidding on the keyword \(0-1\) |
 |   ↳ `numberOfResults` | number | Total organic results returned for the keyword |
 
@@ -691,7 +691,7 @@ Get the historical trend of a URL organic and paid search totals.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `history` | array | Historical data points, newest first |
+| `history` | array | Historical data points, in the requested sort order |
 |   ↳ `date` | string | Data collection date in YYYYMMDD or YYYYMM format |
 |   ↳ `rank` | number | Semrush popularity rating of the target, based on organic traffic |
 |   ↳ `organicKeywords` | number | Keywords bringing users via the Google top 100 organic results |
@@ -732,7 +732,7 @@ List the keywords a single URL ranks for in Google organic search.
 |   ↳ `keywordDifficulty` | number | Estimated difficulty of ranking for the keyword \(0-100\) |
 |   ↳ `trafficPercent` | number | Share of the traffic to the target driven by this keyword |
 |   ↳ `traffic` | number | Estimated traffic driven by this keyword |
-|   ↳ `trafficCost` | number | Share of the traffic cost of the target attributed to this keyword |
+|   ↳ `trafficCost` | number | Estimated traffic cost attributed to this keyword |
 |   ↳ `numberOfResults` | number | Total organic results returned for the keyword |
 |   ↳ `intents` | array | Keyword intents: 0 commercial, 1 informational, 2 navigational, 3 transactional |
 |   ↳ `trends` | array | Relative search interest over the last 12 months |
@@ -766,7 +766,7 @@ List the keywords a single URL is advertised on in Google Ads, with the ad copy 
 |   ↳ `competition` | number | Competitive density of advertisers bidding on the keyword \(0-1\) |
 |   ↳ `traffic` | number | Estimated traffic driven by this keyword |
 |   ↳ `trafficPercent` | number | Share of the traffic to the target driven by this keyword |
-|   ↳ `trafficCost` | number | Share of the traffic cost of the target attributed to this keyword |
+|   ↳ `trafficCost` | number | Estimated traffic cost attributed to this keyword |
 |   ↳ `numberOfResults` | number | Total organic results returned for the keyword |
 |   ↳ `trends` | array | Relative search interest over the last 12 months |
 |   ↳ `title` | string | Ad or product title |
@@ -1065,13 +1065,13 @@ List the domains that gained or lost the most organic and paid search visibility
 | --------- | ---- | ----------- |
 | `domains` | array | Domains ranked by change in search visibility |
 |   ↳ `domain` | string | Domain name |
-|   ↳ `rank` | number | Semrush popularity rating of the target, based on organic traffic |
-|   ↳ `organicKeywords` | number | Keywords bringing users via the Google top 100 organic results |
-|   ↳ `organicTraffic` | number | Traffic brought via the Google top 100 organic results |
-|   ↳ `organicCost` | number | Estimated Google Ads price of the organic keywords |
-|   ↳ `paidKeywords` | number | Keywords the target is buying in Google Ads |
-|   ↳ `paidTraffic` | number | Traffic brought via paid search results |
-|   ↳ `paidCost` | number | Estimated monthly Google Ads budget |
+|   ↳ `rank` | number | Semrush popularity rating of this domain, based on organic traffic |
+|   ↳ `organicKeywords` | number | Keywords this domain ranks for in the Google top 100 organic results |
+|   ↳ `organicTraffic` | number | Traffic this domain gets from the Google top 100 organic results |
+|   ↳ `organicCost` | number | Estimated Google Ads price of this domain organic keywords |
+|   ↳ `paidKeywords` | number | Keywords this domain is buying in Google Ads |
+|   ↳ `paidTraffic` | number | Traffic this domain gets from paid search results |
+|   ↳ `paidCost` | number | Estimated monthly Google Ads budget of this domain |
 |   ↳ `organicKeywordsDifference` | number | Change in organic keyword count since the previous month |
 |   ↳ `organicTrafficDifference` | number | Change in organic traffic since the previous month |
 |   ↳ `organicCostDifference` | number | Change in organic cost since the previous month |
@@ -1100,13 +1100,13 @@ List the highest-ranked domains in a regional database by Semrush rank.
 | --------- | ---- | ----------- |
 | `domains` | array | Top-ranked domains in the database |
 |   ↳ `domain` | string | Domain name |
-|   ↳ `rank` | number | Semrush popularity rating of the target, based on organic traffic |
-|   ↳ `organicKeywords` | number | Keywords bringing users via the Google top 100 organic results |
-|   ↳ `organicTraffic` | number | Traffic brought via the Google top 100 organic results |
-|   ↳ `organicCost` | number | Estimated Google Ads price of the organic keywords |
-|   ↳ `paidKeywords` | number | Keywords the target is buying in Google Ads |
-|   ↳ `paidTraffic` | number | Traffic brought via paid search results |
-|   ↳ `paidCost` | number | Estimated monthly Google Ads budget |
+|   ↳ `rank` | number | Semrush popularity rating of this domain, based on organic traffic |
+|   ↳ `organicKeywords` | number | Keywords this domain ranks for in the Google top 100 organic results |
+|   ↳ `organicTraffic` | number | Traffic this domain gets from the Google top 100 organic results |
+|   ↳ `organicCost` | number | Estimated Google Ads price of this domain organic keywords |
+|   ↳ `paidKeywords` | number | Keywords this domain is buying in Google Ads |
+|   ↳ `paidTraffic` | number | Traffic this domain gets from paid search results |
+|   ↳ `paidCost` | number | Estimated monthly Google Ads budget of this domain |
 
 ### Semrush Backlinks Overview
 
@@ -1118,7 +1118,7 @@ Get the Authority Score and backlink profile totals for a domain, subdomain, or 
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Semrush API key |
 | `target` | string | Yes | Root domain, subdomain, or URL to analyze |
-| `targetType` | string | No | Scope of the target: root_domain, domain, or url |
+| `targetType` | string | No | Scope of the target: root_domain, domain, or url. Defaults to root_domain |
 
 #### Output
 
@@ -1150,7 +1150,7 @@ List the backlinks pointing at a domain, subdomain, or URL, with source page, an
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Semrush API key |
 | `target` | string | Yes | Root domain, subdomain, or URL to analyze |
-| `targetType` | string | No | Scope of the target: root_domain, domain, or url |
+| `targetType` | string | No | Scope of the target: root_domain, domain, or url. Defaults to root_domain |
 | `limit` | number | No | Maximum number of rows to return, capped at 100,000 |
 | `offset` | number | No | Number of rows to skip, for pagination |
 | `displaySort` | string | No | Sort order, for example page_ascore_desc or last_seen_desc |
@@ -1182,7 +1182,7 @@ List the domains linking to a target, with Authority Score, backlink count, and 
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Semrush API key |
 | `target` | string | Yes | Root domain, subdomain, or URL to analyze |
-| `targetType` | string | No | Scope of the target: root_domain, domain, or url |
+| `targetType` | string | No | Scope of the target: root_domain, domain, or url. Defaults to root_domain |
 | `limit` | number | No | Maximum number of rows to return, capped at 100,000 |
 | `offset` | number | No | Number of rows to skip, for pagination |
 | `displaySort` | string | No | Sort order, for example backlinks_num_desc or domain_ascore_desc |
@@ -1211,7 +1211,7 @@ List the IP addresses linking to a target, with the domain and backlink counts b
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Semrush API key |
 | `target` | string | Yes | Root domain, subdomain, or URL to analyze |
-| `targetType` | string | No | Scope of the target: root_domain, domain, or url |
+| `targetType` | string | No | Scope of the target: root_domain, domain, or url. Defaults to root_domain |
 | `limit` | number | No | Maximum number of rows to return, capped at 100,000 |
 | `offset` | number | No | Number of rows to skip, for pagination |
 | `displaySort` | string | No | Sort order, for example domains_num_desc or backlinks_num_desc |
@@ -1238,7 +1238,7 @@ Break a target backlink profile down by the top-level domain of its referring do
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Semrush API key |
 | `target` | string | Yes | Root domain, subdomain, or URL to analyze |
-| `targetType` | string | No | Scope of the target: root_domain, domain, or url |
+| `targetType` | string | No | Scope of the target: root_domain, domain, or url. Defaults to root_domain |
 | `limit` | number | No | Maximum number of rows to return, capped at 100,000 |
 | `offset` | number | No | Number of rows to skip, for pagination |
 | `displaySort` | string | No | Sort order, for example domains_num_desc or backlinks_num_desc |
@@ -1262,7 +1262,7 @@ Break a target backlink profile down by the country of its referring domains.
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Semrush API key |
 | `target` | string | Yes | Root domain, subdomain, or URL to analyze |
-| `targetType` | string | No | Scope of the target: root_domain, domain, or url |
+| `targetType` | string | No | Scope of the target: root_domain, domain, or url. Defaults to root_domain |
 | `limit` | number | No | Maximum number of rows to return, capped at 100,000 |
 | `offset` | number | No | Number of rows to skip, for pagination |
 | `displaySort` | string | No | Sort order, for example domains_num_desc or backlinks_num_desc |
@@ -1286,7 +1286,7 @@ List the anchor texts used in backlinks to a target, with domain and backlink co
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Semrush API key |
 | `target` | string | Yes | Root domain, subdomain, or URL to analyze |
-| `targetType` | string | No | Scope of the target: root_domain, domain, or url |
+| `targetType` | string | No | Scope of the target: root_domain, domain, or url. Defaults to root_domain |
 | `limit` | number | No | Maximum number of rows to return, capped at 100,000 |
 | `offset` | number | No | Number of rows to skip, for pagination |
 | `displaySort` | string | No | Sort order, for example backlinks_num_desc or domains_num_desc |
@@ -1312,7 +1312,7 @@ List the pages of a target that attract backlinks, with response code and link c
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Semrush API key |
 | `target` | string | Yes | Root domain, subdomain, or URL to analyze |
-| `targetType` | string | No | Scope of the target: root_domain, domain, or url |
+| `targetType` | string | No | Scope of the target: root_domain, domain, or url. Defaults to root_domain |
 | `limit` | number | No | Maximum number of rows to return, capped at 100,000 |
 | `offset` | number | No | Number of rows to skip, for pagination |
 | `displaySort` | string | No | Sort order, for example domains_num_desc or backlinks_num_desc |
@@ -1341,7 +1341,7 @@ List domains with a backlink profile similar to the target, ranked by shared ref
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Semrush API key |
 | `target` | string | Yes | Root domain, subdomain, or URL to analyze |
-| `targetType` | string | No | Scope of the target: root_domain, domain, or url |
+| `targetType` | string | No | Scope of the target: root_domain, domain, or url. Defaults to root_domain |
 | `limit` | number | No | Maximum number of rows to return, capped at 100,000 |
 | `offset` | number | No | Number of rows to skip, for pagination |
 
