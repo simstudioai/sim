@@ -17,7 +17,7 @@ import {
   normalizeWorkflowEdgeSourceHandle,
   normalizeWorkflowEdgeTargetHandle,
 } from '@sim/workflow-types/workflow'
-import { and, eq, isNull, min } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
 import { remapConditionEdgeHandle } from '@/lib/workflows/condition-ids'
 import {
@@ -27,6 +27,7 @@ import {
   type SubBlockRecord,
   sanitizeSubBlocksForDuplicate,
 } from '@/lib/workflows/persistence/remap-internal-ids'
+import { nextWorkflowSortOrder } from '@/lib/workflows/sort-order'
 import { deduplicateWorkflowName } from '@/lib/workflows/utils'
 import type { Variable } from '@/stores/variables/types'
 import type { LoopConfig, ParallelConfig } from '@/stores/workflows/workflow/types'
@@ -183,37 +184,7 @@ export async function duplicateWorkflow(
     const targetFolderId = folderId !== undefined ? folderId : source.folderId
     await assertTargetFolderMutable(tx, targetFolderId, targetWorkspaceId)
 
-    const workflowParentCondition = targetFolderId
-      ? eq(workflow.folderId, targetFolderId)
-      : isNull(workflow.folderId)
-    const folderParentCondition = targetFolderId
-      ? eq(folderTable.parentId, targetFolderId)
-      : isNull(folderTable.parentId)
-
-    const [[workflowMinResult], [folderMinResult]] = await Promise.all([
-      tx
-        .select({ minOrder: min(workflow.sortOrder) })
-        .from(workflow)
-        .where(and(eq(workflow.workspaceId, targetWorkspaceId), workflowParentCondition)),
-      tx
-        .select({ minOrder: min(folderTable.sortOrder) })
-        .from(folderTable)
-        .where(
-          and(
-            eq(folderTable.workspaceId, targetWorkspaceId),
-            eq(folderTable.resourceType, 'workflow'),
-            folderParentCondition
-          )
-        ),
-    ])
-    const minSortOrder = [workflowMinResult?.minOrder, folderMinResult?.minOrder].reduce<
-      number | null
-    >((currentMin, candidate) => {
-      if (candidate == null) return currentMin
-      if (currentMin == null) return candidate
-      return Math.min(currentMin, candidate)
-    }, null)
-    const sortOrder = minSortOrder != null ? minSortOrder - 1 : 0
+    const sortOrder = await nextWorkflowSortOrder(targetWorkspaceId, targetFolderId, tx)
 
     // Mapping from old variable IDs to new variable IDs (populated during variable duplication)
     const varIdMapping = new Map<string, string>()
