@@ -13,7 +13,7 @@ import {
   getHighestPrioritySubscription,
   getOrganizationSubscriptionUsable,
 } from '@/lib/billing/core/subscription'
-import { type BillingEntity, getBillingPeriodUsageCost } from '@/lib/billing/core/usage-log'
+import { type BillingEntity, getBillingPeriodUsageCostByUser } from '@/lib/billing/core/usage-log'
 import { isSubscriptionCycleCloseCurrent } from '@/lib/billing/cycle-close'
 import { isEnterprise, isFree } from '@/lib/billing/plan-helpers'
 import {
@@ -615,13 +615,20 @@ async function checkAndBillOrganizationOverageThreshold(
       ownerId: usageSnapshot.ownerId,
     })
 
-    const ledgerUsage =
+    const orgUsageByUser =
       orgSubscription.periodStart && orgSubscription.periodEnd
-        ? await getBillingPeriodUsageCost(
+        ? await getBillingPeriodUsageCostByUser(
             { type: 'organization', id: organizationId },
             { start: orgSubscription.periodStart, end: orgSubscription.periodEnd }
           )
-        : 0
+        : new Map<string, number>()
+    let ledgerUsage = 0
+    for (const cost of orgUsageByUser.values()) ledgerUsage += cost
+    // Union current members with every actor holding org-attributed rows this
+    // period: a member who departed mid-period still bills here, so their
+    // daily-refresh consumption must offset the overage too — same actor set
+    // as `calculateSubscriptionOverage` and the cycle close.
+    const overageActorIds = [...new Set([...usageSnapshot.memberIds, ...orgUsageByUser.keys()])]
 
     const {
       totalOverage: currentOverage,
@@ -634,7 +641,7 @@ async function checkAndBillOrganizationOverageThreshold(
       periodEnd: orgSubscription.periodEnd ?? null,
       organizationId,
       pooledLedgerUsage: ledgerUsage,
-      memberIds: usageSnapshot.memberIds,
+      memberIds: overageActorIds,
     })
 
     if (currentOverage < threshold) {

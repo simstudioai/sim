@@ -10,7 +10,7 @@ const {
   mockEnqueueOutboxEvent,
   mockGetEffectiveBillingStatus,
   mockGetHighestPrioritySubscription,
-  mockGetBillingPeriodUsageCost,
+  mockGetBillingPeriodUsageCostByUser,
   mockGetOrganizationSubscriptionUsable,
   mockHasUsableSubscriptionAccess,
   mockIsEnterprise,
@@ -26,7 +26,7 @@ const {
   mockEnqueueOutboxEvent: vi.fn(),
   mockGetEffectiveBillingStatus: vi.fn(),
   mockGetHighestPrioritySubscription: vi.fn(),
-  mockGetBillingPeriodUsageCost: vi.fn(),
+  mockGetBillingPeriodUsageCostByUser: vi.fn(),
   mockGetOrganizationSubscriptionUsable: vi.fn(),
   mockHasUsableSubscriptionAccess: vi.fn(),
   mockIsEnterprise: vi.fn(),
@@ -60,7 +60,7 @@ vi.mock('@/lib/billing/core/subscription', () => ({
 }))
 
 vi.mock('@/lib/billing/core/usage-log', () => ({
-  getBillingPeriodUsageCost: mockGetBillingPeriodUsageCost,
+  getBillingPeriodUsageCostByUser: mockGetBillingPeriodUsageCostByUser,
 }))
 
 vi.mock('@/lib/billing/cycle-close', () => ({
@@ -184,7 +184,7 @@ describe('checkAndBillOverageThreshold', () => {
     mockIsFree.mockReturnValue(false)
     mockIsEnterprise.mockReturnValue(false)
     mockIsOrgScopedSubscription.mockReturnValue(false)
-    mockGetBillingPeriodUsageCost.mockResolvedValue(0)
+    mockGetBillingPeriodUsageCostByUser.mockResolvedValue(new Map())
     mockIsSubscriptionCycleCloseCurrent.mockResolvedValue(true)
   })
 
@@ -609,7 +609,12 @@ describe('checkAndBillOverageThreshold', () => {
     mockIsOrgScopedSubscription.mockReturnValue(true)
     mockIsOrganizationBillingBlocked.mockResolvedValue(false)
     mockGetOrganizationSubscriptionUsable.mockResolvedValue(usableOrgSubscription)
-    mockGetBillingPeriodUsageCost.mockResolvedValue(350)
+    mockGetBillingPeriodUsageCostByUser.mockResolvedValue(
+      new Map([
+        ['owner-1', 300],
+        ['departed-1', 50],
+      ])
+    )
     queueOrgReads()
     mockComputeOrgOverageAmount.mockResolvedValue({
       totalOverage: 250,
@@ -626,7 +631,7 @@ describe('checkAndBillOverageThreshold', () => {
       periodEnd: new Date('2026-06-01T00:00:00.000Z'),
       organizationId: userSubscription.referenceId,
       pooledLedgerUsage: 350,
-      memberIds: ['owner-1'],
+      memberIds: ['owner-1', 'departed-1'],
     })
     expect(dbChainMockFns.transaction).toHaveBeenCalled()
     expect(mockComputeOrgOverageAmount.mock.invocationCallOrder[0]).toBeLessThan(
