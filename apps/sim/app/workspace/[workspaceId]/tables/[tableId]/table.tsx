@@ -1720,7 +1720,6 @@ export function Table({
         }
         workspaceId={workspaceId}
         tableId={tableId}
-        onColumnRename={onColumnRename}
         readOnly={!canMutateSchema}
         readOnlyReason={
           tableData?.locks.schemaLocked
