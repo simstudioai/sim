@@ -1,8 +1,8 @@
 import { TypeTtl } from '@sim/emcn/icons'
+import { formatInstantInTimeZone } from '@/lib/core/utils/timezone'
 import type { ColumnTypeDefinition } from '@/lib/table/column-types/types'
 import {
   formatDateCellDisplay,
-  formatInstantInTimeZone,
   type NormalizeDateCellOptions,
   normalizeDateCellValue,
 } from '@/lib/table/dates'

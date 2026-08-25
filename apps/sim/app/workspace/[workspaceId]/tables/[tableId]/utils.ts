@@ -1,7 +1,8 @@
+import { getWallClockParts } from '@/lib/core/utils/timezone'
 import type { ColumnDefinition, JsonValue } from '@/lib/table'
 import type { ColumnType } from '@/lib/table/column-types'
 import { columnTypeById, columnTypeOf } from '@/lib/table/column-types'
-import { formatDateCellDisplay, getWallClockParts, normalizeDateCellValue } from '@/lib/table/dates'
+import { formatDateCellDisplay, normalizeDateCellValue } from '@/lib/table/dates'
 
 /**
  * Pick a fresh "untitled[_N]" name not already taken by `columns`. Used by

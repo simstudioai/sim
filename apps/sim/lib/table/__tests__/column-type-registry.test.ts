@@ -10,6 +10,7 @@
  * here.
  */
 import { describe, expect, it } from 'vitest'
+import { zonedWallClockToUtc } from '@/lib/core/utils/timezone'
 import type { ColumnType } from '@/lib/table/column-types'
 import {
   ALL_COLUMN_TYPES,
@@ -190,6 +191,67 @@ describe('ttl columns', () => {
         timezone: 'America/New_York',
       })
     ).toBe('2023-11-05T01:30:00-05:00')
+  })
+
+  it('matches the shared wall-clock resolver in every effective timezone', () => {
+    const wallClock = '2026-06-15T09:00:30'
+    for (const timezone of [
+      'UTC',
+      'America/Los_Angeles',
+      'America/New_York',
+      'Asia/Kathmandu',
+      'Australia/Lord_Howe',
+    ]) {
+      const expected = Math.floor(zonedWallClockToUtc(wallClock, timezone).getTime() / 1000)
+      expect(COLUMN_TYPE_REGISTRY.ttl.coerce(wallClock, column, { timezone })).toEqual({
+        ok: true,
+        value: expected,
+      })
+    }
+  })
+
+  it.each([
+    ['Europe/Berlin', '2026-03-29T02:30'],
+    ['Australia/Lord_Howe', '2026-10-04T02:15'],
+  ])('coerces a %s spring-forward gap wall clock to the compatible epoch', (timezone, input) => {
+    const expected = Math.floor(zonedWallClockToUtc(input, timezone).getTime() / 1000)
+    expect(COLUMN_TYPE_REGISTRY.ttl.coerce(input, column, { timezone })).toEqual({
+      ok: true,
+      value: expected,
+    })
+  })
+
+  it('coerces a localized month-name gap input in the explicit workspace timezone', () => {
+    const timezone = 'America/New_York'
+    const expected = Math.floor(zonedWallClockToUtc('2026-03-08T02:30', timezone).getTime() / 1000)
+    expect(COLUMN_TYPE_REGISTRY.ttl.coerce('March 8, 2026 2:30 AM', column, { timezone })).toEqual({
+      ok: true,
+      value: expected,
+    })
+  })
+
+  it('rejects an impossible ISO expiration date', () => {
+    expect(
+      COLUMN_TYPE_REGISTRY.ttl.coerce('2026-02-30T12:00:00', column, { timezone: 'UTC' })
+    ).toEqual({ ok: false })
+  })
+
+  it('round-trips epoch seconds after the editor timezone changes', () => {
+    for (const seconds of [1_700_000_000, 1_699_162_200, 1_699_165_800]) {
+      for (const timezone of [
+        'UTC',
+        'America/Los_Angeles',
+        'America/New_York',
+        'Asia/Kathmandu',
+        'Australia/Lord_Howe',
+      ]) {
+        const editable = COLUMN_TYPE_REGISTRY.ttl.formatForInput(seconds, column, { timezone })
+        expect(COLUMN_TYPE_REGISTRY.ttl.coerce(editable, column, { timezone })).toEqual({
+          ok: true,
+          value: seconds,
+        })
+      }
+    }
   })
 
   it('limits a table to one ttl column', () => {
