@@ -6,7 +6,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@sim/emcn', () => ({
-  Button: ({ children, ...props }: { children: ReactNode } & Record<string, unknown>) => (
+  Chip: ({ children, ...props }: { children: ReactNode } & Record<string, unknown>) => (
     <button {...props}>{children}</button>
   ),
 }))
@@ -58,7 +58,7 @@ describe('LogsError boundary', () => {
     )
   })
 
-  it('calls reset when the refresh action is clicked', () => {
+  it('calls reset when the retry action is clicked', () => {
     const reset = vi.fn()
     const error = Object.assign(new Error('boom'), { digest: 'abc123' })
 
@@ -67,7 +67,7 @@ describe('LogsError boundary', () => {
     })
 
     act(() => {
-      findButtonByText('Refresh').click()
+      findButtonByText('Try again').click()
     })
 
     expect(reset).toHaveBeenCalledTimes(1)

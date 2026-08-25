@@ -1,7 +1,7 @@
 'use client'
 
 import { type ReactNode, useEffect } from 'react'
-import { Button } from '@sim/emcn'
+import { Chip } from '@sim/emcn'
 import { TriangleAlert } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 
@@ -30,7 +30,7 @@ interface ErrorShellProps {
 
 /**
  * Centered layout shared by the workspace error boundary and not-found page.
- * Renders a framed glyph, serif headline, supporting paragraph, and a row of
+ * Renders a framed glyph, brand headline, supporting paragraph, and a row of
  * action buttons.
  */
 export function ErrorShell({ title, description, icon, children }: ErrorShellProps) {
@@ -80,9 +80,9 @@ export function ErrorState({
   return (
     <ErrorShell title={title} description={description} icon={icon}>
       {children}
-      <Button variant='primary' size='md' onClick={reset}>
-        Refresh
-      </Button>
+      <Chip variant='primary' onClick={reset}>
+        Try again
+      </Chip>
     </ErrorShell>
   )
 }
