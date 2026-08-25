@@ -10,11 +10,80 @@ import {
   type EnvironmentLookup,
   extractSlackBotSources,
   groupSlackSourcesByWorkflowCredentials,
+  isTransientDatabaseError,
   planLegacySlackTriggerLink,
   resolveSlackSourceSecrets,
+  retryTransientDatabaseRead,
   type SlackBotSource,
   type SlackMigrationBlock,
 } from './migrate-slack-custom-bots'
+
+describe('database read retries', () => {
+  it('recognizes wrapped connection errors without retrying data errors', () => {
+    const connectionError = new Error('Failed query', {
+      cause: Object.assign(new Error('read ECONNRESET'), { code: 'ECONNRESET' }),
+    })
+    const dataError = Object.assign(new Error('unique violation'), { code: '23505' })
+
+    expect(isTransientDatabaseError(connectionError)).toBe(true)
+    expect(
+      isTransientDatabaseError(Object.assign(new Error('connection failure'), { code: '08006' }))
+    ).toBe(true)
+    expect(isTransientDatabaseError(dataError)).toBe(false)
+  })
+
+  it('retries a transient read and returns the successful result', async () => {
+    let attempts = 0
+    const result = await retryTransientDatabaseRead(
+      async () => {
+        attempts++
+        if (attempts < 3) {
+          throw Object.assign(new Error('connection closed'), { code: 'CONNECTION_CLOSED' })
+        }
+        return 'ok'
+      },
+      { operation: 'test read' },
+      { maxAttempts: 3, backoff: { baseMs: 1, maxMs: 1 } }
+    )
+
+    expect(result).toBe('ok')
+    expect(attempts).toBe(3)
+  })
+
+  it('fails immediately for a non-transient read error', async () => {
+    let attempts = 0
+    const error = Object.assign(new Error('invalid data'), { code: '23505' })
+
+    await expect(
+      retryTransientDatabaseRead(
+        async () => {
+          attempts++
+          throw error
+        },
+        { operation: 'test read' },
+        { maxAttempts: 5, backoff: { baseMs: 1, maxMs: 1 } }
+      )
+    ).rejects.toBe(error)
+    expect(attempts).toBe(1)
+  })
+
+  it('stops after the configured number of transient attempts', async () => {
+    let attempts = 0
+    const error = Object.assign(new Error('connection closed'), { code: 'CONNECTION_CLOSED' })
+
+    await expect(
+      retryTransientDatabaseRead(
+        async () => {
+          attempts++
+          throw error
+        },
+        { operation: 'test read' },
+        { maxAttempts: 3, backoff: { baseMs: 1, maxMs: 1 } }
+      )
+    ).rejects.toBe(error)
+    expect(attempts).toBe(3)
+  })
+})
 
 function storedSubBlocks(values: Record<string, unknown>): Record<string, { value: unknown }> {
   return Object.fromEntries(Object.entries(values).map(([id, value]) => [id, { value }]))
@@ -164,6 +233,58 @@ describe('extractSlackBotSources', () => {
         sourceId: 'workflow-1:block-1:notification:0',
         toolTitle: 'Approval alert',
         rawBotToken: 'xoxb-legacy',
+      }),
+    ])
+  })
+
+  it('ignores Slack tools without params while extracting valid sibling tools', () => {
+    const result = extractSlackBotSources(
+      migrationBlock({
+        blockType: 'agent',
+        subBlocks: storedSubBlocks({
+          tools: [
+            { type: 'slack', title: 'Incomplete Slack tool' },
+            {
+              type: 'slack',
+              title: 'Send to incidents',
+              params: { authMethod: 'bot_token', botToken: 'xoxb-tool' },
+            },
+          ],
+        }),
+      })
+    )
+
+    expect(result).toEqual([
+      expect.objectContaining({
+        sourceId: 'workflow-1:block-1:tools:1',
+        toolTitle: 'Send to incidents',
+        rawBotToken: 'xoxb-tool',
+      }),
+    ])
+  })
+
+  it('ignores non-object tool entries while preserving valid sibling indexes', () => {
+    const result = extractSlackBotSources(
+      migrationBlock({
+        blockType: 'agent',
+        subBlocks: storedSubBlocks({
+          tools: [
+            'legacy-invalid-tool',
+            {
+              type: 'slack',
+              title: 'Send to incidents',
+              params: { authMethod: 'bot_token', botToken: 'xoxb-tool' },
+            },
+          ],
+        }),
+      })
+    )
+
+    expect(result).toEqual([
+      expect.objectContaining({
+        sourceId: 'workflow-1:block-1:tools:1',
+        toolTitle: 'Send to incidents',
+        rawBotToken: 'xoxb-tool',
       }),
     ])
   })
@@ -374,6 +495,20 @@ describe('planLegacySlackTriggerLink', () => {
     })
   })
 
+  it('marks historical Slack webhooks that predate the trigger id', () => {
+    expect(
+      planLegacySlackTriggerLink(triggerSource, existingCredential, [
+        {
+          id: 'webhook-1',
+          workflowId: 'workflow-1',
+          blockId: 'block-1',
+          routingKey: null,
+          providerConfig: { signingSecret: 'secret' },
+        },
+      ])
+    ).toEqual({ updateTriggerBlock: true, webhookIdsToUpdate: ['webhook-1'] })
+  })
+
   it('is idempotent after the block and webhook are linked', () => {
     expect(
       planLegacySlackTriggerLink(
@@ -405,6 +540,20 @@ describe('planLegacySlackTriggerLink', () => {
         []
       )
     ).toThrow(/different Slack bot credential/)
+  })
+
+  it('fails fast instead of relabeling a different Slack trigger', () => {
+    expect(() =>
+      planLegacySlackTriggerLink(triggerSource, existingCredential, [
+        {
+          id: 'webhook-1',
+          workflowId: 'workflow-1',
+          blockId: 'block-1',
+          routingKey: null,
+          providerConfig: { triggerId: 'slack_oauth' },
+        },
+      ])
+    ).toThrow(/does not use trigger slack_webhook/)
   })
 })
 
@@ -451,14 +600,25 @@ describe('resolveSlackSourceSecrets', () => {
     })
   })
 
-  it('still fails fast when a personal variable cannot be promoted safely', () => {
-    expect(() =>
+  it('skips a personal variable that cannot be promoted safely', () => {
+    expect(
       resolveSlackSourceSecrets(
-        source({ workflowUserId: 'user-2', rawBotToken: '{{SLACK_BOT_TOKEN}}' }),
+        source({
+          sourceId: 'workflow-1:block-1:trigger',
+          kind: 'trigger',
+          workflowUserId: 'user-2',
+          rawSigningSecret: '{{SLACK_CASINO_SECRET}}',
+        }),
         environmentLookup({
-          personalVariablesByUserId: new Map([['user-2', { SLACK_BOT_TOKEN: 'encrypted-value' }]]),
+          personalVariablesByUserId: new Map([
+            ['user-2', { SLACK_CASINO_SECRET: 'encrypted-value' }],
+          ]),
         })
       )
-    ).toThrow(/non-owner personal environment variable/)
+    ).toEqual({
+      status: 'unresolved',
+      reason:
+        'signingSecret uses non-owner personal environment variable SLACK_CASINO_SECRET; refusing to promote it to a workspace credential',
+    })
   })
 })

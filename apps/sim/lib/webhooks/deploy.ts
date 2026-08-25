@@ -447,9 +447,8 @@ export async function resolveWebhookConfigForBlock(input: {
       if (botCredential.botUserId) {
         providerConfig.bot_user_id = botCredential.botUserId
       } else if (
-        !botCredential.teamId &&
-        (providerConfig.eventType === 'reaction_added' ||
-          providerConfig.eventType === 'reaction_removed')
+        providerConfig.eventType === 'reaction_added' ||
+        providerConfig.eventType === 'reaction_removed'
       ) {
         try {
           const { userId: botUserId } = await fetchSlackTeamId(botCredential.botToken)

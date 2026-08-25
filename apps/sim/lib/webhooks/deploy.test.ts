@@ -310,10 +310,11 @@ describe('resolveWebhookConfigForBlock — slack_oauth routing', () => {
     expect(mockFetchSlackTeamId).not.toHaveBeenCalled()
   })
 
-  it('resolves identity when a migrated bot is deployed for reaction events', async () => {
+  it('resolves missing bot identity for reaction events even when team identity is stored', async () => {
     mockGetSlackBotCredential.mockResolvedValue({
       workspaceId: 'ws-1',
       botToken: 'xoxb-migrated',
+      teamId: 'T123',
       signingSecret: 'secret',
     })
     mockFetchSlackTeamId.mockResolvedValue({ teamId: 'T123', userId: 'UBOT' })

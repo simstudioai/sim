@@ -45,10 +45,11 @@ import {
   workspaceEnvironment,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
-import { chunkArray } from '@sim/utils/helpers'
+import { describeError, getErrorMessage, getPostgresErrorCode } from '@sim/utils/errors'
+import { chunkArray, sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
+import { type BackoffOptions, backoffWithJitter } from '@sim/utils/retry'
 import { truncate } from '@sim/utils/string'
 import { and, asc, eq, gt, inArray, isNotNull, isNull, sql } from 'drizzle-orm'
 import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js'
@@ -62,7 +63,7 @@ const LEGACY_SLACK_CUSTOM_BOT_INGRESS_MODE = 'legacy_custom_bot'
 const DISPLAY_NAME_MAX_LENGTH = 255
 const DESCRIPTION_MAX_LENGTH = 500
 const OUTPUT_FILE = 'migrate-slack-custom-bot-workspace-ids.txt'
-const WORKSPACE_CONCURRENCY = 3
+const WORKSPACE_CONCURRENCY = 10
 const WORKSPACE_DISCOVERY_PAGE_SIZE = 250
 const MEMBERSHIP_INSERT_CHUNK_SIZE = 500
 const TRIGGER_BLOCK_UPDATE_CHUNK_SIZE = 500
@@ -88,6 +89,31 @@ const TRANSACTION_LOCK_TIMEOUT_MS = 2_000
 const TRANSACTION_STATEMENT_TIMEOUT_MS = 10_000
 const LIVE_LOCK_NAMESPACE = 834_217
 const LIVE_LOCK_ID = 20_260_819
+const DATABASE_READ_MAX_ATTEMPTS = 5
+const DATABASE_READ_RETRY_BACKOFF = { baseMs: 500, maxMs: 5_000 } as const
+
+const TRANSIENT_DATABASE_ERROR_CODES = new Set([
+  '53300',
+  '53400',
+  '57P01',
+  '57P02',
+  '57P03',
+  '58000',
+  '58030',
+  'CONNECT_TIMEOUT',
+  'CONNECTION_CLOSED',
+  'CONNECTION_DESTROYED',
+  'CONNECTION_ENDED',
+  'ECONNREFUSED',
+  'ECONNRESET',
+  'EHOSTUNREACH',
+  'ENETDOWN',
+  'ENETRESET',
+  'ENETUNREACH',
+  'ENOTFOUND',
+  'EPIPE',
+  'ETIMEDOUT',
+])
 
 const CANDIDATE_BLOCK_TYPES = ['slack', 'agent', 'human_in_the_loop', 'mothership', 'pi'] as const
 
@@ -95,7 +121,70 @@ const TOOL_INPUT_SUBBLOCK_IDS = ['tools', 'notification'] as const
 const ENV_VAR_PATTERN = /^\{\{([^}]+)\}\}$/
 
 type MigrationDb = PostgresJsDatabase
+type PostgresClient = ReturnType<typeof postgres>
+type ReservedPostgresClient = Awaited<ReturnType<PostgresClient['reserve']>>
 type SlackSourceKind = 'trigger' | 'action' | 'embedded_tool'
+
+interface LiveRunLock {
+  connection: ReservedPostgresClient
+  backendPid: number
+}
+
+interface DatabaseReadRetryContext {
+  operation: string
+  workspaceId?: string
+}
+
+interface DatabaseReadRetryOptions {
+  maxAttempts?: number
+  backoff?: BackoffOptions
+}
+
+export function isTransientDatabaseError(error: unknown): boolean {
+  const described = describeError(error)
+  const code = getPostgresErrorCode(error) ?? described.errno
+  if (!code) return false
+  return code.startsWith('08') || TRANSIENT_DATABASE_ERROR_CODES.has(code)
+}
+
+export async function retryTransientDatabaseRead<T>(
+  operation: () => Promise<T>,
+  context: DatabaseReadRetryContext,
+  options: DatabaseReadRetryOptions = {}
+): Promise<T> {
+  const maxAttempts = options.maxAttempts ?? DATABASE_READ_MAX_ATTEMPTS
+  if (
+    !Number.isInteger(maxAttempts) ||
+    maxAttempts < 1 ||
+    maxAttempts > DATABASE_READ_MAX_ATTEMPTS
+  ) {
+    throw new Error(
+      `Database read retry attempts must be between 1 and ${DATABASE_READ_MAX_ATTEMPTS}`
+    )
+  }
+
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await operation()
+    } catch (error) {
+      if (!isTransientDatabaseError(error) || attempt >= maxAttempts) throw error
+      const delayMs = backoffWithJitter(
+        attempt,
+        null,
+        options.backoff ?? DATABASE_READ_RETRY_BACKOFF
+      )
+      logger.warn('Retrying transient database read', {
+        operation: context.operation,
+        workspaceId: context.workspaceId,
+        failedAttempt: attempt,
+        maxAttempts,
+        retryInMs: Math.round(delayMs),
+        error: describeError(error),
+      })
+      await sleep(delayMs)
+    }
+  }
+}
 
 export interface SlackMigrationBlock {
   blockId: string
@@ -274,7 +363,7 @@ function subBlockValues(subBlocks: unknown): Record<string, unknown> {
   return values
 }
 
-function parseToolInputValue(value: unknown, subBlockId: string): Record<string, unknown>[] {
+function parseToolInputValue(value: unknown, subBlockId: string): unknown[] {
   if (value === null || value === undefined || value === '') return []
 
   const parsed = typeof value === 'string' ? JSON.parse(value) : value
@@ -286,12 +375,7 @@ function parseToolInputValue(value: unknown, subBlockId: string): Record<string,
       `Tool-input subblock "${subBlockId}" exceeds the ${MAX_TOOLS_PER_SUBBLOCK}-tool migration limit`
     )
   }
-  return parsed.map((tool, index) => {
-    if (!isRecordLike(tool)) {
-      throw new Error(`Tool ${index} in "${subBlockId}" must be an object`)
-    }
-    return tool
-  })
+  return parsed
 }
 
 function preferredTriggerValue(
@@ -358,11 +442,10 @@ export function extractSlackBotSources(block: SlackMigrationBlock): SlackBotSour
   for (const subBlockId of TOOL_INPUT_SUBBLOCK_IDS) {
     const tools = parseToolInputValue(values[subBlockId], subBlockId)
     for (const [index, tool] of tools.entries()) {
+      if (!isRecordLike(tool)) continue
       if (tool.type !== 'slack') continue
 
-      if (!isRecordLike(tool.params)) {
-        throw new Error(`Slack tool ${index} in "${subBlockId}" must have params`)
-      }
+      if (!isRecordLike(tool.params)) continue
       const authMethod = nonEmptyString(tool.params.authMethod)
       const rawBotToken =
         nonEmptyString(tool.params.botToken) ?? nonEmptyString(tool.params.accessToken)
@@ -573,6 +656,15 @@ class MissingEnvironmentVariableError extends Error {
   }
 }
 
+class NonOwnerPersonalEnvironmentVariableError extends Error {
+  constructor(fieldName: 'botToken' | 'signingSecret', variableName: string) {
+    super(
+      `${fieldName} uses non-owner personal environment variable ${variableName}; refusing to promote it to a workspace credential`
+    )
+    this.name = 'NonOwnerPersonalEnvironmentVariableError'
+  }
+}
+
 function resolveStoredSecret(
   rawValue: string | undefined,
   source: SlackBotSource,
@@ -591,9 +683,7 @@ function resolveStoredSecret(
     throw new MissingEnvironmentVariableError(fieldName, variableName)
   }
   if (source.workflowUserId !== lookup.workspaceOwnerId) {
-    throw new Error(
-      `${fieldName} uses non-owner personal environment variable ${variableName}; refusing to promote it to a workspace credential`
-    )
+    throw new NonOwnerPersonalEnvironmentVariableError(fieldName, variableName)
   }
   return decryptSecret(personalValue, lookup.encryptionKey).trim()
 }
@@ -623,7 +713,10 @@ export function resolveSlackSourceSecrets(
 
     return { status: 'ready', botToken, signingSecret }
   } catch (error) {
-    if (error instanceof MissingEnvironmentVariableError) {
+    if (
+      error instanceof MissingEnvironmentVariableError ||
+      error instanceof NonOwnerPersonalEnvironmentVariableError
+    ) {
       return { status: 'unresolved', reason: error.message }
     }
     throw error
@@ -772,7 +865,12 @@ export function planLegacySlackTriggerLink(
     if (!isRecordLike(row.providerConfig)) {
       throw new Error(`Legacy Slack webhook ${row.id} providerConfig must be an object`)
     }
-    if (row.providerConfig.triggerId !== 'slack_webhook') {
+    const persistedTriggerId = row.providerConfig.triggerId
+    if (
+      persistedTriggerId !== undefined &&
+      persistedTriggerId !== null &&
+      persistedTriggerId !== 'slack_webhook'
+    ) {
       throw new Error(`Legacy Slack webhook ${row.id} does not use trigger slack_webhook`)
     }
 
@@ -793,6 +891,7 @@ export function planLegacySlackTriggerLink(
     }
 
     const alreadyMarked =
+      persistedTriggerId === 'slack_webhook' &&
       row.routingKey === credential.credentialId &&
       persistedCredentialId === credential.credentialId &&
       persistedBotCredential === credential.credentialId &&
@@ -817,12 +916,16 @@ async function prepareWorkspaceCredentials(params: {
   webhookRowsBySourceId: Map<string, LegacySlackWebhookRow[]>
   stats: MigrationStats
 }): Promise<PreparedCredential[]> {
-  const environmentLookup = await loadEnvironmentLookup(
-    params.db,
-    params.workspaceId,
-    params.workspaceOwnerId,
-    params.sources,
-    params.encryptionKey
+  const environmentLookup = await retryTransientDatabaseRead(
+    () =>
+      loadEnvironmentLookup(
+        params.db,
+        params.workspaceId,
+        params.workspaceOwnerId,
+        params.sources,
+        params.encryptionKey
+      ),
+    { operation: 'load workspace environments', workspaceId: params.workspaceId }
   )
   const resolvedSources: ResolvedSlackBotSource[] = []
 
@@ -1011,7 +1114,7 @@ async function applyPreparedCredential(params: {
         .update(webhook)
         .set({
           routingKey: credentialId,
-          providerConfig: sql`jsonb_set(jsonb_set(jsonb_set(coalesce(${webhook.providerConfig}::jsonb, '{}'::jsonb), '{botCredential}', to_jsonb(${credentialId}::text), true), '{credentialId}', to_jsonb(${credentialId}::text), true), '{ingressMode}', to_jsonb(${LEGACY_SLACK_CUSTOM_BOT_INGRESS_MODE}::text), true)::json`,
+          providerConfig: sql`(coalesce(${webhook.providerConfig}::jsonb, '{}'::jsonb) || jsonb_build_object('triggerId', 'slack_webhook', 'botCredential', ${credentialId}::text, 'credentialId', ${credentialId}::text, 'ingressMode', ${LEGACY_SLACK_CUSTOM_BOT_INGRESS_MODE}::text))::json`,
           updatedAt: now,
         })
         .where(
@@ -1023,7 +1126,7 @@ async function applyPreparedCredential(params: {
             sql`(${webhook.providerConfig}->>'credentialId' IS NULL OR ${webhook.providerConfig}->>'credentialId' = ${credentialId})`,
             sql`(${webhook.providerConfig}->>'botCredential' IS NULL OR ${webhook.providerConfig}->>'botCredential' = ${credentialId})`,
             sql`(${webhook.providerConfig}->>'ingressMode' IS NULL OR ${webhook.providerConfig}->>'ingressMode' = ${LEGACY_SLACK_CUSTOM_BOT_INGRESS_MODE})`,
-            sql`${webhook.providerConfig}->>'triggerId' = 'slack_webhook'`
+            sql`(${webhook.providerConfig}->>'triggerId' IS NULL OR ${webhook.providerConfig}->>'triggerId' = 'slack_webhook')`
           )
         )
         .returning({ id: webhook.id })
@@ -1062,83 +1165,92 @@ async function processWorkspace(params: {
       permissionRows,
       existingCredentialRows,
       legacySlackWebhookRows,
-    ] = await Promise.all([
-      params.db
-        .select({
-          blockId: workflowBlocks.id,
-          blockName: workflowBlocks.name,
-          blockType: workflowBlocks.type,
-          triggerMode: workflowBlocks.triggerMode,
-          subBlocks: sql<unknown>`case when octet_length(${workflowBlocks.subBlocks}::text) <= ${MAX_SUBBLOCK_BYTES} and sum(octet_length(${workflowBlocks.subBlocks}::text)) over () <= ${MAX_WORKSPACE_SUBBLOCK_BYTES} then ${workflowBlocks.subBlocks} else null end`,
-          subBlocksBytes: sql<number>`octet_length(${workflowBlocks.subBlocks}::text)`,
-          workspaceSubBlocksBytes: sql<number>`sum(octet_length(${workflowBlocks.subBlocks}::text)) over ()`,
-          workflowId: workflow.id,
-          workflowName: workflow.name,
-          workflowUserId: workflow.userId,
-        })
-        .from(workflowBlocks)
-        .innerJoin(workflow, eq(workflowBlocks.workflowId, workflow.id))
-        .where(
-          and(
-            eq(workflow.workspaceId, params.workspaceId),
-            inArray(workflowBlocks.type, [...CANDIDATE_BLOCK_TYPES])
-          )
-        )
-        .limit(MAX_BLOCKS_PER_WORKSPACE + 1),
-      params.db
-        .select({ ownerId: workspace.ownerId })
-        .from(workspace)
-        .where(eq(workspace.id, params.workspaceId))
-        .limit(1),
-      params.db
-        .select({ userId: permissions.userId })
-        .from(permissions)
-        .where(
-          and(eq(permissions.entityType, 'workspace'), eq(permissions.entityId, params.workspaceId))
-        )
-        .limit(MAX_MEMBERS_PER_WORKSPACE + 1),
-      params.db
-        .select({
-          id: credential.id,
-          displayName: credential.displayName,
-          encryptedServiceAccountKey: sql<
-            string | null
-          >`case when octet_length(${credential.encryptedServiceAccountKey}) <= ${MAX_ENCRYPTED_CREDENTIAL_BYTES} and sum(coalesce(octet_length(${credential.encryptedServiceAccountKey}), 0)) over () <= ${MAX_ENCRYPTED_CREDENTIAL_BYTES_PER_WORKSPACE} then ${credential.encryptedServiceAccountKey} else null end`,
-          encryptedServiceAccountKeyBytes: sql<
-            number | null
-          >`octet_length(${credential.encryptedServiceAccountKey})`,
-          workspaceEncryptedCredentialBytes: sql<number>`sum(coalesce(octet_length(${credential.encryptedServiceAccountKey}), 0)) over ()`,
-        })
-        .from(credential)
-        .where(
-          and(
-            eq(credential.workspaceId, params.workspaceId),
-            eq(credential.type, 'service_account'),
-            eq(credential.providerId, SLACK_CUSTOM_BOT_PROVIDER_ID)
-          )
-        )
-        .limit(MAX_SLACK_CREDENTIALS_PER_WORKSPACE + 1),
-      params.db
-        .select({
-          id: webhook.id,
-          workflowId: webhook.workflowId,
-          blockId: webhook.blockId,
-          routingKey: webhook.routingKey,
-          providerConfig: sql<unknown>`case when octet_length(${webhook.providerConfig}::text) <= ${MAX_WEBHOOK_PROVIDER_CONFIG_BYTES} and sum(coalesce(octet_length(${webhook.providerConfig}::text), 0)) over () <= ${MAX_WEBHOOK_PROVIDER_CONFIG_BYTES_PER_WORKSPACE} then ${webhook.providerConfig} else null end`,
-          providerConfigBytes: sql<number | null>`octet_length(${webhook.providerConfig}::text)`,
-          workspaceProviderConfigBytes: sql<number>`sum(coalesce(octet_length(${webhook.providerConfig}::text), 0)) over ()`,
-        })
-        .from(webhook)
-        .innerJoin(workflow, eq(webhook.workflowId, workflow.id))
-        .where(
-          and(
-            eq(workflow.workspaceId, params.workspaceId),
-            eq(webhook.provider, 'slack'),
-            isNull(webhook.archivedAt)
-          )
-        )
-        .limit(MAX_SLACK_WEBHOOKS_PER_WORKSPACE + 1),
-    ])
+    ] = await retryTransientDatabaseRead(
+      () =>
+        Promise.all([
+          params.db
+            .select({
+              blockId: workflowBlocks.id,
+              blockName: workflowBlocks.name,
+              blockType: workflowBlocks.type,
+              triggerMode: workflowBlocks.triggerMode,
+              subBlocks: sql<unknown>`case when octet_length(${workflowBlocks.subBlocks}::text) <= ${MAX_SUBBLOCK_BYTES} and sum(octet_length(${workflowBlocks.subBlocks}::text)) over () <= ${MAX_WORKSPACE_SUBBLOCK_BYTES} then ${workflowBlocks.subBlocks} else null end`,
+              subBlocksBytes: sql<number>`octet_length(${workflowBlocks.subBlocks}::text)`,
+              workspaceSubBlocksBytes: sql<number>`sum(octet_length(${workflowBlocks.subBlocks}::text)) over ()`,
+              workflowId: workflow.id,
+              workflowName: workflow.name,
+              workflowUserId: workflow.userId,
+            })
+            .from(workflowBlocks)
+            .innerJoin(workflow, eq(workflowBlocks.workflowId, workflow.id))
+            .where(
+              and(
+                eq(workflow.workspaceId, params.workspaceId),
+                inArray(workflowBlocks.type, [...CANDIDATE_BLOCK_TYPES])
+              )
+            )
+            .limit(MAX_BLOCKS_PER_WORKSPACE + 1),
+          params.db
+            .select({ ownerId: workspace.ownerId })
+            .from(workspace)
+            .where(eq(workspace.id, params.workspaceId))
+            .limit(1),
+          params.db
+            .select({ userId: permissions.userId })
+            .from(permissions)
+            .where(
+              and(
+                eq(permissions.entityType, 'workspace'),
+                eq(permissions.entityId, params.workspaceId)
+              )
+            )
+            .limit(MAX_MEMBERS_PER_WORKSPACE + 1),
+          params.db
+            .select({
+              id: credential.id,
+              displayName: credential.displayName,
+              encryptedServiceAccountKey: sql<
+                string | null
+              >`case when octet_length(${credential.encryptedServiceAccountKey}) <= ${MAX_ENCRYPTED_CREDENTIAL_BYTES} and sum(coalesce(octet_length(${credential.encryptedServiceAccountKey}), 0)) over () <= ${MAX_ENCRYPTED_CREDENTIAL_BYTES_PER_WORKSPACE} then ${credential.encryptedServiceAccountKey} else null end`,
+              encryptedServiceAccountKeyBytes: sql<
+                number | null
+              >`octet_length(${credential.encryptedServiceAccountKey})`,
+              workspaceEncryptedCredentialBytes: sql<number>`sum(coalesce(octet_length(${credential.encryptedServiceAccountKey}), 0)) over ()`,
+            })
+            .from(credential)
+            .where(
+              and(
+                eq(credential.workspaceId, params.workspaceId),
+                eq(credential.type, 'service_account'),
+                eq(credential.providerId, SLACK_CUSTOM_BOT_PROVIDER_ID)
+              )
+            )
+            .limit(MAX_SLACK_CREDENTIALS_PER_WORKSPACE + 1),
+          params.db
+            .select({
+              id: webhook.id,
+              workflowId: webhook.workflowId,
+              blockId: webhook.blockId,
+              routingKey: webhook.routingKey,
+              providerConfig: sql<unknown>`case when octet_length(${webhook.providerConfig}::text) <= ${MAX_WEBHOOK_PROVIDER_CONFIG_BYTES} and sum(coalesce(octet_length(${webhook.providerConfig}::text), 0)) over () <= ${MAX_WEBHOOK_PROVIDER_CONFIG_BYTES_PER_WORKSPACE} then ${webhook.providerConfig} else null end`,
+              providerConfigBytes: sql<
+                number | null
+              >`octet_length(${webhook.providerConfig}::text)`,
+              workspaceProviderConfigBytes: sql<number>`sum(coalesce(octet_length(${webhook.providerConfig}::text), 0)) over ()`,
+            })
+            .from(webhook)
+            .innerJoin(workflow, eq(webhook.workflowId, workflow.id))
+            .where(
+              and(
+                eq(workflow.workspaceId, params.workspaceId),
+                eq(webhook.provider, 'slack'),
+                isNull(webhook.archivedAt)
+              )
+            )
+            .limit(MAX_SLACK_WEBHOOKS_PER_WORKSPACE + 1),
+        ]),
+      { operation: 'load workspace migration snapshot', workspaceId: params.workspaceId }
+    )
 
     const workspaceOwnerId = workspaceRows[0]?.ownerId
     if (!workspaceOwnerId) throw new Error(`Workspace ${params.workspaceId} has no owner`)
@@ -1381,24 +1493,32 @@ async function discoverWorkspaceIdPage(
   db: MigrationDb,
   afterWorkspaceId: string | null
 ): Promise<string[]> {
-  const rows = await db
-    .selectDistinct({ workspaceId: workflow.workspaceId })
-    .from(workflowBlocks)
-    .innerJoin(workflow, eq(workflowBlocks.workflowId, workflow.id))
-    .where(
-      and(
-        isNotNull(workflow.workspaceId),
-        inArray(workflowBlocks.type, [...CANDIDATE_BLOCK_TYPES]),
-        afterWorkspaceId ? gt(workflow.workspaceId, afterWorkspaceId) : undefined
-      )
-    )
-    .orderBy(asc(workflow.workspaceId))
-    .limit(WORKSPACE_DISCOVERY_PAGE_SIZE)
+  return retryTransientDatabaseRead(
+    async () => {
+      const rows = await db
+        .selectDistinct({ workspaceId: workflow.workspaceId })
+        .from(workflowBlocks)
+        .innerJoin(workflow, eq(workflowBlocks.workflowId, workflow.id))
+        .where(
+          and(
+            isNotNull(workflow.workspaceId),
+            inArray(workflowBlocks.type, [...CANDIDATE_BLOCK_TYPES]),
+            afterWorkspaceId ? gt(workflow.workspaceId, afterWorkspaceId) : undefined
+          )
+        )
+        .orderBy(asc(workflow.workspaceId))
+        .limit(WORKSPACE_DISCOVERY_PAGE_SIZE)
 
-  return rows.map((row) => {
-    if (!row.workspaceId) throw new Error('Workspace discovery returned a null workspace ID')
-    return row.workspaceId
-  })
+      return rows.map((row) => {
+        if (!row.workspaceId) throw new Error('Workspace discovery returned a null workspace ID')
+        return row.workspaceId
+      })
+    },
+    {
+      operation: 'discover workspace page',
+      workspaceId: afterWorkspaceId ?? undefined,
+    }
+  )
 }
 
 function readWorkspaceAllowlist(path: string): string[] {
@@ -1432,6 +1552,7 @@ async function processWorkspaceIds(params: {
   startIndex: number
   total: number | null
   stats: MigrationStats
+  assertLiveRunLock?: () => Promise<void>
 }): Promise<string[]> {
   const approvedWorkspaceIds: string[] = []
 
@@ -1440,6 +1561,7 @@ async function processWorkspaceIds(params: {
     chunkStart < params.workspaceIds.length;
     chunkStart += WORKSPACE_CONCURRENCY
   ) {
+    await params.assertLiveRunLock?.()
     const workspaceChunk = params.workspaceIds.slice(chunkStart, chunkStart + WORKSPACE_CONCURRENCY)
     const results = await Promise.all(
       workspaceChunk.map((workspaceId, chunkIndex) =>
@@ -1453,6 +1575,7 @@ async function processWorkspaceIds(params: {
         })
       )
     )
+    await params.assertLiveRunLock?.()
     for (const [resultIndex, result] of results.entries()) {
       mergeStats(params.stats, result.stats)
       if (result.approvedForLiveRun) approvedWorkspaceIds.push(workspaceChunk[resultIndex])
@@ -1465,20 +1588,54 @@ async function processWorkspaceIds(params: {
   return approvedWorkspaceIds
 }
 
-async function acquireLiveRunLock(lockClient: ReturnType<typeof postgres>): Promise<void> {
-  const [result] = await lockClient<[{ locked: boolean }]>`
-    SELECT pg_try_advisory_lock(${LIVE_LOCK_NAMESPACE}, ${LIVE_LOCK_ID}) AS locked
-  `
-  if (!result?.locked) {
-    throw new Error('Another Slack custom-bot migration live run already holds the advisory lock')
+async function acquireLiveRunLock(lockClient: PostgresClient): Promise<LiveRunLock> {
+  const connection = await lockClient.reserve()
+  try {
+    const [result] = await connection<[{ locked: boolean; backendPid: number }]>`
+      SELECT
+        pg_try_advisory_lock(${LIVE_LOCK_NAMESPACE}, ${LIVE_LOCK_ID}) AS locked,
+        pg_backend_pid() AS "backendPid"
+    `
+    if (!result?.locked) {
+      throw new Error('Another Slack custom-bot migration live run already holds the advisory lock')
+    }
+    return { connection, backendPid: result.backendPid }
+  } catch (error) {
+    connection.release()
+    throw error
   }
 }
 
-async function releaseLiveRunLock(lockClient: ReturnType<typeof postgres>): Promise<void> {
-  const [result] = await lockClient<[{ unlocked: boolean }]>`
-    SELECT pg_advisory_unlock(${LIVE_LOCK_NAMESPACE}, ${LIVE_LOCK_ID}) AS unlocked
+async function assertLiveRunLock(lock: LiveRunLock): Promise<void> {
+  const [result] = await lock.connection<[{ locked: boolean; backendPid: number }]>`
+    SELECT
+      pg_backend_pid() AS "backendPid",
+      EXISTS (
+        SELECT 1
+        FROM pg_locks
+        WHERE locktype = 'advisory'
+          AND pid = pg_backend_pid()
+          AND classid = ${LIVE_LOCK_NAMESPACE}::oid
+          AND objid = ${LIVE_LOCK_ID}::oid
+          AND objsubid = 2
+          AND granted
+      ) AS locked
   `
-  if (!result?.unlocked) throw new Error('Slack custom-bot migration advisory lock was not held')
+  if (!result?.locked || result.backendPid !== lock.backendPid) {
+    throw new Error('Slack custom-bot migration advisory lock was lost')
+  }
+}
+
+async function releaseLiveRunLock(lock: LiveRunLock): Promise<void> {
+  try {
+    await assertLiveRunLock(lock)
+    const [result] = await lock.connection<[{ unlocked: boolean }]>`
+      SELECT pg_advisory_unlock(${LIVE_LOCK_NAMESPACE}, ${LIVE_LOCK_ID}) AS unlocked
+    `
+    if (!result?.unlocked) throw new Error('Slack custom-bot migration advisory lock was not held')
+  } finally {
+    lock.connection.release()
+  }
 }
 
 export async function runSlackCustomBotMigration(args = process.argv.slice(2)): Promise<void> {
@@ -1512,13 +1669,12 @@ export async function runSlackCustomBotMigration(args = process.argv.slice(2)): 
         onnotice: () => {},
         connection: { application_name: 'sim-slack-custom-bot-migration-lock' },
       })
-  let lockHeld = false
+  let liveRunLock: LiveRunLock | null = null
   let dryRunPartialPath: string | null = null
 
   try {
     if (lockClient) {
-      await acquireLiveRunLock(lockClient)
-      lockHeld = true
+      liveRunLock = await acquireLiveRunLock(lockClient)
     }
 
     logger.info('Starting Slack custom-bot migration', {
@@ -1582,6 +1738,8 @@ export async function runSlackCustomBotMigration(args = process.argv.slice(2)): 
       if (!options.fromFile) throw new Error('Live run is missing its workspace allowlist path')
       const workspaceIds = readWorkspaceAllowlist(options.fromFile)
       if (workspaceIds.length === 0) throw new Error('No workspace IDs found to process')
+      const activeLiveRunLock = liveRunLock
+      if (!activeLiveRunLock) throw new Error('Slack custom-bot migration lock was not acquired')
 
       logger.info('Loaded live-run workspace allowlist', { workspaces: workspaceIds.length })
       await processWorkspaceIds({
@@ -1592,6 +1750,7 @@ export async function runSlackCustomBotMigration(args = process.argv.slice(2)): 
         startIndex: 0,
         total: workspaceIds.length,
         stats,
+        assertLiveRunLock: () => assertLiveRunLock(activeLiveRunLock),
       })
     }
 
@@ -1600,12 +1759,15 @@ export async function runSlackCustomBotMigration(args = process.argv.slice(2)): 
       throw new Error(`Migration completed with ${stats.errors} workspace error(s)`)
     }
   } finally {
-    if (lockClient) {
-      if (lockHeld) await releaseLiveRunLock(lockClient)
-      await lockClient.end({ timeout: 5 })
+    try {
+      if (liveRunLock) await releaseLiveRunLock(liveRunLock)
+    } finally {
+      await Promise.all([
+        lockClient?.end({ timeout: 5 }) ?? Promise.resolve(),
+        postgresClient.end({ timeout: 5 }),
+      ])
+      if (dryRunPartialPath && existsSync(dryRunPartialPath)) unlinkSync(dryRunPartialPath)
     }
-    await postgresClient.end({ timeout: 5 })
-    if (dryRunPartialPath && existsSync(dryRunPartialPath)) unlinkSync(dryRunPartialPath)
   }
 }
 
