@@ -145,6 +145,124 @@ describe('preprocessExecution deployment checks', () => {
   })
 })
 
+describe('preprocessExecution prefetched record trust and account-check skips', () => {
+  type PrefetchedRecord = NonNullable<Parameters<typeof preprocessExecution>[0]['workflowRecord']>
+  const prefetchedRecord = {
+    id: 'workflow-1',
+    userId: 'creator-1',
+    workspaceId: 'workspace-1',
+    isDeployed: true,
+    archivedAt: null,
+  } as unknown as PrefetchedRecord
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('skips the active-record re-read when the prefetched record is trusted', async () => {
+    const result = await preprocessExecution({
+      workflowId: 'workflow-1',
+      userId: 'user-1',
+      triggerType: 'webhook',
+      executionId: 'execution-1',
+      requestId: 'request-1',
+      checkRateLimit: false,
+      workflowRecord: prefetchedRecord,
+      trustWorkflowRecord: true,
+    })
+
+    expect(result.success).toBe(true)
+    expect(workflowAuthzMockFns.mockGetActiveWorkflowRecord).not.toHaveBeenCalled()
+  })
+
+  it('re-reads the active record for a prefetched record without trust', async () => {
+    const result = await preprocessExecution({
+      workflowId: 'workflow-1',
+      userId: 'user-1',
+      triggerType: 'webhook',
+      executionId: 'execution-1',
+      requestId: 'request-1',
+      checkRateLimit: false,
+      workflowRecord: prefetchedRecord,
+    })
+
+    expect(result.success).toBe(true)
+    expect(workflowAuthzMockFns.mockGetActiveWorkflowRecord).toHaveBeenCalledWith('workflow-1')
+  })
+
+  it('still rejects a trusted prefetched record that is archived', async () => {
+    const result = await preprocessExecution({
+      workflowId: 'workflow-1',
+      userId: 'user-1',
+      triggerType: 'webhook',
+      executionId: 'execution-1',
+      requestId: 'request-1',
+      checkRateLimit: false,
+      workflowRecord: {
+        ...prefetchedRecord,
+        archivedAt: new Date('2026-08-01T00:00:00.000Z'),
+      } as unknown as PrefetchedRecord,
+      trustWorkflowRecord: true,
+    })
+
+    expect(result).toEqual({
+      success: false,
+      error: { message: 'Workflow not found', statusCode: 404 },
+    })
+    expect(workflowAuthzMockFns.mockGetActiveWorkflowRecord).not.toHaveBeenCalled()
+  })
+
+  it('skips the ban and subscription reads when skipAccountChecks is set', async () => {
+    const result = await preprocessExecution({
+      workflowId: 'workflow-1',
+      userId: 'user-1',
+      triggerType: 'webhook',
+      executionId: 'execution-1',
+      requestId: 'request-1',
+      checkRateLimit: false,
+      skipAccountChecks: true,
+      workflowRecord: prefetchedRecord,
+      trustWorkflowRecord: true,
+    })
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.actorSubscription).toBeNull()
+    }
+    expect(mockGetActivelyBannedUserIds).not.toHaveBeenCalled()
+    expect(getHighestPrioritySubscription).not.toHaveBeenCalled()
+  })
+
+  it('keeps the ban and subscription reads by default', async () => {
+    const result = await preprocessExecution({
+      workflowId: 'workflow-1',
+      userId: 'user-1',
+      triggerType: 'webhook',
+      executionId: 'execution-1',
+      requestId: 'request-1',
+      checkRateLimit: false,
+    })
+
+    expect(result.success).toBe(true)
+    expect(mockGetActivelyBannedUserIds).toHaveBeenCalled()
+    expect(getHighestPrioritySubscription).toHaveBeenCalled()
+  })
+
+  it('rejects skipAccountChecks combined with rate limiting', async () => {
+    await expect(
+      preprocessExecution({
+        workflowId: 'workflow-1',
+        userId: 'user-1',
+        triggerType: 'webhook',
+        executionId: 'execution-1',
+        requestId: 'request-1',
+        checkRateLimit: true,
+        skipAccountChecks: true,
+      })
+    ).rejects.toThrow('skipAccountChecks requires checkRateLimit: false')
+  })
+})
+
 describe('preprocessExecution correlation logging', () => {
   it('preserves trigger correlation when logging preprocessing failures', async () => {
     mockResolveSystemBillingAttribution.mockRejectedValueOnce(

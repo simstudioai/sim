@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { account, webhook } from '@sim/db/schema'
+import { account, webhook, type workflow } from '@sim/db/schema'
 import { createLogger, runWithRequestContext } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { interruptibleSleep } from '@sim/utils/helpers'
@@ -467,9 +467,21 @@ async function recordSetupFailureWithoutRequeue(
   }
 }
 
+/**
+ * Memory-only rows the same-process inline runner hands over so the worker does
+ * not re-read what ingest just loaded. Never serialized into the persisted job
+ * payload — Trigger.dev and recovery paths run without it and load everything
+ * themselves.
+ */
+export interface WebhookWarmContext {
+  workflowRecord?: typeof workflow.$inferSelect
+  webhookRecord?: typeof webhook.$inferSelect
+}
+
 export async function executeWebhookJob(
   payload: WebhookExecutionPayload,
-  externalAbortSignal?: AbortSignal
+  externalAbortSignal?: AbortSignal,
+  warmContext?: WebhookWarmContext
 ) {
   const correlation = buildWebhookCorrelation(payload)
   const executionId = correlation.executionId
@@ -534,7 +546,8 @@ export async function executeWebhookJob(
           payload,
           correlation,
           timeoutController,
-          admissionCompleted
+          admissionCompleted,
+          warmContext
         )
       }
 
@@ -682,7 +695,8 @@ async function executeWebhookJobInternal(
   payload: WebhookExecutionPayload,
   correlation: AsyncExecutionCorrelation,
   timeoutController: ReturnType<typeof createTimeoutAbortController>,
-  admissionCompleted: boolean
+  admissionCompleted: boolean,
+  warmContext?: WebhookWarmContext
 ) {
   const { executionId, requestId } = correlation
   const loggingSession = new LoggingSession(
@@ -693,6 +707,8 @@ async function executeWebhookJobInternal(
   )
   loggingSession.setExecutionDeadlineAt(getExecutionDeadlineAt(timeoutController.signal))
 
+  const warmWorkflowRecord =
+    warmContext?.workflowRecord?.id === payload.workflowId ? warmContext.workflowRecord : undefined
   const preprocessStartedAt = Date.now()
   const preprocessResult = await preprocessExecution({
     workflowId: payload.workflowId,
@@ -710,6 +726,9 @@ async function executeWebhookJobInternal(
     billingAttribution: payload.billingAttribution,
     executionType: 'async',
     executionDeadlineAt: getExecutionDeadlineAt(timeoutController.signal)?.getTime(),
+    workflowRecord: warmWorkflowRecord,
+    trustWorkflowRecord: Boolean(warmWorkflowRecord),
+    skipAccountChecks: admissionCompleted && Boolean(warmWorkflowRecord),
   })
   const preprocessEndedAt = Date.now()
 
@@ -774,9 +793,13 @@ async function executeWebhookJobInternal(
           workspaceId
         )
       : loadDeployedWorkflowState(payload.workflowId, workspaceId)
+    const warmWebhookRecord =
+      warmContext?.webhookRecord?.id === payload.webhookId ? warmContext.webhookRecord : undefined
     const [workflowData, webhookRows, resolvedCredentialUserId] = await Promise.all([
       workflowStatePromise,
-      db.select().from(webhook).where(eq(webhook.id, payload.webhookId)).limit(1),
+      warmWebhookRecord
+        ? Promise.resolve([warmWebhookRecord])
+        : db.select().from(webhook).where(eq(webhook.id, payload.webhookId)).limit(1),
       payload.credentialId
         ? resolveCredentialAccountUserId(payload.credentialId)
         : Promise.resolve(undefined),
