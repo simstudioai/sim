@@ -1581,9 +1581,41 @@ describe('createWorkspaceFileSecretProvenanceFromRegistry write decision', () =>
   /**
    * Zero active entries does not prove the context never held plaintext: a verification or
    * decrypt fault trips while secret material is in flight, before anything activates. Only a
-   * latch whose recorded reasons are all non-fault absences may relax to unrecorded.
+   * latch whose recorded reasons all belong to the registry's absence set may relax.
    */
-  it('keeps a latch caused by an originating fault as a taint even with no active entries', async () => {
+  it.each([
+    ['an originating fault', 'projection-mismatch'],
+    /**
+     * Warn-level, yet plaintext-bearing: it latches after a staged source registry decrypted
+     * real entries it could not narrow to the value — the report-level split must not be the
+     * absence split.
+     */
+    ['an unnarrowable crossing', 'value-provenance-filter-incomplete'],
+  ] as const)(
+    'keeps a latch caused by %s as a taint even with no active entries',
+    async (_, reason) => {
+      const registry = {
+        exportCommittedProvenanceForValue: vi.fn(() => ({
+          version: 1,
+          complete: false,
+          entries: [],
+        })),
+        getIncompletenessDiagnostics: vi.fn(() => ({
+          reasons: [reason],
+          origins: [],
+          incompleteInputPathCount: 0,
+          activeEntryCount: 0,
+        })),
+      } as unknown as ResolvedSecretTraceRegistry
+
+      await expect(
+        createWorkspaceFileSecretProvenanceFromRegistry(registry, 'generated content', SCOPE)
+      ).resolves.toEqual({ safe: false })
+    }
+  )
+
+  /** A latched registry that recorded no reason offers nothing to vouch with; keep the taint. */
+  it('keeps a latch with an empty reason list as a taint', async () => {
     const registry = {
       exportCommittedProvenanceForValue: vi.fn(() => ({
         version: 1,
@@ -1591,7 +1623,7 @@ describe('createWorkspaceFileSecretProvenanceFromRegistry write decision', () =>
         entries: [],
       })),
       getIncompletenessDiagnostics: vi.fn(() => ({
-        reasons: ['projection-mismatch'],
+        reasons: [],
         origins: [],
         incompleteInputPathCount: 0,
         activeEntryCount: 0,

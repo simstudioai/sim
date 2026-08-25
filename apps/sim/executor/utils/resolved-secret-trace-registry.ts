@@ -100,19 +100,37 @@ export type ResolvedSecretIncompletenessReason =
  * reason from flooding the error stream. A reason added later without thought stays quiet.
  */
 /**
- * True when a reason means a guard tripped on a path that should have succeeded, as opposed to
- * provenance never being on offer. The same set decides the report level above; exposing the
- * predicate keeps callers that must separate fault from absence — a file write deciding between
- * taint and `unrecorded` — on the one centrally maintained classification instead of a copy.
+ * Reasons meaning provenance was never on offer AND no secret material transited the latching
+ * context. This is a deliberately separate, narrower set than the warn side of the report-level
+ * split below: that split assigns report ownership, and a warn-level reason can still involve
+ * plaintext in flight — `value-provenance-filter-incomplete` latches after a staged source
+ * registry decrypted real entries it then could not narrow to the value, so the plaintext existed
+ * in-process without ever activating. Membership here requires the stronger claim.
  *
- * A fault matters to such callers because it can coexist with plaintext that never activated: a
- * verification or decrypt failure happens *while* secret material is in flight, so an empty active
- * set does not prove the context never held any.
+ * The claim holds for each member: an absent or declared-incomplete envelope carries no entries
+ * (the envelope schema rejects incomplete-with-entries), so nothing was decrypted; a registry
+ * built without a catalog or without a persisted log never handled material; a durable read that
+ * latched did so before importing anything; and the inherited markers never occur alone — the
+ * source's own reasons are copied first, so they are judged by the originals they accompany.
+ *
+ * Consumers use this to separate `unrecorded` (absence — readable under the fail-open policy)
+ * from taint at a write decision. A reason outside this set keeps the taint.
  */
-export function isResolvedSecretIncompletenessFault(
+const PROVENANCE_ABSENCE_REASONS = new Set<ResolvedSecretIncompletenessReason>([
+  'value-provenance-absent',
+  'source-provenance-incomplete',
+  'constructed-incomplete',
+  'log-creation-skipped',
+  'durable-provenance-unknown',
+  'inherited-incomplete-source',
+  'inherited-incomplete-input-path',
+])
+
+/** True when {@link PROVENANCE_ABSENCE_REASONS} holds the reason; see its contract. */
+export function isResolvedSecretProvenanceAbsence(
   reason: ResolvedSecretIncompletenessReason
 ): boolean {
-  return ORIGINATING_FAULT_REASONS.has(reason)
+  return PROVENANCE_ABSENCE_REASONS.has(reason)
 }
 
 const ORIGINATING_FAULT_REASONS = new Set<ResolvedSecretIncompletenessReason>([

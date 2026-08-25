@@ -21,7 +21,7 @@ import {
   PROVENANCE_MAX_SERIALIZED_BYTES,
 } from '@/lib/execution/provenance-limits'
 import {
-  isResolvedSecretIncompletenessFault,
+  isResolvedSecretProvenanceAbsence,
   type ResolvedSecretTraceProvenanceV1,
   type ResolvedSecretTraceRegistry,
 } from '@/executor/utils/resolved-secret-trace-registry'
@@ -256,19 +256,21 @@ export async function createWorkspaceFileSecretProvenanceFromRegistry(
     : registry.exportCommittedProvenanceForValue(persistedValue)
   if (!sourceProvenance.complete || !persistedProvenance.complete) {
     /**
-     * A latched registry is the same absence only when both hold: nothing activated, and no
-     * recorded reason is an originating fault. Zero active entries alone does not prove the
-     * context never held plaintext — a verification or decrypt fault trips while secret material
-     * is in flight — so any fault reason keeps the taint. What remains is a registry that latched
-     * because provenance was never on offer (a failed workflow run crossing with no envelope is
-     * the recurring producer), which is exactly what `unrecorded` states. Stamping taint for that
-     * state made one failed run turn every file its chat later wrote into a hard refusal until
-     * the next clean write.
+     * A latched registry is the same absence only when both hold: nothing activated, and every
+     * recorded reason is in the registry's absence set — reasons meaning provenance was never on
+     * offer and no secret material transited the latching context. Zero active entries alone does
+     * not prove that: a decrypt, verification, or filtering failure trips while plaintext is in
+     * flight, before anything activates, so any such reason keeps the taint. What remains is a
+     * registry that latched with nothing to lose (a failed workflow run crossing with no envelope
+     * is the recurring producer), which is exactly what `unrecorded` states. Stamping taint for
+     * that state made one failed run turn every file its chat later wrote into a hard refusal
+     * until the next clean write.
      */
     const diagnostics = registry.getIncompletenessDiagnostics()
     if (
       diagnostics?.activeEntryCount === 0 &&
-      !diagnostics.reasons.some(isResolvedSecretIncompletenessFault)
+      diagnostics.reasons.length > 0 &&
+      diagnostics.reasons.every(isResolvedSecretProvenanceAbsence)
     ) {
       return { safe: true, provenance: { status: 'unrecorded' } }
     }
