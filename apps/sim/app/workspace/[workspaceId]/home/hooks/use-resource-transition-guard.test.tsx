@@ -4,7 +4,8 @@
 
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { requestMothershipNavigation } from '@/lib/mothership/events'
 import { useResourceTransitionGuard } from '@/app/workspace/[workspaceId]/home/hooks/use-resource-transition-guard'
 
 function renderGuard() {
@@ -22,8 +23,14 @@ function renderGuard() {
 }
 
 describe('useResourceTransitionGuard', () => {
+  beforeEach(() => {
+    window.history.replaceState({}, '', '/workspace/ws-1/chat/chat-1')
+    vi.spyOn(window.history, 'back').mockImplementation(() => {})
+  })
+
   afterEach(() => {
     document.body.replaceChildren()
+    vi.restoreAllMocks()
   })
 
   it('keeps a dirty draft when cancelled and performs the complete deferred action on discard', () => {
@@ -45,6 +52,8 @@ describe('useResourceTransitionGuard', () => {
     act(() => guard.result().requestResourceTransition(closeSelectedTabs))
     act(() => guard.result().confirmDiscard())
 
+    expect(closeSelectedTabs).not.toHaveBeenCalled()
+    act(() => window.dispatchEvent(new PopStateEvent('popstate')))
     expect(closeSelectedTabs).toHaveBeenCalledOnce()
     expect(guard.result().showDiscardConfirmation).toBe(false)
 
@@ -64,6 +73,7 @@ describe('useResourceTransitionGuard', () => {
     expect(focus).not.toHaveBeenCalled()
     expect(markAttention).toHaveBeenCalledOnce()
     expect(guard.result().showDiscardConfirmation).toBe(false)
+    act(() => guard.result().reportResourceDirty('skill-1', false))
     guard.unmount()
   })
 
@@ -91,12 +101,56 @@ describe('useResourceTransitionGuard', () => {
 
     act(() => link.click())
     act(() => guard.result().confirmDiscard())
+    expect(navigate).not.toHaveBeenCalled()
+    act(() => window.dispatchEvent(new PopStateEvent('popstate')))
     expect(navigate).toHaveBeenCalledOnce()
     expect(guard.result().showDiscardConfirmation).toBe(false)
 
     const cleanBeforeUnload = new Event('beforeunload', { cancelable: true })
     window.dispatchEvent(cleanBeforeUnload)
     expect(cleanBeforeUnload.defaultPrevented).toBe(false)
+    guard.unmount()
+  })
+
+  it('defers browser Back until the dirty draft is discarded', () => {
+    const pushState = vi.spyOn(window.history, 'pushState')
+    const guard = renderGuard()
+
+    act(() => guard.result().reportResourceDirty('mcp-1', true))
+    expect(pushState).toHaveBeenCalledOnce()
+
+    act(() => window.dispatchEvent(new PopStateEvent('popstate')))
+    expect(pushState).toHaveBeenCalledTimes(2)
+    expect(guard.result().showDiscardConfirmation).toBe(true)
+
+    act(() => guard.result().dismissDiscardConfirmation())
+    expect(window.history.back).not.toHaveBeenCalled()
+
+    act(() => window.dispatchEvent(new PopStateEvent('popstate')))
+    act(() => guard.result().confirmDiscard())
+    expect(window.history.back).toHaveBeenCalledOnce()
+
+    act(() => window.dispatchEvent(new PopStateEvent('popstate')))
+    expect(window.history.back).toHaveBeenCalledTimes(2)
+    expect(guard.result().showDiscardConfirmation).toBe(false)
+    guard.unmount()
+  })
+
+  it('defers programmatic navigation through the shared request entrypoint', () => {
+    const routerPush = vi.fn()
+    const guard = renderGuard()
+
+    act(() => guard.result().reportResourceDirty('skill-1', true))
+    act(() => requestMothershipNavigation(routerPush))
+
+    expect(routerPush).not.toHaveBeenCalled()
+    expect(guard.result().showDiscardConfirmation).toBe(true)
+
+    act(() => guard.result().confirmDiscard())
+    expect(routerPush).not.toHaveBeenCalled()
+
+    act(() => window.dispatchEvent(new PopStateEvent('popstate')))
+    expect(routerPush).toHaveBeenCalledOnce()
     guard.unmount()
   })
 })

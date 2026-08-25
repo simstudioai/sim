@@ -44,7 +44,7 @@ import { supportsAtomicBrowserPanelOcclusion } from '@/lib/browser-agent/transpo
 import { isChatEnabled } from '@/lib/core/config/env-flags'
 import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import { getFolderPathNames } from '@/lib/folders/tree'
-import { sendMothershipMessage } from '@/lib/mothership/events'
+import { requestMothershipNavigation, sendMothershipMessage } from '@/lib/mothership/events'
 import { captureEvent } from '@/lib/posthog/client'
 import { toSearchToken } from '@/lib/search/tokens'
 import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
@@ -172,6 +172,13 @@ function SearchModalContent({
   onOpenChangeRef.current = onOpenChange
   const posthogRef = useRef(posthog)
   posthogRef.current = posthog
+
+  const navigate = useCallback((href: string, afterNavigate?: () => void) => {
+    requestMothershipNavigation(() => {
+      routerRef.current.push(href)
+      afterNavigate?.()
+    })
+  }, [])
 
   const { blocks, tools, triggers, toolOperations } = useSearchModalStore((state) => state.data)
 
@@ -392,7 +399,7 @@ function SearchModalContent({
         exactQueries: ['chats'],
         icon: Home,
         context: 'global',
-        run: () => routerRef.current.push(`/workspace/${workspaceId}/home`),
+        run: () => navigate(`/workspace/${workspaceId}/home`),
       })
     }
     if (canEdit && onCreateWorkflow) {
@@ -672,6 +679,7 @@ function SearchModalContent({
     onCreateFolder,
     onImportWorkflow,
     invokeCommand,
+    navigate,
     navigateToSettings,
   ])
 
@@ -797,9 +805,10 @@ function SearchModalContent({
   const handleWorkflowSelect = useCallback(
     (workflow: WorkflowItem) => {
       if (!workflow.isCurrent && workflow.href) {
-        routerRef.current.push(workflow.href)
-        window.dispatchEvent(
-          new CustomEvent(SIDEBAR_SCROLL_EVENT, { detail: { itemId: workflow.id } })
+        navigate(workflow.href, () =>
+          window.dispatchEvent(
+            new CustomEvent(SIDEBAR_SCROLL_EVENT, { detail: { itemId: workflow.id } })
+          )
         )
       }
       captureEvent(posthogRef.current, 'search_result_selected', {
@@ -809,13 +818,13 @@ function SearchModalContent({
       })
       onOpenChangeRef.current(false)
     },
-    [workspaceId]
+    [navigate, workspaceId]
   )
 
   const handleWorkspaceSelect = useCallback(
     (workspace: WorkspaceItem) => {
       if (!workspace.isCurrent && workspace.href) {
-        routerRef.current.push(workspace.href)
+        navigate(workspace.href)
       }
       captureEvent(posthogRef.current, 'search_result_selected', {
         result_type: 'workspace',
@@ -824,12 +833,12 @@ function SearchModalContent({
       })
       onOpenChangeRef.current(false)
     },
-    [workspaceId]
+    [navigate, workspaceId]
   )
 
   const handleChatSelect = useCallback(
     (chat: TaskItem) => {
-      routerRef.current.push(chat.href)
+      navigate(chat.href)
       captureEvent(posthogRef.current, 'search_result_selected', {
         result_type: 'task',
         query_length: searchRef.current.length,
@@ -837,12 +846,12 @@ function SearchModalContent({
       })
       onOpenChangeRef.current(false)
     },
-    [workspaceId]
+    [navigate, workspaceId]
   )
 
   const handleTableSelect = useCallback(
     (item: TaskItem) => {
-      routerRef.current.push(item.href)
+      navigate(item.href)
       captureEvent(posthogRef.current, 'search_result_selected', {
         result_type: 'table',
         query_length: searchRef.current.length,
@@ -850,12 +859,12 @@ function SearchModalContent({
       })
       onOpenChangeRef.current(false)
     },
-    [workspaceId]
+    [navigate, workspaceId]
   )
 
   const handleFileSelect = useCallback(
     (item: FileItem) => {
-      routerRef.current.push(item.href)
+      navigate(item.href)
       captureEvent(posthogRef.current, 'search_result_selected', {
         result_type: 'file',
         query_length: searchRef.current.length,
@@ -863,12 +872,12 @@ function SearchModalContent({
       })
       onOpenChangeRef.current(false)
     },
-    [workspaceId]
+    [navigate, workspaceId]
   )
 
   const handleKbSelect = useCallback(
     (item: TaskItem) => {
-      routerRef.current.push(item.href)
+      navigate(item.href)
       captureEvent(posthogRef.current, 'search_result_selected', {
         result_type: 'knowledge_base',
         query_length: searchRef.current.length,
@@ -876,7 +885,7 @@ function SearchModalContent({
       })
       onOpenChangeRef.current(false)
     },
-    [workspaceId]
+    [navigate, workspaceId]
   )
 
   const handlePageSelect = useCallback(
@@ -887,7 +896,7 @@ function SearchModalContent({
         if (page.href.startsWith('http')) {
           window.open(page.href, '_blank', 'noopener,noreferrer')
         } else {
-          routerRef.current.push(page.href)
+          navigate(page.href)
         }
       }
       captureEvent(posthogRef.current, 'search_result_selected', {
@@ -897,12 +906,12 @@ function SearchModalContent({
       })
       onOpenChangeRef.current(false)
     },
-    [workspaceId]
+    [navigate, workspaceId]
   )
 
   const handleLogSelect = useCallback(
     (item: LogItem) => {
-      routerRef.current.push(item.href)
+      navigate(item.href)
       captureEvent(posthogRef.current, 'search_result_selected', {
         result_type: 'log',
         query_length: searchRef.current.length,
@@ -910,12 +919,12 @@ function SearchModalContent({
       })
       onOpenChangeRef.current(false)
     },
-    [workspaceId]
+    [navigate, workspaceId]
   )
 
   const handleConnectedAccountSelect = useCallback(
     (item: IntegrationSearchItem) => {
-      routerRef.current.push(item.href)
+      navigate(item.href)
       captureEvent(posthogRef.current, 'search_result_selected', {
         result_type: 'connected_account',
         query_length: searchRef.current.length,
@@ -923,12 +932,12 @@ function SearchModalContent({
       })
       onOpenChangeRef.current(false)
     },
-    [workspaceId]
+    [navigate, workspaceId]
   )
 
   const handleIntegrationSelect = useCallback(
     (item: IntegrationSearchItem) => {
-      routerRef.current.push(item.href)
+      navigate(item.href)
       captureEvent(posthogRef.current, 'search_result_selected', {
         result_type: 'integration',
         query_length: searchRef.current.length,
@@ -936,7 +945,7 @@ function SearchModalContent({
       })
       onOpenChangeRef.current(false)
     },
-    [workspaceId]
+    [navigate, workspaceId]
   )
 
   const handleActionSelect = useCallback(
@@ -960,28 +969,36 @@ function SearchModalContent({
     const homeHref = `/workspace/${workspaceId}/home`
     const sentToMountedHome = window.location.pathname === homeHref && sendMothershipMessage(query)
 
+    const finish = () => {
+      onOpenChangeRef.current(false)
+      captureEvent(posthogRef.current, 'search_result_selected', {
+        result_type: 'action',
+        action_id: 'new-chat-from-query',
+        query_length: query.length,
+        workspace_id: workspaceId,
+      })
+    }
+
     if (!sentToMountedHome) {
       /* One-shot auto-send handoff: Home's mount consumer sends it on arrival,
          so both routes deliver the raw query identically. use-chat's queued
          send dispatch now survives the mount-settling effect cycle that used
          to silently abort programmatic sends (the old reason this was a
          prefill). */
-      if (!MothershipHandoffStorage.store({ message: query }, workspaceId)) {
-        logger.warn('Failed to persist command palette query for a new chat', {
-          workspaceId,
-        })
-        return
-      }
-      routerRef.current.push(homeHref)
+      requestMothershipNavigation(() => {
+        if (!MothershipHandoffStorage.store({ message: query }, workspaceId)) {
+          logger.warn('Failed to persist command palette query for a new chat', {
+            workspaceId,
+          })
+          return
+        }
+        routerRef.current.push(homeHref)
+        finish()
+      })
+      return
     }
 
-    onOpenChangeRef.current(false)
-    captureEvent(posthogRef.current, 'search_result_selected', {
-      result_type: 'action',
-      action_id: 'new-chat-from-query',
-      query_length: query.length,
-      workspace_id: workspaceId,
-    })
+    finish()
   }, [workspaceId])
 
   /** Enter in ask mode: hand the query to Sim, or just open a new chat when empty. */
@@ -990,7 +1007,7 @@ function SearchModalContent({
       handleNewChatFromQuery()
       return
     }
-    routerRef.current.push(`/workspace/${workspaceId}/home`)
+    navigate(`/workspace/${workspaceId}/home`)
     onOpenChangeRef.current(false)
     captureEvent(posthogRef.current, 'search_result_selected', {
       result_type: 'action',
@@ -998,7 +1015,7 @@ function SearchModalContent({
       query_length: 0,
       workspace_id: workspaceId,
     })
-  }, [workspaceId, handleNewChatFromQuery])
+  }, [workspaceId, handleNewChatFromQuery, navigate])
 
   const handleOverlayClick = useCallback(() => {
     onOpenChangeRef.current(false)

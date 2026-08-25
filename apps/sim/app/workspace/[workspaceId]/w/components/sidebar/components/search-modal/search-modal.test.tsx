@@ -6,7 +6,9 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import {
+  MOTHERSHIP_NAVIGATION_REQUEST_EVENT,
   MOTHERSHIP_SEND_MESSAGE_EVENT,
+  type MothershipNavigationRequestDetail,
   type MothershipSendMessageDetail,
 } from '@/lib/mothership/events'
 import { SearchModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/search-modal'
@@ -333,6 +335,44 @@ describe('SearchModal', () => {
     expect(rows[0]).toContain('New chat')
     expect(rows[1]).toContain('Alpha')
     expect(rows[2]).toContain('Beta')
+  })
+
+  it('defers programmatic chat navigation through the mounted resource guard', async () => {
+    let pendingNavigation: (() => void) | undefined
+    const handleNavigationRequest = (event: Event) => {
+      event.preventDefault()
+      pendingNavigation = (event as CustomEvent<MothershipNavigationRequestDetail>).detail.navigate
+    }
+    window.addEventListener(MOTHERSHIP_NAVIGATION_REQUEST_EVENT, handleNavigationRequest)
+
+    try {
+      await act(async () => {
+        root.render(
+          <SearchModal
+            open
+            onOpenChange={vi.fn()}
+            chats={[
+              {
+                id: 'chat-a',
+                name: 'Alpha planning',
+                href: '/workspace/workspace-1/chat/chat-a',
+              },
+            ]}
+          />
+        )
+      })
+
+      await enterSearchQuery('Alpha planning')
+      act(() => document.querySelector<HTMLElement>('[cmdk-item]')?.click())
+
+      expect(mockPush).not.toHaveBeenCalled()
+      expect(pendingNavigation).toBeTypeOf('function')
+
+      act(() => pendingNavigation?.())
+      expect(mockPush).toHaveBeenCalledWith('/workspace/workspace-1/chat/chat-a')
+    } finally {
+      window.removeEventListener(MOTHERSHIP_NAVIGATION_REQUEST_EVENT, handleNavigationRequest)
+    }
   })
 
   it('shows an empty state when search has no results', async () => {

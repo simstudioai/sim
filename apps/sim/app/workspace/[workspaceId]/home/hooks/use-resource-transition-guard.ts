@@ -1,4 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import {
+  MOTHERSHIP_NAVIGATION_REQUEST_EVENT,
+  type MothershipNavigationRequestDetail,
+} from '@/lib/mothership/events'
 
 interface ResourceTransitionGuard {
   showDiscardConfirmation: boolean
@@ -23,18 +27,42 @@ interface ResourceTransitionGuard {
 export function useResourceTransitionGuard(): ResourceTransitionGuard {
   const dirtyResourceIdRef = useRef<string | null>(null)
   const pendingTransitionRef = useRef<(() => void) | null>(null)
+  const hasHistorySentinelRef = useRef(false)
   const [showDiscardConfirmation, setShowDiscardConfirmation] = useState(false)
 
-  const reportResourceDirty = useCallback((resourceId: string, dirty: boolean) => {
-    if (dirty) {
-      dirtyResourceIdRef.current = resourceId
+  const seedHistorySentinel = useCallback(() => {
+    if (hasHistorySentinelRef.current) return
+    window.history.pushState(null, '', window.location.href)
+    hasHistorySentinelRef.current = true
+  }, [])
+
+  const retireHistorySentinel = useCallback((afterRetirement?: () => void) => {
+    if (!hasHistorySentinelRef.current) {
+      afterRetirement?.()
       return
     }
-    if (dirtyResourceIdRef.current !== resourceId) return
-    dirtyResourceIdRef.current = null
-    pendingTransitionRef.current = null
-    setShowDiscardConfirmation(false)
+    hasHistorySentinelRef.current = false
+    if (afterRetirement) {
+      window.addEventListener('popstate', afterRetirement, { once: true })
+    }
+    window.history.back()
   }, [])
+
+  const reportResourceDirty = useCallback(
+    (resourceId: string, dirty: boolean) => {
+      if (dirty) {
+        dirtyResourceIdRef.current = resourceId
+        seedHistorySentinel()
+        return
+      }
+      if (dirtyResourceIdRef.current !== resourceId) return
+      dirtyResourceIdRef.current = null
+      pendingTransitionRef.current = null
+      setShowDiscardConfirmation(false)
+      retireHistorySentinel()
+    },
+    [retireHistorySentinel, seedHistorySentinel]
+  )
 
   const requestResourceTransition = useCallback((transition: () => void) => {
     if (!dirtyResourceIdRef.current) {
@@ -71,12 +99,13 @@ export function useResourceTransitionGuard(): ResourceTransitionGuard {
     pendingTransitionRef.current = null
     dirtyResourceIdRef.current = null
     setShowDiscardConfirmation(false)
-    transition?.()
-  }, [])
+    retireHistorySentinel(transition ?? undefined)
+  }, [retireHistorySentinel])
 
   const reset = useCallback(() => {
     dirtyResourceIdRef.current = null
     pendingTransitionRef.current = null
+    hasHistorySentinelRef.current = false
     setShowDiscardConfirmation(false)
   }, [])
 
@@ -84,6 +113,20 @@ export function useResourceTransitionGuard(): ResourceTransitionGuard {
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
       if (!dirtyResourceIdRef.current) return
       event.preventDefault()
+    }
+
+    const handleNavigationRequest = (event: Event) => {
+      const detail = (event as CustomEvent<MothershipNavigationRequestDetail>).detail
+      if (typeof detail?.navigate !== 'function') return
+      event.preventDefault()
+      requestResourceTransition(detail.navigate)
+    }
+
+    const handlePopState = () => {
+      if (!dirtyResourceIdRef.current) return
+      hasHistorySentinelRef.current = false
+      seedHistorySentinel()
+      requestResourceTransition(() => window.history.back())
     }
 
     /**
@@ -131,12 +174,16 @@ export function useResourceTransitionGuard(): ResourceTransitionGuard {
     }
 
     window.addEventListener('beforeunload', handleBeforeUnload)
+    window.addEventListener('popstate', handlePopState)
+    window.addEventListener(MOTHERSHIP_NAVIGATION_REQUEST_EVENT, handleNavigationRequest)
     document.addEventListener('click', handleDocumentClick, true)
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload)
+      window.removeEventListener('popstate', handlePopState)
+      window.removeEventListener(MOTHERSHIP_NAVIGATION_REQUEST_EVENT, handleNavigationRequest)
       document.removeEventListener('click', handleDocumentClick, true)
     }
-  }, [requestResourceTransition])
+  }, [requestResourceTransition, seedHistorySentinel])
 
   return {
     showDiscardConfirmation,

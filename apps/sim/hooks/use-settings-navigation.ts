@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import type { WorkspaceHostContext } from '@/lib/api/contracts/workspaces'
 import { useSession } from '@/lib/auth/auth-client'
 import { canManageWorkspaceBilling } from '@/lib/billing/workspace-permissions'
+import { requestMothershipNavigation } from '@/lib/mothership/events'
 import { useOptionalWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import type { SettingsSection } from '@/app/workspace/[workspaceId]/settings/navigation'
 
@@ -117,15 +118,17 @@ export function useSettingsNavigation(): UseSettingsNavigationReturn {
 
   const navigateToSettings = useCallback(
     (options?: SettingsNavigationOptions) => {
-      const currentPath = window.location.pathname
-      if (currentPath.startsWith(settingsPrefix)) {
-        router.replace(getSettingsHref(options), { scroll: false })
-      } else {
-        try {
-          sessionStorage.setItem(SETTINGS_RETURN_URL_KEY, currentPath)
-        } catch {}
-        router.push(getSettingsHref(options))
-      }
+      requestMothershipNavigation(() => {
+        const currentPath = window.location.pathname
+        if (currentPath.startsWith(settingsPrefix)) {
+          router.replace(getSettingsHref(options), { scroll: false })
+        } else {
+          try {
+            sessionStorage.setItem(SETTINGS_RETURN_URL_KEY, currentPath)
+          } catch {}
+          router.push(getSettingsHref(options))
+        }
+      })
     },
     [router, settingsPrefix, getSettingsHref]
   )

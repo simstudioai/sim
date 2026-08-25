@@ -15,6 +15,24 @@ function dispatchClaimable<T>(name: string, detail: T): boolean {
 }
 
 /**
+ * Lets programmatic workspace navigation pass through a mounted Sim Chat's
+ * resource-draft guard. When no chat is mounted, the navigation runs directly.
+ */
+export const MOTHERSHIP_NAVIGATION_REQUEST_EVENT = 'mothership-navigation-request'
+
+export interface MothershipNavigationRequestDetail {
+  navigate: () => void
+}
+
+export function requestMothershipNavigation(navigate: () => void): void {
+  const consumed = dispatchClaimable<MothershipNavigationRequestDetail>(
+    MOTHERSHIP_NAVIGATION_REQUEST_EVENT,
+    { navigate }
+  )
+  if (!consumed) navigate()
+}
+
+/**
  * Custom-event name used to send a user message to the Mothership chat.
  * The mothership host components (workspace home, workflow panel) listen
  * for this event and call their `sendMessage` on receipt.
