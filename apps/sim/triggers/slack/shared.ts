@@ -108,6 +108,11 @@ export const SLACK_TRIGGER_OUTPUTS: Record<string, TriggerOutput> = {
         description:
           'Short-lived trigger ID used to open a modal in response. Present for interactivity and slash commands',
       },
+      loading_view_id: {
+        type: 'string',
+        description:
+          'View ID of the loading modal opened at ingest when "Open loading modal" is enabled. Pass it to Slack Update View to replace the loading content — view IDs never expire, unlike the 3-second trigger_id. Empty when the option is off or the open failed',
+      },
       callback_id: {
         type: 'string',
         description:
