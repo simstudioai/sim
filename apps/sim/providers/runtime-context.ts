@@ -17,6 +17,8 @@ export interface ProviderRuntimeContext {
   resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
   /** Trusted server execution context inherited by model-emitted tool calls. */
   executionContext?: ExecutionContext
+  /** Request-scoped provider wire ids mapped back to canonical tool registry ids. */
+  toolIdByWireId?: ReadonlyMap<string, string>
 }
 
 export type ExecuteProviderToolOptions = ExecuteToolOptions
@@ -82,10 +84,11 @@ export async function executeProviderTool(
   options: ExecuteProviderToolOptions = {}
 ): Promise<ProviderToolExecutionResult> {
   const runtimeContext = providerRuntimeContext.getStore()
+  const executionToolId = runtimeContext?.toolIdByWireId?.get(toolId) ?? toolId
   const registry =
     options.resolvedSecretTraceRegistry ?? runtimeContext?.resolvedSecretTraceRegistry
 
-  if (runtimeContext && !registry) {
+  if (runtimeContext && Object.hasOwn(runtimeContext, 'resolvedSecretTraceRegistry') && !registry) {
     const response: ToolResponse = { success: false, output: {} }
     return { rawResponse: response, modelResponse: response }
   }
@@ -102,7 +105,7 @@ export async function executeProviderTool(
 
   try {
     const executionContext = options.executionContext ?? runtimeContext?.executionContext
-    const result = await executeTool(toolId, params, {
+    const result = await executeTool(executionToolId, params, {
       ...options,
       ...(executionContext ? { executionContext } : {}),
       resolvedSecretTraceRegistry: toolCallRegistry,

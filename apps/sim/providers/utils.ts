@@ -721,8 +721,7 @@ export async function transformBlockTool(
       return null
     }
     return {
-      // Unique per block so two custom-block tools never collide on the wire.
-      id: `deployed_block_executor_${block.type}`,
+      id: customToolConfig.id,
       // Name/description come from the block itself — never the source workflow's
       // metadata, which the consumer has no access to.
       name: blockDef.name,
@@ -803,13 +802,10 @@ export async function transformBlockTool(
     modelBlockedParams,
   } = await createLLMToolSchema(toolConfig, resolvedResourceParams, enrichmentContext)
 
-  let uniqueToolId = toolConfig.id
   let toolName = toolConfig.name
   let toolDescription = enrichedDescription || toolConfig.description
 
   if (toolId === 'workflow_executor' && resolvedResourceParams.workflowId) {
-    uniqueToolId = `${toolConfig.id}_${resolvedResourceParams.workflowId}`
-
     const workflowMetadata = await fetchWorkflowMetadata(
       resolvedResourceParams.workflowId,
       enrichmentContext
@@ -833,10 +829,6 @@ export async function transformBlockTool(
     toolDescription = mounted.length
       ? `${toolDescription}\n\nWorkspace secret names available to this code: ${mounted.join(', ')}. Reference one with the exact {{NAME}} syntax. Its value is bound only while the code executes and is not included in the model request. No other secrets are readable.`
       : `${toolDescription}\n\nThis code has no access to workspace secrets.`
-  } else if (toolId.startsWith('knowledge_') && resolvedResourceParams.knowledgeBaseId) {
-    uniqueToolId = `${toolConfig.id}_${resolvedResourceParams.knowledgeBaseId}`
-  } else if (toolId.startsWith('table_') && resolvedResourceParams.tableId) {
-    uniqueToolId = `${toolConfig.id}_${resolvedResourceParams.tableId}`
   }
 
   const blockParamsFn = blockDef?.tools?.config?.params as
@@ -893,7 +885,7 @@ export async function transformBlockTool(
     : undefined
 
   return {
-    id: uniqueToolId,
+    id: toolConfig.id,
     name: toolName,
     description: toolDescription,
     params: userProvidedParams,

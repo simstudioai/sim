@@ -1596,7 +1596,7 @@ async function executeToolImplementation(
   try {
     let tool: ToolConfig | undefined
 
-    // Normalize tool ID to strip resource suffixes (e.g., workflow_executor_<uuid> -> workflow_executor)
+    // Preserve direct-call compatibility with legacy resource-suffixed tool ids.
     const normalizedToolId = normalizeToolId(toolId)
     if (internalSandboxProfile && normalizedToolId !== 'function_execute') {
       throw new Error('An internal sandbox profile may only be used with function_execute')
@@ -1732,9 +1732,7 @@ async function executeToolImplementation(
       contextParams.credential = contextParams.oauthCredential
     }
     if (contextParams.credential) {
-      logger.info(
-        `[${requestId}] Tool ${toolId} needs access token for credential: ${contextParams.credential}`
-      )
+      logger.info(`[${requestId}] Resolving tool access token`, { toolId })
       try {
         const workflowId = scope.workflowId
         const userId = scope.userId
