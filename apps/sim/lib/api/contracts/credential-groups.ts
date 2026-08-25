@@ -154,8 +154,16 @@ export const credentialGroupOAuthCallbackQuerySchema = z
   })
 
 export const credentialGroupOAuthCallbackParamsSchema = z.object({
-  provider: credentialGroupProviderSchema,
+  provider: z.literal('slack'),
 })
+
+export const sharedCredentialGroupOAuthCallbackParamsSchema = z.object({
+  providerId: z.string().min(1, 'OAuth provider ID is required').max(128),
+})
+
+export type CredentialGroupOAuthCallbackQuery = z.output<
+  typeof credentialGroupOAuthCallbackQuerySchema
+>
 
 export const startSlackCredentialGroupConfigurationBodySchema = z
   .object({
@@ -421,6 +429,14 @@ export const credentialGroupOAuthCallbackContract = defineRouteContract({
   method: 'GET',
   path: '/api/credential-groups/oauth/[provider]/callback',
   params: credentialGroupOAuthCallbackParamsSchema,
+  query: credentialGroupOAuthCallbackQuerySchema,
+  response: { mode: 'empty' },
+})
+
+export const sharedCredentialGroupOAuthCallbackContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/auth/oauth2/callback/[providerId]',
+  params: sharedCredentialGroupOAuthCallbackParamsSchema,
   query: credentialGroupOAuthCallbackQuerySchema,
   response: { mode: 'empty' },
 })

@@ -1390,6 +1390,7 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
       accessType: 'offline',
       authentication: 'basic',
       prompt: 'consent',
+      authorizationUrlParams: { audience: 'api.atlassian.com' },
       redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/confluence`,
       getUserInfo: async (tokens) => {
         try {
@@ -1441,6 +1442,7 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
       accessType: 'offline',
       authentication: 'basic',
       prompt: 'consent',
+      authorizationUrlParams: { audience: 'api.atlassian.com' },
       redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/jira`,
       getUserInfo: async (tokens) => {
         try {

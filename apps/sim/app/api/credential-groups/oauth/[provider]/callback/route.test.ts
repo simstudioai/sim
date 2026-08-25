@@ -38,15 +38,15 @@ const principal = {
   invitationTokenHash: 'hash-1',
 } as const
 const attempt = {
-  provider: 'gmail',
+  provider: 'slack',
   invitationToken: 'invitation-token',
   optionId: 'option-1',
 }
-const context = { params: Promise.resolve({ provider: 'gmail' }) }
+const context = { params: Promise.resolve({ provider: 'slack' }) }
 
 function request(query: string) {
   return new NextRequest(
-    `http://localhost:3000/api/credential-groups/oauth/gmail/callback?${query}`
+    `http://localhost:3000/api/credential-groups/oauth/slack/callback?${query}`
   )
 }
 
@@ -75,6 +75,19 @@ describe('credential group OAuth callback', () => {
     )
   })
 
+  it('rejects standard providers on the custom callback route', async () => {
+    const response = await GET(
+      new NextRequest(
+        'http://localhost:3000/api/credential-groups/oauth/gmail/callback?state=state-1&code=code-1'
+      ),
+      { params: Promise.resolve({ provider: 'gmail' }) }
+    )
+
+    expect(response.status).toBe(400)
+    expect(mocks.consumeAttempt).not.toHaveBeenCalled()
+    expect(mocks.completeOAuth).not.toHaveBeenCalled()
+  })
+
   it('returns without exchanging when the user denies consent', async () => {
     const response = await GET(request('state=state-1&error=access_denied'), context)
 
@@ -92,7 +105,7 @@ describe('credential group OAuth callback', () => {
     const replayedResponse = await GET(request('state=state-1&code=code-1'), context)
     expect(replayedResponse.status).toBe(400)
 
-    mocks.consumeAttempt.mockResolvedValue({ ...attempt, provider: 'slack' })
+    mocks.consumeAttempt.mockResolvedValue({ ...attempt, provider: 'gmail' })
     const mismatchedResponse = await GET(request('state=state-2&code=code-2'), context)
     expect(mismatchedResponse.status).toBe(400)
     expect(mocks.completeOAuth).not.toHaveBeenCalled()

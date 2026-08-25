@@ -48,6 +48,11 @@ export interface ListCredentialGroupEnrollmentFilters {
   statuses?: CredentialGroupEnrollmentStatus[]
 }
 
+export interface CredentialGroupInvitationLink {
+  enrollment: CredentialGroupEnrollmentRecord
+  invitationLink: string
+}
+
 interface InvitationContext {
   workspaceId: string
   workspaceName: string
@@ -58,6 +63,12 @@ interface InvitationContext {
 interface SendInvitationOptions {
   expectedEnrollmentId?: string
   revokedEnrollment: 'reactivate' | 'reject'
+}
+
+interface IssuedInvitation {
+  enrollment: EnrollmentRow
+  invitationLink: string
+  tokenHash: string
 }
 
 export interface PublicCredentialGroupEnrollment {
@@ -316,19 +327,18 @@ async function getInvitationContext(
   return row
 }
 
-async function sendInvitation(
+async function issueInvitation(
   context: InvitationContext,
   userId: string,
-  inviterName: string,
   email: string,
   options: SendInvitationOptions
-): Promise<CredentialGroupEnrollmentRecord> {
+): Promise<IssuedInvitation> {
   const now = new Date()
   const token = generateId()
   const tokenHash = hashInvitationToken(token)
   const expiresAt = new Date(now.getTime() + INVITATION_TTL_MS)
 
-  const issued = await db.transaction(async (tx) => {
+  const enrollment = await db.transaction(async (tx) => {
     await lockCredentialGroupInvitationTarget(tx, context.groupId, email)
     const [existing] = await tx
       .select()
@@ -399,7 +409,25 @@ async function sendInvitation(
     return next
   })
 
-  const invitationLink = `${getBaseUrl()}/credential-groups/enroll/${token}`
+  return {
+    enrollment,
+    invitationLink: `${getBaseUrl()}/credential-groups/enroll/${token}`,
+    tokenHash,
+  }
+}
+
+async function sendInvitation(
+  context: InvitationContext,
+  userId: string,
+  inviterName: string,
+  email: string,
+  options: SendInvitationOptions
+): Promise<CredentialGroupEnrollmentRecord> {
+  const {
+    enrollment: issued,
+    invitationLink,
+    tokenHash,
+  } = await issueInvitation(context, userId, email, options)
   const html = await renderCredentialGroupInvitationEmail({
     recipientEmail: email,
     inviterName,
@@ -630,6 +658,22 @@ export async function inviteCredentialGroupEnrollment(
   return sendInvitation(context, userId, inviterName, normalizeEmail(email), {
     revokedEnrollment: 'reactivate',
   })
+}
+
+export async function createCredentialGroupInvitationLink(
+  workspaceId: string,
+  groupId: string,
+  userId: string,
+  email: string
+): Promise<CredentialGroupInvitationLink> {
+  const context = await getInvitationContext(workspaceId, groupId)
+  const issued = await issueInvitation(context, userId, normalizeEmail(email), {
+    revokedEnrollment: 'reactivate',
+  })
+  return {
+    enrollment: toCredentialGroupEnrollment(issued.enrollment),
+    invitationLink: issued.invitationLink,
+  }
 }
 
 export async function resendCredentialGroupEnrollment(
