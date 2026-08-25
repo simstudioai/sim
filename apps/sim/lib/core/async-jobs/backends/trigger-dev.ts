@@ -181,6 +181,7 @@ const JOB_TYPE_TO_TASK_ID: Record<JobType, string> = {
   'workflow-group-cell': 'workflow-group-cell',
   'cleanup-logs': 'cleanup-logs',
   'cleanup-soft-deletes': 'cleanup-soft-deletes',
+  'cleanup-table-row-ttl': 'cleanup-table-row-ttl',
   'cleanup-tasks': 'cleanup-tasks',
   'run-data-drain': 'run-data-drain',
 }

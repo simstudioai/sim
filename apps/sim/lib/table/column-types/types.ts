@@ -37,6 +37,7 @@ export const COLUMN_TYPES = [
   'currency',
   'boolean',
   'date',
+  'ttl',
   'json',
   'select',
 ] as const

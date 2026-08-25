@@ -195,6 +195,18 @@ describe('Validation', () => {
       expect(result.errors).toContain('Duplicate column names found')
     })
 
+    it('rejects more than one TTL column', () => {
+      const result = validateTableSchema({
+        columns: [
+          { name: 'expires_at', type: 'ttl' },
+          { name: 'delete_at', type: 'ttl' },
+        ],
+      } as TableSchema)
+
+      expect(result.valid).toBe(false)
+      expect(result.errors).toContain('A table can have at most 1 TTL column')
+    })
+
     it('should reject null schema', () => {
       const result = validateTableSchema(null as unknown as TableSchema)
       expect(result.valid).toBe(false)

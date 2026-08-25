@@ -164,6 +164,21 @@ function formatOffsetSuffix(offsetMinutes: number): string {
   return `${sign}${pad(Math.floor(abs / 60))}:${pad(abs % 60)}`
 }
 
+/** Formats an instant as canonical wall time in an IANA timezone. */
+export function formatInstantInTimeZone(date: Date, timeZone: string): string {
+  const wall = getWallClockParts(date, timeZone)
+  const wallAsUtc = Date.UTC(
+    wall.year,
+    wall.month - 1,
+    wall.day,
+    wall.hour,
+    wall.minute,
+    wall.second
+  )
+  const offsetMinutes = Math.round((wallAsUtc - date.getTime()) / 60_000)
+  return `${wall.year}-${pad(wall.month)}-${pad(wall.day)}T${pad(wall.hour)}:${pad(wall.minute)}:${pad(wall.second)}${formatOffsetSuffix(offsetMinutes)}`
+}
+
 /**
  * Trailing offset (minutes east of UTC) of a datetime string, or null when
  * naive. Recognizes exactly what `Date.parse` recognizes: numeric offsets,

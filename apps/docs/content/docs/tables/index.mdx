@@ -24,12 +24,15 @@ Every column has a type, which decides how its values are stored and validated.
 | **Currency** | An amount in a currency you pick per column | `$1,234.56` |
 | **Boolean** | `true` or `false` | `true` |
 | **Date** | A date | `2026-03-16` |
+| **TTL** | A row expiration date, stored as Unix epoch seconds | `2026-03-16 2:30 PM` |
 | **JSON** | An object or array | `{ "tier": "pro" }` |
 | **Select** | One of a fixed set of options, or several | `Pro` |
 
 Types are enforced as you enter values, so a Number column only takes numbers.
 
 A Currency column stores a plain number and renders it in the currency you choose for that column, so filters, sorts, and exports all see the amount itself. Changing a column's currency relabels it — it does not convert the amounts.
+
+A table can have one TTL column. Adding it enables row expiration; rows with a non-empty TTL value are deleted after that time passes. Deleting the TTL column disables expiration for the table. TTL cells use the date editor, while APIs and workflows read and write integer Unix epoch seconds, matching DynamoDB TTL.
 
 ## Editing a table
 

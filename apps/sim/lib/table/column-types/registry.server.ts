@@ -273,6 +273,7 @@ export const COLUMN_TYPE_SERVER_REGISTRY: Record<ColumnType, ColumnTypeServerEnt
   number: COLUMN_TYPE_REGISTRY.number,
   boolean: COLUMN_TYPE_REGISTRY.boolean,
   date: COLUMN_TYPE_REGISTRY.date,
+  ttl: COLUMN_TYPE_REGISTRY.ttl,
   json: COLUMN_TYPE_REGISTRY.json,
   select: {
     ...COLUMN_TYPE_REGISTRY.select,

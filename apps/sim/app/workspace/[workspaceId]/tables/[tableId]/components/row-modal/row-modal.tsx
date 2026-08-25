@@ -251,7 +251,7 @@ function ColumnField({ column, value, onChange }: ColumnFieldProps) {
         required={column.required}
         hint={hint}
         mono
-        value={formatValueForInput(value, column.type)}
+        value={formatValueForInput(value, column.type, timeZone)}
         onChange={onChange}
         placeholder='{"key": "value"}'
         rows={4}
@@ -260,7 +260,7 @@ function ColumnField({ column, value, onChange }: ColumnFieldProps) {
   }
 
   if (definition.editor === 'date') {
-    const parts = dateValueToLocalParts(formatValueForInput(value, 'date'))
+    const parts = dateValueToLocalParts(formatValueForInput(value, column.type, timeZone))
     return (
       <ChipModalField type='custom' title={title} required={column.required} hint={hint}>
         <div className='flex items-center gap-2'>
@@ -306,7 +306,7 @@ function ColumnField({ column, value, onChange }: ColumnFieldProps) {
       inputType={
         definition.inputMode === 'decimal' && !definition.acceptsFormattedInput ? 'number' : 'text'
       }
-      value={formatValueForInput(value, column.type)}
+      value={formatValueForInput(value, column.type, timeZone)}
       onChange={onChange}
       placeholder={`Enter ${column.name}`}
     />
