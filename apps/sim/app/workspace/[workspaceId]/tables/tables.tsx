@@ -1441,6 +1441,7 @@ export function Tables() {
         }}
         srTitle='Delete Table'
         title='Delete Table'
+        defaultAction='dismiss'
         text={[
           'Are you sure you want to delete ',
           { text: activeTable?.name ?? 'this table', bold: true },

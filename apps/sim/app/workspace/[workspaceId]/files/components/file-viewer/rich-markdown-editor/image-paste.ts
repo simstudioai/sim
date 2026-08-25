@@ -1,3 +1,5 @@
+import { extractImgSrcs } from '@/lib/uploads/utils/embedded-image-ref'
+
 /**
  * Extract image `File` objects from a paste/drop payload. Reads `files` first, then falls back to
  * `items` — many browsers expose a pasted or copied image (e.g. a screenshot) only through
@@ -12,13 +14,6 @@ export function extractImageFiles(transfer: DataTransfer | null): File[] {
     .map((item) => item.getAsFile())
     .filter((file): file is File => file !== null)
 }
-
-/**
- * Matches `<img>` `src` attribute values: double-quoted, single-quoted, or (validly) unquoted per
- * the HTML spec — the browser's own clipboard serialization always quotes it, but other producers
- * of `text/html` are not obligated to.
- */
-const IMG_SRC_RE = /<img\b[^>]*\bsrc\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))/gi
 
 /** Query params under which the inline route addresses a workspace file. */
 const INLINE_ROUTE_QUERY_KEYS = new Set(['key', 'fileId'])
@@ -78,18 +73,6 @@ export function isInlineRouteSrc(src: string, origin = runtimeOrigin()): boolean
   } catch {
     return false
   }
-}
-
-/**
- * Extracts every `<img>` `src` value found in `html`, in document order (may contain duplicates).
- */
-export function extractImgSrcs(html: string): string[] {
-  const srcs: string[] = []
-  for (const match of html.matchAll(IMG_SRC_RE)) {
-    const src = match[1] ?? match[2] ?? match[3]
-    if (src) srcs.push(src)
-  }
-  return srcs
 }
 
 /**

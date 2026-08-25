@@ -81,8 +81,8 @@ import { Callout } from 'fumadocs-ui/components/callout'
 
 | Variable | Description |
 |----------|-------------|
-| `VLLM_BASE_URL` | vLLM server URL, **without** a `/v1` suffix (e.g. `http://localhost:8000`) — Sim appends `/v1` itself |
-| `VLLM_API_KEY` | Optional bearer token for vLLM |
+| `VLLM_BASE_URL` | OpenAI-compatible vLLM or LM Studio URL. Both the server root (`http://localhost:8000`) and versioned API URL (`http://localhost:8000/v1`) are accepted |
+| `VLLM_API_KEY` | Optional bearer token for the vLLM or LM Studio endpoint |
 | `LITELLM_BASE_URL` | LiteLLM proxy base URL |
 | `LITELLM_API_KEY` | Optional bearer token for LiteLLM |
 

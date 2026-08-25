@@ -2447,7 +2447,7 @@
       "get": {
         "operationId": "listSecrets",
         "summary": "List Secrets",
-        "description": "List workspace and caller-owned personal secret metadata with opaque cursor pagination. Only names, scope, role, and timestamps are returned; secret values are never returned. A workspace API key is rejected with `403`; use a personal API key.",
+        "description": "List workspace and caller-owned personal secret metadata with opaque cursor pagination. Rows for workspace secrets marked visible (unredacted) include the stored value; every other row is metadata-only and no other response ever carries a value. A workspace API key is rejected with `403`; use a personal API key.",
         "tags": ["Secrets"],
         "parameters": [
           {
@@ -5581,6 +5581,124 @@
           }
         ]
       },
+      "V2SecretWithValue": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "pattern": "^[A-Za-z0-9_]+$",
+            "description": "Secret name containing only letters, numbers, and underscores."
+          },
+          "scope": {
+            "type": "string",
+            "enum": ["workspace", "personal"],
+            "description": "Whether the secret belongs to the workspace or to the caller. A personal secret belongs to the caller across every workspace, not to one workspace."
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What the secret is for, as set on the workspace secret. Always null for a personal secret, which has no shared audience."
+          },
+          "unredacted": {
+            "type": "boolean",
+            "description": "Whether the workspace secret opts out of redaction, so its value appears in plaintext in run logs and model-visible content. Always false for a personal secret."
+          },
+          "role": {
+            "type": "string",
+            "enum": ["admin", "member"],
+            "description": "Caller role for the secret."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "description": "ISO 8601 timestamp when the secret was created."
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "description": "ISO 8601 timestamp when the secret was last updated."
+          },
+          "value": {
+            "description": "The stored secret value. Present only when the workspace secret is marked visible (unredacted); omitted for every other secret.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "scope",
+          "description",
+          "unredacted",
+          "role",
+          "createdAt",
+          "updatedAt"
+        ],
+        "additionalProperties": false,
+        "title": "Secret metadata with visible value",
+        "description": "Secret metadata; the stored value is included only for a workspace secret marked visible (unredacted)."
+      },
+      "ListSecretsResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V2SecretWithValue"
+            },
+            "description": "Items in the current page."
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself."
+          }
+        },
+        "required": ["data", "nextCursor"],
+        "additionalProperties": false,
+        "title": "List secrets response",
+        "description": "Secret metadata visible to the caller; visible (unredacted) workspace secrets carry their value.",
+        "examples": [
+          {
+            "data": [
+              {
+                "name": "STRIPE_API_KEY",
+                "scope": "workspace",
+                "description": "Production billing key — rotate quarterly.",
+                "unredacted": false,
+                "role": "admin",
+                "createdAt": "2026-06-01T09:14:00.000Z",
+                "updatedAt": "2026-06-20T14:02:11.000Z"
+              },
+              {
+                "name": "STAGING_BASE_URL",
+                "scope": "workspace",
+                "description": "Staging environment base URL.",
+                "unredacted": true,
+                "role": "member",
+                "createdAt": "2026-06-03T11:30:00.000Z",
+                "updatedAt": "2026-06-21T08:45:09.000Z",
+                "value": "https://staging.example.com"
+              }
+            ],
+            "nextCursor": null
+          }
+        ]
+      },
       "V2Secret": {
         "type": "object",
         "properties": {
@@ -5607,6 +5725,10 @@
             ],
             "description": "What the secret is for, as set on the workspace secret. Always null for a personal secret, which has no shared audience."
           },
+          "unredacted": {
+            "type": "boolean",
+            "description": "Whether the workspace secret opts out of redaction, so its value appears in plaintext in run logs and model-visible content. Always false for a personal secret."
+          },
           "role": {
             "type": "string",
             "enum": ["admin", "member"],
@@ -5625,52 +5747,18 @@
             "description": "ISO 8601 timestamp when the secret was last updated."
           }
         },
-        "required": ["name", "scope", "description", "role", "createdAt", "updatedAt"],
+        "required": [
+          "name",
+          "scope",
+          "description",
+          "unredacted",
+          "role",
+          "createdAt",
+          "updatedAt"
+        ],
         "additionalProperties": false,
         "title": "Secret metadata",
         "description": "Public secret metadata without the stored secret value."
-      },
-      "ListSecretsResponse": {
-        "type": "object",
-        "properties": {
-          "data": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/V2Secret"
-            },
-            "description": "Items in the current page."
-          },
-          "nextCursor": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself."
-          }
-        },
-        "required": ["data", "nextCursor"],
-        "additionalProperties": false,
-        "title": "List secrets response",
-        "description": "Secret metadata visible to the caller without stored values.",
-        "examples": [
-          {
-            "data": [
-              {
-                "name": "STRIPE_API_KEY",
-                "scope": "workspace",
-                "description": "Production billing key — rotate quarterly.",
-                "role": "admin",
-                "createdAt": "2026-06-01T09:14:00.000Z",
-                "updatedAt": "2026-06-20T14:02:11.000Z"
-              }
-            ],
-            "nextCursor": null
-          }
-        ]
       },
       "SetSecretResponse": {
         "type": "object",
@@ -5690,6 +5778,7 @@
               "name": "STRIPE_API_KEY",
               "scope": "workspace",
               "description": "Production billing key — rotate quarterly.",
+              "unredacted": false,
               "role": "admin",
               "createdAt": "2026-06-01T09:14:00.000Z",
               "updatedAt": "2026-06-20T14:02:11.000Z"
@@ -5729,6 +5818,10 @@
                 "type": "null"
               }
             ]
+          },
+          "unredacted": {
+            "description": "Opt the workspace secret out of redaction: its value then appears in plaintext in run logs, model-visible content, and files, including publicly shared log links. Workspace scope only — sending it for a personal secret is rejected. Omit it to leave the current setting untouched.",
+            "type": "boolean"
           }
         },
         "required": ["workspaceId", "scope", "value"],

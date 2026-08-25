@@ -48,6 +48,13 @@ const FALLBACK_STATUS: ProviderStatus = {
 const SOCIAL_BTN =
   'relative flex h-[32px] w-full items-center justify-center rounded-[5px] border border-[var(--border-1)] text-[13.5px] text-[var(--text-primary)] transition-colors hover:bg-[var(--surface-hover)] disabled:cursor-not-allowed disabled:opacity-50'
 
+/** Auth providers are peer choices, so opening the dialog must not arm one or dismissal. */
+function focusAuthDialog(event: Event): void {
+  event.preventDefault()
+  const content = event.currentTarget as HTMLElement | null
+  content?.focus()
+}
+
 function fetchProviderStatus(): Promise<ProviderStatus> {
   if (fetchPromise) return fetchPromise
   fetchPromise = requestJson(getAuthProvidersContract, {})
@@ -155,7 +162,11 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
   return (
     <Modal open={open} onOpenChange={handleOpenChange}>
       <ModalTrigger asChild>{children}</ModalTrigger>
-      <ModalContent size='sm' className='dark bg-[var(--bg)] text-[var(--text-primary)]'>
+      <ModalContent
+        size='sm'
+        className='dark bg-[var(--bg)] text-[var(--text-primary)]'
+        onOpenAutoFocus={focusAuthDialog}
+      >
         <ModalTitle className='sr-only'>
           {effectiveView === 'login' ? 'Log in' : 'Create account'}
         </ModalTitle>

@@ -5,6 +5,7 @@
  * be idempotent (a second pass changes nothing) so autosave never churns. Mirrors the exact
  * pipeline the editor uses: split frontmatter out, serialize the body, re-attach + clean up.
  */
+import type { JSONContent } from '@tiptap/core'
 import { Editor } from '@tiptap/core'
 import { afterEach, describe, expect, it } from 'vitest'
 import { createMarkdownContentExtensions } from './extensions'
@@ -14,6 +15,7 @@ import {
   postProcessSerializedMarkdown,
   splitFrontmatter,
 } from './markdown-fidelity'
+import { parseMarkdownToDoc } from './markdown-parse'
 
 let editor: Editor | null = null
 
@@ -126,6 +128,66 @@ describe('markdown-fidelity utils', () => {
     expect(normalizeLinkHref('blob:https://x.com/uuid')).toBe('')
     expect(normalizeLinkHref('vbscript:msgbox(1)')).toBe('')
     expect(normalizeLinkHref('localhost:3000/path')).toBe('https://localhost:3000/path')
+    // Adding `//` doesn't make a scheme safe, and an unknown scheme is dropped rather than trusted —
+    // the allowlist is the whole rule.
+    expect(normalizeLinkHref('javascript://%0aalert(1)')).toBe('')
+    expect(normalizeLinkHref('customproto://host/path')).toBe('')
+  })
+
+  /**
+   * The property that matters, stated over the spellings a browser collapses before it resolves a
+   * scheme: whatever comes back must not be executable. Padding and interior tabs/newlines are the
+   * usual way a blocked scheme is smuggled past a matcher that only reads the literal text.
+   */
+  it('never returns a target that resolves to an executable scheme', () => {
+    const tab = String.fromCharCode(9)
+    const lf = String.fromCharCode(10)
+    const nbsp = String.fromCharCode(160)
+    const inputs = [
+      'javascript://%0aalert(1)',
+      'javascript:alert(1)',
+      'JAVASCRIPT://x',
+      ' javascript:alert(1) ',
+      `${nbsp}javascript:alert(1)`,
+      `java${tab}script://alert(1)`,
+      `java${lf}script:alert(1)`,
+      'data://text/html,<script>',
+      'vbscript://x',
+      'blob://x',
+      'file://x',
+    ]
+
+    const executable = inputs.filter((input) =>
+      /^(?:javascript|data|vbscript|blob|file):/.test(
+        normalizeLinkHref(input)
+          .replace(/[\t\n\r]/g, '')
+          .toLowerCase()
+      )
+    )
+    expect(executable).toEqual([])
+  })
+
+  /**
+   * A linked image carries its target in a node attribute rather than a link mark, so the mark's own
+   * URI validation never sees it and the raw target survives parsing — which is correct, since the
+   * document must serialize back verbatim. `image.tsx` builds its anchor from
+   * `normalizeLinkHref(attrs.href)` and omits the anchor entirely when that is empty, so this is the
+   * step that decides whether the target ever reaches the DOM.
+   */
+  it('drops a dangerous linked-image target before it can reach an anchor', () => {
+    const doc = parseMarkdownToDoc('[![a](https://x.example/i.png)](javascript://%0aalert(1))')
+    const hrefs: string[] = []
+    const walk = (node: JSONContent) => {
+      if (node.type === 'image' && typeof node.attrs?.href === 'string') hrefs.push(node.attrs.href)
+      node.content?.forEach(walk)
+    }
+    walk(doc)
+
+    // The parser preserves the authored target — serialization round-trips it verbatim.
+    expect(hrefs).toHaveLength(1)
+    expect(hrefs[0]).toContain('javascript://')
+    // …and the renderer refuses to build an anchor out of it.
+    expect(normalizeLinkHref(hrefs[0])).toBe('')
   })
 
   it('collapses trailing blank lines and preserves leading whitespace', () => {

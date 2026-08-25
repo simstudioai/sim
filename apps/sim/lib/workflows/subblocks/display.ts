@@ -556,13 +556,15 @@ export function resolveSkillsLabel(
   if (subBlock?.type !== 'skill-input') return null
   if (!Array.isArray(rawValue) || rawValue.length === 0) return null
 
+  const skillsById = new Map(skills.map((skill) => [skill.id, skill]))
+
   const names = rawValue
     .map((skill: unknown) => {
       if (!skill || typeof skill !== 'object') return null
       const s = skill as { skillId?: string; name?: string }
 
       if (s.skillId) {
-        const found = skills.find((candidate) => candidate.id === s.skillId)
+        const found = skillsById.get(s.skillId)
         if (found?.name) return found.name
       }
       if (typeof s.name === 'string' && s.name) return s.name

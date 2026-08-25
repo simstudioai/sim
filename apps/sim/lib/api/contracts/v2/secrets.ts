@@ -39,6 +39,11 @@ export const v2SecretSchema = z
       .describe(
         'What the secret is for, as set on the workspace secret. Always null for a personal secret, which has no shared audience.'
       ),
+    unredacted: z
+      .boolean()
+      .describe(
+        'Whether the workspace secret opts out of redaction, so its value appears in plaintext in run logs and model-visible content. Always false for a personal secret.'
+      ),
     role: workspaceCredentialRoleSchema.describe('Caller role for the secret.'),
     createdAt: v2TimestampSchema.describe('ISO 8601 timestamp when the secret was created.'),
     updatedAt: v2TimestampSchema.describe('ISO 8601 timestamp when the secret was last updated.'),
@@ -49,6 +54,28 @@ export const v2SecretSchema = z
     description: 'Public secret metadata without the stored secret value.',
   })
 export type V2Secret = z.output<typeof v2SecretSchema>
+
+/**
+ * List-row shape: metadata plus the stored value for exactly the secrets whose
+ * workspace marked them visible (unredacted). Every other secret stays
+ * metadata-only, and no other secret response ever carries a value.
+ */
+export const v2SecretWithValueSchema = v2SecretSchema
+  .extend({
+    value: z
+      .string()
+      .optional()
+      .describe(
+        'The stored secret value. Present only when the workspace secret is marked visible (unredacted); omitted for every other secret.'
+      ),
+  })
+  .meta({
+    id: 'V2SecretWithValue',
+    title: 'Secret metadata with visible value',
+    description:
+      'Secret metadata; the stored value is included only for a workspace secret marked visible (unredacted).',
+  })
+export type V2SecretWithValue = z.output<typeof v2SecretWithValueSchema>
 
 export const v2SecretDeleteDataSchema = z
   .object({
@@ -102,6 +129,12 @@ export const v2SetSecretBodySchema = z
       .describe(
         'What the secret is for, shown to teammates. Workspace scope only — sending it for a personal secret is rejected. Omit it to leave an existing description untouched; send null or an empty string to clear one.'
       ),
+    unredacted: z
+      .boolean()
+      .optional()
+      .describe(
+        'Opt the workspace secret out of redaction: its value then appears in plaintext in run logs, model-visible content, and files, including publicly shared log links. Workspace scope only — sending it for a personal secret is rejected. Omit it to leave the current setting untouched.'
+      ),
   })
   .strict()
   .superRefine((data, ctx) => {
@@ -110,6 +143,13 @@ export const v2SetSecretBodySchema = z
         code: 'custom',
         path: ['description'],
         message: 'description is only supported for a workspace secret',
+      })
+    }
+    if (data.scope === 'personal' && data.unredacted !== undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['unredacted'],
+        message: 'unredacted is only supported for a workspace secret',
       })
     }
   })
@@ -126,8 +166,9 @@ export const v2DeleteSecretQuerySchema = z
 export type V2DeleteSecretQuery = z.output<typeof v2DeleteSecretQuerySchema>
 
 /**
- * Lists names and metadata only, keyset-paginated over the active sort. There is
- * deliberately no single-secret GET, and no response ever carries a value.
+ * Lists secret metadata, keyset-paginated over the active sort. There is
+ * deliberately no single-secret GET. Rows for workspace secrets marked visible
+ * (unredacted) carry the stored value; every other row is metadata-only.
  */
 export const v2ListSecretsContract = defineRouteContract({
   method: 'GET',
@@ -135,7 +176,7 @@ export const v2ListSecretsContract = defineRouteContract({
   query: v2ListSecretsQuerySchema,
   response: {
     mode: 'json',
-    schema: v2CursorListResponse(v2SecretSchema),
+    schema: v2CursorListResponse(v2SecretWithValueSchema),
   },
 })
 

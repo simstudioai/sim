@@ -1,3 +1,4 @@
+import { omit } from '@sim/utils/object'
 import { FirefliesIcon } from '@/components/icons'
 import { resolveHttpsUrlFromFileInput } from '@/lib/uploads/utils/file-utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
@@ -698,9 +699,7 @@ Return ONLY the summary text - no quotes, no labels.`,
 const firefliesV2SubBlocks = (FirefliesBlock.subBlocks || []).filter(
   (subBlock) => subBlock.id !== 'audioUrl'
 )
-const firefliesV2Inputs = FirefliesBlock.inputs
-  ? Object.fromEntries(Object.entries(FirefliesBlock.inputs).filter(([key]) => key !== 'audioUrl'))
-  : {}
+const firefliesV2Inputs = FirefliesBlock.inputs ? omit(FirefliesBlock.inputs, ['audioUrl']) : {}
 
 export const FirefliesV2Block: BlockConfig<FirefliesResponse> = {
   ...FirefliesBlock,

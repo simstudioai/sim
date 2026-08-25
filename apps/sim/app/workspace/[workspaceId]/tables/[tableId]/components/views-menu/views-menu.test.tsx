@@ -125,6 +125,69 @@ describe('ViewsMenu', () => {
     container.remove()
   })
 
+  it('confirms before deleting a saved view', () => {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+    const onDelete = vi.fn()
+
+    act(() => {
+      root.render(
+        <ViewsMenu
+          views={[PRIMARY_VIEW, SECOND_VIEW]}
+          activeViewId={PRIMARY_VIEW.id}
+          onSelect={vi.fn()}
+          onRename={vi.fn()}
+          onSetDefault={vi.fn()}
+          onDelete={onDelete}
+          onNewView={vi.fn()}
+          canEdit
+        />
+      )
+    })
+    act(() => container.querySelector<HTMLButtonElement>('button[aria-label="Views"]')?.click())
+
+    const getDeleteButton = () =>
+      [...document.body.querySelectorAll<HTMLButtonElement>('button[aria-label="Delete"]')].find(
+        (button) => button.getAttribute('aria-disabled') !== 'true'
+      )
+    const getConfirmationDialog = () =>
+      [...document.body.querySelectorAll<HTMLElement>('[role="dialog"]')].find((dialog) =>
+        dialog.textContent?.includes('This action cannot be undone.')
+      )
+
+    act(() => getDeleteButton()?.click())
+
+    expect(onDelete).not.toHaveBeenCalled()
+    const firstDialog = getConfirmationDialog()
+    expect(firstDialog).toHaveTextContent('Delete View')
+    expect(firstDialog).toHaveTextContent('Second view')
+    expect(firstDialog).toHaveTextContent('This action cannot be undone.')
+
+    const cancelButton = [
+      ...(firstDialog?.querySelectorAll<HTMLButtonElement>('button') ?? []),
+    ].find((button) => button.textContent === 'Cancel')
+    act(() => cancelButton?.click())
+
+    expect(getConfirmationDialog()).toBeUndefined()
+    expect(onDelete).not.toHaveBeenCalled()
+
+    act(() => container.querySelector<HTMLButtonElement>('button[aria-label="Views"]')?.click())
+    act(() => getDeleteButton()?.click())
+
+    const dialog = getConfirmationDialog()
+    const confirmButton = [...(dialog?.querySelectorAll<HTMLButtonElement>('button') ?? [])].find(
+      (button) => button.textContent === 'Delete'
+    )
+    act(() => confirmButton?.click())
+
+    expect(onDelete).toHaveBeenCalledOnce()
+    expect(onDelete).toHaveBeenCalledWith(SECOND_VIEW.id)
+
+    act(() => root.unmount())
+    container.remove()
+  })
+
   it('keeps the menu open when keyboard focus moves from the trigger to the default pin', () => {
     vi.useFakeTimers()
     const container = document.createElement('div')

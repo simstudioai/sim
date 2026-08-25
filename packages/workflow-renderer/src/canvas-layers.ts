@@ -9,12 +9,15 @@
  * - {@link CONTAINER_CHILD_Z_BASE} — cards inside a container (same +1 / +10 steps)
  * - {@link CONNECTION_PICKER_Z} — the connection block picker
  *
- * Containers and edges must occupy separate bands. A container paints an opaque
- * body, so an edge sharing its z loses the equal-z tiebreak to DOM order — React
- * Flow renders the nodes layer after the edges layer — and is drawn *behind* the
- * container. That is what hid every line crossing a top-level subflow, whether
- * in flight or persisted. Cards then sit above the edge band, so a line still
- * passes behind card chrome, knobs, and the action-bar swell.
+ * Containers and ordinary edges occupy separate bands. A container paints an
+ * opaque body, so an edge sharing its z loses the equal-z tiebreak to DOM order
+ * — React Flow renders the nodes layer after the edges layer — and is drawn
+ * *behind* the container. Incoming container edges deliberately use that rule
+ * at their target's depth: the target sits above its parent by one depth, leaving
+ * the edge over the parent body but beneath the target. The edge can also be
+ * occluded by peer or higher-depth containers it crosses. Cards then sit above
+ * the edge band, so every other line still passes behind card chrome, knobs, and
+ * the action-bar swell.
  *
  * Shared by the editor canvas and the read-only preview because both render the
  * same graph through the same React Flow layering rules; a second scale drifted
@@ -73,4 +76,23 @@ export function getEdgeZIndex(
   if (state.isHighlighted) return EDGE_Z_HIGHLIGHTED
   const depth = containerZIndex === undefined ? 0 : containerZIndex + 1
   return Math.min(EDGE_Z_BASE + depth, EDGE_Z_DEPTH_MAX)
+}
+
+/**
+ * Keeps an incoming edge beneath a Loop/Parallel target without hiding it
+ * behind that target's parent.
+ *
+ * Containers use their nesting depth as z-index, so a nested target is exactly
+ * one layer above its parent. React Flow renders equal-z edges before nodes;
+ * sharing the target's layer therefore leaves the edge visible over the parent
+ * body while the target paints over the segment that reaches beneath it.
+ *
+ * `targetContainerZIndex` must only be supplied when the edge targets a
+ * container. Ordinary edges retain their existing depth/highlight ordering.
+ */
+export function getEdgeZIndexForTarget(
+  edgeZIndex: number,
+  targetContainerZIndex: number | undefined
+): number {
+  return targetContainerZIndex ?? edgeZIndex
 }

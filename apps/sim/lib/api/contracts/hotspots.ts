@@ -207,6 +207,12 @@ export const functionExecuteContract = defineRouteContract({
     secretScope: z.enum(['all', 'selected']).optional(),
     /** Secret names this execution may read when secretScope is `selected`. */
     mountedSecrets: z.array(z.string()).optional(),
+    /**
+     * Secret names the caller's registry certifies as redaction-exempt (collision-free).
+     * Exported files containing only these values are not provenance-locked. Trusted the
+     * same way envVars is: the internal caller already holds the plaintexts.
+     */
+    unredactedSecretNames: z.array(z.string()).optional(),
     [PRIVATE_SECRET_PROVENANCE_FIELD]: privateSecretProvenanceBundleSchema.optional(),
     _sandboxFiles: z
       .array(

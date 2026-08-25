@@ -35,14 +35,3 @@ export type ConsentCategory = (typeof CONSENT_CATEGORIES)[number]
  */
 export const DEV_CONSENT_COUNTRY =
   process.env.NODE_ENV === 'production' ? undefined : process.env.NEXT_PUBLIC_CONSENT_COUNTRY
-
-/**
- * Reopens the consent banner in its expanded state.
- *
- * The consent runtime mounts beside the app rather than wrapping it, so a
- * surface that wants to reopen the banner — the Cookie Policy's "Change your
- * cookie choices" control — cannot reach the store through a React context. A
- * window event keeps that isolation intact and stays a one-shot command rather
- * than state anything has to hold.
- */
-export const OPEN_CONSENT_PREFERENCES_EVENT = 'sim:open-consent-preferences'

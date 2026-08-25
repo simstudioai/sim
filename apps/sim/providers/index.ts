@@ -45,6 +45,7 @@ async function omitUnsafeProviderFileAttachments(
   try {
     safeAttachments = await filterModelSafeWorkspaceFileAttachments(attachments, {
       workspaceId: request.workspaceId,
+      ...(request.userId ? { actorUserId: request.userId } : {}),
     })
   } catch (error) {
     logger.error('Workspace file secret provenance could not be verified', {

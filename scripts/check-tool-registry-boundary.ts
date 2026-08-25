@@ -46,25 +46,72 @@ const APP = join(ROOT, 'apps/sim')
 const FORBIDDEN = join(APP, 'tools/registry.ts')
 
 /**
- * Root the guard walks: every `page.tsx` and `layout.tsx` under the workspace app.
+ * Root the guard walks: every route entry Next.js composes under the workspace app.
  *
  * Discovered rather than listed. A hardcoded list goes stale silently — the
  * first version of this guard named `app/workspace/layout.tsx` as "the shared
  * shell", but that file only wraps `SocketProvider`; the real shell is
  * `app/workspace/[workspaceId]/layout.tsx`, which was never checked.
  *
- * Layouts must be enumerated separately because Next.js composes them by
- * convention — a page does not `import` its layout, so walking pages alone never
- * reaches layout modules even though every route pays for them.
+ * Every filename here is composed by convention rather than imported, so each
+ * must be enumerated: a page does not `import` its layout, its error boundary,
+ * or its loading state, yet the route pays for all of them. `error.tsx` in
+ * particular is always a Client Component — Next requires it — so a registry
+ * edge there lands in the browser bundle as surely as one from a page.
+ *
+ * The root stays at `app/workspace`. Widening it to `app` reports
+ * `(interfaces)/resume/[workflowId]/[executionId]/page.tsx`, which is a Server
+ * Component (`runtime = 'nodejs'`, `force-dynamic`) whose `PauseResumeManager`
+ * import resolves server-side and never reaches a client bundle. This guard
+ * cannot tell the two apart, so it stays where the premise holds.
  */
 const ENTRY_ROOT = 'app/workspace'
-const ENTRY_FILENAMES = new Set(['page.tsx', 'layout.tsx'])
+const ENTRY_FILENAMES = new Set([
+  'page.tsx',
+  'layout.tsx',
+  'error.tsx',
+  'loading.tsx',
+  'not-found.tsx',
+  'template.tsx',
+  'default.tsx',
+])
+
+/**
+ * A default export, which every convention-composed entry must have — Next
+ * renders the default and nothing else.
+ *
+ * The filename alone is not enough. `[workspaceId]/components/error/error.tsx`
+ * is named like a boundary and is not one: it exports `ErrorShell` and
+ * `ErrorState` for the thirteen real boundaries to use, and Next would reject
+ * it as a boundary for having no default. Counting it as an entry both inflated
+ * the coverage number and would have recorded a shared component in the
+ * graph-weight baseline as though it were a route.
+ *
+ * All four declaring forms count — `export default …`, `export { default } from`,
+ * `export { default, … } from`, and `export { X as default }`. `export { default
+ * as X }` does not: it re-exports someone else's default under a name and leaves
+ * the module without one. Missing a form is the dangerous direction, since the
+ * entry would drop out of the walk and skip both the registry gate and the
+ * graph-weight ratchet silently.
+ */
+const DEFAULT_EXPORT_RE =
+  /(?:^|\n)\s*export\s+default\b|(?:^|\n)\s*export\s*\{[^}]*(?:\bas\s+default\b|\bdefault\s*[,}])/
+
+function hasDefaultExport(file: string): boolean {
+  try {
+    return DEFAULT_EXPORT_RE.test(readFileSync(file, 'utf8'))
+  } catch {
+    return false
+  }
+}
 
 function collectEntries(dir: string, found: string[] = []): string[] {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const full = join(dir, entry.name)
     if (entry.isDirectory()) collectEntries(full, found)
-    else if (ENTRY_FILENAMES.has(entry.name)) found.push(relative(APP, full))
+    else if (ENTRY_FILENAMES.has(entry.name) && hasDefaultExport(full)) {
+      found.push(relative(APP, full))
+    }
   }
   return found
 }

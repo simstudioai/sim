@@ -381,7 +381,7 @@ export function DocumentTagsModal({
       <ChipModalHeader onClose={() => handleClose(false)}>Document Tags</ChipModalHeader>
 
       <ChipModalBody>
-        <ChipModalField type='custom' title='Tags'>
+        <ChipModalField type='custom' title='Tags' submitOnEnter={false}>
           <div className='space-y-2'>
             {documentTags.map((tag, index) => (
               <div key={tag.displayName} className='space-y-2'>
@@ -737,6 +737,7 @@ export function DocumentTagsModal({
 
       <ChipModalFooter
         onCancel={() => handleClose(false)}
+        defaultAction='none'
         primaryAction={{ label: 'Close', onClick: () => handleClose(false) }}
       />
     </ChipModal>

@@ -173,6 +173,24 @@ describe('setEnvironmentVariablesServerTool', () => {
     )
   })
 
+  it('forwards only the describe fields — never the unredacted flag — through the legacy path', async () => {
+    await setEnvironmentVariablesServerTool.execute(
+      { variables: [{ name: 'API_KEY', value: 'secret', description: 'Stripe live key' }] },
+      { userId: 'user-1', workspaceId: 'ws-1' }
+    )
+
+    // This tool must not be a path for Sim to flip per-secret redaction: the
+    // call carries exactly the describe surface and no unredacted key at all.
+    const call = performUpdateCredentialMock.mock.calls[0][0] as Record<string, unknown>
+    expect(Object.keys(call).sort()).toEqual([
+      'allowedTypes',
+      'credentialId',
+      'description',
+      'userId',
+    ])
+    expect(call).not.toHaveProperty('unredacted')
+  })
+
   it('describes a secret that already exists without touching its value', async () => {
     const result = await setEnvironmentVariablesServerTool.execute(
       { variables: [{ name: 'API_KEY', description: 'Stripe live key' }] },

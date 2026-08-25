@@ -1240,7 +1240,6 @@ export const WorkflowBlock = memo(function WorkflowBlock({
       ringStyles={ringStyles}
       runPathStatus={runPathStatus}
       isRunning={isExecuting}
-      isWorkflowRunning={isWorkflowRunning}
       isExecutionHighlighted={isExecutionHighlighted}
       Icon={config.icon}
       iconBgColor={config.bgColor}

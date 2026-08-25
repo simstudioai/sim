@@ -81,6 +81,7 @@ const secret = {
   updatedAt: new Date('2026-01-02T00:00:00Z'),
   hasServiceAccountKey: false,
   role: 'admin' as const,
+  unredacted: false,
 }
 
 describe('GET /api/v2/secrets', () => {
@@ -92,6 +93,7 @@ describe('GET /api/v2/secrets', () => {
     mocks.gate.mockResolvedValue(null)
     mocks.list.mockResolvedValue({
       secrets: [secret],
+      values: {},
       userId: 'user-1',
       nextCursorKeys: null,
       sortBy: 'name',
@@ -114,6 +116,7 @@ describe('GET /api/v2/secrets', () => {
           name: 'STRIPE_API_KEY',
           scope: 'workspace',
           description: null,
+          unredacted: false,
           role: 'admin',
           createdAt: '2026-01-01T00:00:00.000Z',
           updatedAt: '2026-01-02T00:00:00.000Z',
@@ -121,7 +124,7 @@ describe('GET /api/v2/secrets', () => {
       ],
       nextCursor: null,
     })
-    expect(JSON.stringify(body)).not.toContain('value')
+    expect(JSON.stringify(body)).not.toContain('"value"')
     expect(mocks.list).toHaveBeenCalledWith({
       principal: PRINCIPAL,
       input: {
@@ -136,6 +139,72 @@ describe('GET /api/v2/secrets', () => {
       },
       request: expect.anything(),
     })
+  })
+
+  it('carries the stored value for exactly the rows marked visible', async () => {
+    mocks.list.mockResolvedValue({
+      secrets: [
+        secret,
+        {
+          ...secret,
+          id: 'secret-3',
+          displayName: 'STAGING_BASE_URL',
+          envKey: 'STAGING_BASE_URL',
+          unredacted: true,
+        },
+      ],
+      values: { STAGING_BASE_URL: 'https://staging.example.com' },
+      userId: 'user-1',
+      nextCursorKeys: null,
+      sortBy: 'name',
+      sortOrder: 'asc',
+    })
+
+    const response = await GET(
+      new NextRequest(`http://localhost:3000/api/v2/secrets?workspaceId=${WORKSPACE_ID}`, {
+        headers: { 'x-api-key': 'key' },
+      })
+    )
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body.data[0]).not.toHaveProperty('value')
+    expect(body.data[1]).toMatchObject({
+      name: 'STAGING_BASE_URL',
+      unredacted: true,
+      value: 'https://staging.example.com',
+    })
+  })
+
+  it('never attaches an inherited prototype member as a missing value', async () => {
+    mocks.list.mockResolvedValue({
+      secrets: [
+        {
+          ...secret,
+          id: 'secret-proto',
+          displayName: 'constructor',
+          envKey: 'constructor',
+          unredacted: true,
+        },
+      ],
+      /** The name is legal but its value is absent — a bare index would read Object's constructor. */
+      values: {},
+      userId: 'user-1',
+      nextCursorKeys: null,
+      sortBy: 'name',
+      sortOrder: 'asc',
+    })
+
+    const response = await GET(
+      new NextRequest(`http://localhost:3000/api/v2/secrets?workspaceId=${WORKSPACE_ID}`, {
+        headers: { 'x-api-key': 'key' },
+      })
+    )
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body.data[0]).toMatchObject({ name: 'constructor', unredacted: true })
+    expect(body.data[0]).not.toHaveProperty('value')
   })
 
   /**
@@ -157,6 +226,7 @@ describe('GET /api/v2/secrets', () => {
           description: 'leaked from a workspace mirror',
         },
       ],
+      values: {},
       userId: 'user-1',
       nextCursorKeys: null,
       sortBy: 'name',
@@ -178,6 +248,7 @@ describe('GET /api/v2/secrets', () => {
   it('refuses a cursor minted under a different filter', async () => {
     mocks.list.mockResolvedValue({
       secrets: [secret],
+      values: {},
       userId: 'user-1',
       nextCursorKeys: ['STRIPE_API_KEY', 'secret-1'],
       sortBy: 'name',
@@ -209,6 +280,7 @@ describe('GET /api/v2/secrets', () => {
   it('resumes a cursor replayed under the filters it was minted with', async () => {
     mocks.list.mockResolvedValue({
       secrets: [secret],
+      values: {},
       userId: 'user-1',
       nextCursorKeys: ['STRIPE_API_KEY', 'secret-1'],
       sortBy: 'name',

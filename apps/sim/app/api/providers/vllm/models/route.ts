@@ -7,6 +7,7 @@ import {
 } from '@/lib/api/contracts/providers'
 import { env } from '@/lib/core/config/env'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { getOpenAICompatibleApiBaseUrl } from '@/providers/openai-compat/base-url'
 import { filterBlacklistedModels, isProviderBlacklisted } from '@/providers/utils'
 
 const logger = createLogger('VLLMModelsAPI')
@@ -20,7 +21,7 @@ export const GET = withRouteHandler(async (_request: NextRequest) => {
     return NextResponse.json({ models: [] })
   }
 
-  const baseUrl = (env.VLLM_BASE_URL || '').replace(/\/$/, '')
+  const baseUrl = env.VLLM_BASE_URL?.trim()
 
   if (!baseUrl) {
     logger.info('VLLM_BASE_URL not configured')
@@ -28,6 +29,7 @@ export const GET = withRouteHandler(async (_request: NextRequest) => {
   }
 
   try {
+    const apiBaseUrl = getOpenAICompatibleApiBaseUrl(baseUrl)
     logger.info('Fetching vLLM models', {
       baseUrl,
     })
@@ -40,7 +42,7 @@ export const GET = withRouteHandler(async (_request: NextRequest) => {
       headers.Authorization = `Bearer ${env.VLLM_API_KEY}`
     }
 
-    const response = await fetch(`${baseUrl}/v1/models`, {
+    const response = await fetch(`${apiBaseUrl}/models`, {
       headers,
       next: { revalidate: 60 },
     })

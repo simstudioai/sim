@@ -11,6 +11,7 @@ import { generateId, generateShortId } from '@sim/utils/id'
 import { and, eq, isNull, sql } from 'drizzle-orm'
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing/core/subscription'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
+import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { extractInputFieldsFromBlocks, type WorkflowInputField } from '@/lib/workflows/input-format'
 import { loadDeployedWorkflowState } from '@/lib/workflows/persistence/utils'
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
@@ -18,6 +19,7 @@ import type { CustomBlockOutput, CustomBlockRow } from '@/blocks/custom/build-co
 import { CUSTOM_BLOCK_TYPE_PREFIX, isReservedOutputName } from '@/blocks/custom/build-config'
 
 const logger = createLogger('CustomBlocksOperations')
+const CUSTOM_BLOCK_HYDRATION_CONCURRENCY = 10
 
 /**
  * Resolve a workspace's organization ONLY when custom blocks are enabled for it —
@@ -82,9 +84,12 @@ export interface CustomBlockWithInputs {
  * expects) whenever the publisher edits after deploying. Returns `[]` if the
  * workflow has no active deployment.
  */
-async function deriveInputFields(workflowId: string): Promise<WorkflowInputField[]> {
+async function deriveInputFields(
+  workflowId: string,
+  workspaceId?: string
+): Promise<WorkflowInputField[]> {
   try {
-    const deployed = await loadDeployedWorkflowState(workflowId)
+    const deployed = await loadDeployedWorkflowState(workflowId, workspaceId)
     return extractInputFieldsFromBlocks(deployed.blocks)
   } catch {
     return []
@@ -220,7 +225,10 @@ async function hydrateCustomBlockRow(joined: {
     iconUrl: row.iconUrl,
     enabled: row.enabled,
     traceChildRuns: row.traceChildRuns,
-    inputFields: applyInputPlaceholders(row.inputs, await deriveInputFields(row.workflowId)),
+    inputFields: applyInputPlaceholders(
+      row.inputs,
+      await deriveInputFields(row.workflowId, workspaceId ?? undefined)
+    ),
     exposedOutputs: row.outputs ?? [],
   }
 }
@@ -241,7 +249,7 @@ export async function listCustomBlocksWithInputs(
     .leftJoin(workspace, eq(workspace.id, workflow.workspaceId))
     .where(eq(customBlock.organizationId, organizationId))
 
-  return Promise.all(rows.map(hydrateCustomBlockRow))
+  return mapWithConcurrency(rows, CUSTOM_BLOCK_HYDRATION_CONCURRENCY, hydrateCustomBlockRow)
 }
 
 /**
@@ -546,7 +554,10 @@ export async function publishCustomBlock(params: {
     iconUrl: iconUrl ?? null,
     enabled: true,
     traceChildRuns,
-    inputFields: applyInputPlaceholders(inputs ?? null, await deriveInputFields(workflowId)),
+    inputFields: applyInputPlaceholders(
+      inputs ?? null,
+      await deriveInputFields(workflowId, workspaceId)
+    ),
     exposedOutputs: exposedOutputs ?? [],
   }
 }

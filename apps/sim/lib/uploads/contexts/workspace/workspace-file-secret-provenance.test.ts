@@ -1432,6 +1432,45 @@ describe('workspace file secret provenance', () => {
     )
   })
 
+  /** The audit row names who read past the absence when the caller can say; null otherwise. */
+  it('carries the actor into the unrecorded-read report when the caller supplies one', async () => {
+    queueTableRows(workspaceFiles, [
+      {
+        id: 'unrecorded-id',
+        key: 'unrecorded-key',
+        workspaceId: 'workspace-1',
+        context: 'workspace',
+        fileContentUpdatedAt: CONTENT_UPDATED_AT,
+        secretProvenanceVersion: 1,
+        provenanceContentUpdatedAt: CONTENT_UPDATED_AT,
+        status: 'unrecorded',
+        entries: [],
+      },
+    ])
+
+    await expect(
+      isModelSafeWorkspaceFileKey('unrecorded-key', { actorUserId: 'user-1' })
+    ).resolves.toBe(true)
+    expect(mockReport).toHaveBeenCalledWith(expect.objectContaining({ actorUserId: 'user-1' }))
+
+    mockReport.mockClear()
+    queueTableRows(workspaceFiles, [
+      {
+        id: 'unrecorded-id',
+        key: 'unrecorded-key',
+        workspaceId: 'workspace-1',
+        context: 'workspace',
+        fileContentUpdatedAt: CONTENT_UPDATED_AT,
+        secretProvenanceVersion: 1,
+        provenanceContentUpdatedAt: CONTENT_UPDATED_AT,
+        status: 'unrecorded',
+        entries: [],
+      },
+    ])
+    await expect(isModelSafeWorkspaceFileKey('unrecorded-key')).resolves.toBe(true)
+    expect(mockReport).toHaveBeenCalledWith(expect.objectContaining({ actorUserId: null }))
+  })
+
   /**
    * The row has to be a recorded absence, not a refusal. A stored `unknown` is refused whatever the
    * flag says, so asserting against one would pass with enforcement off and prove nothing about the

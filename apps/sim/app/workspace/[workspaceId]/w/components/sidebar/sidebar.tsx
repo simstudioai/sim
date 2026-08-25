@@ -32,7 +32,6 @@ import {
   Workflow,
 } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
-import Link from 'next/link'
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { useSession } from '@/lib/auth/auth-client'
@@ -49,6 +48,7 @@ import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/provide
 import type { SettingsSection } from '@/app/workspace/[workspaceId]/settings/navigation'
 import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
 import {
+  ChatNavigationLink,
   CollapsedChatFlyoutItem,
   CollapsedFolderItems,
   CollapsedSidebarMenu,
@@ -253,8 +253,10 @@ const SidebarChatItem = memo(function SidebarChatItem({
 
   return (
     <SidebarTooltip label={chat.name} enabled={showCollapsedTooltips}>
-      <Link
+      <ChatNavigationLink
+        chatId={chat.id}
         href={chat.href}
+        isCurrentRoute={isCurrentRoute}
         className={chipVariants({
           active: isCurrentRoute || isSelected || isMenuOpen,
           fullWidth: true,
@@ -315,7 +317,7 @@ const SidebarChatItem = memo(function SidebarChatItem({
             </button>
           </div>
         )}
-      </Link>
+      </ChatNavigationLink>
     </SidebarTooltip>
   )
 })

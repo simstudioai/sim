@@ -171,7 +171,6 @@ const STATIC_FRAME_SRC = [
   'https://www.mixcloud.com',
   'https://tenor.com',
   'https://giphy.com',
-  ...(isHosted ? ['https://www.googletagmanager.com'] : []),
 ] as const
 
 // Build-time CSP directives (for next.config.ts)

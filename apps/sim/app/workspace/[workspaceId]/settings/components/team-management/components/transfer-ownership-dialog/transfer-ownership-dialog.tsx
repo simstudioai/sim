@@ -88,6 +88,7 @@ export function TransferOwnershipDialog({
       onOpenChange={handleClose}
       srTitle='Leave organization'
       title='Leave organization'
+      defaultAction='none'
       confirm={{
         label: 'Transfer & leave',
         onClick: handleConfirm,

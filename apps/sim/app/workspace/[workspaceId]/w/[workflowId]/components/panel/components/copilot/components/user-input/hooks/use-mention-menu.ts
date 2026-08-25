@@ -7,8 +7,6 @@ interface UseMentionMenuProps {
   message: string
   /** Currently selected contexts */
   selectedContexts: ChatContext[]
-  /** Callback when a context is selected */
-  onContextSelect: (context: ChatContext) => void
   /** Callback when message changes */
   onMessageChange: (message: string) => void
 }
@@ -23,7 +21,6 @@ interface UseMentionMenuProps {
 export function useMentionMenu({
   message,
   selectedContexts,
-  onContextSelect,
   onMessageChange,
 }: UseMentionMenuProps) {
   // Refs

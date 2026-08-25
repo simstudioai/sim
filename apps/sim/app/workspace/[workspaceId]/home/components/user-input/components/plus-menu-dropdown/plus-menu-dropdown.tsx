@@ -289,14 +289,8 @@ export const PlusMenuDropdown = React.memo(
       <DropdownMenu open={open} onOpenChange={handleOpenChange}>
         <DropdownMenuTrigger asChild>
           <div
-            style={{
-              position: 'fixed',
-              left: anchorPos?.left ?? 0,
-              top: anchorPos?.top ?? 0,
-              width: 0,
-              height: 0,
-              pointerEvents: 'none',
-            }}
+            className='pointer-events-none fixed size-0'
+            style={{ left: anchorPos?.left ?? 0, top: anchorPos?.top ?? 0 }}
           />
         </DropdownMenuTrigger>
         <DropdownMenuContent

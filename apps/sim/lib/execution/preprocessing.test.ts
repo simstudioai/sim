@@ -247,6 +247,86 @@ describe('preprocessExecution logPreprocessingErrors option', () => {
   })
 })
 
+describe('preprocessExecution suppressRetryableFailureLogs option', () => {
+  const baseOptions = {
+    workflowId: 'workflow-1',
+    userId: 'owner-1',
+    triggerType: 'webhook' as const,
+    executionId: 'execution-1',
+    requestId: 'request-1',
+    checkDeployment: false,
+    checkRateLimit: false,
+    workspaceId: 'workspace-1',
+  }
+
+  function makeLoggingSession() {
+    return {
+      safeStart: vi.fn().mockResolvedValue(true),
+      safeCompleteWithError: vi.fn().mockResolvedValue(undefined),
+    }
+  }
+
+  it('skips the failure row for a retryable infrastructure failure', async () => {
+    workflowAuthzMockFns.mockGetActiveWorkflowRecord.mockRejectedValueOnce(
+      Object.assign(new Error('write CONNECT_TIMEOUT'), { code: 'CONNECT_TIMEOUT' })
+    )
+    const loggingSession = makeLoggingSession()
+
+    const result = await preprocessExecution({
+      ...baseOptions,
+      suppressRetryableFailureLogs: true,
+      loggingSession: loggingSession as any,
+    })
+
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        message: 'Internal error while fetching workflow',
+        statusCode: 500,
+        retryable: true,
+      },
+    })
+    expect(loggingSession.safeStart).not.toHaveBeenCalled()
+  })
+
+  it('still records non-retryable failures while suppression is on', async () => {
+    workflowAuthzMockFns.mockGetActiveWorkflowRecord.mockRejectedValueOnce(
+      new Error('column "unknown" does not exist')
+    )
+    const loggingSession = makeLoggingSession()
+
+    const result = await preprocessExecution({
+      ...baseOptions,
+      suppressRetryableFailureLogs: true,
+      loggingSession: loggingSession as any,
+    })
+
+    expect(result).toMatchObject({
+      success: false,
+      error: { statusCode: 500, retryable: false },
+    })
+    expect(loggingSession.safeStart).toHaveBeenCalled()
+  })
+
+  it('records retryable failures when the option is absent', async () => {
+    workflowAuthzMockFns.mockGetActiveWorkflowRecord.mockRejectedValueOnce(
+      Object.assign(new Error('write CONNECT_TIMEOUT'), { code: 'CONNECT_TIMEOUT' })
+    )
+    const loggingSession = makeLoggingSession()
+
+    const result = await preprocessExecution({
+      ...baseOptions,
+      loggingSession: loggingSession as any,
+    })
+
+    expect(result).toMatchObject({
+      success: false,
+      error: { statusCode: 500, retryable: true },
+    })
+    expect(loggingSession.safeStart).toHaveBeenCalled()
+  })
+})
+
 describe('preprocessExecution ban gate', () => {
   const baseOptions = {
     workflowId: 'workflow-1',

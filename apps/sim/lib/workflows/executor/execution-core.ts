@@ -396,7 +396,7 @@ async function executeWorkflowCoreImpl(
     runFromBlock,
   } = options
   loggingSession.setExecutionDeadlineAt(getExecutionDeadlineAt(abortSignal))
-  const { metadata, workflow, input, workflowVariables, selectedOutputs } = snapshot
+  const { metadata, input, workflowVariables, selectedOutputs } = snapshot
   const { requestId, workflowId, userId, triggerType, executionId, triggerBlockId, useDraftState } =
     metadata
   const { onBlockStart, onBlockComplete, onStream, onChildWorkflowInstanceReady } = callbacks
@@ -543,6 +543,7 @@ async function executeWorkflowCoreImpl(
       workspaceDecrypted,
       decryptionFailures,
       personalOwners,
+      workspaceUnredactedKeys,
     } = env
 
     // Use encrypted values for logging (don't log decrypted secrets)
@@ -566,6 +567,7 @@ async function executeWorkflowCoreImpl(
       workspaceDecrypted,
       decryptionFailures,
       personalOwners,
+      workspaceUnredactedKeys,
       restoredProvenance: restoreTrusted ? restoredState?.resolvedSecretTraceProvenance : undefined,
       restoredCheckpointVersion: restoredState?.resolvedSecretTraceCheckpointVersion,
       restoreTrusted,

@@ -36,15 +36,13 @@ export default async function SignupPage({
     )
   }
 
-  const { githubAvailable, googleAvailable, microsoftAvailable, isProduction } =
-    await getOAuthProviderStatus()
+  const { githubAvailable, googleAvailable, microsoftAvailable } = await getOAuthProviderStatus()
 
   return (
     <SignupForm
       githubAvailable={githubAvailable}
       googleAvailable={googleAvailable}
       microsoftAvailable={microsoftAvailable}
-      isProduction={isProduction}
       emailSignupEnabled={!isEmailSignupDisabled}
       emailVerificationEnabled={isEmailVerificationEffectivelyEnabled()}
     />

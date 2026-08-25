@@ -12,6 +12,7 @@ interface WorkflowPreviewSubflowData {
   width?: number
   height?: number
   kind: 'loop' | 'parallel'
+  parentId?: string
   /** Whether this subflow is enabled */
   enabled?: boolean
   /** Whether this subflow is selected in preview mode */

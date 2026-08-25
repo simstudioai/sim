@@ -174,6 +174,7 @@ export function useUpdateWorkspaceCredential() {
         ...(variables.description !== undefined
           ? { description: variables.description ?? null }
           : {}),
+        ...(variables.unredacted !== undefined ? { unredacted: variables.unredacted } : {}),
       })
 
       /*

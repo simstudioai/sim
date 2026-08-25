@@ -83,6 +83,7 @@ const secret = {
   updatedAt: new Date('2026-01-02T00:00:00Z'),
   hasServiceAccountKey: false,
   role: 'admin' as const,
+  unredacted: false,
 }
 const context = { params: Promise.resolve({ name: SECRET_NAME }) }
 

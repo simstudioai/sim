@@ -192,7 +192,7 @@ async function readKnowledgeBaseRows(
       deletedAt: knowledgeBase.deletedAt,
       workspaceId: knowledgeBase.workspaceId,
       folderId: knowledgeBase.folderId,
-      docCount: count(document.id),
+      docCount: count(document.knowledgeBaseId),
     })
     .from(knowledgeBase)
     .leftJoin(
@@ -882,7 +882,7 @@ export async function updateKnowledgeBase(
       deletedAt: knowledgeBase.deletedAt,
       workspaceId: knowledgeBase.workspaceId,
       folderId: knowledgeBase.folderId,
-      docCount: count(document.id),
+      docCount: count(document.knowledgeBaseId),
     })
     .from(knowledgeBase)
     .leftJoin(
@@ -941,7 +941,7 @@ export async function getKnowledgeBaseById(
       deletedAt: knowledgeBase.deletedAt,
       workspaceId: knowledgeBase.workspaceId,
       folderId: knowledgeBase.folderId,
-      docCount: count(document.id),
+      docCount: count(document.knowledgeBaseId),
     })
     .from(knowledgeBase)
     .leftJoin(

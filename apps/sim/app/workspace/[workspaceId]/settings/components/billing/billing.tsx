@@ -46,6 +46,7 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
 import { CreditUsageSection } from '@/app/workspace/[workspaceId]/settings/components/billing/components/credit-usage-section/credit-usage-section'
 import { UsageLimitField } from '@/app/workspace/[workspaceId]/settings/components/billing/components/usage-limit-field/usage-limit-field'
 import { getSubscriptionPermissions } from '@/app/workspace/[workspaceId]/settings/components/billing/subscription-permissions'
+import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { RESOURCE_ROW_ARROW_CLASSES } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
@@ -103,20 +104,15 @@ interface BillingProps {
   scope: 'account' | 'organization'
   organizationId?: string
   creditUsageHref?: string
-  governingWorkspaceName?: string
 }
 
-export function Billing({
-  scope,
-  organizationId,
-  creditUsageHref,
-  governingWorkspaceName,
-}: BillingProps) {
+export function Billing({ scope, organizationId, creditUsageHref }: BillingProps) {
   const router = useRouter()
   const isOrganizationScope = scope === 'organization'
 
   const {
     data: subscriptionData,
+    error: subscriptionError,
     isLoading: isSubscriptionLoading,
     refetch: refetchSubscription,
   } = useSubscriptionData({
@@ -127,6 +123,7 @@ export function Billing({
 
   const {
     data: organizationBillingData,
+    error: organizationBillingError,
     isLoading: isOrgBillingLoading,
     refetch: refetchOrganizationBilling,
   } = useOrganizationBilling(billingOrganizationId || '', { enabled: isOrganizationScope })
@@ -157,6 +154,7 @@ export function Billing({
     ? (organizationBilling?.subscriptionStatus ?? 'inactive')
     : (subscriptionData?.data?.status ?? 'inactive')
   const isLoading = isOrganizationScope ? isOrgBillingLoading : isSubscriptionLoading
+  const billingError = isOrganizationScope ? organizationBillingError : subscriptionError
 
   const subscription = {
     isFree: isFree(plan),
@@ -403,7 +401,15 @@ export function Billing({
   }
 
   if (isLoading) return null
-  if (isOrganizationScope ? !organizationBilling : !subscriptionData?.data) return null
+  if (isOrganizationScope ? !organizationBilling : !subscriptionData?.data) {
+    return (
+      <SettingsPanel>
+        <SettingsEmptyState tone='error'>
+          {getErrorMessage(billingError, 'Failed to load billing information')}
+        </SettingsEmptyState>
+      </SettingsPanel>
+    )
+  }
 
   const planName = getDisplayPlanName(subscription.plan)
   const billingInterval = isOrganizationScope
@@ -458,16 +464,9 @@ export function Billing({
   const explorePlansLabel = isOrganizationScope
     ? 'Explore organization plans'
     : 'Explore personal plans'
-  const subscriptionOwner = isOrganizationScope
-    ? `${organizationBilling?.organizationName ?? 'The organization'}’s subscription`
-    : 'Your personal subscription'
-  const settingsDescription =
-    governingWorkspaceName && subscription.isPaid
-      ? `${subscriptionOwner} governs ${governingWorkspaceName}.`
-      : undefined
 
   return (
-    <SettingsPanel description={settingsDescription}>
+    <SettingsPanel>
       <div className='flex items-center justify-between gap-3'>
         <div className='flex items-center gap-2.5'>
           <div className='size-9 flex-shrink-0'>

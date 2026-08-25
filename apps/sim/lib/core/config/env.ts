@@ -345,6 +345,9 @@ export const env = createEnv({
     SCHEDULE_INFRA_RETRY_BASE_MS:          z.string().optional().default('60000'),
     SCHEDULE_INFRA_RETRY_MAX_MS:           z.string().optional().default('300000'),
     SCHEDULE_INFRA_RETRY_MAX_ATTEMPTS:     z.string().optional().default('10'),
+    WEBHOOK_INFRA_RETRY_BASE_MS:           z.string().optional().default('30000'),
+    WEBHOOK_INFRA_RETRY_MAX_MS:            z.string().optional().default('300000'),
+    WEBHOOK_INFRA_RETRY_MAX_ATTEMPTS:      z.string().optional().default('5'),
 
     // Cloud Storage - AWS S3
     AWS_REGION:                            z.string().optional(),                  // AWS region for S3 buckets
