@@ -12,6 +12,7 @@ import {
   isPublicApiDisabled,
 } from '@/lib/core/config/env-flags'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
+import { intersectIntegrationAllowlists } from '@/lib/permission-groups/integration-allowlist'
 import {
   DEFAULT_PERMISSION_GROUP_CONFIG,
   type PermissionGroupConfig,
@@ -108,29 +109,22 @@ export class ChatDeployAuthNotAllowedError extends Error {
 
 /**
  * Merges the env allowlist into a permission config.
- * If `config` is null and no env allowlist is set, returns null.
- * If `config` is null but env allowlist is set, returns a default config with only allowedIntegrations set.
- * If both are set, intersects the two allowlists.
+ *
+ * Returns null only when neither layer restricts anything. Otherwise the group's
+ * own allowlist is intersected with the env one by
+ * {@link intersectIntegrationAllowlists}, which case-folds both sides — callers
+ * compare against a lowercased block type, and a stored config reaches here
+ * straight off the wire, where the contract permits any casing.
  */
 function mergeEnvAllowlist(config: PermissionGroupConfig | null): PermissionGroupConfig | null {
   const envAllowlist = getAllowedIntegrationsFromEnv()
+  if (config === null && envAllowlist === null) return null
 
-  if (envAllowlist === null) {
-    return config
+  const base = config ?? DEFAULT_PERMISSION_GROUP_CONFIG
+  return {
+    ...base,
+    allowedIntegrations: intersectIntegrationAllowlists(base.allowedIntegrations, envAllowlist),
   }
-
-  if (config === null) {
-    return { ...DEFAULT_PERMISSION_GROUP_CONFIG, allowedIntegrations: envAllowlist }
-  }
-
-  const merged =
-    config.allowedIntegrations === null
-      ? envAllowlist
-      : config.allowedIntegrations
-          .map((i) => i.toLowerCase())
-          .filter((i) => envAllowlist.includes(i))
-
-  return { ...config, allowedIntegrations: merged }
 }
 
 /**

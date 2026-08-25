@@ -3,13 +3,14 @@ import { folder as folderTable, workflow as workflowTable } from '@sim/db/schema
 import { createLogger } from '@sim/logger'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/platform-authz/workflow'
 import { generateId } from '@sim/utils/id'
-import { and, asc, eq, inArray, isNull, min, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { materializeInlineExecutionValue } from '@/lib/execution/payloads/inline-materialization.server'
 import type { ExecutionMaterializationContext } from '@/lib/execution/payloads/materialization.server'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
+import { nextWorkflowSortOrder } from '@/lib/workflows/sort-order'
 import { listAccessibleWorkspaceRowsForUser } from '@/lib/workspaces/utils'
 import type { ExecutionResult } from '@/executor/types'
 
@@ -396,45 +397,7 @@ export async function createWorkflowRecord(params: CreateWorkflowInput) {
     )
   }
 
-  const workflowParentCondition = folderId
-    ? eq(workflowTable.folderId, folderId)
-    : isNull(workflowTable.folderId)
-  const folderParentCondition = folderId
-    ? eq(folderTable.parentId, folderId)
-    : isNull(folderTable.parentId)
-
-  const [[workflowMinResult], [folderMinResult]] = await Promise.all([
-    db
-      .select({ minOrder: min(workflowTable.sortOrder) })
-      .from(workflowTable)
-      .where(
-        and(
-          eq(workflowTable.workspaceId, workspaceId),
-          workflowParentCondition,
-          isNull(workflowTable.archivedAt)
-        )
-      ),
-    db
-      .select({ minOrder: min(folderTable.sortOrder) })
-      .from(folderTable)
-      .where(
-        and(
-          eq(folderTable.workspaceId, workspaceId),
-          eq(folderTable.resourceType, 'workflow'),
-          folderParentCondition
-        )
-      ),
-  ])
-
-  const minSortOrder = [workflowMinResult?.minOrder, folderMinResult?.minOrder].reduce<
-    number | null
-  >((currentMin, candidate) => {
-    if (candidate == null) return currentMin
-    if (currentMin == null) return candidate
-    return Math.min(currentMin, candidate)
-  }, null)
-
-  const sortOrder = minSortOrder != null ? minSortOrder - 1 : 0
+  const sortOrder = await nextWorkflowSortOrder(workspaceId, folderId)
 
   await db.insert(workflowTable).values({
     id: workflowId,
