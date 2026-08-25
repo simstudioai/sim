@@ -104,7 +104,6 @@ function chatResponse(
 function makeTool(id: string): ProviderToolConfig {
   return {
     id,
-    name: id,
     description: '',
     params: {},
     parameters: { type: 'object', properties: {}, required: [] },

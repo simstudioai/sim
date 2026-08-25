@@ -16,6 +16,7 @@ import type { PiToolResult, PiToolSpec } from '@/executor/handlers/pi/core/backe
 import type { ExecutionContext } from '@/executor/types'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import { annotateDuplicateToolBindings } from '@/executor/utils/tool-binding-labels'
 import { assignProviderToolIdentities } from '@/providers/tool-identity'
 import type { ProviderToolConfig } from '@/providers/types'
 import { transformBlockTool } from '@/providers/utils'
@@ -231,7 +232,9 @@ export async function buildSimToolSpecs(
     }
   }
 
-  assignProviderToolIdentities(configuredTools.map(({ provider }) => provider))
+  const providers = configuredTools.map(({ provider }) => provider)
+  await annotateDuplicateToolBindings(ctx, providers)
+  assignProviderToolIdentities(providers)
   return configuredTools.map(({ provider, toolIndex }) =>
     buildSimToolSpec(ctx, inputTools, provider, toolIndex)
   )

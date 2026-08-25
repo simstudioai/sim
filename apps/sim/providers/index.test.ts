@@ -103,7 +103,6 @@ function makeAnthropicResponse(): ProviderResponse {
 function makeProviderTool(id: string, credential: string): ProviderToolConfig {
   return {
     id,
-    name: id,
     description: id,
     params: { oauthCredential: credential },
     parameters: { type: 'object', properties: {}, required: [] },

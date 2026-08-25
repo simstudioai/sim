@@ -68,6 +68,7 @@ import type {
   ResolvedSecretInputPath,
   ResolvedSecretTraceRegistry,
 } from '@/executor/utils/resolved-secret-trace-registry'
+import { annotateDuplicateToolBindings } from '@/executor/utils/tool-binding-labels'
 import { resolveVertexCredential } from '@/executor/utils/vertex-credential'
 import { executeProviderRequest } from '@/providers'
 import {
@@ -804,12 +805,11 @@ export class AgentBlockHandler implements BlockHandler {
     )
 
     const allTools = [...otherResults, ...mcpResults]
-    return {
-      tools: allTools.filter(
-        (tool): tool is ProviderToolConfig => tool !== null && tool !== undefined
-      ),
-      inputProvenance,
-    }
+    const tools = allTools.filter(
+      (tool): tool is ProviderToolConfig => tool !== null && tool !== undefined
+    )
+    await annotateDuplicateToolBindings(ctx, tools)
+    return { tools, inputProvenance }
   }
 
   private assertInputPathsDoNotResolveSecrets(
@@ -965,7 +965,6 @@ export class AgentBlockHandler implements BlockHandler {
     const toolId = `${AGENT.CUSTOM_TOOL_PREFIX}${title}`
     const base: any = {
       id: toolId,
-      name: schema.function.name,
       description: projectedDescription || '',
       params: userProvidedParams,
       parameters: {
@@ -1377,7 +1376,6 @@ export class AgentBlockHandler implements BlockHandler {
 
     return {
       id: toolId,
-      name: config.toolName,
       description: config.description,
       parameters: filteredSchema,
       params: config.userProvidedParams,
