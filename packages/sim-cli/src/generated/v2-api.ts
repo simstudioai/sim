@@ -3822,6 +3822,7 @@ type GetKnowledgeConnectorResponseRef0 = {
   docsUpdated: number
   docsDeleted: number
   docsUnchanged: number
+  docsSkipped: number
   docsFailed: number
   errorMessage: string | null
 }

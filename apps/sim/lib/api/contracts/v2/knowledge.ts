@@ -1595,6 +1595,12 @@ export const v2KnowledgeConnectorSyncLogSchema = z
     docsUpdated: z.number().int().nonnegative().describe('Documents updated.'),
     docsDeleted: z.number().int().nonnegative().describe('Documents deleted.'),
     docsUnchanged: z.number().int().nonnegative().describe('Documents unchanged.'),
+    docsSkipped: z
+      .number()
+      .int()
+      .nonnegative()
+      .default(0)
+      .describe('Documents intentionally skipped because they could not be indexed safely.'),
     docsFailed: z.number().int().nonnegative().describe('Documents that failed to synchronize.'),
     errorMessage: z.string().nullable().describe('Synchronization error, or null.'),
   })

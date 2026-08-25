@@ -1,5 +1,8 @@
 import { getErrorMessage } from '@sim/utils/errors'
+import { FileParserError } from '@/lib/file-parsers/errors'
 import type { FileParseResult } from '@/lib/file-parsers/types'
+
+const MAX_JSON_DEPTH = 500
 
 /**
  * Parse JSON files
@@ -29,7 +32,15 @@ export async function parseJSON(filePath: string): Promise<FileParseResult> {
       metadata,
     }
   } catch (error) {
-    throw new Error(`Invalid JSON: ${getErrorMessage(error, 'Unknown error')}`)
+    if (error instanceof FileParserError) throw error
+    if (!(error instanceof SyntaxError)) {
+      throw new FileParserError('runtime_failure', 'JSON processing failed unexpectedly', error)
+    }
+    throw new FileParserError(
+      'invalid_format',
+      `Invalid JSON: ${getErrorMessage(error, 'Unknown error')}`,
+      error
+    )
   }
 }
 
@@ -56,7 +67,15 @@ export async function parseJSONBuffer(buffer: Buffer): Promise<FileParseResult> 
       metadata,
     }
   } catch (error) {
-    throw new Error(`Invalid JSON: ${getErrorMessage(error, 'Unknown error')}`)
+    if (error instanceof FileParserError) throw error
+    if (!(error instanceof SyntaxError)) {
+      throw new FileParserError('runtime_failure', 'JSON processing failed unexpectedly', error)
+    }
+    throw new FileParserError(
+      'invalid_format',
+      `Invalid JSON: ${getErrorMessage(error, 'Unknown error')}`,
+      error
+    )
   }
 }
 
@@ -84,8 +103,12 @@ function parseJSONLContent(content: string): FileParseResult {
   for (const line of lines) {
     try {
       items.push(JSON.parse(line))
-    } catch {
-      throw new Error(`Invalid JSONL: failed to parse line: ${line.slice(0, 100)}`)
+    } catch (error) {
+      throw new FileParserError(
+        'invalid_format',
+        `Invalid JSONL: failed to parse line: ${line.slice(0, 100)}`,
+        error
+      )
     }
   }
 
@@ -106,13 +129,19 @@ function parseJSONLContent(content: string): FileParseResult {
 /**
  * Calculate the depth of a JSON object
  */
-function getJsonDepth(obj: any): number {
-  if (obj === null || typeof obj !== 'object') return 0
-
-  if (Array.isArray(obj)) {
-    return obj.length > 0 ? 1 + Math.max(...obj.map(getJsonDepth)) : 1
+function getJsonDepth(value: unknown, depth = 0): number {
+  if (value === null || typeof value !== 'object') return depth
+  if (depth >= MAX_JSON_DEPTH) {
+    throw new FileParserError(
+      'complexity_limit',
+      `JSON document exceeds the maximum nesting depth of ${MAX_JSON_DEPTH}`
+    )
   }
 
-  const depths = Object.values(obj).map(getJsonDepth)
-  return depths.length > 0 ? 1 + Math.max(...depths) : 1
+  let maxDepth = depth + 1
+  const children = Array.isArray(value) ? value : Object.values(value as Record<string, unknown>)
+  for (const child of children) {
+    maxDepth = Math.max(maxDepth, getJsonDepth(child, depth + 1))
+  }
+  return maxDepth
 }

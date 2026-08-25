@@ -4,6 +4,7 @@ import {
   isSensitiveKey,
   REDACTED_MARKER,
   redactApiKeys,
+  redactExactSensitiveValues,
   redactSensitiveValues,
   sanitizeEventData,
   sanitizeForLogging,
@@ -176,6 +177,110 @@ describe('redactSensitiveValues', () => {
     const result = redactSensitiveValues(input)
     expect(result).toContain('[REDACTED]')
     expect(result).not.toContain('key123456')
+  })
+
+  it.concurrent('should redact form and percent-encoded OAuth credentials', () => {
+    const input =
+      'refresh_token=secret-one&client_secret=secret-two&oauth_token=secret-three&client_password=secret-four oauth_token%3Dsecret-five%26client_password%3Dsecret-six%26scope%3Dx'
+    const result = redactSensitiveValues(input)
+
+    expect(result).not.toContain('secret-one')
+    expect(result).not.toContain('secret-two')
+    expect(result).not.toContain('secret-three')
+    expect(result).not.toContain('secret-four')
+    expect(result).not.toContain('secret-five')
+    expect(result).not.toContain('secret-six')
+    expect(result).toContain('refresh_token=[REDACTED]')
+    expect(result).toContain('oauth_token%3D[REDACTED]')
+    expect(result).toContain('scope%3Dx')
+  })
+
+  it.concurrent('uses the canonical sensitive-key policy for form fields', () => {
+    const keys = ['authorization', 'auth', 'bearer', 'private_key', 'passphrase']
+    const input = keys
+      .flatMap((key, index) => [`${key}=plain-secret-${index}`, `${key}%3Dencoded-secret-${index}`])
+      .join('&')
+    const result = redactSensitiveValues(input)
+
+    for (let index = 0; index < keys.length; index++) {
+      expect(result).not.toContain(`plain-secret-${index}`)
+      expect(result).not.toContain(`encoded-secret-${index}`)
+    }
+  })
+
+  it.concurrent('redacts sensitive raw fields nested inside a non-sensitive URL value', () => {
+    const input = 'redirect_uri=https://example.com/callback?access_token=raw-secret&scope=openid'
+
+    expect(redactSensitiveValues(input)).toBe(
+      'redirect_uri=https://example.com/callback?access_token=[REDACTED]&scope=openid'
+    )
+  })
+
+  it.concurrent('redacts a raw sensitive value containing an encoded ampersand in full', () => {
+    const input = 'access_token=prefix%26secret-tail&scope=openid'
+
+    expect(redactSensitiveValues(input)).toBe('access_token=[REDACTED]&scope=openid')
+  })
+
+  it.concurrent(
+    'redacts sensitive percent-encoded fields nested inside a non-sensitive URL value',
+    () => {
+      const input =
+        'redirect_uri%3Dhttps%3A%2F%2Fexample.com%2Fcallback%3Faccess_token%3Dencoded-secret%26scope%3Dopenid'
+
+      expect(redactSensitiveValues(input)).toBe(
+        'redirect_uri%3Dhttps%3A%2F%2Fexample.com%2Fcallback%3Faccess_token%3D[REDACTED]%26scope%3Dopenid'
+      )
+    }
+  )
+
+  it.concurrent('preserves non-secret pagination tokens in form-encoded strings', () => {
+    const input =
+      'nextPageToken=page-one nextPageToken%3Dpage-two nextpagetoken=page-three NEXTPAGETOKEN%3Dpage-four'
+
+    expect(redactSensitiveValues(input)).toBe(input)
+  })
+
+  it.concurrent('should redact exact secrets echoed in free-form text', () => {
+    const result = redactExactSensitiveValues(
+      'provider echoed s3cr%2Ft, s3cr%2ft, space+secret, and plain s3cr/t',
+      ['s3cr/t', 'space secret']
+    )
+
+    expect(result).not.toContain('s3cr/t')
+    expect(result).not.toContain('s3cr%2Ft')
+    expect(result).not.toContain('s3cr%2ft')
+    expect(result).not.toContain('space+secret')
+  })
+
+  it.concurrent('redacts overlapping secrets longest-first', () => {
+    const result = redactExactSensitiveValues('provider echoed abcSECRET', ['abc', 'abcSECRET'])
+
+    expect(result).toBe('provider echoed [REDACTED]')
+    expect(result).not.toContain('SECRET')
+  })
+
+  it.concurrent('redacts mixed-case percent escapes', () => {
+    const result = redactExactSensitiveValues('provider echoed %2f%3A', ['/:'])
+
+    expect(result).toBe('provider echoed [REDACTED]')
+  })
+
+  it.concurrent(
+    'redacts exact secrets containing raw form delimiters before parsing fields',
+    () => {
+      const secret = 'prefix&secret-tail'
+
+      expect(redactExactSensitiveValues(`echo access_token=${secret}`, [secret])).toBe(
+        'echo access_token=[REDACTED]'
+      )
+    }
+  )
+
+  it.concurrent('redacts exact secrets containing whitespace before generic auth parsing', () => {
+    const secret = 'password with spaces'
+
+    expect(redactExactSensitiveValues(`Basic ${secret}`, [secret])).toBe('Basic [REDACTED]')
   })
 
   it.concurrent('should not modify safe strings', () => {

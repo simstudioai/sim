@@ -2136,6 +2136,13 @@
       "when": 1787687900983,
       "tag": "0305_add_subscription_last_closed_period_start",
       "breakpoints": true
+    },
+    {
+      "idx": 306,
+      "version": "7",
+      "when": 1787702824793,
+      "tag": "0306_knowledge_pipeline_hardening",
+      "breakpoints": true
     }
   ]
 }

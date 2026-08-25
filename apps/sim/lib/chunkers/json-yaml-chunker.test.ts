@@ -269,6 +269,17 @@ server:
 
       expect(chunks.length).toBeGreaterThan(0)
     })
+
+    it('should fall back to bounded text chunking when YAML traversal fails', async () => {
+      const chunker = new JsonYamlChunker({ chunkSize: 1000, minCharactersPerChunk: 1 })
+      const cyclicYaml = ['root: &root', '  value: readable', '  self: *root'].join('\n')
+
+      const chunks = await chunker.chunk(cyclicYaml)
+
+      expect(chunks).toHaveLength(1)
+      expect(chunks[0].text).toContain('&root')
+      expect(chunks[0].text).toContain('readable')
+    })
   })
 
   describe('large inputs', () => {
@@ -293,6 +304,32 @@ server:
       const chunks = await chunker.chunk(json)
 
       expect(chunks.length).toBeGreaterThan(1)
+      expect(chunks.every((chunk) => chunk.tokenCount <= 100)).toBe(true)
+    })
+
+    it('splits a long single-line scalar to the configured chunk size', async () => {
+      const chunker = new JsonYamlChunker({ chunkSize: 1024, minCharactersPerChunk: 1 })
+      const json = JSON.stringify({ value: `START-${'x'.repeat(32_755)}-END` })
+
+      const chunks = await chunker.chunk(json)
+
+      expect(chunks.length).toBeGreaterThan(1)
+      expect(chunks.every((chunk) => chunk.tokenCount <= 1024)).toBe(true)
+      expect(chunks.some((chunk) => chunk.text.includes('START-'))).toBe(true)
+      expect(chunks.some((chunk) => chunk.text.includes('-END'))).toBe(true)
+    })
+
+    it('splits a long scalar nested beyond the structured traversal depth', async () => {
+      const chunker = new JsonYamlChunker({ chunkSize: 1024, minCharactersPerChunk: 1 })
+      let nested: unknown = `START-${'x'.repeat(40_000)}-END`
+      for (let depth = 0; depth < 6; depth++) nested = [nested]
+
+      const chunks = await chunker.chunk(JSON.stringify(nested))
+
+      expect(chunks.length).toBeGreaterThan(1)
+      expect(chunks.every((chunk) => chunk.tokenCount <= 1024)).toBe(true)
+      expect(chunks.some((chunk) => chunk.text.includes('START-'))).toBe(true)
+      expect(chunks.some((chunk) => chunk.text.includes('-END'))).toBe(true)
     })
 
     it.concurrent('should handle deeply nested structure up to depth limit', async () => {
