@@ -5,8 +5,10 @@ import { randomFloat } from '@sim/utils/random'
 import { parseRetryAfter } from '@sim/utils/retry'
 import { truncate } from '@sim/utils/string'
 import {
+  collectSensitiveHeaderValues,
+  isSensitiveKey,
+  REDACTED_MARKER,
   redactApiKeys,
-  redactExactSensitiveValues,
   redactKnownSensitiveValues,
   redactSensitiveValues,
 } from '@/lib/core/security/redaction'
@@ -56,12 +58,21 @@ export interface RetryOptions {
 }
 
 const MAX_HTTP_ERROR_DIAGNOSTIC_CHARS = 2000
+const MAX_PERCENT_DECODE_PASSES = 8
 const STRUCTURED_ERROR_SANITIZATION_FAILURE =
   '[response body omitted: unable to safely sanitize structured error]'
+const UNTRUSTED_REDACTION_MARKER_SENTINEL = '\u0000SIM_UNTRUSTED_REDACTION_MARKER\u0000'
+const DOUBLE_QUOTED_STRUCTURED_KEY_PATTERN = /"((?:\\[\s\S]|[^"\\])*)"\s*[:=]/g
+const SINGLE_QUOTED_STRUCTURED_KEY_PATTERN = /'((?:\\[\s\S]|[^'\\])*)'\s*[:=]/g
+const UNQUOTED_STRUCTURED_KEY_PATTERN =
+  /(?:^|[^-A-Za-z0-9_\\])((?:[A-Za-z0-9_-]|\\(?:u\{[0-9A-Fa-f]{1,6}\}|\r\n|[\s\S]))+)\s*[:=]/g
+const STRUCTURED_CONTINUATION_PATTERN =
+  /^(?:"(?:\\[\s\S]|[^"\\])*"|'(?:\\[\s\S]|[^'\\])*'|(?:[A-Za-z0-9_-]|\\(?:u\{[0-9A-Fa-f]{1,6}\}|\r\n|[\s\S]))+)\s*[:=]/
 
 function redactHttpErrorJsonStrings(value: unknown, sensitiveValues: string[]): unknown {
   if (typeof value === 'string') {
-    return redactExactSensitiveValues(value, sensitiveValues)
+    const sanitized = sanitizeDiagnosticText(value, sensitiveValues)
+    return sanitized.unsafe ? STRUCTURED_ERROR_SANITIZATION_FAILURE : sanitized.value
   }
   if (Array.isArray(value)) {
     return value.map((item) => redactHttpErrorJsonStrings(item, sensitiveValues))
@@ -77,6 +88,189 @@ function redactHttpErrorJsonStrings(value: unknown, sensitiveValues: string[]): 
   return value
 }
 
+function hasSafeRedactedRemainder(value: string): boolean {
+  let remaining = value.replace(/^[\t\f\v ]+/, '')
+  while (/^[}\]]/.test(remaining)) {
+    remaining = remaining.slice(1).replace(/^[\t\f\v ]+/, '')
+  }
+  if (remaining === '') return true
+
+  if (/^[,;&]/.test(remaining)) {
+    remaining = remaining.slice(1).replace(/^[\t\f\v ]+/, '')
+  } else if (/^(?:\r\n|[\r\n])/.test(remaining)) {
+    remaining = remaining.replace(/^(?:(?:\r\n|[\r\n])[\t\f\v ]*)+/, '')
+  } else {
+    return false
+  }
+
+  while (/^[}\]]/.test(remaining)) {
+    remaining = remaining.slice(1).replace(/^[\t\f\v ]+/, '')
+  }
+  return remaining === '' || STRUCTURED_CONTINUATION_PATTERN.test(remaining)
+}
+
+function isSafelyRedactedAssignment(value: string, valueStart: number): boolean {
+  let remaining = value.slice(valueStart).trimStart()
+  const quote = remaining[0] === '"' || remaining[0] === "'" ? remaining[0] : undefined
+  if (quote) remaining = remaining.slice(1).replace(/^[\t\f\v ]+/, '')
+
+  const scheme = /^(?:Bearer|Basic)[\t ]+/i.exec(remaining)
+  if (scheme) remaining = remaining.slice(scheme[0].length)
+  if (!remaining.startsWith(REDACTED_MARKER)) return false
+  remaining = remaining.slice(REDACTED_MARKER.length)
+
+  if (quote) {
+    remaining = remaining.replace(/^[\t\f\v ]+/, '')
+    if (!remaining.startsWith(quote)) return false
+    remaining = remaining.slice(1)
+  }
+
+  return hasSafeRedactedRemainder(remaining)
+}
+
+function decodeEscapedStructuredKey(value: string): string | undefined {
+  if (/\\[0-9]|\\(?:\r\n|[\r\n\u2028\u2029])/.test(value)) return undefined
+  try {
+    return value.replace(
+      /\\(?:u\{([0-9A-Fa-f]{1,6})\}|u([0-9A-Fa-f]{4})|x([0-9A-Fa-f]{2})|([\s\S]))/g,
+      (_match, codePoint: string, codeUnit: string, byte: string, escaped: string) => {
+        if (codePoint) return String.fromCodePoint(Number.parseInt(codePoint, 16))
+        if (codeUnit) return String.fromCharCode(Number.parseInt(codeUnit, 16))
+        if (byte) return String.fromCharCode(Number.parseInt(byte, 16))
+        return escaped
+      }
+    )
+  } catch {
+    return undefined
+  }
+}
+
+function decodePercentEscapePass(value: string): string | undefined {
+  let invalidEncoding = false
+  const decoded = value.replace(/(?:%[0-9A-Fa-f]{2})+/g, (encodedBytes) => {
+    try {
+      return decodeURIComponent(encodedBytes)
+    } catch {
+      invalidEncoding = true
+      return encodedBytes
+    }
+  })
+  return invalidEncoding ? undefined : decoded
+}
+
+function decodePercentEscapes(value: string): string | undefined {
+  let decoded = value
+  for (let pass = 0; pass < MAX_PERCENT_DECODE_PASSES; pass++) {
+    const next = decodePercentEscapePass(decoded)
+    if (next === undefined) return undefined
+    if (next === decoded) return decoded
+    decoded = next
+  }
+
+  const next = decodePercentEscapePass(decoded)
+  return next === decoded ? decoded : undefined
+}
+
+function sanitizeDiagnosticText(
+  value: string,
+  sensitiveValues: string[]
+): { value: string; unsafe: boolean } {
+  if (
+    value.includes(UNTRUSTED_REDACTION_MARKER_SENTINEL) ||
+    sensitiveValues.some((sensitiveValue) =>
+      sensitiveValue.includes(UNTRUSTED_REDACTION_MARKER_SENTINEL)
+    )
+  ) {
+    return { value: STRUCTURED_ERROR_SANITIZATION_FAILURE, unsafe: true }
+  }
+
+  const protectedValue = value.replaceAll(REDACTED_MARKER, UNTRUSTED_REDACTION_MARKER_SENTINEL)
+  const protectedSensitiveValues = sensitiveValues.map((sensitiveValue) =>
+    sensitiveValue.replaceAll(REDACTED_MARKER, UNTRUSTED_REDACTION_MARKER_SENTINEL)
+  )
+  const decodedValue = decodePercentEscapes(value)
+  if (decodedValue === undefined) {
+    return { value: STRUCTURED_ERROR_SANITIZATION_FAILURE, unsafe: true }
+  }
+  const decodedSensitiveValues: string[] = []
+  for (const sensitiveValue of sensitiveValues) {
+    const decodedSensitiveValue = decodePercentEscapes(sensitiveValue)
+    if (decodedSensitiveValue) decodedSensitiveValues.push(decodedSensitiveValue)
+    else if (sensitiveValue) decodedSensitiveValues.push(sensitiveValue)
+  }
+  const untrustedMarkerProbe = decodedValue.replaceAll(
+    REDACTED_MARKER,
+    UNTRUSTED_REDACTION_MARKER_SENTINEL
+  )
+  if (
+    untrustedMarkerProbe.includes(UNTRUSTED_REDACTION_MARKER_SENTINEL) &&
+    containsSensitiveStructuredAssignment(untrustedMarkerProbe)
+  ) {
+    return { value: STRUCTURED_ERROR_SANITIZATION_FAILURE, unsafe: true }
+  }
+  const genericProbe = decodePercentEscapes(redactSensitiveValues(protectedValue))
+  if (genericProbe === undefined || containsSensitiveStructuredAssignment(genericProbe)) {
+    return { value: STRUCTURED_ERROR_SANITIZATION_FAILURE, unsafe: true }
+  }
+  const sanitized = redactSensitiveValues(
+    redactKnownSensitiveValues(protectedValue, protectedSensitiveValues)
+  )
+  const sanitizedProbe = decodePercentEscapes(sanitized)
+  const formDecodedSanitizedProbe = sanitizedProbe?.replaceAll('+', ' ')
+  return {
+    value: sanitized.replaceAll(UNTRUSTED_REDACTION_MARKER_SENTINEL, REDACTED_MARKER),
+    unsafe:
+      sanitizedProbe === undefined ||
+      containsSensitiveStructuredAssignment(sanitizedProbe) ||
+      decodedSensitiveValues.some(
+        (sensitiveValue) =>
+          sanitizedProbe.includes(sensitiveValue) ||
+          formDecodedSanitizedProbe?.includes(sensitiveValue)
+      ),
+  }
+}
+
+function containsSensitiveStructuredAssignment(value: string): boolean {
+  for (const match of value.matchAll(DOUBLE_QUOTED_STRUCTURED_KEY_PATTERN)) {
+    let key: unknown
+    try {
+      key = JSON.parse(`"${match[1]}"`)
+    } catch {
+      return true
+    }
+    if (
+      typeof key === 'string' &&
+      isSensitiveKey(key) &&
+      !isSafelyRedactedAssignment(value, (match.index ?? 0) + match[0].length)
+    ) {
+      return true
+    }
+  }
+
+  for (const match of value.matchAll(SINGLE_QUOTED_STRUCTURED_KEY_PATTERN)) {
+    const key = decodeEscapedStructuredKey(match[1])
+    if (key === undefined) return true
+    if (
+      isSensitiveKey(key) &&
+      !isSafelyRedactedAssignment(value, (match.index ?? 0) + match[0].length)
+    ) {
+      return true
+    }
+  }
+
+  for (const match of value.matchAll(UNQUOTED_STRUCTURED_KEY_PATTERN)) {
+    const key = decodeEscapedStructuredKey(match[1])
+    if (key === undefined) return true
+    if (
+      isSensitiveKey(key) &&
+      !isSafelyRedactedAssignment(value, (match.index ?? 0) + match[0].length)
+    ) {
+      return true
+    }
+  }
+  return false
+}
+
 /** Produces a redacted, bounded diagnostic from an already byte-bounded body. */
 export function sanitizeHttpErrorDiagnostic(
   body: string,
@@ -87,10 +281,11 @@ export function sanitizeHttpErrorDiagnostic(
   try {
     parsed = JSON.parse(body)
   } catch {
-    return truncate(
-      redactSensitiveValues(redactKnownSensitiveValues(body, sensitiveValues)),
-      MAX_HTTP_ERROR_DIAGNOSTIC_CHARS
-    )
+    const sanitizedText = sanitizeDiagnosticText(body, sensitiveValues)
+    if (sanitizedText.unsafe) {
+      return STRUCTURED_ERROR_SANITIZATION_FAILURE
+    }
+    return truncate(sanitizedText.value, MAX_HTTP_ERROR_DIAGNOSTIC_CHARS)
   }
 
   try {
@@ -122,11 +317,11 @@ export async function readBoundedHttpErrorBody(
     return sanitizeHttpErrorDiagnostic(payload.body, options)
   }
 
-  const diagnostic =
-    payload.reason === 'too_large'
-      ? `[response body omitted: exceeded ${DEFAULT_MAX_ERROR_BODY_BYTES} bytes]`
-      : `[response body unavailable: ${payload.message}]`
-  return sanitizeHttpErrorDiagnostic(diagnostic, options)
+  if (payload.reason === 'too_large') {
+    return `[response body omitted: exceeded ${DEFAULT_MAX_ERROR_BODY_BYTES} bytes]`
+  }
+  const safeMessage = sanitizeHttpErrorDiagnostic(payload.message, options)
+  return truncate(`[response body unavailable: ${safeMessage}]`, MAX_HTTP_ERROR_DIAGNOSTIC_CHARS)
 }
 
 export type BoundedHttpErrorPayload =
@@ -154,8 +349,19 @@ export async function readBoundedHttpErrorPayload(response: {
       }),
     }
   } catch (error) {
-    if (isPayloadSizeLimitError(error)) {
+    if (
+      isPayloadSizeLimitError(error) &&
+      error.observedBytes !== undefined &&
+      error.observedBytes > error.maxBytes
+    ) {
       return { ok: false, reason: 'too_large' }
+    }
+    if (isPayloadSizeLimitError(error)) {
+      return {
+        ok: false,
+        reason: 'unavailable',
+        message: 'no readable body or trustworthy Content-Length',
+      }
     }
     return { ok: false, reason: 'unavailable', message: toError(error).message }
   }
@@ -513,11 +719,15 @@ export async function fetchWithRetry(
   options: RequestInit = {},
   retryOptions: RetryOptions = {}
 ): Promise<Response> {
+  const requestCredentialValues = collectSensitiveHeaderValues(options.headers)
+
   return retryWithExponentialBackoff(async () => {
     const response = await fetch(url, options)
 
     if (!response.ok && isRetryableError({ status: response.status, headers: response.headers })) {
-      const errorText = await readBoundedHttpErrorBody(response)
+      const errorText = await readBoundedHttpErrorBody(response, {
+        sensitiveValues: requestCredentialValues,
+      })
       const error: HTTPError = new Error(
         `HTTP ${response.status}: ${response.statusText} - ${errorText}`
       )

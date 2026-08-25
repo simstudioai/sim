@@ -17,6 +17,7 @@ import {
   type HTTPError,
   hasRateLimitEvidence,
   isRetryableError,
+  readBoundedHttpErrorBody,
   readBoundedHttpErrorPayload,
   resolveRetryDelayMs,
   retryWithExponentialBackoff,
@@ -60,6 +61,230 @@ describe('sanitizeHttpErrorDiagnostic', () => {
     expect(diagnostic).toBe('[response body omitted: unable to safely sanitize structured error]')
     expect(diagnostic).not.toContain(secret)
   })
+
+  it.each([
+    '{"message":"client_secret: opaque-client-secret"}',
+    '"authorization: opaque-authorization"',
+    '["api_key: opaque-api-key"]',
+    '{"message":"client_secret: [REDACTED],opaque-client-secret"}',
+    '"authorization: Bearer [REDACTED];opaque-authorization"',
+    '["password: [REDACTED]}opaque-password"]',
+  ])('fails closed for a sensitive assignment inside a valid JSON string: %s', (body) => {
+    const diagnostic = sanitizeHttpErrorDiagnostic(body)
+
+    expect(diagnostic).toContain(
+      '[response body omitted: unable to safely sanitize structured error]'
+    )
+    expect(diagnostic).not.toContain('opaque-')
+  })
+
+  it('preserves a valid JSON string after its Bearer credential is fully redacted', () => {
+    const diagnostic = sanitizeHttpErrorDiagnostic(
+      '{"message":"Authorization: Bearer opaque-authorization"}'
+    )
+
+    expect(JSON.parse(diagnostic)).toEqual({ message: 'Authorization: Bearer [REDACTED]' })
+  })
+
+  it.each([
+    {
+      body: 'client_secret: [REDACTED],opaque-client-secret',
+      sensitiveValues: ['[REDACTED]'],
+    },
+    {
+      body: '{"message":"client_secret: [REDACTED],opaque-client-secret"}',
+      sensitiveValues: ['[REDACTED]'],
+    },
+    {
+      body: 'client_secret: known-header-secret[REDACTED]opaque-client-secret',
+      sensitiveValues: ['client_secret: known-header-secret'],
+    },
+    {
+      body: '{"message":"client_secret: known-header-secretopaque-client-secret"}',
+      sensitiveValues: ['client_secret: known-header-secret'],
+    },
+  ])('fails closed before exact redaction can erase assignment context: $body', (testCase) => {
+    const diagnostic = sanitizeHttpErrorDiagnostic(testCase.body, {
+      sensitiveValues: testCase.sensitiveValues,
+    })
+
+    expect(diagnostic).toContain(
+      '[response body omitted: unable to safely sanitize structured error]'
+    )
+    expect(diagnostic).not.toContain('opaque-')
+  })
+
+  it.each([
+    {
+      body: 'provider echoed opaque%253Acredential',
+      sensitiveValue: 'opaque:credential',
+    },
+    {
+      body: 'provider echoed opaque%252Fcredential',
+      sensitiveValue: 'opaque/credential',
+    },
+    {
+      body: '{"message":"provider echoed opaque%2520credential"}',
+      sensitiveValue: 'opaque credential',
+    },
+    {
+      body: 'provider echoed opaque%252Bcredential',
+      sensitiveValue: 'opaque credential',
+    },
+    {
+      body: 'provider echoed opaque%253A%25C3%25A9',
+      sensitiveValue: 'opaque:é',
+    },
+    {
+      body: '{"message":"provider echoed p%25C3%25A5%253Ass"}',
+      sensitiveValue: 'på:ss',
+    },
+    {
+      body: `provider echoed ${encodeURIComponent(encodeURIComponent('密钥:秘密'))}`,
+      sensitiveValue: '密钥:秘密',
+    },
+  ])('fails closed when nested encoding bypasses exact redaction: $body', (testCase) => {
+    const diagnostic = sanitizeHttpErrorDiagnostic(testCase.body, {
+      sensitiveValues: [testCase.sensitiveValue],
+    })
+
+    expect(diagnostic).toContain(
+      '[response body omitted: unable to safely sanitize structured error]'
+    )
+    expect(diagnostic).not.toContain(testCase.body)
+  })
+
+  it.each(['opaque%FFcredential', 'opaque%C3credential'])(
+    'preserves an unrelated diagnostic for an opaque percent-bearing credential: %s',
+    (sensitiveValue) => {
+      expect(
+        sanitizeHttpErrorDiagnostic('temporarily unavailable', {
+          sensitiveValues: [sensitiveValue],
+        })
+      ).toBe('temporarily unavailable')
+      expect(
+        sanitizeHttpErrorDiagnostic(`provider echoed ${sensitiveValue}`, {
+          sensitiveValues: [sensitiveValue],
+        })
+      ).not.toContain(sensitiveValue)
+    }
+  )
+
+  it.each([
+    '{"authorization":"opaque-authorization",',
+    '[{"nested":{"client_secret":"opaque-client-secret"}}',
+    'provider prefix {"private_key":"opaque-private-key"',
+    'provider prefix client_secret: "opaque-client-secret"',
+    'provider prefix client_secret: opaque-client-secret',
+    'provider prefix;client_secret:"opaque-client-secret"',
+    'provider prefix {"author\\u0069zation":"opaque-authorization"',
+    "provider prefix {'author\\u0069zation':'opaque-authorization'",
+    'provider prefix author\\u0069zation: opaque-authorization',
+    'provider prefix author\\u{69}zation: opaque-authorization',
+    'provider prefix author\\x69zation: opaque-authorization',
+    "provider prefix {'authoriz\\141tion':'opaque-authorization'",
+    "provider prefix {'author\\\nization':'opaque-authorization'",
+    'provider prefix author\\\r\nization: opaque-authorization',
+    'provider prefix author\\\u2028ization: opaque-authorization',
+    "provider prefix {'author\\\u2029ization':'opaque-authorization'",
+  ])('fails closed for malformed structured credentials: %s', (body) => {
+    const diagnostic = sanitizeHttpErrorDiagnostic(body)
+
+    expect(diagnostic).toBe('[response body omitted: unable to safely sanitize structured error]')
+    expect(diagnostic).not.toContain('opaque-')
+  })
+
+  it.each([
+    'client_secret: [REDACTED] opaque-client-secret',
+    'authorization: Bearer [REDACTED] opaque-authorization',
+    'password: "[REDACTED]" opaque-password',
+    'client_secret: "[REDACTED],opaque-client-secret"',
+    "client_secret: '[REDACTED];opaque-client-secret'",
+    'authorization: "Bearer [REDACTED],opaque-authorization"',
+    'client_secret: "[REDACTED]\nopaque-client-secret"',
+    "client_secret: '[REDACTED]\ropaque-client-secret'",
+    'client_secret: [REDACTED]\nopaque-client-secret',
+    'authorization: "Bearer [REDACTED]"\r\nopaque-authorization',
+    'client_secret: [REDACTED],opaque-client-secret',
+    'client_secret: Bearer decoy,opaque-client-secret',
+    'client_secret: Basic Zm9v}opaque-client-secret',
+    'password: "client_secret: [REDACTED]",opaque-client-secret',
+    'api_key=[REDACTED] opaque-client-secret',
+    'api_key%3D%5BREDACTED%5D%26opaque-client-secret',
+    'api_key%3D[REDACTED]%26opaque-client-secret',
+    'api_key%3DBearer%20decoy%26opaque-client-secret',
+    'api%5Fkey%3Dopaque-api-key%26opaque-client-secret',
+    'api_key%253D[REDACTED]%2526opaque-client-secret',
+    'api%255Fkey%253Dopaque-api-key%2526opaque-client-secret',
+    'authorization%253Aopaque-authorization',
+    'client%255Fsecret%253DBearer%2520decoy%2526opaque-client-secret',
+  ])('does not trust a provider-supplied redaction marker prefix: %s', (body) => {
+    const diagnostic = sanitizeHttpErrorDiagnostic(body)
+
+    expect(diagnostic).toBe('[response body omitted: unable to safely sanitize structured error]')
+    expect(diagnostic).not.toContain('opaque-')
+  })
+
+  it.each([
+    'provider(client_secret: opaque-client-secret)',
+    'provider.client_secret: opaque-client-secret',
+    'provider/client_secret: opaque-client-secret',
+  ])('detects a sensitive assignment after punctuation: %s', (body) => {
+    const diagnostic = sanitizeHttpErrorDiagnostic(body)
+
+    expect(diagnostic).toBe('[response body omitted: unable to safely sanitize structured error]')
+    expect(diagnostic).not.toContain('opaque-')
+  })
+
+  it.each([
+    'authorization: Bearer opaque-authorization',
+    'authorization: "Bearer opaque-authorization"',
+    'authorization: Basic dXNlcjpwYXNz; message: retry later',
+    'password: "opaque-password", message: retry later',
+    'authorization: Bearer opaque-authorization\nmessage: retry later',
+    'authorization: "Bearer opaque-authorization"\r\nmessage: retry later',
+    'password: "opaque-password"\nmessage: retry later',
+  ])('preserves a fully redacted sensitive assignment: %s', (body) => {
+    const diagnostic = sanitizeHttpErrorDiagnostic(body)
+
+    expect(diagnostic).toContain('[REDACTED]')
+    expect(diagnostic).not.toContain('opaque-')
+  })
+
+  it('preserves ordinary text while redacting exact and Bearer credentials', () => {
+    const exactSecret = 'opaque-known-credential'
+    const diagnostic = sanitizeHttpErrorDiagnostic(
+      `temporarily unavailable: ${exactSecret}; Authorization: Bearer bearer-secret`,
+      { sensitiveValues: [exactSecret] }
+    )
+
+    expect(diagnostic).toContain('temporarily unavailable')
+    expect(diagnostic).not.toContain(exactSecret)
+    expect(diagnostic).not.toContain('bearer-secret')
+  })
+
+  it('preserves ordinary bracketed text diagnostics', () => {
+    expect(sanitizeHttpErrorDiagnostic('[temporarily unavailable]')).toBe(
+      '[temporarily unavailable]'
+    )
+    expect(sanitizeHttpErrorDiagnostic('[500] temporarily unavailable')).toBe(
+      '[500] temporarily unavailable'
+    )
+    expect(sanitizeHttpErrorDiagnostic('{temporarily unavailable}')).toBe(
+      '{temporarily unavailable}'
+    )
+    expect(sanitizeHttpErrorDiagnostic('status%253Dok')).toBe('status%253Dok')
+  })
+
+  it('fails closed when percent normalization exceeds the bounded depth', () => {
+    let body = 'api_key=[REDACTED]&opaque-client-secret'
+    for (let pass = 0; pass < 10; pass++) body = encodeURIComponent(body)
+
+    const diagnostic = sanitizeHttpErrorDiagnostic(body)
+
+    expect(diagnostic).toBe('[response body omitted: unable to safely sanitize structured error]')
+    expect(diagnostic).not.toContain('opaque-')
+  })
 })
 
 describe('readBoundedHttpErrorPayload', () => {
@@ -78,6 +303,30 @@ describe('readBoundedHttpErrorPayload', () => {
 
     expect(result).toEqual({ ok: false, reason: 'too_large' })
     expect(cancelled).toBe(true)
+  })
+
+  it('classifies a bodyless response without a trustworthy length as unavailable', async () => {
+    const text = vi.fn(async () => 'must not be read without a byte bound')
+
+    const result = await readBoundedHttpErrorPayload({ body: null, text })
+
+    expect(result).toEqual({
+      ok: false,
+      reason: 'unavailable',
+      message: 'no readable body or trustworthy Content-Length',
+    })
+    expect(text).not.toHaveBeenCalled()
+  })
+
+  it('describes a bodyless response as unavailable without reading an unbounded fallback', async () => {
+    const text = vi.fn(async () => 'must not be read without a byte bound')
+
+    const diagnostic = await readBoundedHttpErrorBody({ body: null, text })
+
+    expect(diagnostic).toContain('response body unavailable')
+    expect(diagnostic).not.toContain('response body omitted')
+    expect(diagnostic).not.toContain('exceeded 65536 bytes')
+    expect(text).not.toHaveBeenCalled()
   })
 })
 
@@ -519,6 +768,32 @@ describe('fetchWithRetry rate-limit handling', () => {
     expect(error?.message).not.toContain(secret)
   })
 
+  it.each([
+    ['record', (secret: string): HeadersInit => ({ Authorization: secret })],
+    ['Headers', (secret: string): HeadersInit => new Headers({ 'X-Api-Key': secret })],
+    ['tuples', (secret: string): HeadersInit => [['Authorization', `Bot ${secret}`]]],
+  ])('redacts opaque request credentials from %s headers', async (_shape, buildHeaders) => {
+    const secret = 'opaque-request-credential-that-must-not-escape'
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      new Response(`provider echoed ${secret}`, {
+        status: 503,
+        statusText: 'Service Unavailable',
+      })
+    )
+
+    const error = await fetchWithRetry(
+      'https://api.example.com/resource',
+      { headers: buildHeaders(secret) },
+      { ...FAST_RETRY, maxRetries: 0 }
+    ).then(
+      () => undefined,
+      (caught) => caught as Error
+    )
+
+    expect(error?.message).toContain('[REDACTED]')
+    expect(error?.message).not.toContain(secret)
+  })
+
   it.each(['api_key', 'authorization', 'client_secret', 'credential', 'private_key'])(
     'redacts a long structured %s before truncating the diagnostic',
     async (sensitiveKey) => {
@@ -900,7 +1175,7 @@ describe('secureFetchWithRetry', () => {
     }
   )
 
-  it('redacts both Basic-auth fields using the first colon as the separator', async () => {
+  it('does not expose Basic-auth fields when the password resembles an assignment', async () => {
     const username = 'basic-user-private'
     const password = 'basic-password:with:colons'
     const authorization = `Basic ${Buffer.from(`${username}:${password}`).toString('base64')}`
@@ -917,7 +1192,9 @@ describe('secureFetchWithRetry', () => {
       (caught) => caught as Error
     )
 
-    expect(error?.message).toContain('[REDACTED]')
+    expect(error?.message).toContain(
+      '[response body omitted: unable to safely sanitize structured error]'
+    )
     expect(error?.message).not.toContain(username)
     expect(error?.message).not.toContain(password)
   })

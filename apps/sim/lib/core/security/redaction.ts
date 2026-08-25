@@ -8,6 +8,7 @@ export const REDACTED_MARKER = '[REDACTED]'
 export const TRUNCATED_MARKER = '[TRUNCATED]'
 
 const BYPASS_REDACTION_KEYS = new Set(['nextpagetoken'])
+const SENSITIVE_REQUEST_HEADER_NAMES = new Set(['cookie', 'proxy-authorization'])
 
 /** Keys that contain large binary/encoded data that should be truncated in logs */
 const LARGE_DATA_KEYS = new Set(['base64'])
@@ -87,6 +88,132 @@ export function isSensitiveKey(key: string): boolean {
   const lowerKey = key.toLowerCase()
   if (BYPASS_REDACTION_KEYS.has(lowerKey)) return false
   return SENSITIVE_KEY_PATTERNS.some((pattern) => pattern.test(lowerKey))
+}
+
+function addSensitiveValue(values: Set<string>, value: string): void {
+  if (value) values.add(value)
+}
+
+function decodeBasicCredential(value: string): string | undefined {
+  try {
+    const binary = atob(value)
+    const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0))
+    return new TextDecoder().decode(bytes)
+  } catch {
+    return undefined
+  }
+}
+
+function collectAssignedCredentialValues(
+  value: string,
+  values: Set<string>,
+  collectAll: boolean
+): void {
+  const assignmentPattern =
+    /(?:^|[\s,;&])([A-Za-z][A-Za-z0-9_-]*)\s*=\s*(?:"((?:\\.|[^"\\])*)"|'((?:\\.|[^'\\])*)'|([^\s,;&]+))/g
+  for (const match of value.matchAll(assignmentPattern)) {
+    if (!collectAll && !isSensitiveKey(match[1])) continue
+    const assignedValue = match[2] ?? match[3] ?? match[4] ?? ''
+    addSensitiveValue(values, assignedValue.replace(/\\([\s\S])/g, '$1'))
+  }
+}
+
+function splitCombinedHeaderValue(value: string): string[] {
+  const parts: string[] = []
+  let start = 0
+  let quoted = false
+  let escaped = false
+
+  for (let index = 0; index < value.length; index++) {
+    const character = value[index]
+    if (escaped) {
+      escaped = false
+      continue
+    }
+    if (quoted && character === '\\') {
+      escaped = true
+      continue
+    }
+    if (character === '"') {
+      quoted = !quoted
+      continue
+    }
+    if (character !== ',' || quoted) continue
+
+    const part = value.slice(start, index).trim()
+    if (part) parts.push(part)
+    start = index + 1
+  }
+
+  const finalPart = value.slice(start).trim()
+  if (finalPart) parts.push(finalPart)
+  return parts
+}
+
+function collectHeaderCredentialParts(
+  value: string,
+  normalizedName: string,
+  values: Set<string>
+): void {
+  addSensitiveValue(values, value)
+  collectAssignedCredentialValues(value, values, normalizedName === 'cookie')
+
+  const schemeSeparator = value.search(/\s/)
+  if (schemeSeparator <= 0) return
+
+  const scheme = value.slice(0, schemeSeparator)
+  const credential = value.slice(schemeSeparator + 1).trim()
+  addSensitiveValue(values, credential)
+  if (!/^(?:Basic|Bearer)$/i.test(scheme)) {
+    collectAssignedCredentialValues(credential, values, true)
+  }
+
+  if (!/^Basic$/i.test(scheme) || !credential) return
+  const decoded = decodeBasicCredential(credential)
+  if (!decoded) return
+
+  addSensitiveValue(values, decoded)
+  const credentialSeparator = decoded.indexOf(':')
+  if (credentialSeparator >= 0) {
+    addSensitiveValue(values, decoded.slice(0, credentialSeparator))
+    addSensitiveValue(values, decoded.slice(credentialSeparator + 1))
+  }
+}
+
+/**
+ * Collects exact request credential values without mutating the caller's
+ * headers. Full values, normalized values, auth-scheme suffixes, Basic-auth
+ * fields, and assignment-style credential components are retained so an
+ * upstream echo can be removed even when it changes the surrounding format.
+ */
+export function collectSensitiveHeaderValues(headers?: HeadersInit): string[] {
+  if (!headers) return []
+
+  const entries: [string, string][] = []
+  if (headers instanceof Headers) {
+    headers.forEach((value, name) => entries.push([name, value]))
+  } else if (Array.isArray(headers)) {
+    entries.push(...headers)
+  } else {
+    entries.push(...Object.entries(headers))
+  }
+
+  const values = new Set<string>()
+  for (const [name, rawValue] of entries) {
+    const normalizedName = name.toLowerCase()
+    if (!isSensitiveKey(name) && !SENSITIVE_REQUEST_HEADER_NAMES.has(normalizedName)) continue
+
+    addSensitiveValue(values, rawValue)
+    const normalizedValue = rawValue.trim()
+    collectHeaderCredentialParts(normalizedValue, normalizedName, values)
+    for (const part of splitCombinedHeaderValue(normalizedValue)) {
+      if (part !== normalizedValue) {
+        collectHeaderCredentialParts(part, normalizedName, values)
+      }
+    }
+  }
+
+  return [...values]
 }
 
 function findFormValueEnd(delimiterPositions: number[], start: number): number {

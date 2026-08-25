@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  collectSensitiveHeaderValues,
   isLargeDataKey,
   isSensitiveKey,
   REDACTED_MARKER,
@@ -134,6 +135,94 @@ describe('isSensitiveKey', () => {
       expect(isSensitiveKey('count')).toBe(false)
       expect(isSensitiveKey('status')).toBe(false)
     })
+  })
+})
+
+describe('collectSensitiveHeaderValues', () => {
+  it('collects full, normalized, and scheme-suffix values without mutating a record', () => {
+    const headers = { Authorization: '  Bot opaque-bot-credential  ', Accept: 'application/json' }
+    const original = { ...headers }
+
+    const values = collectSensitiveHeaderValues(headers)
+
+    expect(values).toEqual(
+      expect.arrayContaining([
+        '  Bot opaque-bot-credential  ',
+        'Bot opaque-bot-credential',
+        'opaque-bot-credential',
+      ])
+    )
+    expect(headers).toEqual(original)
+    expect(values).not.toContain('application/json')
+  })
+
+  it('supports Headers and preserves an opaque API key', () => {
+    const headers = new Headers({ 'X-Api-Key': 'opaque-fathom-credential' })
+
+    expect(collectSensitiveHeaderValues(headers)).toContain('opaque-fathom-credential')
+    expect(headers.get('x-api-key')).toBe('opaque-fathom-credential')
+  })
+
+  it('collects individual credentials from combined duplicate Headers values', () => {
+    const headers = new Headers()
+    headers.append('Authorization', 'opaque-first-credential')
+    headers.append('Authorization', 'opaque-second-credential')
+
+    const values = collectSensitiveHeaderValues(headers)
+
+    expect(headers.get('authorization')).toBe('opaque-first-credential, opaque-second-credential')
+    expect(values).toEqual(
+      expect.arrayContaining(['opaque-first-credential', 'opaque-second-credential'])
+    )
+  })
+
+  it('supports tuple headers and collects cookie and proxy credentials', () => {
+    const headers: [string, string][] = [
+      ['Cookie', 'session=opaque-cookie-credential; theme=dark'],
+      ['Proxy-Authorization', 'Token proxy=opaque-proxy-credential'],
+    ]
+
+    const values = collectSensitiveHeaderValues(headers)
+
+    expect(values).toEqual(
+      expect.arrayContaining(['opaque-cookie-credential', 'opaque-proxy-credential'])
+    )
+    expect(headers).toEqual([
+      ['Cookie', 'session=opaque-cookie-credential; theme=dark'],
+      ['Proxy-Authorization', 'Token proxy=opaque-proxy-credential'],
+    ])
+  })
+
+  it('collects assignment-style credentials from authorization schemes', () => {
+    const values = collectSensitiveHeaderValues({
+      Authorization: 'Token token="opaque-pagerduty-credential", signature=opaque-signature',
+    })
+
+    expect(values).toEqual(
+      expect.arrayContaining(['opaque-pagerduty-credential', 'opaque-signature'])
+    )
+  })
+
+  it('decodes quoted-pair escapes in assignment-style credentials', () => {
+    const decodedSecret = 'opaque"quoted-secret'
+    const values = collectSensitiveHeaderValues({
+      Authorization: 'Token token="opaque\\"quoted-secret"',
+    })
+
+    expect(values).toContain(decodedSecret)
+  })
+
+  it('decodes Basic credentials and splits only on the first colon', () => {
+    const username = 'basic-user-private'
+    const password = 'basic-password:with:colons'
+    const encoded = btoa(`${username}:${password}`)
+
+    const values = collectSensitiveHeaderValues({ Authorization: `Basic ${encoded}` })
+
+    expect(values).toEqual(
+      expect.arrayContaining([encoded, `${username}:${password}`, username, password])
+    )
+    expect(values).not.toContain('=')
   })
 })
 

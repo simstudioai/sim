@@ -3,7 +3,7 @@ import {
   type SecureFetchResponse,
   secureFetchWithValidation,
 } from '@/lib/core/security/input-validation.server'
-import { isSensitiveKey } from '@/lib/core/security/redaction'
+import { collectSensitiveHeaderValues } from '@/lib/core/security/redaction'
 import {
   attachRetryHeaders,
   type HTTPError,
@@ -18,30 +18,6 @@ export interface SecureFetchRetryOptions extends RetryOptions {
   allowHttp?: boolean
   timeout?: number
   maxResponseBytes?: number
-}
-
-function getRequestCredentialValues(options: SecureFetchOptions): string[] {
-  const values: string[] = []
-  for (const [name, value] of Object.entries(options.headers ?? {})) {
-    if (!isSensitiveKey(name)) continue
-    values.push(value)
-
-    const normalizedValue = value.trim()
-    if (normalizedValue !== value) values.push(normalizedValue)
-    const schemeSeparator = normalizedValue.search(/\s/)
-    const credential = schemeSeparator > 0 ? normalizedValue.slice(schemeSeparator + 1).trim() : ''
-    if (credential) values.push(credential)
-
-    if (/^Basic\s+/i.test(normalizedValue) && credential) {
-      const decoded = Buffer.from(credential, 'base64').toString('utf8')
-      values.push(decoded)
-      const credentialSeparator = decoded.indexOf(':')
-      if (credentialSeparator >= 0) {
-        values.push(decoded.slice(0, credentialSeparator), decoded.slice(credentialSeparator + 1))
-      }
-    }
-  }
-  return values
 }
 
 /**
@@ -60,7 +36,7 @@ export async function secureFetchWithRetry(
   retryOptions: SecureFetchRetryOptions = {}
 ): Promise<SecureFetchResponse> {
   const { allowHttp, timeout, maxResponseBytes, ...retry } = retryOptions
-  const requestCredentialValues = getRequestCredentialValues(options)
+  const requestCredentialValues = collectSensitiveHeaderValues(options.headers)
 
   return retryWithExponentialBackoff(async () => {
     const response = await secureFetchWithValidation(
