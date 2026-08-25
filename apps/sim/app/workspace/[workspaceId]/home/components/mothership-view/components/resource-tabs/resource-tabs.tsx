@@ -22,7 +22,6 @@ import {
 import { Columns3, Eye, Pencil } from '@sim/emcn/icons'
 import { sendBrowserPanelAction } from '@/lib/browser-agent/transport'
 import { SIM_RESOURCE_DRAG_TYPE, SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
-import { isEphemeralResource } from '@/lib/copilot/resources/types'
 import { openTerminal } from '@/lib/terminal/transport'
 import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import { useMothershipResources } from '@/app/workspace/[workspaceId]/home/components/mothership-resources-context'
@@ -41,11 +40,6 @@ import { useCustomTools } from '@/hooks/queries/custom-tools'
 import { useFolders } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useMcpServers } from '@/hooks/queries/mcp'
-import {
-  useAddChatResource,
-  useRemoveChatResource,
-  useReorderChatResources,
-} from '@/hooks/queries/mothership-chats'
 import { useSkills } from '@/hooks/queries/skills'
 import { useTablesList } from '@/hooks/queries/tables'
 import { useWorkflows } from '@/hooks/queries/workflows'
@@ -276,10 +270,6 @@ export function ResourceTabs({
     requestResourceTransition,
   } = useMothershipResources()
 
-  const addResource = useAddChatResource(chatId)
-  const removeResource = useRemoveChatResource(chatId)
-  const reorderResources = useReorderChatResources(chatId)
-
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const anchorIdRef = useRef<string | null>(null)
   const prevChatIdRef = useRef(chatId)
@@ -324,19 +314,9 @@ export function ResourceTabs({
 
   const handleAdd = useCallback(
     (resource: MothershipResource) => {
-      requestResourceTransition(() => {
-        // Opening a resource before the first message is sent is allowed: there
-        // is simply no chat to attach it to yet. `onAddResource` queues it and
-        // persists once the chat exists, so only the server call is conditional.
-        // Synthetic result/preview panels are in-memory only either way.
-        if (chatId && !isEphemeralResource(resource)) {
-          addResource.mutate({ chatId, resource })
-        }
-        onAddResource(resource)
-      })
+      requestResourceTransition(() => onAddResource(resource))
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [chatId, onAddResource, requestResourceTransition]
+    [onAddResource, requestResourceTransition]
   )
 
   const handleOpenExisting = useCallback(
@@ -436,21 +416,11 @@ export function ResourceTabs({
         if (anchorIdRef.current && removedIds.has(anchorIdRef.current)) {
           anchorIdRef.current = null
         }
-        // Mirrors `handleAdd`: a resource opened while composing the first prompt
-        // has to be closable before there is a chat to attach it to. Only the
-        // server call is conditional — the local removal above also drops the
-        // queued write, so nothing resurrects it once the chat exists.
-        if (!chatId) return
-        for (const r of targets) {
-          if (isEphemeralResource(r)) continue
-          removeResource.mutate({ chatId, resourceType: r.type, resourceId: r.id })
-        }
       }
       if (targets.some((target) => target.id === activeId)) requestResourceTransition(close)
       else close()
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [activeId, chatId, onRemoveResource, requestResourceTransition, resources, selectedIds]
+    [activeId, onRemoveResource, requestResourceTransition, resources, selectedIds]
   )
 
   const handleTabDragStart = useCallback(
@@ -497,15 +467,8 @@ export function ResourceTabs({
       const [moved] = reordered.splice(fromIndex, 1)
       reordered.splice(targetIndex, 0, moved)
       onReorderResources(reordered)
-      if (chatId) {
-        const persistable = reordered.filter((r) => !isEphemeralResource(r))
-        if (persistable.length > 0) {
-          reorderResources.mutate({ chatId, resources: persistable })
-        }
-      }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [chatId, resources, onReorderResources]
+    [resources, onReorderResources]
   )
 
   const previewToggle =

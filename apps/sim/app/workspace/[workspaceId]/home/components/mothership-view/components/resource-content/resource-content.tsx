@@ -362,6 +362,7 @@ export const ResourceContent = memo(function ResourceContent({
             workspaceId={workspaceId}
             serverId={resource.id}
             onBack={() => onNotFound?.(resource.id)}
+            onDirtyChange={handleDirtyChange}
           />
         </EmbeddedSettingsShell>
       )

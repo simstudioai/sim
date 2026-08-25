@@ -177,9 +177,16 @@ interface MCPProps {
   workspaceId?: string
   serverId?: string
   onBack?: () => void
+  /** Reports edits in the server form to an embedding navigation guard. */
+  onDirtyChange?: (dirty: boolean) => void
 }
 
-export function MCP({ workspaceId: explicitWorkspaceId, serverId, onBack }: MCPProps = {}) {
+export function MCP({
+  workspaceId: explicitWorkspaceId,
+  serverId,
+  onBack,
+  onDirtyChange,
+}: MCPProps = {}) {
   const params = useParams()
   const workspaceId = explicitWorkspaceId ?? (params.workspaceId as string)
   const workspacePermissions = useUserPermissionsContext()
@@ -665,6 +672,7 @@ export function MCP({ workspaceId: explicitWorkspaceId, serverId, onBack }: MCPP
             onOpenChange={(open) => {
               if (!open) setEditingServerId(null)
             }}
+            onDirtyChange={onDirtyChange}
             mode='edit'
             initialData={editInitialData}
             onSubmit={async (config) => {
