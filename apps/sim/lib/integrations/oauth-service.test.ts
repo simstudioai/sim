@@ -32,6 +32,7 @@ const EXPECTED_PROVIDER_BY_SLUG: Record<string, string> = {
   dropbox: 'dropbox',
   gmail: 'google-email',
   'google-ads': 'google-ads',
+  'google-analytics': 'google-analytics',
   'google-bigquery': 'google-bigquery',
   'google-calendar': 'google-calendar',
   'google-contacts': 'google-contacts',

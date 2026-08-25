@@ -148,6 +148,7 @@ export const DOCS_MANIFEST: readonly string[] = [
   'integrations/gong.mdx',
   'integrations/google-service-account.mdx',
   'integrations/google_ads.mdx',
+  'integrations/google_analytics.mdx',
   'integrations/google_appsheet.mdx',
   'integrations/google_bigquery.mdx',
   'integrations/google_books.mdx',

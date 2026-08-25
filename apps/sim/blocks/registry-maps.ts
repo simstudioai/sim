@@ -105,6 +105,7 @@ import { GmailBlock, GmailBlockMeta, GmailV2Block, GmailV2BlockMeta } from '@/bl
 import { GongBlock, GongBlockMeta } from '@/blocks/blocks/gong'
 import { GoogleSearchBlock, GoogleSearchBlockMeta } from '@/blocks/blocks/google'
 import { GoogleAdsBlock, GoogleAdsBlockMeta } from '@/blocks/blocks/google_ads'
+import { GoogleAnalyticsBlock, GoogleAnalyticsBlockMeta } from '@/blocks/blocks/google_analytics'
 import { GoogleAppsheetBlock, GoogleAppsheetBlockMeta } from '@/blocks/blocks/google_appsheet'
 import { GoogleBigQueryBlock, GoogleBigQueryBlockMeta } from '@/blocks/blocks/google_bigquery'
 import { GoogleBooksBlock, GoogleBooksBlockMeta } from '@/blocks/blocks/google_books'
@@ -476,6 +477,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   gmail_v2: GmailV2Block,
   gong: GongBlock,
   google_ads: GoogleAdsBlock,
+  google_analytics: GoogleAnalyticsBlock,
   google_appsheet: GoogleAppsheetBlock,
   google_bigquery: GoogleBigQueryBlock,
   google_books: GoogleBooksBlock,
@@ -807,6 +809,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   gmail_v2: GmailV2BlockMeta,
   gong: GongBlockMeta,
   google_ads: GoogleAdsBlockMeta,
+  google_analytics: GoogleAnalyticsBlockMeta,
   google_appsheet: GoogleAppsheetBlockMeta,
   google_bigquery: GoogleBigQueryBlockMeta,
   google_books: GoogleBooksBlockMeta,

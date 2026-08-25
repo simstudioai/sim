@@ -1373,6 +1373,7 @@ const GOOGLE_OAUTH_SERVICES = new Set([
   'google-calendar',
   'google-contacts',
   'google-ads',
+  'google-analytics',
   'google-bigquery',
   'google-tasks',
   'google-vault',

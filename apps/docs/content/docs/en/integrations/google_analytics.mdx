@@ -1,0 +1,373 @@
+---
+title: Google Analytics
+description: Report on traffic, engagement, and conversions in GA4
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="google_analytics"
+  color="#FFFFFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Google Analytics](https://analytics.google.com) is Google's web and app measurement platform. Google Analytics 4 (GA4) records how people find a site or app, what they do once they arrive, and which of those visits turn into signups, purchases, or other outcomes worth tracking.
+
+GA4 organizes everything into a simple hierarchy. An **account** is the top level, usually one per company. Each account holds one or more **properties** — a property is the thing you actually report on, and it has its own numeric ID (like `123456789`), its own time zone, and its own currency. Each property collects data through one or more **data streams**, one per website or mobile app sending events in.
+
+Reports are built from two kinds of fields:
+
+- **Dimensions** describe *what* — a country, a landing page, a traffic source, a date.
+- **Metrics** measure *how much* — sessions, active users, page views, revenue.
+
+You pick the dimensions and metrics you want and GA4 returns a table crossing them. Not every pair can be combined, which is what the Check Compatibility operation is for.
+
+With this integration, your agents can:
+
+- **Run reports**: Pull any combination of dimensions and metrics over a date range
+- **Watch live traffic**: See what is happening on the site right now, over the last 30 minutes
+- **Pivot data**: Cross-tabulate two or more dimensions in a single table
+- **Discover fields**: List every dimension and metric a property supports, including custom ones
+- **Check compatibility**: Confirm a set of fields can appear together before running the report
+- **Map the account**: List accounts, properties, and data streams to audit tracking coverage
+
+In Sim, the Google Analytics block reads data — it never changes your GA4 configuration. Reports come back as ordinary rows keyed by field name (`{ country: "United States", sessions: "412" }`), so an agent, a Table, or a downstream block can consume them without any unpacking. Pick a property from the dropdown rather than pasting an ID, and switch the field to advanced mode when the ID needs to come from an earlier block.
+
+Common uses include a scheduled weekly traffic digest posted to Slack, an alert when a key landing page loses traffic, joining GA4 conversions with ad spend to compute real ROAS, and a monthly content report ranking pages by engagement.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Connect to Google Analytics 4 to run reports over any dimensions and metrics, watch realtime activity, cross-tabulate with pivot reports, check which fields can be combined, and discover accounts, properties, and data streams.
+
+
+
+## Actions
+
+### Run Google Analytics Report
+
+Run a Google Analytics 4 report over a date range with the chosen dimensions and metrics
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `propertyId` | string | Yes | GA4 property ID \(e.g. 123456789\) |
+| `metrics` | string | Yes | Comma-separated metric API names \(e.g. activeUsers, sessions, screenPageViews\) |
+| `dimensions` | string | No | Comma-separated dimension API names \(e.g. date, country, pagePath\) |
+| `startDate` | string | No | Start date: YYYY-MM-DD, "today", "yesterday", or "NdaysAgo" |
+| `endDate` | string | No | End date: YYYY-MM-DD, "today", "yesterday", or "NdaysAgo" |
+| `dateRanges` | string | No | JSON array of DateRange objects, overriding startDate/endDate \(e.g. \[\{"startDate":"2024-01-01","endDate":"2024-01-31"\}\]\) |
+| `dimensionFilter` | string | No | JSON FilterExpression applied to dimensions |
+| `metricFilter` | string | No | JSON FilterExpression applied to metrics after aggregation |
+| `orderBys` | string | No | JSON array of OrderBy objects controlling row ordering |
+| `metricAggregations` | string | No | Comma-separated aggregations to compute across all rows: TOTAL, MINIMUM, MAXIMUM, COUNT. Required for the totals, maximums, and minimums outputs to be populated |
+| `limit` | number | No | Maximum rows to return \(default 10000, max 250000\) |
+| `offset` | number | No | Zero-based row offset for pagination |
+| `currencyCode` | string | No | ISO 4217 currency code for revenue metrics \(e.g. USD\) |
+| `keepEmptyRows` | boolean | No | Include rows where every metric is zero |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `rows` | array | Report rows, each keyed by dimension and metric API name |
+| `dimensionHeaders` | array | Dimension API names, in column order |
+| `metricHeaders` | array | Metric API names and value types, in column order |
+|   ↳ `name` | string | Metric API name |
+|   ↳ `type` | string | Metric value type |
+| `totals` | array | Summed rows, returned when metricAggregations requests TOTAL |
+| `maximums` | array | Per-metric maximum rows, returned when metricAggregations requests MAXIMUM |
+| `minimums` | array | Per-metric minimum rows, returned when metricAggregations requests MINIMUM |
+| `rowCount` | number | Total rows matching the query, ignoring limit and offset |
+| `metadata` | json | Report metadata: currency, time zone, sampling and thresholding flags |
+|   ↳ `currencyCode` | string | Property currency code |
+|   ↳ `timeZone` | string | Property time zone |
+|   ↳ `emptyReason` | string | Why the report is empty |
+|   ↳ `dataLossFromOtherRow` | boolean | Whether high-cardinality rows were rolled into "\(other\)" |
+|   ↳ `subjectToThresholding` | boolean | Whether minimum aggregation thresholds were applied |
+
+### Run Google Analytics Realtime Report
+
+Report on activity from the last 30 minutes on a Google Analytics 4 property in real time
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `propertyId` | string | Yes | GA4 property ID \(e.g. 123456789\) |
+| `metrics` | string | Yes | Comma-separated realtime metric API names \(e.g. activeUsers, screenPageViews\) |
+| `dimensions` | string | No | Comma-separated realtime dimension API names \(e.g. country, unifiedScreenName, eventName\) |
+| `dimensionFilter` | string | No | JSON FilterExpression applied to dimensions |
+| `metricFilter` | string | No | JSON FilterExpression applied to metrics after aggregation |
+| `orderBys` | string | No | JSON array of OrderBy objects controlling row ordering |
+| `metricAggregations` | string | No | Comma-separated aggregations to compute across all rows: TOTAL, MINIMUM, MAXIMUM, COUNT. Required for the totals, maximums, and minimums outputs to be populated |
+| `minuteRanges` | string | No | JSON array of MinuteRange objects \(e.g. \[\{"startMinutesAgo":29,"endMinutesAgo":0\}\]\); defaults to the last 30 minutes |
+| `limit` | number | No | Maximum rows to return \(default 10000, max 250000\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `rows` | array | Realtime rows, each keyed by dimension and metric API name |
+| `dimensionHeaders` | array | Dimension API names, in column order |
+| `metricHeaders` | array | Metric API names and value types, in column order |
+|   ↳ `name` | string | Metric API name |
+|   ↳ `type` | string | Metric value type |
+| `totals` | array | Summed rows, returned when metricAggregations requests TOTAL |
+| `maximums` | array | Per-metric maximum rows, returned when metricAggregations requests MAXIMUM |
+| `minimums` | array | Per-metric minimum rows, returned when metricAggregations requests MINIMUM |
+| `rowCount` | number | Total rows matching the query, ignoring limit |
+
+### Run Google Analytics Pivot Report
+
+Run a customized pivot report on a Google Analytics 4 property, cross-tabulating dimensions
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `propertyId` | string | Yes | GA4 property ID \(e.g. 123456789\) |
+| `metrics` | string | Yes | Comma-separated metric API names |
+| `dimensions` | string | Yes | Comma-separated dimension API names referenced by the pivots |
+| `pivots` | string | Yes | JSON array of Pivot objects \(e.g. \[\{"fieldNames":\["country"\],"limit":10\},\{"fieldNames":\["browser"\],"limit":5\}\]\) |
+| `startDate` | string | No | Start date: YYYY-MM-DD, "today", "yesterday", or "NdaysAgo" |
+| `endDate` | string | No | End date: YYYY-MM-DD, "today", "yesterday", or "NdaysAgo" |
+| `dateRanges` | string | No | JSON array of DateRange objects, overriding startDate/endDate |
+| `dimensionFilter` | string | No | JSON FilterExpression applied to dimensions |
+| `metricFilter` | string | No | JSON FilterExpression applied to metrics after aggregation |
+| `currencyCode` | string | No | ISO 4217 currency code for revenue metrics \(e.g. USD\) |
+| `keepEmptyRows` | boolean | No | Include rows where every metric is zero |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `rows` | array | Pivot rows, each keyed by dimension and metric API name |
+| `dimensionHeaders` | array | Dimension API names, in column order |
+| `metricHeaders` | array | Metric API names and value types, in column order |
+|   ↳ `name` | string | Metric API name |
+|   ↳ `type` | string | Metric value type |
+| `aggregates` | array | Aggregate rows for the pivot \(totals, maximums, minimums\) |
+| `pivotHeaders` | array | Per-pivot column headers and row counts |
+|   ↳ `rowCount` | number | Rows in this pivot |
+|   ↳ `dimensionValues` | array | Dimension value groups for each pivot column |
+| `metadata` | json | Report metadata: currency, time zone, sampling and thresholding flags |
+|   ↳ `currencyCode` | string | Property currency code |
+|   ↳ `timeZone` | string | Property time zone |
+|   ↳ `emptyReason` | string | Why the report is empty |
+|   ↳ `dataLossFromOtherRow` | boolean | Whether high-cardinality rows were rolled into "\(other\)" |
+|   ↳ `subjectToThresholding` | boolean | Whether minimum aggregation thresholds were applied |
+
+### Check Google Analytics Compatibility
+
+Check which Google Analytics 4 dimensions and metrics can be combined in the same report
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `propertyId` | string | Yes | GA4 property ID \(e.g. 123456789\) |
+| `dimensions` | string | No | Comma-separated dimension API names to test together |
+| `metrics` | string | No | Comma-separated metric API names to test together |
+| `compatibilityFilter` | string | No | Restrict the response to one compatibility status: COMPATIBLE or INCOMPATIBLE |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `dimensionCompatibilities` | array | Compatibility verdict for each requested dimension |
+|   ↳ `apiName` | string | Dimension API name |
+|   ↳ `uiName` | string | Name shown in the GA4 UI |
+|   ↳ `compatibility` | string | COMPATIBLE or INCOMPATIBLE |
+| `metricCompatibilities` | array | Compatibility verdict for each requested metric |
+|   ↳ `apiName` | string | Metric API name |
+|   ↳ `uiName` | string | Name shown in the GA4 UI |
+|   ↳ `compatibility` | string | COMPATIBLE or INCOMPATIBLE |
+| `incompatible` | array | API names that cannot be combined with the rest of the request |
+
+### Get Google Analytics Metadata
+
+List the dimensions and metrics available for reporting on a Google Analytics 4 property, including custom definitions
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `propertyId` | string | No | GA4 property ID. Omit to return the universal metadata shared by every property |
+| `customOnly` | boolean | No | Return only custom dimensions and metrics registered to the property |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `name` | string | Metadata resource name \(properties/\{id\}/metadata\) |
+| `dimensions` | array | Dimensions available for reporting |
+|   ↳ `apiName` | string | Name used in report requests |
+|   ↳ `uiName` | string | Name shown in the GA4 UI |
+|   ↳ `description` | string | What the dimension measures |
+|   ↳ `category` | string | Grouping the dimension belongs to, e.g. Page / Screen |
+|   ↳ `customDefinition` | boolean | Whether this is a property-specific custom dimension |
+|   ↳ `deprecatedApiNames` | array | Still-accepted deprecated names |
+| `metrics` | array | Metrics available for reporting |
+|   ↳ `apiName` | string | Name used in report requests |
+|   ↳ `uiName` | string | Name shown in the GA4 UI |
+|   ↳ `description` | string | What the metric measures |
+|   ↳ `type` | string | Metric value type |
+|   ↳ `expression` | string | Formula for a derived metric |
+|   ↳ `category` | string | Grouping the metric belongs to, e.g. Session |
+|   ↳ `customDefinition` | boolean | Whether this is a property-specific custom metric |
+|   ↳ `deprecatedApiNames` | array | Still-accepted deprecated names |
+| `totalDimensions` | number | Number of dimensions returned |
+| `totalMetrics` | number | Number of metrics returned |
+
+### List Google Analytics Accounts
+
+List all Google Analytics accounts accessible by the authenticated user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `pageSize` | number | No | Accounts per page \(default 50, max 200\) |
+| `pageToken` | string | No | Page token from a previous response |
+| `showDeleted` | boolean | No | Include soft-deleted accounts |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `accounts` | array | Accessible Google Analytics accounts |
+|   ↳ `name` | string | Resource name \(accounts/\{id\}\) |
+|   ↳ `displayName` | string | Account display name |
+|   ↳ `regionCode` | string | Country code of the business |
+|   ↳ `createTime` | string | Creation timestamp |
+|   ↳ `updateTime` | string | Last update timestamp |
+|   ↳ `deleted` | boolean | Whether the account is soft-deleted |
+|   ↳ `gmpOrganization` | string | Linked Google Marketing Platform organization |
+| `totalCount` | number | Number of accounts returned on this page |
+| `nextPageToken` | string | Token for the next page of accounts |
+
+### List Google Analytics Account Summaries
+
+List every accessible Google Analytics account together with its properties, the fastest way to discover property IDs
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `pageSize` | number | No | Account summaries per page \(default 50, max 200\) |
+| `pageToken` | string | No | Page token from a previous response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `accountSummaries` | array | Accessible accounts with their nested property summaries |
+|   ↳ `name` | string | Resource name \(accountSummaries/\{id\}\) |
+|   ↳ `account` | string | Account resource name |
+|   ↳ `displayName` | string | Account display name |
+|   ↳ `propertySummaries` | array | Properties under this account |
+| `properties` | array | Every property summary across all accounts, flattened |
+|   ↳ `property` | string | Resource name \(properties/\{id\}\) |
+|   ↳ `displayName` | string | Property display name |
+|   ↳ `propertyType` | string | Property type |
+|   ↳ `parent` | string | Parent account or property |
+| `totalCount` | number | Number of account summaries returned on this page |
+| `nextPageToken` | string | Token for the next page of account summaries |
+
+### List Google Analytics Properties
+
+List the Google Analytics 4 properties under an account
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accountId` | string | Yes | Analytics account ID to list properties for \(e.g. 12345678\) |
+| `pageSize` | number | No | Properties per page \(default 50, max 200\) |
+| `pageToken` | string | No | Page token from a previous response |
+| `showDeleted` | boolean | No | Include soft-deleted properties |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `properties` | array | Properties under the account |
+|   ↳ `name` | string | Resource name \(properties/\{id\}\) |
+|   ↳ `displayName` | string | Property display name |
+|   ↳ `propertyType` | string | Property type |
+|   ↳ `parent` | string | Parent account or property |
+|   ↳ `account` | string | Owning account resource name |
+|   ↳ `industryCategory` | string | Industry category |
+|   ↳ `timeZone` | string | Reporting time zone |
+|   ↳ `currencyCode` | string | Reporting currency |
+|   ↳ `serviceLevel` | string | Standard or 360 service level |
+|   ↳ `createTime` | string | Creation timestamp |
+|   ↳ `updateTime` | string | Last update timestamp |
+|   ↳ `deleteTime` | string | Soft-delete timestamp |
+|   ↳ `expireTime` | string | When a trashed property is permanently deleted |
+| `totalCount` | number | Number of properties returned on this page |
+| `nextPageToken` | string | Token for the next page of properties |
+
+### Get Google Analytics Property
+
+Get the configuration of a single Google Analytics 4 property, including its time zone and currency
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `propertyId` | string | Yes | GA4 property ID \(e.g. 123456789\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `property` | json | The property configuration |
+|   ↳ `name` | string | Resource name \(properties/\{id\}\) |
+|   ↳ `displayName` | string | Property display name |
+|   ↳ `propertyType` | string | Property type |
+|   ↳ `parent` | string | Parent account or property |
+|   ↳ `account` | string | Owning account resource name |
+|   ↳ `industryCategory` | string | Industry category |
+|   ↳ `timeZone` | string | Reporting time zone |
+|   ↳ `currencyCode` | string | Reporting currency |
+|   ↳ `serviceLevel` | string | Standard or 360 service level |
+|   ↳ `createTime` | string | Creation timestamp |
+|   ↳ `updateTime` | string | Last update timestamp |
+|   ↳ `deleteTime` | string | Soft-delete timestamp |
+|   ↳ `expireTime` | string | When a trashed property is permanently deleted |
+
+### List Google Analytics Data Streams
+
+List the web, Android, and iOS data streams configured on a Google Analytics 4 property
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `propertyId` | string | Yes | GA4 property ID \(e.g. 123456789\) |
+| `pageSize` | number | No | Data streams per page \(default 50, max 200\) |
+| `pageToken` | string | No | Page token from a previous response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `dataStreams` | array | Data streams on the property |
+|   ↳ `name` | string | Resource name \(properties/\{id\}/dataStreams/\{id\}\) |
+|   ↳ `displayName` | string | Stream display name |
+|   ↳ `type` | string | WEB_DATA_STREAM, ANDROID_APP_DATA_STREAM, or IOS_APP_DATA_STREAM |
+|   ↳ `createTime` | string | Creation timestamp |
+|   ↳ `updateTime` | string | Last update timestamp |
+|   ↳ `measurementId` | string | Web stream measurement ID \(G-XXXXXXXXXX\) |
+|   ↳ `defaultUri` | string | Web stream default URI |
+|   ↳ `firebaseAppId` | string | Linked Firebase app ID |
+|   ↳ `packageName` | string | Android package name |
+|   ↳ `bundleId` | string | iOS bundle ID |
+| `totalCount` | number | Number of data streams returned on this page |
+| `nextPageToken` | string | Token for the next page of data streams |
+
+

@@ -17,6 +17,7 @@ import {
   DropboxIcon,
   GmailIcon,
   GoogleAdsIcon,
+  GoogleAnalyticsIcon,
   GoogleBigQueryIcon,
   GoogleCalendarIcon,
   GoogleChatIcon,
@@ -231,6 +232,22 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'https://www.googleapis.com/auth/userinfo.profile',
           'https://www.googleapis.com/auth/adwords',
         ],
+      },
+      'google-analytics': {
+        name: 'Google Analytics',
+        description: 'Report on traffic, engagement, and conversions in Google Analytics 4.',
+        providerId: 'google-analytics',
+        icon: GoogleAnalyticsIcon,
+        baseProviderIcon: GoogleIcon,
+        scopes: [
+          'https://www.googleapis.com/auth/userinfo.email',
+          'https://www.googleapis.com/auth/userinfo.profile',
+          // Covers every operation the block exposes: the Data API reporting
+          // methods and the read-only Admin API listings. No tool writes GA4
+          // configuration, so analytics.edit is deliberately not requested.
+          'https://www.googleapis.com/auth/analytics.readonly',
+        ],
+        serviceAccountProviderId: 'google-service-account',
       },
       'google-bigquery': {
         name: 'Google BigQuery',

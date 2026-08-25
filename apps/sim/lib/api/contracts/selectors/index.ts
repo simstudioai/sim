@@ -43,6 +43,10 @@ import {
   googleSheetsSelectorContract,
   googleTasksTaskListsSelectorContract,
 } from '@/lib/api/contracts/selectors/google'
+import {
+  googleAnalyticsAccountsSelectorContract,
+  googleAnalyticsPropertiesSelectorContract,
+} from '@/lib/api/contracts/selectors/google-analytics'
 import { harmonicSavedSearchesSelectorContract } from '@/lib/api/contracts/selectors/harmonic'
 import {
   hubspotListsSelectorContract,
@@ -131,6 +135,7 @@ export * from '@/lib/api/contracts/selectors/clickup'
 export * from '@/lib/api/contracts/selectors/cloudwatch'
 export * from '@/lib/api/contracts/selectors/confluence'
 export * from '@/lib/api/contracts/selectors/google'
+export * from '@/lib/api/contracts/selectors/google-analytics'
 export * from '@/lib/api/contracts/selectors/harmonic'
 export * from '@/lib/api/contracts/selectors/hubspot'
 export * from '@/lib/api/contracts/selectors/jira'
@@ -160,6 +165,8 @@ export const selectorContractsByPath = {
   '/api/tools/attio/lists': attioListsSelectorContract,
   '/api/tools/google_bigquery/datasets': bigQueryDatasetsSelectorContract,
   '/api/tools/google_bigquery/tables': bigQueryTablesSelectorContract,
+  '/api/tools/google_analytics/accounts': googleAnalyticsAccountsSelectorContract,
+  '/api/tools/google_analytics/properties': googleAnalyticsPropertiesSelectorContract,
   '/api/tools/bitbucket/workspaces': bitbucketWorkspacesSelectorContract,
   '/api/tools/bitbucket/repositories': bitbucketRepositoriesSelectorContract,
   '/api/tools/calcom/event-types': calcomEventTypesSelectorContract,

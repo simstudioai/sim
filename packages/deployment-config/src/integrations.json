@@ -8815,6 +8815,66 @@
       "tags": ["marketing", "google-workspace", "data-analytics"]
     },
     {
+      "type": "google_analytics",
+      "slug": "google-analytics",
+      "name": "Google Analytics",
+      "description": "Report on traffic, engagement, and conversions in GA4",
+      "longDescription": "Connect to Google Analytics 4 to run reports over any dimensions and metrics, watch realtime activity, cross-tabulate with pivot reports, check which fields can be combined, and discover accounts, properties, and data streams.",
+      "bgColor": "#FFFFFF",
+      "iconName": "GoogleAnalyticsIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/google_analytics",
+      "operations": [
+        {
+          "name": "Run Report",
+          "description": "Run a Google Analytics 4 report over a date range with the chosen dimensions and metrics"
+        },
+        {
+          "name": "Run Realtime Report",
+          "description": "Report on activity from the last 30 minutes on a Google Analytics 4 property in real time"
+        },
+        {
+          "name": "Run Pivot Report",
+          "description": "Run a customized pivot report on a Google Analytics 4 property, cross-tabulating dimensions"
+        },
+        {
+          "name": "Check Compatibility",
+          "description": "Check which Google Analytics 4 dimensions and metrics can be combined in the same report"
+        },
+        {
+          "name": "Get Metadata",
+          "description": "List the dimensions and metrics available for reporting on a Google Analytics 4 property, including custom definitions"
+        },
+        {
+          "name": "List Accounts",
+          "description": "List all Google Analytics accounts accessible by the authenticated user"
+        },
+        {
+          "name": "List Account Summaries",
+          "description": "List every accessible Google Analytics account together with its properties, the fastest way to discover property IDs"
+        },
+        {
+          "name": "List Properties",
+          "description": "List the Google Analytics 4 properties under an account"
+        },
+        {
+          "name": "Get Property",
+          "description": "Get the configuration of a single Google Analytics 4 property, including its time zone and currency"
+        },
+        {
+          "name": "List Data Streams",
+          "description": "List the web, Android, and iOS data streams configured on a Google Analytics 4 property"
+        }
+      ],
+      "operationCount": 10,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "oauth",
+      "oauthServiceId": "google-analytics",
+      "category": "tools",
+      "integrationType": "analytics",
+      "tags": ["data-analytics", "google-workspace", "marketing", "seo"]
+    },
+    {
       "type": "google_appsheet",
       "slug": "google-appsheet",
       "name": "Google AppSheet",
