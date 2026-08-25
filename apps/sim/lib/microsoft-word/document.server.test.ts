@@ -12,6 +12,9 @@ import {
   replaceTextInDocx,
 } from '@/lib/microsoft-word/document.server'
 
+/** The characters XML 1.0 forbids in a text node, as a fresh (unstateful) matcher. */
+const INVALID_XML_CHARS_PATTERN = /[\u0000-\u0008\u000B\u000C\u000E-\u001F]/
+
 /** Reads one XML part out of a generated package. */
 async function readPart(buffer: Buffer, path = 'word/document.xml'): Promise<string> {
   const zip = await JSZip.loadAsync(buffer)
@@ -87,6 +90,22 @@ describe('buildDocxFromContent', () => {
     const text = await extractDocxText(buffer)
 
     expect(text).toContain('2 * 3 = 6')
+  })
+
+  it('strips control characters that would make the package unopenable', async () => {
+    // The docx package writes run text into the XML verbatim, so a forbidden
+    // character reaching it produces invalid XML 1.0 rather than a rendering bug.
+    const buffer = await buildDocxFromContent(`before${String.fromCharCode(8)}after`)
+    const xml = await readDocumentXml(buffer)
+
+    expect(INVALID_XML_CHARS_PATTERN.test(xml)).toBe(false)
+    expect(xml).toContain('beforeafter')
+  })
+
+  it('keeps tabs, which are legal XML, while stripping forbidden characters', async () => {
+    const buffer = await buildDocxFromContent(`a\tb${String.fromCharCode(0)}c`)
+
+    expect(await extractDocxText(buffer)).toContain('a\tbc')
   })
 
   it('still produces an openable document for empty content', async () => {

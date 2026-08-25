@@ -34,6 +34,11 @@ const INLINE_EMPHASIS_PATTERN = /\*\*([^*]+)\*\*|\*([^*]+)\*/g
 /** Characters XML 1.0 forbids in a text node. */
 const INVALID_XML_CHARS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g
 
+/** Removes the characters XML 1.0 forbids in a text node. */
+function stripInvalidXmlChars(value: string): string {
+  return value.replace(INVALID_XML_CHARS, '')
+}
+
 /**
  * Splits a line into bold / italic runs using the Markdown subset Sim supports:
  * `**bold**` and `*italic*`. Anything else is emitted verbatim, so unmatched
@@ -77,7 +82,12 @@ function parseInlineRuns(line: string): ContentRun[] {
 function parseContentBlocks(content: string): ContentBlock[] {
   const blocks: ContentBlock[] = []
 
-  for (const rawLine of content.replace(/\r\n?/g, '\n').split('\n')) {
+  // Stripped once here rather than per run: the `docx` package writes run text
+  // into the XML verbatim, so a stray control character from an upstream block
+  // would produce a package Word refuses to open. Tab, newline, and carriage
+  // return are legal XML and are outside the class, so the split below is
+  // unaffected.
+  for (const rawLine of stripInvalidXmlChars(content).replace(/\r\n?/g, '\n').split('\n')) {
     const line = rawLine.trimEnd()
     if (line.trim().length === 0) continue
 
@@ -132,8 +142,7 @@ export async function buildDocxFromContent(content: string, title?: string): Pro
 
 /** Escapes text for an XML text node and drops characters XML 1.0 forbids. */
 function escapeXmlText(value: string): string {
-  return value
-    .replace(INVALID_XML_CHARS, '')
+  return stripInvalidXmlChars(value)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
