@@ -17,6 +17,7 @@ import {
   resolveCanvasSentence,
 } from '@/lib/workflows/blocks/canvas-sentence'
 import { resolveSelectedTriggerId } from '@/lib/workflows/blocks/canvas-trigger-sentence'
+import { resolveCanvasCodePreview } from '@/lib/workflows/blocks/code-preview'
 import {
   getDisplayValue,
   hasDisplayableRowValue,
@@ -562,6 +563,7 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
                   <SubBlockRowView
                     title={subBlock.title ?? subBlock.id}
                     displayValue={displayValue}
+                    codePreview={resolveCanvasCodePreview(subBlock, rawValue, rawValues)}
                     variant='inline-value'
                   />
                 )

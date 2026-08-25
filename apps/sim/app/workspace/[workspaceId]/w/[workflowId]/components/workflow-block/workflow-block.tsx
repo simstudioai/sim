@@ -48,6 +48,7 @@ import {
   resolveCanvasSentence,
 } from '@/lib/workflows/blocks/canvas-sentence'
 import { resolveSelectedTriggerId } from '@/lib/workflows/blocks/canvas-trigger-sentence'
+import { resolveCanvasCodePreview } from '@/lib/workflows/blocks/code-preview'
 import { calculateWorkflowBlockDimensions } from '@/lib/workflows/blocks/deterministic-dimensions'
 import { getConditionRows, getRouterRows } from '@/lib/workflows/dynamic-handle-topology'
 import { getDependsOnFields } from '@/lib/workflows/subblocks/dependencies'
@@ -596,12 +597,15 @@ const SubBlockRow = memo(function SubBlockRow({
     webhookUrlDisplayValue ||
     selectorDisplayName
   const displayValue = maskedValue || hydratedName || (isSelectorType && value ? '-' : value)
+  const codePreview =
+    variant === 'inline-value' ? resolveCanvasCodePreview(subBlock, rawValue, rawValues) : undefined
 
   return (
     <SubBlockRowView
       title={title}
       displayValue={displayValue}
       isMonospace={isMonospaceField}
+      codePreview={codePreview}
       variant={variant}
       icon={icon}
     />
