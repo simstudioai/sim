@@ -261,6 +261,7 @@ describe('v2 knowledge chunking configuration', () => {
     const response = v2CreateKnowledgeBaseContract.response.schema.safeParse({
       data: {
         id: 'kb-1',
+        webUrl: 'https://test.sim.ai/workspace/workspace-1/knowledge/kb-1',
         name: 'Docs',
         description: null,
         tokenCount: 0,

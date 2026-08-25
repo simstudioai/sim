@@ -356,7 +356,7 @@ describe('internal chat deployment routes', () => {
           workspaceId: WORKSPACE_ID,
         })
 
-        await patch({ authType: 'password', password: 'secret' })
+        await patch({ authType: 'password', password: 'valid-password-secret' })
 
         const values = writtenValues()
         expect(values.authType).toBe('password')
@@ -393,7 +393,11 @@ describe('internal chat deployment routes', () => {
           workspaceId: WORKSPACE_ID,
         })
 
-        await patch({ authType: 'email', allowedEmails: ['a@example.com'], password: 'secret' })
+        await patch({
+          authType: 'email',
+          allowedEmails: ['a@example.com'],
+          password: 'valid-password-secret',
+        })
 
         expect(writtenValues().password).toBeNull()
         expect(encryptionMockFns.mockEncryptSecret).not.toHaveBeenCalled()
@@ -417,9 +421,9 @@ describe('internal chat deployment routes', () => {
           workspaceId: WORKSPACE_ID,
         })
 
-        await patch({ password: 'new-secret' })
+        await patch({ password: 'new-valid-password' })
 
-        expect(encryptionMockFns.mockEncryptSecret).toHaveBeenCalledWith('new-secret')
+        expect(encryptionMockFns.mockEncryptSecret).toHaveBeenCalledWith('new-valid-password')
         expect(writtenValues().password).toBe('encrypted-password')
       })
 
