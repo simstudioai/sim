@@ -286,6 +286,7 @@ import { SapS4HanaBlock, SapS4HanaBlockMeta } from '@/blocks/blocks/sap_s4hana'
 import { ScheduleBlock } from '@/blocks/blocks/schedule'
 import { SearchBlock } from '@/blocks/blocks/search'
 import { SecretsManagerBlock, SecretsManagerBlockMeta } from '@/blocks/blocks/secrets_manager'
+import { SemrushBlock, SemrushBlockMeta } from '@/blocks/blocks/semrush'
 import { SendblueBlock, SendblueBlockMeta } from '@/blocks/blocks/sendblue'
 import { SendGridBlock, SendGridBlockMeta } from '@/blocks/blocks/sendgrid'
 import { SentryBlock, SentryBlockMeta } from '@/blocks/blocks/sentry'
@@ -624,6 +625,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   schedule: ScheduleBlock,
   search: SearchBlock,
   secrets_manager: SecretsManagerBlock,
+  semrush: SemrushBlock,
   sendblue: SendblueBlock,
   sendgrid: SendGridBlock,
   sentry: SentryBlock,
@@ -931,6 +933,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   sap_concur: SapConcurBlockMeta,
   sap_s4hana: SapS4HanaBlockMeta,
   secrets_manager: SecretsManagerBlockMeta,
+  semrush: SemrushBlockMeta,
   sendblue: SendblueBlockMeta,
   sendgrid: SendGridBlockMeta,
   sentry: SentryBlockMeta,
