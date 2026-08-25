@@ -141,6 +141,13 @@ async function handleWebhookDelivery(
     ? Number(slackRequestTimestamp) * 1000
     : undefined
 
+  /**
+   * Depends only on the path, so the read-only lookup overlaps the body stream
+   * read below; a challenge short-circuit simply abandons the result.
+   */
+  const webhookLookupPromise = findAllWebhooksForPath({ requestId, path })
+  webhookLookupPromise.catch(() => {})
+
   const parseResult = await parseWebhookBody(request, requestId)
 
   // Check if parseWebhookBody returned an error response
@@ -159,8 +166,8 @@ async function handleWebhookDelivery(
     return challengeResponse
   }
 
-  // Find all webhooks for this path (multiple webhooks in one workflow may share a path)
-  const allWebhooksForPath = await findAllWebhooksForPath({ requestId, path })
+  // Multiple webhooks in one workflow may share a path
+  const allWebhooksForPath = await webhookLookupPromise
 
   const pathWebhooks = allWebhooksForPath.filter(({ webhook: foundWebhook }) =>
     acceptsPathWebhookDelivery(foundWebhook.provider)
