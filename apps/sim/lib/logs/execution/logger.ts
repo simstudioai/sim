@@ -651,12 +651,21 @@ export class ExecutionLogger implements IExecutionLoggerService {
 
     execLog.debug('Starting workflow execution')
 
-    // Check if execution log already exists (idempotency check)
-    const existingLog = await execDb
-      .select()
-      .from(workflowExecutionLogs)
-      .where(eq(workflowExecutionLogs.executionId, executionId))
-      .limit(1)
+    /**
+     * The duplicate-execution probe and the snapshot upsert have no data
+     * dependency, so they run concurrently. On the duplicate path the extra
+     * snapshot write is an idempotent no-op for an unchanged state hash (its
+     * `(workflowId, stateHash)` conflict target), and an orphaned row from a
+     * changed hash is reclaimed by `cleanupOrphanedSnapshots`.
+     */
+    const [existingLog, snapshotResult] = await Promise.all([
+      execDb
+        .select()
+        .from(workflowExecutionLogs)
+        .where(eq(workflowExecutionLogs.executionId, executionId))
+        .limit(1),
+      snapshotService.createSnapshotWithDeduplication(workflowId, workflowState),
+    ])
 
     if (existingLog.length > 0) {
       execLog.debug('Execution log already exists, skipping duplicate INSERT (idempotent)')
@@ -690,11 +699,6 @@ export class ExecutionLogger implements IExecutionLoggerService {
         snapshot,
       }
     }
-
-    const snapshotResult = await snapshotService.createSnapshotWithDeduplication(
-      workflowId,
-      workflowState
-    )
 
     const startTime = new Date()
 
