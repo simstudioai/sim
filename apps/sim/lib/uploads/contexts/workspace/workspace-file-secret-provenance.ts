@@ -20,9 +20,10 @@ import {
   PROVENANCE_MAX_ENTRIES,
   PROVENANCE_MAX_SERIALIZED_BYTES,
 } from '@/lib/execution/provenance-limits'
-import type {
-  ResolvedSecretTraceProvenanceV1,
-  ResolvedSecretTraceRegistry,
+import {
+  isResolvedSecretIncompletenessFault,
+  type ResolvedSecretTraceProvenanceV1,
+  type ResolvedSecretTraceRegistry,
 } from '@/executor/utils/resolved-secret-trace-registry'
 
 /** Ids per statement. Bounds the query, never how many files a caller may classify. */
@@ -255,14 +256,20 @@ export async function createWorkspaceFileSecretProvenanceFromRegistry(
     : registry.exportCommittedProvenanceForValue(persistedValue)
   if (!sourceProvenance.complete || !persistedProvenance.complete) {
     /**
-     * A latched registry holding no active entries is the same absence: no secret plaintext was
-     * ever resolved or imported in this context, so none can be in these bytes — the latch says
-     * only that content of unrecorded history crossed (a failed workflow run is the recurring
-     * producer), which is exactly what `unrecorded` states. Taint stays reserved for a registry
-     * that holds plaintext it cannot map to this output: stamping it here made one failed run
-     * turn every file its chat later wrote into a hard refusal until the next clean write.
+     * A latched registry is the same absence only when both hold: nothing activated, and no
+     * recorded reason is an originating fault. Zero active entries alone does not prove the
+     * context never held plaintext — a verification or decrypt fault trips while secret material
+     * is in flight — so any fault reason keeps the taint. What remains is a registry that latched
+     * because provenance was never on offer (a failed workflow run crossing with no envelope is
+     * the recurring producer), which is exactly what `unrecorded` states. Stamping taint for that
+     * state made one failed run turn every file its chat later wrote into a hard refusal until
+     * the next clean write.
      */
-    if (registry.getIncompletenessDiagnostics()?.activeEntryCount === 0) {
+    const diagnostics = registry.getIncompletenessDiagnostics()
+    if (
+      diagnostics?.activeEntryCount === 0 &&
+      !diagnostics.reasons.some(isResolvedSecretIncompletenessFault)
+    ) {
       return { safe: true, provenance: { status: 'unrecorded' } }
     }
     return { safe: false }

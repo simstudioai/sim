@@ -99,6 +99,22 @@ export type ResolvedSecretIncompletenessReason =
  * inheriting a parent that reported moments earlier, or an unaudited caller taking the default
  * reason from flooding the error stream. A reason added later without thought stays quiet.
  */
+/**
+ * True when a reason means a guard tripped on a path that should have succeeded, as opposed to
+ * provenance never being on offer. The same set decides the report level above; exposing the
+ * predicate keeps callers that must separate fault from absence — a file write deciding between
+ * taint and `unrecorded` — on the one centrally maintained classification instead of a copy.
+ *
+ * A fault matters to such callers because it can coexist with plaintext that never activated: a
+ * verification or decrypt failure happens *while* secret material is in flight, so an empty active
+ * set does not prove the context never held any.
+ */
+export function isResolvedSecretIncompletenessFault(
+  reason: ResolvedSecretIncompletenessReason
+): boolean {
+  return ORIGINATING_FAULT_REASONS.has(reason)
+}
+
 const ORIGINATING_FAULT_REASONS = new Set<ResolvedSecretIncompletenessReason>([
   'untrusted-provenance',
   'entry-decrypt-failed',

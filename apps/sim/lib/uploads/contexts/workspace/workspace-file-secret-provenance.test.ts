@@ -1578,6 +1578,31 @@ describe('createWorkspaceFileSecretProvenanceFromRegistry write decision', () =>
     ).resolves.toEqual({ safe: true, provenance: { status: 'unrecorded' } })
   })
 
+  /**
+   * Zero active entries does not prove the context never held plaintext: a verification or
+   * decrypt fault trips while secret material is in flight, before anything activates. Only a
+   * latch whose recorded reasons are all non-fault absences may relax to unrecorded.
+   */
+  it('keeps a latch caused by an originating fault as a taint even with no active entries', async () => {
+    const registry = {
+      exportCommittedProvenanceForValue: vi.fn(() => ({
+        version: 1,
+        complete: false,
+        entries: [],
+      })),
+      getIncompletenessDiagnostics: vi.fn(() => ({
+        reasons: ['projection-mismatch'],
+        origins: [],
+        incompleteInputPathCount: 0,
+        activeEntryCount: 0,
+      })),
+    } as unknown as ResolvedSecretTraceRegistry
+
+    await expect(
+      createWorkspaceFileSecretProvenanceFromRegistry(registry, 'generated content', SCOPE)
+    ).resolves.toEqual({ safe: false })
+  })
+
   it('keeps a latched registry holding plaintext it cannot map as a taint', async () => {
     const registry = {
       exportCommittedProvenanceForValue: vi.fn(() => ({
