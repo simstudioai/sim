@@ -870,7 +870,10 @@ export async function dispatchResolvedWebhookTarget(
   }
 
   if (webhookRecord.blockId) {
-    const blockExists = await blockExistsInDeployment(foundWorkflow.id, webhookRecord.blockId)
+    const blockExists = await blockExistsInDeployment(foundWorkflow.id, webhookRecord.blockId, {
+      deploymentVersionId: webhookRecord.deploymentVersionId,
+      workspaceId: foundWorkflow.workspaceId,
+    })
     if (!blockExists) {
       const verificationResponse = handlePreDeploymentVerification(webhookRecord, options.requestId)
       return {
@@ -956,7 +959,10 @@ export async function processPolledWebhookEvent(
   let reservationTransferred = false
   try {
     if (foundWebhook.blockId) {
-      const blockExists = await blockExistsInDeployment(foundWorkflow.id, foundWebhook.blockId)
+      const blockExists = await blockExistsInDeployment(foundWorkflow.id, foundWebhook.blockId, {
+        deploymentVersionId: foundWebhook.deploymentVersionId,
+        workspaceId: foundWorkflow.workspaceId,
+      })
       if (!blockExists) {
         logger.info(
           `[${requestId}] Trigger block ${foundWebhook.blockId} not found in deployment for workflow ${foundWorkflow.id}`
