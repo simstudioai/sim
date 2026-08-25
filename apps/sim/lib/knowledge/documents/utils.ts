@@ -6,6 +6,7 @@ import { parseRetryAfter } from '@sim/utils/retry'
 import { truncate } from '@sim/utils/string'
 import {
   collectSensitiveHeaderValues,
+  decodePercentEscapes,
   isSensitiveKey,
   REDACTED_MARKER,
   redactApiKeys,
@@ -58,7 +59,7 @@ export interface RetryOptions {
 }
 
 const MAX_HTTP_ERROR_DIAGNOSTIC_CHARS = 2000
-const MAX_PERCENT_DECODE_PASSES = 8
+const MAX_STRUCTURED_ERROR_DEPTH = 100
 const STRUCTURED_ERROR_SANITIZATION_FAILURE =
   '[response body omitted: unable to safely sanitize structured error]'
 const UNTRUSTED_REDACTION_MARKER_SENTINEL = '\u0000SIM_UNTRUSTED_REDACTION_MARKER\u0000'
@@ -69,23 +70,54 @@ const UNQUOTED_STRUCTURED_KEY_PATTERN =
 const STRUCTURED_CONTINUATION_PATTERN =
   /^(?:"(?:\\[\s\S]|[^"\\])*"|'(?:\\[\s\S]|[^'\\])*'|(?:[A-Za-z0-9_-]|\\(?:u\{[0-9A-Fa-f]{1,6}\}|\r\n|[\s\S]))+)\s*[:=]/
 
-function redactHttpErrorJsonStrings(value: unknown, sensitiveValues: string[]): unknown {
+interface RedactedHttpErrorJson {
+  value: unknown
+  unsafe: boolean
+}
+
+function redactHttpErrorJsonStrings(
+  value: unknown,
+  sensitiveValues: string[],
+  depth = 0
+): RedactedHttpErrorJson {
+  if (depth > MAX_STRUCTURED_ERROR_DEPTH) {
+    return { value: STRUCTURED_ERROR_SANITIZATION_FAILURE, unsafe: true }
+  }
   if (typeof value === 'string') {
     const sanitized = sanitizeDiagnosticText(value, sensitiveValues)
-    return sanitized.unsafe ? STRUCTURED_ERROR_SANITIZATION_FAILURE : sanitized.value
+    return {
+      value: sanitized.unsafe ? STRUCTURED_ERROR_SANITIZATION_FAILURE : sanitized.value,
+      unsafe: false,
+    }
   }
   if (Array.isArray(value)) {
-    return value.map((item) => redactHttpErrorJsonStrings(item, sensitiveValues))
+    const sanitizedItems = value.map((item) =>
+      redactHttpErrorJsonStrings(item, sensitiveValues, depth + 1)
+    )
+    return {
+      value: sanitizedItems.map((item) => item.value),
+      unsafe: sanitizedItems.some((item) => item.unsafe),
+    }
   }
   if (value && typeof value === 'object') {
-    return Object.fromEntries(
-      Object.entries(value).map(([key, nested]) => [
-        key,
-        redactHttpErrorJsonStrings(nested, sensitiveValues),
-      ])
-    )
+    const entries: [string, unknown][] = []
+    const sanitizedKeys = new Set<string>()
+    for (const [key, nested] of Object.entries(value)) {
+      const sanitizedKey = sanitizeDiagnosticText(key, sensitiveValues)
+      if (sanitizedKey.unsafe || sanitizedKeys.has(sanitizedKey.value)) {
+        return { value: STRUCTURED_ERROR_SANITIZATION_FAILURE, unsafe: true }
+      }
+
+      const sanitizedNested = redactHttpErrorJsonStrings(nested, sensitiveValues, depth + 1)
+      if (sanitizedNested.unsafe) {
+        return { value: STRUCTURED_ERROR_SANITIZATION_FAILURE, unsafe: true }
+      }
+      sanitizedKeys.add(sanitizedKey.value)
+      entries.push([sanitizedKey.value, sanitizedNested.value])
+    }
+    return { value: Object.fromEntries(entries), unsafe: false }
   }
-  return value
+  return { value, unsafe: false }
 }
 
 function hasSafeRedactedRemainder(value: string): boolean {
@@ -145,32 +177,6 @@ function decodeEscapedStructuredKey(value: string): string | undefined {
   }
 }
 
-function decodePercentEscapePass(value: string): string | undefined {
-  let invalidEncoding = false
-  const decoded = value.replace(/(?:%[0-9A-Fa-f]{2})+/g, (encodedBytes) => {
-    try {
-      return decodeURIComponent(encodedBytes)
-    } catch {
-      invalidEncoding = true
-      return encodedBytes
-    }
-  })
-  return invalidEncoding ? undefined : decoded
-}
-
-function decodePercentEscapes(value: string): string | undefined {
-  let decoded = value
-  for (let pass = 0; pass < MAX_PERCENT_DECODE_PASSES; pass++) {
-    const next = decodePercentEscapePass(decoded)
-    if (next === undefined) return undefined
-    if (next === decoded) return decoded
-    decoded = next
-  }
-
-  const next = decodePercentEscapePass(decoded)
-  return next === decoded ? decoded : undefined
-}
-
 function sanitizeDiagnosticText(
   value: string,
   sensitiveValues: string[]
@@ -189,16 +195,17 @@ function sanitizeDiagnosticText(
     sensitiveValue.replaceAll(REDACTED_MARKER, UNTRUSTED_REDACTION_MARKER_SENTINEL)
   )
   const decodedValue = decodePercentEscapes(value)
-  if (decodedValue === undefined) {
+  if (!decodedValue.ok) {
     return { value: STRUCTURED_ERROR_SANITIZATION_FAILURE, unsafe: true }
   }
   const decodedSensitiveValues: string[] = []
   for (const sensitiveValue of sensitiveValues) {
     const decodedSensitiveValue = decodePercentEscapes(sensitiveValue)
-    if (decodedSensitiveValue) decodedSensitiveValues.push(decodedSensitiveValue)
-    else if (sensitiveValue) decodedSensitiveValues.push(sensitiveValue)
+    if (decodedSensitiveValue.ok && decodedSensitiveValue.value) {
+      decodedSensitiveValues.push(decodedSensitiveValue.value)
+    } else if (sensitiveValue) decodedSensitiveValues.push(sensitiveValue)
   }
-  const untrustedMarkerProbe = decodedValue.replaceAll(
+  const untrustedMarkerProbe = decodedValue.value.replaceAll(
     REDACTED_MARKER,
     UNTRUSTED_REDACTION_MARKER_SENTINEL
   )
@@ -208,23 +215,29 @@ function sanitizeDiagnosticText(
   ) {
     return { value: STRUCTURED_ERROR_SANITIZATION_FAILURE, unsafe: true }
   }
-  const genericProbe = decodePercentEscapes(redactSensitiveValues(protectedValue))
-  if (genericProbe === undefined || containsSensitiveStructuredAssignment(genericProbe)) {
+  const genericallyRedacted = redactSensitiveValues(protectedValue)
+  if (genericallyRedacted === REDACTED_MARKER && protectedValue !== REDACTED_MARKER) {
+    return { value: STRUCTURED_ERROR_SANITIZATION_FAILURE, unsafe: true }
+  }
+  const genericProbe = decodePercentEscapes(genericallyRedacted)
+  if (!genericProbe.ok || containsSensitiveStructuredAssignment(genericProbe.value)) {
     return { value: STRUCTURED_ERROR_SANITIZATION_FAILURE, unsafe: true }
   }
   const sanitized = redactSensitiveValues(
     redactKnownSensitiveValues(protectedValue, protectedSensitiveValues)
   )
   const sanitizedProbe = decodePercentEscapes(sanitized)
-  const formDecodedSanitizedProbe = sanitizedProbe?.replaceAll('+', ' ')
+  const formDecodedSanitizedProbe = sanitizedProbe.ok
+    ? sanitizedProbe.value.replaceAll('+', ' ')
+    : undefined
   return {
     value: sanitized.replaceAll(UNTRUSTED_REDACTION_MARKER_SENTINEL, REDACTED_MARKER),
     unsafe:
-      sanitizedProbe === undefined ||
-      containsSensitiveStructuredAssignment(sanitizedProbe) ||
+      !sanitizedProbe.ok ||
+      containsSensitiveStructuredAssignment(sanitizedProbe.value) ||
       decodedSensitiveValues.some(
         (sensitiveValue) =>
-          sanitizedProbe.includes(sensitiveValue) ||
+          sanitizedProbe.value.includes(sensitiveValue) ||
           formDecodedSanitizedProbe?.includes(sensitiveValue)
       ),
   }
@@ -289,10 +302,9 @@ export function sanitizeHttpErrorDiagnostic(
   }
 
   try {
-    const sanitized = JSON.stringify(
-      redactHttpErrorJsonStrings(redactApiKeys(parsed), sensitiveValues)
-    )
-    return truncate(sanitized, MAX_HTTP_ERROR_DIAGNOSTIC_CHARS)
+    const sanitized = redactHttpErrorJsonStrings(redactApiKeys(parsed), sensitiveValues)
+    if (sanitized.unsafe) return STRUCTURED_ERROR_SANITIZATION_FAILURE
+    return truncate(JSON.stringify(sanitized.value), MAX_HTTP_ERROR_DIAGNOSTIC_CHARS)
   } catch {
     return STRUCTURED_ERROR_SANITIZATION_FAILURE
   }

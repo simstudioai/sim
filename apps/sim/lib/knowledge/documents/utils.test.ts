@@ -50,6 +50,82 @@ function fakeResponse(
 const FAST_RETRY = { initialDelayMs: 1, maxDelayMs: 2, maxRetries: 3, retryBudgetMs: 1_000 }
 
 describe('sanitizeHttpErrorDiagnostic', () => {
+  it('sanitizes exact request credentials in JSON object keys at every depth', () => {
+    const secret = 'opaque-request-credential-that-must-not-escape'
+    const body = JSON.stringify({
+      ordinary: {
+        nested: [{ [`provider-${secret}`]: 'temporarily unavailable' }],
+      },
+    })
+
+    const diagnostic = sanitizeHttpErrorDiagnostic(body, { sensitiveValues: [secret] })
+
+    expect(diagnostic).not.toContain(secret)
+    expect(JSON.parse(diagnostic)).toEqual({
+      ordinary: {
+        nested: [{ 'provider-[REDACTED]': 'temporarily unavailable' }],
+      },
+    })
+  })
+
+  it('fails closed when distinct JSON keys collide after credential sanitization', () => {
+    const secret = 'opaque-request-credential-that-must-not-escape'
+    const body = JSON.stringify({ [secret]: 'first', '[REDACTED]': 'second' })
+
+    const diagnostic = sanitizeHttpErrorDiagnostic(body, { sensitiveValues: [secret] })
+
+    expect(diagnostic).toBe('[response body omitted: unable to safely sanitize structured error]')
+    expect(diagnostic).not.toContain(secret)
+  })
+
+  it('preserves ordinary JSON keys while redacting canonical sensitive values', () => {
+    const diagnostic = sanitizeHttpErrorDiagnostic(
+      JSON.stringify({ message: 'temporarily unavailable', api_key: 'opaque-api-key' })
+    )
+
+    expect(JSON.parse(diagnostic)).toEqual({
+      message: 'temporarily unavailable',
+      api_key: '[REDACTED]',
+    })
+  })
+
+  it.each(['api%2Dkey', 'private%2Dkey', 'project%2Dapi%2Dkey'])(
+    'redacts a canonical sensitive value under encoded JSON key %s',
+    (key) => {
+      const diagnostic = sanitizeHttpErrorDiagnostic(JSON.stringify({ [key]: 'opaque-secret' }))
+
+      expect(JSON.parse(diagnostic)).toEqual({ [key]: '[REDACTED]' })
+      expect(diagnostic).not.toContain('opaque-secret')
+    }
+  )
+
+  it('preserves safe JSON fields when an unsafe string leaf is omitted', () => {
+    const diagnostic = sanitizeHttpErrorDiagnostic(
+      JSON.stringify({
+        message: 'temporarily unavailable',
+        detail: 'client_secret: [REDACTED],opaque-client-secret',
+      })
+    )
+
+    expect(JSON.parse(diagnostic)).toEqual({
+      message: 'temporarily unavailable',
+      detail: '[response body omitted: unable to safely sanitize structured error]',
+    })
+  })
+
+  it('preserves prototype-named JSON keys as ordinary own properties', () => {
+    const diagnostic = sanitizeHttpErrorDiagnostic(
+      '{"__proto__":{"polluted":true},"constructor":"safe","prototype":"safe"}'
+    )
+    const parsed = JSON.parse(diagnostic)
+
+    expect(Object.hasOwn(parsed, '__proto__')).toBe(true)
+    expect(parsed.__proto__).toEqual({ polluted: true })
+    expect(parsed.constructor).toBe('safe')
+    expect(parsed.prototype).toBe('safe')
+    expect(({} as { polluted?: boolean }).polluted).toBeUndefined()
+  })
+
   it('fails closed when valid structured input is too deep to sanitize recursively', () => {
     const secret = 'top-secret-value-that-must-not-escape'
     const depth = 10_000
@@ -784,6 +860,28 @@ describe('fetchWithRetry rate-limit handling', () => {
     const error = await fetchWithRetry(
       'https://api.example.com/resource',
       { headers: buildHeaders(secret) },
+      { ...FAST_RETRY, maxRetries: 0 }
+    ).then(
+      () => undefined,
+      (caught) => caught as Error
+    )
+
+    expect(error?.message).toContain('[REDACTED]')
+    expect(error?.message).not.toContain(secret)
+  })
+
+  it('redacts an opaque request credential echoed as a JSON object key', async () => {
+    const secret = 'opaque-request-credential-that-must-not-escape'
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ [secret]: 'temporarily unavailable' }), {
+        status: 503,
+        statusText: 'Service Unavailable',
+      })
+    )
+
+    const error = await fetchWithRetry(
+      'https://api.example.com/resource',
+      { headers: { 'X-Api-Key': secret } },
       { ...FAST_RETRY, maxRetries: 0 }
     ).then(
       () => undefined,

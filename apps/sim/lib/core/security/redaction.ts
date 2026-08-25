@@ -7,6 +7,7 @@ import { filterUserFileForDisplay, isUserFile } from '@/lib/core/utils/user-file
 export const REDACTED_MARKER = '[REDACTED]'
 export const TRUNCATED_MARKER = '[TRUNCATED]'
 
+const MAX_PERCENT_DECODE_PASSES = 8
 const BYPASS_REDACTION_KEYS = new Set(['nextpagetoken'])
 const SENSITIVE_REQUEST_HEADER_NAMES = new Set(['cookie', 'proxy-authorization'])
 
@@ -29,6 +30,7 @@ const SENSITIVE_KEY_PATTERNS: RegExp[] = [
   /^.*api[_-]?key$/i,
   /^passphrase$/i,
   /^authorization$/i,
+  /^proxy[_-]?authorization$/i,
   /^bearer$/i,
   /^private$/i,
   /^auth$/i,
@@ -74,18 +76,26 @@ const SENSITIVE_VALUE_PATTERNS: Array<{
   },
 ]
 
-const FORM_FIELD_MARKER_PATTERN = /\b([A-Za-z0-9_-]+)=/gi
-const ENCODED_FORM_FIELD_MARKER_PATTERN = /\b([A-Za-z0-9_-]+)%3D/gi
-const FORM_VALUE_DELIMITER_PATTERN = /&|\s/g
-const ENCODED_FORM_VALUE_DELIMITER_PATTERN = /%26|&|\s/gi
+const FORM_FIELD_MARKER_PATTERN = /(?:^|%(?![0-9A-Fa-f]{2})|[^A-Za-z0-9_%-])([A-Za-z0-9_-]+)=/gi
+const ENCODED_BOUNDARY_FORM_FIELD_MARKER_PATTERN = /%(?:26|3F)([A-Za-z0-9_-]+)=/gi
+const ENCODED_FORM_FIELD_MARKER_PATTERN =
+  /(?:^|%(?:26|3F)|%(?![0-9A-Fa-f]{2})|[^A-Za-z0-9_%-])([A-Za-z0-9_-]+)%3D/gi
+const FORM_VALUE_DELIMITER_PATTERN = /&/g
+const ENCODED_FORM_VALUE_DELIMITER_PATTERN = /%26|&/gi
 
 interface SensitiveValueSpan {
   start: number
   end: number
 }
 
+export type PercentDecodingResult =
+  | { ok: true; value: string }
+  | { ok: false; reason: 'invalid_encoding' | 'max_depth' }
+
 export function isSensitiveKey(key: string): boolean {
-  const lowerKey = key.toLowerCase()
+  const decoded = decodePercentEscapes(key)
+  if (!decoded.ok) return true
+  const lowerKey = decoded.value.toLowerCase()
   if (BYPASS_REDACTION_KEYS.has(lowerKey)) return false
   return SENSITIVE_KEY_PATTERNS.some((pattern) => pattern.test(lowerKey))
 }
@@ -261,6 +271,11 @@ function redactSensitiveFormFields(value: string): string {
     ...collectSensitiveValueSpans(value, FORM_FIELD_MARKER_PATTERN, formDelimiterPositions),
     ...collectSensitiveValueSpans(
       value,
+      ENCODED_BOUNDARY_FORM_FIELD_MARKER_PATTERN,
+      formDelimiterPositions
+    ),
+    ...collectSensitiveValueSpans(
+      value,
       ENCODED_FORM_FIELD_MARKER_PATTERN,
       encodedDelimiterPositions
     ),
@@ -287,6 +302,42 @@ function redactSensitiveFormFields(value: string): string {
   return result + value.slice(cursor)
 }
 
+function decodePercentEscapePass(value: string): PercentDecodingResult {
+  let invalidEncoding = false
+  const decoded = value.replace(/(?:%[0-9A-Fa-f]{2})+/g, (encodedBytes) => {
+    try {
+      return decodeURIComponent(encodedBytes)
+    } catch {
+      invalidEncoding = true
+      return encodedBytes
+    }
+  })
+  return invalidEncoding ? { ok: false, reason: 'invalid_encoding' } : { ok: true, value: decoded }
+}
+
+/** Fully normalizes bounded layers of percent encoding without partial decoding. */
+export function decodePercentEscapes(value: string): PercentDecodingResult {
+  let decoded = value
+  for (let pass = 0; pass < MAX_PERCENT_DECODE_PASSES; pass++) {
+    const next = decodePercentEscapePass(decoded)
+    if (!next.ok) return next
+    if (next.value === decoded) return next
+    decoded = next.value
+  }
+
+  const next = decodePercentEscapePass(decoded)
+  if (!next.ok) return next
+  return next.value === decoded ? next : { ok: false, reason: 'max_depth' }
+}
+
+function redactSensitiveValuesOnce(value: string): string {
+  let result = redactSensitiveFormFields(value)
+  for (const { pattern, replacement } of SENSITIVE_VALUE_PATTERNS) {
+    result = result.replace(pattern, replacement)
+  }
+  return result
+}
+
 /**
  * Redacts sensitive patterns from a string value
  * @param value - The string to redact
@@ -297,9 +348,13 @@ export function redactSensitiveValues(value: string): string {
     return value
   }
 
-  let result = redactSensitiveFormFields(value)
-  for (const { pattern, replacement } of SENSITIVE_VALUE_PATTERNS) {
-    result = result.replace(pattern, replacement)
+  const result = redactSensitiveValuesOnce(value)
+  const decoded = decodePercentEscapes(result)
+  if (!decoded.ok) {
+    return REDACTED_MARKER
+  }
+  if (decoded.value !== result && redactSensitiveValuesOnce(decoded.value) !== decoded.value) {
+    return REDACTED_MARKER
   }
   return result
 }
@@ -354,32 +409,32 @@ export function redactApiKeys(obj: any): any {
 
   if (isUserFile(obj)) {
     const filtered = filterUserFileForDisplay(obj)
-    const result: Record<string, any> = {}
+    const entries: [string, unknown][] = []
     for (const [key, value] of Object.entries(filtered)) {
       if (isLargeDataKey(key) && typeof value === 'string') {
-        result[key] = TRUNCATED_MARKER
+        entries.push([key, TRUNCATED_MARKER])
       } else {
-        result[key] = value
+        entries.push([key, value])
       }
     }
-    return result
+    return Object.fromEntries(entries)
   }
 
-  const result: Record<string, any> = {}
+  const entries: [string, unknown][] = []
 
   for (const [key, value] of Object.entries(obj)) {
     if (isSensitiveKey(key)) {
-      result[key] = REDACTED_MARKER
+      entries.push([key, REDACTED_MARKER])
     } else if (isLargeDataKey(key) && typeof value === 'string') {
-      result[key] = TRUNCATED_MARKER
+      entries.push([key, TRUNCATED_MARKER])
     } else if (typeof value === 'object' && value !== null) {
-      result[key] = redactApiKeys(value)
+      entries.push([key, redactApiKeys(value)])
     } else {
-      result[key] = value
+      entries.push([key, value])
     }
   }
 
-  return result
+  return Object.fromEntries(entries)
 }
 
 /**
