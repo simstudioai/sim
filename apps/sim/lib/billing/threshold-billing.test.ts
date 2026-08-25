@@ -17,6 +17,7 @@ const {
   mockIsFree,
   mockIsOrgScopedSubscription,
   mockIsOrganizationBillingBlocked,
+  mockIsSubscriptionCycleCloseCurrent,
   mockRecordAudit,
   mockCaptureServerEvent,
 } = vi.hoisted(() => ({
@@ -32,6 +33,7 @@ const {
   mockIsFree: vi.fn(),
   mockIsOrgScopedSubscription: vi.fn(),
   mockIsOrganizationBillingBlocked: vi.fn(),
+  mockIsSubscriptionCycleCloseCurrent: vi.fn(),
   mockRecordAudit: vi.fn(),
   mockCaptureServerEvent: vi.fn(),
 }))
@@ -59,6 +61,10 @@ vi.mock('@/lib/billing/core/subscription', () => ({
 
 vi.mock('@/lib/billing/core/usage-log', () => ({
   getBillingPeriodUsageCost: mockGetBillingPeriodUsageCost,
+}))
+
+vi.mock('@/lib/billing/cycle-close', () => ({
+  isSubscriptionCycleCloseCurrent: mockIsSubscriptionCycleCloseCurrent,
 }))
 
 vi.mock('@/lib/billing/plan-helpers', () => ({
@@ -157,6 +163,7 @@ function queueOrgReads({
 }
 
 const usableOrgSubscription = {
+  id: 'sub-db-team-1',
   plan: 'team',
   seats: 2,
   periodStart: new Date('2026-05-01T00:00:00.000Z'),
@@ -178,6 +185,7 @@ describe('checkAndBillOverageThreshold', () => {
     mockIsEnterprise.mockReturnValue(false)
     mockIsOrgScopedSubscription.mockReturnValue(false)
     mockGetBillingPeriodUsageCost.mockResolvedValue(0)
+    mockIsSubscriptionCycleCloseCurrent.mockResolvedValue(true)
   })
 
   afterAll(() => {
@@ -519,6 +527,42 @@ describe('checkAndBillOverageThreshold', () => {
     expect(dbChainMockFns.transaction).toHaveBeenCalled()
     expect(dbChainMockFns.execute).toHaveBeenCalledTimes(1)
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
+    expect(mockEnqueueOutboxEvent).not.toHaveBeenCalled()
+  })
+
+  it('defers personal settlement while the previous period cycle close is pending', async () => {
+    mockIsSubscriptionCycleCloseCurrent.mockResolvedValue(false)
+    mockCalculateSubscriptionOverage.mockResolvedValue(250)
+
+    await expect(
+      checkAndBillOverageThreshold('user-1', undefined, {
+        onError: 'throw',
+        expectedBillingPeriod,
+      })
+    ).resolves.toEqual({ status: 'no-op', reason: 'pending-cycle-close' })
+
+    expect(mockIsSubscriptionCycleCloseCurrent).toHaveBeenCalledWith(userSubscription.id)
+    expect(mockCalculateSubscriptionOverage).not.toHaveBeenCalled()
+    expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
+    expect(mockEnqueueOutboxEvent).not.toHaveBeenCalled()
+  })
+
+  it('defers organization settlement while the previous period cycle close is pending', async () => {
+    mockIsOrgScopedSubscription.mockReturnValue(true)
+    mockIsOrganizationBillingBlocked.mockResolvedValue(false)
+    mockGetOrganizationSubscriptionUsable.mockResolvedValue(usableOrgSubscription)
+    mockIsSubscriptionCycleCloseCurrent.mockResolvedValue(false)
+
+    await expect(
+      checkAndBillOverageThreshold('user-1', undefined, {
+        onError: 'throw',
+        expectedBillingPeriod,
+      })
+    ).resolves.toEqual({ status: 'no-op', reason: 'pending-cycle-close' })
+
+    expect(mockIsSubscriptionCycleCloseCurrent).toHaveBeenCalledWith(usableOrgSubscription.id)
+    expect(mockComputeOrgOverageAmount).not.toHaveBeenCalled()
+    expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
     expect(mockEnqueueOutboxEvent).not.toHaveBeenCalled()
   })
 

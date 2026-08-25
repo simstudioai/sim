@@ -64,6 +64,35 @@ function hasEnterpriseReportingAnchor(sub: SubscriptionRow): boolean {
 }
 
 /**
+ * Whether a subscription's previous period has already been closed — i.e. the
+ * durable close marker has caught up to the current `periodStart`.
+ *
+ * Threshold billing gates on this so the shared `billedOverageThisPeriod`
+ * tracker never mixes periods: after a rollover but before the sweep closes
+ * the elapsed period, a new-period settlement would be subtracted from the
+ * elapsed period's final overage and then wiped by the close's tracker reset,
+ * under-billing one period and double-billing the other. Skipping settlement
+ * until the close lands (sweep cadence, ≤6h) removes the race; a null marker
+ * (pre-first-sweep) also gates, and a null `periodStart` cannot race at all.
+ */
+export async function isSubscriptionCycleCloseCurrent(subscriptionId: string): Promise<boolean> {
+  const [row] = await db
+    .select({
+      periodStart: subscriptionTable.periodStart,
+      lastClosedPeriodStart: subscriptionTable.lastClosedPeriodStart,
+    })
+    .from(subscriptionTable)
+    .where(eq(subscriptionTable.id, subscriptionId))
+    .limit(1)
+
+  if (!row?.periodStart) return true
+  return (
+    row.lastClosedPeriodStart !== null &&
+    row.lastClosedPeriodStart.getTime() >= row.periodStart.getTime()
+  )
+}
+
+/**
  * Advance the durable close marker to `periodStart`, guarded so concurrent
  * closers and replays collapse to one winner. Returns false when another
  * worker already advanced the marker at or past this boundary.
@@ -191,6 +220,14 @@ export async function closeElapsedBillingPeriod(sub: SubscriptionRow): Promise<C
   const trackerUserId = orgScoped
     ? (memberRows.find((row) => row.role === 'owner')?.userId ?? null)
     : sub.referenceId
+  // Every actor whose org-attributed usage is billed at this close, including
+  // members who departed mid-period: their ledger rows stay stamped to this
+  // organization's period, so their daily-refresh consumption must offset the
+  // overage exactly like a current member's. Current members with no rows stay
+  // in the set for their refresh bounds.
+  const overageActorIds = orgScoped
+    ? [...new Set([...memberIds, ...usageByUser.keys()])]
+    : memberIds
 
   // Final overage for the closed period (enterprise never bills overage).
   let totalOverage = 0
@@ -203,7 +240,7 @@ export async function closeElapsedBillingPeriod(sub: SubscriptionRow): Promise<C
         periodEnd: periodStart,
         organizationId: sub.referenceId,
         pooledLedgerUsage: closedLedgerUsage,
-        memberIds,
+        memberIds: overageActorIds,
       })
       totalOverage = computed
     } else {

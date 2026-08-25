@@ -79,7 +79,11 @@ vi.mock('@/lib/posthog/server', () => ({
   captureServerEvent: mockCaptureServerEvent,
 }))
 
-import { closeElapsedBillingPeriod, sweepBillingCycleCloses } from '@/lib/billing/cycle-close'
+import {
+  closeElapsedBillingPeriod,
+  isSubscriptionCycleCloseCurrent,
+  sweepBillingCycleCloses,
+} from '@/lib/billing/cycle-close'
 
 type SubInput = Parameters<typeof closeElapsedBillingPeriod>[0]
 
@@ -210,6 +214,27 @@ describe('closeElapsedBillingPeriod', () => {
     expect(mockCaptureServerEvent).toHaveBeenCalledTimes(1)
   })
 
+  it('includes departed members with billed ledger usage in the refresh actor set', async () => {
+    // 'departed-1' has org-attributed rows in the closed period but no member
+    // row anymore; their refresh consumption must still offset the overage.
+    mockGetStampedPeriodRangeUsageCostByUser.mockResolvedValue(
+      new Map([
+        ['owner-1', 100],
+        ['departed-1', 50],
+      ])
+    )
+    queueOrgCloseReads()
+
+    await closeElapsedBillingPeriod(subRow())
+
+    expect(mockComputeOrgOverageAmount).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pooledLedgerUsage: 150,
+        memberIds: ['owner-1', 'departed-1'],
+      })
+    )
+  })
+
   it('applies organization credits before invoicing and skips Stripe when covered', async () => {
     queueOrgCloseReads({ orgRow: { creditBalance: '100' } })
 
@@ -289,6 +314,37 @@ describe('closeElapsedBillingPeriod', () => {
     expect(result.overageBilled).toBe(50)
     expect(mockComputeOrgOverageAmount).not.toHaveBeenCalled()
     expect(mockEnqueueOutboxEvent).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('isSubscriptionCycleCloseCurrent', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('is current when the marker has caught up to the period start', async () => {
+    queueTableRows(schemaMock.subscription, [
+      { periodStart: PERIOD_START, lastClosedPeriodStart: PERIOD_START },
+    ])
+    await expect(isSubscriptionCycleCloseCurrent('sub-1')).resolves.toBe(true)
+  })
+
+  it('is pending when the marker lags the period start or was never initialized', async () => {
+    queueTableRows(schemaMock.subscription, [
+      { periodStart: PERIOD_START, lastClosedPeriodStart: PREV_PERIOD_START },
+    ])
+    await expect(isSubscriptionCycleCloseCurrent('sub-1')).resolves.toBe(false)
+
+    queueTableRows(schemaMock.subscription, [
+      { periodStart: PERIOD_START, lastClosedPeriodStart: null },
+    ])
+    await expect(isSubscriptionCycleCloseCurrent('sub-1')).resolves.toBe(false)
+  })
+
+  it('is current when the subscription has no period to close', async () => {
+    queueTableRows(schemaMock.subscription, [{ periodStart: null, lastClosedPeriodStart: null }])
+    await expect(isSubscriptionCycleCloseCurrent('sub-1')).resolves.toBe(true)
   })
 })
 

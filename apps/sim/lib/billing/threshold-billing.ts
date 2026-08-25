@@ -14,6 +14,7 @@ import {
   getOrganizationSubscriptionUsable,
 } from '@/lib/billing/core/subscription'
 import { type BillingEntity, getBillingPeriodUsageCost } from '@/lib/billing/core/usage-log'
+import { isSubscriptionCycleCloseCurrent } from '@/lib/billing/cycle-close'
 import { isEnterprise, isFree } from '@/lib/billing/plan-helpers'
 import {
   hasUsableSubscriptionAccess,
@@ -53,6 +54,7 @@ export type ThresholdSettlementNoOpReason =
   | 'billing-blocked'
   | 'billing-ineligible'
   | 'no-subscription'
+  | 'pending-cycle-close'
   | 'plan-ineligible'
 
 export type ThresholdSettlementOutcome =
@@ -277,6 +279,15 @@ export async function checkAndBillOverageThreshold(
         plan: userSubscription.plan,
       })
       return checkAndBillOrganizationOverageThreshold(userSubscription.referenceId, options)
+    }
+
+    // Defer settlement while the previous period's cycle close is pending so
+    // `billedOverageThisPeriod` never mixes periods (see
+    // `isSubscriptionCycleCloseCurrent`). The sweep closes it within hours and
+    // a later threshold attempt settles normally.
+    if (!(await isSubscriptionCycleCloseCurrent(userSubscription.id))) {
+      logger.debug('Previous period cycle close pending; deferring threshold billing', { userId })
+      return noOp(options, 'pending-cycle-close')
     }
 
     const currentOverage = await calculateSubscriptionOverage({
@@ -528,6 +539,17 @@ async function checkAndBillOrganizationOverageThreshold(
     if (await isOrganizationBillingBlocked(organizationId)) {
       logger.debug('Organization billing blocked for threshold billing', { organizationId })
       return noOp(options, 'billing-blocked')
+    }
+
+    // Defer settlement while the previous period's cycle close is pending so
+    // `billedOverageThisPeriod` never mixes periods (see
+    // `isSubscriptionCycleCloseCurrent`). The sweep closes it within hours and
+    // a later threshold attempt settles normally.
+    if (!(await isSubscriptionCycleCloseCurrent(orgSubscription.id))) {
+      logger.debug('Previous period cycle close pending; deferring org threshold billing', {
+        organizationId,
+      })
+      return noOp(options, 'pending-cycle-close')
     }
 
     logger.debug('Found organization subscription', {
