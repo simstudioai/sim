@@ -19,7 +19,7 @@ import {
 } from '@/lib/execution/private-tool-metadata'
 import { MAX_PLAN_REQUIRED } from '@/lib/execution/remote-sandbox/workspace-sandboxes'
 import { recordSecretUsage } from '@/lib/secrets/usage/record'
-import { isTableSnapshotSafeForModelMount } from '@/lib/table/rows/secret-provenance'
+import { getTableSnapshotModelMountSafety } from '@/lib/table/rows/secret-provenance'
 import { getTableById, listTables } from '@/lib/table/service'
 import { getOrCreateTableSnapshot, SNAPSHOT_MAX_BYTES } from '@/lib/table/snapshot-cache'
 import {
@@ -484,15 +484,15 @@ export async function resolveInputFiles(
           `Input table "${tableId}" cannot be mounted because its secret provenance is unavailable.`
         )
       }
-      try {
-        const safeForModelMount = await isTableSnapshotSafeForModelMount({
-          tableId: table.id,
-          workspaceId,
-          rowsVersion: snapshot.version,
-        })
-        if (!safeForModelMount)
-          resolvedSecretTraceRegistry.markIncomplete('table-snapshot-unsafe-for-mount')
-      } catch {
+      const mountSafety = await getTableSnapshotModelMountSafety({
+        tableId: table.id,
+        workspaceId,
+        rowsVersion: snapshot.version,
+      })
+      if (mountSafety === 'stale') {
+        throw new Error(`Input table "${tableId}" changed while preparing its snapshot. Retry.`)
+      }
+      if (mountSafety === 'unsafe-provenance') {
         resolvedSecretTraceRegistry.markIncomplete('table-snapshot-unsafe-for-mount')
       }
 

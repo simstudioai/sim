@@ -31,7 +31,7 @@ const {
   mockMaterializeCopilotCodeSecrets,
   mockHasWorkspaceSandboxAccess,
   mockImportWorkspaceFileSecretProvenanceForRuntime,
-  mockIsTableSnapshotSafeForModelMount,
+  mockGetTableSnapshotModelMountSafety,
 } = vi.hoisted(() => ({
   mockGetTableById: vi.fn(),
   mockListTables: vi.fn(),
@@ -53,7 +53,7 @@ const {
   mockMaterializeCopilotCodeSecrets: vi.fn(),
   mockHasWorkspaceSandboxAccess: vi.fn(),
   mockImportWorkspaceFileSecretProvenanceForRuntime: vi.fn(),
-  mockIsTableSnapshotSafeForModelMount: vi.fn(),
+  mockGetTableSnapshotModelMountSafety: vi.fn(),
 }))
 
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
@@ -62,7 +62,7 @@ vi.mock('@/lib/table/service', () => ({
   listTables: mockListTables,
 }))
 vi.mock('@/lib/table/rows/secret-provenance', () => ({
-  isTableSnapshotSafeForModelMount: mockIsTableSnapshotSafeForModelMount,
+  getTableSnapshotModelMountSafety: mockGetTableSnapshotModelMountSafety,
 }))
 vi.mock('@/lib/table/snapshot-cache', () => ({
   getOrCreateTableSnapshot: mockGetOrCreateTableSnapshot,
@@ -146,8 +146,8 @@ function resetExecutionMocks(): void {
   vi.clearAllMocks()
   mockExecuteTool.mockReset()
   mockMaterializeCopilotCodeSecrets.mockReset()
-  mockIsTableSnapshotSafeForModelMount.mockReset()
-  mockIsTableSnapshotSafeForModelMount.mockResolvedValue(true)
+  mockGetTableSnapshotModelMountSafety.mockReset()
+  mockGetTableSnapshotModelMountSafety.mockResolvedValue('safe')
   mockListWorkspaceFiles.mockResolvedValue([])
   mockListWorkspaceFileFolders.mockResolvedValue([])
   mockListAllWorkspaceFiles.mockImplementation(async () => {
@@ -609,7 +609,7 @@ describe('executeFunctionExecute table mounts', () => {
   })
 
   it('unknown snapshot provenance still mounts and taints model egress', async () => {
-    mockIsTableSnapshotSafeForModelMount.mockResolvedValue(false)
+    mockGetTableSnapshotModelMountSafety.mockResolvedValue('unsafe-provenance')
     mockGetOrCreateTableSnapshot.mockResolvedValue({
       key: 'table-snapshots/ws_1/tbl_1/v5.csv',
       size: 9,
@@ -635,6 +635,21 @@ describe('executeFunctionExecute table mounts', () => {
     expect(result).toEqual({ success: true, output: { result: 'raw output' } })
     expect(parentRegistry.isComplete()).toBe(false)
     expect(projectToolResultForCopilot(result, parentRegistry)).toEqual({ success: true })
+  })
+
+  it('rejects a snapshot that becomes stale before mounting', async () => {
+    mockGetTableSnapshotModelMountSafety.mockResolvedValue('stale')
+    mockGetOrCreateTableSnapshot.mockResolvedValue({
+      key: 'table-snapshots/ws_1/tbl_1/v5.csv',
+      size: 9,
+      version: 5,
+    })
+
+    await expect(
+      executeFunctionExecute({ inputTables: ['tbl_1'] }, context as never)
+    ).rejects.toThrow(/changed while preparing its snapshot/)
+    expect(mockGeneratePresignedDownloadUrl).not.toHaveBeenCalled()
+    expect(mockExecuteTool).not.toHaveBeenCalled()
   })
 
   it('throws when a cloud snapshot exceeds the table mount limit', async () => {
