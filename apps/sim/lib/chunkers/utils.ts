@@ -63,11 +63,18 @@ export function splitAtWordBoundaries(
   return Array.from(iterateWordBoundaryChunks(text, chunkSizeChars, stepChars))
 }
 
-export function* iterateWordBoundaryChunks(
+export interface WordBoundaryChunkSpan {
+  text: string
+  startIndex: number
+  endIndex: number
+}
+
+/** Iterates trimmed word-boundary chunks while preserving their source offsets. */
+export function* iterateWordBoundaryChunkSpans(
   text: string,
   chunkSizeChars: number,
   stepChars?: number
-): Generator<string> {
+): Generator<WordBoundaryChunkSpan> {
   let pos = 0
 
   while (pos < text.length) {
@@ -78,8 +85,12 @@ export function* iterateWordBoundaryChunks(
       if (lastSpace > pos) end = lastSpace
     }
 
-    const part = text.slice(pos, end).trim()
-    if (part) yield part
+    const rawPart = text.slice(pos, end)
+    const startIndex = pos + (rawPart.length - rawPart.trimStart().length)
+    const endIndex = end - (rawPart.length - rawPart.trimEnd().length)
+    if (endIndex > startIndex) {
+      yield { text: text.slice(startIndex, endIndex), startIndex, endIndex }
+    }
 
     if (stepChars !== undefined) {
       const nextPos = pos + Math.max(1, stepChars)
@@ -90,6 +101,16 @@ export function* iterateWordBoundaryChunks(
       pos = end
     }
     while (pos < text.length && text[pos] === ' ') pos++
+  }
+}
+
+export function* iterateWordBoundaryChunks(
+  text: string,
+  chunkSizeChars: number,
+  stepChars?: number
+): Generator<string> {
+  for (const span of iterateWordBoundaryChunkSpans(text, chunkSizeChars, stepChars)) {
+    yield span.text
   }
 }
 

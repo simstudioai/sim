@@ -153,6 +153,8 @@ Bob,25`
       expect(chunks.every((chunk) => chunk.tokenCount <= 1024)).toBe(true)
       expect(chunks.some((chunk) => chunk.text.includes('HEADER-'))).toBe(true)
       expect(chunks.some((chunk) => chunk.text.includes('ROW-'))).toBe(true)
+      expect(chunks.every((chunk) => !chunk.text.includes('Headers:'))).toBe(true)
+      expect(chunks.every((chunk) => !chunk.text.includes('rows of data'))).toBe(true)
     })
 
     it('does not let the minimum row target exceed the token target', async () => {

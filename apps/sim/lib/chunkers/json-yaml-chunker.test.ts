@@ -368,6 +368,22 @@ server:
   })
 
   describe('chunk metadata', () => {
+    it('preserves source offsets when oversized chunks are trimmed at boundaries', async () => {
+      const key = 'p'.repeat(80)
+      const value = { value: 'alpha beta gamma' }
+      const expectedText = `// ${key}\n${JSON.stringify(value, null, 2)}`
+      const chunker = new JsonYamlChunker({ chunkSize: 10, minCharactersPerChunk: 1 })
+
+      const chunks = await chunker.chunk(JSON.stringify({ [key]: value }))
+
+      expect(chunks.length).toBeGreaterThan(1)
+      for (const chunk of chunks) {
+        expect(expectedText.slice(chunk.metadata.startIndex, chunk.metadata.endIndex)).toBe(
+          chunk.text
+        )
+      }
+    })
+
     it.concurrent('should include startIndex and endIndex in metadata', async () => {
       const chunker = new JsonYamlChunker({ chunkSize: 100 })
       const json = JSON.stringify({ key: 'value' })

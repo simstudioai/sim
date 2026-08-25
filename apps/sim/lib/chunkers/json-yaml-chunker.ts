@@ -5,7 +5,7 @@ import type { Chunk, ChunkerOptions } from '@/lib/chunkers/types'
 import {
   estimateTokens,
   iterateLines,
-  iterateWordBoundaryChunks,
+  iterateWordBoundaryChunkSpans,
   tokensToChars,
 } from '@/lib/chunkers/utils'
 
@@ -261,14 +261,18 @@ export class JsonYamlChunker {
       return
     }
 
-    let startIndex = chunk.metadata.startIndex
-    for (const segment of iterateWordBoundaryChunks(chunk.text, tokensToChars(this.chunkSize))) {
+    for (const segment of iterateWordBoundaryChunkSpans(
+      chunk.text,
+      tokensToChars(this.chunkSize)
+    )) {
       budget.add(chunks, {
-        text: segment,
-        tokenCount: estimateTokens(segment),
-        metadata: { startIndex, endIndex: startIndex + segment.length },
+        text: segment.text,
+        tokenCount: estimateTokens(segment.text),
+        metadata: {
+          startIndex: chunk.metadata.startIndex + segment.startIndex,
+          endIndex: chunk.metadata.startIndex + segment.endIndex,
+        },
       })
-      startIndex += segment.length
     }
   }
 
@@ -291,15 +295,18 @@ export class JsonYamlChunker {
           currentChunk = ''
           currentTokens = 0
         }
-        for (const segment of iterateWordBoundaryChunks(line, tokensToChars(this.chunkSize))) {
+        const lineStartIndex = startIndex
+        for (const segment of iterateWordBoundaryChunkSpans(line, tokensToChars(this.chunkSize))) {
           budget.add(chunks, {
-            text: segment,
-            tokenCount: estimateTokens(segment),
-            metadata: { startIndex, endIndex: startIndex + segment.length },
+            text: segment.text,
+            tokenCount: estimateTokens(segment.text),
+            metadata: {
+              startIndex: lineStartIndex + segment.startIndex,
+              endIndex: lineStartIndex + segment.endIndex,
+            },
           })
-          startIndex += segment.length
         }
-        startIndex += 1
+        startIndex += line.length + 1
         continue
       }
 

@@ -75,8 +75,8 @@ const SENSITIVE_VALUE_PATTERNS: Array<{
 
 const FORM_FIELD_MARKER_PATTERN = /\b([A-Za-z0-9_-]+)=/gi
 const ENCODED_FORM_FIELD_MARKER_PATTERN = /\b([A-Za-z0-9_-]+)%3D/gi
-const FORM_VALUE_DELIMITER_PATTERN = /&|\s/g
-const ENCODED_FORM_VALUE_DELIMITER_PATTERN = /%26|&|\s/gi
+const FORM_VALUE_DELIMITER_PATTERN = /&|\s+(?=[A-Za-z0-9_-]+(?:=|%3D))/gi
+const ENCODED_FORM_VALUE_DELIMITER_PATTERN = /%26|&|\s+(?=[A-Za-z0-9_-]+(?:=|%3D))/gi
 
 interface SensitiveValueSpan {
   start: number

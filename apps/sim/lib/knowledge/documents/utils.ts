@@ -99,7 +99,11 @@ export async function readBoundedHttpErrorPayload(response: {
       }),
     }
   } catch (error) {
-    if (isPayloadSizeLimitError(error)) {
+    if (
+      isPayloadSizeLimitError(error) &&
+      error.observedBytes !== undefined &&
+      error.observedBytes > error.maxBytes
+    ) {
       return { ok: false, reason: 'too_large' }
     }
     return { ok: false, reason: 'unavailable' }

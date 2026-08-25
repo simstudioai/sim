@@ -64,6 +64,15 @@ describe('readBoundedHttpErrorPayload', () => {
     expect(result).toEqual({ ok: false, reason: 'too_large' })
     expect(cancelled).toBe(true)
   })
+
+  it('reports an unreadable body as unavailable without observed size evidence', async () => {
+    const result = await readBoundedHttpErrorPayload({
+      body: null,
+      headers: { get: () => null },
+    })
+
+    expect(result).toEqual({ ok: false, reason: 'unavailable' })
+  })
 })
 
 describe('isRetryableError', () => {

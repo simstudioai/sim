@@ -195,6 +195,15 @@ describe('redactSensitiveValues', () => {
     expect(result).toContain('scope%3Dx')
   })
 
+  it.concurrent('redacts authorization schemes without exposing the credential suffix', () => {
+    expect(redactSensitiveValues('authorization=Bearer token123 scope=openid')).toBe(
+      'authorization=[REDACTED] scope=openid'
+    )
+    expect(redactSensitiveValues('authorization=Basic dXNlcjpwYXNz')).toBe(
+      'authorization=[REDACTED]'
+    )
+  })
+
   it.concurrent('uses the canonical sensitive-key policy for form fields', () => {
     const keys = ['authorization', 'auth', 'bearer', 'private_key', 'passphrase']
     const input = keys

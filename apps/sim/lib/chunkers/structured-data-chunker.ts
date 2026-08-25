@@ -53,6 +53,7 @@ export class StructuredDataChunker {
     let currentTokenEstimate = 0
     const headerTokens = estimateStructuredTokens(headerLine)
     let chunkStartRow = dataStartIndex
+    let oversizedHeaderEmitted = false
 
     let lineIndex = 0
     for (const row of iterateLines(content)) {
@@ -78,7 +79,17 @@ export class StructuredDataChunker {
           StructuredDataChunker.formatChunk(headerLine, [''], options.sheetName)
         )
         if (emptyRowOverhead >= targetChunkSize) {
-          for (const segment of iterateWordBoundaryChunks(standaloneRow, targetChunkSize * 3)) {
+          if (!oversizedHeaderEmitted) {
+            const headerContent = options.sheetName
+              ? `${options.sheetName}\n${headerLine}`
+              : headerLine
+            const headerRow = Math.max(0, dataStartIndex - 1)
+            for (const segment of iterateWordBoundaryChunks(headerContent, targetChunkSize * 3)) {
+              budget.add(chunks, StructuredDataChunker.createChunk(segment, headerRow, headerRow))
+            }
+            oversizedHeaderEmitted = true
+          }
+          for (const segment of iterateWordBoundaryChunks(row, targetChunkSize * 3)) {
             budget.add(chunks, StructuredDataChunker.createChunk(segment, i, i))
           }
           chunkStartRow = i + 1
