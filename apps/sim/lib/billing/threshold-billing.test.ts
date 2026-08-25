@@ -530,6 +530,29 @@ describe('checkAndBillOverageThreshold', () => {
     expect(mockEnqueueOutboxEvent).not.toHaveBeenCalled()
   })
 
+  it('aborts settlement when the period advances between preflight and the locked transaction', async () => {
+    queuePersonalReads()
+    queueLockedStats(lockedStatsRow())
+    mockCalculateSubscriptionOverage.mockResolvedValue(250)
+    // Preflight passes; the under-lock revalidation sees the rollover.
+    mockIsSubscriptionCycleCloseCurrent.mockResolvedValueOnce(true).mockResolvedValueOnce(false)
+
+    await expect(
+      checkAndBillOverageThreshold('user-1', undefined, { onError: 'throw' })
+    ).rejects.toMatchObject({
+      name: ThresholdSettlementError.name,
+      code: 'concurrent_state_change',
+      retryable: true,
+    })
+
+    expect(mockIsSubscriptionCycleCloseCurrent).toHaveBeenLastCalledWith(
+      userSubscription.id,
+      expect.objectContaining({ expectedPeriodStart: userSubscription.periodStart })
+    )
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+    expect(mockEnqueueOutboxEvent).not.toHaveBeenCalled()
+  })
+
   it('defers personal settlement while the previous period cycle close is pending', async () => {
     mockIsSubscriptionCycleCloseCurrent.mockResolvedValue(false)
     mockCalculateSubscriptionOverage.mockResolvedValue(250)

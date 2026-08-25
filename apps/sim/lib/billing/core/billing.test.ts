@@ -1,24 +1,28 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMock, dbChainMockFns } from '@sim/testing'
+import { dbChainMock, dbChainMockFns, queueTableRows, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockComputeDailyRefreshConsumed,
   mockEnsureUserStatsExists,
   mockGetBillingPeriodUsageCost,
+  mockGetBillingPeriodUsageCostByUser,
   mockGetBillingPeriodUsageCostWithSourceSubset,
   mockGetHighestPriorityPersonalSubscription,
   mockGetHighestPrioritySubscription,
+  mockGetOrgMemberRefreshBounds,
   mockResolveBillingInterval,
 } = vi.hoisted(() => ({
   mockComputeDailyRefreshConsumed: vi.fn(),
   mockEnsureUserStatsExists: vi.fn(),
   mockGetBillingPeriodUsageCost: vi.fn(),
+  mockGetBillingPeriodUsageCostByUser: vi.fn(),
   mockGetBillingPeriodUsageCostWithSourceSubset: vi.fn(),
   mockGetHighestPriorityPersonalSubscription: vi.fn(),
   mockGetHighestPrioritySubscription: vi.fn(),
+  mockGetOrgMemberRefreshBounds: vi.fn(),
   mockResolveBillingInterval: vi.fn(),
 }))
 
@@ -37,15 +41,16 @@ vi.mock('@/lib/billing/core/usage', () => ({
 vi.mock('@/lib/billing/core/usage-log', () => ({
   COPILOT_USAGE_SOURCES: ['copilot'],
   getBillingPeriodUsageCost: mockGetBillingPeriodUsageCost,
+  getBillingPeriodUsageCostByUser: mockGetBillingPeriodUsageCostByUser,
   getBillingPeriodUsageCostWithSourceSubset: mockGetBillingPeriodUsageCostWithSourceSubset,
 }))
 
 vi.mock('@/lib/billing/credits/daily-refresh', () => ({
   computeDailyRefreshConsumed: mockComputeDailyRefreshConsumed,
-  getOrgMemberRefreshBounds: vi.fn(),
+  getOrgMemberRefreshBounds: mockGetOrgMemberRefreshBounds,
 }))
 
-import { getPersonalBillingSummary } from '@/lib/billing/core/billing'
+import { calculateSubscriptionOverage, getPersonalBillingSummary } from '@/lib/billing/core/billing'
 
 describe('getPersonalBillingSummary', () => {
   beforeEach(() => {
@@ -117,6 +122,40 @@ describe('getPersonalBillingSummary', () => {
         billingEntity: { type: 'user', id: 'viewer-a' },
       }),
       dbChainMock.db
+    )
+  })
+})
+
+describe('calculateSubscriptionOverage', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetOrgMemberRefreshBounds.mockResolvedValue({})
+    mockComputeDailyRefreshConsumed.mockResolvedValue(0)
+  })
+
+  it('includes departed ledger actors in the org refresh deduction', async () => {
+    queueTableRows(schemaMock.organization, [{ id: 'org-1' }]) // isSubscriptionOrgScoped
+    queueTableRows(schemaMock.member, [{ userId: 'owner-1' }]) // current members
+    mockGetBillingPeriodUsageCostByUser.mockResolvedValue(
+      new Map([
+        ['owner-1', 100],
+        ['departed-1', 60],
+      ])
+    )
+
+    await calculateSubscriptionOverage({
+      id: 'sub-1',
+      plan: 'team',
+      referenceId: 'org-1',
+      seats: 2,
+      periodStart: new Date('2026-07-01T00:00:00.000Z'),
+      periodEnd: new Date('2026-08-01T00:00:00.000Z'),
+    })
+
+    expect(mockComputeDailyRefreshConsumed).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userIds: expect.arrayContaining(['owner-1', 'departed-1']),
+      })
     )
   })
 })

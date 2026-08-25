@@ -354,6 +354,26 @@ export async function checkAndBillOverageThreshold(
           return requireSettlementState(options, 'User stats are required for settlement')
         }
 
+        // Revalidate the preflight gate under the tracker lock: a rollover and
+        // its cycle close (which resets `billedOverageThisPeriod`) can commit
+        // between the unlocked check and this transaction, and a settlement
+        // computed from the elapsed period must not land on the new period's
+        // tracker.
+        if (
+          !(await isSubscriptionCycleCloseCurrent(userSubscription.id, {
+            executor: tx,
+            expectedPeriodStart: userSubscription.periodStart,
+          }))
+        ) {
+          logger.debug('Subscription period advanced during threshold settlement; retry later', {
+            userId,
+          })
+          return retryConcurrentSettlement(
+            options,
+            'Subscription period advanced during threshold settlement'
+          )
+        }
+
         const stats = statsRecords[0]
         const billedOverageThisPeriod = toNumber(toDecimal(stats.billedOverageThisPeriod))
         const unbilledOverage = Math.max(0, currentOverage - billedOverageThisPeriod)
@@ -687,6 +707,22 @@ async function checkAndBillOrganizationOverageThreshold(
         if (ownerStatsLock.length === 0) {
           logger.error('Owner stats not found', { organizationId, ownerId: lockedOwnerId })
           return requireSettlementState(options, 'Owner stats are required for settlement')
+        }
+
+        // Same under-lock revalidation as the personal path (see above).
+        if (
+          !(await isSubscriptionCycleCloseCurrent(orgSubscription.id, {
+            executor: tx,
+            expectedPeriodStart: orgSubscription.periodStart,
+          }))
+        ) {
+          logger.debug('Organization period advanced during threshold settlement; retry later', {
+            organizationId,
+          })
+          return retryConcurrentSettlement(
+            options,
+            'Organization period advanced during threshold settlement'
+          )
         }
 
         const orgLock = await tx

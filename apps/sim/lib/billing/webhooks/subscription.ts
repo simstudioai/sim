@@ -258,6 +258,7 @@ export async function handleSubscriptionDeleted(
     seats?: number | null
     periodStart?: Date | null
     periodEnd?: Date | null
+    metadata?: unknown
   },
   stripeEventId?: string
 ) {
@@ -284,10 +285,12 @@ export async function handleSubscriptionDeleted(
 
         if (isEnterprise(subscription.plan)) {
           await writeFinalPeriodBookkeeping({
+            id: subscription.id,
             plan: subscription.plan,
             referenceId: subscription.referenceId,
             periodStart: subscription.periodStart ?? null,
             periodEnd: subscription.periodEnd ?? null,
+            metadata: subscription.metadata,
           })
 
           const dormantResult = await transitionOrganizationToDormantState(
@@ -404,10 +407,12 @@ export async function handleSubscriptionDeleted(
         }
 
         await writeFinalPeriodBookkeeping({
+          id: subscription.id,
           plan: subscription.plan,
           referenceId: subscription.referenceId,
           periodStart: subscription.periodStart ?? null,
           periodEnd: subscription.periodEnd ?? null,
+          metadata: subscription.metadata,
         })
 
         let restoredProCount = 0

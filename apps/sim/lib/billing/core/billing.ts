@@ -10,6 +10,7 @@ import { ensureUserStatsExists } from '@/lib/billing/core/usage'
 import {
   COPILOT_USAGE_SOURCES,
   getBillingPeriodUsageCost,
+  getBillingPeriodUsageCostByUser,
   getBillingPeriodUsageCostWithSourceSubset,
 } from '@/lib/billing/core/usage-log'
 import {
@@ -188,14 +189,19 @@ export async function calculateSubscriptionOverage(sub: {
       .select({ userId: member.userId })
       .from(member)
       .where(eq(member.organizationId, sub.referenceId))
-    const memberIds = memberRows.map((row) => row.userId)
-    const ledgerUsage =
+    const usageByUser =
       sub.periodStart && sub.periodEnd
-        ? await getBillingPeriodUsageCost(
+        ? await getBillingPeriodUsageCostByUser(
             { type: 'organization', id: sub.referenceId },
             { start: sub.periodStart, end: sub.periodEnd }
           )
-        : 0
+        : new Map<string, number>()
+    let ledgerUsage = 0
+    for (const cost of usageByUser.values()) ledgerUsage += cost
+    // Union current members with every actor holding org-attributed rows this
+    // period: a member who departed mid-period still bills here, so their
+    // daily-refresh consumption must offset the overage too.
+    const memberIds = [...new Set([...memberRows.map((row) => row.userId), ...usageByUser.keys()])]
 
     const { totalOverage, effectiveUsage, baseSubscriptionAmount } = await computeOrgOverageAmount({
       plan: sub.plan,

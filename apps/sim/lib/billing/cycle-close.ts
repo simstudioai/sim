@@ -1,6 +1,12 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
-import { member, organization, subscription as subscriptionTable, userStats } from '@sim/db/schema'
+import {
+  member,
+  organization,
+  subscription as subscriptionTable,
+  usageLog,
+  userStats,
+} from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
@@ -18,6 +24,7 @@ import { ENTITLED_SUBSCRIPTION_STATUSES, getPlanPricing } from '@/lib/billing/su
 import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
 import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-handlers'
 import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
+import type { DbOrTx } from '@/lib/db/types'
 import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('BillingCycleClose')
@@ -55,7 +62,7 @@ function minusOneInterval(date: Date, billingInterval: string | null): Date {
   return result
 }
 
-function hasEnterpriseReportingAnchor(sub: SubscriptionRow): boolean {
+function hasEnterpriseReportingAnchor(sub: { plan: string | null; metadata?: unknown }): boolean {
   return (
     isEnterprise(sub.plan) &&
     isRecordLike(sub.metadata) &&
@@ -74,9 +81,19 @@ function hasEnterpriseReportingAnchor(sub: SubscriptionRow): boolean {
  * under-billing one period and double-billing the other. Skipping settlement
  * until the close lands (sweep cadence, ≤6h) removes the race; a null marker
  * (pre-first-sweep) also gates, and a null `periodStart` cannot race at all.
+ *
+ * The same predicate revalidates inside the settlement transaction (pass the
+ * `tx` as `executor` plus the `expectedPeriodStart` the overage was computed
+ * against): the unlocked preflight leaves a window where a rollover and its
+ * close can commit first, so the settlement re-checks under the tracker lock
+ * and aborts when the period moved.
  */
-export async function isSubscriptionCycleCloseCurrent(subscriptionId: string): Promise<boolean> {
-  const [row] = await db
+export async function isSubscriptionCycleCloseCurrent(
+  subscriptionId: string,
+  options: { executor?: DbOrTx; expectedPeriodStart?: Date | null } = {}
+): Promise<boolean> {
+  const executor = options.executor ?? db
+  const [row] = await executor
     .select({
       periodStart: subscriptionTable.periodStart,
       lastClosedPeriodStart: subscriptionTable.lastClosedPeriodStart,
@@ -85,7 +102,14 @@ export async function isSubscriptionCycleCloseCurrent(subscriptionId: string): P
     .where(eq(subscriptionTable.id, subscriptionId))
     .limit(1)
 
-  if (!row?.periodStart) return true
+  if (options.expectedPeriodStart) {
+    if (!row?.periodStart || row.periodStart.getTime() !== options.expectedPeriodStart.getTime()) {
+      return false
+    }
+  } else if (!row?.periodStart) {
+    return true
+  }
+
   return (
     row.lastClosedPeriodStart !== null &&
     row.lastClosedPeriodStart.getTime() >= row.periodStart.getTime()
@@ -168,7 +192,26 @@ export async function closeElapsedBillingPeriod(sub: SubscriptionRow): Promise<C
   }
 
   const marker = sub.lastClosedPeriodStart
-  const expectedPrevStart = minusOneInterval(periodStart, sub.billingInterval)
+  const orgScoped = await isSubscriptionOrgScoped(sub)
+  const billingEntity = orgScoped
+    ? ({ type: 'organization', id: sub.referenceId } as const)
+    : ({ type: 'user', id: sub.referenceId } as const)
+  // The elapsed period's exact start, from the ledger's own write-time stamps
+  // (its rows carry `billing_period_end == periodStart` — the renewal
+  // invariant). Deriving the bound from stamps instead of calendar math keeps
+  // the refresh window aligned with the stamped period even when anchor-day
+  // drift (e.g. Jan 31 → Feb 28) makes `periodStart - 1 interval` inexact.
+  const [prevStamp] = await db
+    .select({ start: sql<Date | null>`max(${usageLog.billingPeriodStart})` })
+    .from(usageLog)
+    .where(
+      and(
+        eq(usageLog.billingEntityType, billingEntity.type),
+        eq(usageLog.billingEntityId, billingEntity.id),
+        eq(usageLog.billingPeriodEnd, periodStart)
+      )
+    )
+  const expectedPrevStart = prevStamp?.start ?? minusOneInterval(periodStart, sub.billingInterval)
   // Money and bookkeeping cover exactly one period. A marker further back
   // than one interval means missed sweeps; those older periods' sub-threshold
   // tails are forgiven (loudly) rather than billed with multi-period math.
@@ -188,10 +231,6 @@ export async function closeElapsedBillingPeriod(sub: SubscriptionRow): Promise<C
     return { ...base, status: advanced ? 'closed' : 'already-closed' }
   }
 
-  const orgScoped = await isSubscriptionOrgScoped(sub)
-  const billingEntity = orgScoped
-    ? ({ type: 'organization', id: sub.referenceId } as const)
-    : ({ type: 'user', id: sub.referenceId } as const)
   const closedRange = { from: closeFrom, to: periodStart }
 
   const enterprise = isEnterprise(sub.plan)
@@ -261,8 +300,20 @@ export async function closeElapsedBillingPeriod(sub: SubscriptionRow): Promise<C
   }
 
   const billingPeriodLabel = closeFrom.toISOString().slice(0, 7)
-  const collectMoney =
-    !enterprise && totalOverage > 0 && !!sub.stripeCustomerId && !!sub.stripeSubscriptionId
+  const collectMoney = !enterprise && totalOverage > 0
+  if (collectMoney && (!sub.stripeCustomerId || !sub.stripeSubscriptionId)) {
+    // Claiming the marker here would silently forgive the overage. Defer the
+    // whole close — the sweep retries every run until the Stripe linkage is
+    // repaired, and this error is the operator signal.
+    logger.error('Deferring cycle close: overage due but Stripe identifiers are missing', {
+      subscriptionId: sub.id,
+      plan: sub.plan,
+      totalOverage,
+      hasStripeCustomerId: !!sub.stripeCustomerId,
+      hasStripeSubscriptionId: !!sub.stripeSubscriptionId,
+    })
+    return base
+  }
 
   const closeResult = await db.transaction(
     async (
@@ -471,22 +522,39 @@ export async function closeElapsedBillingPeriod(sub: SubscriptionRow): Promise<C
 /**
  * Terminal bookkeeping for a subscription that is ending (deleted/cancelled):
  * writes `lastPeriodCost` / `lastPeriodCopilotCost` from the final period's
- * stamped ledger sums and clears the per-period trackers so a future
- * subscription starts clean. Money is NOT collected here — the deletion
- * handler bills the final overage itself before calling this.
+ * stamped ledger sums, clears the per-period trackers so a future
+ * subscription starts clean, and claims the close marker for the terminal
+ * period in the same transaction so an in-flight sweep close cannot land
+ * after it and re-bill overage the deletion handler already settled (the two
+ * paths serialize on the member userStats locks, and the loser's marker
+ * re-check aborts it). Money is NOT collected here — the deletion handler
+ * bills the final overage itself before calling this.
+ *
+ * Reporting-anchor enterprise subscriptions are skipped entirely except for
+ * the marker claim: their usage windows derive live from the anchor, and the
+ * subscription's Stripe bounds would range the wrong stamped rows.
  */
 export async function writeFinalPeriodBookkeeping(sub: {
+  id: string
   plan: string | null
   referenceId: string
   periodStart?: Date | null
   periodEnd?: Date | null
+  metadata?: unknown
 }): Promise<void> {
   if (!sub.periodStart) return
+  const periodStart = sub.periodStart
+
+  if (hasEnterpriseReportingAnchor(sub)) {
+    await db.transaction(async (tx) => claimCloseMarker(tx, sub.id, periodStart))
+    return
+  }
+
   const orgScoped = await isSubscriptionOrgScoped(sub)
   const billingEntity = orgScoped
     ? ({ type: 'organization', id: sub.referenceId } as const)
     : ({ type: 'user', id: sub.referenceId } as const)
-  const range = { from: sub.periodStart, to: sub.periodEnd ?? new Date() }
+  const range = { from: periodStart, to: sub.periodEnd ?? new Date() }
 
   const [usageByUser, copilotByUser] = await Promise.all([
     getStampedPeriodRangeUsageCostByUser(billingEntity, range),
@@ -532,6 +600,11 @@ export async function writeFinalPeriodBookkeeping(sub: {
         .set({ departedMemberUsage: '0' })
         .where(eq(organization.id, sub.referenceId))
     }
+    // Claim the terminal period's marker with the tracker reset: an in-flight
+    // sweep close for the elapsed period now fails its under-lock marker
+    // re-check and rolls back instead of re-billing settled overage. If the
+    // close already committed, this claim is a guarded no-op.
+    await claimCloseMarker(tx, sub.id, periodStart)
   })
 }
 

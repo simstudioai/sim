@@ -53,6 +53,7 @@ import {
   checkBillingBlocked,
   checkBillingEntityBlocked,
   checkOrganizationMemberUsageLimit,
+  checkServerSideUsageLimits,
   checkUsageStatus,
 } from '@/lib/billing/calculations/usage-monitor'
 
@@ -271,6 +272,39 @@ describe('checkUsageStatus', () => {
     expect(mockGetBillingPeriodUsageCost).toHaveBeenCalledTimes(1)
     expect(mockComputeBillingPeriodUsageWithDailyRefresh).not.toHaveBeenCalled()
     expect(mockGetOrgMemberRefreshBounds).not.toHaveBeenCalled()
+  })
+})
+
+describe('checkServerSideUsageLimits', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    setEnvFlags({ isHosted: true, isBillingEnabled: true })
+    mockGetBillingPeriodUsageCost.mockResolvedValue(125)
+  })
+
+  it('keeps blocked accounts blocked while reporting their real ledger usage', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([{ blocked: true, blockedReason: 'payment_failed' }])
+    const subscription = {
+      referenceId: 'user-1',
+      plan: 'pro',
+      status: 'active',
+      seats: 1,
+      periodStart: new Date('2026-06-01T00:00:00.000Z'),
+      periodEnd: new Date('2026-07-01T00:00:00.000Z'),
+    }
+
+    const result = await checkServerSideUsageLimits('user-1', subscription)
+
+    expect(result).toMatchObject({ isExceeded: true, currentUsage: 125, limit: 0 })
+    expect(result.message).toBeTruthy()
+    expect(mockGetBillingPeriodUsageCost).toHaveBeenCalledWith(
+      { type: 'user', id: 'user-1' },
+      expect.objectContaining({
+        start: subscription.periodStart,
+        end: subscription.periodEnd,
+      })
+    )
   })
 })
 

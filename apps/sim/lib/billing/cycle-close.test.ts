@@ -83,6 +83,7 @@ import {
   closeElapsedBillingPeriod,
   isSubscriptionCycleCloseCurrent,
   sweepBillingCycleCloses,
+  writeFinalPeriodBookkeeping,
 } from '@/lib/billing/cycle-close'
 
 type SubInput = Parameters<typeof closeElapsedBillingPeriod>[0]
@@ -214,6 +215,31 @@ describe('closeElapsedBillingPeriod', () => {
     expect(mockCaptureServerEvent).toHaveBeenCalledTimes(1)
   })
 
+  it('defers the close when overage is due but Stripe identifiers are missing', async () => {
+    const result = await closeElapsedBillingPeriod(subRow({ stripeCustomerId: null }))
+
+    expect(result.status).toBe('skipped')
+    // No marker claim, no money, no bookkeeping — the sweep retries next run.
+    expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+    expect(mockEnqueueOutboxEvent).not.toHaveBeenCalled()
+  })
+
+  it('derives the closed window from the ledger period stamps when they drift from calendar math', async () => {
+    // Rows for the elapsed period are stamped starting Jul 3 (anchor drift);
+    // the stamped boundary — not periodStart minus one interval — must bound
+    // the refresh window.
+    const stampedPrevStart = new Date('2026-07-03T00:00:00.000Z')
+    queueTableRows(schemaMock.usageLog, [{ start: stampedPrevStart }])
+    queueOrgCloseReads()
+
+    await closeElapsedBillingPeriod(subRow({ lastClosedPeriodStart: stampedPrevStart }))
+
+    expect(mockComputeOrgOverageAmount).toHaveBeenCalledWith(
+      expect.objectContaining({ periodStart: stampedPrevStart, periodEnd: PERIOD_START })
+    )
+  })
+
   it('includes departed members with billed ledger usage in the refresh actor set', async () => {
     // 'departed-1' has org-attributed rows in the closed period but no member
     // row anymore; their refresh consumption must still offset the overage.
@@ -314,6 +340,62 @@ describe('closeElapsedBillingPeriod', () => {
     expect(result.overageBilled).toBe(50)
     expect(mockComputeOrgOverageAmount).not.toHaveBeenCalled()
     expect(mockEnqueueOutboxEvent).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('writeFinalPeriodBookkeeping', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    mockIsSubscriptionOrgScoped.mockResolvedValue(true)
+    mockIsEnterprise.mockReturnValue(false)
+    mockGetStampedPeriodRangeUsageCostByUser.mockResolvedValue(new Map([['owner-1', 25]]))
+    dbChainMockFns.returning.mockResolvedValue([{ id: 'sub-1' }])
+  })
+
+  it('resets trackers, writes last-period sums, and claims the terminal marker in one transaction', async () => {
+    queueTableRows(schemaMock.member, [{ userId: 'owner-1' }])
+
+    await writeFinalPeriodBookkeeping({
+      id: 'sub-1',
+      plan: 'team',
+      referenceId: 'org-1',
+      periodStart: PERIOD_START,
+      periodEnd: new Date('2026-09-01T00:00:00.000Z'),
+    })
+
+    expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(1)
+    const bookkeepingSet = dbChainMockFns.set.mock.calls.find(
+      (call) => (call[0] as Record<string, unknown>).billedOverageThisPeriod === '0'
+    )
+    expect(bookkeepingSet).toBeDefined()
+    const markerSet = dbChainMockFns.set.mock.calls.find(
+      (call) => (call[0] as Record<string, unknown>).lastClosedPeriodStart instanceof Date
+    )
+    expect(markerSet).toBeDefined()
+  })
+
+  it('only claims the marker for reporting-anchor enterprise subscriptions', async () => {
+    mockIsEnterprise.mockReturnValue(true)
+
+    await writeFinalPeriodBookkeeping({
+      id: 'sub-1',
+      plan: 'enterprise',
+      referenceId: 'org-1',
+      periodStart: PERIOD_START,
+      periodEnd: new Date('2026-09-01T00:00:00.000Z'),
+      metadata: { reportingPeriodAnchorDate: '2026-05-01' },
+    })
+
+    expect(mockGetStampedPeriodRangeUsageCostByUser).not.toHaveBeenCalled()
+    const markerSet = dbChainMockFns.set.mock.calls.find(
+      (call) => (call[0] as Record<string, unknown>).lastClosedPeriodStart instanceof Date
+    )
+    expect(markerSet).toBeDefined()
+    const bookkeepingSet = dbChainMockFns.set.mock.calls.find(
+      (call) => (call[0] as Record<string, unknown>).billedOverageThisPeriod === '0'
+    )
+    expect(bookkeepingSet).toBeUndefined()
   })
 })
 

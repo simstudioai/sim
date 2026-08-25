@@ -332,7 +332,21 @@ export async function checkServerSideUsageLimits(
 
     const blocked = await checkBillingBlocked(userId)
     if (blocked.blocked) {
-      return { isExceeded: true, currentUsage: 0, limit: 0, message: blocked.message }
+      // Enforcement stays blocked, but surfaced usage must be the real ledger
+      // value — `/api/users/me/usage-limits` exposes it as `currentPeriodCost`.
+      const sub =
+        preloadedSubscription !== undefined
+          ? preloadedSubscription
+          : await getHighestPrioritySubscription(userId)
+      const subIsOrgScoped = isOrgScopedSubscription(sub, userId)
+      const billingEntity: BillingEntity =
+        subIsOrgScoped && sub
+          ? { type: 'organization', id: sub.referenceId }
+          : { type: 'user', id: userId }
+      const billingPeriod = preloadedBillingContext?.billingPeriod ??
+        resolveSubscriptionUsagePeriod(sub) ?? { ...defaultBillingPeriod(), source: 'default' }
+      const currentUsage = await getBillingPeriodUsageCost(billingEntity, billingPeriod)
+      return { isExceeded: true, currentUsage, limit: 0, message: blocked.message }
     }
 
     const usageData = await checkUsageStatus(userId, preloadedSubscription, preloadedBillingContext)
