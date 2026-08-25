@@ -5,15 +5,13 @@ import { createLogger } from '@sim/logger'
 import { and, eq, inArray, ne } from 'drizzle-orm'
 import { calculateSubscriptionOverage, isSubscriptionOrgScoped } from '@/lib/billing/core/billing'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
+import { writeFinalPeriodBookkeeping } from '@/lib/billing/cycle-close'
 import { restoreUserProSubscription } from '@/lib/billing/organizations/membership'
 import { isEnterprise, isPaid, isPro, isTeam } from '@/lib/billing/plan-helpers'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
 import { stripeWebhookIdempotency } from '@/lib/billing/webhooks/idempotency'
-import {
-  getBilledOverageForSubscription,
-  resetUsageForSubscription,
-} from '@/lib/billing/webhooks/invoices'
+import { getBilledOverageForSubscription } from '@/lib/billing/webhooks/invoices'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { detachOrganizationWorkspaces } from '@/lib/workspaces/organization-workspaces'
 
@@ -185,35 +183,17 @@ export async function handleSubscriptionCreated(
         const wasFreePreviously = otherActiveSubscriptions.length === 0
         const isPaidPlan = isPaid(subscriptionData.plan)
 
-        if (wasFreePreviously && isPaidPlan) {
-          logger.info('Detected free -> paid transition, resetting usage', {
-            subscriptionId: subscriptionData.id,
-            referenceId: subscriptionData.referenceId,
-            plan: subscriptionData.plan,
-          })
-
-          await resetUsageForSubscription({
-            plan: subscriptionData.plan,
-            referenceId: subscriptionData.referenceId,
-            periodStart: subscriptionData.periodStart ?? null,
-            periodEnd: subscriptionData.periodEnd ?? null,
-          })
-
-          logger.info('Successfully reset usage for free -> paid transition', {
-            subscriptionId: subscriptionData.id,
-            referenceId: subscriptionData.referenceId,
-            plan: subscriptionData.plan,
-          })
-        } else {
-          logger.info('No usage reset needed', {
-            subscriptionId: subscriptionData.id,
-            referenceId: subscriptionData.referenceId,
-            plan: subscriptionData.plan,
-            wasFreePreviously,
-            isPaidPlan,
-            otherActiveSubscriptionsCount: otherActiveSubscriptions.length,
-          })
-        }
+        // No usage reset on free -> paid: usage is the attributed ledger, and
+        // the new subscription's period window starts empty by construction
+        // (rows are stamped with the paid period at write time).
+        logger.info('Processed subscription creation', {
+          subscriptionId: subscriptionData.id,
+          referenceId: subscriptionData.referenceId,
+          plan: subscriptionData.plan,
+          wasFreePreviously,
+          isPaidPlan,
+          otherActiveSubscriptionsCount: otherActiveSubscriptions.length,
+        })
 
         if (wasFreePreviously && isPaidPlan) {
           // Best-effort instrumentation; a transient DB error here must never abort
@@ -303,7 +283,7 @@ export async function handleSubscriptionDeleted(
         const stripe = requireStripeClient()
 
         if (isEnterprise(subscription.plan)) {
-          await resetUsageForSubscription({
+          await writeFinalPeriodBookkeeping({
             plan: subscription.plan,
             referenceId: subscription.referenceId,
             periodStart: subscription.periodStart ?? null,
@@ -423,7 +403,7 @@ export async function handleSubscriptionDeleted(
           })
         }
 
-        await resetUsageForSubscription({
+        await writeFinalPeriodBookkeeping({
           plan: subscription.plan,
           referenceId: subscription.referenceId,
           periodStart: subscription.periodStart ?? null,

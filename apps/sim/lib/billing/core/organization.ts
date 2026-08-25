@@ -67,11 +67,10 @@ interface MemberUsageData {
 }
 
 /**
- * Per-member usage_log cost for an org's current billing period, keyed by userId.
- * `currentPeriodCost` is only a baseline (no longer incremented on the hot path),
- * so callers add this ledger component to it for each member's real current-period
- * usage. Pass `period` to reuse an already-fetched subscription window; omit it to
- * look up the org's subscription here. Returns an empty map when there's no period.
+ * Per-member usage_log cost for an org's current billing period, keyed by
+ * userId — each member's real current-period usage. Pass `period` to reuse an
+ * already-fetched subscription window; omit it to look up the org's
+ * subscription here. Returns an empty map when there's no period.
  */
 export async function getOrgMemberLedgerByUser(
   organizationId: string,
@@ -96,7 +95,6 @@ export async function getOrgMemberLedgerByUser(
 
 export interface OrganizationMemberUsageSnapshot {
   billingPeriod: UsageQueryPeriod | null
-  includeLegacyBaseline: boolean
   usageByUser: Map<string, number>
 }
 
@@ -106,13 +104,9 @@ const MAX_ORGANIZATION_BILLING_MEMBER_LIMIT = 100
 async function getOrganizationMemberUsageCounts(
   organizationId: string,
   billingPeriod: UsageQueryPeriod,
-  includeLegacyBaseline: boolean,
   executor: DbClient
 ): Promise<{ overLimit: number; nearLimit: number }> {
-  const currentUsage = sql<number>`(
-    ${includeLegacyBaseline ? sql`coalesce(${userStats.currentPeriodCost}, 0)` : sql`0`} +
-    coalesce(sum(${usageLog.cost}), 0)
-  )`
+  const currentUsage = sql<number>`coalesce(sum(${usageLog.cost}), 0)`
     .mapWith(Number)
     .as('current_usage')
   const usageLimit = sql<number>`coalesce(${userStats.currentUsageLimit}, ${getFreeTierLimit()})`
@@ -140,7 +134,7 @@ async function getOrganizationMemberUsageCounts(
       )
     )
     .where(eq(member.organizationId, organizationId))
-    .groupBy(member.userId, userStats.currentPeriodCost, userStats.currentUsageLimit)
+    .groupBy(member.userId, userStats.currentUsageLimit)
     .as('organization_member_usage')
 
   const [counts] = await executor
@@ -164,8 +158,7 @@ async function getOrganizationMemberUsageCounts(
 
 /**
  * Resolves the organization's usage period once and returns the ledger usage
- * for only the requested actors. Reporting periods never include the legacy
- * userStats baseline; Stripe/default periods retain it for compatibility.
+ * for only the requested actors.
  */
 export async function getOrganizationMemberUsageSnapshot(
   organizationId: string,
@@ -179,7 +172,6 @@ export async function getOrganizationMemberUsageSnapshot(
   const billingPeriod = subscription ? resolveSubscriptionUsagePeriodOrDefault(subscription) : null
   return {
     billingPeriod,
-    includeLegacyBaseline: billingPeriod?.source !== 'reporting',
     usageByUser: billingPeriod
       ? await getOrgMemberLedgerByUser(organizationId, billingPeriod, executor, options.userIds)
       : new Map(),
@@ -218,7 +210,6 @@ export async function getOrganizationBillingData(
     }
 
     const billingPeriod = resolveSubscriptionUsagePeriodOrDefault(subscription)
-    const includeLegacyBaseline = billingPeriod?.source !== 'reporting'
     const limit = Math.min(
       MAX_ORGANIZATION_BILLING_MEMBER_LIMIT,
       Math.max(1, memberPage.limit ?? DEFAULT_ORGANIZATION_BILLING_MEMBER_LIMIT)
@@ -226,12 +217,8 @@ export async function getOrganizationBillingData(
     const offset = Math.max(0, memberPage.offset ?? 0)
     const [memberAggregateRows, membersWithUsage] = await Promise.all([
       executor
-        .select({
-          total: count(),
-          baseline: sql<string>`coalesce(sum(${userStats.currentPeriodCost}), 0)`,
-        })
+        .select({ total: count() })
         .from(member)
-        .leftJoin(userStats, eq(member.userId, userStats.userId))
         .where(eq(member.organizationId, organizationId)),
       executor
         .select({
@@ -240,7 +227,6 @@ export async function getOrganizationBillingData(
           userEmail: user.email,
           role: member.role,
           joinedAt: member.createdAt,
-          currentPeriodCost: userStats.currentPeriodCost,
           currentUsageLimit: userStats.currentUsageLimit,
         })
         .from(member)
@@ -257,9 +243,7 @@ export async function getOrganizationBillingData(
       : new Map<string, number>()
 
     const members: MemberUsageData[] = membersWithUsage.map((memberRecord) => {
-      const currentUsage =
-        (includeLegacyBaseline ? Number(memberRecord.currentPeriodCost || 0) : 0) +
-        (usageByUser.get(memberRecord.userId) ?? 0)
+      const currentUsage = usageByUser.get(memberRecord.userId) ?? 0
       const usageLimit = Number(memberRecord.currentUsageLimit || getFreeTierLimit())
       const percentUsed = usageLimit > 0 ? (currentUsage / usageLimit) * 100 : 0
 
@@ -278,15 +262,14 @@ export async function getOrganizationBillingData(
 
     const memberAggregate = memberAggregateRows[0]
     const membersTotal = memberAggregate?.total ?? 0
-    let totalCurrentUsage = includeLegacyBaseline ? Number(memberAggregate?.baseline ?? 0) : 0
-    if (billingPeriod) {
-      totalCurrentUsage += await getBillingPeriodUsageCost(
-        { type: 'organization', id: subscription.referenceId },
-        billingPeriod,
-        undefined,
-        executor
-      )
-    }
+    let totalCurrentUsage = billingPeriod
+      ? await getBillingPeriodUsageCost(
+          { type: 'organization', id: subscription.referenceId },
+          billingPeriod,
+          undefined,
+          executor
+        )
+      : 0
 
     if (isPaid(subscription.plan) && subscription.periodStart) {
       const planDollars = getPlanTierDollars(subscription.plan)
@@ -338,12 +321,7 @@ export async function getOrganizationBillingData(
     const pendingSeats = await countPendingSeatInvitations(organizationId, executor)
     const usedSeats = membersTotal + pendingSeats
     const memberUsageCounts = billingPeriod
-      ? await getOrganizationMemberUsageCounts(
-          organizationId,
-          billingPeriod,
-          includeLegacyBaseline,
-          executor
-        )
+      ? await getOrganizationMemberUsageCounts(organizationId, billingPeriod, executor)
       : { overLimit: 0, nearLimit: 0 }
 
     const billingPeriodStart = billingPeriod?.start ?? null

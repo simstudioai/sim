@@ -107,29 +107,14 @@ const expectedBillingPeriod = {
   end: new Date('2026-06-01T00:00:00.000Z'),
 }
 
-const defaultUsageSnapshotRow = {
-  currentPeriodCost: '0',
-  proPeriodCostSnapshot: '0',
-  proPeriodCostSnapshotAt: null as Date | null,
-  lastPeriodCost: '0',
-}
-
-/**
- * Queues the two pre-transaction personal reads: the user_stats usage snapshot
- * and the subscription's Stripe customer row.
- */
-function queuePersonalReads(
-  snapshot: Record<string, unknown> = defaultUsageSnapshotRow,
-  customerId = 'cus_1'
-) {
-  queueTableRows(schemaMock.userStats, [snapshot])
+/** Queues the pre-transaction personal read: the subscription's Stripe customer row. */
+function queuePersonalReads(customerId = 'cus_1') {
   queueTableRows(schemaMock.subscription, [{ stripeCustomerId: customerId }])
 }
 
 /** Builds the locked in-transaction user_stats row. */
 function lockedStatsRow(overrides: Record<string, unknown> = {}) {
   return {
-    ...defaultUsageSnapshotRow,
     billedOverageThisPeriod: '0',
     creditBalance: '0',
     ...overrides,
@@ -144,20 +129,18 @@ function queueLockedStats(row: Record<string, unknown>) {
 const orgMemberUsageRow = {
   userId: 'owner-1',
   role: 'owner',
-  currentPeriodCost: '350',
-  departedMemberUsage: '25',
 }
 
 /**
  * Queues the organization settlement reads in table order: the pre-transaction
- * member usage join, then the locked owner row, owner stats, organization row,
- * and locked member usage join inside the transaction.
+ * member join, then the locked owner row, owner stats, organization row, and
+ * locked member join inside the transaction.
  */
 function queueOrgReads({
   memberUsageRows = [orgMemberUsageRow],
   lockedOwnerRows = [{ userId: 'owner-1' }],
   ownerStatsRows = [{ billedOverageThisPeriod: '0' }],
-  organizationRows = [{ creditBalance: '0', departedMemberUsage: '25' }],
+  organizationRows = [{ creditBalance: '0' }],
   lockedMemberUsageRows = memberUsageRows,
 }: {
   memberUsageRows?: unknown[]
@@ -202,7 +185,6 @@ describe('checkAndBillOverageThreshold', () => {
   })
 
   it('does not lock user_stats when calculated overage is below threshold', async () => {
-    queuePersonalReads()
     mockCalculateSubscriptionOverage.mockResolvedValue(99)
 
     await checkAndBillOverageThreshold('user-1')
@@ -216,7 +198,7 @@ describe('checkAndBillOverageThreshold', () => {
       periodEnd: userSubscription.periodEnd,
     })
     expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
-    expect(dbChainMockFns.select).toHaveBeenCalledTimes(1)
+    expect(dbChainMockFns.select).not.toHaveBeenCalled()
     expect(mockEnqueueOutboxEvent).not.toHaveBeenCalled()
   })
 
@@ -540,34 +522,6 @@ describe('checkAndBillOverageThreshold', () => {
     expect(mockEnqueueOutboxEvent).not.toHaveBeenCalled()
   })
 
-  it('skips personal threshold billing when locked usage inputs changed', async () => {
-    queuePersonalReads({ ...defaultUsageSnapshotRow, currentPeriodCost: '250' })
-    queueLockedStats(lockedStatsRow({ lastPeriodCost: '250' }))
-    mockCalculateSubscriptionOverage.mockResolvedValue(250)
-
-    await checkAndBillOverageThreshold('user-1')
-
-    expect(dbChainMockFns.transaction).toHaveBeenCalled()
-    expect(dbChainMockFns.update).not.toHaveBeenCalled()
-    expect(mockEnqueueOutboxEvent).not.toHaveBeenCalled()
-  })
-
-  it('throws retryably in markerless strict mode when locked personal usage changes', async () => {
-    queuePersonalReads({ ...defaultUsageSnapshotRow, currentPeriodCost: '250' })
-    queueLockedStats(lockedStatsRow({ lastPeriodCost: '250' }))
-    mockCalculateSubscriptionOverage.mockResolvedValue(250)
-
-    await expect(
-      checkAndBillOverageThreshold('user-1', undefined, { onError: 'throw' })
-    ).rejects.toMatchObject({
-      name: ThresholdSettlementError.name,
-      code: 'concurrent_state_change',
-      retryable: true,
-    })
-    expect(dbChainMockFns.update).not.toHaveBeenCalled()
-    expect(mockEnqueueOutboxEvent).not.toHaveBeenCalled()
-  })
-
   it('wraps lock timeouts in markerless strict mode', async () => {
     queuePersonalReads()
     mockCalculateSubscriptionOverage.mockResolvedValue(250)
@@ -588,6 +542,7 @@ describe('checkAndBillOverageThreshold', () => {
     mockIsOrgScopedSubscription.mockReturnValue(true)
     mockIsOrganizationBillingBlocked.mockResolvedValue(false)
     mockGetOrganizationSubscriptionUsable.mockResolvedValue(usableOrgSubscription)
+    mockGetBillingPeriodUsageCost.mockResolvedValue(350)
     queueOrgReads()
     mockComputeOrgOverageAmount.mockResolvedValue({
       totalOverage: 250,
@@ -603,8 +558,7 @@ describe('checkAndBillOverageThreshold', () => {
       periodStart: new Date('2026-05-01T00:00:00.000Z'),
       periodEnd: new Date('2026-06-01T00:00:00.000Z'),
       organizationId: userSubscription.referenceId,
-      pooledCurrentPeriodCost: 350,
-      departedMemberUsage: 25,
+      pooledLedgerUsage: 350,
       memberIds: ['owner-1'],
     })
     expect(dbChainMockFns.transaction).toHaveBeenCalled()
@@ -613,27 +567,6 @@ describe('checkAndBillOverageThreshold', () => {
     )
     expect(dbChainMockFns.execute).toHaveBeenCalledTimes(1)
     expect(mockEnqueueOutboxEvent).toHaveBeenCalledTimes(1)
-  })
-
-  it('skips stale organization overage when locked usage inputs changed', async () => {
-    mockIsOrgScopedSubscription.mockReturnValue(true)
-    mockIsOrganizationBillingBlocked.mockResolvedValue(false)
-    mockGetOrganizationSubscriptionUsable.mockResolvedValue(usableOrgSubscription)
-    queueOrgReads({
-      organizationRows: [{ creditBalance: '0', departedMemberUsage: '75' }],
-      lockedMemberUsageRows: [{ ...orgMemberUsageRow, departedMemberUsage: '75' }],
-    })
-    mockComputeOrgOverageAmount.mockResolvedValue({
-      totalOverage: 250,
-      baseSubscriptionAmount: 100,
-      effectiveUsage: 350,
-    })
-
-    await checkAndBillOverageThreshold('user-1')
-
-    expect(dbChainMockFns.transaction).toHaveBeenCalled()
-    expect(mockEnqueueOutboxEvent).not.toHaveBeenCalled()
-    expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
 
   it('rechecks organization billed overage on the locked owner tracker', async () => {
@@ -659,29 +592,11 @@ describe('checkAndBillOverageThreshold', () => {
     mockIsOrganizationBillingBlocked.mockResolvedValue(false)
     mockGetOrganizationSubscriptionUsable.mockResolvedValue(usableOrgSubscription)
     queueOrgReads({
-      memberUsageRows: [
-        orgMemberUsageRow,
-        {
-          userId: 'member-1',
-          role: 'member',
-          currentPeriodCost: '25',
-          departedMemberUsage: '25',
-        },
-      ],
+      memberUsageRows: [orgMemberUsageRow, { userId: 'member-1', role: 'member' }],
       lockedOwnerRows: [{ userId: 'member-1' }],
       lockedMemberUsageRows: [
-        {
-          userId: 'owner-1',
-          role: 'member',
-          currentPeriodCost: '350',
-          departedMemberUsage: '25',
-        },
-        {
-          userId: 'member-1',
-          role: 'owner',
-          currentPeriodCost: '25',
-          departedMemberUsage: '25',
-        },
+        { userId: 'owner-1', role: 'member' },
+        { userId: 'member-1', role: 'owner' },
       ],
     })
     mockComputeOrgOverageAmount.mockResolvedValue({

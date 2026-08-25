@@ -52,8 +52,8 @@ describe('getPersonalBillingSummary', () => {
     vi.clearAllMocks()
     mockEnsureUserStatsExists.mockResolvedValue(undefined)
     mockResolveBillingInterval.mockReturnValue('year')
-    mockComputeDailyRefreshConsumed.mockResolvedValue(3)
-    mockGetBillingPeriodUsageCostWithSourceSubset.mockResolvedValue({ total: 2, subset: 1 })
+    mockComputeDailyRefreshConsumed.mockResolvedValue(1)
+    mockGetBillingPeriodUsageCostWithSourceSubset.mockResolvedValue({ total: 4, subset: 1 })
     mockGetHighestPriorityPersonalSubscription.mockResolvedValue({
       id: 'personal-sub',
       referenceId: 'viewer-a',
@@ -74,12 +74,8 @@ describe('getPersonalBillingSummary', () => {
     })
     dbChainMockFns.limit.mockResolvedValueOnce([
       {
-        currentPeriodCost: '10',
         currentUsageLimit: '30',
         lastPeriodCost: '6',
-        proPeriodCostSnapshot: '4',
-        proPeriodCostSnapshotAt: new Date('2026-07-10T00:00:00.000Z'),
-        currentPeriodCopilotCost: '5',
         lastPeriodCopilotCost: '2',
         creditBalance: '7',
         billingBlocked: true,
@@ -117,7 +113,7 @@ describe('getPersonalBillingSummary', () => {
     })
     expect(mockComputeDailyRefreshConsumed).toHaveBeenCalledWith(
       expect.objectContaining({
-        periodEnd: new Date('2026-07-10T00:00:00.000Z'),
+        periodEnd: new Date('2026-08-01T00:00:00.000Z'),
         billingEntity: { type: 'user', id: 'viewer-a' },
       }),
       dbChainMock.db

@@ -8,7 +8,7 @@ import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { resolveSubscriptionUsagePeriod } from '@/lib/billing/core/reporting-period'
 import {
-  getPooledOrgCurrentPeriodCost,
+  getOrgMemberBillingRollup,
   getUserUsageLimit,
   type UsageLimitSubscription,
 } from '@/lib/billing/core/usage'
@@ -29,7 +29,6 @@ import {
 } from '@/lib/billing/organizations/member-limits'
 import { getPlanTierDollars, isPaid } from '@/lib/billing/plan-helpers'
 import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
-import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
 import { isBillingEnabled, isHosted } from '@/lib/core/config/env-flags'
 
 const logger = createLogger('UsageMonitor')
@@ -64,34 +63,19 @@ async function computePooledOrgUsage(
       anchorDate: null,
       interval: null,
     }
-  if (billingPeriod.source === 'reporting') {
-    const ledgerUsage = await getBillingPeriodUsageCost(
-      { type: 'organization', id: organizationId },
-      billingPeriod
-    )
-    return ledgerUsage
-  }
-
-  const { memberIds, currentPeriodCost } = await getPooledOrgCurrentPeriodCost(organizationId)
-  if (memberIds.length === 0) {
-    return getBillingPeriodUsageCost({ type: 'organization', id: organizationId }, billingPeriod)
-  }
 
   if (!isPaid(sub.plan) || !sub.periodStart) {
-    const ledgerUsage = await getBillingPeriodUsageCost(
-      { type: 'organization', id: organizationId },
-      billingPeriod
-    )
-    return currentPeriodCost + ledgerUsage
+    return getBillingPeriodUsageCost({ type: 'organization', id: organizationId }, billingPeriod)
   }
 
   const planDollars = getPlanTierDollars(sub.plan)
   if (planDollars <= 0) {
-    const ledgerUsage = await getBillingPeriodUsageCost(
-      { type: 'organization', id: organizationId },
-      billingPeriod
-    )
-    return currentPeriodCost + ledgerUsage
+    return getBillingPeriodUsageCost({ type: 'organization', id: organizationId }, billingPeriod)
+  }
+
+  const { memberIds } = await getOrgMemberBillingRollup(organizationId)
+  if (memberIds.length === 0) {
+    return getBillingPeriodUsageCost({ type: 'organization', id: organizationId }, billingPeriod)
   }
 
   const userBounds = await getOrgMemberRefreshBounds(organizationId, sub.periodStart)
@@ -106,7 +90,7 @@ async function computePooledOrgUsage(
     userBounds: Object.keys(userBounds).length > 0 ? userBounds : undefined,
   })
 
-  return Math.max(0, currentPeriodCost + ledgerUsage - refreshConsumed)
+  return Math.max(0, ledgerUsage - refreshConsumed)
 }
 
 /**
@@ -120,9 +104,11 @@ export async function checkUsageStatus(
 ): Promise<UsageData> {
   try {
     if (!isBillingEnabled) {
-      const statsRecords = await db.select().from(userStats).where(eq(userStats.userId, userId))
-      const currentUsage =
-        statsRecords.length > 0 ? toNumber(toDecimal(statsRecords[0].currentPeriodCost)) : 0
+      // Self-hosted display: lifetime ledger over the open default window.
+      const currentUsage = await getBillingPeriodUsageCost(
+        { type: 'user', id: userId },
+        { ...defaultBillingPeriod(), source: 'default' }
+      )
 
       return {
         percentUsed: Math.min((currentUsage / 1000) * 100, 100),
@@ -156,25 +142,6 @@ export async function checkUsageStatus(
       return buildUsageData({ currentUsage, limit, scope, organizationId })
     }
 
-    const statsRecords = await db
-      .select()
-      .from(userStats)
-      .where(eq(userStats.userId, userId))
-      .limit(1)
-
-    if (statsRecords.length === 0) {
-      logger.info('No usage stats found for user', { userId, limit })
-      return {
-        percentUsed: 0,
-        isWarning: false,
-        isExceeded: false,
-        currentUsage: 0,
-        limit,
-        scope: 'user',
-        organizationId: null,
-      }
-    }
-
     const billingPeriod =
       preloadedBillingContext?.billingPeriod ??
       (sub?.periodStart && sub.periodEnd
@@ -203,8 +170,7 @@ export async function checkUsageStatus(
     } else {
       ledgerUsage = await getBillingPeriodUsageCost({ type: 'user', id: userId }, billingPeriod)
     }
-    const usageBeforeRefresh =
-      toNumber(toDecimal(statsRecords[0].currentPeriodCost)) + ledgerUsage - refreshConsumed
+    const usageBeforeRefresh = ledgerUsage - refreshConsumed
     const currentUsage = appliedDailyRefresh ? Math.max(0, usageBeforeRefresh) : usageBeforeRefresh
 
     return buildUsageData({ currentUsage, limit, scope, organizationId })
@@ -364,17 +330,9 @@ export async function checkServerSideUsageLimits(
 
     logger.info('Server-side checking usage limits for user', { userId })
 
-    const stats = await db
-      .select({ current: userStats.currentPeriodCost })
-      .from(userStats)
-      .where(eq(userStats.userId, userId))
-      .limit(1)
-
-    const currentUsage = stats.length > 0 ? toNumber(toDecimal(stats[0].current)) : 0
-
     const blocked = await checkBillingBlocked(userId)
     if (blocked.blocked) {
-      return { isExceeded: true, currentUsage, limit: 0, message: blocked.message }
+      return { isExceeded: true, currentUsage: 0, limit: 0, message: blocked.message }
     }
 
     const usageData = await checkUsageStatus(userId, preloadedSubscription, preloadedBillingContext)

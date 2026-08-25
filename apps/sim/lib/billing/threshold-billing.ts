@@ -30,19 +30,10 @@ const logger = createLogger('ThresholdBilling')
 const OVERAGE_THRESHOLD = envNumber(env.OVERAGE_THRESHOLD_DOLLARS, DEFAULT_OVERAGE_THRESHOLD)
 const USAGE_TOTAL_EPSILON = 0.000001
 
-interface PersonalUsageSnapshot {
-  currentPeriodCost: number
-  proPeriodCostSnapshot: number
-  proPeriodCostSnapshotAt: Date | null
-  lastPeriodCost: number
-}
-
 interface OrganizationUsageSnapshot {
   memberIds: string[]
   ownerId: string
   memberSignature: string
-  pooledCurrentPeriodCost: number
-  departedMemberUsage: number
 }
 
 interface ThresholdBillingPeriod {
@@ -288,12 +279,6 @@ export async function checkAndBillOverageThreshold(
       return checkAndBillOrganizationOverageThreshold(userSubscription.referenceId, options)
     }
 
-    const usageSnapshot = await getPersonalUsageSnapshot(userId)
-    if (!usageSnapshot) {
-      logger.warn('User stats not found for threshold billing', { userId })
-      return requireSettlementStateOutcome(options, 'User stats are required for settlement')
-    }
-
     const currentOverage = await calculateSubscriptionOverage({
       id: userSubscription.id,
       plan: userSubscription.plan,
@@ -359,19 +344,6 @@ export async function checkAndBillOverageThreshold(
         }
 
         const stats = statsRecords[0]
-        const lockedUsageSnapshot = personalUsageSnapshotFromStats(stats)
-        if (!personalUsageSnapshotMatches(usageSnapshot, lockedUsageSnapshot)) {
-          logger.debug('Personal usage changed during threshold billing check; retry later', {
-            userId,
-            usageSnapshot,
-            lockedUsageSnapshot,
-          })
-          return retryConcurrentSettlement(
-            options,
-            'Personal usage changed during threshold settlement'
-          )
-        }
-
         const billedOverageThisPeriod = toNumber(toDecimal(stats.billedOverageThisPeriod))
         const unbilledOverage = Math.max(0, currentOverage - billedOverageThisPeriod)
 
@@ -569,12 +541,8 @@ async function checkAndBillOrganizationOverageThreshold(
       .select({
         userId: member.userId,
         role: member.role,
-        currentPeriodCost: userStats.currentPeriodCost,
-        departedMemberUsage: organization.departedMemberUsage,
       })
       .from(member)
-      .leftJoin(userStats, eq(member.userId, userStats.userId))
-      .innerJoin(organization, eq(organization.id, member.organizationId))
       .where(eq(member.organizationId, organizationId))
 
     logger.debug('Found organization members', {
@@ -623,16 +591,13 @@ async function checkAndBillOrganizationOverageThreshold(
       periodStart: orgSubscription.periodStart ?? null,
       periodEnd: orgSubscription.periodEnd ?? null,
       organizationId,
-      pooledCurrentPeriodCost: usageSnapshot.pooledCurrentPeriodCost + ledgerUsage,
-      departedMemberUsage: usageSnapshot.departedMemberUsage,
+      pooledLedgerUsage: ledgerUsage,
       memberIds: usageSnapshot.memberIds,
     })
 
     if (currentOverage < threshold) {
       logger.debug('Organization threshold billing check below threshold before locking', {
         organizationId,
-        totalTeamUsage:
-          usageSnapshot.pooledCurrentPeriodCost + ledgerUsage + usageSnapshot.departedMemberUsage,
         ledgerUsage,
         effectiveTeamUsage,
         basePrice,
@@ -718,12 +683,8 @@ async function checkAndBillOrganizationOverageThreshold(
           .select({
             userId: member.userId,
             role: member.role,
-            currentPeriodCost: userStats.currentPeriodCost,
-            departedMemberUsage: organization.departedMemberUsage,
           })
           .from(member)
-          .leftJoin(userStats, eq(member.userId, userStats.userId))
-          .innerJoin(organization, eq(organization.id, member.organizationId))
           .where(eq(member.organizationId, organizationId))
 
         const lockedUsageSnapshot = buildOrganizationUsageSnapshot(lockedMemberUsageRows)
@@ -732,15 +693,18 @@ async function checkAndBillOrganizationOverageThreshold(
           lockedOwnerId !== usageSnapshot.ownerId ||
           !organizationUsageSnapshotMatches(usageSnapshot, lockedUsageSnapshot)
         ) {
-          logger.debug('Organization usage changed during threshold billing check; retry later', {
-            organizationId,
-            usageSnapshot,
-            lockedUsageSnapshot,
-            lockedOwnerId,
-          })
+          logger.debug(
+            'Organization membership changed during threshold billing check; retry later',
+            {
+              organizationId,
+              usageSnapshot,
+              lockedUsageSnapshot,
+              lockedOwnerId,
+            }
+          )
           return retryConcurrentSettlement(
             options,
-            'Organization usage changed during threshold settlement'
+            'Organization membership changed during threshold settlement'
           )
         }
 
@@ -751,8 +715,6 @@ async function checkAndBillOrganizationOverageThreshold(
 
         logger.debug('Organization threshold billing check', {
           organizationId,
-          totalTeamUsage:
-            usageSnapshot.pooledCurrentPeriodCost + ledgerUsage + usageSnapshot.departedMemberUsage,
           ledgerUsage,
           effectiveTeamUsage,
           basePrice,
@@ -911,77 +873,21 @@ async function checkAndBillOrganizationOverageThreshold(
   }
 }
 
-async function getPersonalUsageSnapshot(userId: string): Promise<PersonalUsageSnapshot | null> {
-  const [stats] = await db
-    .select({
-      currentPeriodCost: userStats.currentPeriodCost,
-      proPeriodCostSnapshot: userStats.proPeriodCostSnapshot,
-      proPeriodCostSnapshotAt: userStats.proPeriodCostSnapshotAt,
-      lastPeriodCost: userStats.lastPeriodCost,
-    })
-    .from(userStats)
-    .where(eq(userStats.userId, userId))
-    .limit(1)
-
-  return stats ? personalUsageSnapshotFromStats(stats) : null
-}
-
-function personalUsageSnapshotFromStats(stats: {
-  currentPeriodCost: string | number | null
-  proPeriodCostSnapshot: string | number | null
-  proPeriodCostSnapshotAt: Date | null
-  lastPeriodCost: string | number | null
-}): PersonalUsageSnapshot {
-  return {
-    currentPeriodCost: toNumber(toDecimal(stats.currentPeriodCost)),
-    proPeriodCostSnapshot: toNumber(toDecimal(stats.proPeriodCostSnapshot)),
-    proPeriodCostSnapshotAt: stats.proPeriodCostSnapshotAt,
-    lastPeriodCost: toNumber(toDecimal(stats.lastPeriodCost)),
-  }
-}
-
-function personalUsageSnapshotMatches(
-  expected: PersonalUsageSnapshot,
-  actual: PersonalUsageSnapshot
-): boolean {
-  return (
-    Math.abs(expected.currentPeriodCost - actual.currentPeriodCost) <= USAGE_TOTAL_EPSILON &&
-    Math.abs(expected.proPeriodCostSnapshot - actual.proPeriodCostSnapshot) <=
-      USAGE_TOTAL_EPSILON &&
-    Math.abs(expected.lastPeriodCost - actual.lastPeriodCost) <= USAGE_TOTAL_EPSILON &&
-    nullableDateTime(expected.proPeriodCostSnapshotAt) ===
-      nullableDateTime(actual.proPeriodCostSnapshotAt)
-  )
-}
-
 function buildOrganizationUsageSnapshot(
   rows: {
     userId: string
     role: string
-    currentPeriodCost: string | number | null
-    departedMemberUsage: string | number | null
   }[]
 ): OrganizationUsageSnapshot | null {
   const owner = rows.find((row) => row.role === 'owner')
   if (!owner) return null
 
   const sortedRows = [...rows].sort((a, b) => a.userId.localeCompare(b.userId))
-  let pooledCurrentPeriodCost = 0
-  for (const row of sortedRows) {
-    pooledCurrentPeriodCost += toNumber(toDecimal(row.currentPeriodCost))
-  }
 
   return {
     memberIds: sortedRows.map((row) => row.userId),
     ownerId: owner.userId,
-    memberSignature: sortedRows
-      .map(
-        (row) =>
-          `${row.userId}:${row.role}:${toNumber(toDecimal(row.currentPeriodCost)).toFixed(6)}`
-      )
-      .join('|'),
-    pooledCurrentPeriodCost,
-    departedMemberUsage: toNumber(toDecimal(owner.departedMemberUsage)),
+    memberSignature: sortedRows.map((row) => `${row.userId}:${row.role}`).join('|'),
   }
 }
 
@@ -989,13 +895,5 @@ function organizationUsageSnapshotMatches(
   expected: OrganizationUsageSnapshot,
   actual: OrganizationUsageSnapshot
 ): boolean {
-  return (
-    expected.ownerId === actual.ownerId &&
-    expected.memberSignature === actual.memberSignature &&
-    Math.abs(expected.departedMemberUsage - actual.departedMemberUsage) <= USAGE_TOTAL_EPSILON
-  )
-}
-
-function nullableDateTime(value: Date | null): number | null {
-  return value?.getTime() ?? null
+  return expected.ownerId === actual.ownerId && expected.memberSignature === actual.memberSignature
 }

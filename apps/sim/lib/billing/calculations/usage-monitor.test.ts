@@ -8,7 +8,7 @@ const {
   mockGetBillingPeriodUsageCost,
   mockGetOrgMemberUsageForBillingPeriod,
   mockGetOrgMemberUsageLimit,
-  mockGetPooledOrgCurrentPeriodCost,
+  mockGetOrgMemberBillingRollup,
   mockGetUserUsageLimit,
   mockIsOrganizationBillingBlocked,
   mockComputeBillingPeriodUsageWithDailyRefresh,
@@ -17,7 +17,7 @@ const {
   mockGetBillingPeriodUsageCost: vi.fn(),
   mockGetOrgMemberUsageForBillingPeriod: vi.fn(),
   mockGetOrgMemberUsageLimit: vi.fn(),
-  mockGetPooledOrgCurrentPeriodCost: vi.fn(),
+  mockGetOrgMemberBillingRollup: vi.fn(),
   mockGetUserUsageLimit: vi.fn(),
   mockIsOrganizationBillingBlocked: vi.fn(),
   mockComputeBillingPeriodUsageWithDailyRefresh: vi.fn(),
@@ -36,7 +36,7 @@ vi.mock('@/lib/billing/core/access', () => ({
 // core/usage pulls in the email-rendering chain at import; stub the two symbols
 // usage-monitor imports from it so the module loads in a node test env.
 vi.mock('@/lib/billing/core/usage', () => ({
-  getPooledOrgCurrentPeriodCost: mockGetPooledOrgCurrentPeriodCost,
+  getOrgMemberBillingRollup: mockGetOrgMemberBillingRollup,
   getUserUsageLimit: mockGetUserUsageLimit,
 }))
 
@@ -109,7 +109,7 @@ describe('checkUsageStatus', () => {
       { type: 'organization', id: 'org-1' },
       billingPeriod
     )
-    expect(mockGetPooledOrgCurrentPeriodCost).not.toHaveBeenCalled()
+    expect(mockGetOrgMemberBillingRollup).not.toHaveBeenCalled()
   })
 
   it('reads paid personal ledger usage and refresh from one snapshot', async () => {
@@ -123,10 +123,8 @@ describe('checkUsageStatus', () => {
       periodStart,
       periodEnd,
     }
-    dbChainMockFns.limit.mockResolvedValueOnce([{ currentPeriodCost: '20' }])
-
     await expect(checkUsageStatus('user-1', subscription)).resolves.toMatchObject({
-      currentUsage: 120,
+      currentUsage: 100,
       scope: 'user',
     })
 
@@ -152,7 +150,6 @@ describe('checkUsageStatus', () => {
       periodStart,
       periodEnd,
     }
-    dbChainMockFns.limit.mockResolvedValueOnce([{ currentPeriodCost: '0' }])
     mockComputeBillingPeriodUsageWithDailyRefresh.mockResolvedValueOnce({
       ledgerUsage: -1,
       refreshConsumed: 1,
@@ -175,10 +172,8 @@ describe('checkUsageStatus', () => {
       periodStart,
       periodEnd,
     }
-    dbChainMockFns.limit.mockResolvedValueOnce([{ currentPeriodCost: '20' }])
-
     await expect(checkUsageStatus('user-1', subscription)).resolves.toMatchObject({
-      currentUsage: 145,
+      currentUsage: 125,
       scope: 'user',
     })
 
@@ -200,7 +195,6 @@ describe('checkUsageStatus', () => {
       periodStart,
       periodEnd,
     }
-    dbChainMockFns.limit.mockResolvedValueOnce([{ currentPeriodCost: '0' }])
     mockGetBillingPeriodUsageCost.mockResolvedValueOnce(-1)
 
     await expect(checkUsageStatus('user-1', subscription)).resolves.toMatchObject({
@@ -223,9 +217,9 @@ describe('checkUsageStatus', () => {
       periodStart,
       periodEnd,
     }
-    mockGetPooledOrgCurrentPeriodCost.mockResolvedValue({
+    mockGetOrgMemberBillingRollup.mockResolvedValue({
       memberIds: ['user-1', 'user-2'],
-      currentPeriodCost: 20,
+      lastPeriodCost: 0,
     })
     mockGetOrgMemberRefreshBounds.mockResolvedValue({ 'user-2': { userStart } })
     mockComputeBillingPeriodUsageWithDailyRefresh.mockResolvedValue({
@@ -234,7 +228,7 @@ describe('checkUsageStatus', () => {
     })
 
     await expect(checkUsageStatus('user-1', subscription)).resolves.toMatchObject({
-      currentUsage: 110,
+      currentUsage: 90,
       scope: 'organization',
       organizationId: 'org-1',
     })
@@ -267,7 +261,7 @@ describe('checkUsageStatus', () => {
       periodStart,
       periodEnd,
     }
-    mockGetPooledOrgCurrentPeriodCost.mockResolvedValue({ memberIds: [], currentPeriodCost: 0 })
+    mockGetOrgMemberBillingRollup.mockResolvedValue({ memberIds: [], lastPeriodCost: 0 })
 
     await expect(checkUsageStatus('user-1', subscription)).resolves.toMatchObject({
       currentUsage: 125,

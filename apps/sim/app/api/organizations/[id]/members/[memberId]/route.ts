@@ -89,7 +89,6 @@ export const GET = withRouteHandler(
       if (includeUsage && hasAdminAccess) {
         const usageData = await db
           .select({
-            currentPeriodCost: userStats.currentPeriodCost,
             currentUsageLimit: userStats.currentUsageLimit,
             usageLimitUpdatedAt: userStats.usageLimitUpdatedAt,
             lastPeriodCost: userStats.lastPeriodCost,
@@ -99,20 +98,19 @@ export const GET = withRouteHandler(
           .limit(1)
 
         if (usageData.length > 0) {
-          const { billingPeriod, includeLegacyBaseline, usageByUser } =
-            await getOrganizationMemberUsageSnapshot(organizationId, {
+          const { billingPeriod, usageByUser } = await getOrganizationMemberUsageSnapshot(
+            organizationId,
+            {
               executor: dbReplica,
               userIds: [memberId],
-            })
+            }
+          )
           const memberLedger = usageByUser.get(memberId) ?? 0
           memberData = {
             ...memberData,
             usage: {
               ...usageData[0],
-              currentPeriodCost: (
-                (includeLegacyBaseline ? Number(usageData[0].currentPeriodCost ?? 0) : 0) +
-                memberLedger
-              ).toString(),
+              currentPeriodCost: memberLedger.toString(),
               billingPeriodStart: billingPeriod?.start ?? null,
               billingPeriodEnd: billingPeriod?.end ?? null,
             },

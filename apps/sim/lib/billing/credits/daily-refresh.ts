@@ -8,7 +8,7 @@
  * The total refresh consumed in a period is:
  *   SUM( MIN(day_usage, daily_refresh_amount) ) for each day
  *
- * This is subtracted from `currentPeriodCost` to derive "effective billable usage".
+ * This is subtracted from ledger period usage to derive "effective billable usage".
  */
 
 import { db } from '@sim/db'

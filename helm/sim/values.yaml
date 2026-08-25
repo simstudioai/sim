@@ -1387,6 +1387,15 @@ cronjobs:
       successfulJobsHistoryLimit: 3
       failedJobsHistoryLimit: 1
 
+    billingCycleClose:
+      enabled: true
+      name: billing-cycle-close
+      schedule: "0 */6 * * *"
+      path: "/api/cron/billing-cycle-close"
+      concurrencyPolicy: Forbid
+      successfulJobsHistoryLimit: 3
+      failedJobsHistoryLimit: 1
+
     reconcileBillingSeats:
       enabled: true
       name: reconcile-billing-seats

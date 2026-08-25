@@ -1,0 +1,315 @@
+/**
+ * @vitest-environment node
+ */
+import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const {
+  mockComputeOrgOverageAmount,
+  mockIsSubscriptionOrgScoped,
+  mockGetStampedPeriodRangeUsageCostByUser,
+  mockComputeDailyRefreshConsumed,
+  mockEnqueueOutboxEvent,
+  mockGetPlanPricing,
+  mockGetPlanTierDollars,
+  mockIsEnterprise,
+  mockIsFree,
+  mockRecordAudit,
+  mockCaptureServerEvent,
+} = vi.hoisted(() => ({
+  mockComputeOrgOverageAmount: vi.fn(),
+  mockIsSubscriptionOrgScoped: vi.fn(),
+  mockGetStampedPeriodRangeUsageCostByUser: vi.fn(),
+  mockComputeDailyRefreshConsumed: vi.fn(),
+  mockEnqueueOutboxEvent: vi.fn(),
+  mockGetPlanPricing: vi.fn(),
+  mockGetPlanTierDollars: vi.fn(),
+  mockIsEnterprise: vi.fn(),
+  mockIsFree: vi.fn(),
+  mockRecordAudit: vi.fn(),
+  mockCaptureServerEvent: vi.fn(),
+}))
+
+vi.mock('@sim/audit', () => ({
+  AuditAction: { OVERAGE_BILLED: 'overage.billed' },
+  AuditResourceType: { BILLING: 'billing' },
+  recordAudit: mockRecordAudit,
+}))
+
+vi.mock('@/lib/billing/core/billing', () => ({
+  computeOrgOverageAmount: mockComputeOrgOverageAmount,
+  isSubscriptionOrgScoped: mockIsSubscriptionOrgScoped,
+}))
+
+vi.mock('@/lib/billing/core/reporting-period', () => ({
+  ENTERPRISE_REPORTING_PERIOD_ANCHOR_METADATA_KEY: 'reportingPeriodAnchorDate',
+}))
+
+vi.mock('@/lib/billing/core/usage-log', () => ({
+  COPILOT_USAGE_SOURCES: ['copilot'],
+  getStampedPeriodRangeUsageCostByUser: mockGetStampedPeriodRangeUsageCostByUser,
+}))
+
+vi.mock('@/lib/billing/credits/daily-refresh', () => ({
+  computeDailyRefreshConsumed: mockComputeDailyRefreshConsumed,
+}))
+
+vi.mock('@/lib/billing/plan-helpers', () => ({
+  getPlanTierDollars: mockGetPlanTierDollars,
+  isEnterprise: mockIsEnterprise,
+  isFree: mockIsFree,
+}))
+
+vi.mock('@/lib/billing/subscriptions/utils', () => ({
+  ENTITLED_SUBSCRIPTION_STATUSES: ['active', 'past_due'],
+  getPlanPricing: mockGetPlanPricing,
+}))
+
+vi.mock('@/lib/billing/webhooks/outbox-handlers', () => ({
+  OUTBOX_EVENT_TYPES: {
+    STRIPE_THRESHOLD_OVERAGE_INVOICE: 'stripe.threshold-overage-invoice',
+  },
+}))
+
+vi.mock('@/lib/core/outbox/service', () => ({
+  enqueueOutboxEvent: mockEnqueueOutboxEvent,
+}))
+
+vi.mock('@/lib/posthog/server', () => ({
+  captureServerEvent: mockCaptureServerEvent,
+}))
+
+import { closeElapsedBillingPeriod, sweepBillingCycleCloses } from '@/lib/billing/cycle-close'
+
+type SubInput = Parameters<typeof closeElapsedBillingPeriod>[0]
+
+const PERIOD_START = new Date('2026-08-01T00:00:00.000Z')
+const PREV_PERIOD_START = new Date('2026-07-01T00:00:00.000Z')
+
+function subRow(overrides: Partial<Record<string, unknown>> = {}): SubInput {
+  return {
+    id: 'sub-1',
+    plan: 'team',
+    referenceId: 'org-1',
+    stripeCustomerId: 'cus_1',
+    stripeSubscriptionId: 'sub_stripe_1',
+    status: 'active',
+    periodStart: PERIOD_START,
+    periodEnd: new Date('2026-09-01T00:00:00.000Z'),
+    billingInterval: 'month',
+    metadata: null,
+    lastClosedPeriodStart: PREV_PERIOD_START,
+    ...overrides,
+  } as SubInput
+}
+
+/**
+ * Queues the org close's reads in table order: member roster, in-tx member
+ * userStats lock, organization credit row, subscription marker re-read, and
+ * the tracker userStats row.
+ */
+function queueOrgCloseReads({
+  members = [{ userId: 'owner-1', role: 'owner' }],
+  orgRow = { creditBalance: '0' },
+  markerRow = { lastClosedPeriodStart: PREV_PERIOD_START },
+  trackerRow = { billedOverageThisPeriod: '0', creditBalance: '0' },
+} = {}) {
+  queueTableRows(schemaMock.member, members)
+  queueTableRows(schemaMock.userStats, [])
+  queueTableRows(schemaMock.organization, [orgRow])
+  queueTableRows(schemaMock.subscription, [markerRow])
+  queueTableRows(schemaMock.userStats, [trackerRow])
+}
+
+describe('closeElapsedBillingPeriod', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    mockIsSubscriptionOrgScoped.mockResolvedValue(true)
+    mockIsEnterprise.mockReturnValue(false)
+    mockIsFree.mockReturnValue(false)
+    mockGetPlanTierDollars.mockReturnValue(40)
+    mockGetPlanPricing.mockReturnValue({ basePrice: 40 })
+    mockComputeDailyRefreshConsumed.mockResolvedValue(0)
+    mockGetStampedPeriodRangeUsageCostByUser.mockResolvedValue(new Map([['owner-1', 150]]))
+    mockComputeOrgOverageAmount.mockResolvedValue({
+      effectiveUsage: 150,
+      baseSubscriptionAmount: 80,
+      dailyRefreshDeduction: 0,
+      totalOverage: 70,
+    })
+    dbChainMockFns.returning.mockResolvedValue([{ id: 'sub-1' }])
+  })
+
+  afterAll(() => {
+    resetDbChainMock()
+  })
+
+  it('initializes a null marker without billing', async () => {
+    const result = await closeElapsedBillingPeriod(subRow({ lastClosedPeriodStart: null }))
+
+    expect(result.status).toBe('initialized')
+    expect(dbChainMockFns.update).toHaveBeenCalledTimes(1)
+    expect(mockEnqueueOutboxEvent).not.toHaveBeenCalled()
+    expect(mockGetStampedPeriodRangeUsageCostByUser).not.toHaveBeenCalled()
+  })
+
+  it('returns current when the marker already matches the period start', async () => {
+    const result = await closeElapsedBillingPeriod(subRow({ lastClosedPeriodStart: PERIOD_START }))
+
+    expect(result.status).toBe('current')
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+    expect(mockEnqueueOutboxEvent).not.toHaveBeenCalled()
+  })
+
+  it('closes a team period: bills the remainder, resets trackers, and claims the marker', async () => {
+    queueOrgCloseReads()
+
+    const result = await closeElapsedBillingPeriod(subRow())
+
+    expect(result.status).toBe('closed')
+    expect(result.overageBilled).toBe(70)
+
+    expect(mockComputeOrgOverageAmount).toHaveBeenCalledWith({
+      plan: 'team',
+      seats: null,
+      periodStart: PREV_PERIOD_START,
+      periodEnd: PERIOD_START,
+      organizationId: 'org-1',
+      pooledLedgerUsage: 150,
+      memberIds: ['owner-1'],
+    })
+
+    expect(mockEnqueueOutboxEvent).toHaveBeenCalledTimes(1)
+    const [, eventType, payload] = mockEnqueueOutboxEvent.mock.calls[0]
+    expect(eventType).toBe('stripe.threshold-overage-invoice')
+    expect(payload).toMatchObject({
+      customerId: 'cus_1',
+      stripeSubscriptionId: 'sub_stripe_1',
+      amountCents: 7000,
+      invoiceIdemKeyStem: `cycle-close-overage:sub-1:${PERIOD_START.toISOString()}:invoice`,
+      metadata: expect.objectContaining({ type: 'overage_billing', organizationId: 'org-1' }),
+    })
+
+    // Bookkeeping: last-period CASE write + billedOverage reset on member rows.
+    const bookkeepingSet = dbChainMockFns.set.mock.calls.find(
+      (call) => (call[0] as Record<string, unknown>).billedOverageThisPeriod === '0'
+    )?.[0] as Record<string, unknown>
+    expect(bookkeepingSet).toBeDefined()
+    expect(
+      (bookkeepingSet.lastPeriodCost as { toSQL?: () => { sql: string } })?.toSQL?.().sql
+    ).toContain('CASE')
+
+    // Marker claim committed in the same transaction.
+    const markerSet = dbChainMockFns.set.mock.calls.find(
+      (call) => (call[0] as Record<string, unknown>).lastClosedPeriodStart instanceof Date
+    )
+    expect(markerSet).toBeDefined()
+    expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(1)
+    expect(mockRecordAudit).toHaveBeenCalledTimes(1)
+    expect(mockCaptureServerEvent).toHaveBeenCalledTimes(1)
+  })
+
+  it('applies organization credits before invoicing and skips Stripe when covered', async () => {
+    queueOrgCloseReads({ orgRow: { creditBalance: '100' } })
+
+    const result = await closeElapsedBillingPeriod(subRow())
+
+    expect(result.status).toBe('closed')
+    expect(result.creditsApplied).toBe(70)
+    expect(result.overageBilled).toBe(0)
+    expect(mockEnqueueOutboxEvent).not.toHaveBeenCalled()
+    expect(mockRecordAudit).toHaveBeenCalledTimes(1)
+  })
+
+  it('subtracts overage already collected by threshold billing', async () => {
+    queueOrgCloseReads({ trackerRow: { billedOverageThisPeriod: '70', creditBalance: '0' } })
+
+    const result = await closeElapsedBillingPeriod(subRow())
+
+    expect(result.status).toBe('closed')
+    expect(result.overageBilled).toBe(0)
+    expect(mockEnqueueOutboxEvent).not.toHaveBeenCalled()
+    expect(mockRecordAudit).not.toHaveBeenCalled()
+  })
+
+  it('no-ops when a concurrent closer already advanced the marker', async () => {
+    queueOrgCloseReads({ markerRow: { lastClosedPeriodStart: PERIOD_START } })
+
+    const result = await closeElapsedBillingPeriod(subRow())
+
+    expect(result.status).toBe('already-closed')
+    expect(mockEnqueueOutboxEvent).not.toHaveBeenCalled()
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+  })
+
+  it('books enterprise periods without collecting money', async () => {
+    mockIsEnterprise.mockReturnValue(true)
+    queueOrgCloseReads()
+
+    const result = await closeElapsedBillingPeriod(subRow({ plan: 'enterprise' }))
+
+    expect(result.status).toBe('closed')
+    expect(result.overageBilled).toBe(0)
+    expect(mockComputeOrgOverageAmount).not.toHaveBeenCalled()
+    expect(mockEnqueueOutboxEvent).not.toHaveBeenCalled()
+    // Bookkeeping still writes last-period sums.
+    const bookkeepingSet = dbChainMockFns.set.mock.calls.find(
+      (call) => (call[0] as Record<string, unknown>).billedOverageThisPeriod === '0'
+    )
+    expect(bookkeepingSet).toBeDefined()
+  })
+
+  it('only advances the marker for enterprise orgs on reporting anchors', async () => {
+    mockIsEnterprise.mockReturnValue(true)
+
+    const result = await closeElapsedBillingPeriod(
+      subRow({ plan: 'enterprise', metadata: { reportingPeriodAnchorDate: '2026-05-01' } })
+    )
+
+    expect(result.status).toBe('closed')
+    expect(mockGetStampedPeriodRangeUsageCostByUser).not.toHaveBeenCalled()
+    expect(mockEnqueueOutboxEvent).not.toHaveBeenCalled()
+  })
+
+  it('closes a personal subscription against the user ledger', async () => {
+    mockIsSubscriptionOrgScoped.mockResolvedValue(false)
+    mockGetStampedPeriodRangeUsageCostByUser.mockResolvedValue(new Map([['user-1', 90]]))
+    // Personal reads: in-tx userStats lock, marker re-read, tracker row.
+    queueTableRows(schemaMock.userStats, [])
+    queueTableRows(schemaMock.subscription, [{ lastClosedPeriodStart: PREV_PERIOD_START }])
+    queueTableRows(schemaMock.userStats, [{ billedOverageThisPeriod: '0', creditBalance: '0' }])
+
+    const result = await closeElapsedBillingPeriod(
+      subRow({ plan: 'pro', referenceId: 'user-1', stripeCustomerId: 'cus_user' })
+    )
+
+    expect(result.status).toBe('closed')
+    // 90 ledger - 0 refresh - 40 base = 50 overage
+    expect(result.overageBilled).toBe(50)
+    expect(mockComputeOrgOverageAmount).not.toHaveBeenCalled()
+    expect(mockEnqueueOutboxEvent).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('sweepBillingCycleCloses', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    mockIsFree.mockReturnValue(false)
+    mockIsEnterprise.mockReturnValue(false)
+  })
+
+  it('initializes lagging markers and isolates per-subscription failures', async () => {
+    queueTableRows(schemaMock.subscription, [
+      subRow({ id: 'sub-a', lastClosedPeriodStart: null }),
+      subRow({ id: 'sub-b', lastClosedPeriodStart: null, periodStart: null }),
+    ])
+
+    const summary = await sweepBillingCycleCloses()
+
+    expect(summary.candidates).toBe(2)
+    expect(summary.initialized).toBe(1)
+    expect(summary.failed).toBe(0)
+  })
+})
