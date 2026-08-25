@@ -16,6 +16,8 @@ import {
 } from '@/lib/integrations/availability'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
 import { intersectIntegrationAllowlists } from '@/lib/permission-groups/integration-allowlist'
+import { createModelAccessGate } from '@/lib/permission-groups/model-access'
+import { createToolAccessGate } from '@/lib/permission-groups/operation-access'
 import {
   DEFAULT_PERMISSION_GROUP_CONFIG,
   type PermissionGroupConfig,
@@ -24,7 +26,6 @@ import { useOptionalWorkspaceHostContext } from '@/app/workspace/[workspaceId]/p
 import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import { overlayVisibility } from '@/blocks/visibility/context'
 import { useUserPermissionConfig } from '@/ee/access-control/hooks/permission-groups'
-import { findProviderFromModel } from '@/providers/utils'
 
 export interface PermissionConfigResult {
   config: PermissionGroupConfig
@@ -120,42 +121,19 @@ export function usePermissionConfig(): PermissionConfigResult {
     }
   }, [hostContext?.features?.credentialGroups, integrationAvailability, mergedAllowedIntegrations])
 
-  const isProviderAllowed = useMemo(() => {
-    return (providerId: string) => {
-      if (config.allowedModelProviders === null) return true
-      return config.allowedModelProviders.includes(providerId)
-    }
-  }, [config.allowedModelProviders])
-
-  /** Indexed so the per-model check stays O(1) over a long denylist. */
-  const deniedModelSet = useMemo(
-    () => new Set(config.deniedModels.map((denied) => denied.toLowerCase())),
-    [config.deniedModels]
+  const isModelUsable = useMemo(
+    () =>
+      createModelAccessGate({
+        deniedModels: config.deniedModels,
+        allowedModelProviders: config.allowedModelProviders,
+      }),
+    [config.deniedModels, config.allowedModelProviders]
   )
 
-  const isModelAllowed = useMemo(() => {
-    return (model: string) => !deniedModelSet.has(model.toLowerCase())
-  }, [deniedModelSet])
-
-  const isModelUsable = useMemo(() => {
-    return (model: string) => {
-      if (!isModelAllowed(model)) return false
-      const providerId = findProviderFromModel(model)
-      /* Only chat models resolve to a provider. A `model` field holding an
-         embedding, speech, image or video id is not a provider choice, so the
-         provider allowlist has nothing to say about it — judging it anyway
-         would read every such id as Ollama and reject it. */
-      if (!providerId) return true
-      return isProviderAllowed(providerId)
-    }
-  }, [isModelAllowed, isProviderAllowed])
-
-  /** Indexed so the per-tool check stays O(1) over a long denylist. */
-  const deniedToolSet = useMemo(() => new Set(config.deniedTools), [config.deniedTools])
-
-  const isToolAllowed = useMemo(() => {
-    return (toolId: string) => !deniedToolSet.has(toolId)
-  }, [deniedToolSet])
+  const isToolAllowed = useMemo(
+    () => createToolAccessGate(config.deniedTools),
+    [config.deniedTools]
+  )
 
   const filterBlocks = useMemo(() => {
     return <T extends { type: string }>(blocks: T[]): T[] => {

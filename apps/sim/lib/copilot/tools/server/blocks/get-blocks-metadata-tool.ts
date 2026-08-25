@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from 'fs'
 import { join } from 'path'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { omit } from '@sim/utils/object'
 import { z } from 'zod'
 import {
   type CatalogBlockDetail,
@@ -18,6 +19,11 @@ import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integration
 import { getServiceAccountProviderForProviderId } from '@/lib/oauth/utils'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
 import { intersectIntegrationAllowlists } from '@/lib/permission-groups/integration-allowlist'
+import {
+  createToolAccessGate,
+  type IsToolAllowed,
+  OPERATION_SUBBLOCK_ID,
+} from '@/lib/permission-groups/operation-access'
 import { getBlock } from '@/blocks/registry'
 import { AuthMode, type BlockConfig, type SubBlockConfig } from '@/blocks/types'
 import { isHiddenUnder, overlayVisibility } from '@/blocks/visibility/context'
@@ -116,6 +122,57 @@ function toCopilotBlockMetadata(detail: CatalogBlockDetail): CopilotBlockMetadat
   }) as CopilotBlockMetadata
 }
 
+/**
+ * Strips everything a denied tool id reaches in one block's metadata: the tool
+ * entry, every operation that runs it, that operation's input schema, and the
+ * selector option that would choose it.
+ *
+ * Returns the projection untouched when the group denies nothing this block
+ * owns, so an unrestricted viewer pays one pass over `operations` and nothing
+ * else. `null` means the block has no usable operation left and should be
+ * withheld entirely, matching the VFS projection.
+ */
+function withDeniedToolsRemoved(
+  metadata: CopilotBlockMetadata,
+  isToolAllowed: IsToolAllowed
+): CopilotBlockMetadata | null {
+  const operations = metadata.operations ?? {}
+  const deniedOperations = new Set<string>()
+  for (const [operationId, operation] of Object.entries(operations)) {
+    if (operation.toolId && !isToolAllowed(operation.toolId)) deniedOperations.add(operationId)
+  }
+  const tools = metadata.tools.filter((tool) => isToolAllowed(tool.id))
+  if (deniedOperations.size === 0 && tools.length === metadata.tools.length) return metadata
+
+  const allToolsDenied = metadata.tools.length > 0 && tools.length === 0
+  const allOperationsDenied =
+    Object.keys(operations).length > 0 && deniedOperations.size === Object.keys(operations).length
+  if (allToolsDenied || allOperationsDenied) return null
+
+  return {
+    ...metadata,
+    tools,
+    /* `removeNullish` drops an empty projection, so neither schema is
+       guaranteed present. */
+    ...(metadata.inputSchema
+      ? {
+          inputSchema: metadata.inputSchema.map((field) =>
+            field.id === OPERATION_SUBBLOCK_ID && Array.isArray(field.options)
+              ? {
+                  ...field,
+                  options: field.options.filter((option) => !deniedOperations.has(option.id)),
+                }
+              : field
+          ),
+        }
+      : {}),
+    operations: omit(operations, [...deniedOperations]),
+    ...(metadata.operationInputSchema
+      ? { operationInputSchema: omit(metadata.operationInputSchema, [...deniedOperations]) }
+      : {}),
+  }
+}
+
 export const getBlocksMetadataServerTool: BaseServerTool<
   z.infer<typeof GetBlocksMetadataInputSchema>,
   z.infer<typeof GetBlocksMetadataResultSchema>
@@ -138,6 +195,7 @@ export const getBlocksMetadataServerTool: BaseServerTool<
       permissionConfig?.allowedIntegrations ?? null,
       getAllowedIntegrationsFromEnv()
     )
+    const isToolAllowed = createToolAccessGate(permissionConfig?.deniedTools)
     const visibility = overlayVisibility()
 
     const result: Record<string, CopilotBlockMetadata> = {}
@@ -219,6 +277,13 @@ export const getBlocksMetadataServerTool: BaseServerTool<
           })
           continue
         }
+
+        const permitted = withDeniedToolsRemoved(metadata, isToolAllowed)
+        if (!permitted) {
+          logger.debug('Block has no operation this permission group allows', { blockId })
+          continue
+        }
+        metadata = permitted
       }
 
       try {

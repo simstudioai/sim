@@ -1,12 +1,6 @@
 import { getBlockVisibilityForCopilot } from '@/lib/copilot/block-visibility'
-import {
-  filterExposedIntegrationTools,
-  getExposedIntegrationTools,
-} from '@/lib/copilot/integration-tools'
+import { projectIntegrationToolsForViewer } from '@/lib/copilot/integration-tool-projection'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
-import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/env-flags'
-import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integrations/availability.server'
-import { intersectIntegrationAllowlists } from '@/lib/permission-groups/integration-allowlist'
 import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 import { stripVersionSuffix } from '@/tools/utils'
 
@@ -25,17 +19,7 @@ export async function executeListIntegrationTools(
   const permissionConfig = context.workspaceId
     ? await getUserPermissionConfig(context.userId, context.workspaceId)
     : null
-  const allowedIntegrations = intersectIntegrationAllowlists(
-    permissionConfig?.allowedIntegrations ?? null,
-    getAllowedIntegrationsFromEnv()
-  )
-  const all = filterExposedIntegrationTools(
-    getExposedIntegrationTools(),
-    vis,
-    (owner) =>
-      isIntegrationDeploymentAvailableForVisibility(owner.blockType, vis) &&
-      (allowedIntegrations === null || allowedIntegrations.includes(owner.blockType.toLowerCase()))
-  )
+  const { tools: all } = projectIntegrationToolsForViewer(vis, permissionConfig)
   const service = stripVersionSuffix(raw.toLowerCase())
   const matches = all.filter((tool) => tool.service === service)
 

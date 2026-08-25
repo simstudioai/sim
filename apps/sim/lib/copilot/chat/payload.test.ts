@@ -76,10 +76,11 @@ vi.mock('@/lib/copilot/block-visibility', () => ({
 vi.mock('@/lib/copilot/integration-tools', () => ({
   filterExposedIntegrationTools: vi.fn(
     (
-      tools: Array<{ blockType: string; service: string }>,
+      tools: Array<{ toolId: string; blockType: string; service: string }>,
       _vis: unknown,
-      isOwnerAllowed: (owner: { blockType: string; service: string }) => boolean
-    ) => tools.filter((tool) => isOwnerAllowed(tool))
+      isOwnerAllowed: (owner: { blockType: string; service: string }) => boolean,
+      isToolAllowed: (toolId: string) => boolean = () => true
+    ) => tools.filter((tool) => isToolAllowed(tool.toolId) && isOwnerAllowed(tool))
   ),
   getExposedIntegrationTools: vi.fn(() => [
     {

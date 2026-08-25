@@ -86,6 +86,88 @@ describe('get blocks metadata', () => {
     expect(result.metadata).toHaveProperty('slack')
   })
 
+  /**
+   * A two-operation block standing in for a real integration: the projection
+   * resolves each operation to a tool id through `tools.config.tool`, which is
+   * what the group's denylist is written against.
+   */
+  const gatedBlock = {
+    type: 'slack',
+    name: 'Slack',
+    description: 'Send messages.',
+    category: 'tools',
+    bgColor: '#000000',
+    icon: () => null,
+    subBlocks: [
+      {
+        id: 'operation',
+        title: 'Operation',
+        type: 'dropdown',
+        options: [
+          { label: 'Send Message', id: 'send' },
+          { label: 'Create Canvas', id: 'canvas' },
+        ],
+      },
+    ],
+    tools: {
+      access: ['slack_message', 'slack_canvas'],
+      config: {
+        tool: ({ operation }: { operation?: string }) =>
+          operation === 'canvas' ? 'slack_canvas' : 'slack_message',
+      },
+    },
+    inputs: {},
+    outputs: {},
+  } as unknown as BlockConfig
+
+  it('withholds an operation whose tool the group denies', async () => {
+    mockGetUserPermissionConfig.mockResolvedValue({
+      allowedIntegrations: ['slack'],
+      deniedTools: ['slack_canvas'],
+    })
+    vi.mocked(getBlock).mockReturnValue(gatedBlock)
+
+    const result = await getBlocksMetadataServerTool.execute(
+      { blockIds: ['slack'] },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+
+    const slack = result.metadata.slack as { operations: Record<string, unknown> }
+
+    expect(Object.keys(slack.operations)).toEqual(['send'])
+  })
+
+  it('leaves the projection untouched when the group denies nothing', async () => {
+    mockGetUserPermissionConfig.mockResolvedValue({
+      allowedIntegrations: ['slack'],
+      deniedTools: [],
+    })
+    vi.mocked(getBlock).mockReturnValue(gatedBlock)
+
+    const result = await getBlocksMetadataServerTool.execute(
+      { blockIds: ['slack'] },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+
+    const slack = result.metadata.slack as { operations: Record<string, unknown> }
+    expect(Object.keys(slack.operations).sort()).toEqual(['canvas', 'send'])
+  })
+
+  it('withholds a block whose every operation the group denies', async () => {
+    mockGetUserPermissionConfig.mockResolvedValue({
+      allowedIntegrations: ['slack'],
+      deniedTools: ['slack_message', 'slack_canvas'],
+    })
+    vi.mocked(getBlock).mockReturnValue(gatedBlock)
+
+    const result = await getBlocksMetadataServerTool.execute(
+      { blockIds: ['slack'] },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+
+    expect(result.metadata).not.toHaveProperty('slack')
+  })
+
   it('keeps access-control-exempt and special blocks under a restrictive allowlist', async () => {
     const result = await getBlocksMetadataServerTool.execute(
       { blockIds: ['start_trigger', 'loop', 'slack', 'notion'] },

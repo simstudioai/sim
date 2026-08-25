@@ -14,6 +14,7 @@ import {
 import { type FilterFieldType, getOperatorsForFieldType } from '@/lib/knowledge/filters/types'
 import { SLACK_CUSTOM_BOT_PROVIDER_ID } from '@/lib/oauth/types'
 import { getServiceAccountProviderForProviderId } from '@/lib/oauth/utils'
+import { type IsToolAllowed, OPERATION_SUBBLOCK_ID } from '@/lib/permission-groups/operation-access'
 import { isRetryEligibleBlock } from '@/lib/workflows/blocks/retry-eligibility'
 import { isSubBlockHidden } from '@/lib/workflows/subblocks/visibility'
 import { getBlock } from '@/blocks'
@@ -96,6 +97,18 @@ export interface ComponentSerializationOptions {
       reason: string
     }
   >
+  /**
+   * The viewer's permission-group tool gate. Denied tool ids are dropped from
+   * `tools` and `toolAuth` so the agent is never handed an id it may not call.
+   */
+  isToolAllowed?: IsToolAllowed
+  /**
+   * Operation ids the viewer's permission group denies, removed from the
+   * operation selector's options. Paired with `isToolAllowed` rather than
+   * derived here so the caller — which also decides whether a wholly denied
+   * block is worth publishing at all — resolves them exactly once.
+   */
+  deniedOperationIds?: ReadonlySet<string>
 }
 
 /**
@@ -635,8 +648,18 @@ export function serializeBlockSchema(
       .filter((id) => !visibleIds.has(id))
   )
 
+  const deniedOperationIds = options?.deniedOperationIds
   const subBlocks = visibleSubBlocks.map((sb) => {
     const serialized = serializeSubBlock(sb)
+    if (
+      sb.id === OPERATION_SUBBLOCK_ID &&
+      deniedOperationIds?.size &&
+      Array.isArray(serialized.options)
+    ) {
+      serialized.options = (serialized.options as Array<{ id: string }>).filter(
+        (option) => !deniedOperationIds.has(option.id)
+      )
+    }
     const restriction = options?.restrictedInputs?.get(sb.id)
     if (restriction) {
       serialized.readOnly = true
@@ -652,8 +675,13 @@ export function serializeBlockSchema(
     return serialized
   })
 
+  const isToolAllowed = options?.isToolAllowed
+  const accessibleTools = isToolAllowed
+    ? block.tools.access.filter((toolId) => isToolAllowed(toolId))
+    : block.tools.access
+
   const toolAuth: Record<string, VfsToolAuth> = {}
-  for (const toolId of block.tools.access) {
+  for (const toolId of accessibleTools) {
     const tool = options?.toolConfigs?.get(toolId)
     if (!tool) continue
     const auth = serializeToolAuth(tool, hosted, block.type)
@@ -708,7 +736,7 @@ export function serializeBlockSchema(
       // configures. Hiding it keeps the block self-contained (fields in, outputs
       // out) so the agent doesn't treat it like the generic workflow block and
       // ask for a workflowId/inputMapping.
-      tools: isCustomBlockType(block.type) ? [] : block.tools.access,
+      tools: isCustomBlockType(block.type) ? [] : accessibleTools,
       toolAuth: Object.keys(toolAuth).length > 0 ? toolAuth : undefined,
       subBlocks,
       inputs,

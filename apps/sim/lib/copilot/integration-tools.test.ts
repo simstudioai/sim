@@ -39,6 +39,9 @@ import {
   resetExposedIntegrationToolsCache,
 } from '@/lib/copilot/integration-tools'
 
+const allowAllOwners = () => true
+const allowAllTools = () => true
+
 describe('getExposedIntegrationTools', () => {
   beforeEach(() => {
     resetExposedIntegrationToolsCache()
@@ -53,7 +56,12 @@ describe('getExposedIntegrationTools', () => {
   })
 
   it('exposes shared tools to viewers without the preview reveal, but not preview-only tools', () => {
-    const visible = filterExposedIntegrationTools(getExposedIntegrationTools(), null)
+    const visible = filterExposedIntegrationTools(
+      getExposedIntegrationTools(),
+      null,
+      allowAllOwners,
+      allowAllTools
+    )
     expect(visible.some((t) => t.toolId === 'svc_send_v2')).toBe(true)
     expect(visible.some((t) => t.toolId === 'newsvc_do_v1')).toBe(false)
   })
@@ -67,12 +75,24 @@ describe('getExposedIntegrationTools', () => {
     const visible = filterExposedIntegrationTools(
       getExposedIntegrationTools(),
       vis,
-      (owner) => owner.blockType !== 'svc'
+      (owner) => owner.blockType !== 'svc',
+      allowAllTools
     )
     const send = visible.find((tool) => tool.toolId === 'svc_send_v2')
 
     expect(send?.blockType).toBe('svc_v2')
     expect(send?.preview).toBe(true)
+  })
+
+  it("drops a tool the viewer's permission group denies outright", () => {
+    const visible = filterExposedIntegrationTools(
+      getExposedIntegrationTools(),
+      null,
+      allowAllOwners,
+      (toolId) => toolId !== 'svc_send_v2'
+    )
+
+    expect(visible.some((t) => t.toolId === 'svc_send_v2')).toBe(false)
   })
 
   it('exposes only the latest version of each tool', () => {

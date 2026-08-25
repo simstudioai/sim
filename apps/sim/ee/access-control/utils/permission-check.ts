@@ -13,6 +13,7 @@ import {
 } from '@/lib/core/config/env-flags'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
 import { intersectIntegrationAllowlists } from '@/lib/permission-groups/integration-allowlist'
+import { createToolAccessGate } from '@/lib/permission-groups/operation-access'
 import {
   DEFAULT_PERMISSION_GROUP_CONFIG,
   type PermissionGroupConfig,
@@ -745,7 +746,7 @@ export async function assertPermissionsAllowed(req: PermissionAssertion): Promis
     }
   }
 
-  if (toolId && config?.deniedTools?.includes(toolId)) {
+  if (toolId && !createToolAccessGate(config?.deniedTools)(toolId)) {
     logger.warn('Tool blocked by permission group', { userId, workspaceId, toolId })
     throw new ToolNotAllowedError(toolId)
   }

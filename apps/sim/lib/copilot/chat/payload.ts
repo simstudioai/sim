@@ -8,25 +8,17 @@ import { isPaid } from '@/lib/billing/plan-helpers'
 import { getBlockVisibilityForCopilot, visibilitySignature } from '@/lib/copilot/block-visibility'
 import type { VfsSnapshotV1 } from '@/lib/copilot/generated/vfs-snapshot-v1'
 import {
-  filterExposedIntegrationTools,
-  getExposedIntegrationTools,
-} from '@/lib/copilot/integration-tools'
+  type IntegrationGateConfig,
+  projectIntegrationToolsForViewer,
+} from '@/lib/copilot/integration-tool-projection'
 import { buildTaggedMcpToolSchemas } from '@/lib/copilot/mcp-tools'
 import { getToolEntry } from '@/lib/copilot/tool-executor/router'
 import { getCopilotToolDescription } from '@/lib/copilot/tools/descriptions'
 import { encodeVfsSegment } from '@/lib/copilot/vfs/path-utils'
 import type { BlockVisibilityState } from '@/lib/core/config/block-visibility'
 import { EnvCapabilityConfigurationError } from '@/lib/core/config/env-capabilities'
-import {
-  getAllowedIntegrationsFromEnv,
-  isDocSandboxEnabled,
-  isHosted,
-} from '@/lib/core/config/env-flags'
-import {
-  isIntegrationDeploymentAvailableForVisibility,
-  isOAuthServiceDeploymentAvailable,
-} from '@/lib/integrations/availability.server'
-import { intersectIntegrationAllowlists } from '@/lib/permission-groups/integration-allowlist'
+import { isDocSandboxEnabled, isHosted } from '@/lib/core/config/env-flags'
+import { isOAuthServiceDeploymentAvailable } from '@/lib/integrations/availability.server'
 import { trackChatUpload } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { buildArchiveExtractGuidance, isArchiveFileName } from '@/lib/uploads/utils/file-utils'
 import { deriveHostedApiKeySupport } from '@/tools/hosted-api-key'
@@ -197,18 +189,11 @@ async function buildIntegrationToolSchemasUncached(
 ): Promise<ToolSchema[]> {
   const reqLogger = logger.withMetadata({ messageId })
   const integrationTools: ToolSchema[] = []
-  let allowedIntegrations = getAllowedIntegrationsFromEnv()
+  let permissionConfig: IntegrationGateConfig | null = null
   if (workspaceId) {
     const { getUserPermissionConfig } = await import('@/ee/access-control/utils/permission-check')
-    const permissionConfig = await getUserPermissionConfig(userId, workspaceId)
-    allowedIntegrations = intersectIntegrationAllowlists(
-      permissionConfig?.allowedIntegrations ?? null,
-      allowedIntegrations
-    )
+    permissionConfig = await getUserPermissionConfig(userId, workspaceId)
   }
-  const allowedIntegrationTypes = allowedIntegrations
-    ? new Set(allowedIntegrations.map((integration) => integration.toLowerCase()))
-    : null
 
   try {
     const { createUserToolSchema } = await import('@/tools/params')
@@ -224,14 +209,7 @@ async function buildIntegrationToolSchemasUncached(
       })
     }
 
-    const exposedTools = filterExposedIntegrationTools(
-      getExposedIntegrationTools(),
-      vis,
-      (owner) =>
-        isIntegrationDeploymentAvailableForVisibility(owner.blockType, vis) &&
-        (allowedIntegrationTypes === null ||
-          allowedIntegrationTypes.has(owner.blockType.toLowerCase()))
-    )
+    const { tools: exposedTools } = projectIntegrationToolsForViewer(vis, permissionConfig)
     for (const { toolId, config: toolConfig, service, operation } of exposedTools) {
       try {
         const userSchema = createUserToolSchema(toolConfig, {
