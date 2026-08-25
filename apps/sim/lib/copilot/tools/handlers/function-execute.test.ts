@@ -650,6 +650,21 @@ describe('executeFunctionExecute table mounts', () => {
     expect(mockGeneratePresignedDownloadUrl).not.toHaveBeenCalled()
   })
 
+  it('throws when cloud snapshots exceed the aggregate URL mount limit', async () => {
+    mockGetTableById.mockImplementation(async (tableId: string) => ({ ...table, id: tableId }))
+    mockGetOrCreateTableSnapshot.mockImplementation(async (mountedTable: typeof table) => ({
+      key: `table-snapshots/ws_1/${mountedTable.id}/v5.csv`,
+      size: 500 * 1024 * 1024,
+      version: 5,
+    }))
+    const tableIds = Array.from({ length: 5 }, (_, index) => `tbl_${index}`)
+
+    await expect(
+      executeFunctionExecute({ inputTables: tableIds }, context as never)
+    ).rejects.toThrow(/total mount limit/)
+    expect(mockGeneratePresignedDownloadUrl).toHaveBeenCalledTimes(4)
+  })
+
   it('throws when a local snapshot exceeds the per-file mount limit', async () => {
     mockHasCloudStorage.mockReturnValue(false)
     mockGetOrCreateTableSnapshot.mockResolvedValue({

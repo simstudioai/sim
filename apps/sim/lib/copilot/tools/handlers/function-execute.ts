@@ -497,12 +497,14 @@ export async function resolveInputFiles(
       }
 
       if (hasCloudStorage()) {
-        // Mount by reference: the sandbox fetches the snapshot straight from storage via a
-        // presigned URL, so the bytes never pass through the web process — the only ceiling is
-        // sandbox disk (enforced at materialization by SNAPSHOT_MAX_BYTES).
         if (snapshot.size > SNAPSHOT_MAX_BYTES) {
           throw new Error(
             `Input table "${tableId}" is ${Math.round(snapshot.size / 1024 / 1024)}MB, over the ${SNAPSHOT_MAX_BYTES / 1024 / 1024}MB table mount limit.`
+          )
+        }
+        if (mounted.url + snapshot.size > MAX_TOTAL_URL_BYTES) {
+          throw new Error(
+            `Mounting "${tableId}" would exceed the ${MAX_TOTAL_URL_BYTES / 1024 / 1024 / 1024}GB total mount limit. Mount fewer or smaller files and tables.`
           )
         }
         const url = await generatePresignedDownloadUrl(
@@ -511,6 +513,7 @@ export async function resolveInputFiles(
           MOUNT_URL_TTL_SECONDS
         )
         sandboxFiles.push({ type: 'url', path: mountPath, url })
+        mounted.url += snapshot.size
         continue
       }
 
