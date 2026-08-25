@@ -10,6 +10,8 @@ export type SelectorKey =
   | 'attio.objects'
   | 'bigquery.datasets'
   | 'bigquery.tables'
+  | 'googleAnalytics.accounts'
+  | 'googleAnalytics.properties'
   | 'bitbucket.workspaces'
   | 'bitbucket.repositories'
   | 'calcom.eventTypes'

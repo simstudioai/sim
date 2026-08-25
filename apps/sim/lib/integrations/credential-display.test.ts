@@ -47,6 +47,7 @@ const EXPECTED_COVERAGE: Record<string, string[]> = {
   'clickup-service-account': ['clickup'],
   'google-service-account': [
     'gmail',
+    'google-analytics',
     'google-bigquery',
     'google-calendar',
     'google-contacts',
@@ -172,11 +173,11 @@ describe('resolveCredentialDisplay', () => {
     expect(display.integration?.integrationType).toBeTruthy()
   })
 
-  it('states a count rather than enumerating 13 Google integrations', () => {
+  it('states a count rather than enumerating 14 Google integrations', () => {
     const display = resolveCredentialDisplay(serviceAccount('google-service-account'))
 
     expect(display.familyName).toBe('Google')
-    expect(display.subtitle).toBe('Google service account · all 13 Google integrations')
+    expect(display.subtitle).toBe('Google service account · all 14 Google integrations')
   })
 
   it('uses each vendor own noun for non-family service accounts', () => {

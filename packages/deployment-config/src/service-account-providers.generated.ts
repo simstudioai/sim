@@ -11,6 +11,7 @@ export const SERVICE_ACCOUNT_PROVIDER_BY_OAUTH_SERVICE_ID = {
   clickup: 'clickup-service-account',
   confluence: 'atlassian-service-account',
   gmail: 'google-service-account',
+  'google-analytics': 'google-service-account',
   'google-bigquery': 'google-service-account',
   'google-calendar': 'google-service-account',
   'google-contacts': 'google-service-account',
