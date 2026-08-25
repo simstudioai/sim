@@ -15,21 +15,6 @@ export interface ResourceMentionGroup {
 
 export type ResourceMentionLevel = 'resource' | 'tab'
 
-/** Moves the workflow family directly above logs while preserving the other groups' relative order. */
-export function prioritizeWorkflowMentionGroup(
-  groups: readonly ResourceMentionGroup[]
-): ResourceMentionGroup[] {
-  const ordered = [...groups]
-  const logIndex = ordered.findIndex(({ type }) => type === 'log')
-  const workflowIndex = ordered.findIndex(({ type }) => type === 'workflow')
-  if (logIndex === -1 || workflowIndex === -1 || workflowIndex < logIndex) return ordered
-
-  const [workflowGroup] = ordered.splice(workflowIndex, 1)
-  if (!workflowGroup) return ordered
-  ordered.splice(logIndex, 0, workflowGroup)
-  return ordered
-}
-
 /** A family query such as "browser" keeps that resource's live tabs visible. */
 export function resourceMentionMatches(item: AvailableItem, query: string): boolean {
   const normalized = query.toLowerCase().trim()

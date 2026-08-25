@@ -17,13 +17,13 @@ import {
   useResourceTreeSections,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown'
 import {
+  byMentionResourceMenuOrder,
   getResourceConfig,
   MENTION_PREVIEW_DEFAULT_LIMIT,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import type { PlusMenuHandle } from '@/app/workspace/[workspaceId]/home/components/user-input/components/constants'
 import {
   buildMentionPreview,
-  prioritizeWorkflowMentionGroup,
   resourceMentionMatches,
   withDesktopTabMentions,
 } from '@/app/workspace/[workspaceId]/home/components/user-input/components/plus-menu-dropdown/resource-mention-items'
@@ -127,8 +127,8 @@ export const PlusMenuDropdown = React.memo(
     // after its always-present whole-resource row.
     const visibleResources = useMemo(() => {
       if (isMention) {
-        return prioritizeWorkflowMentionGroup(
-          withDesktopTabMentions(availableResources, browserTabs, terminalTabs)
+        return withDesktopTabMentions(availableResources, browserTabs, terminalTabs).sort(
+          byMentionResourceMenuOrder
         )
       }
       const attachable = availableResources.filter(

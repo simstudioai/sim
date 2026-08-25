@@ -5,8 +5,11 @@ import {
 } from '@/lib/copilot/resources/types'
 import type { AvailableItem } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown/resource-folder-tree'
 import {
+  byMentionResourceMenuOrder,
+  RESOURCE_MENU_ORDER,
+} from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
+import {
   buildMentionPreview,
-  prioritizeWorkflowMentionGroup,
   resourceMentionMatches,
   withDesktopTabMentions,
 } from '@/app/workspace/[workspaceId]/home/components/user-input/components/plus-menu-dropdown/resource-mention-items'
@@ -160,15 +163,19 @@ describe('buildMentionPreview', () => {
   })
 })
 
-describe('prioritizeWorkflowMentionGroup', () => {
-  it('places workflows before logs without changing the surrounding resource order', () => {
-    const ordered = prioritizeWorkflowMentionGroup([
+describe('byMentionResourceMenuOrder', () => {
+  it('places workflows before logs without changing the surrounding canonical order', () => {
+    const ordered = [
       { type: 'task', items: [{ id: 'chat-1', name: 'Glean migration' }] },
       { type: 'log', items: [{ id: 'log-1', name: 'Glean' }] },
       { type: 'workflow', items: [{ id: 'workflow-1', name: 'Glean' }] },
       { type: 'browser', items: [{ id: 'browser', name: 'Browser' }] },
-    ])
+    ].sort(byMentionResourceMenuOrder)
 
     expect(ordered.map((group) => group.type)).toEqual(['task', 'workflow', 'log', 'browser'])
+  })
+
+  it('leaves the canonical attachment-menu order unchanged', () => {
+    expect(RESOURCE_MENU_ORDER.indexOf('log')).toBeLessThan(RESOURCE_MENU_ORDER.indexOf('workflow'))
   })
 })
