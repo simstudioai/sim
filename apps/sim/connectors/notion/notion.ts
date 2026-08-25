@@ -4,7 +4,7 @@ import { truncate } from '@sim/utils/string'
 import { redactSensitiveValues } from '@/lib/core/security/redaction'
 import {
   fetchWithRetry,
-  readBoundedHttpErrorBody,
+  readBoundedHttpErrorPayload,
   VALIDATE_RETRY_OPTIONS,
 } from '@/lib/knowledge/documents/utils'
 import { notionConnectorMeta } from '@/connectors/notion/meta'
@@ -175,7 +175,10 @@ async function notionApiError(response: Response, operation: string): Promise<No
   let body: NotionApiErrorBody = {}
 
   try {
-    body = JSON.parse(await readBoundedHttpErrorBody(response)) as NotionApiErrorBody
+    const parsed: unknown = JSON.parse(await readBoundedHttpErrorPayload(response))
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      body = parsed as NotionApiErrorBody
+    }
   } catch {
     body = {}
   }

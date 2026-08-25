@@ -7,7 +7,8 @@ const { mockFetchWithRetry } = vi.hoisted(() => ({ mockFetchWithRetry: vi.fn() }
 
 vi.mock('@/lib/knowledge/documents/utils', () => ({
   fetchWithRetry: mockFetchWithRetry,
-  readBoundedHttpErrorBody: async (response: Response) => JSON.stringify(await response.json()),
+  readBoundedHttpErrorBody: async (response: Response) => (await response.text()).slice(0, 2000),
+  readBoundedHttpErrorPayload: async (response: Response) => response.text(),
   VALIDATE_RETRY_OPTIONS: {},
 }))
 vi.mock('@/components/icons', () => ({ NotionIcon: () => null }))
@@ -317,6 +318,25 @@ describe('notion markdown hydration', () => {
 
     await expect(notionConnector.getDocument('token', {}, 'page-1')).rejects.toThrow(
       'Failed to fetch markdown for page-1: 400, code=validation_error, message=The start_cursor provided is invalid. Authorization: Bearer [REDACTED], requestId=request-2'
+    )
+  })
+
+  it('preserves structured diagnostics from a valid error envelope larger than 2KB', async () => {
+    mockFetchWithRetry.mockResolvedValueOnce(notionResponse(page())).mockResolvedValueOnce(
+      notionResponse(
+        {
+          object: 'error',
+          padding: 'x'.repeat(3000),
+          code: 'validation_error',
+          message: 'The start_cursor provided is invalid',
+          request_id: 'request-large',
+        },
+        400
+      )
+    )
+
+    await expect(notionConnector.getDocument('token', {}, 'page-1')).rejects.toThrow(
+      'Failed to fetch markdown for page-1: 400, code=validation_error, message=The start_cursor provided is invalid, requestId=request-large'
     )
   })
 

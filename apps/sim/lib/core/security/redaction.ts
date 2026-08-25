@@ -183,7 +183,7 @@ export function redactSensitiveValues(value: string): string {
  * can itself contain form delimiters that would otherwise split it and leave a
  * suffix visible before the exact matcher sees the original value.
  */
-export function redactExactSensitiveValues(value: string, secrets: string[]): string {
+export function redactKnownSensitiveValues(value: string, secrets: string[]): string {
   let result = value
   const orderedSecrets = [...new Set(secrets.filter(Boolean))].sort(
     (left, right) => right.length - left.length
@@ -201,7 +201,11 @@ export function redactExactSensitiveValues(value: string, secrets: string[]): st
       }
     }
   }
-  return redactSensitiveValues(result)
+  return result
+}
+
+export function redactExactSensitiveValues(value: string, secrets: string[]): string {
+  return redactSensitiveValues(redactKnownSensitiveValues(value, secrets))
 }
 
 export function isLargeDataKey(key: string): boolean {

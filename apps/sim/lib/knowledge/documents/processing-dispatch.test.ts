@@ -68,9 +68,9 @@ describe('dispatchDocumentProcessing', () => {
   it('does not turn a partial failure-recording error into a total dispatch failure', async () => {
     mocks.processDocumentsWithQueue.mockResolvedValueOnce({
       requested: 2,
-      accepted: 1,
-      failed: 1,
-      failedDocumentIds: ['document-2'],
+      accepted: 0,
+      failed: 2,
+      failedDocumentIds: ['document-1', 'document-2'],
     })
     mocks.recordUndispatchedDocumentFailure.mockRejectedValueOnce(new Error('database unavailable'))
 
@@ -84,8 +84,13 @@ describe('dispatchDocumentProcessing', () => {
       })
     ).resolves.toBeUndefined()
 
-    expect(mocks.recordUndispatchedDocumentFailure).toHaveBeenCalledTimes(1)
-    expect(mocks.recordUndispatchedDocumentFailure).toHaveBeenCalledWith(
+    expect(mocks.recordUndispatchedDocumentFailure).toHaveBeenCalledTimes(2)
+    expect(mocks.recordUndispatchedDocumentFailure).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ documentId: 'document-1' })
+    )
+    expect(mocks.recordUndispatchedDocumentFailure).toHaveBeenNthCalledWith(
+      2,
       expect.objectContaining({ documentId: 'document-2' })
     )
   })

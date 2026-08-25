@@ -179,10 +179,12 @@ export function getPlaceholderForFieldType(fieldType: string): string {
 }
 
 /**
- * How long a document may sit in `processing` before its run is treated as dead.
+ * Minimum time the client waits before asking the server to classify an active
+ * document-processing run as dead.
  *
- * Lives here rather than beside the server-side claim helpers so the client can
- * read the same number without importing a module that pulls in the database
- * client. `processing-claim.ts` re-exports it for its own callers.
+ * Lives here so the client does not import server configuration. The server
+ * derives its authoritative threshold from the configured task
+ * duration and retry budget and may require longer. Keeping the client at the
+ * same 45-minute floor prevents the default UI from racing a legitimate run.
  */
-export const KNOWLEDGE_DOCUMENT_PROCESSING_STALE_THRESHOLD_MS = 10 * 60 * 1000
+export const KNOWLEDGE_DOCUMENT_PROCESSING_STALE_THRESHOLD_MS = 45 * 60 * 1000

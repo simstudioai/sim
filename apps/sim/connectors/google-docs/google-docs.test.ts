@@ -150,6 +150,26 @@ describe('googleDocsConnector', () => {
       )
     })
 
+    it('preserves a structured Google API error message from an envelope larger than 2KB', async () => {
+      stubFetchDocument(
+        new Response(
+          JSON.stringify({
+            padding: 'x'.repeat(3000),
+            error: {
+              code: 400,
+              message: 'Invalid field selection tabs',
+              status: 'INVALID_ARGUMENT',
+            },
+          }),
+          { status: 400 }
+        )
+      )
+
+      await expect(googleDocsConnector.getDocument(ACCESS_TOKEN, {}, DOCUMENT_ID)).rejects.toThrow(
+        `Failed to fetch Google Doc content ${DOCUMENT_ID}: 400 — Invalid field selection tabs`
+      )
+    })
+
     it('redacts credentials from bounded Google API diagnostics', async () => {
       stubFetchDocument(
         new Response(
@@ -167,6 +187,21 @@ describe('googleDocsConnector', () => {
       await expect(googleDocsConnector.getDocument(ACCESS_TOKEN, {}, DOCUMENT_ID)).rejects.toThrow(
         `Failed to fetch Google Doc content ${DOCUMENT_ID}: 403 — Authorization: Bearer [REDACTED]`
       )
+    })
+
+    it('redacts canonical credential keys from an unexpected Google error envelope', async () => {
+      const secret = 'opaque-client-secret-that-must-not-escape'
+      stubFetchDocument(
+        new Response(JSON.stringify({ metadata: { client_secret: secret } }), { status: 400 })
+      )
+
+      const error = await googleDocsConnector.getDocument(ACCESS_TOKEN, {}, DOCUMENT_ID).then(
+        () => undefined,
+        (caught) => caught as Error
+      )
+
+      expect(error?.message).toContain('[REDACTED]')
+      expect(error?.message).not.toContain(secret)
     })
 
     it('marks an empty tab response as an authoritative skip', async () => {

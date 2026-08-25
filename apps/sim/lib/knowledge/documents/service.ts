@@ -20,6 +20,7 @@ import {
   desc,
   eq,
   getTableColumns,
+  gte,
   inArray,
   isNotNull,
   isNull,
@@ -94,6 +95,7 @@ import {
   hasDocumentProcessingBillingScope,
 } from '@/lib/knowledge/documents/processing-payload'
 import { scheduleDocumentProcessingQuotaContinuation } from '@/lib/knowledge/documents/processing-quota-continuation'
+import { DOCUMENT_PROCESSING_STALE_THRESHOLD_MS } from '@/lib/knowledge/documents/processing-timeouts.server'
 import {
   buildTagFilterCondition,
   type TagFilterCondition,
@@ -743,11 +745,13 @@ async function resolveDocumentProcessingBillingContext(
  * queue has not started, and a leftover value from a prior run would otherwise
  * be reported as this attempt's start time.
  *
- * Guarded on `pending` and an empty queue stamp, so concurrent dispatch callers
- * cannot both charge and enqueue the same document. Returning the rows this
- * write claimed lets the caller dispatch only its own generation. A worker that
- * already claimed the row or another caller that already queued it wins cleanly;
- * this update matches nothing and leaves that live generation untouched.
+ * Guarded on `pending` and an empty queue timestamp, so concurrent dispatch
+ * callers cannot both charge and enqueue the same document. A retained token
+ * with no timestamp identifies a withdrawn generation and is atomically
+ * replaced here; the old generation can no longer finalize the row afterward.
+ * Returning the rows this write claimed lets the caller dispatch only its own
+ * generation. A worker that already claimed the row or another caller that
+ * already queued it wins cleanly.
  */
 interface QueuedDocumentGeneration {
   readonly documentId: string
@@ -768,6 +772,9 @@ async function markDocumentsQueued(
   queuedAt: Date
 ): Promise<MarkDocumentsQueuedResult> {
   const legacyAdoptionCutoff = new Date(queuedAt.getTime() - QUEUED_DISPATCH_GRACE_MS)
+  const processingStaleCutoff = new Date(
+    queuedAt.getTime() - DOCUMENT_PROCESSING_STALE_THRESHOLD_MS
+  )
   return db.transaction(async (tx) => {
     const claimed = await tx
       .update(document)
@@ -789,7 +796,6 @@ async function markDocumentsQueued(
           eq(document.knowledgeBaseId, knowledgeBaseId),
           eq(document.processingStatus, 'pending'),
           eq(document.userExcluded, false),
-          isNull(document.processingQueueToken),
           isNull(document.processingQueuedAt),
           isNull(document.archivedAt),
           isNull(document.deletedAt)
@@ -845,11 +851,16 @@ async function markDocumentsQueued(
                 inArray(document.id, unresolvedIds),
                 eq(document.knowledgeBaseId, knowledgeBaseId),
                 or(
-                  eq(document.processingStatus, 'processing'),
                   eq(document.processingStatus, 'completed'),
                   and(
                     eq(document.processingStatus, 'pending'),
-                    isNotNull(document.processingQueuedAt)
+                    isNotNull(document.processingQueuedAt),
+                    gte(document.processingQueuedAt, legacyAdoptionCutoff)
+                  ),
+                  and(
+                    eq(document.processingStatus, 'processing'),
+                    isNotNull(document.processingStartedAt),
+                    gte(document.processingStartedAt, processingStaleCutoff)
                   )
                 ),
                 eq(document.userExcluded, false),
@@ -890,15 +901,18 @@ async function markDocumentsQueued(
 }
 
 /**
- * Withdraws a queue stamp whose dispatch provably never happened.
+ * Withdraws a live queue timestamp whose dispatch provably never happened.
  *
  * {@link markDocumentsQueued} runs before dispatch on purpose — `batchTrigger`
  * chunks, so a batch can half-succeed, and stamping afterwards would leave the
  * runs that did start with no stamp and no grace. The cost of that ordering is
  * that a batch where *every* dispatch failed still carries a fresh stamp, and
  * recovery sweeps would honour a grace period the documents did not earn. Total
- * failure is the one case where nothing was dispatched, so the stamp can be
- * taken back and the next sweep is free to reclaim them immediately.
+ * failure is the one case where nothing was dispatched, so the timestamp can
+ * be taken back and the next sweep is free to reclaim them immediately. The
+ * generation token stays until an exact-token failure recorder finalizes it or
+ * a newer dispatcher adopts the timestamp-less row. That ownership marker
+ * prevents an older recorder from failing a newer blank pending generation.
  *
  * The attempt {@link markDocumentsQueued} charged is refunded in the same
  * statement. The budget exists to stop re-billing a document that keeps failing
@@ -918,21 +932,41 @@ async function markDocumentsQueued(
  * call wrote, so a concurrent dispatch that has already re-stamped a document
  * is left alone.
  */
-async function clearDocumentsQueued(documentIds: string[], queueToken: string): Promise<void> {
+async function clearDocumentsQueued(
+  documentIds: string[],
+  queueToken: string,
+  queuedAt: Date
+): Promise<void> {
   await db
     .update(document)
     .set({
       processingQueuedAt: null,
-      processingQueueToken: null,
       processingAttempts: sql`GREATEST(${document.processingAttempts} - 1, 0)`,
     })
     .where(
       and(
         inArray(document.id, documentIds),
         eq(document.processingStatus, 'pending'),
-        eq(document.processingQueueToken, queueToken)
+        eq(document.processingQueueToken, queueToken),
+        eq(document.processingQueuedAt, queuedAt)
       )
     )
+}
+
+async function bestEffortWithdrawDocumentsQueued(
+  documentIds: string[],
+  queueToken: string,
+  queuedAt: Date,
+  reason: string
+): Promise<void> {
+  if (documentIds.length === 0) return
+  try {
+    await clearDocumentsQueued(documentIds, queueToken, queuedAt)
+  } catch (error) {
+    logger.warn(`[${queueToken}] Failed to withdraw queue ownership after ${reason}`, {
+      error: getErrorMessage(error),
+    })
+  }
 }
 
 /**
@@ -959,10 +993,6 @@ export async function processDocumentsWithQueue(
     return { requested: 0, accepted: 0, failed: 0, failedDocumentIds: [] }
   }
 
-  const billingContext = await resolveDocumentProcessingBillingContext(
-    knowledgeBaseId,
-    billingAttribution
-  )
   const requested = uniqueDocuments.length
   const queuedAt = new Date()
   const documentIds = uniqueDocuments.map((doc) => doc.documentId)
@@ -982,6 +1012,22 @@ export async function processDocumentsWithQueue(
   const newlyClaimedIds = queuedGenerations
     .filter((generation) => generation.chargedAtDispatch)
     .map((generation) => generation.documentId)
+
+  let billingContext: DocumentProcessingBillingContext
+  try {
+    billingContext = await resolveDocumentProcessingBillingContext(
+      knowledgeBaseId,
+      billingAttribution
+    )
+  } catch (error) {
+    await bestEffortWithdrawDocumentsQueued(
+      newlyClaimedIds,
+      requestId,
+      queuedAt,
+      'billing-context resolution failed'
+    )
+    throw error
+  }
 
   if (queuedDocuments.length === 0) {
     logger.info(`[${requestId}] No documents were eligible for a new processing dispatch`, {
@@ -1016,30 +1062,40 @@ export async function processDocumentsWithQueue(
     { backend: useTrigger ? 'trigger-dev' : 'direct' }
   )
 
-  const dispatchedIds = useTrigger
-    ? await dispatchViaBatchTrigger(jobPayloads, requestId)
-    : await dispatchInProcess(jobPayloads, requestId)
+  let dispatchedIds: Set<string>
+  try {
+    dispatchedIds = useTrigger
+      ? await dispatchViaBatchTrigger(jobPayloads, requestId)
+      : await dispatchInProcess(jobPayloads, requestId)
+  } catch (error) {
+    await bestEffortWithdrawDocumentsQueued(
+      newlyClaimedIds,
+      requestId,
+      queuedAt,
+      'dispatch setup failed'
+    )
+    throw error
+  }
 
   logger.info(
-    `[${requestId}] Document dispatch complete: ${dispatchedIds.size}/${jobPayloads.length} succeeded`
+    `[${requestId}] Document dispatch complete: ${dispatchedIds.size}/${jobPayloads.length} accepted`
+  )
+
+  /**
+   * Refund every newly owned generation that provably failed before claiming
+   * processing, including one failed chunk in an otherwise successful batch.
+   */
+  const failedNewlyClaimedIds = newlyClaimedIds.filter(
+    (documentId) => !dispatchedIds.has(documentId)
+  )
+  await bestEffortWithdrawDocumentsQueued(
+    failedNewlyClaimedIds,
+    requestId,
+    queuedAt,
+    'a newly claimed dispatch failed'
   )
 
   if (dispatchedIds.size === 0) {
-    /**
-     * Best-effort, unlike the stamp itself: failing to write the stamp means the
-     * grace cannot be promised and dispatching anyway is the unsafe direction, so
-     * that write throws. Failing to withdraw one only delays recovery by a grace
-     * period, so it must not mask the dispatch failure that is the real error.
-     */
-    try {
-      if (newlyClaimedIds.length > 0) {
-        await clearDocumentsQueued(newlyClaimedIds, requestId)
-      }
-    } catch (error) {
-      logger.warn(`[${requestId}] Failed to withdraw the queue stamp after a failed dispatch`, {
-        error: getErrorMessage(error),
-      })
-    }
     if (acceptedWithoutDispatch === 0) {
       throw new Error(`All ${jobPayloads.length} document processing dispatches failed`)
     }
@@ -1129,6 +1185,8 @@ export interface DocumentProcessingAttemptContext {
   readonly processingQueuedAt?: Date
   /** Durably schedules the next quota attempt and returns its execution time. */
   readonly scheduleQuotaContinuation?: () => Promise<Date>
+  /** Signals that this invocation owns the persisted processing generation. */
+  readonly onClaimed?: () => void
 }
 
 async function dispatchInProcess(
@@ -1139,6 +1197,7 @@ async function dispatchInProcess(
     jobPayloads,
     IN_PROCESS_DISPATCH_CONCURRENCY,
     async (p) => {
+      let processingClaimed = false
       try {
         await processDocumentAsync(
           p.knowledgeBaseId,
@@ -1152,6 +1211,9 @@ async function dispatchInProcess(
             processingQueueToken: p.processingQueueToken,
             ...(p.processingQueuedAt ? { processingQueuedAt: new Date(p.processingQueuedAt) } : {}),
             scheduleQuotaContinuation: () => scheduleDocumentProcessingQuotaContinuation(p),
+            onClaimed: () => {
+              processingClaimed = true
+            },
           }
         )
         return true
@@ -1169,8 +1231,14 @@ async function dispatchInProcess(
           })
           return true
         }
-        logger.error(`[${requestId}] Document dispatch failed`, { error: getErrorMessage(error) })
-        return false
+        const message = processingClaimed
+          ? 'In-process document processing failed'
+          : 'In-process document dispatch failed before claiming the document'
+        logger.error(`[${requestId}] ${message}`, {
+          documentId: p.documentId,
+          error: getErrorMessage(error),
+        })
+        return processingClaimed
       }
     }
   )
@@ -1357,6 +1425,8 @@ export async function processDocumentAsync(
       )
       return
     }
+
+    attemptContext?.onClaimed?.()
 
     logger.info(`[${documentId}] Status updated to 'processing', starting document processor`)
 

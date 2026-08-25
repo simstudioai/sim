@@ -402,7 +402,7 @@ describe('retryDocumentProcessing dispatch unwind', () => {
     expect(result.status).toBe('failed')
   })
 
-  it('records and reports a returned zero-acceptance dispatch failure', async () => {
+  it('records and reports a returned zero-acceptance queue-admission result', async () => {
     dbChainMockFns.returning
       .mockResolvedValueOnce([{ id: 'doc-1' }])
       .mockResolvedValueOnce([])

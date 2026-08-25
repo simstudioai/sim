@@ -9,9 +9,10 @@
  * actually consumed: one attempt per *dispatch*, not per Trigger.dev retry, so
  * a short-interval connector can still burn several inside one transient
  * outage. A dispatch that provably reached nothing is refunded — see
- * `clearDocumentsQueued` — which covers the total-failure shape, but a partial
- * batch failure and an accepted dispatch whose run never starts both stay
- * charged. Three left too little room for those; five still bounds the spend
+ * `clearDocumentsQueued` — which refunds each newly claimed dispatch that
+ * provably failed before processing began. An accepted dispatch whose remote
+ * run never starts still stays charged. Three left too little room for those;
+ * five still bounds the spend
  * well inside `RETRY_WINDOW_DAYS`.
  *
  * Reaching it is a dead letter, not a deletion: the document keeps its `failed`
@@ -45,6 +46,36 @@ export const MAX_PROCESSING_ATTEMPTS = 5
  * added to close.
  */
 export const QUEUED_DISPATCH_GRACE_MS = 240 * 60 * 1000
+
+/** Worst-case wall clock for one processing run across its retry budget. */
+export function worstCaseProcessingMinutes(
+  maxDurationSeconds: number,
+  maxAttempts: number
+): number {
+  return (maxDurationSeconds * maxAttempts) / 60
+}
+
+/** Headroom over the worst case, so ordinary jitter never reclaims a live run. */
+const STALE_PROCESSING_HEADROOM = 1.5
+
+/** Floor preserving the historical safe value at the default task settings. */
+const STALE_PROCESSING_FLOOR_MINUTES = 45
+
+/**
+ * Minutes a `processing` document is given before it can be considered
+ * abandoned. Never below the worst case a legitimate retrying run can take.
+ */
+export function resolveStaleProcessingMinutes(
+  maxDurationSeconds: number,
+  maxAttempts: number
+): number {
+  return Math.max(
+    STALE_PROCESSING_FLOOR_MINUTES,
+    Math.ceil(
+      worstCaseProcessingMinutes(maxDurationSeconds, maxAttempts) * STALE_PROCESSING_HEADROOM
+    )
+  )
+}
 
 /**
  * Every value `document.processing_status` may hold.

@@ -3,12 +3,12 @@ import { document } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { truncate } from '@sim/utils/string'
-import { and, eq, isNull, or } from 'drizzle-orm'
-import { KNOWLEDGE_DOCUMENT_PROCESSING_STALE_THRESHOLD_MS } from '@/lib/knowledge/constants'
+import { and, eq, isNull } from 'drizzle-orm'
+import { DOCUMENT_PROCESSING_STALE_THRESHOLD_MS } from '@/lib/knowledge/documents/processing-timeouts.server'
 
 const logger = createLogger('KnowledgeDocumentProcessingClaim')
 
-export { KNOWLEDGE_DOCUMENT_PROCESSING_STALE_THRESHOLD_MS } from '@/lib/knowledge/constants'
+export { DOCUMENT_PROCESSING_STALE_THRESHOLD_MS as KNOWLEDGE_DOCUMENT_PROCESSING_STALE_THRESHOLD_MS } from '@/lib/knowledge/documents/processing-timeouts.server'
 
 interface ReclaimStaleDocumentProcessingClaimParams {
   knowledgeBaseId: string
@@ -36,8 +36,7 @@ export async function reclaimStaleDocumentProcessingClaim({
 }: ReclaimStaleDocumentProcessingClaimParams): Promise<boolean> {
   if (
     processingStartedAt &&
-    now.getTime() - processingStartedAt.getTime() <=
-      KNOWLEDGE_DOCUMENT_PROCESSING_STALE_THRESHOLD_MS
+    now.getTime() - processingStartedAt.getTime() <= DOCUMENT_PROCESSING_STALE_THRESHOLD_MS
   ) {
     return false
   }
@@ -82,7 +81,7 @@ export async function failStaleDocumentProcessingClaim({
   processingDuration: number
 }> {
   const processingDuration = now.getTime() - processingStartedAt.getTime()
-  if (processingDuration <= KNOWLEDGE_DOCUMENT_PROCESSING_STALE_THRESHOLD_MS) {
+  if (processingDuration <= DOCUMENT_PROCESSING_STALE_THRESHOLD_MS) {
     throw new Error('Document has not been processing long enough to be considered dead')
   }
 
@@ -130,8 +129,9 @@ interface FailUndispatchedDocumentProcessingParams {
  *
  * Guarded on active `pending` state and the dispatch generation so it cannot
  * overwrite a worker that already claimed the row, a newer queued pass, or a
- * recent pre-token pass that may still start. The tokenless arm matches only a
- * stamp that this dispatch already withdrew (or a document it never stamped).
+ * recent pre-token pass that may still start. A failed dispatch retains its
+ * generation token while withdrawing the live queue timestamp, so finalization
+ * can use one exact compare-and-set instead of matching an ambiguous blank row.
  */
 export async function failUndispatchedDocumentProcessing({
   documentId,
@@ -154,10 +154,8 @@ export async function failUndispatchedDocumentProcessing({
         eq(document.knowledgeBaseId, knowledgeBaseId),
         eq(document.processingStatus, 'pending'),
         eq(document.userExcluded, false),
-        or(
-          eq(document.processingQueueToken, processingQueueToken),
-          and(isNull(document.processingQueueToken), isNull(document.processingQueuedAt))
-        ),
+        eq(document.processingQueueToken, processingQueueToken),
+        isNull(document.processingQueuedAt),
         isNull(document.archivedAt),
         isNull(document.deletedAt)
       )

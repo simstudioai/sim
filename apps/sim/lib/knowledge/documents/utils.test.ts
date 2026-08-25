@@ -19,6 +19,7 @@ import {
   isRetryableError,
   resolveRetryDelayMs,
   retryWithExponentialBackoff,
+  sanitizeHttpErrorDiagnostic,
 } from './utils'
 
 /** Case-insensitive header reader over a plain lowercase-keyed record. */
@@ -45,6 +46,20 @@ function fakeResponse(
 }
 
 const FAST_RETRY = { initialDelayMs: 1, maxDelayMs: 2, maxRetries: 3, retryBudgetMs: 1_000 }
+
+describe('sanitizeHttpErrorDiagnostic', () => {
+  it('fails closed when valid structured input is too deep to sanitize recursively', () => {
+    const secret = 'top-secret-value-that-must-not-escape'
+    const depth = 10_000
+    const body = `{"authorization":"${secret}","nested":${'{"x":'.repeat(depth)}null${'}'.repeat(depth)}}`
+
+    const diagnostic = sanitizeHttpErrorDiagnostic(body)
+
+    expect(new TextEncoder().encode(body).byteLength).toBeLessThan(64 * 1024)
+    expect(diagnostic).toBe('[response body omitted: unable to safely sanitize structured error]')
+    expect(diagnostic).not.toContain(secret)
+  })
+})
 
 describe('isRetryableError', () => {
   describe('retryable status codes', () => {
@@ -484,6 +499,31 @@ describe('fetchWithRetry rate-limit handling', () => {
     expect(error?.message).not.toContain(secret)
   })
 
+  it.each(['api_key', 'authorization', 'client_secret', 'credential', 'private_key'])(
+    'redacts a long structured %s before truncating the diagnostic',
+    async (sensitiveKey) => {
+      const secretPrefix = 'sensitive-value-prefix'
+      globalThis.fetch = vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ [sensitiveKey]: `${secretPrefix}${'x'.repeat(3000)}` }), {
+          status: 522,
+          statusText: 'Connection timed out',
+        })
+      )
+
+      const error = await fetchWithRetry(
+        'https://api.fireflies.ai/graphql',
+        {},
+        { ...FAST_RETRY, maxRetries: 0 }
+      ).then(
+        () => undefined,
+        (caught) => caught as Error
+      )
+
+      expect(error?.message).toContain('[REDACTED]')
+      expect(error?.message).not.toContain(secretPrefix)
+    }
+  )
+
   it('does not retry an authorization 403 with quota remaining', async () => {
     const fetchMock = vi.fn().mockResolvedValue(response(403, { 'x-ratelimit-remaining': '4999' }))
     globalThis.fetch = fetchMock
@@ -817,6 +857,28 @@ describe('secureFetchWithRetry', () => {
     expect(error?.message).toContain('[REDACTED]')
     expect(error?.message).not.toContain('opaque-xxxxxxxxxxxxxxxx')
   })
+
+  it.each(['Bearer    ', 'Bearer\t', '  Bearer '])(
+    'redacts a bare credential separated from its scheme by whitespace: %j',
+    async (scheme) => {
+      const accessToken = 'whitespace-separated-token-that-must-not-escape'
+      mockSecureFetchWithValidation.mockResolvedValue(
+        new Response(`echo: ${accessToken}`, { status: 503 }) as never
+      )
+
+      const error = await secureFetchWithRetry(
+        'https://example.com/api',
+        { method: 'GET', headers: { Authorization: `${scheme}${accessToken}` } },
+        { ...FAST_RETRY, maxRetries: 0 }
+      ).then(
+        () => undefined,
+        (caught) => caught as Error
+      )
+
+      expect(error?.message).toContain('[REDACTED]')
+      expect(error?.message).not.toContain(accessToken)
+    }
+  )
 
   it('redacts both Basic-auth fields using the first colon as the separator', async () => {
     const username = 'basic-user-private'

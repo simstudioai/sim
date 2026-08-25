@@ -2,14 +2,7 @@
  * @vitest-environment node
  */
 
-import {
-  dbChainMockFns,
-  flattenMockConditions,
-  hasMockCondition,
-  type MockCondition,
-  resetDbChainMock,
-  schemaMock,
-} from '@sim/testing'
+import { dbChainMockFns, hasMockCondition, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   failStaleDocumentProcessingClaim,
@@ -221,29 +214,25 @@ describe('failUndispatchedDocumentProcessing', () => {
           node.right === 'pending'
       )
     ).toBe(true)
-    const generationGuard = flattenMockConditions(where).find((node) => node.type === 'or') as
-      | MockCondition
-      | undefined
-    expect(generationGuard).toBeDefined()
-    const generationBranches = generationGuard?.conditions as MockCondition[]
     expect(
-      generationBranches.some((branch) =>
-        hasMockCondition(branch, (node) => node.type === 'eq' && node.right === 'request-1')
+      hasMockCondition(
+        where,
+        (node) =>
+          node.type === 'eq' &&
+          node.left === schemaMock.document.processingQueueToken &&
+          node.right === 'request-1'
       )
     ).toBe(true)
     expect(
-      generationBranches.some(
-        (branch) =>
-          hasMockCondition(
-            branch,
-            (node) =>
-              node.type === 'isNull' && node.column === schemaMock.document.processingQueueToken
-          ) &&
-          hasMockCondition(
-            branch,
-            (node) =>
-              node.type === 'isNull' && node.column === schemaMock.document.processingQueuedAt
-          )
+      hasMockCondition(
+        where,
+        (node) => node.type === 'isNull' && node.column === schemaMock.document.processingQueueToken
+      )
+    ).toBe(false)
+    expect(
+      hasMockCondition(
+        where,
+        (node) => node.type === 'isNull' && node.column === schemaMock.document.processingQueuedAt
       )
     ).toBe(true)
     expect(

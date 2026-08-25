@@ -5,7 +5,8 @@ import { truncate } from '@sim/utils/string'
 import { redactSensitiveValues } from '@/lib/core/security/redaction'
 import {
   fetchWithRetry,
-  readBoundedHttpErrorBody,
+  readBoundedHttpErrorPayload,
+  sanitizeHttpErrorDiagnostic,
   VALIDATE_RETRY_OPTIONS,
 } from '@/lib/knowledge/documents/utils'
 import { googleDocsConnectorMeta } from '@/connectors/google-docs/meta'
@@ -148,8 +149,8 @@ interface DocsDocument {
 
 /** Describes a Google API failure without leaking an unbounded response body. */
 async function describeGoogleApiFailure(response: Response): Promise<string> {
-  const rawBody = await readBoundedHttpErrorBody(response)
-  const normalizedBody = redactSensitiveValues(rawBody).replace(/\s+/g, ' ').trim()
+  const rawBody = await readBoundedHttpErrorPayload(response)
+  const normalizedBody = sanitizeHttpErrorDiagnostic(rawBody).replace(/\s+/g, ' ').trim()
   if (!normalizedBody) return String(response.status)
 
   try {

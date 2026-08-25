@@ -335,6 +335,40 @@ describe('processDocumentAsync write guards', () => {
     expect(guardForStatusWrite('processing')).toBeDefined()
   })
 
+  it('signals ownership before a claimed processing attempt can fail', async () => {
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([PERSISTED_CONTEXT])
+      .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
+      .mockResolvedValueOnce([{ id: 'document-1' }])
+    mockGetFileMetadataByKeys.mockResolvedValue([SOURCE_BINDING])
+    mockGetBoundWorkspaceFileSecretProvenanceByMetadata.mockResolvedValue(
+      new Map([[SOURCE_BINDING.id, { status: 'exact', entries: [] }]])
+    )
+    mockProcessDocument.mockRejectedValueOnce(new Error('processor failed after claim'))
+    const onClaimed = vi.fn()
+
+    await expect(
+      processDocumentAsync(
+        'knowledge-base-1',
+        'document-1',
+        {
+          filename: 'a.pdf',
+          fileUrl: 'https://example.com/a.pdf',
+          fileSize: 1,
+          mimeType: 'text/plain',
+        },
+        {},
+        undefined,
+        'request-1',
+        { chargedAtDispatch: true, onClaimed }
+      )
+    ).rejects.toThrow('processor failed after claim')
+
+    expect(onClaimed).toHaveBeenCalledTimes(1)
+    expect(guardForStatusWrite('processing')).toBeDefined()
+    expect(guardForStatusWrite('failed')).toBeDefined()
+  })
+
   it('accepts a legacy queuedAt-only payload only while the row has no token', async () => {
     dbChainMockFns.limit
       .mockResolvedValueOnce([PERSISTED_CONTEXT])
@@ -712,6 +746,7 @@ describe('in-process quota continuation dispatch', () => {
   })
 
   afterEach(() => {
+    vi.restoreAllMocks()
     resetInsideTriggerRunForTests()
     resetEnvFlagsMock()
   })
@@ -839,12 +874,12 @@ describe('in-process quota continuation dispatch', () => {
     )
   })
 
-  it('reports failure when direct quota continuation handoff is unavailable', async () => {
+  it('keeps a claimed direct dispatch accepted when quota continuation handoff fails', async () => {
     mockTrigger.mockRejectedValue(new Error('continuation unavailable'))
 
     await expect(
       processDocumentsWithQueue([queuedDocument], 'knowledge-base-1', {}, 'request-1', undefined)
-    ).rejects.toThrow('document processing dispatches failed')
+    ).resolves.toEqual({ requested: 1, accepted: 1, failed: 0, failedDocumentIds: [] })
 
     const failure = dbChainMockFns.set.mock.calls.find(
       (call) =>

@@ -39,6 +39,7 @@ import {
   MAX_CONSECUTIVE_FAILURES,
   SYNC_LOCK_HEARTBEAT_INTERVAL_MS,
 } from '@/lib/knowledge/connectors/sync-limits'
+import { DOCUMENT_PROCESSING_STALE_THRESHOLD_MS } from '@/lib/knowledge/documents/processing-timeouts.server'
 import type { DocumentData } from '@/lib/knowledge/documents/service'
 import {
   ConnectorSyncDeletionGuardError,
@@ -232,39 +233,10 @@ export function addSourcePagePayloadBytes(
   return nextBytes
 }
 
-/**
- * Worst-case wall clock for one document's processing: the task's own duration
- * ceiling times its retry budget, both read from the env vars
- * `knowledge-process-document` is configured with.
- */
-export function worstCaseProcessingMinutes(
-  maxDurationSeconds: number,
-  maxAttempts: number
-): number {
-  return (maxDurationSeconds * maxAttempts) / 60
-}
-
-/** Headroom over the worst case, so ordinary jitter never reclaims a live run. */
-const STALE_PROCESSING_HEADROOM = 1.5
-
-/** Floor preserving the previously hard-coded value at the default env. */
-const STALE_PROCESSING_FLOOR_MINUTES = 45
-
-/**
- * Minutes a `processing` document is given before the sweep calls its run
- * abandoned. Never below the worst case a legitimate run can take.
- */
-export function resolveStaleProcessingMinutes(
-  maxDurationSeconds: number,
-  maxAttempts: number
-): number {
-  return Math.max(
-    STALE_PROCESSING_FLOOR_MINUTES,
-    Math.ceil(
-      worstCaseProcessingMinutes(maxDurationSeconds, maxAttempts) * STALE_PROCESSING_HEADROOM
-    )
-  )
-}
+export {
+  resolveStaleProcessingMinutes,
+  worstCaseProcessingMinutes,
+} from '@/lib/knowledge/documents/types'
 
 /**
  * How long a document may sit in `processing` before the sweep treats its run as
@@ -279,10 +251,7 @@ export function resolveStaleProcessingMinutes(
  * pass. Deriving it keeps the invariant true at any configuration; the floor
  * preserves today's value at the defaults.
  */
-const STALE_PROCESSING_MINUTES = resolveStaleProcessingMinutes(
-  envNumber(env.KB_CONFIG_MAX_DURATION, 600),
-  envNumber(env.KB_CONFIG_MAX_ATTEMPTS, 3)
-)
+const STALE_PROCESSING_MINUTES = DOCUMENT_PROCESSING_STALE_THRESHOLD_MS / (60 * 1000)
 const RETRY_WINDOW_DAYS = 7
 const RUNNABLE_CONNECTOR_STATUSES = ['active', 'error'] as const
 

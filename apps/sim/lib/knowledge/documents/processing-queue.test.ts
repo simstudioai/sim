@@ -20,10 +20,12 @@ import {
   markInsideTriggerRun,
   resetInsideTriggerRunForTests,
 } from '@/lib/core/config/trigger-runtime'
+import { DOCUMENT_PROCESSING_STALE_THRESHOLD_MS } from '@/lib/knowledge/documents/processing-timeouts.server'
 import { QUEUED_DISPATCH_GRACE_MS } from '@/lib/knowledge/documents/types'
 
-const { mockBatchTrigger } = vi.hoisted(() => ({
+const { mockBatchTrigger, mockResolveTriggerRegion } = vi.hoisted(() => ({
   mockBatchTrigger: vi.fn(),
+  mockResolveTriggerRegion: vi.fn().mockResolvedValue('us-east-1'),
 }))
 
 vi.mock('@trigger.dev/sdk', () => ({
@@ -32,7 +34,7 @@ vi.mock('@trigger.dev/sdk', () => ({
   },
 }))
 vi.mock('@/lib/core/async-jobs/region', () => ({
-  resolveTriggerRegion: vi.fn().mockResolvedValue('us-east-1'),
+  resolveTriggerRegion: mockResolveTriggerRegion,
 }))
 /**
  * Under `isolate: false` the shared `@/lib/knowledge/embeddings` /
@@ -86,6 +88,7 @@ describe('processDocumentsWithQueue billing attribution', () => {
     // stub every worker would read as 'already completed' and return early.
     dbChainMockFns.returning.mockResolvedValue([{ id: 'document-1' }])
     mockBatchTrigger.mockResolvedValue({ batchId: 'batch-1' })
+    mockResolveTriggerRegion.mockResolvedValue('us-east-1')
     for (const key of Object.keys(env)) {
       delete (env as Record<string, unknown>)[key]
     }
@@ -132,12 +135,20 @@ describe('processDocumentsWithQueue billing attribution', () => {
       billingAttribution: BILLING_ATTRIBUTION,
     })
 
-    const freshAdmissionGuard = dbChainMockFns.where.mock.calls.find((call) =>
-      hasMockCondition(
-        call[0],
-        (node: MockCondition) =>
-          node.type === 'isNull' && node.column === schemaMock.document.processingQueueToken
-      )
+    const freshAdmissionGuard = dbChainMockFns.where.mock.calls.find(
+      (call) =>
+        hasMockCondition(
+          call[0],
+          (node: MockCondition) =>
+            node.type === 'eq' &&
+            node.left === schemaMock.document.processingStatus &&
+            node.right === 'pending'
+        ) &&
+        hasMockCondition(
+          call[0],
+          (node: MockCondition) =>
+            node.type === 'isNull' && node.column === schemaMock.document.processingQueuedAt
+        )
     )?.[0]
     expect(freshAdmissionGuard).toBeDefined()
     expect(
@@ -149,6 +160,13 @@ describe('processDocumentsWithQueue billing attribution', () => {
           node.right === 'pending'
       )
     ).toBe(true)
+    expect(
+      hasMockCondition(
+        freshAdmissionGuard,
+        (node: MockCondition) =>
+          node.type === 'isNull' && node.column === schemaMock.document.processingQueueToken
+      )
+    ).toBe(false)
     expect(
       hasMockCondition(
         freshAdmissionGuard,
@@ -167,6 +185,11 @@ describe('processDocumentsWithQueue billing attribution', () => {
       processDocumentsWithQueue([DOCUMENT], 'knowledge-base-1', {}, 'request-1', undefined)
     ).rejects.toThrow('Workspace document processing requires a billing attribution snapshot')
     expect(mockBatchTrigger).not.toHaveBeenCalled()
+    const withdrawal = dbChainMockFns.set.mock.calls.find(
+      (call) => (call[0] as Record<string, unknown> | undefined)?.processingQueuedAt === null
+    )?.[0] as Record<string, unknown> | undefined
+    expect(withdrawal).toBeDefined()
+    expect(withdrawal).not.toHaveProperty('processingQueueToken')
   })
 
   it('rejects mismatched workspace attribution without enqueueing', async () => {
@@ -224,9 +247,50 @@ describe('processDocumentsWithQueue dispatch backend', () => {
   }
 
   function resumeAlternatives(guard: unknown): MockCondition[] {
-    const alternatives = flattenMockConditions(guard).find((node) => node.type === 'or')?.conditions
+    const alternatives = flattenMockConditions(guard).find(
+      (node) =>
+        node.type === 'or' &&
+        (node.conditions as MockCondition[]).some((condition) =>
+          hasMockCondition(
+            condition,
+            (nested) =>
+              nested.type === 'eq' &&
+              nested.left === schemaMock.document.processingQueueToken &&
+              nested.right === 'request-1'
+          )
+        ) &&
+        (node.conditions as MockCondition[]).some((condition) =>
+          hasMockCondition(
+            condition,
+            (nested) =>
+              nested.type === 'isNull' && nested.column === schemaMock.document.processingQueueToken
+          )
+        )
+    )?.conditions
     expect(alternatives).toBeDefined()
-    return alternatives as MockCondition[]
+    expect(alternatives).toHaveLength(2)
+    const conditions = alternatives as MockCondition[]
+    expect(
+      conditions.filter((condition) =>
+        hasMockCondition(
+          condition,
+          (node) =>
+            node.type === 'eq' &&
+            node.left === schemaMock.document.processingQueueToken &&
+            node.right === 'request-1'
+        )
+      )
+    ).toHaveLength(1)
+    expect(
+      conditions.filter((condition) =>
+        hasMockCondition(
+          condition,
+          (node) =>
+            node.type === 'isNull' && node.column === schemaMock.document.processingQueueToken
+        )
+      )
+    ).toHaveLength(1)
+    return conditions
   }
 
   beforeEach(() => {
@@ -237,6 +301,7 @@ describe('processDocumentsWithQueue dispatch backend', () => {
     dbChainMockFns.returning.mockResolvedValue([{ id: 'document-1' }])
     resetInsideTriggerRunForTests()
     mockBatchTrigger.mockResolvedValue({ batchId: 'batch-1' })
+    mockResolveTriggerRegion.mockResolvedValue('us-east-1')
     for (const key of Object.keys(env)) {
       delete (env as Record<string, unknown>)[key]
     }
@@ -306,6 +371,9 @@ describe('processDocumentsWithQueue dispatch backend', () => {
   })
 
   it('does not report a failed row owned by an old queue token as accepted', async () => {
+    vi.useFakeTimers()
+    const now = new Date('2026-08-25T06:00:00.000Z')
+    vi.setSystemTime(now)
     markInsideTriggerRun()
     dbChainMockFns.returning.mockResolvedValueOnce([]).mockResolvedValueOnce([])
     queueTableRows(schemaMock.document, [])
@@ -349,11 +417,6 @@ describe('processDocumentsWithQueue dispatch backend', () => {
         expect.objectContaining({
           type: 'eq',
           left: schemaMock.document.processingStatus,
-          right: 'processing',
-        }),
-        expect.objectContaining({
-          type: 'eq',
-          left: schemaMock.document.processingStatus,
           right: 'completed',
         }),
       ])
@@ -388,9 +451,47 @@ describe('processDocumentsWithQueue dispatch backend', () => {
       hasMockCondition(
         pendingWithQueueState,
         (node: MockCondition) =>
-          node.type === 'isNotNull' && node.column === schemaMock.document.processingQueueToken
+          node.type === 'gte' && node.left === schemaMock.document.processingQueuedAt
       )
-    ).toBe(false)
+    ).toBe(true)
+    const queuedFreshness = flattenMockConditions(pendingWithQueueState).find(
+      (node: MockCondition) =>
+        node.type === 'gte' && node.left === schemaMock.document.processingQueuedAt
+    )
+    expect(queuedFreshness?.right).toEqual(new Date(now.getTime() - QUEUED_DISPATCH_GRACE_MS))
+    const liveProcessingState = acceptedStatuses.find(
+      (condition) =>
+        condition.type === 'and' &&
+        hasMockCondition(
+          condition,
+          (node: MockCondition) =>
+            node.type === 'eq' &&
+            node.left === schemaMock.document.processingStatus &&
+            node.right === 'processing'
+        )
+    )
+    expect(liveProcessingState).toBeDefined()
+    expect(
+      hasMockCondition(
+        liveProcessingState,
+        (node: MockCondition) =>
+          node.type === 'isNotNull' && node.column === schemaMock.document.processingStartedAt
+      )
+    ).toBe(true)
+    const processingFreshness = flattenMockConditions(liveProcessingState).find(
+      (node: MockCondition) =>
+        node.type === 'gte' && node.left === schemaMock.document.processingStartedAt
+    )
+    expect(processingFreshness?.right).toEqual(
+      new Date(now.getTime() - DOCUMENT_PROCESSING_STALE_THRESHOLD_MS)
+    )
+    expect(
+      hasMockCondition(
+        liveProcessingState,
+        (node: MockCondition) =>
+          node.type === 'gte' && node.left === schemaMock.document.processingStartedAt
+      )
+    ).toBe(true)
   })
 
   it('resumes the same outbox request with its original stamp and no new charge', async () => {
@@ -576,7 +677,7 @@ describe('processDocumentsWithQueue dispatch backend', () => {
     expect(adoptionWrite?.[0]).not.toHaveProperty('processingAttempts')
   })
 
-  it('keeps a failed same-request replay retryable without clearing its prior stamp', async () => {
+  it('keeps a pre-claim same-request fallback failure retryable without clearing its stamp', async () => {
     markInsideTriggerRun()
     const originalQueuedAt = new Date('2026-08-24T22:00:00.000Z')
     dbChainMockFns.returning
@@ -604,7 +705,7 @@ describe('processDocumentsWithQueue dispatch backend', () => {
     ).toBe(false)
   })
 
-  it('reports only successful same-request replay dispatches in a partial batch', async () => {
+  it('reports a pre-claim direct fallback failure after a partial Trigger enqueue', async () => {
     markInsideTriggerRun()
     const originalQueuedAt = new Date('2026-08-24T22:00:00.000Z')
     const documents = Array.from({ length: 1001 }, (_, index) => ({
@@ -684,7 +785,7 @@ describe('processDocumentsWithQueue dispatch backend', () => {
     expect(mockBatchTrigger).toHaveBeenCalledTimes(1)
   })
 
-  it('does not dispatch via Trigger.dev outside a run when the secret key is missing', async () => {
+  it('uses the direct fallback outside a run when the secret key is missing', async () => {
     setEnvFlags({ isTriggerDevEnabled: true })
 
     await expect(
@@ -695,12 +796,22 @@ describe('processDocumentsWithQueue dispatch backend', () => {
         'request-1',
         BILLING_ATTRIBUTION
       )
-    ).rejects.toThrow()
+    ).resolves.toEqual({ requested: 1, accepted: 1, failed: 0, failedDocumentIds: [] })
 
     expect(mockBatchTrigger).not.toHaveBeenCalled()
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ processingStatus: 'processing' })
+    )
+    expect(
+      dbChainMockFns.set.mock.calls.some(
+        (call) =>
+          (call[0] as Record<string, unknown> | undefined)?.processingQueuedAt === null &&
+          'processingAttempts' in ((call[0] as Record<string, unknown> | undefined) ?? {})
+      )
+    ).toBe(false)
   })
 
-  it('does not dispatch via Trigger.dev outside a run when the deployment flag is off', async () => {
+  it('uses the direct fallback outside a run when the deployment flag is off', async () => {
     setEnvFlags({ isTriggerDevEnabled: false })
     Object.assign(env, { TRIGGER_SECRET_KEY: 'trigger-secret' })
 
@@ -712,7 +823,7 @@ describe('processDocumentsWithQueue dispatch backend', () => {
         'request-1',
         BILLING_ATTRIBUTION
       )
-    ).rejects.toThrow()
+    ).resolves.toEqual({ requested: 1, accepted: 1, failed: 0, failedDocumentIds: [] })
 
     expect(mockBatchTrigger).not.toHaveBeenCalled()
   })
@@ -732,6 +843,7 @@ describe('processDocumentsWithQueue attempt refund', () => {
     vi.clearAllMocks()
     resetDbChainMock()
     dbChainMockFns.returning.mockResolvedValue([{ id: 'document-1' }])
+    mockResolveTriggerRegion.mockResolvedValue('us-east-1')
     for (const key of Object.keys(env)) {
       delete (env as Record<string, unknown>)[key]
     }
@@ -742,7 +854,7 @@ describe('processDocumentsWithQueue attempt refund', () => {
   })
 
   it('refunds the attempt in the same write that withdraws the queue stamp', async () => {
-    mockBatchTrigger.mockRejectedValue(new Error('trigger.dev region unavailable'))
+    mockResolveTriggerRegion.mockRejectedValueOnce(new Error('trigger.dev region unavailable'))
 
     await expect(
       processDocumentsWithQueue(
@@ -752,7 +864,7 @@ describe('processDocumentsWithQueue attempt refund', () => {
         'request-1',
         BILLING_ATTRIBUTION
       )
-    ).rejects.toThrow('document processing dispatches failed')
+    ).rejects.toThrow('trigger.dev region unavailable')
 
     const withdrawCall = dbChainMockFns.set.mock.calls.find(
       (call) => (call[0] as Record<string, unknown> | undefined)?.processingQueuedAt === null
@@ -760,6 +872,7 @@ describe('processDocumentsWithQueue attempt refund', () => {
     expect(withdrawCall).toBeDefined()
 
     const values = withdrawCall?.[0] as Record<string, unknown>
+    expect(values).not.toHaveProperty('processingQueueToken')
     const attempts = values.processingAttempts as { toSQL: () => { sql: string } } | undefined
     expect(attempts).toBeDefined()
     // Given back as a SQL decrement in the same guarded statement as the stamp,
@@ -767,6 +880,27 @@ describe('processDocumentsWithQueue attempt refund', () => {
     expect(attempts?.toSQL().sql).toContain('- 1')
     // Floored, so a refund can never drive the count below zero.
     expect(attempts?.toSQL().sql).toContain('GREATEST')
+
+    const withdrawIndex = dbChainMockFns.set.mock.calls.findIndex(
+      (call) => call[0] === withdrawCall?.[0]
+    )
+    const withdrawOrder = dbChainMockFns.set.mock.invocationCallOrder[withdrawIndex]
+    const whereIndex = dbChainMockFns.where.mock.invocationCallOrder.findIndex(
+      (order) => order > withdrawOrder
+    )
+    const withdrawalGuard = dbChainMockFns.where.mock.calls[whereIndex]?.[0]
+    const queueWrite = dbChainMockFns.set.mock.calls.find(
+      (call) => (call[0] as Record<string, unknown> | undefined)?.processingQueuedAt instanceof Date
+    )?.[0] as Record<string, unknown> | undefined
+    expect(
+      hasMockCondition(
+        withdrawalGuard,
+        (node: MockCondition) =>
+          node.type === 'eq' &&
+          node.left === schemaMock.document.processingQueuedAt &&
+          node.right === queueWrite?.processingQueuedAt
+      )
+    ).toBe(true)
   })
 
   it('leaves the attempt spent when a dispatch did get through', async () => {

@@ -26,13 +26,14 @@ function getRequestCredentialValues(options: SecureFetchOptions): string[] {
     if (!isSensitiveKey(name)) continue
     values.push(value)
 
-    const schemeSeparator = value.indexOf(' ')
-    if (schemeSeparator > 0) {
-      values.push(value.slice(schemeSeparator + 1))
-    }
+    const normalizedValue = value.trim()
+    if (normalizedValue !== value) values.push(normalizedValue)
+    const schemeSeparator = normalizedValue.search(/\s/)
+    const credential = schemeSeparator > 0 ? normalizedValue.slice(schemeSeparator + 1).trim() : ''
+    if (credential) values.push(credential)
 
-    if (/^Basic\s+/i.test(value)) {
-      const decoded = Buffer.from(value.slice(schemeSeparator + 1), 'base64').toString('utf8')
+    if (/^Basic\s+/i.test(normalizedValue) && credential) {
+      const decoded = Buffer.from(credential, 'base64').toString('utf8')
       values.push(decoded)
       const credentialSeparator = decoded.indexOf(':')
       if (credentialSeparator >= 0) {

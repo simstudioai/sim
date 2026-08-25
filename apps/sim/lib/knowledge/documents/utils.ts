@@ -4,7 +4,12 @@ import { sleep } from '@sim/utils/helpers'
 import { randomFloat } from '@sim/utils/random'
 import { parseRetryAfter } from '@sim/utils/retry'
 import { truncate } from '@sim/utils/string'
-import { redactExactSensitiveValues, redactSensitiveValues } from '@/lib/core/security/redaction'
+import {
+  redactApiKeys,
+  redactExactSensitiveValues,
+  redactKnownSensitiveValues,
+  redactSensitiveValues,
+} from '@/lib/core/security/redaction'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
   isPayloadSizeLimitError,
@@ -51,6 +56,52 @@ export interface RetryOptions {
 }
 
 const MAX_HTTP_ERROR_DIAGNOSTIC_CHARS = 2000
+const STRUCTURED_ERROR_SANITIZATION_FAILURE =
+  '[response body omitted: unable to safely sanitize structured error]'
+
+function redactHttpErrorJsonStrings(value: unknown, sensitiveValues: string[]): unknown {
+  if (typeof value === 'string') {
+    return redactExactSensitiveValues(value, sensitiveValues)
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => redactHttpErrorJsonStrings(item, sensitiveValues))
+  }
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, nested]) => [
+        key,
+        redactHttpErrorJsonStrings(nested, sensitiveValues),
+      ])
+    )
+  }
+  return value
+}
+
+/** Produces a redacted, bounded diagnostic from an already byte-bounded body. */
+export function sanitizeHttpErrorDiagnostic(
+  body: string,
+  options: { sensitiveValues?: string[] } = {}
+): string {
+  const sensitiveValues = options.sensitiveValues ?? []
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(body)
+  } catch {
+    return truncate(
+      redactSensitiveValues(redactKnownSensitiveValues(body, sensitiveValues)),
+      MAX_HTTP_ERROR_DIAGNOSTIC_CHARS
+    )
+  }
+
+  try {
+    const sanitized = JSON.stringify(
+      redactHttpErrorJsonStrings(redactApiKeys(parsed), sensitiveValues)
+    )
+    return truncate(sanitized, MAX_HTTP_ERROR_DIAGNOSTIC_CHARS)
+  } catch {
+    return STRUCTURED_ERROR_SANITIZATION_FAILURE
+  }
+}
 
 /**
  * Reads an upstream error body without allowing a provider or proxy error page
@@ -66,15 +117,26 @@ export async function readBoundedHttpErrorBody(
   },
   options: { sensitiveValues?: string[] } = {}
 ): Promise<string> {
+  const body = await readBoundedHttpErrorPayload(response)
+  return sanitizeHttpErrorDiagnostic(body, options)
+}
+
+/**
+ * Reads a byte-bounded upstream error payload for structured parsing. The raw
+ * value may contain secrets and must never be logged or included in an error;
+ * callers must project and sanitize the parsed fields they retain.
+ */
+export async function readBoundedHttpErrorPayload(response: {
+  headers?: { get(name: string): string | null }
+  body?: ReadableStream<Uint8Array> | null
+  arrayBuffer?: () => Promise<ArrayBuffer>
+  text?: () => Promise<string>
+}): Promise<string> {
   try {
-    const body = await readResponseTextWithLimit(response, {
+    return await readResponseTextWithLimit(response, {
       maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
       label: 'Upstream HTTP error response',
     })
-    const sanitized = options.sensitiveValues
-      ? redactExactSensitiveValues(body, options.sensitiveValues)
-      : body
-    return truncate(sanitized, MAX_HTTP_ERROR_DIAGNOSTIC_CHARS)
   } catch (error) {
     if (isPayloadSizeLimitError(error)) {
       return `[response body omitted: exceeded ${DEFAULT_MAX_ERROR_BODY_BYTES} bytes]`
@@ -439,7 +501,7 @@ export async function fetchWithRetry(
     const response = await fetch(url, options)
 
     if (!response.ok && isRetryableError({ status: response.status, headers: response.headers })) {
-      const errorText = redactSensitiveValues(await readBoundedHttpErrorBody(response))
+      const errorText = await readBoundedHttpErrorBody(response)
       const error: HTTPError = new Error(
         `HTTP ${response.status}: ${response.statusText} - ${errorText}`
       )
