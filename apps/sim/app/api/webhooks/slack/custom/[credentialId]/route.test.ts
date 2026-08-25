@@ -147,6 +147,40 @@ describe('Slack custom-bot webhook route', () => {
     expect(res.status).toBe(200)
   })
 
+  it('returns 200 when every target permanently lacks its deployed trigger block', async () => {
+    mockDispatchResolvedWebhookTarget.mockResolvedValue({
+      outcome: 'ignored',
+      response: new Response('Trigger block not found in deployment', { status: 404 }),
+      reason: 'block-missing',
+    })
+
+    const res = await POST(makeRequest(), context)
+
+    expect(mockDispatchResolvedWebhookTarget).toHaveBeenCalledTimes(1)
+    expect(res.status).toBe(200)
+  })
+
+  it('returns a retryable failure when another target fails beside a missing block', async () => {
+    mockFindWebhooksByRoutingKey.mockResolvedValue([webhook('wh1'), webhook('wh2')])
+    mockDispatchResolvedWebhookTarget
+      .mockResolvedValueOnce({
+        outcome: 'ignored',
+        response: new Response('Trigger block not found in deployment', { status: 404 }),
+        reason: 'block-missing',
+      })
+      .mockResolvedValueOnce({
+        outcome: 'failed',
+        response: new Response('Queue failed', { status: 500 }),
+        reason: 'queue-failed',
+      })
+
+    const res = await POST(makeRequest(), context)
+
+    expect(mockDispatchResolvedWebhookTarget).toHaveBeenCalledTimes(2)
+    expect(res.status).toBe(500)
+    await expect(res.text()).resolves.toBe('Queue failed')
+  })
+
   it('returns the dispatch failure when no target is acknowledged', async () => {
     mockDispatchResolvedWebhookTarget.mockResolvedValue({
       outcome: 'failed',

@@ -1178,6 +1178,36 @@ describe('Webhook Trigger API Route', () => {
       await expect(response.json()).resolves.toEqual({ message: 'Webhook event ignored' })
       expect(dispatchResolvedWebhookTargetMock).not.toHaveBeenCalled()
     })
+
+    it('acknowledges a legacy fan-out when every target permanently lacks its trigger block', async () => {
+      testData.webhooks.push({
+        id: 'legacy-slack-webhook',
+        provider: 'slack',
+        path: 'legacy-slack-path',
+        routingKey: 'credential-1',
+        isActive: true,
+        providerConfig: {
+          triggerId: 'slack_webhook',
+          credentialId: 'credential-1',
+          ingressMode: 'legacy_custom_bot',
+        },
+        workflowId: 'test-workflow-id',
+      })
+      dispatchSlackCustomBotCredentialMock.mockResolvedValueOnce([
+        {
+          outcome: 'ignored',
+          reason: 'block-missing',
+          response: new NextResponse('Trigger block not found in deployment', { status: 404 }),
+        },
+      ])
+
+      const response = await POST(createMockRequest('POST', { type: 'event_callback' }), {
+        params: Promise.resolve({ path: 'legacy-slack-path' }),
+      })
+
+      expect(response.status).toBe(200)
+      expect(dispatchResolvedWebhookTargetMock).not.toHaveBeenCalled()
+    })
   })
 
   describe('Reservation-free filtering', () => {

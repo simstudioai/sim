@@ -78,9 +78,7 @@ async function handleSlackCustomBotWebhook(
     (result) => result.outcome !== 'failed' && result.reason !== 'block-missing'
   )
   if (!acknowledged) {
-    const failure = dispatchResults.find(
-      (result) => result.outcome === 'failed' || result.reason === 'block-missing'
-    )
+    const failure = dispatchResults.find((result) => result.outcome === 'failed')
     if (failure) return failure.response
   }
 

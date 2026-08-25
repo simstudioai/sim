@@ -50,12 +50,12 @@ describe('get_blocks_metadata against the real registries', () => {
 
   it('resolves an integration block’s operations and their tool-derived inputs', async () => {
     const result = await getBlocksMetadataServerTool.execute(
-      { blockIds: ['slack'] },
+      { blockIds: ['slack_v2'] },
       { userId: 'user-1', workspaceId: 'workspace-1' }
     )
 
-    const slack = result.metadata.slack as AgentBlockMetadata
-    expect(slack.blockType).toBe('slack')
+    const slack = result.metadata.slack_v2 as AgentBlockMetadata
+    expect(slack.blockType).toBe('slack_v2')
     expect(slack.name).toBe('Slack')
 
     const operations = slack.operations ?? {}

@@ -260,9 +260,14 @@ async function handleWebhookDelivery(
    */
   const responses: NextResponse[] = []
   const failures: NextResponse[] = []
+  let hasPermanentlyIgnoredLegacyTarget = false
   for (const dispatchResult of legacySlackDispatchResults) {
-    if (dispatchResult.outcome === 'failed' || dispatchResult.reason === 'block-missing') {
+    if (dispatchResult.outcome === 'failed') {
       failures.push(dispatchResult.response)
+      continue
+    }
+    if (dispatchResult.reason === 'block-missing') {
+      hasPermanentlyIgnoredLegacyTarget = true
       continue
     }
     responses.push(dispatchResult.response)
@@ -340,6 +345,9 @@ async function handleWebhookDelivery(
   if (responses.length === 0) {
     if (failures.length > 0) {
       return failures[0]
+    }
+    if (hasPermanentlyIgnoredLegacyTarget) {
+      return new NextResponse(null, { status: 200 })
     }
     return new NextResponse('No webhooks processed successfully', { status: 500 })
   }
