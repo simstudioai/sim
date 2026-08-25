@@ -102,6 +102,7 @@ function classifyGoogleDriveError(
   status: number,
   reasons: readonly string[]
 ): GoogleDriveErrorKind {
+  if (status === 429 || status >= 500) return 'transient'
   if (reasons.some((reason) => EXPORT_TOO_LARGE_REASONS.has(reason))) {
     return 'export_too_large'
   }
@@ -113,13 +114,15 @@ function classifyGoogleDriveError(
     return 'unsupported_export'
   }
   if (reasons.some((reason) => QUOTA_REASONS.has(reason))) return 'quota'
-  if (status === 429 || status >= 500 || reasons.some((reason) => TRANSIENT_REASONS.has(reason))) {
+  if (reasons.some((reason) => TRANSIENT_REASONS.has(reason))) {
     return 'transient'
   }
   return 'unknown'
 }
 
 export class GoogleDriveApiError extends Error {
+  retryAfterMs?: number
+
   constructor(
     readonly status: number,
     readonly reasons: readonly string[],

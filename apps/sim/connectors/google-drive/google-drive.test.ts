@@ -1,16 +1,17 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as XLSX from 'xlsx'
 
-const { mockFetchWithRetry } = vi.hoisted(() => ({ mockFetchWithRetry: vi.fn() }))
+const { mockFetch } = vi.hoisted(() => ({ mockFetch: vi.fn() }))
 
-vi.mock('@/lib/knowledge/documents/utils', () => ({
-  fetchWithRetry: mockFetchWithRetry,
-  VALIDATE_RETRY_OPTIONS: {},
-}))
 vi.mock('@/components/icons', () => ({ GoogleDriveIcon: () => null }))
+
+afterEach(() => {
+  vi.useRealTimers()
+  vi.unstubAllGlobals()
+})
 
 import { googleDriveConnector } from '@/connectors/google-drive/google-drive'
 import {
@@ -55,7 +56,7 @@ function fileMetadata(overrides: Record<string, unknown> = {}): Record<string, u
 }
 
 async function hydrateWithExportResponse(exportResponse: Response) {
-  mockFetchWithRetry
+  mockFetch
     .mockResolvedValueOnce(jsonResponse(fileMetadata()))
     .mockResolvedValueOnce(exportResponse)
   return googleDriveConnector.getDocument('token', {}, FILE_ID)
@@ -64,6 +65,7 @@ async function hydrateWithExportResponse(exportResponse: Response) {
 describe('Google Drive API error parsing', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.stubGlobal('fetch', mockFetch)
   })
 
   it.each([
@@ -131,11 +133,31 @@ describe('Google Drive API error parsing', () => {
     expect(JSON.stringify(error.reasons)).not.toContain(secret)
     expect(error.message).not.toContain(secret)
   })
+
+  it('discards an error envelope that exceeds the diagnostic body limit', async () => {
+    const sentinel = 'sk-over-cap-provider-secret-value'
+    const body = JSON.stringify({
+      error: {
+        errors: [{ reason: 'quotaExceeded' }],
+        message: `${'x'.repeat(64 * 1024)}${sentinel}`,
+      },
+    })
+
+    const error = await readGoogleDriveApiError(
+      new Response(body, { status: 403, headers: { 'Content-Type': 'application/json' } })
+    )
+
+    expect(error.kind).toBe('unknown')
+    expect(error.reasons).toEqual([])
+    expect(error.providerMessage).toBeUndefined()
+    expect(error.message).not.toContain(sentinel)
+  })
 })
 
 describe('Google Drive export failures', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.stubGlobal('fetch', mockFetch)
   })
 
   it('records the documented export size limit as a terminal skipped document', async () => {
@@ -145,6 +167,7 @@ describe('Google Drive export failures', () => {
 
     expect(document?.contentDeferred).toBe(false)
     expect(document?.skippedReason).toContain('10MB size limit')
+    expect(mockFetch).toHaveBeenCalledTimes(2)
   })
 
   it.each([
@@ -162,22 +185,66 @@ describe('Google Drive export failures', () => {
       await expect(
         hydrateWithExportResponse(driveErrorResponse(reason, message, status))
       ).rejects.toMatchObject({ name: 'GoogleDriveApiError', status })
-      expect(mockFetchWithRetry).toHaveBeenCalledTimes(2)
+      expect(mockFetch).toHaveBeenCalledTimes(2)
     }
   )
 
-  it('propagates a body-classified rate limit so the task can retry it', async () => {
-    await expect(
-      hydrateWithExportResponse(
+  it('retries a body-classified 403 rate limit and succeeds', async () => {
+    vi.useFakeTimers()
+    mockFetch
+      .mockResolvedValueOnce(jsonResponse(fileMetadata()))
+      .mockResolvedValueOnce(
         driveErrorResponse('userRateLimitExceeded', 'User Rate Limit Exceeded')
       )
-    ).rejects.toMatchObject({
-      name: 'GoogleDriveApiError',
-      status: 403,
-      kind: 'transient',
-      reasons: ['userRateLimitExceeded'],
+      .mockResolvedValueOnce(new Response('recovered content', { status: 200 }))
+
+    const documentPromise = googleDriveConnector.getDocument('token', {}, FILE_ID)
+    await vi.runAllTimersAsync()
+
+    await expect(documentPromise).resolves.toMatchObject({
+      content: 'recovered content',
     })
+    expect(mockFetch).toHaveBeenCalledTimes(3)
   })
+
+  it('retains header-classified 403 rate-limit retries when the body has no known reason', async () => {
+    vi.useFakeTimers()
+    mockFetch
+      .mockResolvedValueOnce(jsonResponse(fileMetadata()))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ error: { message: 'Temporarily throttled' } }), {
+          status: 403,
+          headers: { 'Content-Type': 'application/json', 'Retry-After': '1' },
+        })
+      )
+      .mockResolvedValueOnce(new Response('recovered content', { status: 200 }))
+
+    const documentPromise = googleDriveConnector.getDocument('token', {}, FILE_ID)
+    await vi.runAllTimersAsync()
+
+    await expect(documentPromise).resolves.toMatchObject({ content: 'recovered content' })
+    expect(mockFetch).toHaveBeenCalledTimes(3)
+  })
+
+  it.each([
+    [429, 'insufficientFilePermissions'],
+    [503, 'exportSizeLimitExceeded'],
+  ])(
+    'retries HTTP %i even when the provider reason is classified as terminal',
+    async (status, reason) => {
+      vi.useFakeTimers()
+      mockFetch
+        .mockResolvedValueOnce(jsonResponse(fileMetadata()))
+        .mockResolvedValueOnce(driveErrorResponse(reason, 'Conflicting provider reason', status))
+        .mockResolvedValueOnce(new Response('recovered content', { status: 200 }))
+
+      const documentPromise = googleDriveConnector.getDocument('token', {}, FILE_ID)
+      await vi.runAllTimersAsync()
+
+      await expect(documentPromise).resolves.toMatchObject({ content: 'recovered content' })
+      expect(mockFetch).toHaveBeenCalledTimes(3)
+    }
+  )
 
   it('propagates unknown 403 responses instead of misclassifying them as permanent', async () => {
     await expect(
@@ -203,7 +270,7 @@ describe('Google Drive export failures', () => {
     )
     const workbookBytes = Buffer.from(XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' }))
 
-    mockFetchWithRetry
+    mockFetch
       .mockResolvedValueOnce(
         jsonResponse(
           fileMetadata({ name: 'Revenue model', mimeType: GOOGLE_SPREADSHEET_MIME_TYPE })
@@ -212,7 +279,7 @@ describe('Google Drive export failures', () => {
       .mockResolvedValueOnce(new Response(workbookBytes))
 
     const document = await googleDriveConnector.getDocument('token', {}, FILE_ID)
-    const exportUrl = String(mockFetchWithRetry.mock.calls[1][0])
+    const exportUrl = String(mockFetch.mock.calls[1][0])
 
     expect(exportUrl).toContain(
       'mimeType=application%2Fvnd.openxmlformats-officedocument.spreadsheetml.sheet'
@@ -245,10 +312,11 @@ describe('Google Drive export failures', () => {
 describe('Google Drive connector limits', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.stubGlobal('fetch', mockFetch)
   })
 
   it('does not let an oversized skipped file consume the maxFiles budget', async () => {
-    mockFetchWithRetry
+    mockFetch
       .mockResolvedValueOnce(
         jsonResponse({
           files: [
@@ -296,7 +364,7 @@ describe('Google Drive connector limits', () => {
   })
 
   it('makes an incomplete cross-corpus search non-authoritative', async () => {
-    mockFetchWithRetry.mockResolvedValueOnce(
+    mockFetch.mockResolvedValueOnce(
       jsonResponse({ files: [fileMetadata()], incompleteSearch: true })
     )
     const syncContext: Record<string, unknown> = {}
@@ -314,28 +382,28 @@ describe('Google Drive connector limits', () => {
       await expect(googleDriveConnector.listDocuments('token', { maxFiles })).rejects.toThrow(
         'Max files must be a positive safe integer, or 0 for unlimited'
       )
-      expect(mockFetchWithRetry).not.toHaveBeenCalled()
+      expect(mockFetch).not.toHaveBeenCalled()
     }
   )
 
   it.each([undefined, null, '', '   ', 0, '0'])(
     'keeps omitted or explicit unlimited maxFiles %s valid at runtime',
     async (maxFiles) => {
-      mockFetchWithRetry.mockResolvedValueOnce(jsonResponse({ files: [] }))
+      mockFetch.mockResolvedValueOnce(jsonResponse({ files: [] }))
 
       await expect(
         googleDriveConnector.listDocuments('token', { maxFiles })
       ).resolves.toMatchObject({ documents: [], hasMore: false })
-      expect(String(mockFetchWithRetry.mock.calls[0][0])).toContain('pageSize=100')
+      expect(String(mockFetch.mock.calls[0][0])).toContain('pageSize=100')
     }
   )
 
   it('uses a valid persisted maxFiles cap at runtime', async () => {
-    mockFetchWithRetry.mockResolvedValueOnce(jsonResponse({ files: [] }))
+    mockFetch.mockResolvedValueOnce(jsonResponse({ files: [] }))
 
     await googleDriveConnector.listDocuments('token', { maxFiles: '25' })
 
-    expect(String(mockFetchWithRetry.mock.calls[0][0])).toContain('pageSize=25')
+    expect(String(mockFetch.mock.calls[0][0])).toContain('pageSize=25')
   })
 
   it.each(['1.5', 'Infinity', 1.5, Number.POSITIVE_INFINITY])(
@@ -345,7 +413,7 @@ describe('Google Drive connector limits', () => {
         valid: false,
         error: 'Max files must be a positive safe integer, or 0 for unlimited',
       })
-      expect(mockFetchWithRetry).not.toHaveBeenCalled()
+      expect(mockFetch).not.toHaveBeenCalled()
     }
   )
 })

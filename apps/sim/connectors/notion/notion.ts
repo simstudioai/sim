@@ -28,6 +28,8 @@ const MAX_NOTION_ERROR_MESSAGE_LENGTH = 500
 const PAGE_METADATA_CONCURRENCY = 3
 const MAX_CONFIGURED_DATABASES = 100
 const MAX_DATABASE_RESPONSE_BYTES = 1024 * 1024
+const MAX_PAGE_METADATA_RESPONSE_BYTES = 1024 * 1024
+const MAX_LIST_RESPONSE_BYTES = 16 * 1024 * 1024
 const MAX_DATA_SOURCES_PER_DATABASE = 100
 const MAX_TOTAL_DATA_SOURCES = 500
 const MAX_NOTION_UNKNOWN_BLOCK_IDS = 100
@@ -74,6 +76,37 @@ interface NotionApiErrorBody {
   code?: unknown
   message?: unknown
   request_id?: unknown
+}
+
+interface NotionListResponse {
+  results?: Record<string, unknown>[]
+  has_more?: boolean
+  next_cursor?: string | null
+  request_status?: {
+    type?: string
+    incomplete_reason?: string
+  }
+}
+
+async function readNotionJsonObject<T extends object>(
+  response: Response,
+  maxBytes: number,
+  description: string
+): Promise<T> {
+  const body = await readBodyWithLimit(response, maxBytes)
+  if (!body) {
+    throw new Error(`Notion ${description} exceeds the ${maxBytes} byte limit`)
+  }
+
+  try {
+    const parsed: unknown = JSON.parse(body.toString('utf8'))
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error('Invalid JSON object')
+    }
+    return parsed as T
+  } catch {
+    throw new Error(`Notion ${description} returned invalid JSON`)
+  }
 }
 
 function parseMaxPages(value: unknown): number {
@@ -507,7 +540,11 @@ export const notionConnector: ConnectorConfig = {
       throw await notionApiError(response, 'Failed to get Notion page')
     }
 
-    const page = (await response.json()) as Record<string, unknown>
+    const page = await readNotionJsonObject<Record<string, unknown>>(
+      response,
+      MAX_PAGE_METADATA_RESPONSE_BYTES,
+      `page ${externalId} metadata`
+    )
     if (isPageTrashed(page)) return null
 
     /**
@@ -675,8 +712,12 @@ async function listFromWorkspace(
     throw error
   }
 
-  const data = await response.json()
-  const results = (data.results || []) as Record<string, unknown>[]
+  const data = await readNotionJsonObject<NotionListResponse>(
+    response,
+    MAX_LIST_RESPONSE_BYTES,
+    'workspace search response'
+  )
+  const results = data.results ?? []
   const pages = results.filter((result) => result.object === 'page' && !isPageTrashed(result))
 
   const documents = pages.map(pageToStub)
@@ -732,23 +773,11 @@ async function resolveDatabaseDataSources(
       throw await notionApiError(response, `Cannot access database ${databaseId}`)
     }
 
-    const body = await readBodyWithLimit(response, MAX_DATABASE_RESPONSE_BYTES)
-    if (!body) {
-      throw new Error(
-        `Notion database ${databaseId} metadata exceeds the ${MAX_DATABASE_RESPONSE_BYTES} byte limit`
-      )
-    }
-
-    let database: Record<string, unknown>
-    try {
-      const parsed: unknown = JSON.parse(body.toString('utf8'))
-      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-        throw new Error('Invalid metadata envelope')
-      }
-      database = parsed as Record<string, unknown>
-    } catch {
-      throw new Error(`Notion database ${databaseId} returned invalid JSON metadata`)
-    }
+    const database = await readNotionJsonObject<Record<string, unknown>>(
+      response,
+      MAX_DATABASE_RESPONSE_BYTES,
+      `database ${databaseId} metadata`
+    )
 
     const rawReferences = Array.isArray(database.data_sources) ? database.data_sources : []
     if (rawReferences.length > MAX_DATA_SOURCES_PER_DATABASE) {
@@ -988,8 +1017,12 @@ async function listFromDatabases(
       throw error
     }
 
-    const data = await response.json()
-    const results = (data.results || []) as Record<string, unknown>[]
+    const data = await readNotionJsonObject<NotionListResponse>(
+      response,
+      MAX_LIST_RESPONSE_BYTES,
+      `data source ${dataSourceId} query response`
+    )
+    const results = data.results ?? []
     const pages = results.filter((result) => result.object === 'page' && !isPageTrashed(result))
     documents.push(...pages.map(pageToStub))
 
@@ -1069,8 +1102,12 @@ async function listFromParentPage(
     throw error
   }
 
-  const data = await response.json()
-  const blockResults = (data.results || []) as Record<string, unknown>[]
+  const data = await readNotionJsonObject<NotionListResponse>(
+    response,
+    MAX_LIST_RESPONSE_BYTES,
+    `page ${rootPageId} child-block response`
+  )
+  const blockResults = data.results ?? []
 
   // Filter to child_page blocks only (child_database blocks cannot be fetched via the Pages API)
   const childPageIds = blockResults
@@ -1114,7 +1151,11 @@ async function listFromParentPage(
             logger.warn('Failed to fetch child page', { pageId, error: error.message })
             return null
           }
-          const page = (await pageResponse.json()) as Record<string, unknown>
+          const page = await readNotionJsonObject<Record<string, unknown>>(
+            pageResponse,
+            MAX_PAGE_METADATA_RESPONSE_BYTES,
+            `page ${pageId} metadata`
+          )
           if (isPageTrashed(page)) return null
           return pageToStub(page)
         } catch (error) {

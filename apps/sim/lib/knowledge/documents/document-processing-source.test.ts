@@ -297,25 +297,17 @@ describe('processDocumentAsync write guards', () => {
 
   /** Asserts the write that set `status` exists, and returns its guard clause. */
   function guardForStatusWrite(status: string): unknown {
-    expect(
-      dbChainMockFns.set.mock.calls.some(
-        (call) => (call[0] as Record<string, unknown> | undefined)?.processingStatus === status
-      )
-    ).toBe(true)
-
-    // `set` and `where` are separate shared spies, so they cannot be correlated
-    // by index; the guard is identified by its own shape instead.
-    const guard = dbChainMockFns.where.mock.calls.find((call) =>
-      hasMockCondition(
-        call[0],
-        (node: MockCondition) =>
-          node.type === 'ne' &&
-          node.left === schemaMock.document.processingStatus &&
-          node.right === 'completed'
-      )
+    const setIndex = dbChainMockFns.set.mock.calls.findIndex(
+      (call) => (call[0] as Record<string, unknown> | undefined)?.processingStatus === status
     )
-    expect(guard).toBeDefined()
-    return guard?.[0]
+    expect(setIndex).toBeGreaterThanOrEqual(0)
+
+    const setOrder = dbChainMockFns.set.mock.invocationCallOrder[setIndex]
+    const whereIndex = dbChainMockFns.where.mock.invocationCallOrder.findIndex(
+      (whereOrder) => whereOrder > setOrder
+    )
+    expect(whereIndex).toBeGreaterThanOrEqual(0)
+    return dbChainMockFns.where.mock.calls[whereIndex]?.[0]
   }
 
   it('never claims a document whose pass already completed', async () => {
@@ -458,16 +450,27 @@ describe('processDocumentAsync write guards', () => {
       }
     )
 
-    const tokenGuardCount = dbChainMockFns.where.mock.calls.filter((call) =>
-      hasMockCondition(
-        call[0],
-        (node: MockCondition) =>
-          node.type === 'eq' &&
-          node.left === schemaMock.document.processingQueueToken &&
-          node.right === 'request-1'
-      )
-    ).length
-    expect(tokenGuardCount).toBeGreaterThanOrEqual(3)
+    for (const status of ['processing', 'completed']) {
+      const guard = guardForStatusWrite(status)
+      expect(
+        hasMockCondition(
+          guard,
+          (node: MockCondition) =>
+            node.type === 'eq' &&
+            node.left === schemaMock.document.processingQueueToken &&
+            node.right === 'request-1'
+        )
+      ).toBe(true)
+      expect(
+        hasMockCondition(
+          guard,
+          (node: MockCondition) =>
+            node.type === 'eq' &&
+            node.left === schemaMock.document.userExcluded &&
+            node.right === false
+        )
+      ).toBe(true)
+    }
 
     const completion = dbChainMockFns.set.mock.calls.find(
       (call) => (call[0] as Record<string, unknown> | undefined)?.processingStatus === 'completed'
@@ -607,7 +610,8 @@ describe('processDocumentAsync write guards', () => {
     const failure = dbChainMockFns.set.mock.calls.find(
       (call) => (call[0] as Record<string, unknown> | undefined)?.processingStatus === 'failed'
     )
-    expect(failure?.[0]).not.toHaveProperty('processingAttempts')
+    expect(failure).toBeDefined()
+    expect(failure![0]).not.toHaveProperty('processingAttempts')
   })
 
   it.each([
@@ -653,14 +657,15 @@ describe('processDocumentAsync write guards', () => {
       const failure = dbChainMockFns.set.mock.calls.find(
         (call) => (call[0] as Record<string, unknown> | undefined)?.processingStatus === 'failed'
       )
-      const attempts = (failure?.[0] as Record<string, unknown>)?.processingAttempts as
+      expect(failure).toBeDefined()
+      const attempts = (failure![0] as Record<string, unknown>).processingAttempts as
         | { toSQL: () => { params: unknown[]; sql: string } }
         | undefined
       if (refundsAttempt) {
         expect(attempts?.toSQL().sql).toBe('GREATEST(? - 1, 0)')
         expect(attempts?.toSQL().params).toEqual([schemaMock.document.processingAttempts])
       } else {
-        expect(failure?.[0]).not.toHaveProperty('processingAttempts')
+        expect(failure![0]).not.toHaveProperty('processingAttempts')
       }
     }
   )
@@ -715,7 +720,7 @@ describe('in-process quota continuation dispatch', () => {
   it('durably defers quota exhaustion in direct mode before reporting acceptance', async () => {
     await expect(
       processDocumentsWithQueue([queuedDocument], 'knowledge-base-1', {}, 'request-1', undefined)
-    ).resolves.toEqual({ requested: 1, accepted: 1, failed: 0 })
+    ).resolves.toEqual({ requested: 1, accepted: 1, failed: 0, failedDocumentIds: [] })
 
     expect(mockTrigger).toHaveBeenCalledWith(
       'knowledge-process-document',
@@ -732,7 +737,7 @@ describe('in-process quota continuation dispatch', () => {
 
     await expect(
       processDocumentsWithQueue([queuedDocument], 'knowledge-base-1', {}, 'request-1', undefined)
-    ).resolves.toEqual({ requested: 1, accepted: 1, failed: 0 })
+    ).resolves.toEqual({ requested: 1, accepted: 1, failed: 0, failedDocumentIds: [] })
 
     expect(mockBatchTrigger).toHaveBeenCalledTimes(1)
     expect(mockTrigger).toHaveBeenCalledWith(

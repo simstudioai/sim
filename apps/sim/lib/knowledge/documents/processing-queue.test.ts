@@ -7,6 +7,7 @@ import {
   flattenMockConditions,
   hasMockCondition,
   type MockCondition,
+  queueTableRows,
   resetDbChainMock,
   resetEnvFlagsMock,
   schemaMock,
@@ -19,6 +20,7 @@ import {
   markInsideTriggerRun,
   resetInsideTriggerRunForTests,
 } from '@/lib/core/config/trigger-runtime'
+import { QUEUED_DISPATCH_GRACE_MS } from '@/lib/knowledge/documents/types'
 
 const { mockBatchTrigger } = vi.hoisted(() => ({
   mockBatchTrigger: vi.fn(),
@@ -206,6 +208,27 @@ describe('processDocumentsWithQueue billing attribution', () => {
  * own runtime, so the marker has to beat both environment conjuncts.
  */
 describe('processDocumentsWithQueue dispatch backend', () => {
+  function guardForResumeWrite(): unknown {
+    const setIndex = dbChainMockFns.set.mock.calls.findIndex(
+      (call) =>
+        (call[0] as Record<string, unknown> | undefined)?.processingQueueToken === 'request-1' &&
+        !('processingQueuedAt' in ((call[0] as Record<string, unknown> | undefined) ?? {}))
+    )
+    expect(setIndex).toBeGreaterThanOrEqual(0)
+    const setOrder = dbChainMockFns.set.mock.invocationCallOrder[setIndex]
+    const whereIndex = dbChainMockFns.where.mock.invocationCallOrder.findIndex(
+      (whereOrder) => whereOrder > setOrder
+    )
+    expect(whereIndex).toBeGreaterThanOrEqual(0)
+    return dbChainMockFns.where.mock.calls[whereIndex]?.[0]
+  }
+
+  function resumeAlternatives(guard: unknown): MockCondition[] {
+    const alternatives = flattenMockConditions(guard).find((node) => node.type === 'or')?.conditions
+    expect(alternatives).toBeDefined()
+    return alternatives as MockCondition[]
+  }
+
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
@@ -225,6 +248,7 @@ describe('processDocumentsWithQueue dispatch backend', () => {
   })
 
   afterEach(() => {
+    vi.useRealTimers()
     resetInsideTriggerRunForTests()
     setEnvFlags({ isTriggerDevEnabled: true })
   })
@@ -255,12 +279,13 @@ describe('processDocumentsWithQueue dispatch backend', () => {
       BILLING_ATTRIBUTION
     )
 
-    expect(result).toEqual({ requested: 1, accepted: 1, failed: 0 })
+    expect(result).toEqual({ requested: 1, accepted: 1, failed: 0, failedDocumentIds: [] })
   })
 
   it('does not dispatch when a different request owns the queue generation', async () => {
     markInsideTriggerRun()
     dbChainMockFns.returning.mockResolvedValueOnce([]).mockResolvedValueOnce([])
+    queueTableRows(schemaMock.document, [{ id: 'document-1' }])
 
     const result = await processDocumentsWithQueue(
       [DOCUMENT],
@@ -270,8 +295,96 @@ describe('processDocumentsWithQueue dispatch backend', () => {
       BILLING_ATTRIBUTION
     )
 
-    expect(result).toEqual({ requested: 1, accepted: 1, failed: 0 })
+    expect(result).toEqual({ requested: 1, accepted: 1, failed: 0, failedDocumentIds: [] })
     expect(mockBatchTrigger).not.toHaveBeenCalled()
+  })
+
+  it('does not report a failed row owned by an old queue token as accepted', async () => {
+    markInsideTriggerRun()
+    dbChainMockFns.returning.mockResolvedValueOnce([]).mockResolvedValueOnce([])
+    queueTableRows(schemaMock.document, [])
+
+    const result = await processDocumentsWithQueue(
+      [DOCUMENT],
+      'knowledge-base-1',
+      {},
+      'request-1',
+      BILLING_ATTRIBUTION
+    )
+
+    expect(result).toEqual({
+      requested: 1,
+      accepted: 0,
+      failed: 1,
+      failedDocumentIds: ['document-1'],
+    })
+    expect(mockBatchTrigger).not.toHaveBeenCalled()
+
+    const acceptedWithoutDispatchGuard = dbChainMockFns.where.mock.calls.find((call) =>
+      flattenMockConditions(call[0]).some(
+        (node: MockCondition) =>
+          node.type === 'or' &&
+          (node.conditions as MockCondition[]).some(
+            (condition) =>
+              condition.type === 'eq' &&
+              condition.left === schemaMock.document.processingStatus &&
+              condition.right === 'completed'
+          )
+      )
+    )?.[0]
+    expect(acceptedWithoutDispatchGuard).toBeDefined()
+    const acceptedStatusGuard = flattenMockConditions(acceptedWithoutDispatchGuard).find(
+      (node: MockCondition) => node.type === 'or'
+    )
+    expect(acceptedStatusGuard).toBeDefined()
+    const acceptedStatuses = acceptedStatusGuard?.conditions as MockCondition[]
+    expect(acceptedStatuses).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'eq',
+          left: schemaMock.document.processingStatus,
+          right: 'processing',
+        }),
+        expect.objectContaining({
+          type: 'eq',
+          left: schemaMock.document.processingStatus,
+          right: 'completed',
+        }),
+      ])
+    )
+    expect(acceptedStatuses).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'eq',
+          left: schemaMock.document.processingStatus,
+          right: 'failed',
+        }),
+      ])
+    )
+    const pendingWithQueueState = acceptedStatuses.find(
+      (condition) =>
+        condition.type === 'and' &&
+        hasMockCondition(
+          condition,
+          (node: MockCondition) =>
+            node.type === 'eq' &&
+            node.left === schemaMock.document.processingStatus &&
+            node.right === 'pending'
+        ) &&
+        hasMockCondition(
+          condition,
+          (node: MockCondition) =>
+            node.type === 'isNotNull' && node.column === schemaMock.document.processingQueuedAt
+        )
+    )
+    expect(pendingWithQueueState).toBeDefined()
+    expect(
+      hasMockCondition(
+        pendingWithQueueState,
+        (node: MockCondition) =>
+          node.type === 'isNotNull' && node.column === schemaMock.document.processingQueueToken
+      )
+    ).toBe(false)
   })
 
   it('resumes the same outbox request with its original stamp and no new charge', async () => {
@@ -289,7 +402,7 @@ describe('processDocumentsWithQueue dispatch backend', () => {
       BILLING_ATTRIBUTION
     )
 
-    expect(result).toEqual({ requested: 1, accepted: 1, failed: 0 })
+    expect(result).toEqual({ requested: 1, accepted: 1, failed: 0, failedDocumentIds: [] })
     const payload = mockBatchTrigger.mock.calls[0][1][0].payload
     expect(payload).toMatchObject({
       processingQueueToken: 'request-1',
@@ -303,16 +416,17 @@ describe('processDocumentsWithQueue dispatch backend', () => {
     )
     expect(resumeWrite?.[0]).not.toHaveProperty('processingAttempts')
 
-    const resumeGuard = dbChainMockFns.where.mock.calls.find((call) =>
+    const resumeGuard = guardForResumeWrite()
+    const sameTokenBranch = resumeAlternatives(resumeGuard).find((condition) =>
       hasMockCondition(
-        call[0],
+        condition,
         (node: MockCondition) =>
           node.type === 'eq' &&
           node.left === schemaMock.document.processingQueueToken &&
           node.right === 'request-1'
       )
-    )?.[0]
-    expect(resumeGuard).toBeDefined()
+    )
+    expect(sameTokenBranch).toBeDefined()
     expect(
       hasMockCondition(
         resumeGuard,
@@ -320,7 +434,7 @@ describe('processDocumentsWithQueue dispatch backend', () => {
           node.type === 'isNotNull' && node.column === schemaMock.document.processingQueuedAt
       )
     ).toBe(true)
-    const statusGuard = flattenMockConditions(resumeGuard).find(
+    const statusGuard = flattenMockConditions(sameTokenBranch).find(
       (node: MockCondition) => node.type === 'or'
     )
     expect(statusGuard).toBeDefined()
@@ -339,6 +453,114 @@ describe('processDocumentsWithQueue dispatch backend', () => {
         }),
       ])
     )
+  })
+
+  it('treats a recent legacy queued-at-only row as live without redispatching it', async () => {
+    vi.useFakeTimers()
+    const now = new Date('2026-08-24T22:00:00.000Z')
+    vi.setSystemTime(now)
+    markInsideTriggerRun()
+    dbChainMockFns.returning.mockResolvedValueOnce([]).mockResolvedValueOnce([])
+    queueTableRows(schemaMock.document, [{ id: 'document-1' }])
+
+    const result = await processDocumentsWithQueue(
+      [DOCUMENT],
+      'knowledge-base-1',
+      {},
+      'request-1',
+      BILLING_ATTRIBUTION
+    )
+
+    expect(result).toEqual({ requested: 1, accepted: 1, failed: 0, failedDocumentIds: [] })
+    expect(mockBatchTrigger).not.toHaveBeenCalled()
+    const resumeWrite = dbChainMockFns.set.mock.calls.find(
+      (call) =>
+        (call[0] as Record<string, unknown> | undefined)?.processingQueueToken === 'request-1' &&
+        !('processingQueuedAt' in ((call[0] as Record<string, unknown> | undefined) ?? {}))
+    )
+    expect(resumeWrite).toBeDefined()
+    const resumeGuard = guardForResumeWrite()
+    const legacyBranch = resumeAlternatives(resumeGuard).find(
+      (condition) =>
+        hasMockCondition(
+          condition,
+          (node: MockCondition) =>
+            node.type === 'isNull' && node.column === schemaMock.document.processingQueueToken
+        ) &&
+        hasMockCondition(
+          condition,
+          (node: MockCondition) =>
+            node.type === 'lt' && node.left === schemaMock.document.processingQueuedAt
+        )
+    )
+    expect(legacyBranch).toBeDefined()
+    const cutoff = flattenMockConditions(legacyBranch).find(
+      (node: MockCondition) =>
+        node.type === 'lt' && node.left === schemaMock.document.processingQueuedAt
+    )
+    expect(cutoff?.right).toEqual(new Date(now.getTime() - QUEUED_DISPATCH_GRACE_MS))
+  })
+
+  it('CAS-adopts a stale legacy queued-at-only row without charging again', async () => {
+    markInsideTriggerRun()
+    const legacyQueuedAt = new Date('2020-01-01T00:00:00.000Z')
+    dbChainMockFns.returning
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ id: 'document-1', processingQueuedAt: legacyQueuedAt }])
+
+    const result = await processDocumentsWithQueue(
+      [DOCUMENT],
+      'knowledge-base-1',
+      {},
+      'request-1',
+      BILLING_ATTRIBUTION
+    )
+
+    expect(result).toEqual({ requested: 1, accepted: 1, failed: 0, failedDocumentIds: [] })
+    expect(mockBatchTrigger.mock.calls[0][1][0].payload).toMatchObject({
+      processingQueueToken: 'request-1',
+      processingQueuedAt: legacyQueuedAt.toISOString(),
+      chargedAtDispatch: false,
+    })
+
+    const legacyAdoptionGuard = guardForResumeWrite()
+    const legacyBranch = resumeAlternatives(legacyAdoptionGuard).find(
+      (condition) =>
+        hasMockCondition(
+          condition,
+          (node: MockCondition) =>
+            node.type === 'isNull' && node.column === schemaMock.document.processingQueueToken
+        ) &&
+        hasMockCondition(
+          condition,
+          (node: MockCondition) =>
+            node.type === 'lt' && node.left === schemaMock.document.processingQueuedAt
+        )
+    )
+    expect(legacyBranch).toBeDefined()
+    expect(
+      hasMockCondition(
+        legacyAdoptionGuard,
+        (node: MockCondition) =>
+          node.type === 'eq' &&
+          node.left === schemaMock.document.knowledgeBaseId &&
+          node.right === 'knowledge-base-1'
+      )
+    ).toBe(true)
+    for (const column of [schemaMock.document.archivedAt, schemaMock.document.deletedAt]) {
+      expect(
+        hasMockCondition(
+          legacyAdoptionGuard,
+          (node: MockCondition) => node.type === 'isNull' && node.column === column
+        )
+      ).toBe(true)
+    }
+    const adoptionWrite = dbChainMockFns.set.mock.calls.find(
+      (call) =>
+        (call[0] as Record<string, unknown> | undefined)?.processingQueueToken === 'request-1' &&
+        !('processingQueuedAt' in ((call[0] as Record<string, unknown> | undefined) ?? {}))
+    )
+    expect(adoptionWrite?.[0]).not.toHaveProperty('processingAttempts')
   })
 
   it('keeps a failed same-request replay retryable without clearing its prior stamp', async () => {
@@ -397,7 +619,12 @@ describe('processDocumentsWithQueue dispatch backend', () => {
       BILLING_ATTRIBUTION
     )
 
-    expect(result).toEqual({ requested: 1001, accepted: 1000, failed: 1 })
+    expect(result).toEqual({
+      requested: 1001,
+      accepted: 1000,
+      failed: 1,
+      failedDocumentIds: ['document-1000'],
+    })
   })
 
   it('deduplicates document IDs while preserving first-seen dispatch order', async () => {
@@ -413,7 +640,7 @@ describe('processDocumentsWithQueue dispatch backend', () => {
       BILLING_ATTRIBUTION
     )
 
-    expect(result).toEqual({ requested: 2, accepted: 2, failed: 0 })
+    expect(result).toEqual({ requested: 2, accepted: 2, failed: 0, failedDocumentIds: [] })
     expect(mockBatchTrigger.mock.calls[0][1].map((job) => job.payload.documentId)).toEqual([
       'document-1',
       'document-2',
@@ -423,7 +650,7 @@ describe('processDocumentsWithQueue dispatch backend', () => {
   it('returns an empty dispatch summary without resolving billing context', async () => {
     await expect(
       processDocumentsWithQueue([], 'missing-knowledge-base', {}, 'request-1', undefined)
-    ).resolves.toEqual({ requested: 0, accepted: 0, failed: 0 })
+    ).resolves.toEqual({ requested: 0, accepted: 0, failed: 0, failedDocumentIds: [] })
 
     expect(mockBatchTrigger).not.toHaveBeenCalled()
     expect(dbChainMockFns.limit).not.toHaveBeenCalled()

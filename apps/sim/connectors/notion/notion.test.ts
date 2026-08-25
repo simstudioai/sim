@@ -83,6 +83,20 @@ describe('notion markdown hydration', () => {
     }
   })
 
+  it('rejects oversized successful page metadata before parsing JSON', async () => {
+    mockFetchWithRetry.mockResolvedValueOnce(
+      new Response(`{"padding":"${'x'.repeat(1024 * 1024)}"}`, {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    )
+
+    await expect(notionConnector.getDocument('token', {}, 'page-1')).rejects.toThrow(
+      'Notion page page-1 metadata exceeds the 1048576 byte limit'
+    )
+    expect(mockFetchWithRetry).toHaveBeenCalledTimes(1)
+  })
+
   it('recovers truncated markdown from every provider-supplied block ID', async () => {
     mockFetchWithRetry
       .mockResolvedValueOnce(notionResponse(page()))

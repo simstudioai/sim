@@ -7,7 +7,7 @@ import { filterUserFileForDisplay, isUserFile } from '@/lib/core/utils/user-file
 export const REDACTED_MARKER = '[REDACTED]'
 export const TRUNCATED_MARKER = '[TRUNCATED]'
 
-const BYPASS_REDACTION_KEYS = new Set(['nextPageToken'])
+const BYPASS_REDACTION_KEYS = new Set(['nextpagetoken'])
 
 /** Keys that contain large binary/encoded data that should be truncated in logs */
 const LARGE_DATA_KEYS = new Set(['base64'])
@@ -71,26 +71,93 @@ const SENSITIVE_VALUE_PATTERNS: Array<{
     pattern: /api[_-]?key['":\s]*['"][^'"]+['"]/gi,
     replacement: `api_key: "${REDACTED_MARKER}"`,
   },
-  /** Form-encoded credentials, including OAuth token endpoint request bodies. */
-  {
-    pattern:
-      /\b(?!nextPageToken=)([A-Za-z0-9_-]*(?:token|password|secret|credential|api[_-]?key))=([^&\s]+)/gi,
-    replacement: `$1=${REDACTED_MARKER}`,
-  },
-  /** The same fields after URL encoding (`=` -> `%3D`, `&` -> `%26`). */
-  {
-    pattern:
-      /\b(?!nextPageToken%3D)([A-Za-z0-9_-]*(?:token|password|secret|credential|api[_-]?key))%3D.*?(?=%26|&|\s|$)/gi,
-    replacement: `$1%3D${REDACTED_MARKER}`,
-  },
 ]
 
+const FORM_FIELD_MARKER_PATTERN = /\b([A-Za-z0-9_-]+)=/gi
+const ENCODED_FORM_FIELD_MARKER_PATTERN = /\b([A-Za-z0-9_-]+)%3D/gi
+const FORM_VALUE_DELIMITER_PATTERN = /&|\s/g
+const ENCODED_FORM_VALUE_DELIMITER_PATTERN = /%26|&|\s/gi
+
+interface SensitiveValueSpan {
+  start: number
+  end: number
+}
+
 export function isSensitiveKey(key: string): boolean {
-  if (BYPASS_REDACTION_KEYS.has(key)) {
-    return false
-  }
   const lowerKey = key.toLowerCase()
+  if (BYPASS_REDACTION_KEYS.has(lowerKey)) return false
   return SENSITIVE_KEY_PATTERNS.some((pattern) => pattern.test(lowerKey))
+}
+
+function findFormValueEnd(delimiterPositions: number[], start: number): number {
+  let lower = 0
+  let upper = delimiterPositions.length
+  while (lower < upper) {
+    const middle = Math.floor((lower + upper) / 2)
+    if (delimiterPositions[middle] < start) lower = middle + 1
+    else upper = middle
+  }
+  return delimiterPositions[lower]
+}
+
+function collectSensitiveValueSpans(
+  value: string,
+  markerPattern: RegExp,
+  delimiterPositions: number[]
+): SensitiveValueSpan[] {
+  const spans: SensitiveValueSpan[] = []
+  for (const match of value.matchAll(markerPattern)) {
+    if (match.index === undefined || !isSensitiveKey(match[1])) continue
+    const start = match.index + match[0].length
+    const end = findFormValueEnd(delimiterPositions, start)
+    if (end > start) spans.push({ start, end })
+  }
+  return spans
+}
+
+function collectDelimiterPositions(value: string, pattern: RegExp): number[] {
+  const delimiterPositions: number[] = []
+  for (const match of value.matchAll(pattern)) {
+    if (match.index !== undefined) delimiterPositions.push(match.index)
+  }
+  delimiterPositions.push(value.length)
+  return delimiterPositions
+}
+
+function redactSensitiveFormFields(value: string): string {
+  const formDelimiterPositions = collectDelimiterPositions(value, FORM_VALUE_DELIMITER_PATTERN)
+  const encodedDelimiterPositions = collectDelimiterPositions(
+    value,
+    ENCODED_FORM_VALUE_DELIMITER_PATTERN
+  )
+  const spans = [
+    ...collectSensitiveValueSpans(value, FORM_FIELD_MARKER_PATTERN, formDelimiterPositions),
+    ...collectSensitiveValueSpans(
+      value,
+      ENCODED_FORM_FIELD_MARKER_PATTERN,
+      encodedDelimiterPositions
+    ),
+  ].sort((left, right) => left.start - right.start || right.end - left.end)
+
+  if (spans.length === 0) return value
+
+  const merged: SensitiveValueSpan[] = []
+  for (const span of spans) {
+    const previous = merged.at(-1)
+    if (previous && span.start <= previous.end) {
+      previous.end = Math.max(previous.end, span.end)
+    } else {
+      merged.push({ ...span })
+    }
+  }
+
+  let result = ''
+  let cursor = 0
+  for (const span of merged) {
+    result += `${value.slice(cursor, span.start)}${REDACTED_MARKER}`
+    cursor = span.end
+  }
+  return result + value.slice(cursor)
 }
 
 /**
@@ -103,7 +170,7 @@ export function redactSensitiveValues(value: string): string {
     return value
   }
 
-  let result = value
+  let result = redactSensitiveFormFields(value)
   for (const { pattern, replacement } of SENSITIVE_VALUE_PATTERNS) {
     result = result.replace(pattern, replacement)
   }
@@ -111,12 +178,13 @@ export function redactSensitiveValues(value: string): string {
 }
 
 /**
- * Redacts known secret values in all literal and URL-encoded forms after the
- * generic pattern pass. This closes the gap where an upstream error echoes a
- * credential under an unexpected field name or inside free-form prose.
+ * Redacts known secret values in all literal and URL-encoded forms before the
+ * generic pattern pass. Exact replacement must run first because a credential
+ * can itself contain form delimiters that would otherwise split it and leave a
+ * suffix visible before the exact matcher sees the original value.
  */
 export function redactExactSensitiveValues(value: string, secrets: string[]): string {
-  let result = redactSensitiveValues(value)
+  let result = value
   const orderedSecrets = [...new Set(secrets.filter(Boolean))].sort(
     (left, right) => right.length - left.length
   )
@@ -133,7 +201,7 @@ export function redactExactSensitiveValues(value: string, secrets: string[]): st
       }
     }
   }
-  return result
+  return redactSensitiveValues(result)
 }
 
 export function isLargeDataKey(key: string): boolean {

@@ -72,7 +72,7 @@ const processKnowledgeDocument: OutboxHandler<unknown> = async (rawPayload, cont
   }
 
   context.signal.throwIfAborted()
-  await processDocumentsWithQueue(
+  const dispatch = await processDocumentsWithQueue(
     [
       {
         documentId: document.id,
@@ -87,6 +87,9 @@ const processKnowledgeDocument: OutboxHandler<unknown> = async (rawPayload, cont
     context.eventId,
     payload.billingAttribution
   )
+  if (dispatch.failed > 0 || dispatch.accepted !== 1) {
+    throw new Error(`Knowledge document ${document.id} processing dispatch was not accepted`)
+  }
 }
 
 export const knowledgeDocumentProcessingOutboxHandlers = {

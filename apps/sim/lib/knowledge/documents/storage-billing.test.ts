@@ -4,6 +4,7 @@
 import {
   dbChainMock,
   dbChainMockFns,
+  flattenMockConditions,
   queueTableRows,
   resetDbChainMock,
   schemaMock,
@@ -64,23 +65,6 @@ const STORAGE_CONTEXT = {
   billingEntity: { type: 'organization' as const, id: 'workspace-org' },
   plan: 'team_25000',
   customStorageLimitGB: null,
-}
-
-interface MockSqlCondition {
-  type?: string
-  column?: unknown
-  left?: unknown
-  right?: unknown
-  conditions?: unknown[]
-}
-
-function flattenMockSqlConditions(condition: unknown): MockSqlCondition[] {
-  if (!condition || typeof condition !== 'object') return []
-  const node = condition as MockSqlCondition
-  const nested = Array.isArray(node.conditions)
-    ? node.conditions.flatMap(flattenMockSqlConditions)
-    : []
-  return [node, ...nested]
 }
 
 describe('knowledge document storage attribution', () => {
@@ -460,7 +444,7 @@ describe('knowledge document storage attribution', () => {
     ).resolves.toBe(1)
 
     const conditions = dbChainMockFns.where.mock.calls.flatMap(([condition]) =>
-      flattenMockSqlConditions(condition)
+      flattenMockConditions(condition)
     )
     expect(conditions).toContainEqual({
       type: 'eq',

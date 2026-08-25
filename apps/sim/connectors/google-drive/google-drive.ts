@@ -1,6 +1,13 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
+import {
+  attachRetryHeaders,
+  isRetryableError,
+  type RetryOptions,
+  resolveRetryDelayMs,
+  retryWithExponentialBackoff,
+  VALIDATE_RETRY_OPTIONS,
+} from '@/lib/knowledge/documents/utils'
 import {
   GoogleDriveApiError,
   readGoogleDriveApiError,
@@ -84,6 +91,33 @@ function isSupportedTextFile(mimeType: string): boolean {
   return SUPPORTED_TEXT_MIME_TYPES.some((t) => mimeType.startsWith(t))
 }
 
+/** Retries Google errors whose structured body identifies a transient rejection. */
+async function fetchGoogleDriveWithRetry(
+  url: string,
+  options: RequestInit,
+  retryOptions: RetryOptions = {}
+): Promise<Response> {
+  return retryWithExponentialBackoff(
+    async () => {
+      const response = await fetch(url, options)
+      if (response.ok) return response
+
+      const error = await readGoogleDriveApiError(response)
+      attachRetryHeaders(error, response.headers)
+      const waitMs = resolveRetryDelayMs(response.headers)
+      if (waitMs !== undefined) error.retryAfterMs = waitMs
+      throw error
+    },
+    {
+      ...retryOptions,
+      retryCondition: (error) =>
+        error instanceof GoogleDriveApiError
+          ? error.kind === 'transient' || isRetryableError(error)
+          : (retryOptions.retryCondition?.(error) ?? isRetryableError(error)),
+    }
+  )
+}
+
 async function exportGoogleWorkspaceFile(
   accessToken: string,
   fileId: string,
@@ -96,14 +130,14 @@ async function exportGoogleWorkspaceFile(
 
   const url = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/export?mimeType=${encodeURIComponent(exportMimeType)}`
 
-  const response = await fetchWithRetry(url, {
-    method: 'GET',
-    headers: { Authorization: `Bearer ${accessToken}` },
-  })
-
-  if (!response.ok) {
-    const error = await readGoogleDriveApiError(response)
-    if (error.kind === 'export_too_large') {
+  let response: Response
+  try {
+    response = await fetchGoogleDriveWithRetry(url, {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
+  } catch (error) {
+    if (error instanceof GoogleDriveApiError && error.kind === 'export_too_large') {
       throw new ConnectorFileTooLargeError(MAX_EXPORT_SIZE)
     }
     throw error
@@ -122,14 +156,10 @@ async function downloadTextFile(accessToken: string, fileId: string): Promise<st
   // metadata fetch in getDocument already does. (`files.export` takes no such param.)
   const url = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media&supportsAllDrives=true`
 
-  const response = await fetchWithRetry(url, {
+  const response = await fetchGoogleDriveWithRetry(url, {
     method: 'GET',
     headers: { Authorization: `Bearer ${accessToken}` },
   })
-
-  if (!response.ok) {
-    throw await readGoogleDriveApiError(response)
-  }
 
   // Stream with a hard byte cap so a file with missing/under-reported listing
   // size metadata is never fully buffered into memory. Oversized files raise
@@ -292,16 +322,16 @@ export const googleDriveConnector: ConnectorConfig = {
 
     logger.info('Listing Google Drive files', { query, cursor: cursor ?? 'initial' })
 
-    const response = await fetchWithRetry(url, {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        Accept: 'application/json',
-      },
-    })
-
-    if (!response.ok) {
-      const error = await readGoogleDriveApiError(response)
+    let response: Response
+    try {
+      response = await fetchGoogleDriveWithRetry(url, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          Accept: 'application/json',
+        },
+      })
+    } catch (error) {
       logger.error('Failed to list Google Drive files', googleDriveErrorLogFields(error))
       throw error
     }
@@ -363,16 +393,17 @@ export const googleDriveConnector: ConnectorConfig = {
       'id,name,mimeType,modifiedTime,createdTime,webViewLink,owners,size,starred,trashed'
     const url = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(externalId)}?fields=${encodeURIComponent(fields)}&supportsAllDrives=true`
 
-    const response = await fetchWithRetry(url, {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        Accept: 'application/json',
-      },
-    })
-
-    if (!response.ok) {
-      const error = await readGoogleDriveApiError(response)
+    let response: Response
+    try {
+      response = await fetchGoogleDriveWithRetry(url, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          Accept: 'application/json',
+        },
+      })
+    } catch (error) {
+      if (!(error instanceof GoogleDriveApiError)) throw error
       if (error.kind === 'not_found') return null
       throw error
     }
@@ -439,30 +470,33 @@ export const googleDriveConnector: ConnectorConfig = {
         // Verify each folder exists, is accessible, and is actually a folder
         for (const folderId of folderIds) {
           const url = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(folderId)}?fields=id,name,mimeType&supportsAllDrives=true`
-          const response = await fetchWithRetry(
-            url,
-            {
-              method: 'GET',
-              headers: {
-                Authorization: `Bearer ${accessToken}`,
-                Accept: 'application/json',
+          let response: Response
+          try {
+            response = await fetchGoogleDriveWithRetry(
+              url,
+              {
+                method: 'GET',
+                headers: {
+                  Authorization: `Bearer ${accessToken}`,
+                  Accept: 'application/json',
+                },
               },
-            },
-            VALIDATE_RETRY_OPTIONS
-          )
-
-          if (!response.ok) {
-            const error = await readGoogleDriveApiError(response)
-            if (error.kind === 'not_found') {
+              VALIDATE_RETRY_OPTIONS
+            )
+          } catch (error) {
+            if (error instanceof GoogleDriveApiError) {
+              if (error.kind === 'not_found') {
+                return {
+                  valid: false,
+                  error: `Folder "${folderId}" not found. Check the folder ID and permissions.`,
+                }
+              }
               return {
                 valid: false,
-                error: `Folder "${folderId}" not found. Check the folder ID and permissions.`,
+                error: `Failed to access folder "${folderId}": ${error.message}`,
               }
             }
-            return {
-              valid: false,
-              error: `Failed to access folder "${folderId}": ${error.message}`,
-            }
+            throw error
           }
 
           const folder = await response.json()
@@ -474,21 +508,23 @@ export const googleDriveConnector: ConnectorConfig = {
         // Verify basic Drive access by listing one file
         const url =
           'https://www.googleapis.com/drive/v3/files?pageSize=1&fields=files(id)&supportsAllDrives=true&includeItemsFromAllDrives=true'
-        const response = await fetchWithRetry(
-          url,
-          {
-            method: 'GET',
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-              Accept: 'application/json',
+        try {
+          await fetchGoogleDriveWithRetry(
+            url,
+            {
+              method: 'GET',
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+                Accept: 'application/json',
+              },
             },
-          },
-          VALIDATE_RETRY_OPTIONS
-        )
-
-        if (!response.ok) {
-          const error = await readGoogleDriveApiError(response)
-          return { valid: false, error: `Failed to access Google Drive: ${error.message}` }
+            VALIDATE_RETRY_OPTIONS
+          )
+        } catch (error) {
+          if (error instanceof GoogleDriveApiError) {
+            return { valid: false, error: `Failed to access Google Drive: ${error.message}` }
+          }
+          throw error
         }
       }
 

@@ -4,7 +4,7 @@ import { sleep } from '@sim/utils/helpers'
 import { randomFloat } from '@sim/utils/random'
 import { parseRetryAfter } from '@sim/utils/retry'
 import { truncate } from '@sim/utils/string'
-import { redactSensitiveValues } from '@/lib/core/security/redaction'
+import { redactExactSensitiveValues, redactSensitiveValues } from '@/lib/core/security/redaction'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
   isPayloadSizeLimitError,
@@ -57,18 +57,24 @@ const MAX_HTTP_ERROR_DIAGNOSTIC_CHARS = 2000
  * to become an unbounded task error, log entry, or Trigger output. The HTTP
  * status remains the retry signal when the body exceeds the byte ceiling.
  */
-export async function readBoundedHttpErrorBody(response: {
-  headers?: { get(name: string): string | null }
-  body?: ReadableStream<Uint8Array> | null
-  arrayBuffer?: () => Promise<ArrayBuffer>
-  text?: () => Promise<string>
-}): Promise<string> {
+export async function readBoundedHttpErrorBody(
+  response: {
+    headers?: { get(name: string): string | null }
+    body?: ReadableStream<Uint8Array> | null
+    arrayBuffer?: () => Promise<ArrayBuffer>
+    text?: () => Promise<string>
+  },
+  options: { sensitiveValues?: string[] } = {}
+): Promise<string> {
   try {
     const body = await readResponseTextWithLimit(response, {
       maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
       label: 'Upstream HTTP error response',
     })
-    return truncate(body, MAX_HTTP_ERROR_DIAGNOSTIC_CHARS)
+    const sanitized = options.sensitiveValues
+      ? redactExactSensitiveValues(body, options.sensitiveValues)
+      : body
+    return truncate(sanitized, MAX_HTTP_ERROR_DIAGNOSTIC_CHARS)
   } catch (error) {
     if (isPayloadSizeLimitError(error)) {
       return `[response body omitted: exceeded ${DEFAULT_MAX_ERROR_BODY_BYTES} bytes]`

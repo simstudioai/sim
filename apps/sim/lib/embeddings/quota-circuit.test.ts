@@ -91,6 +91,8 @@ describe('embedding quota circuit', () => {
     expect([...values.values()]).toEqual([
       String(newerObservation + EMBEDDING_QUOTA_CIRCUIT_TTL_MS),
     ])
+    const script = redis.eval.mock.calls.at(-1)?.[0]
+    expect(script).toMatch(/if\s+current\s+and\s+current\s*>\s*proposed\s+then/)
   })
 
   it('isolates different providers and credentials', async () => {

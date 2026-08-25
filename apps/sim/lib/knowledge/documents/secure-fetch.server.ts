@@ -3,7 +3,7 @@ import {
   type SecureFetchResponse,
   secureFetchWithValidation,
 } from '@/lib/core/security/input-validation.server'
-import { isSensitiveKey, redactExactSensitiveValues } from '@/lib/core/security/redaction'
+import { isSensitiveKey } from '@/lib/core/security/redaction'
 import {
   attachRetryHeaders,
   type HTTPError,
@@ -82,10 +82,9 @@ export async function secureFetchWithRetry(
      * limit) use instead.
      */
     if (!response.ok && isRetryableError({ status: response.status, headers: response.headers })) {
-      const errorText = redactExactSensitiveValues(
-        await readBoundedHttpErrorBody(response),
-        requestCredentialValues
-      )
+      const errorText = await readBoundedHttpErrorBody(response, {
+        sensitiveValues: requestCredentialValues,
+      })
       const error: HTTPError = new Error(
         `HTTP ${response.status}: ${response.statusText} - ${errorText}`
       )

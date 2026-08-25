@@ -266,6 +266,31 @@ describe('fireflies listDocuments', () => {
     expect(global.fetch).toHaveBeenCalledTimes(2)
   })
 
+  it('respects Retry-After when a retryable error body exceeds the diagnostic limit', async () => {
+    vi.useFakeTimers()
+    const retryAfterSeconds = 60
+    mockGraphQL([
+      {
+        status: 503,
+        body: { diagnostic: 'body is not materialized' },
+        headers: {
+          'content-length': String(16 * 1024 * 1024 + 1),
+          'retry-after': String(retryAfterSeconds),
+        },
+      },
+      page(2),
+    ])
+
+    const pending = firefliesConnector.listDocuments('key', {}, undefined, {})
+    await vi.advanceTimersByTimeAsync(retryAfterSeconds * 1000 - 1)
+    expect(global.fetch).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(1)
+    const result = await pending
+
+    expect(result.documents).toHaveLength(2)
+    expect(global.fetch).toHaveBeenCalledTimes(2)
+  })
+
   it('parses an HTTP 429 GraphQL retry timestamp before retrying', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-01-01T00:00:00.000Z'))

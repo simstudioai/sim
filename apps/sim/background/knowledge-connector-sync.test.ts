@@ -154,6 +154,20 @@ describe('knowledge connector sync worker', () => {
     ).toBe('completed')
   })
 
+  it('classifies an isolated processing dispatch failure as partial', () => {
+    expect(
+      classifyConnectorSyncResult({
+        docsAdded: 1,
+        docsUpdated: 0,
+        docsDeleted: 0,
+        docsUnchanged: 0,
+        docsSkipped: 0,
+        docsFailed: 0,
+        processingDispatch: { requested: 1, accepted: 0, failed: 1 },
+      })
+    ).toBe('partial')
+  })
+
   it('reports superseded and non-runnable jobs as skipped control flow', () => {
     const baseResult = {
       docsAdded: 0,

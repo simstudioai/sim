@@ -382,4 +382,21 @@ describe('retryDocumentProcessing dispatch unwind', () => {
     expect(result.message).not.toContain('retry processing started')
     expect(result.status).toBe('failed')
   })
+
+  it('records and reports a returned zero-acceptance dispatch failure', async () => {
+    dbChainMockFns.returning
+      .mockResolvedValueOnce([{ id: 'doc-1' }])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+    dbChainMockFns.limit.mockResolvedValue([{ userId: 'user-1', workspaceId: null }])
+
+    const result = await retryDocumentProcessing('kb-1', 'doc-1', DOC_DATA, 'req-1', undefined)
+
+    expect(result).toMatchObject({ success: false, status: 'failed' })
+    expect(result.message).toContain('was not accepted')
+    const failedWrite = dbChainMockFns.set.mock.calls.find(
+      (call) => (call[0] as Record<string, unknown> | undefined)?.processingStatus === 'failed'
+    )
+    expect(failedWrite).toBeDefined()
+  })
 })

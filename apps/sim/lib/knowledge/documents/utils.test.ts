@@ -392,6 +392,7 @@ describe('fetchWithRetry rate-limit handling', () => {
 
   afterEach(() => {
     globalThis.fetch = originalFetch
+    vi.useRealTimers()
   })
 
   /** Builds a Response-shaped object with real case-insensitive Headers. */
@@ -510,6 +511,40 @@ describe('fetchWithRetry rate-limit handling', () => {
     )
 
     expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('waits until an admitted x-rate-limit-reset instant before retrying', async () => {
+    vi.useFakeTimers()
+    const now = 1_700_000_000_000
+    vi.setSystemTime(now)
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        response(429, {
+          'x-rate-limit-remaining': '0',
+          'x-rate-limit-reset': String(now / 1000 + 1),
+        })
+      )
+      .mockResolvedValueOnce(response(200))
+    globalThis.fetch = fetchMock
+
+    const result = fetchWithRetry(
+      'https://api.twitter.com/2/users',
+      {},
+      {
+        maxRetries: 1,
+        initialDelayMs: 1,
+        maxDelayMs: 10,
+        maxRetryAfterMs: 1_500,
+        retryBudgetMs: 1_500,
+      }
+    )
+
+    await vi.advanceTimersByTimeAsync(999)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(1)
+    await expect(result).resolves.toMatchObject({ status: 200 })
+    expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
   /**
@@ -762,6 +797,25 @@ describe('secureFetchWithRetry', () => {
 
     expect(error?.message).toContain('[REDACTED]')
     expect(error?.message).not.toContain(accessToken)
+  })
+
+  it('redacts an echoed credential before truncating the diagnostic', async () => {
+    const accessToken = `opaque-${'x'.repeat(3000)}-tail`
+    mockSecureFetchWithValidation.mockResolvedValue(
+      new Response(accessToken, { status: 503 }) as never
+    )
+
+    const error = await secureFetchWithRetry(
+      'https://gitlab.example.com/api/v4/projects',
+      { method: 'GET', headers: { 'PRIVATE-TOKEN': accessToken } },
+      { ...FAST_RETRY, maxRetries: 0 }
+    ).then(
+      () => undefined,
+      (caught) => caught as Error
+    )
+
+    expect(error?.message).toContain('[REDACTED]')
+    expect(error?.message).not.toContain('opaque-xxxxxxxxxxxxxxxx')
   })
 
   it('redacts both Basic-auth fields using the first colon as the separator', async () => {

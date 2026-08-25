@@ -446,6 +446,7 @@ describe('document processing state changes', () => {
 
   it('refuses to time out a document that is not processing', async () => {
     const outcome = await performMarkKnowledgeDocumentTimedOut({
+      knowledgeBaseId: 'kb-1',
       document: { id: 'doc-1', processingStatus: 'completed', processingStartedAt: new Date() },
     })
 
@@ -455,6 +456,7 @@ describe('document processing state changes', () => {
 
   it('refuses to time out a document with no processing start time', async () => {
     const outcome = await performMarkKnowledgeDocumentTimedOut({
+      knowledgeBaseId: 'kb-1',
       document: { id: 'doc-1', processingStatus: 'processing', processingStartedAt: null },
     })
 
@@ -467,6 +469,7 @@ describe('document processing state changes', () => {
     )
 
     const outcome = await performMarkKnowledgeDocumentTimedOut({
+      knowledgeBaseId: 'kb-1',
       document: { id: 'doc-1', processingStatus: 'processing', processingStartedAt: new Date() },
     })
 
@@ -480,6 +483,7 @@ describe('document processing state changes', () => {
     })
 
     const outcome = await performMarkKnowledgeDocumentTimedOut({
+      knowledgeBaseId: 'kb-1',
       document: { id: 'doc-1', processingStatus: 'processing', processingStartedAt: new Date() },
     })
 

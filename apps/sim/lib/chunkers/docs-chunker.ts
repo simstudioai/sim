@@ -74,7 +74,6 @@ export class DocsChunker {
       chunkSize: this.chunkSize,
       minCharactersPerChunk: options.minCharactersPerChunk ?? 1,
       chunkOverlap: options.chunkOverlap ?? 50,
-      maxChunks: options.maxChunks,
     })
     this.baseUrl = options.baseUrl ?? 'https://docs.sim.ai'
   }

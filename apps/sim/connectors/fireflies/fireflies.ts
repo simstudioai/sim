@@ -176,7 +176,8 @@ async function firefliesGraphQL(
           throw new FirefliesApiError(
             `Fireflies API HTTP error: ${response.status} (response body exceeded the diagnostic limit)`,
             undefined,
-            response.status
+            response.status,
+            resolveRetryDelayMs(response.headers)
           )
         }
         throw error
