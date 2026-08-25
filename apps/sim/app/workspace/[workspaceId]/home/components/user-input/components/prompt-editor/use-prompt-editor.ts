@@ -406,6 +406,9 @@ export function usePromptEditor({
 
   const insertResource = useCallback(
     (resource: MothershipResource) => {
+      const context = mapResourceToContext(resource)
+      if (!context) return
+
       const textarea = textareaRef.current
       if (textarea) {
         const currentValue = valueRef.current
@@ -441,7 +444,6 @@ export function usePromptEditor({
         setValueState(newValue)
       }
 
-      const context = mapResourceToContext(resource)
       addContextNotified(context)
     },
     [textareaRef, addContextNotified]

@@ -107,7 +107,11 @@ describe('Copilot management application boundaries', () => {
       context
     )
 
-    expect(result).toMatchObject({ success: true, output: { toolId: 'tool-1' } })
+    expect(result).toMatchObject({
+      success: true,
+      resources: [{ type: 'custom_tool', id: 'tool-1', title: 'lookup_order' }],
+      output: { toolId: 'tool-1' },
+    })
     expect(mocks.custom).toHaveBeenCalledWith(context, useCases.saveCustom, {
       workspaceId: context.workspaceId,
       title: 'lookup_order',
@@ -139,7 +143,11 @@ describe('Copilot management application boundaries', () => {
       context
     )
 
-    expect(result).toMatchObject({ success: true, output: { serverId: 'mcp-server-1' } })
+    expect(result).toMatchObject({
+      success: true,
+      resources: [{ type: 'mcp_server', id: 'mcp-server-1', title: 'Docs' }],
+      output: { serverId: 'mcp-server-1' },
+    })
     expect(mocks.mcp).toHaveBeenCalledWith(
       context,
       useCases.registerMcp,
@@ -158,7 +166,11 @@ describe('Copilot management application boundaries', () => {
       { ...context, userPermission: 'read' }
     )
 
-    expect(result).toMatchObject({ success: true, output: { skillId: 'skill-1' } })
+    expect(result).toMatchObject({
+      success: true,
+      resources: [{ type: 'skill', id: 'skill-1', title: 'refund-policy' }],
+      output: { skillId: 'skill-1' },
+    })
     expect(mocks.skill).toHaveBeenCalledWith(
       expect.objectContaining({ workspaceId: context.workspaceId }),
       useCases.updateSkill,

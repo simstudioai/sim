@@ -1,8 +1,19 @@
 'use client'
 
-import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  lazy,
+  memo,
+  type ReactNode,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { Button, PlayOutline, Skeleton, Tooltip, toast } from '@sim/emcn'
 import {
+  ArrowLeft,
   Download,
   FileX,
   Folder as FolderIcon,
@@ -14,6 +25,8 @@ import {
 } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { useRouter } from 'next/navigation'
+import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
+import { SettingsHeaderProvider, SettingsHeaderShell } from '@/components/settings/settings-header'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { useSession } from '@/lib/auth/auth-client'
 import { getWorkspaceUsageLimitAction } from '@/lib/billing/workspace-permissions'
@@ -52,9 +65,15 @@ import {
   useUserPermissionsContext,
   useWorkspacePermissionsContext,
 } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { CustomToolDetail } from '@/app/workspace/[workspaceId]/settings/components/custom-tools/components/custom-tool-detail'
+import { MCP } from '@/app/workspace/[workspaceId]/settings/components/mcp/mcp'
+import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
+import { SkillDetail } from '@/app/workspace/[workspaceId]/skills/[skillId]/skill-detail'
 import { Table } from '@/app/workspace/[workspaceId]/tables/[tableId]/table'
 import { useUsageLimits } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/hooks'
 import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
+import { useCustomTools } from '@/hooks/queries/custom-tools'
 import { useFolders } from '@/hooks/queries/folders'
 import { useLogDetail } from '@/hooks/queries/logs'
 import { exportTable } from '@/hooks/queries/tables'
@@ -307,6 +326,38 @@ export const ResourceContent = memo(function ResourceContent({
         />
       )
 
+    case 'skill':
+      return (
+        <SkillDetail
+          key={resource.id}
+          workspaceId={workspaceId}
+          skillId={resource.id}
+          embedded
+          onDeleted={() => onNotFound?.(resource.id)}
+        />
+      )
+
+    case 'custom_tool':
+      return (
+        <EmbeddedCustomTool
+          key={resource.id}
+          workspaceId={workspaceId}
+          toolId={resource.id}
+          onClose={() => onNotFound?.(resource.id)}
+        />
+      )
+
+    case 'mcp_server':
+      return (
+        <EmbeddedSettingsShell key={resource.id}>
+          <MCP
+            workspaceId={workspaceId}
+            serverId={resource.id}
+            onBack={() => onNotFound?.(resource.id)}
+          />
+        </EmbeddedSettingsShell>
+      )
+
     case 'generic':
       return (
         <GenericResourceContent key={resource.id} data={genericResourceData ?? { entries: [] }} />
@@ -355,6 +406,27 @@ export function ResourceActions({ workspaceId, resource }: ResourceActionsProps)
       return <EmbeddedTableActions workspaceId={workspaceId} tableId={resource.id} />
     case 'log':
       return <EmbeddedLogActions workspaceId={workspaceId} logId={resource.id} />
+    case 'skill':
+      return (
+        <EmbeddedResourceEditorAction
+          href={`/workspace/${workspaceId}/skills/${resource.id}`}
+          label='Open Skill editor'
+        />
+      )
+    case 'custom_tool':
+      return (
+        <EmbeddedResourceEditorAction
+          href={`/workspace/${workspaceId}/settings/custom-tools?custom-tool-id=${encodeURIComponent(resource.id)}`}
+          label='Open Custom Tool editor'
+        />
+      )
+    case 'mcp_server':
+      return (
+        <EmbeddedResourceEditorAction
+          href={`/workspace/${workspaceId}/settings/mcp?mcpServerId=${encodeURIComponent(resource.id)}`}
+          label='Open MCP server editor'
+        />
+      )
     case 'folder':
     case 'generic':
     case 'browser':
@@ -363,6 +435,72 @@ export function ResourceActions({ workspaceId, resource }: ResourceActionsProps)
     default:
       return null
   }
+}
+
+function EmbeddedSettingsShell({ children }: { children: ReactNode }) {
+  return (
+    <SettingsHeaderProvider>
+      <SettingsHeaderShell>{children}</SettingsHeaderShell>
+    </SettingsHeaderProvider>
+  )
+}
+
+interface EmbeddedCustomToolProps {
+  workspaceId: string
+  toolId: string
+  onClose: () => void
+}
+
+function EmbeddedCustomTool({ workspaceId, toolId, onClose }: EmbeddedCustomToolProps) {
+  const workspacePermissions = useUserPermissionsContext()
+  const canEdit = canMutateWorkspaceSettingsSection('custom-tools', workspacePermissions)
+  const { data: tools = [], isPending, isPlaceholderData, error } = useCustomTools(workspaceId)
+  const tool = tools.find((candidate) => candidate.id === toolId)
+
+  if (isPending || isPlaceholderData || workspacePermissions.isLoading) return LOADING_SKELETON
+
+  return (
+    <EmbeddedSettingsShell>
+      {tool ? (
+        <CustomToolDetail
+          workspaceId={workspaceId}
+          tool={tool}
+          readOnly={!canEdit}
+          onBack={onClose}
+        />
+      ) : (
+        <SettingsPanel
+          back={{ text: 'Custom tools', icon: ArrowLeft, onSelect: onClose }}
+          title='Custom Tool not found'
+        >
+          <SettingsEmptyState variant='inline' tone={error ? 'error' : undefined}>
+            {error ? 'Failed to load this Custom Tool.' : 'This Custom Tool may have been deleted.'}
+          </SettingsEmptyState>
+        </SettingsPanel>
+      )}
+    </EmbeddedSettingsShell>
+  )
+}
+
+function EmbeddedResourceEditorAction({ href, label }: { href: string; label: string }) {
+  const openInternalLink = useOpenInternalLink()
+  return (
+    <Tooltip.Root>
+      <Tooltip.Trigger asChild>
+        <Button
+          variant='subtle'
+          onClick={() => openInternalLink(href)}
+          className={RESOURCE_TAB_ICON_BUTTON_CLASS}
+          aria-label={label}
+        >
+          <SquareArrowUpRight className={RESOURCE_TAB_ICON_CLASS} />
+        </Button>
+      </Tooltip.Trigger>
+      <Tooltip.Content side='bottom'>
+        <p>{label}</p>
+      </Tooltip.Content>
+    </Tooltip.Root>
+  )
 }
 
 interface EmbeddedWorkflowActionsProps {

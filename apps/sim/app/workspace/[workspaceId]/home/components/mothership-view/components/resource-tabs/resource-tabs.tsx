@@ -37,13 +37,16 @@ import type {
   MothershipResource,
   MothershipResourceType,
 } from '@/app/workspace/[workspaceId]/home/types'
+import { useCustomTools } from '@/hooks/queries/custom-tools'
 import { useFolders } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
+import { useMcpServers } from '@/hooks/queries/mcp'
 import {
   useAddChatResource,
   useRemoveChatResource,
   useReorderChatResources,
 } from '@/hooks/queries/mothership-chats'
+import { useSkills } from '@/hooks/queries/skills'
 import { useTablesList } from '@/hooks/queries/tables'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
@@ -152,7 +155,7 @@ const NO_RESOURCE_NAMES = new Map<string, string>()
  * Builds a `type:id` -> current name lookup from live query data so resource
  * tabs always reflect the latest name even after a rename. Skipped entirely
  * when there are no tabs to label — a chat with no open resources must not
- * fetch five workspace-wide lists.
+ * fetch workspace-wide lists.
  */
 function useResourceNameLookup(workspaceId: string, enabled: boolean): Map<string, string> {
   const { data: workflows } = useWorkflows(workspaceId, { enabled })
@@ -160,6 +163,9 @@ function useResourceNameLookup(workspaceId: string, enabled: boolean): Map<strin
   const { data: files } = useWorkspaceFiles(workspaceId, 'active', { enabled })
   const { data: knowledgeBases } = useKnowledgeBasesQuery(workspaceId, { enabled })
   const { data: folders } = useFolders(workspaceId, { enabled })
+  const { data: skills } = useSkills(workspaceId, { enabled })
+  const { data: customTools } = useCustomTools(workspaceId, { enabled })
+  const { data: mcpServers } = useMcpServers(workspaceId, { enabled })
 
   return useMemo(() => {
     if (!enabled) return NO_RESOURCE_NAMES
@@ -169,8 +175,11 @@ function useResourceNameLookup(workspaceId: string, enabled: boolean): Map<strin
     for (const f of files ?? []) map.set(`file:${f.id}`, f.name)
     for (const kb of knowledgeBases ?? []) map.set(`knowledgebase:${kb.id}`, kb.name)
     for (const folder of folders ?? []) map.set(`folder:${folder.id}`, folder.name)
+    for (const skill of skills ?? []) map.set(`skill:${skill.id}`, skill.name)
+    for (const tool of customTools ?? []) map.set(`custom_tool:${tool.id}`, tool.title)
+    for (const server of mcpServers ?? []) map.set(`mcp_server:${server.id}`, server.name)
     return map
-  }, [enabled, workflows, tables, files, knowledgeBases, folders])
+  }, [enabled, workflows, tables, files, knowledgeBases, folders, skills, customTools, mcpServers])
 }
 
 interface ResourceTabsProps {

@@ -100,11 +100,11 @@ async function fetchMcpServers(workspaceId: string, signal?: AbortSignal): Promi
   }
 }
 
-export function useMcpServers(workspaceId: string) {
+export function useMcpServers(workspaceId: string, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: mcpKeys.serversList(workspaceId),
     queryFn: ({ signal }) => fetchMcpServers(workspaceId, signal),
-    enabled: !!workspaceId,
+    enabled: !!workspaceId && (options?.enabled ?? true),
     retry: false,
     staleTime: MCP_SERVER_LIST_STALE_TIME,
     placeholderData: keepPreviousData,

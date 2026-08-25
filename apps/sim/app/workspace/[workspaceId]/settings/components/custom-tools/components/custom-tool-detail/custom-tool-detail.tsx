@@ -29,6 +29,7 @@ import {
   useDeleteCustomTool,
   useUpdateCustomTool,
 } from '@/hooks/queries/custom-tools'
+import { type CustomToolDraftSource, customToolSourceChanged } from './custom-tool-draft-sync'
 
 const logger = createLogger('CustomToolDetail')
 
@@ -75,9 +76,38 @@ export function CustomToolDetail({
 
   const [jsonSchema, setJsonSchema] = useState(seededSchema)
   const [functionCode, setFunctionCode] = useState(seededCode)
+  const [previousToolSource, setPreviousToolSource] = useState<CustomToolDraftSource | null>(() =>
+    tool
+      ? { id: tool.id, schema: JSON.stringify(tool.schema, null, 2), code: tool.code ?? '' }
+      : null
+  )
   const [schemaError, setSchemaError] = useState<string | null>(null)
   const [codeError, setCodeError] = useState<string | null>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+
+  if (tool) {
+    const nextSource = {
+      id: tool.id,
+      schema: JSON.stringify(tool.schema, null, 2),
+      code: tool.code ?? '',
+    }
+    const switchedTool = previousToolSource?.id !== tool.id
+    const sourceChanged =
+      previousToolSource !== null && customToolSourceChanged(previousToolSource, nextSource)
+
+    if (switchedTool || sourceChanged) {
+      const hadLocalDraft = jsonSchema !== seededSchema || functionCode !== seededCode
+      setPreviousToolSource(nextSource)
+      setSeededSchema(nextSource.schema)
+      setSeededCode(nextSource.code)
+      if (switchedTool || !hadLocalDraft) {
+        setJsonSchema(nextSource.schema)
+        setFunctionCode(nextSource.code)
+        setSchemaError(null)
+        setCodeError(null)
+      }
+    }
+  }
 
   const schemaParameters = useMemo(() => extractSchemaParameters(jsonSchema), [jsonSchema])
 

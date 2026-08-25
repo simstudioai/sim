@@ -193,4 +193,30 @@ describe('extractDeletedResourcesFromToolResult', () => {
       )
     ).toEqual([{ type: 'knowledgebase', id: 'kb-1', title: 'Docs' }])
   })
+
+  it.each([
+    [
+      'manage_skill',
+      { operation: 'delete', skillId: 'skill-1' },
+      { success: true, operation: 'delete', skillId: 'skill-1' },
+      [{ type: 'skill', id: 'skill-1', title: 'Skill' }],
+    ],
+    [
+      'manage_custom_tool',
+      { operation: 'delete', toolIds: ['tool-1', 'tool-2'] },
+      { success: true, operation: 'delete', deleted: ['tool-1', 'tool-2'] },
+      [
+        { type: 'custom_tool', id: 'tool-1', title: 'Custom Tool' },
+        { type: 'custom_tool', id: 'tool-2', title: 'Custom Tool' },
+      ],
+    ],
+    [
+      'manage_mcp_connection',
+      { operation: 'delete', serverId: 'mcp-1' },
+      { success: true, operation: 'delete', serverId: 'mcp-1' },
+      [{ type: 'mcp_server', id: 'mcp-1', title: 'MCP Server' }],
+    ],
+  ])('extracts deleted panel resources from %s', (toolName, params, output, expected) => {
+    expect(extractDeletedResourcesFromToolResult(toolName, params, output)).toEqual(expected)
+  })
 })

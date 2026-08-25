@@ -28,12 +28,20 @@ import {
   validateSkillName,
 } from '@/app/workspace/[workspaceId]/skills/components/utils'
 import { useDeleteSkill, useSkills, useUpdateSkill } from '@/hooks/queries/skills'
+import {
+  type SkillDraftShape,
+  skillDraftMatchesSource,
+  skillSourceChanged,
+} from './skill-draft-sync'
 
 const logger = createLogger('SkillDetail')
 
 interface SkillDetailProps {
   workspaceId: string
   skillId: string
+  /** Reuses the editor inside Sim Chat without routing away after deletion. */
+  embedded?: boolean
+  onDeleted?: () => void
 }
 
 /**
@@ -42,7 +50,12 @@ interface SkillDetailProps {
  * Description / Content sections, and the Skill Editors roster. Non-editors
  * and built-in template skills render read-only.
  */
-export function SkillDetail({ workspaceId, skillId }: SkillDetailProps) {
+export function SkillDetail({
+  workspaceId,
+  skillId,
+  embedded = false,
+  onDeleted,
+}: SkillDetailProps) {
   const router = useRouter()
   const skillsHref = `/workspace/${workspaceId}/skills`
 
@@ -71,7 +84,7 @@ export function SkillDetail({ workspaceId, skillId }: SkillDetailProps) {
   const [errors, setErrors] = useState<SkillFieldErrors>({})
   const [shareOpen, setShareOpen] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
-  const [prevSkillId, setPrevSkillId] = useState<string | null>(null)
+  const [previousSkillSource, setPreviousSkillSource] = useState<SkillDraftShape | null>(null)
 
   /** Applies a full skill shape to all three drafts and remounts the Content editor. */
   const seedDrafts = (source: { name: string; description: string; content: string }) => {
@@ -82,11 +95,30 @@ export function SkillDetail({ workspaceId, skillId }: SkillDetailProps) {
     setContentSeed((seed) => seed + 1)
   }
 
-  // Seed drafts when the skill first resolves (or the route id changes); a
-  // background refetch of the same skill must not clobber an in-progress edit.
-  if (skill && skill.id !== prevSkillId) {
-    setPrevSkillId(skill.id)
-    seedDrafts(skill)
+  // A clean editor follows server-side changes (including Mothership edits),
+  // while a background refetch must not clobber an in-progress local draft.
+  if (skill) {
+    const nextSource = {
+      id: skill.id,
+      name: skill.name,
+      description: skill.description,
+      content: skill.content,
+    }
+    const switchedSkill = previousSkillSource?.id !== skill.id
+    const sourceChanged =
+      previousSkillSource !== null && skillSourceChanged(previousSkillSource, nextSource)
+
+    if (switchedSkill || sourceChanged) {
+      const shouldReseed =
+        switchedSkill ||
+        previousSkillSource === null ||
+        skillDraftMatchesSource(
+          { name: nameDraft, description: descriptionDraft, content: contentDraft },
+          previousSkillSource
+        )
+      setPreviousSkillSource(nextSource)
+      if (shouldReseed) seedDrafts(skill)
+    }
   }
 
   const isDirty =
@@ -144,7 +176,8 @@ export function SkillDetail({ workspaceId, skillId }: SkillDetailProps) {
     guard.release()
     try {
       await deleteSkill.mutateAsync({ workspaceId, skillId: skill.id })
-      router.replace(skillsHref)
+      if (embedded) onDeleted?.()
+      else router.replace(skillsHref)
     } catch (error) {
       guard.rearm()
       toast.error("Couldn't delete skill", {
@@ -166,7 +199,9 @@ export function SkillDetail({ workspaceId, skillId }: SkillDetailProps) {
     return true
   }
 
-  const back = (
+  const back = embedded ? (
+    <div />
+  ) : (
     <ChipLink href={skillsHref} onClick={guard.handleBackClick} leftIcon={ArrowLeft}>
       Skills
     </ChipLink>

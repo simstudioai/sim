@@ -36,6 +36,10 @@ import { captureEvent } from '@/lib/posthog/client'
 import { persistImportedWorkflow } from '@/lib/workflows/operations/import-export'
 import { RESOURCE_HEADER_CLASSES } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
 import { resolveWorkspaceResourceRef } from '@/app/workspace/[workspaceId]/home/resolve-resource-ref'
+import {
+  resolveResourceFromContext,
+  resourceTitleForContext,
+} from '@/app/workspace/[workspaceId]/home/resource-from-context'
 import { resourceParam, resourceUrlKeys } from '@/app/workspace/[workspaceId]/home/search-params'
 import { useFolders } from '@/hooks/queries/folders'
 import { useMarkMothershipChatRead } from '@/hooks/queries/mothership-chats'
@@ -59,12 +63,7 @@ import {
   useChat,
   useMothershipResize,
 } from './hooks'
-import type {
-  FileAttachmentForApi,
-  MothershipResource,
-  MothershipResourceType,
-  WorkspaceResourceRef,
-} from './types'
+import type { FileAttachmentForApi, MothershipResource, WorkspaceResourceRef } from './types'
 
 const logger = createLogger('Home')
 
@@ -480,39 +479,6 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
     // atomically and any re-run would find nothing.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- see above
   }, [chatId, workspaceId, sendMessage])
-
-  function resolveResourceFromContext(
-    context: ChatContext
-  ): { type: MothershipResourceType; id: string } | null {
-    switch (context.kind) {
-      case 'workflow':
-      case 'current_workflow':
-        return context.workflowId ? { type: 'workflow', id: context.workflowId } : null
-      case 'knowledge':
-        return context.knowledgeId ? { type: 'knowledgebase', id: context.knowledgeId } : null
-      case 'table':
-        return context.tableId ? { type: 'table', id: context.tableId } : null
-      case 'table_selection':
-        return context.tableId ? { type: 'table', id: context.tableId } : null
-      case 'file':
-        return context.fileId ? { type: 'file', id: context.fileId } : null
-      case 'file_selection':
-        return context.fileId ? { type: 'file', id: context.fileId } : null
-      default:
-        return null
-    }
-  }
-
-  /**
-   * Tab title for the resource a chip opens. A selection chip's label describes
-   * the selection (`notes.md:12-40`, `Sales (3 rows)`) but the tab shows the
-   * whole file/table, so title it from the resource name the context carries.
-   */
-  function resourceTitleForContext(context: ChatContext): string {
-    if (context.kind === 'file_selection') return context.fileName
-    if (context.kind === 'table_selection') return context.tableName
-    return context.label
-  }
 
   function handleContextAdd(context: ChatContext) {
     const resolved = resolveResourceFromContext(context)

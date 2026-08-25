@@ -107,6 +107,9 @@ export async function executeManageMcpTool(
 
       return {
         success: true,
+        resources: [
+          { type: 'mcp_server', id: result.server.id, title: result.server.name || config.name },
+        ],
         output: {
           success: true,
           operation,
@@ -142,6 +145,9 @@ export async function executeManageMcpTool(
 
       return {
         success: true,
+        resources: [
+          { type: 'mcp_server', id: result.server.id, title: result.server.name || 'MCP Server' },
+        ],
         output: {
           success: true,
           operation,

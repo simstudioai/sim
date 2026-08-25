@@ -167,11 +167,11 @@ async function fetchCustomTools(
 /**
  * Hook to fetch custom tools
  */
-export function useCustomTools(workspaceId: string) {
+export function useCustomTools(workspaceId: string, options?: { enabled?: boolean }) {
   return useQuery<CustomToolDefinition[]>({
     queryKey: customToolsKeys.list(workspaceId),
     queryFn: ({ signal }) => fetchCustomTools(workspaceId, signal),
-    enabled: !!workspaceId,
+    enabled: !!workspaceId && (options?.enabled ?? true),
     staleTime: CUSTOM_TOOL_LIST_STALE_TIME,
     placeholderData: keepPreviousData,
   })

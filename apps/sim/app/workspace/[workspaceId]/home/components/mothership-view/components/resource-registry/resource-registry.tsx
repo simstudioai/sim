@@ -13,8 +13,10 @@ import {
   Task,
   TerminalWindow,
   Workflow,
+  Wrench,
 } from '@sim/emcn/icons'
 import type { QueryClient } from '@tanstack/react-query'
+import { AgentSkillsIcon, McpIcon } from '@/components/icons'
 import { getDocumentIcon } from '@/components/icons/document-icons'
 import type {
   MothershipResource,
@@ -23,7 +25,10 @@ import type {
 import { getDisplayStatus, STATUS_CONFIG } from '@/app/workspace/[workspaceId]/logs/utils'
 import { BrandIcon, type StyleableIcon } from '@/blocks/brand-icon'
 import { logKeys } from '@/hooks/queries/logs'
+import { mcpKeys } from '@/hooks/queries/mcp'
 import { mothershipChatKeys } from '@/hooks/queries/mothership-chats'
+import { skillsKeys } from '@/hooks/queries/skills'
+import { customToolsKeys } from '@/hooks/queries/utils/custom-tool-keys'
 import { folderKeys } from '@/hooks/queries/utils/folder-keys'
 import { invalidateWorkflowLists } from '@/hooks/queries/utils/invalidate-workflow-lists'
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
@@ -229,6 +234,33 @@ export const RESOURCE_REGISTRY: Record<MothershipResourceType, ResourceTypeConfi
     ),
     renderDropdownItem: (props) => <IntegrationDropdownItem {...props} />,
   },
+  skill: {
+    type: 'skill',
+    label: 'Skills',
+    icon: AgentSkillsIcon,
+    renderTabIcon: (_resource, className) => (
+      <AgentSkillsIcon className={cn(className, 'text-[var(--text-icon)]')} />
+    ),
+    renderDropdownItem: (props) => <IconDropdownItem {...props} icon={AgentSkillsIcon} />,
+  },
+  custom_tool: {
+    type: 'custom_tool',
+    label: 'Custom Tools',
+    icon: Wrench,
+    renderTabIcon: (_resource, className) => (
+      <Wrench className={cn(className, 'text-[var(--text-icon)]')} />
+    ),
+    renderDropdownItem: (props) => <IconDropdownItem {...props} icon={Wrench} />,
+  },
+  mcp_server: {
+    type: 'mcp_server',
+    label: 'MCP Servers',
+    icon: McpIcon,
+    renderTabIcon: (_resource, className) => (
+      <McpIcon className={cn(className, 'text-[var(--text-icon)]')} />
+    ),
+    renderDropdownItem: (props) => <IconDropdownItem {...props} icon={McpIcon} />,
+  },
   browser: {
     type: 'browser',
     label: 'Browser',
@@ -267,6 +299,9 @@ export const MENTION_PREVIEW_DEFAULT_LIMIT = 5
 export const RESOURCE_MENU_ORDER: readonly MothershipResourceType[] = [
   'integration',
   'task',
+  'skill',
+  'custom_tool',
+  'mcp_server',
   'table',
   'file',
   'filefolder',
@@ -335,6 +370,17 @@ const RESOURCE_INVALIDATORS: Record<
    * invalidate when one is added.
    */
   integration: () => {},
+  skill: (qc, wId) => {
+    qc.invalidateQueries({ queryKey: skillsKeys.list(wId) })
+  },
+  custom_tool: (qc, wId) => {
+    qc.invalidateQueries({ queryKey: customToolsKeys.list(wId) })
+  },
+  mcp_server: (qc, wId, id) => {
+    qc.invalidateQueries({ queryKey: mcpKeys.serversList(wId) })
+    qc.invalidateQueries({ queryKey: mcpKeys.serverToolsList(wId, id) })
+    qc.invalidateQueries({ queryKey: mcpKeys.storedToolsList(wId) })
+  },
   /**
    * The browser panel hosts the desktop app's natively embedded browser view
    * (in-memory page state, no server-backed query), so there is nothing to

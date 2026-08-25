@@ -42,10 +42,13 @@ import type {
 } from '@/app/workspace/[workspaceId]/home/types'
 import { formatDate } from '@/app/workspace/[workspaceId]/logs/utils'
 import { listIntegrationsByPopularity } from '@/blocks/integration-matcher'
+import { useCustomTools } from '@/hooks/queries/custom-tools'
 import { useFolders } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useLogsList } from '@/hooks/queries/logs'
+import { useMcpServers } from '@/hooks/queries/mcp'
 import { useMothershipChats } from '@/hooks/queries/mothership-chats'
+import { useSkills } from '@/hooks/queries/skills'
 import { useTablesList } from '@/hooks/queries/tables'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { useWorkspaceFileFolders } from '@/hooks/queries/workspace-file-folders'
@@ -180,6 +183,18 @@ export function useAvailableResources(
     LOG_DROPDOWN_FILTERS,
     { enabled }
   )
+  const skillsEnabled = enabled && !excludeTypes?.includes('skill')
+  const customToolsEnabled = enabled && !excludeTypes?.includes('custom_tool')
+  const mcpServersEnabled = enabled && !excludeTypes?.includes('mcp_server')
+  const { data: skills, isPending: skillsPending } = useSkills(workspaceId, {
+    enabled: skillsEnabled,
+  })
+  const { data: customTools, isPending: customToolsPending } = useCustomTools(workspaceId, {
+    enabled: customToolsEnabled,
+  })
+  const { data: mcpServers, isPending: mcpServersPending } = useMcpServers(workspaceId, {
+    enabled: mcpServersEnabled,
+  })
   const logs = useMemo(() => (logsData?.pages ?? []).flatMap((page) => page.logs), [logsData])
 
   /**
@@ -201,7 +216,10 @@ export function useAvailableResources(
       foldersPending ||
       fileFoldersPending ||
       tasksPending ||
-      logsPending)
+      logsPending ||
+      (skillsEnabled && skillsPending) ||
+      (customToolsEnabled && customToolsPending) ||
+      (mcpServersEnabled && mcpServersPending))
 
   const groups = useMemo(() => {
     if (!enabled) return NO_RESOURCE_GROUPS
@@ -266,6 +284,21 @@ export function useAvailableResources(
         type: 'task' as const,
         items: (tasks ?? []).map((t) => ({ id: t.id, name: t.name })),
       },
+      {
+        type: 'skill' as const,
+        items: (skills ?? []).map((skill) => ({ id: skill.id, name: skill.name })),
+      },
+      {
+        type: 'custom_tool' as const,
+        items: (customTools ?? []).map((tool) => ({ id: tool.id, name: tool.title })),
+      },
+      {
+        type: 'mcp_server' as const,
+        items: (mcpServers ?? []).map((server) => ({
+          id: server.id,
+          name: server.name || 'Unnamed server',
+        })),
+      },
       /**
        * The chip's `name` keeps the absolute timestamp because it is persisted
        * with the chat, where "2m ago" would age into a lie; the row renders the
@@ -325,6 +358,9 @@ export function useAvailableResources(
     files,
     knowledgeBases,
     tasks,
+    skills,
+    customTools,
+    mcpServers,
     logs,
     excludeTypes,
   ])
