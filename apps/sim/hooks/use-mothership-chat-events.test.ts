@@ -453,13 +453,27 @@ describe('resyncMothershipChatCaches', () => {
     )
   })
 
-  it('skips the detail of a chat whose stream this client is rendering locally', () => {
+  it('skips the detail of a chat this client is still streaming', () => {
     expect(
       detailPredicate()({
         messages: [{ id: 'new-stream' }, { id: 'live-assistant:new-stream' }],
         activeStreamId: 'new-stream',
+        streamSnapshot: { events: [], previewSessions: [], status: 'streaming' },
       })
     ).toBe(false)
+  })
+
+  it('invalidates a chat whose stream finished but left its optimistic markers cached', () => {
+    const predicate = detailPredicate()
+    const finished = (status: string) => ({
+      messages: [{ id: 'new-stream' }, { id: 'live-assistant:new-stream' }],
+      activeStreamId: 'new-stream',
+      streamSnapshot: { events: [], previewSessions: [], status },
+    })
+
+    expect(predicate(finished('complete'))).toBe(true)
+    expect(predicate(finished('error'))).toBe(true)
+    expect(predicate(finished('cancelled'))).toBe(true)
   })
 
   it('invalidates details with no active stream, and streams not rendered locally', () => {

@@ -52,7 +52,7 @@ function asPayloadRecord(value: unknown): Record<string, unknown> | undefined {
   return isRecordLike(value) ? value : undefined
 }
 
-function isTerminalStreamStatus(status: string | null | undefined): boolean {
+export function isTerminalStreamStatus(status: string | null | undefined): boolean {
   return (
     status === MothershipStreamV1CompletionStatus.complete ||
     status === MothershipStreamV1CompletionStatus.error ||

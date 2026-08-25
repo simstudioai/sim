@@ -2,7 +2,10 @@ import { useEffect } from 'react'
 import { createLogger } from '@sim/logger'
 import type { QueryClient } from '@tanstack/react-query'
 import { useQueryClient } from '@tanstack/react-query'
-import { getLiveAssistantMessageId } from '@/lib/copilot/chat/effective-transcript'
+import {
+  getLiveAssistantMessageId,
+  isTerminalStreamStatus,
+} from '@/lib/copilot/chat/effective-transcript'
 import { isChatEnabled } from '@/lib/core/config/env-flags'
 import { suspendDesktopChatScopes } from '@/lib/desktop/chat-scope'
 import { type MothershipChatHistory, mothershipChatKeys } from '@/hooks/queries/mothership-chats'
@@ -36,6 +39,23 @@ function isLocalOptimisticActiveStream(current: MothershipChatHistory | undefine
   if (!current?.activeStreamId) return false
   const liveAssistantId = getLiveAssistantMessageId(current.activeStreamId)
   return current.messages.some((message) => message.id === liveAssistantId)
+}
+
+/**
+ * True while this client is still rendering a stream for the chat.
+ *
+ * The optimistic markers alone are not enough: a finished turn can leave
+ * `activeStreamId` and its live-assistant message in the cache (finalization
+ * skips detail invalidation when a follow-up is queued), and treating those as
+ * live would exclude the chat from every future resync — permanently, since
+ * only a refetch would clear them. Requiring a non-terminal snapshot status
+ * keeps the skip to turns that are genuinely still streaming.
+ */
+function isStreamingLocally(current: MothershipChatHistory | undefined) {
+  return (
+    isLocalOptimisticActiveStream(current) &&
+    !isTerminalStreamStatus(current?.streamSnapshot?.status)
+  )
 }
 
 /**
@@ -139,10 +159,10 @@ export function handleMothershipChatStatusEvent(
  * delete, or completion. Invalidating the workspace lists and every chat detail
  * reconciles from the server; only queries that are currently mounted refetch.
  *
- * A chat whose stream this client is rendering locally is left alone, for the
- * same reason status events skip it: refetching mid-stream would replace the
- * optimistic transcript with a server copy that does not yet hold the in-flight
- * message. That chat reconciles when its own stream finishes.
+ * A chat this client is still streaming is left alone, for the same reason
+ * status events skip it: refetching mid-stream would replace the optimistic
+ * transcript with a server copy that does not yet hold the in-flight message.
+ * That chat reconciles when its own stream finishes.
  */
 export function resyncMothershipChatCaches(
   queryClient: Pick<QueryClient, 'invalidateQueries'>,
@@ -152,7 +172,7 @@ export function resyncMothershipChatCaches(
   queryClient.invalidateQueries({
     queryKey: mothershipChatKeys.details(),
     predicate: (query) =>
-      !isLocalOptimisticActiveStream(query.state.data as MothershipChatHistory | undefined),
+      !isStreamingLocally(query.state.data as MothershipChatHistory | undefined),
   })
 }
 
