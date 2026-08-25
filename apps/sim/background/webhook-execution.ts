@@ -45,6 +45,7 @@ import {
   type WebhookEnvResolutionOptions,
 } from '@/lib/webhooks/env-resolver'
 import { getProviderHandler } from '@/lib/webhooks/providers'
+import type { SyncInteractionContext } from '@/lib/webhooks/providers/types'
 import {
   executeWorkflowCore,
   wasExecutionFinalizedByCore,
@@ -289,6 +290,12 @@ export type WebhookExecutionPayload = {
   triggerTimestampMs?: number
   /** Trusted attempt budget resolved before the webhook enters the queue. */
   executionTimeoutMs?: number
+  /**
+   * Interaction context created synchronously at ingest (e.g. a Slack loading
+   * modal's view id). Identifiers only — never token material; this payload is
+   * persisted by the durable queue branch.
+   */
+  syncInteraction?: SyncInteractionContext
 }
 
 /**
@@ -681,6 +688,7 @@ async function executeWebhookJobInternal(
         ...(formatInputCredentialOwnerUserId
           ? { credentialOwnerUserId: formatInputCredentialOwnerUserId }
           : {}),
+        ...(payload.syncInteraction ? { syncInteraction: payload.syncInteraction } : {}),
       })
       input = result.input as Record<string, unknown> | null
       skipMessage = result.skip?.message

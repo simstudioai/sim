@@ -5,6 +5,7 @@ import { safeCompare } from '@sim/security/compare'
 import { hmacSha256Hex } from '@sim/security/hmac'
 import { toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
+import { truncate } from '@sim/utils/string'
 import { eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import {
@@ -21,6 +22,8 @@ import type {
   EventFilterContext,
   FormatInputContext,
   FormatInputResult,
+  PrepareSyncDispatchContext,
+  PrepareSyncDispatchResult,
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
 import { type SlackEventFilter, slackEventSupportsFilter } from '@/triggers/slack/shared'
@@ -60,6 +63,27 @@ const SLACK_INTERACTIVE_TYPES = new Set([
  */
 const SLACK_INTERACTION_EVENT_KEYS = new Set(['block_actions', 'view_submission'])
 
+/**
+ * Interactive payload types whose fresh trigger_id may open a NEW modal. An
+ * interaction already inside a modal (top-level `view` present) is excluded —
+ * the workflow should views.update the existing `view` id instead of stacking
+ * a second modal on it.
+ */
+const SLACK_LOADING_MODAL_TYPES = new Set([
+  'block_actions',
+  'interactive_message',
+  'message_action',
+  'shortcut',
+])
+const SLACK_LOADING_MODAL_CALLBACK_ID = 'sim_loading_modal'
+/** Slack caps modal titles at 24 characters and section plain_text at 3000. */
+const SLACK_MODAL_TITLE_MAX_CHARS = 24
+const SLACK_SECTION_TEXT_MAX_CHARS = 3000
+/** Bounds the pre-ack cost of the synchronous views.open call. */
+const SLACK_VIEWS_OPEN_TIMEOUT_MS = 2000
+const DEFAULT_LOADING_MODAL_TITLE = 'Working on it'
+const DEFAULT_LOADING_MODAL_TEXT = 'This will just take a moment…'
+
 interface SlackDownloadedFile {
   name: string
   data: string
@@ -94,6 +118,13 @@ interface SlackTriggerEvent {
   actions: unknown[]
   response_url: string
   trigger_id: string
+  /**
+   * View id of the loading modal opened synchronously at ingest when the
+   * trigger's "Open loading modal" option is on. Update it with Slack Update
+   * View (view ids never expire, unlike trigger_id's 3-second window). Empty
+   * when the option is off or the open failed.
+   */
+  loading_view_id: string
   callback_id: string
   api_app_id: string
   app_id: string
@@ -144,6 +175,7 @@ function createSlackEvent(): SlackTriggerEvent {
     actions: [],
     response_url: '',
     trigger_id: '',
+    loading_view_id: '',
     callback_id: '',
     api_app_id: '',
     app_id: '',
@@ -852,6 +884,88 @@ async function resolveSlackWebhookBotToken(
   return (await refreshAccessTokenIfNeeded(credentialId, ownerUserId, requestId)) ?? undefined
 }
 
+/**
+ * Whether an inbound payload qualifies for the synchronous ingest-side loading
+ * modal: the trigger opted in, the payload is an interactive type that carries
+ * a fresh usable trigger_id, and the interaction is not already inside a modal.
+ */
+function shouldOpenLoadingModal(
+  body: unknown,
+  providerConfig: Record<string, unknown>
+): body is Record<string, unknown> {
+  if (providerConfig.openLoadingModal !== true) return false
+  if (!isRecordLike(body)) return false
+  if (body.event !== undefined) return false
+  if (typeof body.type !== 'string' || !SLACK_LOADING_MODAL_TYPES.has(body.type)) return false
+  if (typeof body.trigger_id !== 'string' || body.trigger_id === '') return false
+  if (isRecordLike(body.view)) return false
+  return true
+}
+
+/** Fixed Block Kit loading view; only the title and body text are configurable. */
+function buildLoadingView(providerConfig: Record<string, unknown>): Record<string, unknown> {
+  const configuredTitle =
+    typeof providerConfig.loadingModalTitle === 'string' ? providerConfig.loadingModalTitle : ''
+  const configuredText =
+    typeof providerConfig.loadingModalText === 'string' ? providerConfig.loadingModalText : ''
+  const title = configuredTitle.trim() !== '' ? configuredTitle : DEFAULT_LOADING_MODAL_TITLE
+  const text = configuredText.trim() !== '' ? configuredText : DEFAULT_LOADING_MODAL_TEXT
+  return {
+    type: 'modal',
+    callback_id: SLACK_LOADING_MODAL_CALLBACK_ID,
+    /** `truncate` appends its suffix after the slice, so slice to cap − 1. */
+    title: { type: 'plain_text', text: truncate(title, SLACK_MODAL_TITLE_MAX_CHARS - 1, '…') },
+    close: { type: 'plain_text', text: 'Close' },
+    blocks: [
+      {
+        type: 'section',
+        text: {
+          type: 'plain_text',
+          text: truncate(text, SLACK_SECTION_TEXT_MAX_CHARS - 1, '…'),
+          emoji: true,
+        },
+      },
+    ],
+  }
+}
+
+/**
+ * Opens the loading modal via views.open while the trigger_id is fresh. Returns
+ * the created view id, or null on ANY failure — an expired/exchanged trigger_id,
+ * a missing scope, a timeout — because a failed modal must never block dispatch.
+ */
+async function openSlackLoadingModal(
+  botToken: string,
+  triggerId: string,
+  view: Record<string, unknown>,
+  requestId: string
+): Promise<string | null> {
+  try {
+    const response = await fetch('https://slack.com/api/views.open', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json; charset=utf-8',
+        Authorization: `Bearer ${botToken}`,
+      },
+      body: JSON.stringify({ trigger_id: triggerId, view }),
+      signal: AbortSignal.timeout(SLACK_VIEWS_OPEN_TIMEOUT_MS),
+    })
+    const data = (await response.json()) as { ok?: boolean; error?: string; view?: { id?: string } }
+    if (!data.ok || !data.view?.id) {
+      logger.warn(`[${requestId}] Slack views.open for the loading modal was rejected`, {
+        error: data.error ?? `HTTP ${response.status}`,
+      })
+      return null
+    }
+    return data.view.id
+  } catch (error) {
+    logger.warn(`[${requestId}] Slack views.open for the loading modal failed`, {
+      error: toError(error).message,
+    })
+    return null
+  }
+}
+
 export const slackHandler: WebhookProviderHandler = {
   verifyAuth({ request, rawBody, requestId, providerConfig }: AuthContext) {
     const signingSecret = providerConfig.signingSecret as string | undefined
@@ -908,6 +1022,38 @@ export const slackHandler: WebhookProviderHandler = {
   },
 
   /**
+   * Opens the opt-in loading modal while the interaction's 3-second trigger_id
+   * is still fresh — the only window in which a modal can be opened at all,
+   * since the workflow itself runs after the ack. The created view id rides the
+   * execution payload into the trigger output as `loading_view_id` for the
+   * workflow to views.update. Only the credential-based `slack_oauth` trigger
+   * exposes the opt-in, so token resolution here never needs env-var expansion.
+   */
+  async prepareSyncDispatch({
+    body,
+    requestId,
+    providerConfig,
+  }: PrepareSyncDispatchContext): Promise<PrepareSyncDispatchResult | null> {
+    if (!shouldOpenLoadingModal(body, providerConfig)) {
+      return null
+    }
+    const botToken = await resolveSlackWebhookBotToken(providerConfig, requestId)
+    if (!botToken) {
+      logger.warn(
+        `[${requestId}] Loading modal is enabled but no Slack bot token resolved; skipping`
+      )
+      return null
+    }
+    const loadingViewId = await openSlackLoadingModal(
+      botToken,
+      String(body.trigger_id),
+      buildLoadingView(providerConfig),
+      requestId
+    )
+    return loadingViewId ? { syncInteraction: { loadingViewId } } : null
+  },
+
+  /**
    * Routes across Slack's three distinct payload families, each identified by
    * a different shape: slash commands (flat form fields with a leading-slash
    * `command`), interactivity (a JSON `payload` with an interactive `type` or
@@ -919,6 +1065,7 @@ export const slackHandler: WebhookProviderHandler = {
     webhook,
     requestId,
     credentialOwnerUserId,
+    syncInteraction,
   }: FormatInputContext): Promise<FormatInputResult> {
     const b = isRecordLike(body) ? body : {}
     const providerConfig = (webhook.providerConfig as Record<string, unknown>) || {}
@@ -948,7 +1095,11 @@ export const slackHandler: WebhookProviderHandler = {
       ((typeof b?.type === 'string' && SLACK_INTERACTIVE_TYPES.has(b.type)) ||
         Array.isArray(b?.actions))
     ) {
-      return { input: { event: formatSlackInteractive(b) } }
+      const event = formatSlackInteractive(b)
+      if (syncInteraction?.loadingViewId) {
+        event.loading_view_id = syncInteraction.loadingViewId
+      }
+      return { input: { event } }
     }
 
     const rawEvent = b?.event as Record<string, unknown> | undefined
