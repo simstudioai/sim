@@ -47,10 +47,10 @@ type RestorableFolderType = 'folder' | 'knowledge_folder' | 'table_folder'
 
 /**
  * Deliberately a total `Record` over the folder types, not a `Partial` one: adding a tree to
- * `RestorableFolderType` without a mapping here has to fail the build. With a partial map the
- * lookup would yield `undefined`, which `restoreFolder` types as a required
- * `FolderResourceType` — so the failure would surface as an undefined folder config deep in
- * the cascade rather than at the call site.
+ * `RestorableFolderType` without a mapping has to fail the build *here*, at the mapping. A
+ * `Partial` still compiles with the tree missing — the lookup widens to
+ * `FolderResourceType | undefined`, so the error moves to the `restoreFolder` call site, and
+ * suppressing it there leaves the cascade resolving an undefined folder config.
  */
 const FOLDER_RESOURCE_TYPE_BY_RESTORABLE: Record<RestorableFolderType, FolderResourceType> = {
   folder: 'workflow',

@@ -6,9 +6,12 @@ import type { DbOrTx } from '@/lib/db/types'
 /**
  * Sort order placing a new workflow above everything already in its folder.
  *
- * Workflows and folders share one ordering, so both minimums are consulted.
- * Archived workflows are excluded: a soft-deleted row must not hold a slot that
- * pushes new siblings further up each time one is created.
+ * Workflows and folders share one ordering, so both minimums are consulted, and
+ * *both* exclude soft-deleted rows. Because this returns `min - 1`, counting a
+ * deleted row lets every delete ratchet the floor further negative and never
+ * recover: a deleted sibling at -400 pins the next new workflow at -401 forever.
+ * `lib/folders/orchestration.ts` documents the same rule for the folder-creation
+ * side of this algorithm.
  *
  * Pass `tx` when the caller is inside a transaction, so the read sees that
  * transaction's uncommitted rows rather than the pre-transaction snapshot.
@@ -43,7 +46,8 @@ export async function nextWorkflowSortOrder(
         and(
           eq(folderTable.workspaceId, workspaceId),
           eq(folderTable.resourceType, 'workflow'),
-          folderParentCondition
+          folderParentCondition,
+          isNull(folderTable.deletedAt)
         )
       ),
   ])
