@@ -127,8 +127,8 @@ describe('useMcpToolsQuery', () => {
     // mcp.ts captured these Map/Set instances in module consts at import, so reassigning the
     // globalThis property wouldn't reset what the module uses — clear the shared instances.
     ;(
-      globalThis as unknown as { __mcp_sse_connections?: Map<string, unknown> }
-    ).__mcp_sse_connections?.clear()
+      globalThis as unknown as { __mcp_rotating_sse_connections?: Map<string, unknown> }
+    ).__mcp_rotating_sse_connections?.clear()
     ;(globalThis as unknown as { __mcp_sse_subscribed?: Set<string> }).__mcp_sse_subscribed?.clear()
   })
 

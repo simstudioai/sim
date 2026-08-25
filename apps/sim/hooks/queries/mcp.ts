@@ -27,6 +27,10 @@ import {
   testMcpServerConnectionContract,
   updateMcpServerContract,
 } from '@/lib/api/contracts/mcp'
+import {
+  createRotatingEventSource,
+  type RotatingEventSourceConnection,
+} from '@/lib/events/rotating-event-source'
 import { sanitizeForHttp, sanitizeHeaders } from '@/lib/mcp/shared'
 import type {
   McpAuthType,
@@ -539,9 +543,9 @@ export function useStoredMcpTools(workspaceId: string, options?: { enabled?: boo
  * Reference-counted so the connection is closed when the last consumer unmounts.
  * Attached to `globalThis` so connections survive HMR in development.
  */
-const SSE_KEY = '__mcp_sse_connections' as const
+const SSE_KEY = '__mcp_rotating_sse_connections' as const
 
-type SseEntry = { source: EventSource; refs: number }
+type SseEntry = { connection: RotatingEventSourceConnection; refs: number }
 
 const sseConnections: Map<string, SseEntry> =
   ((globalThis as Record<string, unknown>)[SSE_KEY] as Map<string, SseEntry>) ??
@@ -576,40 +580,29 @@ export function useMcpToolsEvents(workspaceId: string) {
     let entry = sseConnections.get(workspaceId)
 
     if (!entry) {
-      const source = new EventSource(`/api/mcp/events?workspaceId=${workspaceId}`)
-
-      source.addEventListener('tools_changed', (e) => {
-        let serverId: string | undefined
-        try {
-          const parsed = JSON.parse((e as MessageEvent).data) as { serverId?: string }
-          serverId = parsed.serverId
-        } catch {
-          // Non-JSON payload → workspace-wide fallback.
-        }
-        invalidate(serverId)
-      })
-
-      // EventSource fires `onopen` on the initial connect and on every auto-reconnect. Re-sync
-      // the workspace whenever we could have missed a `tools_changed` event: on any reconnect,
-      // on the first open of a RE-subscription (leaving the tab tears the connection down), and
-      // on a first open that only succeeded after an earlier connection error (the initial tools
-      // query may have failed during that gap and won't retry itself). Skip only a clean first
-      // subscription — the queries fetch fresh on their own initial mount.
       const isResubscribe = sseEverSubscribed.has(workspaceId)
       sseEverSubscribed.add(workspaceId)
-      let opened = false
-      let erroredBeforeOpen = false
-      source.onopen = () => {
-        if (opened || isResubscribe || erroredBeforeOpen) invalidate()
-        opened = true
-      }
+      const connection = createRotatingEventSource({
+        url: `/api/mcp/events?workspaceId=${encodeURIComponent(workspaceId)}`,
+        events: {
+          tools_changed: (event) => {
+            let serverId: string | undefined
+            try {
+              const parsed = JSON.parse((event as MessageEvent).data) as { serverId?: string }
+              serverId = parsed.serverId
+            } catch {}
+            invalidate(serverId)
+          },
+        },
+        onOpen: (reason) => {
+          if (reason === 'reconnect' || (reason === 'initial' && isResubscribe)) invalidate()
+        },
+        onError: () => {
+          logger.warn(`SSE connection error for workspace ${workspaceId}`)
+        },
+      })
 
-      source.onerror = () => {
-        if (!opened) erroredBeforeOpen = true
-        logger.warn(`SSE connection error for workspace ${workspaceId}`)
-      }
-
-      entry = { source, refs: 0 }
+      entry = { connection, refs: 0 }
       sseConnections.set(workspaceId, entry)
     }
 
@@ -621,7 +614,7 @@ export function useMcpToolsEvents(workspaceId: string) {
 
       current.refs--
       if (current.refs <= 0) {
-        current.source.close()
+        current.connection.close()
         sseConnections.delete(workspaceId)
       }
     }
