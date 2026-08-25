@@ -322,6 +322,18 @@ describe('surface-neutral remediation text', () => {
     expect((error as Error).message).not.toMatch(COPILOT_TOOL_REFERENCE)
   })
 
+  /**
+   * Modules whose only consumer is Copilot, where naming a Copilot tool is the
+   * correct remediation rather than a leak.
+   *
+   * `workspace-file-imports` lives under `lib/table` but is imported solely by
+   * `lib/copilot/application/table-commands`, so every message it raises reaches
+   * an agent that can actually call `save_upload` and `glob(...)`. Rewriting
+   * those into surface-neutral prose removed a working next step from the one
+   * caller able to act on it.
+   */
+  const COPILOT_ONLY_MODULES = new Set(['workspace-file-imports.ts'])
+
   it('names no Copilot tool anywhere under lib/table', async () => {
     const { readdir, readFile } = await import('node:fs/promises')
     const root = new URL('../', import.meta.url).pathname
@@ -335,6 +347,7 @@ describe('surface-neutral remediation text', () => {
           continue
         }
         if (!entry.name.endsWith('.ts') || entry.name.endsWith('.test.ts')) continue
+        if (COPILOT_ONLY_MODULES.has(entry.name)) continue
         const source = await readFile(full, 'utf8')
         for (const line of source.split('\n')) {
           const trimmed = line.trim()

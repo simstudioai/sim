@@ -117,7 +117,7 @@ describe('workflow run application use cases', () => {
         workflowId: 'workflow-1',
         runId: 'run-1',
         includeOutput: true,
-        selectedOutputs: ['block-1.value'],
+        selectedOutputs: ['4f1c2b3a-0000-4000-8000-000000000001.value'],
       },
     })
 
@@ -129,7 +129,7 @@ describe('workflow run application use cases', () => {
       workflowId: 'workflow-1',
       executionId: 'run-1',
       includeOutput: true,
-      selectedOutputs: ['block-1.value'],
+      selectedOutputs: ['4f1c2b3a-0000-4000-8000-000000000001.value'],
     })
   })
 

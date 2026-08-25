@@ -96,12 +96,13 @@ const TAG_DISPLAY_NAME_UNIQUE_INDEX = 'kb_tag_definitions_kb_display_name_idx'
 /**
  * Reports a tag uniqueness violation as a conflict rather than a fault.
  *
- * Neither slot occupancy nor display-name uniqueness is checked before the
- * write, and neither can be: the read that would check them and the insert that
- * depends on the answer are separate statements, so two concurrent creates both
- * pass and one loses at the index. Even single-threaded, `tagSlot` is a caller
+ * Slot occupancy is not checked before the write: `tagSlot` is a caller
  * parameter and the next-free-slot search only runs when it is omitted, so a
- * caller naming an occupied slot reaches the index directly.
+ * caller naming an occupied slot reaches the index directly. Display-name
+ * uniqueness is checked, but under the knowledge base's row lock inside the
+ * writing transaction rather than here — the pre-checks below are only an early
+ * rejection, and the index remains the backstop for an exact-case duplicate
+ * racing in through a path that does not take that lock.
  *
  * The index name distinguishes the two so the message says which value to
  * change. Anything else propagates — a foreign-key or not-null violation is a
@@ -155,7 +156,13 @@ export const createKnowledgeTag = defineAuthorizedKnowledgeUseCase({
     /**
      * The unique index on display name is case-sensitive, so it lets through
      * names that differ only in case. Two such tags are indistinguishable in
-     * every surface that filters by name, so reject them here.
+     * every surface that filters by name, so reject them.
+     *
+     * This is the early rejection, off the read this path already needed for
+     * slot allocation. It is not what makes the rule hold — a read here and the
+     * insert that depends on it are separate statements, so the authoritative
+     * check runs again inside `createTagDefinition`, under the row lock that
+     * serializes it against every competing writer.
      */
     if (
       existingDefinitions.some(
@@ -237,7 +244,9 @@ export const updateKnowledgeTag = defineAuthorizedKnowledgeUseCase({
      * A rename reaches the same case-sensitive display-name index create does,
      * so it can land `CLITEST-CAT` beside an existing `clitest-cat` — the state
      * create rejects. The same check, against the definitions of the same
-     * knowledge base, excluding the one being renamed.
+     * knowledge base, excluding the one being renamed, and — like create's — an
+     * early rejection whose authoritative repeat runs under the row lock in
+     * `updateTagDefinition`.
      */
     const { displayName } = input.updates
     if (displayName !== undefined) {
@@ -273,6 +282,7 @@ export const updateKnowledgeTag = defineAuthorizedKnowledgeUseCase({
     return {
       tagDefinition: await updateTagDefinition(
         context.tagDefinitionId,
+        context.knowledgeBaseId,
         input.updates,
         generateRequestId()
       ).catch(tagUniquenessConflict),

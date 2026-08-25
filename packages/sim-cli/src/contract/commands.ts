@@ -1305,12 +1305,13 @@ export const CLI_CONTRACT: CliContract = {
       includeToolCalls: { omit: true },
       // Exposed under its domain name: every other flag in the CLI is one, and
       // `--x-run-id` would be the only place the raw HTTP header spelling
-      // surfaced. The describe states the one-shot semantics because the name
-      // reads like an idempotency key and the header is not one.
+      // surfaced. The describe denies idempotency outright because the name
+      // reads like an idempotency key and the header is not one: neither reusing
+      // a value nor picking a fresh one makes a retry safe.
       'x-run-id': {
         name: 'run-id',
         describe:
-          'Claim this run identifier, so a retried invocation cannot start a second run; reusing a value already claimed fails with RUN_ID_CONFLICT rather than replaying the first result',
+          'One-shot identifier for this run; NOT an idempotency key — reusing a claimed value fails with RUN_ID_CONFLICT instead of replaying the first result, and a fresh value starts another run',
       },
       // The call-chain marker Sim writes for itself on a workflow-to-workflow
       // hop. A CLI invocation is always the first hop, so the only thing a flag

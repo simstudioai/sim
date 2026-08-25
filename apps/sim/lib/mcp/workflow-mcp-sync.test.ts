@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { hasMockCondition } from '@sim/testing'
+import { flattenMockConditions, hasMockCondition } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
@@ -85,36 +85,130 @@ interface RecordedWrite {
  */
 type QueuedRead = unknown[] | (() => unknown[])
 
+/** Marks the handle `.as(alias)` returns so `.from()` can recognise a subquery. */
+const FAKE_SUBQUERY = Symbol('fakeSubquery')
+
+interface FakeSelect {
+  projection: Record<string, unknown>
+  distinctOn: unknown[]
+  order: { type: string; column: unknown }[]
+  limit: number | null
+  source: FakeSelect | null
+}
+
+interface FakeOrderNode {
+  type: string
+  column: unknown
+}
+
 /**
  * Minimal drizzle chain over an ordered queue of results, so the sync's exact
  * statement sequence — and whether a withdrawal deletes or archives — is
  * observable without a live database.
  *
- * `selectDistinctOn` and `limit` are evaluated the way Postgres evaluates them
- * (dedupe first, then bound), so a test can observe which rows a bounded
- * candidate query actually returns rather than being handed a canned answer.
+ * `orderBy`, `selectDistinctOn` and `limit` are evaluated the way Postgres
+ * evaluates them (sort, then dedupe on the leading key, then bound), and a
+ * select whose `from` is another select's `.as(alias)` evaluates that inner
+ * statement first. A test can therefore observe which rows a bounded, possibly
+ * two-stage candidate query actually returns rather than being handed a canned
+ * answer.
  */
 function createFakeTx(results: QueuedRead[]) {
   const writes: RecordedWrite[] = []
   const queue = [...results]
   let pending: RecordedWrite | null = null
-  let distinctOnKey: string | null = null
-  let rowLimit: number | null = null
+  let current: FakeSelect | null = null
+
+  const startSelect = (projection: Record<string, unknown>, distinctOn: unknown[]): void => {
+    current = { projection, distinctOn, order: [], limit: null, source: null }
+  }
+
+  /** Resolves an order/distinct column token to the row key it was selected as. */
+  const rowKeyFor = (select: FakeSelect, column: unknown): string | null => {
+    const projection = select.source ? select.source.projection : select.projection
+    return Object.keys(projection).find((key) => projection[key] === column) ?? null
+  }
+
+  const compare = (a: unknown, b: unknown): number => {
+    if ((a as never) < (b as never)) return -1
+    if ((a as never) > (b as never)) return 1
+    return 0
+  }
+
+  const evaluate = (select: FakeSelect): unknown[] => {
+    let rows: unknown[]
+    if (select.source) {
+      rows = evaluate(select.source)
+    } else {
+      const next = queue.shift() ?? []
+      rows = typeof next === 'function' ? next() : next
+    }
+
+    if (select.order.length > 0) {
+      rows = [...rows].sort((left, right) => {
+        for (const node of select.order) {
+          const key = rowKeyFor(select, node.column)
+          if (!key) continue
+          const result = compare(
+            (left as Record<string, unknown>)[key],
+            (right as Record<string, unknown>)[key]
+          )
+          if (result !== 0) return node.type === 'desc' ? -result : result
+        }
+        return 0
+      })
+    }
+
+    if (select.distinctOn.length > 0) {
+      const keys = select.distinctOn
+        .map((column) => rowKeyFor(select, column))
+        .filter((key): key is string => key !== null)
+      const seen = new Set<string>()
+      rows = rows.filter((row) => {
+        const identity = JSON.stringify(keys.map((key) => (row as Record<string, unknown>)[key]))
+        if (seen.has(identity)) return false
+        seen.add(identity)
+        return true
+      })
+    }
+
+    return select.limit === null ? rows : rows.slice(0, select.limit)
+  }
 
   const builder: Record<string, unknown> = {
-    select: () => {
-      distinctOnKey = null
+    select(projection: Record<string, unknown>) {
+      startSelect(projection ?? {}, [])
       return builder
     },
     selectDistinctOn(columns: unknown[], projection: Record<string, unknown>) {
-      distinctOnKey = Object.keys(projection).find((key) => projection[key] === columns[0]) ?? null
+      startSelect(projection ?? {}, columns)
       return builder
     },
-    from: () => builder,
-    orderBy: () => builder,
-    limit(value: number) {
-      rowLimit = value
+    from(source: unknown) {
+      const handle = (source as Record<symbol, FakeSelect> | null)?.[FAKE_SUBQUERY]
+      if (current && handle) current.source = handle
       return builder
+    },
+    orderBy(...nodes: FakeOrderNode[]) {
+      if (current) current.order = nodes
+      return builder
+    },
+    limit(value: number) {
+      if (current) current.limit = value
+      return builder
+    },
+    as() {
+      const select = current
+      current = null
+      return new Proxy(
+        {},
+        {
+          get(_target, key) {
+            if (key === FAKE_SUBQUERY) return select
+            return select?.projection[key as string]
+          },
+        }
+      )
     },
     update(table: unknown) {
       pending = { op: 'update', table }
@@ -138,21 +232,9 @@ function createFakeTx(results: QueuedRead[]) {
       return builder
     },
     then(onFulfilled: (value: unknown) => unknown) {
-      const next = queue.shift() ?? []
-      let rows = typeof next === 'function' ? next() : next
-      if (distinctOnKey) {
-        const key = distinctOnKey
-        const seen = new Set<unknown>()
-        rows = rows.filter((row) => {
-          const value = (row as Record<string, unknown>)[key]
-          if (seen.has(value)) return false
-          seen.add(value)
-          return true
-        })
-      }
-      if (rowLimit !== null) rows = rows.slice(0, rowLimit)
-      distinctOnKey = null
-      rowLimit = null
+      const select = current
+      current = null
+      const rows = select ? evaluate(select) : (queue.shift() ?? [])
       return Promise.resolve(rows).then(onFulfilled)
     },
   }
@@ -160,12 +242,13 @@ function createFakeTx(results: QueuedRead[]) {
   return { tx: builder as never, writes, remaining: () => queue.length }
 }
 
-const archivedRow = (id: string, serverId: string, toolName: string) => ({
+const archivedRow = (id: string, serverId: string, toolName: string, updatedAt?: Date) => ({
   id,
   serverId,
   toolName,
   toolDescription: null,
   parameterSchema: { type: 'object', properties: {} },
+  updatedAt,
 })
 
 const toolRow = (id: string, serverId: string) => ({
@@ -273,10 +356,15 @@ describe('workflow MCP tool withdrawal and restore', () => {
    */
   it('restores every distinct server even when one server has more archived generations than the bound', async () => {
     const duplicates = Array.from({ length: MAX_MCP_SERVERS_PER_WORKFLOW }, (_, index) =>
-      archivedRow(`t-dup-${index}`, 'srv-dup', 'orders')
+      archivedRow(`t-dup-${index}`, 'srv-dup', 'orders', new Date(2020, 0, 1 + index))
     )
+    const newestDuplicateId = `t-dup-${MAX_MCP_SERVERS_PER_WORKFLOW - 1}`
     const { tx, writes } = createFakeTx([
-      [...duplicates, archivedRow('t-2', 'srv-2', 'orders'), archivedRow('t-3', 'srv-3', 'orders')],
+      [
+        ...duplicates,
+        archivedRow('t-2', 'srv-2', 'orders', new Date(2020, 5, 1)),
+        archivedRow('t-3', 'srv-3', 'orders', new Date(2020, 5, 2)),
+      ],
       [],
       [],
       [],
@@ -313,9 +401,64 @@ describe('workflow MCP tool withdrawal and restore', () => {
     expect(
       hasMockCondition(
         restore?.where,
-        (node) => node.type === 'inArray' && (node.values as string[]).includes('t-dup-0')
+        (node) => node.type === 'inArray' && (node.values as string[]).includes(newestDuplicateId)
       )
     ).toBe(true)
+    expect(
+      hasMockCondition(
+        restore?.where,
+        (node) => node.type === 'inArray' && (node.values as string[]).includes('t-dup-0')
+      )
+    ).toBe(false)
+  })
+
+  /**
+   * `DISTINCT ON (server_id)` forces `server_id` to lead the ORDER BY, so
+   * bounding that statement directly keeps the lexicographically lowest server
+   * ids rather than the servers the workflow most recently published on. A
+   * workflow archived across more than `MAX_MCP_SERVERS_PER_WORKFLOW` servers
+   * would then come back on stale servers and leave its current ones archived.
+   * Deduplication and the recency bound must therefore be separate stages.
+   */
+  it('bounds the restore by the most recently used servers, not the lowest server ids', async () => {
+    const overflow = 2
+    const rows = Array.from({ length: MAX_MCP_SERVERS_PER_WORKFLOW + overflow }, (_, index) =>
+      archivedRow(
+        `t-${String(index).padStart(3, '0')}`,
+        `srv-${String(index).padStart(3, '0')}`,
+        'orders',
+        new Date(2020, 0, 1 + index)
+      )
+    )
+
+    const { tx, writes } = createFakeTx([rows])
+
+    await syncMcpToolsForWorkflow({
+      workflowId: WORKFLOW_ID,
+      requestId: REQUEST_ID,
+      state: { blocks: {} },
+      tx,
+      notify: false,
+      throwOnError: true,
+    })
+
+    const lockedServers = mocks.acquireLock.mock.calls.map((call) => call[1])
+    expect(lockedServers).toHaveLength(MAX_MCP_SERVERS_PER_WORKFLOW)
+    expect(lockedServers).toEqual([...lockedServers].sort())
+    expect(lockedServers).not.toContain('srv-000')
+    expect(lockedServers).not.toContain('srv-001')
+    expect(lockedServers).toContain(
+      `srv-${String(MAX_MCP_SERVERS_PER_WORKFLOW + 1).padStart(3, '0')}`
+    )
+
+    const restore = writes.find((write) => write.values?.archivedAt === null)
+    const restoredIds = flattenMockConditions(restore?.where).find(
+      (node) => node.type === 'inArray'
+    )?.values as string[]
+    expect(restoredIds).toHaveLength(MAX_MCP_SERVERS_PER_WORKFLOW)
+    expect(restoredIds).not.toContain('t-000')
+    expect(restoredIds).not.toContain('t-001')
+    expect(restoredIds).toContain(`t-${String(MAX_MCP_SERVERS_PER_WORKFLOW + 1).padStart(3, '0')}`)
   })
 
   /**

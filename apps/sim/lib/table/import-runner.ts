@@ -11,8 +11,8 @@ import {
   CSV_MAX_BATCH_SIZE_BYTES,
   CSV_SCHEMA_SAMPLE_SIZE,
   type CsvHeaderMapping,
-  type CsvSkippedRecord,
   coerceRowsForTable,
+  createCsvRejectionCollector,
   inferColumnType,
   inferSchemaFromCsv,
   sanitizeName,
@@ -47,13 +47,6 @@ const logger = createLogger('TableImportRunner')
 
 /** Emit a progress event / DB update at most every this many rows. */
 const PROGRESS_INTERVAL_ROWS = 5000
-
-/**
- * How many dropped records are kept as a sample on the import record. Bounded because a
- * systematically malformed million-row file would otherwise accumulate a million entries in
- * worker memory and then write them all into the job payload.
- */
-const MAX_REJECTED_SAMPLES = 5
 
 /**
  * Thrown when this worker discovers it no longer owns the table's import (the stale-job janitor
@@ -113,9 +106,8 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
   let source: Readable | undefined
   // Hoisted alongside `source` so the `finally` can persist the summary on every exit path —
   // ready, failed, canceled or superseded.
-  let rowsRejected = 0
+  const rejections = createCsvRejectionCollector()
   let cellsRejected = 0
-  const rejectedSamples: CsvSkippedRecord[] = []
 
   try {
     if (!(await updateJobProgressInWorkspace(tableId, workspaceId, 0, importId))) {
@@ -207,10 +199,7 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
       (headers) => {
         csvHeaders = headers
       },
-      (skipped) => {
-        rowsRejected++
-        if (rejectedSamples.length < MAX_REJECTED_SAMPLES) rejectedSamples.push(skipped)
-      }
+      rejections.onSkip
     )
     // `.pipe` doesn't forward source errors; forward so the iterator throws.
     csvStream.on('error', (err) => parser.destroy(err))
@@ -538,12 +527,12 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
     source?.destroy()
     // Written whatever the outcome (ready, failed, canceled, superseded) so a partial import
     // is observable on the import record instead of only in this worker's memory.
-    if (rowsRejected > 0 || cellsRejected > 0) {
+    if (rejections.summary.rowsRejected > 0 || cellsRejected > 0) {
       try {
         await recordImportRejections(tableId, workspaceId, importId, {
-          rowsRejected,
+          rowsRejected: rejections.summary.rowsRejected,
           cellsRejected,
-          rejectedSamples,
+          rejectedSamples: rejections.summary.rejectedSamples,
         })
       } catch (summaryError) {
         logger.error(`[${requestId}] Failed to record import rejections`, {

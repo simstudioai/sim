@@ -254,6 +254,9 @@ describe('connector sync queue', () => {
   it('reports why a connector that is not accepting a queued sync was skipped', async () => {
     /** `markSyncPending` took nothing: the row already carries a queue entry. */
     dbChainMockFns.returning.mockResolvedValue([])
+    queueTableRows(schemaMock.knowledgeConnector, [
+      { status: 'pending', archivedAt: null, deletedAt: null },
+    ])
 
     const result = await dispatchSync('connector-1', {
       billingAttribution: BILLING_ATTRIBUTION,
@@ -263,6 +266,59 @@ describe('connector sync queue', () => {
     expect(result).toEqual({
       queued: false,
       reason: 'A sync is already queued or running for this connector',
+    })
+    expect(mockTrigger).not.toHaveBeenCalled()
+  })
+
+  it('reports the lifecycle reason when the connector is archived under the queue write', async () => {
+    dbChainMockFns.returning.mockResolvedValue([])
+    queueTableRows(schemaMock.knowledgeConnector, [
+      {
+        status: 'active',
+        archivedAt: new Date('2026-08-21T00:00:00.000Z'),
+        deletedAt: null,
+      },
+    ])
+
+    const result = await dispatchSync('connector-1', {
+      billingAttribution: BILLING_ATTRIBUTION,
+      requestId: 'request-1',
+    })
+
+    expect(result).toEqual({
+      queued: false,
+      reason: 'Connector has been archived or deleted',
+    })
+    expect(mockTrigger).not.toHaveBeenCalled()
+  })
+
+  it('reports the lifecycle reason when the connector is deleted under the queue write', async () => {
+    dbChainMockFns.returning.mockResolvedValue([])
+    queueTableRows(schemaMock.knowledgeConnector, [])
+
+    const result = await dispatchSync('connector-1', {
+      billingAttribution: BILLING_ATTRIBUTION,
+      requestId: 'request-1',
+    })
+
+    expect(result).toEqual({ queued: false, reason: 'Connector no longer exists' })
+    expect(mockTrigger).not.toHaveBeenCalled()
+  })
+
+  it('reports the status when it left the set a run may start from', async () => {
+    dbChainMockFns.returning.mockResolvedValue([])
+    queueTableRows(schemaMock.knowledgeConnector, [
+      { status: 'paused', archivedAt: null, deletedAt: null },
+    ])
+
+    const result = await dispatchSync('connector-1', {
+      billingAttribution: BILLING_ATTRIBUTION,
+      requestId: 'request-1',
+    })
+
+    expect(result).toEqual({
+      queued: false,
+      reason: 'Connector is paused and cannot start a sync',
     })
     expect(mockTrigger).not.toHaveBeenCalled()
   })

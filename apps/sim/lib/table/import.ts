@@ -56,6 +56,47 @@ export interface CsvSkippedRecord {
 }
 
 /**
+ * How many dropped records are kept as a sample alongside a rejection count.
+ * Bounded because a systematically malformed million-row file would otherwise
+ * accumulate one entry per lost record in memory and then carry them all into
+ * whatever the caller writes the summary to.
+ */
+export const MAX_REJECTED_SAMPLES = 5
+
+/**
+ * What a caller reports about the records a parse had to drop.
+ *
+ * `rowsRejected` is a FLOOR, never an exact tally: only hard failures reach
+ * `on_skip` at all, and a single one — `CSV_QUOTE_NOT_CLOSED` swallows the
+ * remainder of the file — can discard many records while being reported once.
+ */
+export interface CsvRejectionSummary {
+  rowsRejected: number
+  rejectedSamples: CsvSkippedRecord[]
+}
+
+/**
+ * Accumulates {@link csvParseOptions}'s `onSkip` calls into a
+ * {@link CsvRejectionSummary}, applying {@link MAX_REJECTED_SAMPLES} once so
+ * every import path caps its sample list the same way.
+ */
+export function createCsvRejectionCollector(): {
+  onSkip: (skipped: CsvSkippedRecord) => void
+  summary: CsvRejectionSummary
+} {
+  const summary: CsvRejectionSummary = { rowsRejected: 0, rejectedSamples: [] }
+  return {
+    onSkip(skipped) {
+      summary.rowsRejected++
+      if (summary.rejectedSamples.length < MAX_REJECTED_SAMPLES) {
+        summary.rejectedSamples.push(skipped)
+      }
+    },
+    summary,
+  }
+}
+
+/**
  * Single source of truth for the `csv-parse` options used by both the buffered
  * sync parser and the streaming parser.
  *
@@ -294,19 +335,33 @@ export class CsvImportValidationError extends Error {
  * is stripped by csv-parse (`bom: true` in {@link csvParseOptions}).
  *
  * For HTTP uploads prefer {@link createCsvParser} so the file isn't buffered.
+ *
+ * `rejections` reports the records the parser had to drop. `skip_records_with_error`
+ * discards them silently, so without this a malformed file imports as a smaller
+ * table and reads exactly like a clean one; see {@link CsvRejectionSummary} for why
+ * the count is a floor.
  */
 export async function parseCsvBuffer(
   input: Buffer | Uint8Array | string,
   delimiter = ','
-): Promise<{ headers: string[]; rows: Record<string, unknown>[] }> {
+): Promise<{
+  headers: string[]
+  rows: Record<string, unknown>[]
+  rejections: CsvRejectionSummary
+}> {
   const { parse } = await import('csv-parse/sync')
 
   const text = decodeCsvText(input)
 
   let headers: string[] = []
-  const options = csvParseOptions(delimiter, (h) => {
-    headers = h
-  })
+  const rejections = createCsvRejectionCollector()
+  const options = csvParseOptions(
+    delimiter,
+    (h) => {
+      headers = h
+    },
+    rejections.onSkip
+  )
   // double-cast-allowed: shared csvParseOptions() loses the `columns` literal that drives
   // csv-parse's record-vs-string[][] overload, but `columns` is always set so records are objects
   const parsed = parse(text, options) as unknown as Record<string, unknown>[]
@@ -319,7 +374,7 @@ export async function parseCsvBuffer(
     throw new OrchestrationError('validation', 'CSV file has no headers')
   }
 
-  return { headers, rows: parsed }
+  return { headers, rows: parsed, rejections: rejections.summary }
 }
 
 /**
@@ -716,17 +771,25 @@ export function parseJsonRows(buffer: Buffer | string): {
 
 /**
  * Parses a tabular upload (CSV, TSV, or JSON array-of-objects) into a uniform
- * `{ headers, rows }` shape, dispatching on file extension and falling back to
- * the MIME content type. Throws on unsupported formats so callers fail fast.
+ * `{ headers, rows, rejections }` shape, dispatching on file extension and falling
+ * back to the MIME content type. Throws on unsupported formats so callers fail fast.
+ *
+ * `rejections` is what a caller publishes so a partially imported file is not
+ * reported as a clean import. The JSON path never drops records — a malformed
+ * element throws — so it always reports none.
  */
 export async function parseFileRows(
   buffer: Buffer,
   fileName: string,
   contentType?: string
-): Promise<{ headers: string[]; rows: Record<string, unknown>[] }> {
+): Promise<{
+  headers: string[]
+  rows: Record<string, unknown>[]
+  rejections: CsvRejectionSummary
+}> {
   const ext = fileName.split('.').pop()?.toLowerCase()
   if (ext === 'json' || contentType === 'application/json') {
-    return parseJsonRows(buffer)
+    return { ...parseJsonRows(buffer), rejections: { rowsRejected: 0, rejectedSamples: [] } }
   }
   if (ext === 'csv' || ext === 'tsv' || contentType === 'text/csv') {
     const delimiter = await detectCsvDelimiter(

@@ -5196,7 +5196,7 @@ sim workflows run <workflowId> [options]
 | `--include-file-base64` | No | Inline eligible output files as base64 content. Rejected when `async` is true. |
 | `--no-include-file-base64` | No | Send --include-file-base64 as false. |
 | `--base64-max-bytes <value>` | No | Maximum total bytes of file content to inline as base64, lowering but never raising the server limit of 16 MiB. Rejected when `async` is true. |
-| `--run-id <value>` | No | Claim this run identifier, so a retried invocation cannot start a second run; reusing a value already claimed fails with RUN_ID_CONFLICT rather than replaying the first result. |
+| `--run-id <value>` | No | One-shot identifier for this run; NOT an idempotency key — reusing a claimed value fails with RUN_ID_CONFLICT instead of replaying the first result, and a fresh value starts another run. |
 | `--manual` | No | Run the current saved workflow state instead of the active deployment. |
 | `--trigger <blockId>` | No | Enter a manual run through this runnable trigger (requires --manual). |
 | `--mock-payload` | No | Use the selected trigger's server-derived mock payload (requires --manual). |

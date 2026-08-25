@@ -177,11 +177,17 @@ async function getRestoreSkipReason(
  * workflow republishes it on exactly the servers it was published on before.
  *
  * Repeated undeploy/skipped-restore/manual-re-add cycles leave several archived
- * generations per server, so the candidate query dedupes in SQL — one row per
- * `server_id`, the most recently updated generation winning — and only then
- * bounds the result at `MAX_MCP_SERVERS_PER_WORKFLOW`. Bounding rows instead
- * would let one server's stale generations consume the budget and silently drop
- * other servers out of the restore entirely.
+ * generations per server, so the candidate query runs in two stages. The inner
+ * `DISTINCT ON (server_id)` keeps one row per server, the most recently updated
+ * generation winning; the outer select then orders that deduplicated set by
+ * recency and bounds it at `MAX_MCP_SERVERS_PER_WORKFLOW`. Both stages are
+ * needed: bounding rows instead of servers would let one server's stale
+ * generations consume the budget and drop other servers out of the restore,
+ * while bounding the inner statement directly would keep the lexicographically
+ * lowest `server_id`s — `DISTINCT ON` requires `server_id` to lead its
+ * `ORDER BY` — and silently leave the workflow's most recently used servers
+ * archived. The bound stays in SQL so the read never grows with the number of
+ * archived generations.
  *
  * A candidate is dropped when reviving it would break an invariant that
  * `performCreateWorkflowMcpTool` enforces on create but that archiving silently
@@ -206,13 +212,14 @@ async function restoreArchivedMcpToolsForWorkflow(
   workflowId: string,
   requestId: string
 ): Promise<void> {
-  const archived: RestoreCandidate[] = await tx
+  const latestPerServer = tx
     .selectDistinctOn([workflowMcpTool.serverId], {
       id: workflowMcpTool.id,
       serverId: workflowMcpTool.serverId,
       toolName: workflowMcpTool.toolName,
       toolDescription: workflowMcpTool.toolDescription,
       parameterSchema: workflowMcpTool.parameterSchema,
+      updatedAt: workflowMcpTool.updatedAt,
     })
     .from(workflowMcpTool)
     .where(and(eq(workflowMcpTool.workflowId, workflowId), isNotNull(workflowMcpTool.archivedAt)))
@@ -221,6 +228,18 @@ async function restoreArchivedMcpToolsForWorkflow(
       desc(workflowMcpTool.updatedAt),
       desc(workflowMcpTool.id)
     )
+    .as('latest_archived_per_server')
+
+  const archived: RestoreCandidate[] = await tx
+    .select({
+      id: latestPerServer.id,
+      serverId: latestPerServer.serverId,
+      toolName: latestPerServer.toolName,
+      toolDescription: latestPerServer.toolDescription,
+      parameterSchema: latestPerServer.parameterSchema,
+    })
+    .from(latestPerServer)
+    .orderBy(desc(latestPerServer.updatedAt), desc(latestPerServer.id))
     .limit(MAX_MCP_SERVERS_PER_WORKFLOW)
 
   if (archived.length === 0) return

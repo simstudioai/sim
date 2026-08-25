@@ -8,6 +8,9 @@ const { mockRequest, output } = vi.hoisted(() => ({
   output: { format: 'json' },
 }))
 
+/** The poll loop's own wait; a real 1.5s pause per poll is not worth testing through. */
+vi.mock('node:timers/promises', () => ({ setTimeout: () => Promise.resolve() }))
+
 vi.mock('../../context', () => ({
   clientFrom: () => ({
     client: { request: mockRequest, requireWorkspace: () => 'ws_local' },
@@ -185,6 +188,60 @@ describe('tables import rejection reporting', () => {
     return logged[0]
   }
 
+  /**
+   * Runs an import that polls once before settling, and returns what the poll
+   * loop wrote to the progress line. A non-TTY stderr suppresses it entirely, so
+   * the flag is asserted on rather than inherited from the test runner.
+   */
+  async function pollAndCaptureProgress(running: Record<string, unknown>): Promise<string[]> {
+    mockRequest
+      .mockResolvedValueOnce({
+        data: {
+          session: { id: 'import_1', status: 'queued', tableId: 'table_1', rowsProcessed: 0 },
+          uploadToken: null,
+          transfer: null,
+        },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          id: 'import_1',
+          status: 'running',
+          tableId: 'table_1',
+          rowsProcessed: 7,
+          rejectedSamples: [],
+          error: null,
+          ...running,
+        },
+      })
+      .mockResolvedValue({
+        data: {
+          id: 'import_1',
+          status: 'completed',
+          tableId: 'table_1',
+          rowsProcessed: 7,
+          rowsRejected: 0,
+          cellsRejected: 0,
+          rejectedSamples: [],
+          error: null,
+        },
+      })
+
+    const written: string[] = []
+    const wasTTY = process.stderr.isTTY
+    Object.defineProperty(process.stderr, 'isTTY', { value: true, configurable: true })
+    vi.spyOn(process.stderr, 'write').mockImplementation((chunk: unknown) => {
+      written.push(String(chunk))
+      return true
+    })
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+    try {
+      await runImport(['--file-id', 'file_1', '--name', 'Customers'])
+    } finally {
+      Object.defineProperty(process.stderr, 'isTTY', { value: wasTTY, configurable: true })
+    }
+    return written
+  }
+
   it('reports the rejected rows a completed import dropped', async () => {
     const line = await importAndCapture({
       rowsRejected: 1,
@@ -217,6 +274,23 @@ describe('tables import rejection reporting', () => {
     const line = await importAndCapture({ rowsRejected: 0, cellsRejected: 3, rejectedSamples: [] })
 
     expect(JSON.parse(line)).toMatchObject({ rowsRejected: 0, cellsRejected: 3 })
+  })
+
+  /**
+   * An import that coerced values without dropping a row reports
+   * `rowsRejected: 0`, so progress keyed on rows alone rendered a lossy run as
+   * clean for as long as it took to finish.
+   */
+  it('names rejected cells in progress even when no row was rejected', async () => {
+    const lines = await pollAndCaptureProgress({ rowsRejected: 0, cellsRejected: 4 })
+
+    expect(lines.join('')).toContain('4 cells rejected')
+  })
+
+  it('says nothing about rejections while an import is still clean', async () => {
+    const lines = await pollAndCaptureProgress({ rowsRejected: 0, cellsRejected: 0 })
+
+    expect(lines.join('')).not.toContain('rejected')
   })
 
   /** A clean import keeps exactly the output it always had. */

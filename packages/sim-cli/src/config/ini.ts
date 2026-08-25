@@ -111,26 +111,35 @@ export function listSections(doc: IniDocument): string[] {
  * Upserts values into a section, creating it when absent. A `null` value removes
  * the key. Existing keys are updated where they sit so surrounding comments keep
  * describing the line they were written above.
+ *
+ * A write targets the first block of that name, matching the first-wins read in
+ * {@link getSection}. A removal instead has to clear every block and every
+ * repeat of the key within one: deleting only the first left a later duplicate
+ * to win the merged read, so `--unset` reported success while the value stayed
+ * in force.
  */
 export function setSectionValues(
   doc: IniDocument,
   name: string,
   values: Record<string, string | null>
 ): void {
-  let section = doc.sections.find((s) => s.name === name)
+  const matching = doc.sections.filter((s) => s.name === name)
+  let section = matching[0]
   if (!section) {
     section = { name, entries: [] }
     doc.sections.push(section)
+    matching.push(section)
   }
 
   for (const [key, value] of Object.entries(values)) {
-    const index = section.entries.findIndex((e) => e.kind === 'kv' && e.key === key)
-
     if (value === null) {
-      if (index !== -1) section.entries.splice(index, 1)
+      for (const target of matching) {
+        target.entries = target.entries.filter((e) => !(e.kind === 'kv' && e.key === key))
+      }
       continue
     }
 
+    const index = section.entries.findIndex((e) => e.kind === 'kv' && e.key === key)
     if (index === -1) {
       section.entries.push({ kind: 'kv', key, value })
     } else {
@@ -139,9 +148,16 @@ export function setSectionValues(
   }
 }
 
+/**
+ * Drops every block carrying the name, and reports whether one was there.
+ *
+ * A hand-edited file can repeat a section, and {@link getSection} merges them
+ * all — so removing only the first left `sim logout` reporting a profile gone
+ * while its later block still answered every read.
+ */
 export function removeSection(doc: IniDocument, name: string): boolean {
-  const index = doc.sections.findIndex((s) => s.name === name)
-  if (index === -1) return false
-  doc.sections.splice(index, 1)
+  const remaining = doc.sections.filter((s) => s.name !== name)
+  if (remaining.length === doc.sections.length) return false
+  doc.sections = remaining
   return true
 }

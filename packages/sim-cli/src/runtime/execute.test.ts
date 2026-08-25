@@ -298,6 +298,29 @@ describe('a bulk call that changed nothing', () => {
     await expect(invokeWithFlags('moveTables', MOVE_TABLES, {})).rejects.toThrow(/Moved nothing/)
   })
 
+  /**
+   * A move reports an id nothing resolved to under `notFound`, leaving `failed`
+   * empty — so a check reading `failed` alone exited `0` on a batch of typos,
+   * the exact case it exists to catch.
+   */
+  it('fails the process when every table to move was missing', async () => {
+    request.mockResolvedValue({
+      data: {
+        moved: [],
+        skipped: [],
+        notFound: [
+          { kind: 'table', id: 'tbl_nope1' },
+          { kind: 'table', id: 'tbl_nope2' },
+        ],
+        failed: [],
+      },
+    })
+
+    await expect(invokeWithFlags('moveTables', MOVE_TABLES, {})).rejects.toThrow(
+      /Moved nothing: 2 of 2 items were not found or could not be moved\./
+    )
+  })
+
   it('succeeds on a partial table move', async () => {
     request.mockResolvedValue({
       data: {

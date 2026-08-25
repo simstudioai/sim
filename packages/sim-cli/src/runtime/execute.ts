@@ -103,9 +103,9 @@ export const BULK_OUTCOME_CHECKS: Readonly<Partial<Record<V2OperationName, BulkO
   },
   moveTables: (payload) => {
     if (lengthOf(payload.moved) > 0) return null
-    const failed = lengthOf(payload.failed)
-    if (failed === 0) return null
-    return `Moved nothing: ${failed} of ${failed} ${failed === 1 ? 'item' : 'items'} could not be moved.`
+    const missed = lengthOf(payload.notFound) + lengthOf(payload.failed)
+    if (missed === 0) return null
+    return `Moved nothing: ${missed} of ${missed} ${missed === 1 ? 'item was' : 'items were'} not found or could not be moved.`
   },
   moveWorkflows: (payload) => {
     if (lengthOf(payload.moved) > 0) return null

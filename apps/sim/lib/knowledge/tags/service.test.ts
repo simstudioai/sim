@@ -11,7 +11,11 @@ vi.mock('@sim/utils/id', () => ({
   generateShortId: vi.fn(() => 'short-id'),
 }))
 
-import { createOrUpdateTagDefinitionsBulk } from '@/lib/knowledge/tags/service'
+import {
+  createOrUpdateTagDefinitionsBulk,
+  createTagDefinition,
+  updateTagDefinition,
+} from '@/lib/knowledge/tags/service'
 
 const NOW = new Date('2026-01-01T00:00:00.000Z')
 
@@ -198,5 +202,101 @@ describe('createOrUpdateTagDefinitionsBulk', () => {
     expect(result.created).toEqual([])
     expect(result.errors).toEqual(['Display name "CLITEST-CAT" already exists'])
     expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+  })
+
+  it('reads the snapshot it compares against under the knowledge base row lock', async () => {
+    queueTableRows(knowledgeBaseTagDefinitions, [])
+
+    await createOrUpdateTagDefinitionsBulk(
+      'kb-1',
+      { definitions: [{ tagSlot: 'tag1', displayName: 'clitest-locked', fieldType: 'text' }] },
+      'request-10'
+    )
+
+    expect(dbChainMockFns.transaction).toHaveBeenCalled()
+    expect(dbChainMockFns.for).toHaveBeenCalledWith('update')
+  })
+})
+
+describe('createTagDefinition', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('refuses a display name an existing definition holds in another case', async () => {
+    queueTableRows(knowledgeBaseTagDefinitions, [
+      existingDefinition({ displayName: 'clitest-cat' }),
+    ])
+
+    await expect(
+      createTagDefinition(
+        {
+          knowledgeBaseId: 'kb-1',
+          tagSlot: 'tag2',
+          displayName: 'CLITEST-CAT',
+          fieldType: 'text',
+        },
+        'request-11'
+      )
+    ).rejects.toThrow('A tag with that name already exists in this knowledge base')
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+  })
+
+  it('checks and inserts inside one transaction holding the knowledge base row lock', async () => {
+    queueTableRows(knowledgeBaseTagDefinitions, [])
+
+    await createTagDefinition(
+      {
+        knowledgeBaseId: 'kb-1',
+        tagSlot: 'tag2',
+        displayName: 'clitest-free',
+        fieldType: 'text',
+      },
+      'request-12'
+    )
+
+    expect(dbChainMockFns.transaction).toHaveBeenCalled()
+    expect(dbChainMockFns.for).toHaveBeenCalledWith('update')
+    expect(dbChainMockFns.insert).toHaveBeenCalled()
+  })
+})
+
+describe('updateTagDefinition', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('refuses a rename onto a sibling name that differs only in case', async () => {
+    queueTableRows(knowledgeBaseTagDefinitions, [
+      existingDefinition({ id: 'tag-def-1', displayName: 'clitest-cat' }),
+      existingDefinition({ id: 'tag-def-2', tagSlot: 'tag2', displayName: 'clitest-dog' }),
+    ])
+
+    await expect(
+      updateTagDefinition('tag-def-2', 'kb-1', { displayName: 'CLITEST-CAT' }, 'request-13')
+    ).rejects.toThrow('A tag with that name already exists in this knowledge base')
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+  })
+
+  it('allows a definition to be renamed to another casing of its own name', async () => {
+    queueTableRows(knowledgeBaseTagDefinitions, [
+      existingDefinition({ id: 'tag-def-1', displayName: 'clitest-cat' }),
+    ])
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      existingDefinition({ id: 'tag-def-1', displayName: 'CLITEST-CAT' }),
+    ])
+
+    const updated = await updateTagDefinition(
+      'tag-def-1',
+      'kb-1',
+      { displayName: 'CLITEST-CAT' },
+      'request-14'
+    )
+
+    expect(updated.displayName).toBe('CLITEST-CAT')
+    expect(dbChainMockFns.transaction).toHaveBeenCalled()
+    expect(dbChainMockFns.for).toHaveBeenCalledWith('update')
   })
 })

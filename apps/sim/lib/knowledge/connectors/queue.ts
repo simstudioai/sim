@@ -99,10 +99,7 @@ export function assertConnectorSyncPayload(value: unknown): ConnectorSyncPayload
 
 export const SYNC_DISPATCH_FAILED_ERROR = 'Sync could not be queued'
 
-/**
- * The skip both queue-entry guards report: the row already carries a queued or
- * running sync, or moved to a status a run cannot start from.
- */
+/** The row already carries a queued or running sync. */
 const SYNC_ALREADY_QUEUED_REASON = 'A sync is already queued or running for this connector'
 
 /**
@@ -176,6 +173,42 @@ async function markSyncPending(connectorId: string): Promise<string | null> {
     .returning({ id: knowledgeConnector.id })
 
   return taken.length > 0 ? dispatchToken : null
+}
+
+/**
+ * Explains a queue entry {@link markSyncPending} did not take.
+ *
+ * Its condition matches on three independent things — the connector is live, it
+ * holds no token, and its status is one a run may start from — so the write
+ * failing does not say which of them refused. Reporting the queued-or-running
+ * reason for all three told a caller whose connector was archived or deleted in
+ * the window after the dispatch guards read the row that a sync was already
+ * running: false, and unactionable. This re-read costs one query on a path that
+ * is already queueing nothing, and the row it sees may have moved again — so it
+ * reports the lifecycle verdicts from the row as it stands now and falls back to
+ * the queue reason for everything else.
+ */
+async function describeUnacceptedSync(connectorId: string): Promise<string> {
+  const [row] = await db
+    .select({
+      status: knowledgeConnector.status,
+      archivedAt: knowledgeConnector.archivedAt,
+      deletedAt: knowledgeConnector.deletedAt,
+    })
+    .from(knowledgeConnector)
+    .where(eq(knowledgeConnector.id, connectorId))
+    .limit(1)
+
+  if (!row) return 'Connector no longer exists'
+  if (row.archivedAt || row.deletedAt) return 'Connector has been archived or deleted'
+  if (row.status !== 'syncing' && !isLockableConnectorStatus(row.status)) {
+    return `Connector is ${row.status} and cannot start a sync`
+  }
+  return SYNC_ALREADY_QUEUED_REASON
+}
+
+function isLockableConnectorStatus(status: string): boolean {
+  return (LOCKABLE_CONNECTOR_STATUSES as readonly string[]).includes(status)
 }
 
 /**
@@ -359,11 +392,13 @@ export async function dispatchSync(
   if (isTriggerAvailable()) {
     const dispatchToken = await markSyncPending(connectorId)
     if (!dispatchToken) {
+      const reason = await describeUnacceptedSync(connectorId)
       logger.info('Skipping sync dispatch: connector is not accepting a queued sync', {
         connectorId,
+        reason,
         requestId,
       })
-      return { queued: false, reason: SYNC_ALREADY_QUEUED_REASON }
+      return { queued: false, reason }
     }
 
     /**
@@ -399,11 +434,13 @@ export async function dispatchSync(
 
   const dispatchToken = await markSyncPending(connectorId)
   if (!dispatchToken) {
+    const reason = await describeUnacceptedSync(connectorId)
     logger.info('Skipping sync execution: connector is not accepting a queued sync', {
       connectorId,
+      reason,
       requestId,
     })
-    return { queued: false, reason: SYNC_ALREADY_QUEUED_REASON }
+    return { queued: false, reason }
   }
 
   executeSync(connectorId, {

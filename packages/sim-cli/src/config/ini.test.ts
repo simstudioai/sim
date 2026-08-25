@@ -123,6 +123,29 @@ describe('ini', () => {
     })
   })
 
+  /**
+   * A merged read makes a later duplicate the active value once the first copy
+   * is gone, so clearing only the first block reported an unset that did not
+   * happen.
+   */
+  it('unsets a key in every block that repeats the section', () => {
+    const doc = parseIni('[default]\nendpoint = https://first.example\n[default]\nendpoint = x\n')
+
+    setSectionValues(doc, 'default', { endpoint: null })
+
+    expect(getSection(parseIni(serializeIni(doc)), 'default')).toEqual({})
+  })
+
+  /** Same reasoning for a whole profile: `sim logout` has to leave none of it. */
+  it('removes every block that repeats the section name', () => {
+    const doc = parseIni('[profile dev]\napi_key = a\n[profile dev]\napi_key = b\n')
+
+    expect(removeSection(doc, 'profile dev')).toBe(true)
+
+    expect(getSection(doc, 'profile dev')).toBe(null)
+    expect(listSections(doc)).toEqual([])
+  })
+
   it('does not open a gap inside the last section across repeated writes', () => {
     let text = SAMPLE
     for (const [key, value] of [

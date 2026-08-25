@@ -73,10 +73,20 @@ function rejectionFields(job: TableImport): Record<string, unknown> {
   }
 }
 
-/** The progress text for an in-flight import, naming rejections once there are any. */
+/**
+ * The progress text for an in-flight import, naming rejections once there are any.
+ *
+ * Cells are counted alongside rows because an import that coerced away values
+ * without dropping a single row reports `rowsRejected: 0`, and a suffix keyed on
+ * rows alone rendered that run as clean while it was losing data.
+ */
 function progressLine(job: TableImport): string {
-  const rejected = job.rowsRejected ?? 0
-  const suffix = rejected > 0 ? `, ${rejected} rejected` : ''
+  const rows = job.rowsRejected ?? 0
+  const cells = job.cellsRejected ?? 0
+  const parts: string[] = []
+  if (rows > 0) parts.push(`${rows} rows rejected`)
+  if (cells > 0) parts.push(`${cells} cells rejected`)
+  const suffix = parts.length > 0 ? `, ${parts.join(', ')}` : ''
   return `${job.status}… ${job.rowsProcessed} rows${suffix}`
 }
 

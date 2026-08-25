@@ -145,6 +145,21 @@ export const v2GetBillingStatusContract = defineRouteContract({
  * holding a cursor from another environment or a wiped ledger fails loudly instead
  * of looping over page 1 and counting the same credits on every lap.
  */
+/**
+ * The ledger's window bounds, hoisted so the ordering refinement below can ask
+ * the *same* schema whether a bound is a usable instant. `Date.parse` is a
+ * strictly wider parser than this one — it accepts a UTC offset instead of `Z`,
+ * and it accepts year `0000` — so a bound this schema has already rejected can
+ * still yield a number and drag the ordering comparison into answering a
+ * question about a value the caller was just told is not acceptable.
+ */
+const billingWindowStartSchema = v2RunWindowBoundSchema('startDate').describe(
+  'Only include usage events recorded at or after this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. Requires `period=custom`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant.'
+)
+const billingWindowEndSchema = v2RunWindowBoundSchema('endDate').describe(
+  'Only include usage events recorded at or before this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. Requires `period=custom`, and defaults to now when omitted. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant.'
+)
+
 export const v2BillingLogsQuerySchema = z
   .object({
     source: usageLogSourceSchema.optional().describe('Restrict results to one usage source.'),
@@ -166,17 +181,9 @@ export const v2BillingLogsQuerySchema = z
         'Relative window, all history, or a custom date range. `startDate` and `endDate` are accepted only with `custom`; every other value computes its own window.'
       ),
     /** Required when `period` is `'custom'`, and rejected otherwise. */
-    startDate: v2RunWindowBoundSchema('startDate')
-      .describe(
-        'Only include usage events recorded at or after this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. Requires `period=custom`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant.'
-      )
-      .optional(),
+    startDate: billingWindowStartSchema.optional(),
     /** Defaults to now when omitted for `'custom'`; rejected for every other period. */
-    endDate: v2RunWindowBoundSchema('endDate')
-      .describe(
-        'Only include usage events recorded at or before this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. Requires `period=custom`, and defaults to now when omitted. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant.'
-      )
-      .optional(),
+    endDate: billingWindowEndSchema.optional(),
     ...v2PaginationFields({ description: 'Maximum usage events per page.' }),
   })
   .strict()
@@ -212,18 +219,23 @@ export const v2BillingLogsQuerySchema = z
   .refine(
     (query) => {
       if (!query.startDate || !query.endDate) return true
-      const start = Date.parse(query.startDate)
-      const end = Date.parse(query.endDate)
       /**
        * A bound that already failed its own format check still reaches this
-       * comparison — an object refinement runs whatever its shape reported — and
-       * arrives as `NaN`, which compares false against everything. Ordering is a
-       * question about two instants, so it can only be asked once both bounds
-       * are instants; otherwise the caller is told its window is inverted on top
-       * of the issue naming the value that is not a timestamp at all.
+       * comparison — an object refinement runs whatever its shape reported.
+       * Ordering is a question about two instants, so it can only be asked once
+       * both bounds *are* instants by this contract's definition; otherwise the
+       * caller is told its window is inverted on top of the issue naming the
+       * value that was not acceptable in the first place. The gate is the bound
+       * schema itself rather than `Date.parse`, which accepts shapes this
+       * contract rejects — an offset instead of `Z`, or year `0000`.
        */
-      if (Number.isNaN(start) || Number.isNaN(end)) return true
-      return start <= end
+      if (
+        !billingWindowStartSchema.safeParse(query.startDate).success ||
+        !billingWindowEndSchema.safeParse(query.endDate).success
+      ) {
+        return true
+      }
+      return Date.parse(query.startDate) <= Date.parse(query.endDate)
     },
     {
       error: 'startDate must be before or equal to endDate',

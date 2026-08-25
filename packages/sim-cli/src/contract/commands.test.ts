@@ -403,6 +403,20 @@ function flatHelp(...names: string[]): string {
 }
 
 describe('help and gates state what is actually true', () => {
+  /**
+   * `--run-id` names a header that reads like an idempotency key and is not one:
+   * reusing a claimed value is refused outright, and a fresh one starts a second
+   * run — so neither reading of "retry with this" is safe, and help that only
+   * implied one-shot semantics left the caller to find that out from a failed
+   * retry.
+   */
+  it('denies that --run-id makes a retry idempotent', () => {
+    const help = flatHelp('workflows', 'run')
+
+    expect(help).toContain('NOT an idempotency key')
+    expect(help).toContain('RUN_ID_CONFLICT')
+  })
+
   it('warns about the chunk batch in terms true of every operation it accepts', () => {
     // `--operation` takes enable, disable, or delete. The first two are
     // reversible and destroy nothing, so a gate message promising a possible

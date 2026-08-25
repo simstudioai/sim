@@ -25,15 +25,21 @@ import { getWorkflowExecutionStatus } from '@/lib/workflows/executor/execution-s
  * block produced nothing".
  *
  * A head that *is* a well-formed id but produced no output stays a legitimate
- * empty answer: the block may simply not have run on this path.
+ * empty answer: the block may simply not have run on this path. That is also
+ * why a run carrying no output projection at all — queued, resuming, or asked
+ * about without `includeOutput` — is judged on the selector's shape alone
+ * rather than waved through: a block *name* has nothing to resolve against on
+ * such a run either, and letting it pass restores exactly the silent empty
+ * answer this check exists to remove.
  */
 function unresolvableSelectors(
   selectedOutputs: readonly string[],
-  blockOutputs: Record<string, unknown> | null
+  blockOutputs: Record<string, unknown> | null | undefined
 ): string[] {
-  if (!blockOutputs) return []
   return selectedOutputs.filter(
-    (selector) => !Object.hasOwn(blockOutputs, selector) && !isValidUuid(selector.split('.')[0])
+    (selector) =>
+      !(blockOutputs && Object.hasOwn(blockOutputs, selector)) &&
+      !isValidUuid(selector.split('.')[0])
   )
 }
 
