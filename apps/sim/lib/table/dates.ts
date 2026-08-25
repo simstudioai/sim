@@ -38,6 +38,31 @@ const WALL_INSTANT_PATTERN =
 const LOCALIZED_WALL_CLOCK_PATTERN =
   /^(\d{1,2})\/(\d{1,2})\/(\d{4})[ ,]+(\d{1,2}):(\d{2})(?::(\d{2}))?(?:\s*(AM|PM))?$/i
 
+const MONTH_NAME_PATTERN =
+  'Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?'
+const MONTH_FIRST_DATE_PATTERN = new RegExp(
+  `\\b(${MONTH_NAME_PATTERN})\\s+(\\d{1,2})(?:,)?\\s+(\\d{4})\\b`,
+  'i'
+)
+const DAY_FIRST_DATE_PATTERN = new RegExp(
+  `\\b(\\d{1,2})\\s+(${MONTH_NAME_PATTERN})(?:,)?\\s+(\\d{4})\\b`,
+  'i'
+)
+const MONTH_BY_ABBREVIATION: Record<string, number> = {
+  JAN: 1,
+  FEB: 2,
+  MAR: 3,
+  APR: 4,
+  MAY: 5,
+  JUN: 6,
+  JUL: 7,
+  AUG: 8,
+  SEP: 9,
+  OCT: 10,
+  NOV: 11,
+  DEC: 12,
+}
+
 /**
  * Legacy shape: old CSV imports stored date-only columns as UTC-midnight
  * instants. Treated as calendar dates so historical rows render as pure days
@@ -183,11 +208,46 @@ function parseLocalizedWallClock(match: RegExpMatchArray): string | null {
   )
 }
 
+interface CalendarFields {
+  year: number
+  month: number
+  day: number
+}
+
+/** Extracts literal calendar fields from supported month-name date forms. */
+function extractMonthNameCalendar(value: string): CalendarFields | null {
+  const monthFirst = value.match(MONTH_FIRST_DATE_PATTERN)
+  if (monthFirst) {
+    return {
+      year: Number(monthFirst[3]),
+      month: MONTH_BY_ABBREVIATION[monthFirst[1].slice(0, 3).toUpperCase()],
+      day: Number(monthFirst[2]),
+    }
+  }
+  const dayFirst = value.match(DAY_FIRST_DATE_PATTERN)
+  if (!dayFirst) return null
+  return {
+    year: Number(dayFirst[3]),
+    month: MONTH_BY_ABBREVIATION[dayFirst[2].slice(0, 3).toUpperCase()],
+    day: Number(dayFirst[1]),
+  }
+}
+
 /** Recovers broader naive `Date.parse` inputs without consulting the runtime timezone. */
 function parseNaiveWallClockAsUtc(value: string): string | null {
+  const calendar = extractMonthNameCalendar(value)
+  if (calendar && !isValidCalendarDay(calendar.year, calendar.month, calendar.day)) return null
   const ms = Date.parse(`${value} UTC`)
   if (Number.isNaN(ms)) return null
   const parsed = new Date(ms)
+  if (
+    calendar &&
+    (parsed.getUTCFullYear() !== calendar.year ||
+      parsed.getUTCMonth() + 1 !== calendar.month ||
+      parsed.getUTCDate() !== calendar.day)
+  ) {
+    return null
+  }
   return `${toUtcCalendarDate(parsed)}T${pad(parsed.getUTCHours())}:${pad(parsed.getUTCMinutes())}:${pad(parsed.getUTCSeconds())}`
 }
 

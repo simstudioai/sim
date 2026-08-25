@@ -136,11 +136,11 @@ describe('zonedWallClockToUtc', () => {
   )
 
   it.each([
-    ['America/New_York', '2026-11-01T01:30', '2026-11-01T05:30:00.000Z', '-04:00'],
-    ['Europe/Berlin', '2026-10-25T02:30', '2026-10-25T00:30:00.000Z', '+02:00'],
-    ['Australia/Lord_Howe', '2026-04-05T01:45', '2026-04-04T14:45:00.000Z', '+11:00'],
+    ['America/New_York', '2026-11-01T01:30', '2026-11-01T06:30:00.000Z', '-05:00'],
+    ['Europe/Berlin', '2026-10-25T02:30', '2026-10-25T01:30:00.000Z', '+01:00'],
+    ['Australia/Lord_Howe', '2026-04-05T01:45', '2026-04-04T15:15:00.000Z', '+10:30'],
   ])(
-    'keeps the earlier instant for an ambiguous fall-back wall-clock in %s',
+    'chooses the later post-transition instant for an ambiguous fall-back wall-clock in %s',
     (timeZone, wallClock, expectedInstant, expectedOffset) => {
       const instant = zonedWallClockToUtc(wallClock, timeZone)
       const stampedWallClock = zonedWallClockWithOffset(wallClock, timeZone)

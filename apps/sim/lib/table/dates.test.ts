@@ -97,8 +97,26 @@ describe('normalizeDateCellValue', () => {
     )
   })
 
+  it('rejects impossible month-name calendar dates', () => {
+    expect(
+      normalizeDateCellValue('February 29, 2025 2:30 AM', { timezone: 'America/New_York' })
+    ).toBeNull()
+    expect(
+      normalizeDateCellValue('April 31, 2026 4:04 PM', { timezone: 'America/New_York' })
+    ).toBeNull()
+  })
+
+  it('accepts valid leap-day month-name wall clocks in either date order', () => {
+    expect(
+      normalizeDateCellValue('February 29, 2024 4:04 PM', { timezone: 'America/New_York' })
+    ).toBe('2024-02-29T16:04:00-05:00')
+    expect(normalizeDateCellValue('29 Feb 2024 4:04 PM', { timezone: 'America/New_York' })).toBe(
+      '2024-02-29T16:04:00-05:00'
+    )
+  })
+
   it.each([
-    ['America/New_York', '2026-11-01 01:30:00', '2026-11-01T01:30:00-04:00'],
+    ['America/New_York', '2026-11-01 01:30:00', '2026-11-01T01:30:00-05:00'],
     ['America/New_York', '2026-03-08 02:30:00', '2026-03-08T02:30:00-05:00'],
     ['Asia/Kathmandu', '2026-06-15 09:00:00', '2026-06-15T09:00:00+05:45'],
     ['Australia/Lord_Howe', '2026-06-15 09:00:00', '2026-06-15T09:00:00+10:30'],

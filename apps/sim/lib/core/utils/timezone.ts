@@ -250,7 +250,7 @@ function resolveZonedWallClock(wallClock: string, timeZone: string): ZonedWallCl
   })
   const exactCandidate = candidates
     .filter(({ wallClockMs }) => wallClockMs === utcGuess)
-    .sort((a, b) => a.instantMs - b.instantMs)[0]
+    .sort((a, b) => b.instantMs - a.instantMs)[0]
   const compatibleCandidate = candidates
     .filter(({ wallClockMs }) => wallClockMs > utcGuess)
     .sort((a, b) => a.wallClockMs - b.wallClockMs || a.instantMs - b.instantMs)[0]
@@ -269,7 +269,7 @@ function resolveZonedWallClock(wallClock: string, timeZone: string): ZonedWallCl
  * date (including future ones whose offset differs from today's) and across DST:
  * a naive single pass reads the offset on the wrong side of a same-day boundary
  * — notably the autumn fall-back hour — and lands an hour off. For an ambiguous
- * fall-back wall-clock the earlier instant is chosen; a
+ * fall-back wall-clock the later, post-transition instant is chosen; a
  * wall-clock in the spring-forward gap (a nonexistent local hour) has no
  * self-consistent instant and resolves forward by the DST shift, matching how
  * calendar apps treat that once-a-year hour.
