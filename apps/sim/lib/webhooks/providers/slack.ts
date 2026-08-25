@@ -808,6 +808,50 @@ export function shouldSkipSlackTriggerEvent(
   return false
 }
 
+/**
+ * Resolves the bot token a Slack webhook can act with, across the three trigger
+ * backends: a pasted bot token (legacy `slack_webhook`), a reusable custom-bot
+ * credential's stored token, and a native `slack_app` OAuth credential. The
+ * OAuth credential resolves via its OWNER (not the execution actor in
+ * `workflow.userId`, who may not own the credential) so reaction-message text
+ * and file downloads work. `credentialOwnerUserId` short-circuits the
+ * credential → account → owner chain when the caller already resolved it.
+ */
+async function resolveSlackWebhookBotToken(
+  providerConfig: Record<string, unknown>,
+  requestId: string,
+  credentialOwnerUserId?: string
+): Promise<string | undefined> {
+  const pastedToken = providerConfig.botToken as string | undefined
+  if (pastedToken || typeof providerConfig.credentialId !== 'string') {
+    return pastedToken
+  }
+  const credentialId = providerConfig.credentialId
+
+  const botCredential = await getSlackBotCredential(credentialId)
+  if (botCredential?.botToken) {
+    return botCredential.botToken
+  }
+
+  let ownerUserId = credentialOwnerUserId
+  if (!ownerUserId) {
+    const resolved = await resolveOAuthAccountId(credentialId)
+    if (!resolved?.accountId) {
+      return undefined
+    }
+    const [owner] = await db
+      .select({ userId: account.userId })
+      .from(account)
+      .where(eq(account.id, resolved.accountId))
+      .limit(1)
+    ownerUserId = owner?.userId
+  }
+  if (!ownerUserId) {
+    return undefined
+  }
+  return (await refreshAccessTokenIfNeeded(credentialId, ownerUserId, requestId)) ?? undefined
+}
+
 export const slackHandler: WebhookProviderHandler = {
   verifyAuth({ request, rawBody, requestId, providerConfig }: AuthContext) {
     const signingSecret = providerConfig.signingSecret as string | undefined
@@ -870,34 +914,19 @@ export const slackHandler: WebhookProviderHandler = {
    * `actions[]` and no Events-API `event` envelope), and the Events API
    * (app_mention, message, reaction_added, ... nested under `event`).
    */
-  async formatInput({ body, webhook, requestId }: FormatInputContext): Promise<FormatInputResult> {
+  async formatInput({
+    body,
+    webhook,
+    requestId,
+    credentialOwnerUserId,
+  }: FormatInputContext): Promise<FormatInputResult> {
     const b = isRecordLike(body) ? body : {}
     const providerConfig = (webhook.providerConfig as Record<string, unknown>) || {}
-    let botToken = providerConfig.botToken as string | undefined
-    // Reusable custom Slack bot credential: use its stored bot token directly.
-    if (!botToken && typeof providerConfig.credentialId === 'string') {
-      const botCredential = await getSlackBotCredential(providerConfig.credentialId)
-      if (botCredential) botToken = botCredential.botToken
-    }
-    // Native (slack_app) triggers carry an OAuth credential rather than a pasted
-    // bot token; resolve it via the credential's OWNER (not the execution actor
-    // in workflow.userId, who may not own the credential) so reaction-message
-    // text and file downloads work.
-    if (!botToken && typeof providerConfig.credentialId === 'string') {
-      const credentialId = providerConfig.credentialId
-      const resolved = await resolveOAuthAccountId(credentialId)
-      if (resolved?.accountId) {
-        const [owner] = await db
-          .select({ userId: account.userId })
-          .from(account)
-          .where(eq(account.id, resolved.accountId))
-          .limit(1)
-        if (owner?.userId) {
-          botToken =
-            (await refreshAccessTokenIfNeeded(credentialId, owner.userId, requestId)) ?? undefined
-        }
-      }
-    }
+    const botToken = await resolveSlackWebhookBotToken(
+      providerConfig,
+      requestId,
+      credentialOwnerUserId
+    )
     const includeFiles = Boolean(providerConfig.includeFiles)
 
     if (typeof b?.command === 'string' && b.command.startsWith('/')) {
