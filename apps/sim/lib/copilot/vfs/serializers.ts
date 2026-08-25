@@ -46,7 +46,7 @@ export type VfsToolAuth =
        * credential (connect AS AN APPLICATION, not as the user). The agent emits
        * a `service_account` credential tag with this entry's OAuth `provider` to
        * open the in-chat setup form. Omitted when the service has no
-       * service-account flow, or its flow is gated by a preview block.
+       * service-account flow or its owning block is hidden.
        */
       serviceAccount?: VfsServiceAccountAuth
     }
@@ -63,10 +63,8 @@ export type VfsToolAuth =
  * noun for the secret it collects. The single composition point behind both the
  * per-tool `auth.serviceAccount` field and the `oauth-integrations.json`
  * roll-up, so the two never disagree. Returns `undefined` when the service has
- * no service-account flow, or its flow is gated by a preview block (a custom
- * Slack bot needs slack_v2) that is not the visible owner being serialized.
- * This keeps the default projection GA-only while allowing a revealed preview
- * block's own schema to describe the credential flow it enables.
+ * no service-account flow, or its owning block is hidden and is not the owner
+ * currently being serialized.
  */
 export function describeServiceAccountForOAuthProvider(
   oauthProvider: string,
@@ -77,11 +75,6 @@ export function describeServiceAccountForOAuthProvider(
   const gatingBlockType = getServiceAccountGatingBlockType(serviceAccountProviderId)
   if (gatingBlockType) {
     const gatingBlock = getBlock(gatingBlockType)
-    // Omit when the gating block is missing (fail-closed) or hidden by the
-    // canonical predicate. Passing `null` vis reduces `isHiddenUnder` to the
-    // static preview check — so once the block GAs and drops `preview`, it is
-    // no longer hidden and discovery includes it again, matching the renderer.
-    // Hand-rolling `?.preview ?? true` would keep it omitted forever after GA.
     if (!gatingBlock || (ownerBlockType !== gatingBlockType && isHiddenUnder(null, gatingBlock))) {
       return undefined
     }

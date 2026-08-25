@@ -1394,6 +1394,7 @@ const MICROSOFT_OAUTH_SERVICES = new Set([
   'microsoft-excel',
   'microsoft-teams',
   'microsoft-planner',
+  'microsoft-word',
 ])
 
 export function resolveOAuthClientCapabilityId(serviceId: string): OAuthClientCapabilityId | null {

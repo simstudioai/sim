@@ -34,7 +34,7 @@ describe('isServiceAccountProviderId', () => {
 })
 
 describe('getServiceAccountGatingBlockType', () => {
-  it('maps the custom Slack bot to slack_v2 and leaves everything else ungated', () => {
+  it('maps the custom Slack bot to its owning block and leaves everything else independent', () => {
     expect(getServiceAccountGatingBlockType('slack-custom-bot')).toBe('slack_v2')
     expect(getServiceAccountGatingBlockType('notion-service-account')).toBeNull()
     expect(getServiceAccountGatingBlockType('google-service-account')).toBeNull()

@@ -6,7 +6,7 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { findWebhooksByRoutingKey, parseWebhookBody } from '@/lib/webhooks/processor'
 import { handleSlackChallenge, verifySlackRequestSignature } from '@/lib/webhooks/providers/slack'
-import { dispatchSlackWebhooks } from '@/lib/webhooks/slack-dispatch'
+import { dispatchSlackWebhooks, getSlackDispatchResponse } from '@/lib/webhooks/slack-dispatch'
 
 const logger = createLogger('SlackAppWebhookAPI')
 
@@ -106,7 +106,11 @@ async function handleSlackAppWebhook(request: NextRequest): Promise<NextResponse
     return new NextResponse(null, { status: 200 })
   }
 
-  await dispatchSlackWebhooks(webhooks, { body, request, requestId, receivedAt })
-
-  return new NextResponse(null, { status: 200 })
+  const dispatchResults = await dispatchSlackWebhooks(webhooks, {
+    body,
+    request,
+    requestId,
+    receivedAt,
+  })
+  return getSlackDispatchResponse(dispatchResults)
 }
