@@ -449,6 +449,19 @@ describe('Browser settings', () => {
     ])
   })
 
+  it('reserves the real header actions while preferences are loading', async () => {
+    const bridge = createBridge()
+    bridge.settings.getPreferences = vi.fn(() => new Promise(() => {}))
+    mockBridge.current = bridge
+
+    await render()
+
+    const actions = [...container.querySelectorAll<HTMLButtonElement>('header button')]
+    expect(actions.map((button) => button.textContent)).toEqual(['Passwords', 'Clear all'])
+    expect(actions.every((button) => button.disabled)).toBe(true)
+    expect(container.querySelector('section[aria-label="General"]')).toBeNull()
+  })
+
   it('lists each data type as a standard settings row in one section', async () => {
     await render()
 

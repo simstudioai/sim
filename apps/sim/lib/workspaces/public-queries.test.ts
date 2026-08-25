@@ -3,7 +3,74 @@
  */
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { queryPublicWorkspaceMembers } from '@/lib/workspaces/public-queries'
+import {
+  getPublicWorkspaceDetails,
+  queryPublicWorkspaceMembers,
+} from '@/lib/workspaces/public-queries'
+
+describe('getPublicWorkspaceDetails', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('hydrates member counts for a bounded workspace batch', async () => {
+    queueTableRows(schemaMock.workspace, [
+      {
+        id: 'workspace-b',
+        name: 'Beta',
+        color: '#222222',
+        logoUrl: null,
+        organizationId: 'org-1',
+        createdAt: new Date('2026-01-02T00:00:00.000Z'),
+        updatedAt: new Date('2026-02-02T00:00:00.000Z'),
+      },
+      {
+        id: 'workspace-a',
+        name: 'Alpha',
+        color: '#111111',
+        logoUrl: null,
+        organizationId: null,
+        createdAt: new Date('2026-01-01T00:00:00.000Z'),
+        updatedAt: new Date('2026-02-01T00:00:00.000Z'),
+      },
+    ])
+    dbChainMockFns.execute.mockResolvedValueOnce([
+      { workspaceId: 'workspace-a', count: '2' },
+      { workspaceId: 'workspace-b', count: 4 },
+    ])
+
+    const details = await getPublicWorkspaceDetails(['workspace-a', 'workspace-b'])
+
+    expect(details.get('workspace-a')).toMatchObject({
+      id: 'workspace-a',
+      name: 'Alpha',
+      memberCount: 2,
+    })
+    expect(details.get('workspace-b')).toMatchObject({
+      id: 'workspace-b',
+      name: 'Beta',
+      memberCount: 4,
+    })
+    expect(dbChainMockFns.execute).toHaveBeenCalledTimes(1)
+    const countQuery = dbChainMockFns.execute.mock.calls[0][0] as {
+      values: Array<{
+        fragments: Array<{ strings: string[]; values: unknown[] }>
+      }>
+    }
+    const targetRows = countQuery.values[0].fragments
+    expect(
+      targetRows.every((fragment) => fragment.strings.join('?') === '(?::text, ?::text)')
+    ).toBe(true)
+    expect(targetRows.flatMap((fragment) => fragment.values)).toContain(null)
+  })
+
+  it('does not run a count query for an empty batch', async () => {
+    await expect(getPublicWorkspaceDetails([])).resolves.toEqual(new Map())
+    expect(dbChainMockFns.select).not.toHaveBeenCalled()
+    expect(dbChainMockFns.execute).not.toHaveBeenCalled()
+  })
+})
 
 describe('queryPublicWorkspaceMembers', () => {
   beforeEach(() => {

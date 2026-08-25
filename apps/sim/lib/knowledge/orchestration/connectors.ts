@@ -295,7 +295,16 @@ export async function performCreateKnowledgeConnector(
           encryptedApiKey: resolvedEncryptedApiKey,
           sourceConfig: finalSourceConfig,
           syncIntervalMinutes,
-          status: 'active',
+          /**
+           * The initial sync is dispatched after this transaction commits, so
+           * the row is born with a sync already queued. `markSyncPending` writes
+           * this again moments later — this one exists so the create *response*
+           * is truthful, and the client renders the queued state immediately
+           * rather than an idle connector until its first refetch. The lease and
+           * ownership token that make the queue entry recoverable come from that
+           * later write, which is why it must not skip an already-`pending` row.
+           */
+          status: 'pending',
           nextSyncAt,
           createdAt: now,
           updatedAt: now,
@@ -367,6 +376,8 @@ export interface PerformUpdateKnowledgeConnectorParams extends KnowledgeOperatio
     syncIntervalMinutes?: number
     status?: 'active' | 'paused'
   }
+  /** Resolves the payer only when a source change will queue synchronization. */
+  resolveBillingAttribution: () => Promise<BillingAttributionSnapshot>
   /**
    * Validates a replacement `sourceConfig` against the live source. Supplied by
    * the caller because resolving the connector's token needs the requesting
@@ -409,7 +420,15 @@ export async function getKnowledgeConnector(
 export async function performUpdateKnowledgeConnector(
   params: PerformUpdateKnowledgeConnectorParams
 ): Promise<PerformConnectorResult> {
-  const { knowledgeBase: kb, connectorId, updates, validateSourceConfig, request, source } = params
+  const {
+    knowledgeBase: kb,
+    connectorId,
+    updates,
+    resolveBillingAttribution,
+    validateSourceConfig,
+    request,
+    source,
+  } = params
   const requestId = params.requestId ?? generateRequestId()
 
   const updatedFields = Object.keys(updates).filter(
@@ -447,6 +466,21 @@ export async function performUpdateKnowledgeConnector(
   if (existing.status === 'syncing') {
     return fail('Sync already in progress', 'conflict')
   }
+  /**
+   * A queued run has not read its config yet, so a status change is still safe
+   * and is deliberately allowed — refusing it would leave a connector stranded
+   * behind a lost queue entry unpausable until the reaper's TTL. The two config
+   * edits are refused for the same reasons the `syncing` guard above gives:
+   * `sourceConfig` would have the run list against one config and reconcile
+   * against another, and `syncIntervalMinutes` writes a `nextSyncAt` the run's
+   * terminal write overwrites moments later, silently discarding it.
+   */
+  if (
+    existing.status === 'pending' &&
+    (updates.sourceConfig !== undefined || updates.syncIntervalMinutes !== undefined)
+  ) {
+    return fail('Sync already in progress', 'conflict')
+  }
 
   if (updates.syncIntervalMinutes !== undefined) {
     if (!kb.workspaceId && updates.syncIntervalMinutes > 0 && updates.syncIntervalMinutes < 60) {
@@ -468,19 +502,49 @@ export async function performUpdateKnowledgeConnector(
     }
   }
 
-  const values: Partial<typeof knowledgeConnector.$inferInsert> = { updatedAt: new Date() }
+  const resultingStatus = updates.status ?? existing.status
+  const shouldDispatchSourceSync =
+    updates.sourceConfig !== undefined &&
+    resultingStatus !== 'paused' &&
+    resultingStatus !== 'disabled'
+  let billingAttribution: BillingAttributionSnapshot | undefined
+  let dispatchSourceSync: Awaited<ReturnType<typeof loadDispatchSync>> | undefined
+  if (shouldDispatchSourceSync) {
+    try {
+      billingAttribution = await resolveBillingAttribution()
+      dispatchSourceSync = await loadDispatchSync()
+    } catch (error) {
+      return classifyKnowledgeFailure(error, requestId, `Update connector ${connectorId}`)
+    }
+  }
+
+  const updateTimestamp = new Date()
+  const values: Partial<typeof knowledgeConnector.$inferInsert> = {
+    updatedAt: updateTimestamp,
+  }
   if (updates.sourceConfig !== undefined) {
     values.sourceConfig = updates.sourceConfig
   }
   if (updates.syncIntervalMinutes !== undefined) {
     values.syncIntervalMinutes = updates.syncIntervalMinutes
     values.nextSyncAt =
-      updates.syncIntervalMinutes > 0
-        ? new Date(Date.now() + updates.syncIntervalMinutes * 60 * 1000)
-        : null
+      existing.nextSyncAt && existing.nextSyncAt <= updateTimestamp
+        ? existing.nextSyncAt
+        : updates.syncIntervalMinutes > 0
+          ? new Date(updateTimestamp.getTime() + updates.syncIntervalMinutes * 60 * 1000)
+          : null
   }
   if (updates.status !== undefined) {
     values.status = updates.status
+    /**
+     * Releases a queue entry this status change is walking away from, so no
+     * token survives on a row that is no longer `pending` and the reaper is not
+     * left with a lease it can never match.
+     */
+    if (existing.status === 'pending') {
+      values.syncLockToken = null
+      values.syncLockLeaseAt = null
+    }
     if (updates.status === 'active') {
       values.consecutiveFailures = 0
       values.lastSyncError = null
@@ -491,23 +555,41 @@ export async function performUpdateKnowledgeConnector(
       }
     }
   }
+  if (shouldDispatchSourceSync) {
+    values.nextSyncAt = updateTimestamp
+  }
 
   let updated: ConnectorRow
   try {
+    const updateConditions = [
+      eq(knowledgeConnector.id, connectorId),
+      eq(knowledgeConnector.knowledgeBaseId, kb.id),
+      isNull(knowledgeConnector.archivedAt),
+      isNull(knowledgeConnector.deletedAt),
+    ]
+    updateConditions.push(eq(knowledgeConnector.status, existing.status))
+    if (values.nextSyncAt !== undefined) {
+      updateConditions.push(
+        existing.nextSyncAt
+          ? eq(knowledgeConnector.nextSyncAt, existing.nextSyncAt)
+          : isNull(knowledgeConnector.nextSyncAt)
+      )
+    }
+
     const [row] = await db
       .update(knowledgeConnector)
       .set(values)
-      .where(
-        and(
-          eq(knowledgeConnector.id, connectorId),
-          eq(knowledgeConnector.knowledgeBaseId, kb.id),
-          isNull(knowledgeConnector.archivedAt),
-          isNull(knowledgeConnector.deletedAt)
-        )
-      )
+      .where(and(...updateConditions))
       .returning()
 
     if (!row) {
+      const current = await getKnowledgeConnector(kb.id, connectorId)
+      if (current?.status === 'syncing') {
+        return fail('Sync already in progress', 'conflict')
+      }
+      if (current) {
+        return fail('Connector changed during the update; retry the request', 'conflict')
+      }
       return fail('Connector not found', 'not_found')
     }
     updated = row
@@ -537,6 +619,23 @@ export async function performUpdateKnowledgeConnector(
       },
       ...(request ? { request } : {}),
     })
+  }
+
+  if (dispatchSourceSync && billingAttribution) {
+    try {
+      await dispatchSourceSync(connectorId, {
+        billingAttribution,
+        expectedNextSyncAt: updateTimestamp,
+        requestId,
+        requireRunnable: true,
+      })
+    } catch (error) {
+      return classifyKnowledgeFailure(
+        error,
+        requestId,
+        `Dispatch source-change sync for connector ${connectorId}`
+      )
+    }
   }
 
   return { success: true, connector: withoutSecret(updated) }
@@ -723,8 +822,21 @@ export async function performSyncKnowledgeConnector(
   if (!connector) {
     return fail('Connector not found', 'not_found')
   }
-  if (connector.status === 'syncing') {
+  if (connector.status === 'syncing' || connector.status === 'pending') {
     return fail('Sync already in progress', 'conflict')
+  }
+  /**
+   * A paused or disabled connector is not synced on demand.
+   *
+   * Nothing here can put the pause back: queueing overwrites `status`, and
+   * every exit from the run writes its own verdict — success writes `active`,
+   * and a lost queue entry writes `error`, which the scheduler's due-sweep then
+   * treats as a connector to keep syncing. So one "Sync now" on a paused
+   * connector silently resumes it for good. Resuming is a decision the caller
+   * has to make explicitly, through the status update that says so.
+   */
+  if (connector.status === 'paused' || connector.status === 'disabled') {
+    return fail(`Connector is ${connector.status}. Resume it before triggering a sync.`, 'conflict')
   }
   if (!kb.workspaceId) {
     return fail('Knowledge base is missing workspace billing context', 'conflict')

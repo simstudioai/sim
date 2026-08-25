@@ -204,7 +204,7 @@ describe('POST /api/table/[tableId]/query', () => {
     expect(mockQueryRows.mock.calls[1][1].columnIds).toBeUndefined()
   })
 
-  it('drops a column reference that no longer exists and reports it instead of failing', async () => {
+  it('drops a column reference that no longer exists without exposing diagnostics', async () => {
     authAs('internal_jwt')
     const staleId = `col_${'0'.repeat(32)}`
 
@@ -215,7 +215,7 @@ describe('POST /api/table/[tableId]/query', () => {
 
     expect(res.status).toBe(200)
     expect(mockQueryRows.mock.calls[0][1].columnIds).toEqual(new Set(['col_aaa']))
-    expect((await res.json()).data.ignoredColumns).toEqual(['missing', staleId])
+    expect((await res.json()).data).not.toHaveProperty('ignoredColumns')
   })
 
   it('returns empty row data, not every column, when no requested column exists', async () => {
@@ -225,17 +225,17 @@ describe('POST /api/table/[tableId]/query', () => {
 
     expect(res.status).toBe(200)
     expect(mockQueryRows.mock.calls[0][1].columnIds).toEqual(new Set())
-    expect((await res.json()).data.ignoredColumns).toEqual(['missing'])
+    expect((await res.json()).data).not.toHaveProperty('ignoredColumns')
   })
 
-  it('reports no ignored columns when every requested column exists or none were requested', async () => {
+  it('does not expose ignored-column diagnostics for valid or omitted selections', async () => {
     authAs('internal_jwt')
 
     const selected = await callQuery({ workspaceId: 'workspace-1', columns: ['col_aaa'] })
     const all = await callQuery({ workspaceId: 'workspace-1' })
 
-    expect((await selected.json()).data.ignoredColumns).toEqual([])
-    expect((await all.json()).data.ignoredColumns).toEqual([])
+    expect((await selected.json()).data).not.toHaveProperty('ignoredColumns')
+    expect((await all.json()).data).not.toHaveProperty('ignoredColumns')
   })
 
   it('accepts a root condition and executes its canonical all group', async () => {

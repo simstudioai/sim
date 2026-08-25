@@ -5,7 +5,9 @@ import { wordpressUploadContract } from '@/lib/api/contracts/storage-transfer'
 import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import {
   getFileExtension,
   getMimeTypeFromExtension,
@@ -93,7 +95,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     let resolvedContentType: string
 
     try {
-      const servable = await downloadServableFileFromStorage(userFile, requestId, logger)
+      const servable = await downloadServableFileFromStorage(userFile, requestId, logger, {
+        maxBytes: MAX_BUFFERED_TRANSFER_BYTES,
+      })
       fileBuffer = servable.buffer
       resolvedContentType = servable.contentType
     } catch (error) {
@@ -105,7 +109,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           success: false,
           error: `Failed to download file: ${getErrorMessage(error, 'Unknown error')}`,
         },
-        { status: 500 }
+        { status: isPayloadSizeLimitError(error) ? 413 : 500 }
       )
     }
 

@@ -27,6 +27,7 @@ import {
 } from '@sim/emcn/icons'
 import { type PermissionType, permissionSatisfies } from '@sim/platform-authz/workspace'
 import { CodeIcon, McpIcon } from '@/components/icons'
+import type { SettingsHeaderMeta } from '@/components/settings/settings-header'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import {
   isAccessControlEnabled,
@@ -965,6 +966,20 @@ export interface WorkspacePermissionConfig {
   disableCustomTools?: boolean
 }
 
+const WORKSPACE_PERMISSION_CONFIG_KEYS: Partial<
+  Record<WorkspaceSettingsSection, keyof WorkspacePermissionConfig>
+> = {
+  secrets: 'hideSecretsTab',
+  'api-keys': 'hideApiKeysTab',
+  inbox: 'hideInboxTab',
+  mcp: 'disableMcpTools',
+  'custom-tools': 'disableCustomTools',
+}
+
+export function workspaceSectionUsesPermissionConfig(section: WorkspaceSettingsSection): boolean {
+  return WORKSPACE_PERMISSION_CONFIG_KEYS[section] !== undefined
+}
+
 export interface WorkspaceSettingsEntitlements {
   byok: boolean
   credentialGroups: boolean
@@ -1036,11 +1051,8 @@ export function resolveWorkspaceNavigation({
   entitlements,
 }: ResolveWorkspaceNavigationOptions): ResolvedWorkspaceNavigationItem[] {
   return WORKSPACE_SETTINGS_ITEMS.flatMap((item) => {
-    if (item.id === 'secrets' && permissionConfig.hideSecretsTab) return []
-    if (item.id === 'api-keys' && permissionConfig.hideApiKeysTab) return []
-    if (item.id === 'inbox' && permissionConfig.hideInboxTab) return []
-    if (item.id === 'mcp' && permissionConfig.disableMcpTools) return []
-    if (item.id === 'custom-tools' && permissionConfig.disableCustomTools) return []
+    const permissionConfigKey = WORKSPACE_PERMISSION_CONFIG_KEYS[item.id]
+    if (permissionConfigKey && permissionConfig[permissionConfigKey]) return []
     if (item.id === 'forks' && (permission !== 'admin' || !entitlements.forks)) return []
     if (
       item.id === 'credential-groups' &&
@@ -1064,6 +1076,19 @@ export function resolveWorkspaceNavigation({
 
     return [{ ...item, canMutate, locked }]
   })
+}
+
+/**
+ * Adapts a navigation entry to the header shell's static identity.
+ *
+ * The catalog calls it `label` because it names a sidebar row; the shell calls it `title`
+ * because it renders a heading. One adapter keeps every plane's shell fed from the catalog
+ * instead of each one restating the mapping.
+ */
+export function toSettingsHeaderMeta(
+  item: Pick<SettingsNavigationItem, 'label' | 'description' | 'docsLink'>
+): SettingsHeaderMeta {
+  return { title: item.label, description: item.description, docsLink: item.docsLink }
 }
 
 export function getSettingsSectionMeta(

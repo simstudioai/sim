@@ -28,6 +28,13 @@ export const OTP_EMAIL_RATE_LIMIT: TokenBucketConfig = {
   refillIntervalMs: 15 * 60_000,
 }
 
+/** Caps OTP requests against one deployment independently of client identity. */
+export const OTP_RESOURCE_RATE_LIMIT: TokenBucketConfig = {
+  maxTokens: 100,
+  refillRate: 100,
+  refillIntervalMs: 15 * 60_000,
+}
+
 /**
  * Key formats are kept per-kind to preserve any in-flight OTPs already issued
  * against existing chat deployments. The chat Redis key uses the legacy `otp:`

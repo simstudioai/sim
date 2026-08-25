@@ -136,8 +136,24 @@ export function Browser() {
     }
   }, [])
 
+  const actions = [
+    {
+      id: 'passwords',
+      text: 'Passwords',
+      onSelect: () => setShowPasswords(true),
+      disabled: !preferences,
+    },
+    {
+      id: 'clear-all',
+      text: 'Clear all',
+      variant: 'destructive' as const,
+      onSelect: () => setConfirming('all'),
+      disabled: !preferences || clearPending,
+    },
+  ]
+
   if (!preferences) {
-    return null
+    return <SettingsPanel actions={actions} />
   }
 
   if (showPasswords) {
@@ -160,17 +176,7 @@ export function Browser() {
 
   return (
     <>
-      <SettingsPanel
-        actions={[
-          { text: 'Passwords', onSelect: () => setShowPasswords(true) },
-          {
-            text: 'Clear all',
-            variant: 'destructive' as const,
-            onSelect: () => setConfirming('all'),
-            disabled: clearPending,
-          },
-        ]}
-      >
+      <SettingsPanel actions={actions}>
         <SettingsSection label='General'>
           <div className='flex flex-col gap-3'>
             <div className='flex items-center justify-between'>
@@ -257,6 +263,7 @@ export function Browser() {
         open={confirming !== null}
         onOpenChange={(open) => !open && setConfirming(null)}
         title={target ? target.action : 'Clear all browsing data'}
+        defaultAction={target?.kind === 'cache' ? 'confirm' : 'dismiss'}
         text={[
           'This will ',
           {

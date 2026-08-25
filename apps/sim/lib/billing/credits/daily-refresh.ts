@@ -16,6 +16,7 @@ import { member, usageLog, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, gte, inArray, isNull, lt, lte, or, sql, sum } from 'drizzle-orm'
 import { DAILY_REFRESH_RATE } from '@/lib/billing/constants'
+import type { BillingEntity, UsageQueryPeriod } from '@/lib/billing/core/usage-log'
 import type { DbClient } from '@/lib/db/types'
 
 const logger = createLogger('DailyRefresh')
@@ -32,6 +33,143 @@ const MAX_BILLING_PERIOD_DAYS = 370
 export interface PerUserBounds {
   userStart?: Date | null
   userEnd?: Date | null
+}
+
+interface BillingPeriodUsageWithDailyRefreshParams {
+  billingEntity: BillingEntity
+  billingPeriod: UsageQueryPeriod
+  userIds: string[]
+  refreshPeriodStart: Date
+  refreshPeriodEnd?: Date | null
+  planDollars: number
+  seats?: number
+  userBounds?: Record<string, PerUserBounds>
+}
+
+/**
+ * Reads the exact ledger total and the daily-refresh buckets from one snapshot.
+ *
+ * The two aggregates intentionally keep different predicates. Ledger totals use
+ * both captured period bounds (or a reporting-time window), while refresh uses
+ * the captured period start, eligible users, and per-user time bounds.
+ */
+export async function computeBillingPeriodUsageWithDailyRefresh(
+  params: BillingPeriodUsageWithDailyRefreshParams,
+  executor: DbClient = db
+): Promise<{ ledgerUsage: number; refreshConsumed: number }> {
+  const {
+    billingEntity,
+    billingPeriod,
+    userIds,
+    refreshPeriodStart,
+    refreshPeriodEnd,
+    planDollars,
+    seats = 1,
+    userBounds,
+  } = params
+  const now = new Date()
+  const cap = refreshPeriodEnd && refreshPeriodEnd < now ? refreshPeriodEnd : now
+  const dailyRefreshDollars = planDollars * DAILY_REFRESH_RATE * seats
+  const eligibleUserIds = new Set(userIds)
+  const unboundedUsers = userBounds ? userIds.filter((id) => !(id in userBounds)) : userIds
+  const boundedClauses = userBounds
+    ? Object.entries(userBounds).flatMap(([userId, bounds]) => {
+        if (!eligibleUserIds.has(userId)) return []
+        const effectiveStart =
+          bounds.userStart && bounds.userStart > refreshPeriodStart
+            ? bounds.userStart
+            : refreshPeriodStart
+        const effectiveEnd = bounds.userEnd && bounds.userEnd < cap ? bounds.userEnd : cap
+        if (effectiveEnd <= effectiveStart) return []
+        return [
+          and(
+            eq(usageLog.userId, userId),
+            gte(usageLog.createdAt, effectiveStart),
+            lt(usageLog.createdAt, effectiveEnd)
+          ),
+        ]
+      })
+    : []
+  const refreshUserFilters =
+    cap > refreshPeriodStart
+      ? [
+          ...(unboundedUsers.length > 0
+            ? [
+                and(
+                  inArray(usageLog.userId, unboundedUsers),
+                  gte(usageLog.createdAt, refreshPeriodStart),
+                  lt(usageLog.createdAt, cap)
+                ),
+              ]
+            : []),
+          ...boundedClauses,
+        ]
+      : []
+  const refreshFilter =
+    refreshUserFilters.length > 0
+      ? and(
+          eq(usageLog.billingPeriodStart, refreshPeriodStart),
+          refreshUserFilters.length === 1 ? refreshUserFilters[0] : or(...refreshUserFilters)
+        )
+      : sql<boolean>`false`
+  const ledgerPeriodFilter =
+    billingPeriod.source === 'reporting'
+      ? and(gte(usageLog.createdAt, billingPeriod.start), lt(usageLog.createdAt, billingPeriod.end))
+      : and(
+          eq(usageLog.billingPeriodStart, billingPeriod.start),
+          eq(usageLog.billingPeriodEnd, billingPeriod.end)
+        )
+
+  const sameCapturedPeriodStart =
+    billingPeriod.source !== 'reporting' &&
+    billingPeriod.start.getTime() === refreshPeriodStart.getTime()
+  const reportingWindowContainsRefresh =
+    billingPeriod.source === 'reporting' &&
+    refreshPeriodStart >= billingPeriod.start &&
+    cap <= billingPeriod.end
+  const scanFilter =
+    refreshUserFilters.length === 0
+      ? ledgerPeriodFilter
+      : sameCapturedPeriodStart
+        ? eq(usageLog.billingPeriodStart, billingPeriod.start)
+        : reportingWindowContainsRefresh
+          ? ledgerPeriodFilter
+          : or(ledgerPeriodFilter, refreshFilter)
+
+  const rows = await executor
+    .select({
+      dayIndex:
+        sql<number>`FLOOR((EXTRACT(EPOCH FROM ${usageLog.createdAt}) - ${Math.floor(refreshPeriodStart.getTime() / 1000)}) / 86400)`.as(
+          'day_index'
+        ),
+      ledgerTotal:
+        sql<string>`SUM(SUM(${usageLog.cost}) FILTER (WHERE ${ledgerPeriodFilter})) OVER ()`.as(
+          'ledger_total'
+        ),
+      refreshDayTotal: sql<string>`SUM(${usageLog.cost}) FILTER (WHERE ${refreshFilter})`.as(
+        'refresh_day_total'
+      ),
+    })
+    .from(usageLog)
+    .where(
+      and(
+        eq(usageLog.billingEntityType, billingEntity.type),
+        eq(usageLog.billingEntityId, billingEntity.id),
+        scanFilter
+      )
+    )
+    .groupBy(sql`day_index`)
+
+  let refreshConsumed = 0
+  for (const row of rows) {
+    const dayUsage = Number.parseFloat(row.refreshDayTotal ?? '0')
+    refreshConsumed += Math.min(dayUsage, dailyRefreshDollars)
+  }
+
+  return {
+    ledgerUsage: Number.parseFloat(rows[0]?.ledgerTotal ?? '0'),
+    refreshConsumed,
+  }
 }
 
 /**

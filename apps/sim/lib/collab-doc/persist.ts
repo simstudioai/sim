@@ -7,6 +7,7 @@ import {
   getWorkspaceFile,
   updateWorkspaceFileContent,
 } from '@/lib/uploads/contexts/workspace'
+import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import { collabDocStateSourceHash, hashMarkdown, saveCollabDocState } from './collab-state'
 import { canonicalizeYDoc, yDocToFileMarkdown } from './converter'
 
@@ -94,7 +95,11 @@ export async function persistFileDoc(
   // nothing to clobber, so this reports the file's CURRENT durable version rather than conflicting on a
   // stale `expectedVersion`: it resynchronizes the relay's If-Match token instead of stranding it.
   if (record.size === markdownBuffer.length) {
-    const current = await fetchWorkspaceFileBuffer(record).catch(() => null)
+    // A byte-for-byte equality check: anything longer than what we are comparing against
+    // cannot match, so the buffer we are about to compare is itself the ceiling.
+    const current = await fetchWorkspaceFileBuffer(record, {
+      maxBytes: markdownBuffer.length,
+    }).catch(() => null)
     if (current?.equals(markdownBuffer)) {
       // Still refresh the cached snapshot: the markdown is unchanged (so its `sourceHash` tag stays
       // valid) but the doc state may have just been canonicalized, and a cold open should seed from
@@ -191,7 +196,9 @@ async function recoverFromVersionConflict(
   try {
     const current = await getWorkspaceFile(workspaceId, fileId, { throwOnError: true })
     if (!current) return { status: 'missing' }
-    const durable = await fetchWorkspaceFileBuffer(current)
+    const durable = await fetchWorkspaceFileBuffer(current, {
+      maxBytes: MAX_BUFFERED_TRANSFER_BYTES,
+    })
     if (hashMarkdown(durable) !== (await collabDocStateSourceHash(fileId))) return conflict()
     logger.info(
       `Persist token for file ${fileId} was stale, not the file; re-syncing and writing the projection`

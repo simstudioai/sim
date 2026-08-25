@@ -26,6 +26,25 @@ export const MAX_WORKSPACE_FORMDATA_FILE_SIZE = 100 * 1024 * 1024
 export const MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE = 100 * 1024 * 1024
 
 /**
+ * Default ceiling for a read that holds the whole file resident as one `Buffer`.
+ *
+ * Workspace files are admitted at {@link MAX_WORKSPACE_FILE_SIZE} (5 GB) because they
+ * are streamed straight to object storage and never sit in the app process. A tool
+ * that pulls one back to hand it to a third party does not stream — it buffers, then
+ * usually copies again (base64, `Blob`, multipart), so peak resident memory is a
+ * multiple of the file. Sharing one ceiling keeps that multiple bounded no matter how
+ * many blocks run concurrently.
+ *
+ * 100 MB is the value this codebase already converged on for buffered work
+ * ({@link MAX_WORKSPACE_FORMDATA_FILE_SIZE}, `MAX_ARCHIVE_BYTES`, the 100 MB
+ * `maxResponseBytes` on the STT URL branch, and the ClickUp/Vanta/Daytona/Linq/SFTP
+ * upload routes). Use a destination's own documented limit instead whenever it is
+ * lower — failing here beats a slow round trip to a provider that will reject it.
+ * Genuinely large transfers belong on `downloadFileStream`, not on a bigger ceiling.
+ */
+export const MAX_BUFFERED_TRANSFER_BYTES = 100 * 1024 * 1024
+
+/**
  * Rejection wording shared by every surface that admits a knowledge document.
  *
  * The size guards were upper-bound only, so a zero-byte file passed admission

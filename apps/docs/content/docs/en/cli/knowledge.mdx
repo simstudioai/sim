@@ -704,6 +704,34 @@ sim knowledge connectors documents list <knowledgeBaseId> <connectorId> [options
 
 </CommandTable>
 
+## Update knowledge connector documents
+
+```bash
+sim knowledge connectors documents update <knowledgeBaseId> <connectorId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Knowledge base that owns the connector. |
+| `connectorId` | Yes | Connector selected for the operation. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--operation <value>` | Yes | Whether to restore or exclude the selected documents. Accepted values: `restore`, `exclude`. |
+| `--document <value...>` | Yes | Connector document identifiers to update. (space-separated, or @path / @- with one value per line). |
+
+</CommandTable>
+
 ## List knowledge connectors
 
 ```bash
@@ -732,6 +760,34 @@ sim knowledge connectors list <knowledgeBaseId> [options]
 
 </CommandTable>
 
+## Queue a knowledge connector synchronization
+
+```bash
+sim knowledge connectors sync <knowledgeBaseId> <connectorId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Knowledge base that owns the connector. |
+| `connectorId` | Yes | Connector selected for the operation. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--rehydrate` | No | Re-fetch and re-index every existing connector document. |
+| `--no-rehydrate` | No | Send --rehydrate as false. |
+
+</CommandTable>
+
 ## Update knowledge connector
 
 ```bash
@@ -755,37 +811,9 @@ sim knowledge connectors update <knowledgeBaseId> <connectorId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--source-config <json\|@file>` | No | Replacement source selection and filtering configuration. (JSON, or @path / @- to read a file or stdin). |
+| `--source-config <json\|@file>` | No | Replacement source selection and filtering configuration. Updating a runnable connector queues synchronization; paused connectors remain paused. (JSON, or @path / @- to read a file or stdin). |
 | `--sync-interval-minutes <value>` | No | New scheduled synchronization interval in minutes. |
 | `--status <value>` | No | New connector state. Accepted values: `active`, `paused`. |
-
-</CommandTable>
-
-## Update knowledge connector documents
-
-```bash
-sim knowledge connectors documents update <knowledgeBaseId> <connectorId> [options]
-```
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `knowledgeBaseId` | Yes | Knowledge base that owns the connector. |
-| `connectorId` | Yes | Connector selected for the operation. |
-
-</CommandTable>
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--operation <value>` | Yes | Whether to restore or exclude the selected documents. Accepted values: `restore`, `exclude`. |
-| `--document <value...>` | Yes | Connector document identifiers to update. (space-separated, or @path / @- with one value per line). |
 
 </CommandTable>
 
@@ -972,34 +1000,6 @@ sim knowledge search [options]
 | `--no-reranker-enabled` | No | Send --reranker-enabled as false. |
 | `--reranker-model <value>` | No | Reranking model to use when `rerankerEnabled` is true. Defaults to `rerank-v4.0-fast`. Accepted values: `rerank-v4.0-pro`, `rerank-v4.0-fast`, `rerank-v3.5`. |
 | `--reranker-input-count <value>` | No | How many candidate chunks to retrieve before reranking. Defaults to four times `topK`, capped at 100. A larger pool costs more retrieval work but gives the reranker more to choose from. |
-
-</CommandTable>
-
-## Sync knowledge connector
-
-```bash
-sim knowledge sync create <knowledgeBaseId> <connectorId> [options]
-```
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `knowledgeBaseId` | Yes | Knowledge base that owns the connector. |
-| `connectorId` | Yes | Connector selected for the operation. |
-
-</CommandTable>
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--rehydrate` | No | Re-fetch and re-index every existing connector document. |
-| `--no-rehydrate` | No | Send --rehydrate as false. |
 
 </CommandTable>
 

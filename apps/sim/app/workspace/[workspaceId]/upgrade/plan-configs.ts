@@ -37,7 +37,7 @@ export const PRO_PLAN_FEATURES: readonly string[] = [
 export const MAX_PLAN_FEATURES: readonly string[] = [
   `${DEFAULT_BILLING_CONCURRENCY_LIMITS.team.toLocaleString('en-US')} concurrent executions`,
   'Invite teammates',
-  'Sim Mailer & KB Live Sync',
+  'Sim Mailer, KB Live Sync & Sandboxes',
   'Highest rate limits',
   'Expanded storage & tables',
 ]

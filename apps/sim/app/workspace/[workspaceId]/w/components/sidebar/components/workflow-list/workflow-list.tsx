@@ -9,7 +9,6 @@ import { FolderItem } from '@/app/workspace/[workspaceId]/w/components/sidebar/c
 import { WorkflowItem } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/workflow-item/workflow-item'
 import {
   SidebarListContext,
-  useContextMenu,
   useDragDrop,
   useFolderSelection,
   useSidebarListContextValue,
@@ -20,6 +19,7 @@ import {
   groupWorkflowsByFolder,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/utils'
 import { useFolderMap, useFolders } from '@/hooks/queries/folders'
+import { useContextMenu } from '@/hooks/use-context-menu'
 import { useFolderStore } from '@/stores/folders/store'
 import type { FolderTreeNode } from '@/stores/folders/types'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'

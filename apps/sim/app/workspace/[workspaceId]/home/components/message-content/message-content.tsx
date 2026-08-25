@@ -22,6 +22,7 @@ import {
 } from '@/lib/copilot/tools/tool-display'
 import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import type { CredentialSubmissionPayload } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
+import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import type { ContentBlock, OptionItem, ToolCallData } from '../../types'
 import { SUBAGENT_LABELS } from '../../types'
 import type { AgentGroupItem } from './components'
@@ -492,6 +493,23 @@ export function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
   return parseBlocksLegacy(blocks)
 }
 
+function joinRenderableText(parts: string[]): string {
+  return parts.filter(Boolean).join('\n\n')
+}
+
+/** Returns only top-level orchestrator text, excluding agent groups and other UI segments. */
+export function getOrchestratorMessageText(
+  blocks: ContentBlock[],
+  fallbackContent: string
+): string {
+  const parsed = blocks.length > 0 ? parseBlocks(blocks) : []
+  if (parsed.length === 0) return fallbackContent
+
+  return joinRenderableText(
+    parsed.map((segment) => (segment.type === 'text' ? segment.content : ''))
+  )
+}
+
 function parseBlocksLegacy(blocks: ContentBlock[]): MessageSegment[] {
   const segments: MessageSegment[] = []
   const groupsByKey = new Map<string, AgentGroupSegment>()
@@ -834,7 +852,11 @@ function MessageContentInner({
   actions,
 }: MessageContentProps) {
   const { onWorkspaceResourceSelect } = useChatSurface()
-  const parsed = useMemo(() => (blocks.length > 0 ? parseBlocks(blocks) : []), [blocks])
+  const blockOverlayVersion = useCustomBlockOverlayVersion()
+  const parsed = useMemo(
+    () => (blocks.length > 0 ? parseBlocks(blocks) : []),
+    [blocks, blockOverlayVersion]
+  )
 
   const [trailingRevealing, setTrailingRevealing] = useState(false)
   const handleTrailingRevealChange = useCallback((revealing: boolean) => {

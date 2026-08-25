@@ -28,6 +28,7 @@ import {
   EDGE_Z_MAX,
   getBlockZIndex,
   getEdgeZIndex,
+  getEdgeZIndexForTarget,
   getNoteBlockHeight,
   normalizeCursorSourceHandleId,
 } from '@sim/workflow-renderer'
@@ -151,8 +152,9 @@ import { useUndoRedoStore } from '@/stores/undo-redo'
 import { useVariablesModalStore } from '@/stores/variables/modal'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowSearchReplaceStore } from '@/stores/workflow-search-replace/store'
+import { prepareBlockState } from '@/stores/workflows/prepare-block-state'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { getUniqueBlockName, prepareBlockState } from '@/stores/workflows/utils'
+import { getUniqueBlockName } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
@@ -4886,10 +4888,16 @@ const WorkflowContent = React.memo(
             isEdgeSelected: isSelected,
           }),
         })
+        const targetContainerZIndex =
+          targetNode?.type === 'subflowNode' ? (targetNode.zIndex ?? 0) : undefined
+        // The target node paints after an equal-z edge. A nested container is
+        // one depth above its parent, so this hides only the segment beneath
+        // the target while leaving the route visible over the parent body.
+        const zIndex = getEdgeZIndexForTarget(baseZIndex, targetContainerZIndex)
 
         return {
           ...edge,
-          zIndex: baseZIndex,
+          zIndex,
           data: {
             ...edge.data,
             isSelected,
@@ -4898,6 +4906,7 @@ const WorkflowContent = React.memo(
             parentLoopId,
             sourceHandle: edge.sourceHandle,
             onDelete: handleEdgeDelete,
+            ...(targetContainerZIndex !== undefined ? { labelZIndex: zIndex } : {}),
           },
         }
       })

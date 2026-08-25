@@ -991,6 +991,13 @@ interface FunctionRouteExecutionContext {
   outputSecretMatcher?: ResolvedSecretMatcher
   outputSecretNamesByScanLiteral: Map<string, string[]>
   outputSecretPlaintextsByName: Map<string, string>
+  /**
+   * In-scope names the caller's registry certified as redaction-exempt. They stay in
+   * `outputSecretPlaintextsByName` — the response's resolved-name reporting and the usage
+   * trail must not lose them — but contribute no scan literals, so exported files carrying
+   * only their values classify exact-empty instead of locking.
+   */
+  unredactedSecretNames: Set<string>
   mountedFileSecretProvenanceScanner?: MountedFileSecretProvenanceScanner
 }
 
@@ -1191,13 +1198,23 @@ function activateReferencedSecretProvenance(context: FunctionRouteExecutionConte
   }
 }
 
+/** Compiled secret names that still demand redaction — the exempt ones don't count. */
+function countProtectedOutputSecretNames(context: FunctionRouteExecutionContext): number {
+  let count = 0
+  for (const name of context.outputSecretPlaintextsByName.keys()) {
+    if (!context.unredactedSecretNames.has(name)) count += 1
+  }
+  return count
+}
+
 /**
  * True when this execution compiled a secret placeholder or received a mounted file with verified
  * secret provenance. Ordinary mounts without a provenance envelope are user data, not evidence that
- * a Sim secret was resolved in this call.
+ * a Sim secret was resolved in this call. Exempt names don't count: a binary export whose only
+ * in-scope secrets are redaction-exempt is deliberately classified exact-empty rather than locked.
  */
 function hasSecretMaterialInScope(context: FunctionRouteExecutionContext): boolean {
-  if (context.outputSecretPlaintextsByName.size > 0) return true
+  if (countProtectedOutputSecretNames(context) > 0) return true
   return context.mountedFileSecretProvenanceScanner?.hasSecrets ?? false
 }
 
@@ -1225,7 +1242,7 @@ async function getOutputFileSecretProvenance(
     status: 'exact' as const,
     entries: [],
   }
-  if (context.outputSecretPlaintextsByName.size === 0) {
+  if (countProtectedOutputSecretNames(context) === 0) {
     return mountedFileProvenance
   }
   if (!context.outputSecretMatcher) return { status: 'unknown' }
@@ -1914,6 +1931,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       envVars: rawEnvVars = {},
       secretScope,
       mountedSecrets,
+      unredactedSecretNames = [],
       sandboxId: selectedSandboxId,
       blockData = {},
       blockNameMapping = {},
@@ -2035,6 +2053,9 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       privateResolvedSecretNamesMetadataType,
       outputSecretNamesByScanLiteral: new Map(),
       outputSecretPlaintextsByName: new Map(),
+      unredactedSecretNames: new Set(
+        unredactedSecretNames.filter((name) => Object.hasOwn(envVars, name))
+      ),
       mountedFileSecretProvenanceScanner,
     }
 
@@ -2069,6 +2090,12 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       const plaintext = envVars[name]
       if (!plaintext) continue
       routeContext.outputSecretPlaintextsByName.set(name, plaintext)
+      /**
+       * Skipped per NAME, never per literal: a plaintext shared by an exempt and a non-exempt
+       * name keeps its literal through the non-exempt owner, so the export still records that
+       * owner's provenance and the file still locks.
+       */
+      if (routeContext.unredactedSecretNames.has(name)) continue
       const scanLiterals = new Set([plaintext, JSON.stringify(plaintext).slice(1, -1)])
       for (const scanLiteral of scanLiterals) {
         const names = routeContext.outputSecretNamesByScanLiteral.get(scanLiteral) ?? []

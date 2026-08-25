@@ -859,16 +859,20 @@ export function serializeApiKeyIntegrations(
 
 /**
  * Serialize environment variables for VFS environment/variables.json.
- * Shows variable NAMES only — NOT values.
+ * Shows variable NAMES only — NOT values. `unredactedWorkspace` names the workspace
+ * secrets whose values appear in plaintext in run output instead of `{{NAME}}`; the
+ * values themselves are still never written into the VFS.
  */
 export function serializeEnvironmentVariables(
   personalVarNames: string[],
-  workspaceVarNames: string[]
+  workspaceVarNames: string[],
+  unredactedWorkspaceVarNames: string[] = []
 ): string {
   return JSON.stringify(
     {
       personal: personalVarNames,
       workspace: workspaceVarNames,
+      unredactedWorkspace: unredactedWorkspaceVarNames,
     },
     null,
     2

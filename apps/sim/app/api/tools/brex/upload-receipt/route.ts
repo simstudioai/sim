@@ -9,6 +9,7 @@ import {
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processFilesToUserFiles, type RawFileInput } from '@/lib/uploads/utils/file-utils'
 import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
@@ -51,21 +52,23 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     let fileBuffer: Buffer
     try {
-      const resolved = await downloadServableFileFromStorage(userFile, requestId, logger)
+      const resolved = await downloadServableFileFromStorage(userFile, requestId, logger, {
+        maxBytes: MAX_RECEIPT_SIZE_BYTES,
+      })
       fileBuffer = resolved.buffer
     } catch (error) {
       const notReady = docNotReadyResponse(error)
       if (notReady) return notReady
+      if (isPayloadSizeLimitError(error)) {
+        return NextResponse.json(
+          { success: false, error: 'Receipt file exceeds the 50 MB limit' },
+          { status: 400 }
+        )
+      }
       logger.error(`[${requestId}] Failed to download receipt file:`, error)
       return NextResponse.json(
         { success: false, error: getErrorMessage(error, 'Unknown error') },
         { status: 500 }
-      )
-    }
-    if (fileBuffer.length > MAX_RECEIPT_SIZE_BYTES) {
-      return NextResponse.json(
-        { success: false, error: 'Receipt file exceeds the 50 MB limit' },
-        { status: 400 }
       )
     }
 

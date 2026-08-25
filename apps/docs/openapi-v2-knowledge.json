@@ -787,7 +787,7 @@
       "patch": {
         "operationId": "updateKnowledgeConnector",
         "summary": "Update Knowledge Connector",
-        "description": "Update connector source configuration, schedule, or active state. Authentication material cannot be changed through this operation. A workspace API key is rejected with `403`; use a personal API key.",
+        "description": "Update connector source configuration, schedule, or active state. Replacing source configuration on a runnable connector queues an immediate synchronization; paused connectors retain the change without synchronizing until resumed. Source configuration cannot be replaced while synchronization is already in progress. Authentication material cannot be changed through this operation. A workspace API key is rejected with `403`; use a personal API key.",
         "tags": ["Knowledge Bases"],
         "parameters": [
           {
@@ -4974,8 +4974,8 @@
           },
           "status": {
             "type": "string",
-            "enum": ["active", "paused", "syncing", "error", "disabled"],
-            "description": "Current connector state."
+            "enum": ["active", "paused", "pending", "syncing", "error", "disabled"],
+            "description": "Current connector state. `pending` means a sync is queued but not yet running."
           },
           "lastSyncAt": {
             "anyOf": [
@@ -5364,8 +5364,8 @@
           },
           "status": {
             "type": "string",
-            "enum": ["active", "paused", "syncing", "error", "disabled"],
-            "description": "Current connector state."
+            "enum": ["active", "paused", "pending", "syncing", "error", "disabled"],
+            "description": "Current connector state. `pending` means a sync is queued but not yet running."
           },
           "lastSyncAt": {
             "anyOf": [
@@ -5512,7 +5512,7 @@
             "description": "Workspace that owns the knowledge base."
           },
           "sourceConfig": {
-            "description": "Replacement source selection and filtering configuration.",
+            "description": "Replacement source selection and filtering configuration. Updating a runnable connector queues synchronization; paused connectors remain paused.",
             "type": "object",
             "propertyNames": {
               "type": "string"

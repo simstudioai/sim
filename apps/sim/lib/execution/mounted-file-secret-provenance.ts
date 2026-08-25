@@ -89,6 +89,14 @@ export async function createMountedFileSecretProvenanceScanner(
 
   return {
     hasSecrets,
+    /**
+     * A scan that cannot finish yields `unknown` — a taint — where the registry's per-value scan
+     * over-approximates instead. The asymmetry is deliberate: that scan only narrows a candidate
+     * set that is already a sound answer, while this one decides whether egress redaction of these
+     * entries would suffice for these bytes — a claim that cannot be made for content the same
+     * matcher just failed on. Reaching the event bound takes an eight-plus-character literal
+     * occurring ~a million times, so only degenerate content pays the refusal.
+     */
     scan(buffer) {
       const matched = new Map<string, WorkspaceFileSecretProvenanceEntry>()
       try {

@@ -443,9 +443,6 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
                 }}
                 placeholder={editingMeta?.placeholder}
                 className={CHIP_FIELD_INPUT}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleSave()
-                }}
                 name='byok_api_key'
                 autoComplete='off'
                 autoCorrect='off'
@@ -472,7 +469,6 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
               onChange={setNameInput}
               placeholder='e.g. Production key'
               maxLength={120}
-              onSubmit={handleSave}
             />
           )}
           <ChipModalError>{error}</ChipModalError>

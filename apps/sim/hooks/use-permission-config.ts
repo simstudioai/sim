@@ -50,11 +50,13 @@ const allowedIntegrationsKeys = {
   env: () => [...allowedIntegrationsKeys.all, 'env'] as const,
 }
 
+export const ALLOWED_INTEGRATIONS_STALE_TIME = 5 * 60 * 1000
+
 function useAllowedIntegrationsFromEnv() {
   return useQuery<GetAllowedIntegrationsResponse>({
     queryKey: allowedIntegrationsKeys.env(),
     queryFn: ({ signal }) => requestJson(getAllowedIntegrationsContract, { signal }),
-    staleTime: 5 * 60 * 1000,
+    staleTime: ALLOWED_INTEGRATIONS_STALE_TIME,
   })
 }
 

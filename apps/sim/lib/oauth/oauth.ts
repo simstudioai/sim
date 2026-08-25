@@ -731,6 +731,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'pullrequest:write',
           'pipeline',
           'pipeline:write',
+          'webhook',
         ],
       },
     },

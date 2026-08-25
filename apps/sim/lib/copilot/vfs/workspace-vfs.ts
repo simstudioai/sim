@@ -158,7 +158,10 @@ import type {
   WorkspaceFileSecretProvenanceIdentity,
 } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { isImageFileType, resolveEffectiveMimeType } from '@/lib/uploads/utils/file-utils'
-import { listCustomBlocksWithInputsForWorkspace } from '@/lib/workflows/custom-blocks/operations'
+import {
+  type CustomBlockWithInputs,
+  listCustomBlocksWithInputsForWorkspace,
+} from '@/lib/workflows/custom-blocks/operations'
 import { getCustomToolById } from '@/lib/workflows/custom-tools/operations'
 import { checkNeedsRedeployment } from '@/lib/workflows/deployment-status'
 import { collectWorkflowFieldIssues, lintEditedWorkflowState } from '@/lib/workflows/editing/lint'
@@ -666,6 +669,7 @@ export class WorkspaceVFS {
     Promise<Awaited<ReturnType<typeof loadWorkflowFromNormalizedTables>>>
   >()
   private deploymentCache = new Map<string, Promise<DeploymentData | null>>()
+  private customBlocksPromise: Promise<CustomBlockWithInputs[]> | undefined
   private _workspaceId = ''
   /**
    * Types of the org's CURRENT custom blocks (enabled + disabled — a disabled block
@@ -842,6 +846,7 @@ export class WorkspaceVFS {
     this.lazy = new Map()
     this.normalizedCache = new Map()
     this.deploymentCache = new Map()
+    this.customBlocksPromise = undefined
     this._customBlockTypes = null
     this._workspaceId = workspaceId
 
@@ -1871,7 +1876,6 @@ export class WorkspaceVFS {
         }
         const folderPath = wf.folderId ? folderPaths.get(wf.folderId) : null
         const prefix = `${canonicalWorkflowVfsDir({ name: wf.name, folderPath })}/`
-        const workflowPath = prefix.replace(/\/$/, '')
 
         const inheritedFolderLock = wf.folderId ? lockedFolderIds.has(wf.folderId) : false
         this.files.set(
@@ -2391,7 +2395,7 @@ export class WorkspaceVFS {
     workspaceId: string
   ): Promise<NonNullable<WorkspaceMdData['customBlocks']>> {
     try {
-      const blocks = await listCustomBlocksWithInputsForWorkspace(workspaceId)
+      const blocks = await this.loadCustomBlocks(workspaceId)
       // Every current definition (incl. disabled) — the authoritative set used to
       // drop deleted-definition instances from workflow state (see loadNormalized).
       this._customBlockTypes = new Set(blocks.map((cb) => cb.type))
@@ -2425,6 +2429,18 @@ export class WorkspaceVFS {
         error: toError(err).message,
       })
       return []
+    }
+  }
+
+  /** Load the org's custom blocks once per VFS materialization. Failed loads remain retryable. */
+  private async loadCustomBlocks(workspaceId: string): Promise<CustomBlockWithInputs[]> {
+    const request = this.customBlocksPromise ?? listCustomBlocksWithInputsForWorkspace(workspaceId)
+    this.customBlocksPromise = request
+    try {
+      return await request
+    } catch (error) {
+      if (this.customBlocksPromise === request) this.customBlocksPromise = undefined
+      throw error
     }
   }
 
@@ -2580,7 +2596,7 @@ export class WorkspaceVFS {
       // names-only index need it, and each block's detail path must exist in
       // the key view for glob to list. Only the deployed graph stays lazy —
       // it is the expensive part and most turns never read it.
-      const orgBlocks = await listCustomBlocksWithInputsForWorkspace(workspaceId).catch((err) => {
+      const orgBlocks = await this.loadCustomBlocks(workspaceId).catch((err) => {
         logger.warn('Failed to list org custom blocks', {
           workspaceId,
           error: toError(err).message,
@@ -3145,9 +3161,18 @@ export class WorkspaceVFS {
         Object.keys(envData.workspaceEncrypted),
         secretMountPolicy
       )
+      /** Intersected with the policy-filtered names, so the mount policy applies here too. */
+      const workspaceVarNameSet = new Set(workspaceVarNames)
+      const unredactedWorkspaceVarNames = envData.workspaceUnredactedKeys.filter((name) =>
+        workspaceVarNameSet.has(name)
+      )
       this.files.set(
         'environment/variables.json',
-        serializeEnvironmentVariables(personalVarNames, workspaceVarNames)
+        serializeEnvironmentVariables(
+          personalVarNames,
+          workspaceVarNames,
+          unredactedWorkspaceVarNames
+        )
       )
 
       const envKeys = [...visibleEnvCredentialNames]

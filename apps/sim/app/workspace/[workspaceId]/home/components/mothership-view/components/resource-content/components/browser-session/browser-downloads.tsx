@@ -163,7 +163,7 @@ export function BrowserDownloads({ scopeId, open, requestOpen, onClose }: Browse
           )}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align='end' sideOffset={5} className='w-[320px] p-1'>
+      <DropdownMenuContent align='end' sideOffset={5} className='w-[320px]'>
         <DropdownMenuLabel>Downloads</DropdownMenuLabel>
         {downloads.map((download) => {
           const completed = download.state === 'completed'

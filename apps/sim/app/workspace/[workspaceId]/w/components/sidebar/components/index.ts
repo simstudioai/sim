@@ -1,3 +1,4 @@
+export { ChatNavigationLink } from './chat-navigation-link/chat-navigation-link'
 export {
   CollapsedChatFlyoutItem,
   CollapsedFolderItems,
@@ -14,5 +15,6 @@ export { SidebarFooter } from './sidebar-footer'
 export type { SidebarNavItemData } from './sidebar-nav-chip'
 export { SidebarNavChip } from './sidebar-nav-chip'
 export { SidebarSection } from './sidebar-section'
+export { StatusNotice } from './status-notice'
 export { WorkflowList } from './workflow-list'
 export { WorkspaceHeader } from './workspace-header'

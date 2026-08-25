@@ -211,9 +211,7 @@ export function useSubscriptionUpgrade() {
                 error:
                   transferError instanceof ApiClientError
                     ? (transferError.rawBody ?? transferError.message)
-                    : transferError instanceof Error
-                      ? transferError.message
-                      : 'Unknown error',
+                    : getErrorMessage(transferError, 'Unknown error'),
               })
             }
           } catch (error) {

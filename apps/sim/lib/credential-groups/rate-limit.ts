@@ -58,19 +58,42 @@ function configForPublicScope(scope: PublicCredentialGroupRateLimitScope): Token
   return PUBLIC_OAUTH_CALLBACK_RATE_LIMIT
 }
 
-/** Per-IP guard for unauthenticated enrollment reads and OAuth endpoints. */
-export async function enforcePublicCredentialGroupIpRateLimit(
+async function enforcePublicCredentialGroupIpRateLimitWithPolicy(
   request: { headers: { get(name: string): string | null } },
-  scope: PublicCredentialGroupRateLimitScope
+  scope: PublicCredentialGroupRateLimitScope,
+  unresolvedClientPolicy: 'deny' | 'defer'
 ): Promise<NextResponse | null> {
   const config = configForPublicScope(scope)
   const ip = getClientIp(request)
+  if (!ip) {
+    return unresolvedClientPolicy === 'deny'
+      ? rateLimitResponse(undefined, config.refillIntervalMs)
+      : null
+  }
   const result = await rateLimiter.checkRateLimitDirect(
     `public-credential-group:${scope}:ip:${ip}`,
     config,
     { failClosed: scope !== 'metadata' }
   )
   return result.allowed ? null : rateLimitResponse(result.retryAfterMs, config.refillIntervalMs)
+}
+
+/** Per-IP guard for unauthenticated enrollment reads and OAuth endpoints. */
+export async function enforcePublicCredentialGroupIpRateLimit(
+  request: { headers: { get(name: string): string | null } },
+  scope: PublicCredentialGroupRateLimitScope
+): Promise<NextResponse | null> {
+  return enforcePublicCredentialGroupIpRateLimitWithPolicy(request, scope, 'deny')
+}
+
+/**
+ * Applies the OAuth-start IP bucket when resolvable and otherwise defers to the
+ * mandatory per-enrollment OAuth budget applied after invitation authentication.
+ */
+export async function enforcePublicCredentialGroupOAuthStartIpRateLimit(request: {
+  headers: { get(name: string): string | null }
+}): Promise<NextResponse | null> {
+  return enforcePublicCredentialGroupIpRateLimitWithPolicy(request, 'oauth-start', 'defer')
 }
 
 /** Prevents one leaked invitation from starting unbounded provider consent flows. */

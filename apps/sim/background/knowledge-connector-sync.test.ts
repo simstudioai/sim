@@ -60,6 +60,8 @@ describe('knowledge connector sync worker', () => {
       connectorId: 'connector-1',
       requestId: 'request-1',
       fullSync: true,
+      requireRunnable: true,
+      dispatchToken: 'dispatch-1',
       billingAttribution: BILLING_ATTRIBUTION,
     })
 
@@ -72,7 +74,9 @@ describe('knowledge connector sync worker', () => {
     expect(mockExecuteSync).toHaveBeenCalledWith('connector-1', {
       billingAttribution: BILLING_ATTRIBUTION,
       fullSync: true,
+      requireRunnable: true,
       rehydrate: undefined,
+      dispatchToken: 'dispatch-1',
     })
   })
 
@@ -94,7 +98,9 @@ describe('knowledge connector sync worker', () => {
     expect(mockExecuteSync).toHaveBeenCalledWith('connector-1', {
       billingAttribution: BILLING_ATTRIBUTION,
       fullSync: undefined,
+      requireRunnable: undefined,
       rehydrate: true,
+      dispatchToken: undefined,
     })
   })
 })

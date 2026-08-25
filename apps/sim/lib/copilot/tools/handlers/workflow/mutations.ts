@@ -7,6 +7,7 @@ import {
   messageForCopilotWorkflowError,
 } from '@/lib/copilot/application/execute-workflow-use-case'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
+import { requireCopilotWorkspace } from '@/lib/copilot/tools/server/workspace-scope'
 import { decodeVfsPathSegments, encodeVfsPathSegments } from '@/lib/copilot/vfs/path-utils'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { createWorkflow } from '@/lib/workflows/application/create-workflow'
@@ -25,7 +26,6 @@ import {
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
 import { hasExecutionResult } from '@/executor/utils/errors'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
-import { getDefaultWorkspaceId } from '../access'
 
 function stripBinaryFields(value: unknown): unknown {
   if (value === null || value === undefined) return value
@@ -152,8 +152,7 @@ export async function executeCreateWorkflow(
     if (name.length > 200) {
       return { success: false, error: 'Workflow name must be 200 characters or less' }
     }
-    const workspaceId =
-      params?.workspaceId || context.workspaceId || (await getDefaultWorkspaceId(context.userId))
+    const workspaceId = requireCopilotWorkspace(context, params?.workspaceId)
 
     const folderPath = typeof params?.folderPath === 'string' ? params.folderPath.trim() : ''
     const folderId =
@@ -363,8 +362,7 @@ export async function executeGenerateApiKey(
       return { success: false, error: 'API key name must be 200 characters or less' }
     }
 
-    const workspaceId =
-      params.workspaceId || context.workspaceId || (await getDefaultWorkspaceId(context.userId))
+    const workspaceId = requireCopilotWorkspace(context, params.workspaceId)
     assertWorkflowMutationNotAborted(context)
 
     const result = await executeCopilotApiKeyUseCase(context, createCopilotWorkspaceApiKey, {

@@ -10,14 +10,17 @@ import {
   useRef,
   useState,
 } from 'react'
-import { cn } from '@sim/emcn'
+import { type ClipboardContent, cn } from '@sim/emcn'
+import { useQueryClient } from '@tanstack/react-query'
 import { defaultRangeExtractor, type Range, useVirtualizer } from '@tanstack/react-virtual'
 import { SMOOTH_CHASE_RATE } from '@/lib/core/utils/smooth-bottom-chase'
+import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { MessageActions } from '@/app/workspace/[workspaceId]/components'
 import { ChatMessageAttachments } from '@/app/workspace/[workspaceId]/home/components/chat-message-attachments'
 import { ChatSurfaceProvider } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import {
   assistantMessageHasRenderableContent,
+  getOrchestratorMessageText,
   MessageContent,
   type MessagePhase,
 } from '@/app/workspace/[workspaceId]/home/components/message-content'
@@ -29,6 +32,7 @@ import {
   parseLastCredentialTag,
   parseLastQuestionTag,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
+import { prepareCopyableMarkdown } from '@/app/workspace/[workspaceId]/home/components/mothership-chat/copyable-markdown'
 import { nextSizerFloor } from '@/app/workspace/[workspaceId]/home/components/mothership-chat/sizer-floor'
 import { QueuedMessages } from '@/app/workspace/[workspaceId]/home/components/queued-messages'
 import {
@@ -46,12 +50,14 @@ import type {
   WorkspaceResourceRef,
 } from '@/app/workspace/[workspaceId]/home/types'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { getWorkspaceFilesQueryOptions, workspaceFilesKeys } from '@/hooks/queries/workspace-files'
 import { useAutoScroll } from '@/hooks/use-auto-scroll'
 import type { ChatContext } from '@/stores/panel'
 import { MothershipChatSkeleton } from './components/mothership-chat-skeleton'
 import { shouldShowAssistantMessageActions } from './message-actions-visibility'
 
 interface MothershipChatProps {
+  workspaceId: string
   messages: ChatMessage[]
   isSending: boolean
   isReconnecting?: boolean
@@ -148,6 +154,7 @@ const LAYOUT_STYLES = {
 } as const
 
 const EMPTY_BLOCKS: ContentBlock[] = []
+const EMPTY_WORKSPACE_FILES: readonly WorkspaceFileRecord[] = []
 
 interface UserMessageRowProps {
   content: string
@@ -185,6 +192,7 @@ const UserMessageRow = memo(function UserMessageRow({
 
 interface AssistantMessageRowProps {
   message: ChatMessage
+  prepareContentForCopy: (content: string) => ClipboardContent
   isStreaming: boolean
   isLast: boolean
   precedingUserContent?: string
@@ -201,6 +209,7 @@ interface AssistantMessageRowProps {
 
 const AssistantMessageRow = memo(function AssistantMessageRow({
   message,
+  prepareContentForCopy,
   isStreaming,
   isLast,
   precedingUserContent,
@@ -225,6 +234,10 @@ const AssistantMessageRow = memo(function AssistantMessageRow({
     onAnimatingChangeRef.current?.(phase !== 'settled')
   }, [phase])
 
+  const getCopyContent = useCallback(
+    () => getOrchestratorMessageText(blocks, message.content),
+    [blocks, message.content]
+  )
   const hasRenderableAssistant = assistantMessageHasRenderableContent(blocks, message.content ?? '')
   if (!hasRenderableAssistant && !trimmedContent && !isStreaming) {
     return null
@@ -281,6 +294,9 @@ const AssistantMessageRow = memo(function AssistantMessageRow({
           actionsEligible ? (
             <MessageActions
               content={message.content}
+              getCopyContent={getCopyContent}
+              hasCopyContent={Boolean(getOrchestratorMessageText(blocks, message.content).trim())}
+              prepareContentForCopy={prepareContentForCopy}
               userQuery={precedingUserContent}
               requestId={message.requestId}
               messageId={message.id}
@@ -293,6 +309,7 @@ const AssistantMessageRow = memo(function AssistantMessageRow({
 })
 
 export function MothershipChat({
+  workspaceId,
   messages: messagesProp,
   isSending,
   isReconnecting = false,
@@ -318,6 +335,7 @@ export function MothershipChat({
   onInputAnimationEnd,
   className,
 }: MothershipChatProps) {
+  const queryClient = useQueryClient()
   const styles = LAYOUT_STYLES[layout]
   const isStreamActive = isSending || isReconnecting
   /**
@@ -336,6 +354,21 @@ export function MothershipChat({
   const heldHighWaterRef = useRef(0)
   const floorChatRef = useRef<string | undefined>(undefined)
   const floorDrainRafRef = useRef(0)
+  const prepareContentForCopy = useCallback(
+    (content: string) =>
+      prepareCopyableMarkdown(
+        content,
+        queryClient.getQueryData<readonly WorkspaceFileRecord[]>(
+          workspaceFilesKeys.list(workspaceId)
+        ) ?? EMPTY_WORKSPACE_FILES,
+        () =>
+          queryClient.fetchQuery({
+            ...getWorkspaceFilesQueryOptions(workspaceId),
+            staleTime: 0,
+          })
+      ),
+    [queryClient, workspaceId]
+  )
   useEffect(() => () => cancelAnimationFrame(floorDrainRafRef.current), [])
 
   /**
@@ -760,6 +793,7 @@ export function MothershipChat({
                     ) : (
                       <AssistantMessageRow
                         message={msg}
+                        prepareContentForCopy={prepareContentForCopy}
                         isStreaming={isStreamActive && isLast}
                         isLast={isLast}
                         precedingUserContent={precedingUserContentByIndex[index]}

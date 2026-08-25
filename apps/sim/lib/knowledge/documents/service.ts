@@ -558,7 +558,11 @@ function durableSecretProvenanceFromWorkspaceFile(
   provenance: WorkspaceFileSecretProvenance,
   binding: FileMetadataRecord
 ): DurableSecretProvenance {
-  if (provenance.status === 'unknown') return provenance
+  /**
+   * `unrecorded` is a more specific `unknown`, and this boundary has not opted into the workspace
+   * file surface's policy, so it keeps refusing exactly as it did.
+   */
+  if (provenance.status !== 'exact') return { status: 'unknown' }
   return {
     status: 'exact',
     entries: provenance.entries.map((entry) => ({

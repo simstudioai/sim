@@ -109,6 +109,7 @@ const STATIC_CONNECT_SRC = [
   'https://*.supabase.co',
   'https://api.github.com',
   'https://github.com/*',
+  'https://status.sim.ai',
   'https://challenges.cloudflare.com',
   // Cal.com booking embed (landing /demo) — embed XHR/availability calls
   'https://app.cal.com',
@@ -170,7 +171,6 @@ const STATIC_FRAME_SRC = [
   'https://www.mixcloud.com',
   'https://tenor.com',
   'https://giphy.com',
-  ...(isHosted ? ['https://www.googletagmanager.com'] : []),
 ] as const
 
 // Build-time CSP directives (for next.config.ts)

@@ -6,6 +6,7 @@ export {
   EDGE_Z_MAX,
   getBlockZIndex,
   getEdgeZIndex,
+  getEdgeZIndexForTarget,
 } from './canvas-layers'
 export * from './dimensions'
 export { WorkflowEdgeView, type WorkflowEdgeViewProps } from './edge/workflow-edge-view'

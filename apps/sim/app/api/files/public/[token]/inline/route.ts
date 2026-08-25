@@ -4,17 +4,15 @@ import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { getPublicInlineFileContract } from '@/lib/api/contracts/public-shares'
 import { parseRequest } from '@/lib/api/server'
-import {
-  extractEmbeddedImageIds,
-  extractEmbeddedImageKeys,
-} from '@/lib/copilot/tools/server/files/embedded-image-refs'
 import { validateDeploymentAuth } from '@/lib/core/security/deployment-auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { enforcePublicFileRateLimit } from '@/lib/public-shares/rate-limit'
 import { resolveActiveShareByToken } from '@/lib/public-shares/share-manager'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
+import { extractEmbeddedFileRefs } from '@/lib/uploads/server/embedded-image-refs'
 import { resolveWorkspaceInlineImage } from '@/lib/uploads/server/inline-image'
+import { storedFileId } from '@/lib/uploads/utils/embedded-image-ref'
 import { serveInlineImage } from '@/app/api/files/serve-inline-image'
 import { createErrorResponse, FileNotFoundError } from '@/app/api/files/utils'
 
@@ -29,8 +27,9 @@ const logger = createLogger('PublicInlineFileAPI')
  * instead of broken icons. The share grants the document bytes; this route extends that grant to the
  * document's referenced images only, behind three gates that together hold the security boundary:
  *
- * 1. Referenced-by-doc — the requested key/id must appear in the shared document's current bytes. The
- *    token is a capability for the document and its embeds, never an arbitrary workspace file.
+ * 1. Referenced-by-doc — the requested key/id must be embedded as an image by the shared document's
+ *    current bytes. The token is a capability for the document and its embeds, never an arbitrary
+ *    workspace file, and never one the document merely links to or mentions in prose.
  * 2. Same-workspace — the referenced file must be a `workspace` file in the document's own workspace
  *    ({@link resolveWorkspaceInlineImage}). This blocks any cross-workspace reference (which an author
  *    can write but must never resolve) from loading.
@@ -74,9 +73,10 @@ export const GET = withRouteHandler(
 
       // Referenced-by-doc gate: the share grants exactly the images the document embeds.
       const docText = (await downloadFile({ key: doc.key, context: 'workspace' })).toString('utf-8')
+      const { keys, ids } = extractEmbeddedFileRefs(docText)
       const referenced = ref.fileId
-        ? extractEmbeddedImageIds(docText).includes(ref.fileId)
-        : extractEmbeddedImageKeys(docText).includes(ref.key as string)
+        ? ids.some((id) => storedFileId(id) === ref.fileId)
+        : keys.includes(ref.key as string)
       if (!referenced) {
         throw new FileNotFoundError('Not found')
       }

@@ -1136,8 +1136,6 @@ export const rowQueryContract = defineRouteContract({
         totalCount: z.number().nullable(),
         limit: z.number(),
         nextCursor: z.string().nullable(),
-        /** Requested `columns` entries (as the caller wrote them) that matched no column and were skipped. */
-        ignoredColumns: z.array(z.string()),
       })
     ),
   },

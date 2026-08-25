@@ -179,12 +179,6 @@ export function ForkWorkspaceModal({
             <ChipInput
               value={name}
               onChange={(event) => setName(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
-                  event.preventDefault()
-                  handleSubmit()
-                }
-              }}
               placeholder='Workspace name'
               maxLength={100}
               autoComplete='off'

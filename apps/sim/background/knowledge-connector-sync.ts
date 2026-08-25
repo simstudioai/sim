@@ -10,13 +10,26 @@ import { CONNECTOR_SYNC_MAX_DURATION_SECONDS } from '@/lib/knowledge/connectors/
 const logger = createLogger('TriggerKnowledgeConnectorSync')
 
 export async function executeConnectorSyncJob(payload: unknown) {
-  const { connectorId, fullSync, rehydrate, requestId, billingAttribution } =
-    assertConnectorSyncPayload(payload)
+  const {
+    connectorId,
+    fullSync,
+    requireRunnable,
+    rehydrate,
+    requestId,
+    billingAttribution,
+    dispatchToken,
+  } = assertConnectorSyncPayload(payload)
 
   logger.info(`[${requestId}] Starting connector sync: ${connectorId}`)
 
   try {
-    const result = await executeSync(connectorId, { billingAttribution, fullSync, rehydrate })
+    const result = await executeSync(connectorId, {
+      billingAttribution,
+      fullSync,
+      requireRunnable,
+      rehydrate,
+      dispatchToken,
+    })
 
     logger.info(`[${requestId}] Connector sync completed`, {
       connectorId,

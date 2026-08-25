@@ -4168,7 +4168,7 @@
           "password": {
             "description": "Password for a password-gated share. Kept when omitted; enabling `password` with neither a supplied nor a stored password is a 400.",
             "type": "string",
-            "minLength": 1,
+            "minLength": 15,
             "maxLength": 1024
           },
           "allowedEmails": {

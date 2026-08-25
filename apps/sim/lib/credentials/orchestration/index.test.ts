@@ -4,6 +4,7 @@
 import {
   auditMock,
   dbChainMockFns,
+  environmentUtilsMockFns,
   queueTableRows,
   resetDbChainMock,
   schemaMock,
@@ -532,6 +533,70 @@ describe('performUpdateCredential — secret fields on a non-rotatable credentia
 
     expect(result.success).toBe(true)
     expect(updatePayload().displayName).toBe('Renamed')
+  })
+})
+
+describe('performUpdateCredential — unredacted scope', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    mockIsClientCredentialAccountProviderId.mockReturnValue(false)
+    mockGetClientCredentialAccountDescriptor.mockReturnValue(undefined)
+  })
+
+  it('applies the flag to a workspace secret and invalidates its environment cache', async () => {
+    mockCredential({ type: 'env_workspace', envKey: 'STRIPE_API_KEY', providerId: null })
+
+    const result = await performUpdateCredential({
+      credentialId: 'cred-1',
+      userId: 'user-1',
+      unredacted: true,
+    })
+
+    expect(result.success).toBe(true)
+    expect(updatePayload().unredacted).toBe(true)
+    expect(result.updatedFields).toContain('unredacted')
+    expect(auditMetadata().unredacted).toBe(true)
+    expect(environmentUtilsMockFns.mockInvalidateEffectiveDecryptedEnvCache).toHaveBeenCalledWith({
+      workspaceId: 'ws-1',
+    })
+  })
+
+  it.each(['oauth', 'env_personal', 'service_account'] as const)(
+    'rejects the flag on a %s credential instead of writing dead data',
+    async (type) => {
+      mockCredential({ type, envKey: type === 'env_personal' ? 'MY_KEY' : null })
+
+      const result = await performUpdateCredential({
+        credentialId: 'cred-1',
+        userId: 'user-1',
+        unredacted: true,
+      })
+
+      expect(result).toMatchObject({
+        success: false,
+        errorCode: 'validation',
+        error: 'Only workspace secrets can be marked visible (unredacted).',
+      })
+      expect(dbChainMockFns.update).not.toHaveBeenCalled()
+      expect(
+        environmentUtilsMockFns.mockInvalidateEffectiveDecryptedEnvCache
+      ).not.toHaveBeenCalled()
+    }
+  )
+
+  it('does not invalidate the environment cache for a pure description change', async () => {
+    mockCredential({ type: 'env_workspace', envKey: 'STRIPE_API_KEY', providerId: null })
+
+    const result = await performUpdateCredential({
+      credentialId: 'cred-1',
+      userId: 'user-1',
+      description: 'Prod billing key',
+    })
+
+    expect(result.success).toBe(true)
+    expect(updatePayload()).not.toHaveProperty('unredacted')
+    expect(environmentUtilsMockFns.mockInvalidateEffectiveDecryptedEnvCache).not.toHaveBeenCalled()
   })
 })
 

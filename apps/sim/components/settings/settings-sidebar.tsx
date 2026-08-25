@@ -10,6 +10,7 @@ import {
   type SettingsSection,
   type StandaloneSettingsPlane,
 } from '@/components/settings/navigation'
+import { SettingsIntentLink } from '@/components/settings/settings-intent-link'
 import { SimWordmark } from '@/app/(landing)/components/navbar/components'
 import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
@@ -150,20 +151,27 @@ export function SettingsSidebar<Section extends SettingsSection>({
                   {group.items.map((item) => {
                     const Icon = item.icon
                     const active = activeSection === item.id
+                    const href = hrefForSection(item.id)
                     return (
                       <SidebarTooltip
                         key={item.id}
                         label={item.label}
                         enabled={showCollapsedTooltips}
                       >
-                        <button
-                          type='button'
+                        <SettingsIntentLink
+                          href={href}
+                          replace
+                          scroll={false}
+                          aria-current={active ? 'page' : undefined}
                           className={chipVariants({ active, fullWidth: true })}
-                          onClick={() => {
-                            if (active) return
-                            requestLeave(() => {
-                              router.replace(hrefForSection(item.id), { scroll: false })
-                            })
+                          onNavigate={(event) => {
+                            if (active) {
+                              event.preventDefault()
+                              return
+                            }
+                            if (!useSettingsDirtyStore.getState().isDirty) return
+                            event.preventDefault()
+                            requestLeave(() => router.replace(href, { scroll: false }))
                           }}
                         >
                           <Icon className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
@@ -175,7 +183,7 @@ export function SettingsSidebar<Section extends SettingsSection>({
                               Plan
                             </span>
                           )}
-                        </button>
+                        </SettingsIntentLink>
                       </SidebarTooltip>
                     )
                   })}

@@ -20,7 +20,7 @@ import {
 } from '@/lib/billing/core/usage-log'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 import {
-  computeDailyRefreshConsumed,
+  computeBillingPeriodUsageWithDailyRefresh,
   getOrgMemberRefreshBounds,
 } from '@/lib/billing/credits/daily-refresh'
 import {
@@ -64,19 +64,49 @@ async function computePooledOrgUsage(
       anchorDate: null,
       interval: null,
     }
-  const ledgerUsage = await getBillingPeriodUsageCost(
-    { type: 'organization', id: organizationId },
-    billingPeriod
-  )
-
   if (billingPeriod.source === 'reporting') {
+    const ledgerUsage = await getBillingPeriodUsageCost(
+      { type: 'organization', id: organizationId },
+      billingPeriod
+    )
     return ledgerUsage
   }
 
   const { memberIds, currentPeriodCost } = await getPooledOrgCurrentPeriodCost(organizationId)
-  if (memberIds.length === 0) return ledgerUsage
+  if (memberIds.length === 0) {
+    return getBillingPeriodUsageCost({ type: 'organization', id: organizationId }, billingPeriod)
+  }
 
-  return applyOrgRefresh(organizationId, sub, currentPeriodCost + ledgerUsage, memberIds)
+  if (!isPaid(sub.plan) || !sub.periodStart) {
+    const ledgerUsage = await getBillingPeriodUsageCost(
+      { type: 'organization', id: organizationId },
+      billingPeriod
+    )
+    return currentPeriodCost + ledgerUsage
+  }
+
+  const planDollars = getPlanTierDollars(sub.plan)
+  if (planDollars <= 0) {
+    const ledgerUsage = await getBillingPeriodUsageCost(
+      { type: 'organization', id: organizationId },
+      billingPeriod
+    )
+    return currentPeriodCost + ledgerUsage
+  }
+
+  const userBounds = await getOrgMemberRefreshBounds(organizationId, sub.periodStart)
+  const { ledgerUsage, refreshConsumed } = await computeBillingPeriodUsageWithDailyRefresh({
+    billingEntity: { type: 'organization', id: organizationId },
+    billingPeriod,
+    userIds: memberIds,
+    refreshPeriodStart: sub.periodStart,
+    refreshPeriodEnd: sub.periodEnd ?? null,
+    planDollars,
+    seats: sub.seats || 1,
+    userBounds: Object.keys(userBounds).length > 0 ? userBounds : undefined,
+  })
+
+  return Math.max(0, currentPeriodCost + ledgerUsage - refreshConsumed)
 }
 
 /**
@@ -150,21 +180,32 @@ export async function checkUsageStatus(
       (sub?.periodStart && sub.periodEnd
         ? { start: sub.periodStart, end: sub.periodEnd }
         : defaultBillingPeriod())
-    const ledgerUsage = await getBillingPeriodUsageCost({ type: 'user', id: userId }, billingPeriod)
-    let currentUsage = toNumber(toDecimal(statsRecords[0].currentPeriodCost)) + ledgerUsage
+    let ledgerUsage: number
+    let refreshConsumed = 0
+    let appliedDailyRefresh = false
     if (sub && isPaid(sub.plan) && sub.periodStart) {
       const planDollars = getPlanTierDollars(sub.plan)
       if (planDollars > 0) {
-        const refresh = await computeDailyRefreshConsumed({
-          userIds: [userId],
-          periodStart: sub.periodStart,
-          periodEnd: sub.periodEnd ?? null,
-          planDollars,
+        const usage = await computeBillingPeriodUsageWithDailyRefresh({
           billingEntity: { type: 'user', id: userId },
+          billingPeriod,
+          userIds: [userId],
+          refreshPeriodStart: sub.periodStart,
+          refreshPeriodEnd: sub.periodEnd ?? null,
+          planDollars,
         })
-        currentUsage = Math.max(0, currentUsage - refresh)
+        ledgerUsage = usage.ledgerUsage
+        refreshConsumed = usage.refreshConsumed
+        appliedDailyRefresh = true
+      } else {
+        ledgerUsage = await getBillingPeriodUsageCost({ type: 'user', id: userId }, billingPeriod)
       }
+    } else {
+      ledgerUsage = await getBillingPeriodUsageCost({ type: 'user', id: userId }, billingPeriod)
     }
+    const usageBeforeRefresh =
+      toNumber(toDecimal(statsRecords[0].currentPeriodCost)) + ledgerUsage - refreshConsumed
+    const currentUsage = appliedDailyRefresh ? Math.max(0, usageBeforeRefresh) : usageBeforeRefresh
 
     return buildUsageData({ currentUsage, limit, scope, organizationId })
   } catch (error) {
@@ -188,42 +229,6 @@ export async function checkUsageStatus(
       organizationId: null,
     }
   }
-}
-
-async function applyOrgRefresh(
-  organizationId: string,
-  sub: {
-    plan: string | null
-    seats: number | null
-    periodStart: Date | null
-    periodEnd: Date | null
-  },
-  currentUsage: number,
-  preloadedMemberIds?: string[]
-): Promise<number> {
-  if (!isPaid(sub.plan) || !sub.periodStart) {
-    return currentUsage
-  }
-
-  const memberIds =
-    preloadedMemberIds ?? (await getPooledOrgCurrentPeriodCost(organizationId)).memberIds
-  if (memberIds.length === 0) return currentUsage
-
-  const planDollars = getPlanTierDollars(sub.plan)
-  if (planDollars <= 0) return currentUsage
-
-  const userBounds = await getOrgMemberRefreshBounds(organizationId, sub.periodStart)
-  const refresh = await computeDailyRefreshConsumed({
-    userIds: memberIds,
-    periodStart: sub.periodStart,
-    periodEnd: sub.periodEnd ?? null,
-    planDollars,
-    seats: sub.seats || 1,
-    userBounds: Object.keys(userBounds).length > 0 ? userBounds : undefined,
-    billingEntity: { type: 'organization', id: organizationId },
-  })
-
-  return Math.max(0, currentUsage - refresh)
 }
 
 function buildUsageData(params: {

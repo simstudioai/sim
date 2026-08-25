@@ -70,6 +70,27 @@ describe('the command tree', () => {
     }
   })
 
+  it('places connector synchronization with the other connector commands', () => {
+    const all = leafPaths({ includeHidden: true })
+
+    expect(all).toContain('knowledge connectors sync')
+    expect(all).not.toContain('knowledge sync create')
+    for (const path of [
+      ['create'],
+      ['delete'],
+      ['get'],
+      ['list'],
+      ['sync'],
+      ['update'],
+      ['documents', 'list'],
+      ['documents', 'update'],
+    ]) {
+      expect(commandAt('knowledge', 'connectors', ...path).helpInformation()).toContain(
+        '<knowledgeBaseId>'
+      )
+    }
+  })
+
   it('spells one concept with one flag name across the contract', () => {
     // `predicate` was `--filter` on two row commands and `--predicate` on the
     // third, and the same idea was `--q` here and `--query` on knowledge search.

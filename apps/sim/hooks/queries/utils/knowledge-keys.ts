@@ -43,8 +43,16 @@ export const knowledgeKeys = {
     [...knowledgeKeys.detail(knowledgeBaseId), 'documents'] as const,
   documents: (knowledgeBaseId: string, paramsKey: string) =>
     [...knowledgeKeys.documentLists(knowledgeBaseId), paramsKey] as const,
+  /**
+   * Prefix over every per-document cache in a base — each `document` entry and
+   * the `chunks` / `search` keys nested under it. Needed when a mutation
+   * invalidates documents it cannot name, so the alternative would be the
+   * `detail` prefix, which also drags in the connector and tag caches.
+   */
+  documentDetails: (knowledgeBaseId: string) =>
+    [...knowledgeKeys.detail(knowledgeBaseId), 'document'] as const,
   document: (knowledgeBaseId: string, documentId: string) =>
-    [...knowledgeKeys.detail(knowledgeBaseId), 'document', documentId] as const,
+    [...knowledgeKeys.documentDetails(knowledgeBaseId), documentId] as const,
   documentTagDefinitions: (knowledgeBaseId: string, documentId: string) =>
     [...knowledgeKeys.document(knowledgeBaseId, documentId), 'tagDefinitions'] as const,
   chunks: (knowledgeBaseId: string, documentId: string, paramsKey: string) =>

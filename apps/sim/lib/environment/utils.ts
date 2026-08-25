@@ -51,6 +51,12 @@ export interface EnvironmentResolutionSnapshot {
   personalOwners: Record<string, string>
   conflicts: string[]
   decryptionFailures: string[]
+  /**
+   * Workspace env keys whose credential row opts them out of resolved-secret redaction.
+   * Only ever workspace keys — personal secrets cannot carry the flag — and only keys
+   * with a credential row: a legacy jsonb key without one stays redacted by omission.
+   */
+  workspaceUnredactedKeys: string[]
 }
 
 interface EffectiveEnvironmentCacheEntry {
@@ -79,6 +85,7 @@ function cloneEnvironmentResolutionSnapshot(
     personalOwners: { ...snapshot.personalOwners },
     conflicts: [...snapshot.conflicts],
     decryptionFailures: [...snapshot.decryptionFailures],
+    workspaceUnredactedKeys: [...snapshot.workspaceUnredactedKeys],
   }
 }
 
@@ -279,6 +286,9 @@ export async function getPersonalAndWorkspaceEnv(
     personalOwners,
     conflicts,
     decryptionFailures,
+    workspaceUnredactedKeys: accessibleEnvCredentials
+      .filter((row) => row.type === 'env_workspace' && row.unredacted)
+      .map((row) => row.envKey),
   }
 }
 
@@ -371,6 +381,7 @@ export async function getExecutionEnvironment(
       (key) => key in actor.workspaceEncrypted
     ),
     decryptionFailures,
+    workspaceUnredactedKeys: actor.workspaceUnredactedKeys,
   }
 }
 

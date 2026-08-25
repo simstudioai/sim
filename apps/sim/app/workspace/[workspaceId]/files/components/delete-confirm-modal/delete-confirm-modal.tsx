@@ -39,6 +39,7 @@ export const DeleteConfirmModal = memo(function DeleteConfirmModal({
       onOpenChange={onOpenChange}
       srTitle={title}
       title={title}
+      defaultAction={totalCount === 1 && !hasFolders ? 'confirm' : 'dismiss'}
       text={[
         'Are you sure you want to delete ',
         fileName

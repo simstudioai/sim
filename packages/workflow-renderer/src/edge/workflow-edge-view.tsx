@@ -7,6 +7,7 @@ import type { EdgeDiffStatus, EdgeRunStatus } from '../types'
 const EXECUTION_PULSE_LENGTH = 0.32
 const EXECUTION_PULSE_CYCLE_LENGTH = 2.2
 const EXECUTION_PULSE_DURATION = '1100ms'
+const DEFAULT_EDGE_LABEL_Z_INDEX = 1011
 
 /**
  * How far the glow reaches past the path, in user space.
@@ -125,6 +126,8 @@ export function WorkflowEdgeView({
   }, [isHorizontal, sourceX, sourceY, targetX, targetY])
 
   const isSelected = data?.isSelected ?? false
+  const labelZIndex =
+    (data as { labelZIndex?: number } | undefined)?.labelZIndex ?? DEFAULT_EDGE_LABEL_Z_INDEX
 
   const dataSourceHandle = (data as { sourceHandle?: string } | undefined)?.sourceHandle
   const isErrorEdge = (sourceHandle ?? dataSourceHandle) === 'error'
@@ -268,7 +271,7 @@ export function WorkflowEdgeView({
               position: 'absolute',
               transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
               pointerEvents: 'all',
-              zIndex: 1011,
+              zIndex: labelZIndex,
             }}
             onClick={(e) => {
               e.preventDefault()

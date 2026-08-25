@@ -1491,7 +1491,7 @@ type CreateKnowledgeConnectorResponseRef0 = {
   sourceConfig: Record<string, unknown>
   syncMode: string
   syncIntervalMinutes: number
-  status: 'active' | 'paused' | 'syncing' | 'error' | 'disabled'
+  status: 'active' | 'paused' | 'pending' | 'syncing' | 'error' | 'disabled'
   lastSyncAt: string | null
   lastSyncError: string | null
   lastSyncDocCount: number | null
@@ -3833,7 +3833,7 @@ type GetKnowledgeConnectorResponseRef1 = {
   sourceConfig: Record<string, unknown>
   syncMode: string
   syncIntervalMinutes: number
-  status: 'active' | 'paused' | 'syncing' | 'error' | 'disabled'
+  status: 'active' | 'paused' | 'pending' | 'syncing' | 'error' | 'disabled'
   lastSyncAt: string | null
   lastSyncError: string | null
   lastSyncDocCount: number | null
@@ -5433,7 +5433,7 @@ type ListKnowledgeConnectorsResponseRef0 = {
   sourceConfig: Record<string, unknown>
   syncMode: string
   syncIntervalMinutes: number
-  status: 'active' | 'paused' | 'syncing' | 'error' | 'disabled'
+  status: 'active' | 'paused' | 'pending' | 'syncing' | 'error' | 'disabled'
   lastSyncAt: string | null
   lastSyncError: string | null
   lastSyncDocCount: number | null
@@ -5746,9 +5746,11 @@ type ListSecretsResponseRef0 = {
   name: string
   scope: 'workspace' | 'personal'
   description: string | null
+  unredacted: boolean
   role: 'admin' | 'member'
   createdAt: string
   updatedAt: string
+  value?: string
 }
 
 export type ListSecretsResponse = {
@@ -7547,12 +7549,14 @@ export type SetSecretBody = {
   scope: 'workspace' | 'personal'
   value: string
   description?: string | null
+  unredacted?: boolean
 }
 
 type SetSecretResponseRef0 = {
   name: string
   scope: 'workspace' | 'personal'
   description: string | null
+  unredacted: boolean
   role: 'admin' | 'member'
   createdAt: string
   updatedAt: string
@@ -7946,7 +7950,7 @@ type UpdateKnowledgeConnectorResponseRef0 = {
   sourceConfig: Record<string, unknown>
   syncMode: string
   syncIntervalMinutes: number
-  status: 'active' | 'paused' | 'syncing' | 'error' | 'disabled'
+  status: 'active' | 'paused' | 'pending' | 'syncing' | 'error' | 'disabled'
   lastSyncAt: string | null
   lastSyncError: string | null
   lastSyncDocCount: number | null
@@ -13194,6 +13198,11 @@ export const V2_OPERATIONS = {
         describe:
           'What the secret is for, shown to teammates. Workspace scope only — sending it for a personal secret is rejected. Omit it to leave an existing description untouched; send null or an empty string to clear one.',
       },
+      unredacted: {
+        kind: 'boolean',
+        describe:
+          'Opt the workspace secret out of redaction: its value then appears in plaintext in run logs, model-visible content, and files, including publicly shared log links. Workspace scope only — sending it for a personal secret is rejected. Omit it to leave the current setting untouched.',
+      },
     },
   },
   syncKnowledgeConnector: {
@@ -13411,7 +13420,8 @@ export const V2_OPERATIONS = {
       },
       sourceConfig: {
         kind: 'object',
-        describe: 'Replacement source selection and filtering configuration.',
+        describe:
+          'Replacement source selection and filtering configuration. Updating a runnable connector queues synchronization; paused connectors remain paused.',
       },
       syncIntervalMinutes: {
         kind: 'integer',

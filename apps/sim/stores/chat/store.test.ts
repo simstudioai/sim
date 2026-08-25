@@ -3,6 +3,14 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+const { mockSaveBlob } = vi.hoisted(() => ({
+  mockSaveBlob: vi.fn(),
+}))
+
+vi.mock('@/lib/uploads/client/download', () => ({
+  saveBlob: mockSaveBlob,
+}))
+
 vi.hoisted(() => {
   const legacyNewestFirst = {
     state: {
@@ -30,6 +38,15 @@ vi.hoisted(() => {
 
 import { useChatStore } from '@/stores/chat/store'
 
+function readBlob(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.addEventListener('load', () => resolve(String(reader.result)))
+    reader.addEventListener('error', () => reject(reader.error))
+    reader.readAsText(blob)
+  })
+}
+
 describe('chat store message ordering', () => {
   it('migrates v0 persisted messages from newest-first to insertion order', () => {
     const messages = useChatStore.getState().messages
@@ -38,6 +55,7 @@ describe('chat store message ordering', () => {
 
   describe('addMessage', () => {
     beforeEach(() => {
+      mockSaveBlob.mockClear()
       useChatStore.setState({ messages: [] })
     })
 
@@ -63,6 +81,32 @@ describe('chat store message ordering', () => {
       expect(messages).toHaveLength(50)
       expect(messages[0].content).toBe('m5')
       expect(messages[messages.length - 1].content).toBe('m54')
+    })
+  })
+
+  describe('exportChatCSV', () => {
+    beforeEach(() => {
+      mockSaveBlob.mockClear()
+      useChatStore.setState({
+        messages: [
+          {
+            id: 'msg-formula',
+            content: '=1+1',
+            workflowId: 'wf-1',
+            type: 'workflow',
+            timestamp: '2026-08-22T12:00:00.000Z',
+          },
+        ],
+      })
+    })
+
+    it('neutralizes formula-leading message content', async () => {
+      useChatStore.getState().exportChatCSV('wf-1')
+
+      expect(mockSaveBlob).toHaveBeenCalledOnce()
+      const [blob, filename] = mockSaveBlob.mock.calls[0] as [Blob, string]
+      expect(filename).toMatch(/^chat-wf-1-.*\.csv$/)
+      await expect(readBlob(blob)).resolves.toContain("workflow,'=1+1")
     })
   })
 })

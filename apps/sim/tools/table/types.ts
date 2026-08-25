@@ -76,8 +76,6 @@ export interface TableQueryV2Response extends ToolResponse {
     totalCount: number | null
     limit: number
     nextCursor: string | null
-    /** Requested `columns` entries that matched no column and were skipped. */
-    ignoredColumns: string[]
   }
 }
 

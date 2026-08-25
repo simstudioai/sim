@@ -13,6 +13,7 @@ import { RETIRED_BROWSER_REQUEST_TAKEOVER_ID } from '@/lib/copilot/tools/retired
 import { extractStreamingStringArgument } from '@/lib/copilot/tools/streaming-args'
 import { getToolStatusDisplayTitle, getWaitCountdownTitle } from '@/lib/copilot/tools/tool-display'
 import { BrandIcon } from '@/blocks/brand-icon'
+import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import { getBlockByToolName } from '@/blocks/registry'
 import type { ToolCallData, ToolCallStatus } from '../../../../types'
 import { resolveToolDisplayState } from '../../utils'
@@ -122,11 +123,12 @@ export function ToolCallItem({
   toolCallId,
   startedAt,
 }: ToolCallItemProps) {
-  const readBlock = useMemo(() => {
-    if (toolName !== ReadTool.id) return undefined
-    const path = params?.path
-    return typeof path === 'string' ? getReadTargetBlock(path) : undefined
-  }, [toolName, params])
+  useCustomBlockOverlayVersion()
+  const readPath = params?.path
+  const readBlock =
+    toolName === ReadTool.id && typeof readPath === 'string'
+      ? getReadTargetBlock(readPath)
+      : undefined
 
   // Like read's VFS-target resolution above, the gateway uses its exact
   // discovered toolId only as a deterministic registry lookup. This renders

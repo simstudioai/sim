@@ -34,6 +34,10 @@
       "types": "./src/hostnames.ts",
       "default": "./src/hostnames.ts"
     },
+    "./ip": {
+      "types": "./src/ip.ts",
+      "default": "./src/ip.ts"
+    },
     "./ssrf": {
       "types": "./src/ssrf.ts",
       "default": "./src/ssrf.ts"

@@ -89,7 +89,8 @@ function baseSubBlockId(key: string): string {
 function collectForkWorkflowReferences(
   subBlocks: SubBlockRecord,
   config: ReturnType<typeof getBlock>,
-  canonicalModes: CanonicalModeOverrides | undefined
+  canonicalModes: CanonicalModeOverrides | undefined,
+  triggerMode: boolean
 ): Array<{ workflowId: string; subBlockKey: string }> {
   const out: Array<{ workflowId: string; subBlockKey: string }> = []
   // Collapse each canonical pair to its ACTIVE member and skip condition-hidden fields: only a
@@ -103,7 +104,8 @@ function collectForkWorkflowReferences(
   const gates = createCanonicalModeGates(
     config?.subBlocks,
     buildSubBlockValues(subBlocks),
-    canonicalModes
+    canonicalModes,
+    triggerMode
   )
   const detectionSkipped = (key: string) =>
     gates.isDormantMember(key) || gates.isConditionHidden(key)
@@ -199,6 +201,7 @@ export function collectForkClearedRefCandidates(
         blockName: blockLabel,
         blockType: block.type,
         canonicalModes: block.data?.canonicalModes,
+        triggerMode: block.triggerMode === true,
       })
       for (const ref of scan.unmapped) {
         if (CLEARED_REF_EXCLUDED_KINDS.has(ref.kind)) continue
@@ -245,7 +248,8 @@ export function collectForkClearedRefCandidates(
       for (const wfRef of collectForkWorkflowReferences(
         subBlocks,
         config,
-        block.data?.canonicalModes
+        block.data?.canonicalModes,
+        block.triggerMode === true
       )) {
         if (workflowIdMap.has(wfRef.workflowId)) continue
         out.push({
@@ -397,7 +401,8 @@ function hasForkSyncBlockerCandidates(
       const workflowRefs = collectForkWorkflowReferences(
         subBlocks,
         getBlock(block.type),
-        block.data?.canonicalModes
+        block.data?.canonicalModes,
+        block.triggerMode === true
       )
       if (workflowRefs.some((ref) => !workflowIdMap.has(ref.workflowId))) return true
     }

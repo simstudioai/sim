@@ -26,6 +26,7 @@ import {
   buildSubBlockValues,
   type CanonicalModeOverrides,
   evaluateSubBlockCondition,
+  getCanonicalSubBlocksForSurface,
   isCanonicalPair,
   isNonEmptyValue,
   reindexCanonicalModesByPosition,
@@ -228,7 +229,9 @@ export type SubBlockTransform = (
   subBlocks: SubBlockRecord,
   blockType: string,
   canonicalModes?: CanonicalModeOverrides,
-  onCanonicalModesChanged?: (next: CanonicalModeOverrides) => void
+  onCanonicalModesChanged?: (next: CanonicalModeOverrides) => void,
+  /** The block's trigger mode, scoping the canonical index (see {@link createCanonicalModeGates}). */
+  triggerMode?: boolean
 ) => SubBlockRecord
 
 /**
@@ -451,28 +454,63 @@ const NO_GATES: CanonicalModeGates = {
  * augmented with each pair's ACTIVE value under its canonical id, mirroring how the serializer
  * exposes params to conditions. With no configs (unknown block type) every gate is a no-op:
  * everything is detected and nothing passes through, the conservative default.
+ *
+ * `triggerSurface` scopes the index to the block's active surface. Without it, a trigger field
+ * sharing a `canonicalParamId` with an action pair (`triggerSiteId` under `siteId`,
+ * `triggerCredentials` under `oauthCredential`) is read as a member of THAT pair, and since it is
+ * neither its `basicId` nor in its `advancedIds`, `isDormantMember` answers `true` the moment the
+ * shared mode resolves to advanced — which a fork acts on by CLEARING the value. Pass a caller
+ * that has already narrowed its configs (the dependent scan) `false`; scoping twice is harmless
+ * but the flag should describe what the caller actually did.
  */
 export function createCanonicalModeGates(
   configSubBlocks: SubBlockConfig[] | undefined,
   values: Record<string, unknown>,
-  canonicalModes?: CanonicalModeOverrides
+  canonicalModes?: CanonicalModeOverrides,
+  triggerSurface = false
 ): CanonicalModeGates {
   if (!configSubBlocks || configSubBlocks.length === 0) return NO_GATES
-  const canonicalIndex = buildCanonicalIndex(configSubBlocks)
+  const surfaceSubBlocks = getCanonicalSubBlocksForSurface(configSubBlocks, triggerSurface)
+  const canonicalIndex = buildCanonicalIndex(surfaceSubBlocks)
+  // canonical-index-unscoped: the fallback for keys the ACTIVE surface does not define — see
+  // `indexFor`. Scoping decides membership for live fields only; a dormant surface's own values
+  // keep the classification they had before scoping existed.
+  const fullIndex = buildCanonicalIndex(configSubBlocks)
   const configByBaseKey = new Map(
     configSubBlocks.filter((cfg) => cfg.id).map((cfg) => [cfg.id, cfg])
   )
   const conditionValues = { ...values }
-  for (const [canonicalId, group] of Object.entries(canonicalIndex.groupsById)) {
-    if (conditionValues[canonicalId] === undefined) {
-      conditionValues[canonicalId] = resolveActiveCanonicalValue(group, values, canonicalModes)
+  for (const index of [canonicalIndex, fullIndex]) {
+    for (const [canonicalId, group] of Object.entries(index.groupsById)) {
+      if (conditionValues[canonicalId] === undefined) {
+        conditionValues[canonicalId] = resolveActiveCanonicalValue(group, values, canonicalModes)
+      }
     }
   }
 
+  /**
+   * The index that owns a key.
+   *
+   * The scoped index answers for anything the active surface defines — that is the fix: a trigger
+   * field sharing a `canonicalParamId` with an action pair gets its OWN group instead of being
+   * read as a stranded member of the action pair's.
+   *
+   * Everything else falls back to the whole array, deliberately. A dormant surface's values are
+   * still real keys in the block's value map, and the remap loop reads `isDormantMember` to decide
+   * both whether to CLEAR a value and whether to skip detecting it as a reference. Answering
+   * "not a member" for them would stop clearing them AND start detecting them, turning a stale
+   * action selector on a trigger-mode block into a mapping requirement that can block a sync.
+   * Scoping is meant to stop live fields being misread, not to re-classify dormant ones.
+   */
+  const indexFor = (key: string) =>
+    canonicalIndex.canonicalIdBySubBlockId[key] || canonicalIndex.groupsById[key]
+      ? canonicalIndex
+      : fullIndex
+
   const groupFor = (memberOrCanonicalId: string) => {
-    const canonicalId =
-      canonicalIndex.canonicalIdBySubBlockId[memberOrCanonicalId] ?? memberOrCanonicalId
-    const group = canonicalIndex.groupsById[canonicalId]
+    const index = indexFor(memberOrCanonicalId)
+    const canonicalId = index.canonicalIdBySubBlockId[memberOrCanonicalId] ?? memberOrCanonicalId
+    const group = index.groupsById[canonicalId]
     return group && isCanonicalPair(group) ? group : undefined
   }
   const baseKeyOf = (subBlockKey: string) => subBlockKey.replace(/_\d+$/, '')
@@ -487,7 +525,7 @@ export function createCanonicalModeGates(
     isDormantMember: (subBlockKey) => {
       const baseKey = baseKeyOf(subBlockKey)
       const group = groupFor(baseKey)
-      if (!group || !canonicalIndex.canonicalIdBySubBlockId[baseKey]) return false
+      if (!group || !indexFor(baseKey).canonicalIdBySubBlockId[baseKey]) return false
       return isAdvancedActiveGroup(baseKey) !== group.advancedIds.includes(baseKey)
     },
     isActiveManualMember: (subBlockKey) => {
@@ -521,6 +559,12 @@ export interface RemapForkContext {
   blockType?: string
   /** Canonical-mode overrides (`block.data.canonicalModes`), picking the active member per pair. */
   canonicalModes?: CanonicalModeOverrides
+  /**
+   * Whether the block is in TRIGGER mode, scoping the canonical index to that surface. A mixed
+   * action/trigger block shares one mode key across both surfaces, so without this a trigger
+   * field reads as a dormant member of the action pair and its value is cleared.
+   */
+  triggerMode?: boolean
   /** Target MCP server row lookup for rewriting remapped tool-input entries' server metadata. */
   resolveMcpServerMeta?: ForkMcpServerMetaResolver
   /**
@@ -626,6 +670,7 @@ export function remapToolBlockResources(
     tool.type
   )
   const toolBlockSubBlocks = (opts.blockConfigs?.[tool.type] ?? getBlock(tool.type))?.subBlocks
+  // canonical-index-unscoped: a nested tool's params are always the action surface
   const gates = createCanonicalModeGates(toolBlockSubBlocks, toolValues, scopedModes)
 
   // Clear DORMANT member keys first: a stale inactive value must not survive the copy (and must
@@ -1047,7 +1092,8 @@ export function remapForkSubBlocks(
   const gates = createCanonicalModeGates(
     context?.blockType ? getBlock(context.blockType)?.subBlocks : undefined,
     buildSubBlockValues(subBlocks),
-    context?.canonicalModes
+    context?.canonicalModes,
+    context?.triggerMode === true
   )
 
   for (const [subBlockKey, subBlock] of Object.entries(subBlocks)) {
@@ -1276,7 +1322,9 @@ export function clearDependentsOnRemap(
   remappedKeys: ReadonlySet<string>,
   canonicalModes?: CanonicalModeOverrides,
   /** Keys remapped via a COPY (see {@link RemapSubBlocksResult.copyRemappedKeys}). */
-  copyRemappedKeys?: ReadonlySet<string>
+  copyRemappedKeys?: ReadonlySet<string>,
+  /** The block's trigger mode, scoping the canonical index (see {@link createCanonicalModeGates}). */
+  triggerMode?: boolean
 ): SubBlockRecord {
   if (remappedKeys.size === 0) return subBlocks
   const config = getBlock(blockType)
@@ -1290,7 +1338,8 @@ export function clearDependentsOnRemap(
   const gates = createCanonicalModeGates(
     config.subBlocks,
     buildSubBlockValues(subBlocks),
-    canonicalModes
+    canonicalModes,
+    triggerMode === true
   )
 
   // The exemption's parent test: an mcp-server selector whose POST-remap value is non-empty was
@@ -1433,6 +1482,7 @@ function collectClearedToolParamDependents(
     // A DORMANT canonical member's cleared slot is not a lost configuration (only the pair's
     // active member executes). Modes resolve like the tool-input UI: tool-scoped overrides,
     // then the value heuristic over the merged params.
+    // canonical-index-unscoped: a nested tool's params are always the action surface
     const gates = createCanonicalModeGates(
       toolConfig.subBlocks,
       mergedValues,
@@ -1498,7 +1548,9 @@ export function collectClearedDependents(
   blockName: string,
   targetCurrentSubBlocks: SubBlockRecord,
   mergedSubBlocks: SubBlockRecord,
-  canonicalModes?: CanonicalModeOverrides
+  canonicalModes?: CanonicalModeOverrides,
+  /** The block's trigger mode, scoping the canonical index (see {@link createCanonicalModeGates}). */
+  triggerMode?: boolean
 ): NeedsConfigurationField[] {
   const config = getBlock(blockType)
   if (!config) return []
@@ -1506,7 +1558,12 @@ export function collectClearedDependents(
   const mergedValues = buildSubBlockValues(mergedSubBlocks)
   // A DORMANT canonical member the merge cleared is not a lost configuration - only the pair's
   // active member executes, so an inactive slot must never demand a re-pick.
-  const gates = createCanonicalModeGates(config.subBlocks, mergedValues, canonicalModes)
+  const gates = createCanonicalModeGates(
+    config.subBlocks,
+    mergedValues,
+    canonicalModes,
+    triggerMode === true
+  )
   const fields: NeedsConfigurationField[] = []
   for (const cfg of config.subBlocks) {
     if (!cfg.id) continue
@@ -1755,10 +1812,11 @@ export function createForkSubBlockTransform(
     isCopiedTarget?: (kind: ForkRemapKind, sourceId: string) => boolean
   }
 ): SubBlockTransform {
-  return (subBlocks, blockType, canonicalModes, onCanonicalModesChanged) => {
+  return (subBlocks, blockType, canonicalModes, onCanonicalModesChanged, triggerMode) => {
     const result = remapSubBlocks(subBlocks, resolve, {
       blockType,
       canonicalModes,
+      triggerMode,
       resolveMcpServerMeta: options?.resolveMcpServerMeta,
       isCopiedTarget: options?.isCopiedTarget,
     })
@@ -1768,7 +1826,8 @@ export function createForkSubBlockTransform(
       blockType,
       result.remappedKeys,
       result.canonicalModes ?? canonicalModes,
-      result.copyRemappedKeys
+      result.copyRemappedKeys,
+      triggerMode
     )
   }
 }
@@ -1792,6 +1851,8 @@ export function scanWorkflowReferences(
     subBlocks: unknown
     /** `block.data.canonicalModes`, picking the active member per canonical pair for detection. */
     canonicalModes?: CanonicalModeOverrides
+    /** The block's trigger mode, scoping the canonical index (see {@link createCanonicalModeGates}). */
+    triggerMode?: boolean
   }>,
   resolve: ForkReferenceResolver
 ): WorkflowReferenceScan {
@@ -1822,6 +1883,7 @@ export function scanWorkflowReferences(
       blockName: block.name,
       blockType: block.type,
       canonicalModes: block.canonicalModes,
+      triggerMode: block.triggerMode,
     })
     for (const reference of blockResult.references) {
       const key = `${reference.kind}:${reference.sourceId}`

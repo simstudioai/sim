@@ -24,6 +24,17 @@ function hasHttpProtocol(url: string): boolean {
   return /^https?:\/\//i.test(url)
 }
 
+/**
+ * Mirrors the real module's `normalizeBaseUrl`: protocol-less values get
+ * https:// under isProd, then trailing slashes are stripped so `${base}/path`
+ * stays single-slashed at every call site.
+ */
+function normalizeBaseUrl(url: string): string {
+  const protocol = envFlagsMock.isProd ? 'https://' : 'http://'
+  const withProtocol = hasHttpProtocol(url) ? url : `${protocol}${url}`
+  return withProtocol.replace(/\/+$/, '')
+}
+
 function getBaseUrlImpl(): string {
   const baseUrl = readEnv('NEXT_PUBLIC_APP_URL')?.trim()
   if (!baseUrl) {
@@ -31,9 +42,7 @@ function getBaseUrlImpl(): string {
       'NEXT_PUBLIC_APP_URL must be configured for webhooks and callbacks to work correctly'
     )
   }
-  // Mirrors the real module: protocol-less values get https:// under isProd.
-  const protocol = envFlagsMock.isProd ? 'https://' : 'http://'
-  return hasHttpProtocol(baseUrl) ? baseUrl : `${protocol}${baseUrl}`
+  return normalizeBaseUrl(baseUrl)
 }
 
 function getInternalApiBaseUrlImpl(): string {
@@ -47,7 +56,7 @@ function getInternalApiBaseUrlImpl(): string {
       'INTERNAL_API_BASE_URL must include protocol (http:// or https://), e.g. http://sim-app.default.svc.cluster.local:3000'
     )
   }
-  return internalBaseUrl
+  return normalizeBaseUrl(internalBaseUrl)
 }
 
 function ensureAbsoluteUrlImpl(pathOrUrl: string): string {

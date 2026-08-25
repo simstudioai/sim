@@ -56,22 +56,48 @@ export async function enforceUserRateLimit(
   return buildRateLimitResponse(resetAt)
 }
 
-/**
- * Apply a per-IP token bucket to an unauthenticated route. The `unknown` IP
- * fallback shares one global bucket per route so it cannot be amplified by
- * `X-Forwarded-For: unknown` spoofing.
- */
-export async function enforceIpRateLimit(
+async function enforceIpRateLimitWithPolicy(
   bucketName: string,
   request: NextRequest,
-  config: TokenBucketConfig = DEFAULT_PUBLIC_IP_ROUTE_LIMIT
+  config: TokenBucketConfig,
+  unresolvedClientPolicy: 'deny' | 'defer'
 ): Promise<NextResponse | null> {
   const ip = getClientIp(request)
+  if (!ip) {
+    logger.warn('Unable to resolve client IP for public rate limit', {
+      bucket: bucketName,
+      unresolvedClientPolicy,
+    })
+    return unresolvedClientPolicy === 'deny'
+      ? buildRateLimitResponse(new Date(Date.now() + config.refillIntervalMs))
+      : null
+  }
   const key = `route:${bucketName}:ip:${ip}`
   const { allowed, resetAt } = await rateLimiter.checkRateLimitDirect(key, config)
   if (allowed) return null
   logger.warn('IP rate limit exceeded', { bucket: bucketName, ip })
   return buildRateLimitResponse(resetAt)
+}
+
+/** Apply a per-IP token bucket and fail closed when the client cannot be resolved safely. */
+export async function enforceIpRateLimit(
+  bucketName: string,
+  request: NextRequest,
+  config: TokenBucketConfig = DEFAULT_PUBLIC_IP_ROUTE_LIMIT
+): Promise<NextResponse | null> {
+  return enforceIpRateLimitWithPolicy(bucketName, request, config, 'deny')
+}
+
+/**
+ * Apply a per-IP bucket when resolvable, deferring unresolved clients to an
+ * independent non-IP limit that the caller must enforce before any side effect.
+ */
+export async function enforceIpRateLimitWithIndependentBackstop(
+  bucketName: string,
+  request: NextRequest,
+  config: TokenBucketConfig = DEFAULT_PUBLIC_IP_ROUTE_LIMIT
+): Promise<NextResponse | null> {
+  return enforceIpRateLimitWithPolicy(bucketName, request, config, 'defer')
 }
 
 /**

@@ -65,6 +65,7 @@ import {
 } from '@/lib/workflows/subblocks/display'
 import {
   buildCanonicalIndex,
+  buildCanonicalIndexForSurface,
   hasAdvancedValues,
   resolveDependencyValue,
 } from '@/lib/workflows/subblocks/visibility'
@@ -805,14 +806,18 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     ])
   }
 
-  const canonicalIndex = useMemo(() => buildCanonicalIndex(config.subBlocks), [config.subBlocks])
+  const canonicalIndex = useMemo(
+    () => buildCanonicalIndexForSurface(config.subBlocks, displayTriggerMode),
+    [config.subBlocks, displayTriggerMode]
+  )
   const canonicalModeOverrides = currentStoreBlock?.data?.canonicalModes
 
   const hiddenByReactiveCondition = useReactiveConditions(
     config.subBlocks,
     id,
     activeWorkflowId,
-    canonicalModeOverrides
+    canonicalModeOverrides,
+    displayTriggerMode
   )
 
   const subBlockRowsData = useMemo(() => {
@@ -859,7 +864,6 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     const displayableSubBlocks = getCardSubBlocks(config, {
       advanced: effectiveAdvanced,
       values: rawValues,
-      canonicalIndex,
       canonicalModeOverrides,
       triggerMode: effectiveTrigger,
       hiddenIds: hiddenByReactiveCondition,
@@ -1236,7 +1240,6 @@ export const WorkflowBlock = memo(function WorkflowBlock({
       ringStyles={ringStyles}
       runPathStatus={runPathStatus}
       isRunning={isExecuting}
-      isWorkflowRunning={isWorkflowRunning}
       isExecutionHighlighted={isExecutionHighlighted}
       Icon={config.icon}
       iconBgColor={config.bgColor}

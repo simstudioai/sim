@@ -7,11 +7,8 @@ import {
 } from '@sim/testing'
 import { describe, expect, it } from 'vitest'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
-import {
-  formatDiffSummaryForDescription,
-  generateWorkflowDiffSummary,
-  hasWorkflowChanged,
-} from './compare'
+import { generateWorkflowDiffSummary, hasWorkflowChanged } from './compare'
+import { formatDiffSummaryForDescription } from './describe'
 
 /**
  * Type helper for converting test workflow state to app workflow state.

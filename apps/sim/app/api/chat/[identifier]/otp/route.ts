@@ -17,8 +17,10 @@ import {
   MAX_OTP_ATTEMPTS,
   OTP_EMAIL_RATE_LIMIT,
   OTP_IP_RATE_LIMIT,
+  OTP_RESOURCE_RATE_LIMIT,
   storeOTP,
 } from '@/lib/core/security/otp'
+import { afterResponse } from '@/lib/core/utils/after-response'
 import { generateRequestId, getClientIp } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { sendEmail } from '@/lib/messaging/email/mailer'
@@ -29,6 +31,49 @@ const logger = createLogger('ChatOtpAPI')
 
 const rateLimiter = new RateLimiter()
 
+function otpRequestAccepted() {
+  return createSuccessResponse({ message: 'Verification code sent' })
+}
+
+async function deliverOtp(requestId: string, deploymentId: string, title: string, email: string) {
+  const resourceRateLimit = await rateLimiter.checkRateLimitDirect(
+    `chat-otp:resource:${deploymentId}`,
+    OTP_RESOURCE_RATE_LIMIT,
+    { failClosed: true }
+  )
+  if (!resourceRateLimit.allowed) {
+    logger.warn(`[${requestId}] OTP resource rate limit exceeded for chat ${deploymentId}`)
+    return
+  }
+
+  const emailRateLimit = await rateLimiter.checkRateLimitDirect(
+    `chat-otp:email:${deploymentId}:${email.toLowerCase()}`,
+    OTP_EMAIL_RATE_LIMIT,
+    { failClosed: true }
+  )
+  if (!emailRateLimit.allowed) {
+    logger.warn(`[${requestId}] OTP email rate limit exceeded for ${email} on chat ${deploymentId}`)
+    return
+  }
+
+  const otp = generateOTP()
+  await storeOTP('chat', deploymentId, email, otp)
+
+  const emailHtml = await renderOTPEmail(otp, email, 'email-verification', title)
+  const emailResult = await sendEmail({
+    to: email,
+    subject: getOtpSubject(title),
+    html: emailHtml,
+  })
+
+  if (!emailResult.success) {
+    logger.error(`[${requestId}] Failed to send OTP email:`, emailResult.message)
+    return
+  }
+
+  logger.info(`[${requestId}] OTP sent to ${email} for chat ${deploymentId}`)
+}
+
 export const POST = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ identifier: string }> }) => {
     const { identifier } = await context.params
@@ -36,18 +81,21 @@ export const POST = withRouteHandler(
 
     try {
       const ip = getClientIp(request)
-      const ipRateLimit = await rateLimiter.checkRateLimitDirect(
-        `chat-otp:ip:${identifier}:${ip}`,
-        OTP_IP_RATE_LIMIT
-      )
-      if (!ipRateLimit.allowed) {
-        logger.warn(`[${requestId}] OTP IP rate limit exceeded for ${identifier} from ${ip}`)
-        const retryAfter = Math.ceil(
-          (ipRateLimit.retryAfterMs ?? OTP_IP_RATE_LIMIT.refillIntervalMs) / 1000
+      if (ip) {
+        const ipRateLimit = await rateLimiter.checkRateLimitDirect(
+          `chat-otp:ip:${identifier}:${ip}`,
+          OTP_IP_RATE_LIMIT,
+          { failClosed: true }
         )
-        const response = createErrorResponse('Too many requests. Please try again later.', 429)
-        response.headers.set('Retry-After', String(retryAfter))
-        return response
+        if (!ipRateLimit.allowed) {
+          logger.warn(`[${requestId}] OTP IP rate limit exceeded for ${identifier} from ${ip}`)
+          const retryAfter = Math.ceil(
+            (ipRateLimit.retryAfterMs ?? OTP_IP_RATE_LIMIT.refillIntervalMs) / 1000
+          )
+          const response = createErrorResponse('Too many requests. Please try again later.', 429)
+          response.headers.set('Retry-After', String(retryAfter))
+          return response
+        }
       }
 
       const parsed = await parseRequest(requestChatEmailOtpContract, request, context, {
@@ -84,53 +132,13 @@ export const POST = withRouteHandler(
       const allowedEmails: string[] = Array.isArray(deployment.allowedEmails)
         ? deployment.allowedEmails
         : []
+      const emailAllowed = isEmailAllowed(email, allowedEmails)
 
-      if (!isEmailAllowed(email, allowedEmails)) {
-        return createErrorResponse('Email not authorized for this chat', 403)
-      }
-
-      const emailRateLimit = await rateLimiter.checkRateLimitDirect(
-        `chat-otp:email:${deployment.id}:${email.toLowerCase()}`,
-        OTP_EMAIL_RATE_LIMIT
-      )
-      if (!emailRateLimit.allowed) {
-        logger.warn(
-          `[${requestId}] OTP email rate limit exceeded for ${email} on chat ${deployment.id}`
-        )
-        const retryAfter = Math.ceil(
-          (emailRateLimit.retryAfterMs ?? OTP_EMAIL_RATE_LIMIT.refillIntervalMs) / 1000
-        )
-        const response = createErrorResponse(
-          'Too many verification code requests. Please try again later.',
-          429
-        )
-        response.headers.set('Retry-After', String(retryAfter))
-        return response
-      }
-
-      const otp = generateOTP()
-      await storeOTP('chat', deployment.id, email, otp)
-
-      const emailHtml = await renderOTPEmail(
-        otp,
-        email,
-        'email-verification',
-        deployment.title || 'Chat'
-      )
-
-      const emailResult = await sendEmail({
-        to: email,
-        subject: getOtpSubject(deployment.title || 'Chat'),
-        html: emailHtml,
+      afterResponse(async () => {
+        if (!emailAllowed) return
+        await deliverOtp(requestId, deployment.id, deployment.title || 'Chat', email)
       })
-
-      if (!emailResult.success) {
-        logger.error(`[${requestId}] Failed to send OTP email:`, emailResult.message)
-        return createErrorResponse('Failed to send verification email', 500)
-      }
-
-      logger.info(`[${requestId}] OTP sent to ${email} for chat ${deployment.id}`)
-      return createSuccessResponse({ message: 'Verification code sent' })
+      return otpRequestAccepted()
     } catch (error) {
       logger.error(`[${requestId}] Error processing OTP request:`, error)
       return createErrorResponse('Failed to process request', 500)

@@ -15,13 +15,11 @@ afterAll(resetEnvironmentUtilsMock)
 const {
   ensureWorkflowAccessMock,
   ensureWorkspaceAccessMock,
-  getDefaultWorkspaceIdMock,
   listCredentialsMock,
   performUpdateCredentialMock,
 } = vi.hoisted(() => ({
   ensureWorkflowAccessMock: vi.fn(),
   ensureWorkspaceAccessMock: vi.fn(),
-  getDefaultWorkspaceIdMock: vi.fn(),
   listCredentialsMock: vi.fn(),
   performUpdateCredentialMock: vi.fn(),
 }))
@@ -37,7 +35,6 @@ vi.mock('@/lib/credentials/orchestration', () => ({
 vi.mock('@/lib/copilot/tools/handlers/access', () => ({
   ensureWorkflowAccess: ensureWorkflowAccessMock,
   ensureWorkspaceAccess: ensureWorkspaceAccessMock,
-  getDefaultWorkspaceId: getDefaultWorkspaceIdMock,
 }))
 
 import { setEnvironmentVariablesServerTool } from './set-environment-variables'
@@ -49,7 +46,6 @@ describe('setEnvironmentVariablesServerTool', () => {
       workflow: { id: 'wf-1', workspaceId: 'ws-from-workflow' },
     })
     ensureWorkspaceAccessMock.mockResolvedValue(undefined)
-    getDefaultWorkspaceIdMock.mockResolvedValue('ws-default')
     upsertPersonalEnvVarsMock.mockResolvedValue({ added: ['API_KEY'], updated: [] })
     upsertWorkspaceEnvVarsMock.mockResolvedValue(['API_KEY'])
     listCredentialsMock.mockResolvedValue({
@@ -97,22 +93,59 @@ describe('setEnvironmentVariablesServerTool', () => {
     expect(result.scope).toBe('personal')
   })
 
-  it('falls back to the default workspace when none is in context', async () => {
-    await setEnvironmentVariablesServerTool.execute(
-      {
-        variables: [{ name: 'API_KEY', value: 'secret' }],
-      },
-      {
-        userId: 'user-1',
-      }
+  it('fails closed when the context carries no workspace', async () => {
+    await expect(
+      setEnvironmentVariablesServerTool.execute(
+        { variables: [{ name: 'API_KEY', value: 'secret' }] },
+        { userId: 'user-1' }
+      )
+    ).rejects.toThrow('Copilot execution workspace is required')
+
+    expect(upsertWorkspaceEnvVarsMock).not.toHaveBeenCalled()
+  })
+
+  it('accepts a workspaceId that re-asserts the execution workspace', async () => {
+    const result = await setEnvironmentVariablesServerTool.execute(
+      { workspaceId: 'ws-1', variables: [{ name: 'API_KEY', value: 'secret' }] },
+      { userId: 'user-1', workspaceId: 'ws-1' }
     )
 
-    expect(getDefaultWorkspaceIdMock).toHaveBeenCalledWith('user-1')
-    expect(upsertWorkspaceEnvVarsMock).toHaveBeenCalledWith(
-      'ws-default',
-      { API_KEY: 'secret' },
-      'user-1'
+    expect(upsertWorkspaceEnvVarsMock).toHaveBeenCalledWith('ws-1', { API_KEY: 'secret' }, 'user-1')
+    expect(result.workspaceId).toBe('ws-1')
+  })
+
+  it('rejects a workspaceId that names a different workspace', async () => {
+    await expect(
+      setEnvironmentVariablesServerTool.execute(
+        { workspaceId: 'ws-other', variables: [{ name: 'API_KEY', value: 'secret' }] },
+        { userId: 'user-1', workspaceId: 'ws-1' }
+      )
+    ).rejects.toThrow('Workspace ID does not match the Copilot execution workspace')
+
+    expect(upsertWorkspaceEnvVarsMock).not.toHaveBeenCalled()
+  })
+
+  it('resolves the workspace from a workflow in the execution workspace', async () => {
+    ensureWorkflowAccessMock.mockResolvedValue({ workflow: { id: 'wf-1', workspaceId: 'ws-1' } })
+
+    await setEnvironmentVariablesServerTool.execute(
+      { workflowId: 'wf-1', variables: [{ name: 'API_KEY', value: 'secret' }] },
+      { userId: 'user-1', workspaceId: 'ws-1' }
     )
+
+    expect(ensureWorkflowAccessMock).toHaveBeenCalledWith('wf-1', 'user-1', 'write')
+    expect(upsertWorkspaceEnvVarsMock).toHaveBeenCalledWith('ws-1', { API_KEY: 'secret' }, 'user-1')
+  })
+
+  it('rejects a workflowId whose workspace differs from the execution workspace', async () => {
+    await expect(
+      setEnvironmentVariablesServerTool.execute(
+        { workflowId: 'wf-1', variables: [{ name: 'API_KEY', value: 'secret' }] },
+        { userId: 'user-1', workspaceId: 'ws-1' }
+      )
+    ).rejects.toThrow('Workspace ID does not match the Copilot execution workspace')
+
+    expect(upsertWorkspaceEnvVarsMock).not.toHaveBeenCalled()
   })
 
   it('describes a workspace secret through the credential update handler, never rewriting its value', async () => {
@@ -138,6 +171,24 @@ describe('setEnvironmentVariablesServerTool', () => {
     expect(upsertWorkspaceEnvVarsMock.mock.invocationCallOrder[0]).toBeLessThan(
       performUpdateCredentialMock.mock.invocationCallOrder[0]
     )
+  })
+
+  it('forwards only the describe fields — never the unredacted flag — through the legacy path', async () => {
+    await setEnvironmentVariablesServerTool.execute(
+      { variables: [{ name: 'API_KEY', value: 'secret', description: 'Stripe live key' }] },
+      { userId: 'user-1', workspaceId: 'ws-1' }
+    )
+
+    // This tool must not be a path for Sim to flip per-secret redaction: the
+    // call carries exactly the describe surface and no unredacted key at all.
+    const call = performUpdateCredentialMock.mock.calls[0][0] as Record<string, unknown>
+    expect(Object.keys(call).sort()).toEqual([
+      'allowedTypes',
+      'credentialId',
+      'description',
+      'userId',
+    ])
+    expect(call).not.toHaveProperty('unredacted')
   })
 
   it('describes a secret that already exists without touching its value', async () => {

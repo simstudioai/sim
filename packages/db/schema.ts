@@ -78,7 +78,6 @@ export const session = pgTable(
   },
   (table) => ({
     userIdIdx: index('session_user_id_idx').on(table.userId),
-    tokenIdx: index('session_token_idx').on(table.token),
   })
 )
 
@@ -290,6 +289,9 @@ export const workflow = pgTable(
       .on(table.workspaceId, sql`coalesce(${table.folderId}, '')`, table.name)
       .where(sql`${table.archivedAt} IS NULL`),
     folderSortIdx: index('workflow_folder_sort_idx').on(table.folderId, table.sortOrder),
+    activeWorkspaceSortIdx: index('workflow_active_workspace_sort_idx')
+      .on(table.workspaceId, table.sortOrder, table.createdAt, table.id)
+      .where(sql`${table.archivedAt} IS NULL`),
     archivedAtIdx: index('workflow_archived_at_idx').on(table.archivedAt),
     workspaceArchivedAtPartialIdx: index('workflow_workspace_archived_partial_idx')
       .on(table.workspaceId, table.archivedAt)
@@ -1328,22 +1330,16 @@ export const skillMember = pgTable(
   })
 )
 
-export const mothershipSettings = pgTable(
-  'mothership_settings',
-  {
-    workspaceId: text('workspace_id')
-      .primaryKey()
-      .references(() => workspace.id, { onDelete: 'cascade' }),
-    mcpToolRefs: jsonb('mcp_tool_refs').notNull().default(sql`'[]'::jsonb`),
-    customToolRefs: jsonb('custom_tool_refs').notNull().default(sql`'[]'::jsonb`),
-    skillRefs: jsonb('skill_refs').notNull().default(sql`'[]'::jsonb`),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-    updatedAt: timestamp('updated_at').notNull().defaultNow(),
-  },
-  (table) => ({
-    workspaceIdIdx: index('mothership_settings_workspace_id_idx').on(table.workspaceId),
-  })
-)
+export const mothershipSettings = pgTable('mothership_settings', {
+  workspaceId: text('workspace_id')
+    .primaryKey()
+    .references(() => workspace.id, { onDelete: 'cascade' }),
+  mcpToolRefs: jsonb('mcp_tool_refs').notNull().default(sql`'[]'::jsonb`),
+  customToolRefs: jsonb('custom_tool_refs').notNull().default(sql`'[]'::jsonb`),
+  skillRefs: jsonb('skill_refs').notNull().default(sql`'[]'::jsonb`),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
 
 export const subscription = pgTable(
   'subscription',
@@ -2044,7 +2040,6 @@ export const workspaceFile = pgTable(
   },
   (table) => ({
     workspaceIdIdx: index('workspace_file_workspace_id_idx').on(table.workspaceId),
-    keyIdx: index('workspace_file_key_idx').on(table.key),
     deletedAtIdx: index('workspace_file_deleted_at_idx').on(table.deletedAt),
     workspaceDeletedAtPartialIdx: index('workspace_file_workspace_deleted_partial_idx')
       .on(table.workspaceId, table.deletedAt)
@@ -2263,7 +2258,7 @@ export const workspaceFileSecretProvenance = pgTable(
   (table) => ({
     statusCheck: check(
       'workspace_file_secret_provenance_status_check',
-      sql`${table.status} IN ('exact', 'unknown')`
+      sql`${table.status} IN ('exact', 'unknown', 'unrecorded')`
     ),
   })
 )
@@ -2404,13 +2399,6 @@ export const permissions = pgTable(
       table.userId,
       table.entityType,
       table.permissionType
-    ),
-
-    // User + specific entity queries - get user's permissions for specific entity
-    userEntityIdx: index('permissions_user_entity_idx').on(
-      table.userId,
-      table.entityType,
-      table.entityId
     ),
 
     // Uniqueness constraint - prevent duplicate permission rows (one permission per user/entity)
@@ -2633,6 +2621,11 @@ export const document = pgTable(
       .where(sql`${table.deletedAt} IS NULL`),
     // Sync engine: load all active docs for a connector
     connectorIdIdx: index('doc_connector_id_idx').on(table.connectorId),
+    activeKnowledgeBaseTokenCountIdx: index('doc_active_kb_token_count_idx')
+      .on(table.knowledgeBaseId, table.tokenCount)
+      .where(
+        sql`${table.userExcluded} = false AND ${table.archivedAt} IS NULL AND ${table.deletedAt} IS NULL`
+      ),
     // KB file-access liveness: exact lookup by canonical storage key
     storageKeyIdx: index('doc_storage_key_idx')
       .on(table.storageKey)
@@ -3229,7 +3222,6 @@ export const copilotAsyncToolCalls = pgTable(
   (table) => ({
     runIdIdx: index('copilot_async_tool_calls_run_id_idx').on(table.runId),
     checkpointIdIdx: index('copilot_async_tool_calls_checkpoint_id_idx').on(table.checkpointId),
-    toolCallIdIdx: index('copilot_async_tool_calls_tool_call_id_idx').on(table.toolCallId),
     statusIdx: index('copilot_async_tool_calls_status_idx').on(table.status),
     runStatusIdx: index('copilot_async_tool_calls_run_status_idx').on(table.runId, table.status),
     toolCallUnique: uniqueIndex('copilot_async_tool_calls_tool_call_id_unique').on(
@@ -3932,6 +3924,13 @@ export const credential = pgTable(
     type: credentialTypeEnum('type').notNull(),
     displayName: text('display_name').notNull(),
     description: text('description'),
+    /**
+     * Opts an env_workspace secret out of resolved-secret redaction: its value renders in
+     * plaintext across surfaces (logs, model-visible content, sandbox file exports) instead
+     * of `{{NAME}}`, and is not recorded into durable provenance. Meaningful only for
+     * type = 'env_workspace'; writes for other types are rejected in the orchestration layer.
+     */
+    unredacted: boolean('unredacted').notNull().default(false),
     providerId: text('provider_id'),
     accountId: text('account_id').references(() => account.id, { onDelete: 'cascade' }),
     envKey: text('env_key'),
@@ -4346,6 +4345,17 @@ export const knowledgeConnector = pgTable(
     sourceConfig: json('source_config').notNull(),
     syncMode: text('sync_mode').notNull().default('full'),
     syncIntervalMinutes: integer('sync_interval_minutes').notNull().default(1440),
+    /**
+     * One of `active`, `pending`, `syncing`, `error`, `paused`, `disabled`.
+     *
+     * `pending` and `syncing` are the two halves of a sync in flight: `pending`
+     * is written as the sync is handed to the queue, `syncing` when a worker
+     * takes the lock. The split exists because the queue depth between them is
+     * unbounded — without `pending` the row is indistinguishable from idle for
+     * as long as the hand-off takes, which is what forced readers to guess from
+     * `created_at`. A row left `pending` past the lock TTL is reclaimed by the
+     * scheduler, which is the only thing that ever observes a lost hand-off.
+     */
     status: text('status').notNull().default('active'),
     lastSyncAt: timestamp('last_sync_at'),
     lastSyncError: text('last_sync_error'),
@@ -4415,7 +4425,10 @@ export const knowledgeConnectorSyncLog = pgTable(
     errorMessage: text('error_message'),
   },
   (table) => ({
-    connectorIdIdx: index('kcsl_connector_id_idx').on(table.connectorId),
+    connectorStartedAtIdx: index('kcsl_connector_started_at_idx').on(
+      table.connectorId,
+      sql`${table.startedAt} DESC`
+    ),
     /**
      * Serves the scheduler's five-minute sweep for orphaned `started` rows.
      *
@@ -4631,8 +4644,13 @@ export const tableViews = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
-    /** Covers the only read path: list a table's views in creation order. */
     tableCreatedIdx: index('table_views_table_created_idx').on(table.tableId, table.createdAt),
+    /** Covers workspace-scoped hydration without scanning every saved view. */
+    workspaceCreatedIdx: index('table_views_workspace_created_idx').on(
+      table.workspaceId,
+      table.createdAt,
+      table.id
+    ),
     /** At most one default view per table, enforced in the DB. */
     defaultViewUnique: uniqueIndex('table_views_table_default_unique')
       .on(table.tableId)
@@ -4902,7 +4920,6 @@ export const academyCertificate = pgTable(
       table.userId,
       table.courseId
     ),
-    certNumberIdx: index('academy_certificate_number_idx').on(table.certificateNumber),
     statusIdx: index('academy_certificate_status_idx').on(table.status),
   })
 )

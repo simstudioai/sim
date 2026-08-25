@@ -13,6 +13,7 @@ import {
   asOrchestrationError,
   OrchestrationError,
   type OrchestrationErrorCode,
+  throwOrchestrationFailure,
 } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import {
@@ -246,12 +247,7 @@ function resolveWorkflowSources(
 }
 
 function throwFolderFailure(result: { error?: string; errorCode?: OrchestrationErrorCode }): never {
-  throw new OrchestrationError(
-    result.errorCode ?? 'internal',
-    result.errorCode === 'internal'
-      ? 'Workflow folder mutation failed'
-      : (result.error ?? 'Folder mutation failed')
-  )
+  throwOrchestrationFailure(result, 'Workflow folder mutation failed')
 }
 
 async function reloadFolderIndex(state: WorkflowVfsIndexState, workspaceId: string): Promise<void> {

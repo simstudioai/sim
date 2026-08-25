@@ -53,12 +53,14 @@ export {
 export { ChipInput, type ChipInputProps } from './chip-input/chip-input'
 export {
   type ChipConfirmAction,
+  type ChipConfirmDefaultAction,
   ChipConfirmModal,
   type ChipConfirmModalProps,
   type ChipConfirmText,
   type ChipConfirmTextSegment,
   ChipModal,
   ChipModalBody,
+  type ChipModalBodyProps,
   type ChipModalDropdownOption,
   type ChipModalEmailsFieldProps,
   ChipModalError,
@@ -68,6 +70,7 @@ export {
   ChipModalFooter,
   type ChipModalFooterAction,
   type ChipModalFooterCustomAction,
+  type ChipModalFooterDefaultAction,
   type ChipModalFooterProps,
   type ChipModalFooterSlotAction,
   ChipModalHeader,
@@ -121,6 +124,7 @@ export {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
+  dropdownMenuRowClass,
 } from './dropdown-menu/dropdown-menu'
 export { Expandable, ExpandableContent } from './expandable/expandable'
 export { DashedDividerLine, FieldDivider } from './field-divider/field-divider'

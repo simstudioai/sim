@@ -177,6 +177,17 @@ export function MCP() {
   const workspaceId = params.workspaceId as string
   const workspacePermissions = useUserPermissionsContext()
   const canEdit = canMutateWorkspaceSettingsSection('mcp', workspacePermissions)
+  const [selectedServerId, setSelectedServerId] = useQueryState(mcpServerIdParam.key, {
+    ...mcpServerIdParam.parser,
+    ...mcpServerIdUrlKeys,
+  })
+  const [searchTerm, setSearchTerm] = useSettingsSearch()
+  const [showAddModal, setShowAddModal] = useState(false)
+  const [editingServerId, setEditingServerId] = useState<string | null>(null)
+  const [deletingServers, setDeletingServers] = useState<Set<string>>(() => new Set())
+  const [serverToDeleteId, setServerToDeleteId] = useState<string | null>(null)
+  const [expandedTools, setExpandedTools] = useState<Set<string>>(() => new Set())
+  const isServerFormOpen = showAddModal || editingServerId !== null
 
   const {
     data: servers = [],
@@ -184,32 +195,31 @@ export function MCP() {
     error: serversError,
   } = useMcpServers(workspaceId)
   const { data: mcpToolsData = [], toolsStateByServer } = useMcpToolsQuery(workspaceId)
-  const { data: storedTools = [], refetch: refetchStoredTools } = useStoredMcpTools(workspaceId)
+  const { data: storedTools = [], refetch: refetchStoredTools } = useStoredMcpTools(workspaceId, {
+    enabled: selectedServerId !== null,
+  })
   const forceRefreshToolsMutation = useForceRefreshMcpTools()
   const forceRefreshTools = forceRefreshToolsMutation.mutate
   const createServerMutation = useCreateMcpServer()
   const deleteServerMutation = useDeleteMcpServer()
   const refreshServerMutation = useRefreshMcpServer()
   const updateServerMutation = useUpdateMcpServer()
-  const availableEnvVars = useAvailableEnvVarKeys(workspaceId)
-  const { data: allowedMcpDomains = null } = useAllowedMcpDomains()
-
-  const [showAddModal, setShowAddModal] = useState(false)
-  const [editingServerId, setEditingServerId] = useState<string | null>(null)
-
-  const [searchTerm, setSearchTerm] = useSettingsSearch()
-  const [deletingServers, setDeletingServers] = useState<Set<string>>(() => new Set())
+  const availableEnvVars = useAvailableEnvVarKeys(workspaceId, { enabled: isServerFormOpen })
+  const {
+    data: allowedMcpDomains = null,
+    isPending: allowedMcpDomainsPending,
+    isError: allowedMcpDomainsFailed,
+  } = useAllowedMcpDomains({ enabled: isServerFormOpen })
+  const domainPolicyUnavailable =
+    isServerFormOpen && (allowedMcpDomainsPending || allowedMcpDomainsFailed)
+  const domainPolicyError = allowedMcpDomainsFailed
+    ? 'Unable to load the MCP domain policy. Try again before saving this server.'
+    : undefined
   const { connectingServers: connectingOauthServers, startOauthForServer } = useMcpOauthPopup({
     workspaceId,
   })
 
-  const [serverToDeleteId, setServerToDeleteId] = useState<string | null>(null)
   const showDeleteDialog = serverToDeleteId !== null
-
-  const [selectedServerId, setSelectedServerId] = useQueryState(mcpServerIdParam.key, {
-    ...mcpServerIdParam.parser,
-    ...mcpServerIdUrlKeys,
-  })
 
   const initialServerIdRef = useRef(selectedServerId)
   const didDeepLinkRefreshRef = useRef(false)
@@ -220,8 +230,6 @@ export function MCP() {
     if (canEdit) forceRefreshTools(workspaceId)
     refetchStoredTools()
   }, [canEdit, workspaceId, forceRefreshTools, refetchStoredTools])
-
-  const [expandedTools, setExpandedTools] = useState<Set<string>>(() => new Set())
 
   const handleRemoveServer = (serverId: string) => {
     setServerToDeleteId(serverId)
@@ -638,6 +646,8 @@ export function MCP() {
             workspaceId={workspaceId}
             availableEnvVars={availableEnvVars}
             allowedMcpDomains={allowedMcpDomains}
+            domainPolicyUnavailable={domainPolicyUnavailable}
+            domainPolicyError={domainPolicyError}
           />
         )}
         {deleteConfirmModal}
@@ -733,6 +743,8 @@ export function MCP() {
           workspaceId={workspaceId}
           availableEnvVars={availableEnvVars}
           allowedMcpDomains={allowedMcpDomains}
+          domainPolicyUnavailable={domainPolicyUnavailable}
+          domainPolicyError={domainPolicyError}
         />
       )}
 

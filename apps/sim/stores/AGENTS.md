@@ -25,5 +25,15 @@ this split correct:
   store write that skips persistence makes the client's merged state diverge from the
   DB draft, which deploy snapshots — producing phantom "Update" states on the deploy
   button that clear on refresh. Hydration-derived local-only writes are allowed only
-  when change detection compensates (see `populateTriggerFieldsFromConfig` +
-  `normalizeTriggerConfigValues`).
+  when change detection compensates, and the exemption list in the store's own
+  docstring (`workflows/subblock/store.ts`) is the record of which ones do and why —
+  keep the two in step.
+- Change detection compensates by resolving each subblock value to the configuration
+  it represents (`lib/workflows/canonical/`), so a blank value and a value equal to
+  the field's declared `defaultValue` compare equal. It does NOT compensate for a
+  local-only write of a value the user could have chosen. If you cannot name the
+  declared default your write matches, it is not exempt.
+- Deploy materializes declared defaults into `webhook.providerConfig`, so anything
+  reading a derived artifact back into the store is writing values the DB draft does
+  not have. That circularity is the origin of this whole failure mode; prefer not
+  reading derived artifacts back at all.

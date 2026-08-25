@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { z } from 'zod'
 import { QueryLogs } from '@/lib/copilot/generated/tool-catalog-v1'
 import type { BaseServerTool, ServerToolContext } from '@/lib/copilot/tools/server/base-tool'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { requireCopilotWorkspace } from '@/lib/copilot/tools/server/workspace-scope'
 import {
   collectLargeValueExecutionIds,
   collectLargeValueKeys,
@@ -118,14 +118,6 @@ const queryLogsArgsSchema = z.preprocess((value) => {
 
 type QueryLogsArgs = z.infer<typeof queryLogsArgsSchema>
 
-function resolveWorkspaceId(args: QueryLogsArgs, context?: ServerToolContext): string {
-  const workspaceId = args.workspaceId ?? context?.workspaceId
-  if (!workspaceId) {
-    throw new OrchestrationError('validation', 'workspaceId is required')
-  }
-  return workspaceId
-}
-
 function buildLogViewContext(
   detail: {
     workflowId: string | null
@@ -176,7 +168,7 @@ export const queryLogsServerTool: BaseServerTool<QueryLogsArgs, unknown> = {
       throw new Error('Unauthorized access')
     }
     const userId = context.userId
-    const workspaceId = resolveWorkspaceId(args, context)
+    const workspaceId = requireCopilotWorkspace(context, args.workspaceId)
 
     if (args.view === 'list') {
       const { view: _view, title: _title, ...rest } = args

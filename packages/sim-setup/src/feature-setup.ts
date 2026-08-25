@@ -13,6 +13,7 @@ import { promptCapabilitySetup } from './capability-setup'
 import { type ConfigurationSource, discoverConfigurationSources } from './configuration-sources'
 import { type EnvTarget, reconcileEnvValues } from './env-files'
 import * as p from './prompter'
+import { chatFlagValues, mothershipOverride, promptCopilotKey } from './steps'
 import { theme } from './theme'
 
 function isSetupFeatureId(value: string): value is SetupFeatureId {
@@ -113,6 +114,19 @@ async function setupLlm(vars: Map<string, string>): Promise<LlmSetupResult> {
   return reconcileLlmSetup(provider, values)
 }
 
+async function setupChat(vars: Map<string, string>): Promise<Record<string, string>> {
+  const overrides = mothershipOverride()
+  const copilotKey = await promptCopilotKey(vars.get('COPILOT_API_KEY'))
+  if (!copilotKey) {
+    throw new Error('Chat setup did not receive an API key. No configuration was changed.')
+  }
+  return {
+    ...overrides,
+    COPILOT_API_KEY: copilotKey,
+    ...chatFlagValues(copilotKey),
+  }
+}
+
 export function setupFeatureUsage(): string {
   return SETUP_FEATURES.map((feature) =>
     feature.id === 'integration' ? 'integration <slug>' : feature.id
@@ -182,6 +196,9 @@ export async function runFeatureSetup(feature: string, args: readonly string[]):
     })
     values = result.values
     remove = result.remove
+  } else if (feature === 'chat') {
+    values = await setupChat(vars)
+    remove = []
   } else if (feature === 'integration') {
     values = await setupIntegration(args[0], vars)
     remove = []

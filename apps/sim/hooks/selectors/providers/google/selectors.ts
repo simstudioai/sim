@@ -1,6 +1,10 @@
 import { requestJson } from '@/lib/api/client/request'
 import * as selectorContracts from '@/lib/api/contracts/selectors'
-import { ensureCredential, SELECTOR_STALE } from '@/hooks/selectors/providers/shared'
+import {
+  ensureCredential,
+  SELECTOR_SEARCH_STALE,
+  SELECTOR_STALE,
+} from '@/hooks/selectors/providers/shared'
 import type { SelectorDefinition, SelectorKey, SelectorQueryArgs } from '@/hooks/selectors/types'
 
 export const googleSelectors = {
@@ -101,7 +105,7 @@ export const googleSelectors = {
       selectorContracts.googleDriveFilesSelectorContract,
       selectorContracts.googleDriveFileSelectorContract,
     ],
-    staleTime: 15 * 1000,
+    staleTime: SELECTOR_SEARCH_STALE,
     getQueryKey: ({ context, search }: SelectorQueryArgs) => [
       'selectors',
       'google.drive',

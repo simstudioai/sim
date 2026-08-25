@@ -5,6 +5,8 @@ import {
   Handle,
   internalsSymbol,
   Position,
+  type ReactFlowState,
+  useStore as useReactFlowStore,
   useStoreApi as useReactFlowStoreApi,
   useUpdateNodeInternals,
 } from 'reactflow'
@@ -63,8 +65,6 @@ export interface SubflowNodeViewProps {
   isFocused: boolean
   /** Whether execution controls are active for this subflow. */
   isRunning?: boolean
-  /** Whether the parent workflow is executing. Holds every subflow action swell open. */
-  isWorkflowRunning?: boolean
   /** Whether this subflow participates in the current execution handoff. */
   isExecutionHighlighted?: boolean
   /** Diff state when comparing workflow versions. */
@@ -324,7 +324,6 @@ export function SubflowNodeView({
   isLocked,
   isFocused,
   isRunning = false,
-  isWorkflowRunning = false,
   isExecutionHighlighted = false,
   diffStatus,
   nestingLevel,
@@ -343,6 +342,22 @@ export function SubflowNodeView({
   const isPreviewSelected = data?.isPreviewSelected || false
 
   const endHandleId = data.kind === 'loop' ? 'loop-end-source' : 'parallel-end-source'
+  const showFixedEndPort = useReactFlowStore(
+    useMemo(() => {
+      let previousEdges: ReactFlowState['edges'] | undefined
+      let previousResult = !data.parentId
+
+      return (state: ReactFlowState) => {
+        if (!data.parentId || state.edges === previousEdges) return previousResult
+
+        previousEdges = state.edges
+        previousResult = state.edges.some(
+          (edge) => edge.source === id && edge.sourceHandle === endHandleId
+        )
+        return previousResult
+      }
+    }, [data.parentId, endHandleId, id])
+  )
   const BlockIcon = data.kind === 'loop' ? Repeat : Split
   const blockName = data.name || (data.kind === 'loop' ? 'Loop' : 'Parallel')
   const blockTypeLabel = data.kind === 'loop' ? 'Loop' : 'Parallel'
@@ -474,13 +489,16 @@ export function SubflowNodeView({
         position: HANDLE_POSITIONS.SUBFLOW_CONNECTION_Y,
         plateau: CURSOR_SWELL_LENGTH_PX,
       },
-      {
+    ]
+
+    if (showFixedEndPort) {
+      ports.push({
         id: endHandleId,
         side: 'right',
         position: HANDLE_POSITIONS.SUBFLOW_CONNECTION_Y,
         plateau: CURSOR_SWELL_LENGTH_PX,
-      },
-    ]
+      })
+    }
 
     if (showActionMenu) {
       ports.push({
@@ -495,7 +513,7 @@ export function SubflowNodeView({
     }
 
     return ports
-  }, [actionMenuSwellOpen, actionMenuWidth, endHandleId, showActionMenu])
+  }, [actionMenuSwellOpen, actionMenuWidth, endHandleId, showActionMenu, showFixedEndPort])
 
   return (
     <div

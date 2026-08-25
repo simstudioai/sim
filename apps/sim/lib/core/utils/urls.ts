@@ -12,13 +12,26 @@ function hasHttpProtocol(url: string): boolean {
   return /^https?:\/\//i.test(url)
 }
 
+/**
+ * Brings a configured base URL to the no-trailing-slash form {@link SITE_URL}
+ * documents: adds the protocol when the operator omitted it, then strips
+ * trailing slashes.
+ *
+ * Call sites overwhelmingly build URLs as `${base}/path`, so a base spelled
+ * `https://host/` gives every one of them a `//path` pathname that matches no
+ * route, and breaks the `startsWith(`${base}/`)` prefix checks that decide
+ * whether a redirect target is our own. Normalizing once here is what lets
+ * those call sites stay simple instead of each defending against the operator's
+ * spelling.
+ *
+ * Trailing slashes are the only spelling this absorbs. The app declares no Next
+ * `basePath`, so its routes are served at the origin root and a path-prefixed
+ * value could not address them however this normalized it.
+ */
 function normalizeBaseUrl(url: string): string {
-  if (hasHttpProtocol(url)) {
-    return url
-  }
-
   const protocol = isProd ? 'https://' : 'http://'
-  return `${protocol}${url}`
+  const withProtocol = hasHttpProtocol(url) ? url : `${protocol}${url}`
+  return withProtocol.replace(/\/+$/, '')
 }
 
 /**
@@ -89,7 +102,9 @@ export function getInternalApiBaseUrl(): string {
     )
   }
 
-  return internalBaseUrl
+  // Protocol is proven present above, so this only trims trailing slashes —
+  // callers concatenate `${base}/api/...` exactly as they do with getBaseUrl().
+  return normalizeBaseUrl(internalBaseUrl)
 }
 
 /**

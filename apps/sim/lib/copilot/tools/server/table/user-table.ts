@@ -171,9 +171,6 @@ function mergeViewPredicate(
 export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult> = {
   name: UserTable.id,
   async execute(params: UserTableArgs, context?: ServerToolContext): Promise<UserTableResult> {
-    const withMessageId = (message: string) =>
-      context?.messageId ? `${message} [messageId:${context.messageId}]` : message
-
     if (!context?.userId) {
       logger.error('Unauthorized attempt to access user table - no authenticated user context')
       throw new Error('Authentication required')

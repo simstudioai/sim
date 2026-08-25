@@ -1793,6 +1793,7 @@ export function Table({
             ? `Delete ${deletingColumns.length} Columns`
             : 'Delete Column'
         }
+        defaultAction='dismiss'
         text={[
           'Are you sure you want to delete ',
           deletingColumns && deletingColumns.length > 1
@@ -1823,6 +1824,7 @@ export function Table({
           onOpenChange={setShowDeleteTableConfirm}
           srTitle='Delete Table'
           title='Delete Table'
+          defaultAction='dismiss'
           text={[
             'Are you sure you want to delete ',
             { text: tableData?.name ?? 'this table', bold: true },

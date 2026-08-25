@@ -11,7 +11,7 @@
  * parsers share {@link csvParseOptions} so their behavior can't drift.
  */
 
-import { type Options as CsvParseOptions, type Parser, parse as parseCsvStream } from 'csv-parse'
+import type { Options as CsvParseOptions } from 'csv-parse'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { getColumnId } from '@/lib/table/column-keys'
 import type { ColumnType } from '@/lib/table/column-types'
@@ -74,18 +74,6 @@ export function csvParseOptions(
     delimiter,
     max_record_size: CSV_MAX_RECORD_SIZE_BYTES,
   }
-}
-
-/**
- * Returns a streaming `csv-parse` parser (a `Transform`/async-iterable). Pipe a
- * file stream into it and iterate records with `for await`; backpressure flows
- * back to the source while each record is processed. Use this for HTTP uploads
- * so the file is never fully buffered in memory.
- *
- * `onHeaders` fires once, before the first record, with the full header row.
- */
-export function createCsvParser(delimiter = ',', onHeaders?: (headers: string[]) => void): Parser {
-  return parseCsvStream(csvParseOptions(delimiter, onHeaders))
 }
 
 /**

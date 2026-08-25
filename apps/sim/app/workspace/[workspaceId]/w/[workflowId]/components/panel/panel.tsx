@@ -10,6 +10,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
   Duplicate,
   Layout,
@@ -639,13 +640,10 @@ export const Panel = memo(function Panel() {
     setIsMenuOpen(false)
   }, [collaborativeBatchToggleLocked])
 
-  // Compute run button state
-  const canRun = userPermissions.canRead // Running only requires read permissions
+  const canRun = userPermissions.canRead
   const isLoadingPermissions = userPermissions.isLoading
-  const hasValidationErrors = false // TODO: Add validation logic if needed
-  const isWorkflowBlocked = isExecuting || hasValidationErrors
   const isButtonDisabled =
-    !isExecuting && (isUsageGateLoading || isWorkflowBlocked || (!canRun && !isLoadingPermissions))
+    !isExecuting && (isUsageGateLoading || (!canRun && !isLoadingPermissions))
 
   /**
    * Register global keyboard shortcuts using the central commands registry.
@@ -742,6 +740,7 @@ export const Panel = memo(function Panel() {
                     <Duplicate />
                     Duplicate workflow
                   </DropdownMenuItem>
+                  <DropdownMenuSeparator />
                   <DropdownMenuItem
                     onSelect={() => {
                       setIsDeleteModalOpen(true)
@@ -929,6 +928,7 @@ export const Panel = memo(function Panel() {
 
                 <MothershipChat
                   className='min-h-0 flex-1'
+                  workspaceId={workspaceId}
                   messages={copilotMessages}
                   isSending={copilotIsSending}
                   isReconnecting={copilotIsReconnecting}
@@ -990,6 +990,7 @@ export const Panel = memo(function Panel() {
         onOpenChange={setIsDeleteModalOpen}
         srTitle='Delete Workflow'
         title='Delete Workflow'
+        defaultAction='dismiss'
         text={[
           'Are you sure you want to delete ',
           { text: currentWorkflow?.name ?? 'this workflow', bold: true },

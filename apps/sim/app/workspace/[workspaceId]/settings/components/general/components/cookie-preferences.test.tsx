@@ -1,7 +1,6 @@
 /**
  * @vitest-environment jsdom
  */
-import type { ReactNode } from 'react'
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -17,9 +16,6 @@ const { mockUseConsentManager, mockSaveConsents, mockToastError, mockRevert, las
 
 vi.mock('@sim/emcn', () => ({ toast: { success: vi.fn(), error: mockToastError } }))
 vi.mock('@c15t/nextjs/headless', () => ({ useConsentManager: mockUseConsentManager }))
-vi.mock('@/app/_shell/consent/consent-store-provider', () => ({
-  ConsentStoreProvider: ({ children }: { children: ReactNode }) => children,
-}))
 vi.mock('@/app/_shell/consent/consent-preferences', () => ({
   CONSENT_LINK_CLASS: 'link',
   ConsentPreferences: (props: {

@@ -75,6 +75,15 @@ describe('serializeOutputForFile (csv)', () => {
     expect(serializeOutputForFile(output, 'csv')).toBe('name,age\nAlice,30\nBob,40')
   })
 
+  it('neutralizes formula-leading values in generated CSV', () => {
+    const output = {
+      result: [{ value: '=1+1' }],
+      stdout: '',
+    }
+
+    expect(serializeOutputForFile(output, 'csv')).toBe("value\n'=1+1")
+  })
+
   it('returns the raw string when the non-envelope output is already a CSV string', () => {
     expect(serializeOutputForFile('a,b\n1,2', 'csv')).toBe('a,b\n1,2')
   })
@@ -578,7 +587,12 @@ describe('maybeWriteOutputToFile', () => {
     )
   })
 
-  it('preserves legacy writes without a registry and marks their provenance unknown', async () => {
+  /**
+   * No registry means no recorder ran, so nothing was written down about these bytes — an absence,
+   * which the surface's policy may relax, and distinct from the taint a refused safety decision
+   * produces below.
+   */
+  it('preserves legacy writes without a registry and marks their provenance unrecorded', async () => {
     const result = await maybeWriteOutputToFile(
       RunFunction.id,
       { outputs: { files: [{ path: 'files/report.json', mode: 'overwrite' }] } },
@@ -589,7 +603,7 @@ describe('maybeWriteOutputToFile', () => {
     expect(result.success).toBe(true)
     expect(mockWriteWorkspaceFileByPath).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({ secretProvenance: { status: 'unknown' } })
+      expect.objectContaining({ secretProvenance: { status: 'unrecorded' } })
     )
   })
 

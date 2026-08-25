@@ -520,7 +520,7 @@ export const ToolInput = memo(function ToolInput({
   // subBlock): shown in the picker but greyed out with a tooltip instead of added.
   const blockType = useWorkflowStore(useCallback((state) => state.blocks[blockId]?.type, [blockId]))
   const unsupportedToolTypes = useMemo<readonly ('mcp' | 'custom-tool')[]>(() => {
-    const block = getAllBlocks().find((b) => b.type === blockType)
+    const block = blockType ? getBlock(blockType) : undefined
     return block?.subBlocks.find((sb) => sb.id === subBlockId)?.unsupportedToolTypes ?? []
   }, [blockType, subBlockId])
   const mcpUnsupported = unsupportedToolTypes.includes('mcp')
@@ -529,10 +529,11 @@ export const ToolInput = memo(function ToolInput({
   // Look up credential type for reactive condition filtering (e.g. service account detection).
   // Uses canonical resolution so the active field (basic vs advanced) is respected.
   const toolCredentialId = useMemo(() => {
-    const allBlocks = getAllBlocks()
     for (const [toolIndex, tool] of selectedTools.entries()) {
-      const blockConfig = allBlocks.find((b: { type: string }) => b.type === tool.type)
+      const blockConfig = tool.type ? getBlock(tool.type) : undefined
       if (!blockConfig?.subBlocks) continue
+      // canonical-index-unscoped: a nested tool resolves against `tool.params`, which only ever
+      // holds action-surface values — a tool is never invoked in trigger mode.
       const toolCanonical = buildCanonicalIndex(blockConfig.subBlocks)
       const scopedOverrides = scopeCanonicalModesForTool(
         canonicalModeOverrides,
@@ -1779,7 +1780,8 @@ export const ToolInput = memo(function ToolInput({
               : null
 
           const toolCanonicalIndex: CanonicalIndex | null = toolBlock?.subBlocks
-            ? buildCanonicalIndex(toolBlock.subBlocks)
+            ? // canonical-index-unscoped: nested tool params are always the action surface
+              buildCanonicalIndex(toolBlock.subBlocks)
             : null
 
           const toolContextValues = toolCanonicalIndex

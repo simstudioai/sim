@@ -54,14 +54,35 @@ const FORBIDDEN = join(APP, 'tools/registry.ts')
 interface EntrySource {
   /** Directory under `apps/sim` the entries are discovered in. */
   root: string
-  /** Whether a filename inside it counts as an entry. */
-  matches: (filename: string) => boolean
+  /** Whether a file inside it counts as an entry. */
+  matches: (filename: string, fullPath: string) => boolean
   /** Why this subtree must stay registry-free, printed when the root disappears. */
   reason: string
 }
 
-const PAGE_ENTRY_FILENAMES = new Set(['page.tsx', 'layout.tsx'])
-const isPageEntry = (filename: string) => PAGE_ENTRY_FILENAMES.has(filename)
+const WORKSPACE_ENTRY_FILENAMES = new Set([
+  'page.tsx',
+  'layout.tsx',
+  'error.tsx',
+  'loading.tsx',
+  'not-found.tsx',
+  'template.tsx',
+  'default.tsx',
+])
+
+const DEFAULT_EXPORT_RE =
+  /(?:^|\n)\s*export\s+default\b|(?:^|\n)\s*export\s*\{[^}]*(?:\bas\s+default\b|\bdefault\s*[,}])/
+
+function hasDefaultExport(file: string): boolean {
+  try {
+    return DEFAULT_EXPORT_RE.test(readFileSync(file, 'utf8'))
+  } catch {
+    return false
+  }
+}
+
+const isWorkspaceEntry = (filename: string, fullPath: string) =>
+  WORKSPACE_ENTRY_FILENAMES.has(filename) && hasDefaultExport(fullPath)
 const isRouteEntry = (filename: string) => filename === 'route.ts'
 const isSourceModule = (filename: string) =>
   filename.endsWith('.ts') && !filename.endsWith('.test.ts')
@@ -88,8 +109,8 @@ const isSourceModule = (filename: string) =>
 const ENTRY_SOURCES: readonly EntrySource[] = [
   {
     root: 'app/workspace',
-    matches: isPageEntry,
-    reason: 'client-reachable workspace pages and layouts',
+    matches: isWorkspaceEntry,
+    reason: 'client-reachable workspace convention entries',
   },
   {
     root: 'app/api/v2/blocks',
@@ -132,13 +153,13 @@ const ENTRY_SOURCES: readonly EntrySource[] = [
 
 function collectEntries(
   dir: string,
-  matches: (filename: string) => boolean,
+  matches: (filename: string, fullPath: string) => boolean,
   found: string[] = []
 ): string[] {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const full = join(dir, entry.name)
     if (entry.isDirectory()) collectEntries(full, matches, found)
-    else if (matches(entry.name)) found.push(relative(APP, full))
+    else if (matches(entry.name, full)) found.push(relative(APP, full))
   }
   return found
 }

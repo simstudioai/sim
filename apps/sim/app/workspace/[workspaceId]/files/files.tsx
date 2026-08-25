@@ -16,8 +16,9 @@ import {
   Trash,
   toast,
   Upload,
+  useCopyToClipboard,
 } from '@sim/emcn'
-import { Download, Send } from '@sim/emcn/icons'
+import { Check, Download, Link, Send } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { useParams, useRouter } from 'next/navigation'
@@ -128,7 +129,6 @@ import {
 } from '@/app/workspace/[workspaceId]/files/untitled-title'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { usePinItem, usePinnedIds, useUnpinItem } from '@/hooks/queries/pinned-items'
 import { useWorkspaceMembersQuery, type WorkspaceMember } from '@/hooks/queries/workspace'
 import {
@@ -147,6 +147,7 @@ import {
   useUploadWorkspaceFile,
   useWorkspaceFiles,
 } from '@/hooks/queries/workspace-files'
+import { useContextMenu } from '@/hooks/use-context-menu'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { useInlineRename } from '@/hooks/use-inline-rename'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
@@ -273,6 +274,7 @@ export function Files() {
   const userPermissions = useUserPermissionsContext()
   const canEdit = userPermissions.canEdit === true
   const { config: permissionConfig } = usePermissionConfig()
+  const { copied: copiedFileLink, copy: copyFileLink } = useCopyToClipboard({ resetMs: 1500 })
 
   // Joined for the live file tree: a `workspace-files-changed` broadcast invalidates the
   // browser. "Who's in this file" comes from the file-doc room (see FileDocRoomProvider),
@@ -1397,6 +1399,19 @@ export function Files() {
     closeContextMenu()
   }, [selectedRowIds, handleBulkDownload, closeContextMenu, downloadArchive, handleDownload])
 
+  const handleContextMenuCopyLink = useCallback(() => {
+    const item = contextMenuItemRef.current
+    if (item?.kind === 'file') {
+      void copyFileLink(
+        `${window.location.origin}/workspace/${workspaceId}/files/${item.file.id}`
+      ).then((copied) => {
+        if (copied) toast.success('Copied link to clipboard')
+        else toast.error('Failed to copy link')
+      })
+    }
+    closeContextMenu()
+  }, [closeContextMenu, copyFileLink, workspaceId])
+
   const handleContextMenuRename = useCallback(() => {
     const item = contextMenuItemRef.current
     if (item?.kind === 'file') listRename.startRename(item.file.id, item.file.name)
@@ -1613,7 +1628,6 @@ export function Files() {
     const isSimPage = selectedFile.type === SIM_PAGE_CONTENT_TYPE
     const hasSplitView = canEditText && canPreview && !isInlineMarkdown && !isSimPage
     const showPreviewToggle = canPreview && !isInlineMarkdown && !isSimPage
-
     const nextModeLabel =
       previewMode === 'editor' ? 'Split' : previewMode === 'split' ? 'Preview' : 'Edit'
     const nextModeIcon =
@@ -1637,6 +1651,15 @@ export function Files() {
               },
             ]
           : []),
+      {
+        id: 'copy-link',
+        text: copiedFileLink ? 'Copied!' : 'Copy Link',
+        icon: copiedFileLink ? Check : Link,
+        onSelect: () =>
+          void copyFileLink(
+            `${window.location.origin}/workspace/${workspaceId}/files/${selectedFile.id}`
+          ),
+      },
       {
         text: 'Download',
         icon: Download,
@@ -1665,6 +1688,9 @@ export function Files() {
     handleCyclePreviewMode,
     handleTogglePreview,
     handleDownloadSelected,
+    copiedFileLink,
+    copyFileLink,
+    workspaceId,
     handleShareSelected,
     handleDeleteSelected,
   ])
@@ -2244,6 +2270,7 @@ export function Files() {
         position={contextMenuPosition}
         onClose={closeContextMenu}
         onOpen={handleContextMenuOpen}
+        onCopyLink={contextMenuItem?.kind === 'file' ? handleContextMenuCopyLink : undefined}
         onDownload={handleContextMenuDownload}
         onRename={handleContextMenuRename}
         onDelete={handleContextMenuDelete}
@@ -2270,6 +2297,7 @@ export function Files() {
         open={Boolean(extractTarget)}
         onOpenChange={(open) => !open && setExtractTargetId(null)}
         title='Unzip archive?'
+        defaultAction='confirm'
         text={[
           'This will unzip ',
           { text: extractTarget?.name ?? 'this archive', bold: true },
