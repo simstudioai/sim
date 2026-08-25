@@ -600,6 +600,7 @@ export async function checkWebhookPreprocessing(
       checkDeployment: true,
       workspaceId: foundWorkflow.workspaceId ?? undefined,
       workflowRecord: foundWorkflow,
+      trustWorkflowRecord: true,
       executionType: 'async',
     })
 
@@ -779,7 +780,10 @@ async function queueWebhookExecutionWithResult(
         },
         maxDurationSeconds,
         runner: (_queuedPayload: unknown, signal: AbortSignal) =>
-          executeWebhookJob(payload, signal),
+          executeWebhookJob(payload, signal, {
+            workflowRecord: foundWorkflow,
+            webhookRecord: foundWebhook,
+          }),
       })
       reservationTransferred = true
       logger.info(
@@ -1067,7 +1071,10 @@ export async function processPolledWebhookEvent(
         },
         maxDurationSeconds,
         runner: (_queuedPayload: unknown, signal: AbortSignal) =>
-          executeWebhookJob(payload, signal),
+          executeWebhookJob(payload, signal, {
+            workflowRecord: foundWorkflow,
+            webhookRecord: foundWebhook,
+          }),
       })
       reservationTransferred = true
       logger.info(`[${requestId}] Queued ${provider} webhook execution ${jobId} via inline backend`)

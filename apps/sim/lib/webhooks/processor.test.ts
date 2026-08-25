@@ -536,7 +536,11 @@ describe('webhook processor execution identity', () => {
     await options.runner?.({}, controller.signal)
     expect(mockExecuteWebhookJob).toHaveBeenCalledWith(
       expect.objectContaining({ executionId: 'generated-execution-id' }),
-      controller.signal
+      controller.signal,
+      expect.objectContaining({
+        workflowRecord: expect.objectContaining({ id: 'workflow-1' }),
+        webhookRecord: expect.objectContaining({ id: 'webhook-1' }),
+      })
     )
   })
 
@@ -714,7 +718,11 @@ describe('polled webhook reservation ownership', () => {
     await options.runner?.({}, controller.signal)
     expect(mockExecuteWebhookJob).toHaveBeenCalledWith(
       expect.objectContaining({ executionId: 'generated-execution-id' }),
-      controller.signal
+      controller.signal,
+      expect.objectContaining({
+        workflowRecord: expect.objectContaining({ id: 'workflow-1' }),
+        webhookRecord: expect.objectContaining({ id: 'webhook-1' }),
+      })
     )
   })
 })

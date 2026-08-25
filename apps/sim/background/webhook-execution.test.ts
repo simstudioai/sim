@@ -351,6 +351,154 @@ describe('executeWebhookJob fault vs error handling', () => {
     )
   })
 
+  it('reuses ingest-loaded rows and skips duplicate account checks with warm context', async () => {
+    mockExecuteWorkflowCore.mockResolvedValue({
+      success: true,
+      status: 'completed',
+      output: {},
+      logs: [],
+      executionState: {
+        blockStates: {},
+        executedBlocks: [],
+        blockLogs: [],
+        decisions: {},
+        completedLoops: [],
+        activeExecutionPath: [],
+      },
+    })
+    const warmContext = {
+      workflowRecord: { id: 'workflow-1', workspaceId: 'workspace-1', userId: 'user-1' },
+      webhookRecord: { id: 'webhook-1', providerConfig: { warm: true } },
+    } as unknown as NonNullable<Parameters<typeof executeWebhookJob>[2]>
+
+    await executeWebhookJob(payload, undefined, warmContext)
+
+    expect(executionPreprocessingMockFns.mockPreprocessExecution).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workflowRecord: expect.objectContaining({ id: 'workflow-1' }),
+        trustWorkflowRecord: true,
+        skipAccountChecks: true,
+      })
+    )
+    expect(dbChainMockFns.limit).not.toHaveBeenCalled()
+    expect(mockResolveWebhookRecordProviderConfig).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'webhook-1', providerConfig: { warm: true } }),
+      'user-1',
+      'workspace-1',
+      expect.any(Object)
+    )
+  })
+
+  it('loads rows and keeps account checks without warm context', async () => {
+    mockExecuteWorkflowCore.mockResolvedValue({
+      success: true,
+      status: 'completed',
+      output: {},
+      logs: [],
+      executionState: {
+        blockStates: {},
+        executedBlocks: [],
+        blockLogs: [],
+        decisions: {},
+        completedLoops: [],
+        activeExecutionPath: [],
+      },
+    })
+
+    await executeWebhookJob(payload)
+
+    expect(executionPreprocessingMockFns.mockPreprocessExecution).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workflowRecord: undefined,
+        trustWorkflowRecord: false,
+        skipAccountChecks: false,
+      })
+    )
+    expect(dbChainMockFns.limit).toHaveBeenCalled()
+  })
+
+  it('ignores warm rows whose ids do not match the payload', async () => {
+    mockExecuteWorkflowCore.mockResolvedValue({
+      success: true,
+      status: 'completed',
+      output: {},
+      logs: [],
+      executionState: {
+        blockStates: {},
+        executedBlocks: [],
+        blockLogs: [],
+        decisions: {},
+        completedLoops: [],
+        activeExecutionPath: [],
+      },
+    })
+    const warmContext = {
+      workflowRecord: { id: 'other-workflow' },
+      webhookRecord: { id: 'other-webhook' },
+    } as unknown as NonNullable<Parameters<typeof executeWebhookJob>[2]>
+
+    await executeWebhookJob(payload, undefined, warmContext)
+
+    expect(executionPreprocessingMockFns.mockPreprocessExecution).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workflowRecord: undefined,
+        trustWorkflowRecord: false,
+        skipAccountChecks: false,
+      })
+    )
+    expect(dbChainMockFns.limit).toHaveBeenCalled()
+  })
+
+  it('logs phase timings and the executor-start metric for latency-tracked payloads', async () => {
+    mockExecuteWorkflowCore.mockResolvedValue({
+      success: true,
+      status: 'completed',
+      output: {},
+      logs: [],
+      executionState: {
+        blockStates: {},
+        executedBlocks: [],
+        blockLogs: [],
+        decisions: {},
+        completedLoops: [],
+        activeExecutionPath: [],
+      },
+    })
+
+    await executeWebhookJob({
+      ...payload,
+      webhookReceivedAt: Date.now() - 100,
+      triggerTimestampMs: Date.now() - 500,
+    })
+
+    expect(webhookExecutionLogger.info).toHaveBeenCalledWith(
+      '[request-1] Webhook dispatch latency',
+      expect.objectContaining({
+        dispatchLatencyMs: expect.any(Number),
+        triggerAgeMs: expect.any(Number),
+        preprocessMs: expect.any(Number),
+        loadsMs: expect.any(Number),
+        providerConfigMs: expect.any(Number),
+        formatInputMs: expect.any(Number),
+      })
+    )
+
+    const coreOptions = mockExecuteWorkflowCore.mock.calls[0]?.[0] as {
+      callbacks: { onBlockStart?: () => Promise<void> }
+    }
+    expect(coreOptions.callbacks.onBlockStart).toBeTypeOf('function')
+    await coreOptions.callbacks.onBlockStart?.()
+    await coreOptions.callbacks.onBlockStart?.()
+    const executorStartCalls = webhookExecutionLogger.info.mock.calls.filter(
+      ([message]: [string]) => String(message).includes('Webhook executor started')
+    )
+    expect(executorStartCalls).toHaveLength(1)
+    expect(executorStartCalls[0]?.[1]).toMatchObject({
+      executorStartLatencyMs: expect.any(Number),
+      executorStartTriggerAgeMs: expect.any(Number),
+    })
+  })
+
   it('does not pass provider-config provenance absent from the trigger input', async () => {
     mockGetEffectiveEnvironmentSnapshot.mockResolvedValue({
       personalEncrypted: { WEBHOOK_SECRET: 'personal-ciphertext' },

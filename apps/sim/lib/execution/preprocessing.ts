@@ -89,8 +89,25 @@ export interface PreprocessExecutionOptions {
   triggerData?: SessionStartParams['triggerData']
   /** Use the authenticated user as actor for client executions and personal API keys. */
   useAuthenticatedUserAsActor?: boolean
-  /** Pre-fetched workflow row for caller context; preprocessing still re-checks active state. */
+  /**
+   * Pre-fetched workflow row for caller context; preprocessing re-checks active
+   * state unless `trustWorkflowRecord` is set.
+   */
   workflowRecord?: WorkflowRecord
+  /**
+   * Trust the prefetched `workflowRecord` as current and skip the archived-state
+   * re-read. Only for callers that fetched the row in the same request (webhook
+   * ingest, or a same-process worker handed the ingest row); the archived guard
+   * still runs on the provided row.
+   */
+  trustWorkflowRecord?: boolean
+  /**
+   * Skip the ban and subscription reads. Only for the same-process inline path
+   * where ingest ran the full admission gates milliseconds earlier; queued and
+   * recovery jobs must keep them. `actorSubscription` resolves null, so this
+   * requires `checkRateLimit: false` (the rate-limit gate consumes it).
+   */
+  skipAccountChecks?: boolean
   /**
    * Immutable attribution captured by an upstream execution boundary. Background
    * and resume paths pass this through so payer ownership cannot change while
@@ -181,11 +198,19 @@ export async function preprocessExecution(
     triggerData,
     useAuthenticatedUserAsActor = false,
     workflowRecord: prefetchedWorkflowRecord,
+    trustWorkflowRecord = false,
+    skipAccountChecks = false,
     billingAttribution: providedBillingAttribution,
     executionType = 'sync',
     requestedTimeoutSeconds,
     executionDeadlineAt,
   } = options
+
+  if (skipAccountChecks && checkRateLimit) {
+    throw new Error(
+      'skipAccountChecks requires checkRateLimit: false — the rate-limit gate consumes the subscription'
+    )
+  }
 
   /** Suppresses log rows when the caller surfaces preprocessing failures itself. */
   const recordPreprocessingError: typeof logPreprocessingError = (args) =>
@@ -270,7 +295,7 @@ export async function preprocessExecution(
         statusCode: 404,
       },
     }
-  } else {
+  } else if (!trustWorkflowRecord) {
     const activeWorkflow = await getActiveWorkflowRecord(workflowId)
     if (!activeWorkflow) {
       logger.warn(`[${requestId}] Workflow archived before execution started: ${workflowId}`)
@@ -435,6 +460,7 @@ export async function preprocessExecution(
   }
 
   const banCheck = (async (): Promise<GateFailure | null> => {
+    if (skipAccountChecks) return null
     /**
      * Blocks when the resolved actor, workflow owner, or caller-provided user
      * has an active ban or blocked email domain. Including the workflow owner
@@ -506,7 +532,9 @@ export async function preprocessExecution(
     }
   })()
 
-  const subscriptionFetch = getHighestPrioritySubscription(actorUserId)
+  const subscriptionFetch = skipAccountChecks
+    ? Promise.resolve(null)
+    : getHighestPrioritySubscription(actorUserId)
 
   /**
    * Returns the usage failure and reservation snapshot together so concurrent
