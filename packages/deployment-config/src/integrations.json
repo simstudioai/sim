@@ -14557,6 +14557,58 @@
       "tags": ["messaging", "microsoft-365"]
     },
     {
+      "type": "microsoft_word",
+      "slug": "microsoft-word",
+      "name": "Microsoft Word",
+      "description": "Create, fill, read, edit, and export Word documents",
+      "longDescription": "Integrate Microsoft Word into the workflow. Create .docx documents from text, fill a formatted template by substituting its placeholders, read a document back as text, replace or append content, find and replace text across the body plus headers and footers, list and search documents in OneDrive or SharePoint, and export a document as PDF.",
+      "bgColor": "#FFFFFF",
+      "iconName": "MicrosoftWordIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/microsoft_word",
+      "operations": [
+        {
+          "name": "Read Document",
+          "description": "Read the text content of a Microsoft Word (.docx) document stored in OneDrive or SharePoint."
+        },
+        {
+          "name": "Create Document",
+          "description": "Create a new Microsoft Word (.docx) document in OneDrive or SharePoint from text content. Supports Markdown headings (# ## ###), bullets (-), and inline **bold** / *italic*. An existing document with the same name is never overwritten — the new one is given a unique name instead."
+        },
+        {
+          "name": "Create from Template",
+          "description": "Copy an existing Microsoft Word (.docx) template to a new document and fill its placeholders. The template keeps all of its formatting, styles, headers, and footers, and is never modified. An existing document with the same name is never overwritten — the new one is given a unique name instead."
+        },
+        {
+          "name": "Replace Content",
+          "description": "Replace the entire contents of an existing Microsoft Word (.docx) document with new text. The previous content and its formatting are discarded — use Append to add to a document instead."
+        },
+        {
+          "name": "Append Content",
+          "description": "Append plain-text paragraphs to the end of an existing Microsoft Word (.docx) document, leaving the existing content and formatting intact. Fails rather than overwriting if someone else changed the document while the edit was in flight."
+        },
+        {
+          "name": "Find and Replace Text",
+          "description": "Find and replace text throughout a Microsoft Word (.docx) document, including its headers and footers. Use this to fill placeholders in a template document. Fails rather than overwriting if someone else changed the document while the edit was in flight."
+        },
+        {
+          "name": "List Documents",
+          "description": "List or search Microsoft Word (.docx) documents in OneDrive or SharePoint. Non-Word items are filtered out of the results."
+        },
+        {
+          "name": "Export as PDF",
+          "description": "Convert a Microsoft Word (.docx) document to PDF using Microsoft Graph and return it as a file."
+        }
+      ],
+      "operationCount": 8,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "oauth",
+      "oauthServiceId": "microsoft-word",
+      "category": "tools",
+      "integrationType": "documents",
+      "tags": ["microsoft-365", "document-processing", "cloud"]
+    },
+    {
       "type": "millionverifier",
       "slug": "millionverifier",
       "name": "MillionVerifier",

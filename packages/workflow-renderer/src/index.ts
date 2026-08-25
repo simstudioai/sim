@@ -38,7 +38,14 @@ export {
   type SubflowNodeViewProps,
   SubflowStartView,
 } from './subflow/subflow-node-view'
-export type { BlockRunStatus, DiffStatus, EdgeDiffStatus, EdgeRunStatus } from './types'
+export type {
+  BlockRunStatus,
+  CodePreview,
+  CodePreviewLanguage,
+  DiffStatus,
+  EdgeDiffStatus,
+  EdgeRunStatus,
+} from './types'
 export {
   type CanvasSentenceSegment,
   CanvasSentenceView,

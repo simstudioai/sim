@@ -43,6 +43,7 @@ import {
   MicrosoftPlannerIcon,
   MicrosoftSharepointIcon,
   MicrosoftTeamsIcon,
+  MicrosoftWordIcon,
   MondayIcon,
   NetSuiteIcon,
   NotionIcon,
@@ -443,6 +444,37 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'offline_access',
           'Files.Read',
           'Sites.Read.All',
+        ],
+      },
+      'microsoft-word': {
+        name: 'Microsoft Word',
+        description: 'Connect to Microsoft Word and manage documents.',
+        providerId: 'microsoft-word',
+        icon: MicrosoftWordIcon,
+        baseProviderIcon: MicrosoftIcon,
+        /**
+         * Word documents are ordinary drive items, so the integration reads and
+         * writes them through the Files permissions rather than a Word-specific
+         * scope — Microsoft Graph exposes no Word API of its own.
+         *
+         * The `.All` variants are what make the SharePoint drive the block
+         * exposes actually work: `Files.ReadWrite` alone covers only the signed-in
+         * user's own OneDrive, so a document library would be rejected for
+         * insufficient privileges. Both are user-consentable, so this does not
+         * push the integration behind admin consent, and neither grants access to
+         * anything the signed-in account could not already open.
+         *
+         * @see https://learn.microsoft.com/en-us/graph/permissions-reference
+         */
+        scopes: [
+          'openid',
+          'profile',
+          'email',
+          'Files.Read',
+          'Files.ReadWrite',
+          'Files.Read.All',
+          'Files.ReadWrite.All',
+          'offline_access',
         ],
       },
       outlook: {

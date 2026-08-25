@@ -1,0 +1,286 @@
+---
+title: Microsoft Word
+description: Create, fill, read, edit, and export Word documents
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="microsoft_word"
+  color="#FFFFFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Microsoft Word](https://www.microsoft.com/microsoft-365/word) is the document editor at the centre of Microsoft 365. Word documents are stored as `.docx` files in OneDrive or a SharePoint document library, which is where this integration reads and writes them.
+
+Learn how to integrate the Microsoft Word tool in Sim to generate, fill, edit, and export documents inside your workflows. This tutorial walks you through connecting a Microsoft account, choosing a document, and turning agent output into a finished Word file. Ideal for the document-heavy work a team would otherwise do by hand.
+
+With Microsoft Word, you can:
+
+- **Write documents from agent output**: Turn generated text into a real `.docx` with headings, bullets, and bold or italic emphasis
+- **Fill a template**: Substitute placeholders in an approved template to produce a contract, offer letter, or report — the template itself is never modified
+- **Read a document back**: Extract the text of any Word document so an agent can summarize, classify, or check it
+- **Edit in place**: Append new paragraphs to a running document, or find and replace text across the body plus every header and footer
+- **Find the right file**: List or search Word documents in a folder, a whole drive, or a SharePoint library
+- **Hand over a PDF**: Convert a document to PDF through Microsoft Graph and pass the file straight to an email or messaging step
+
+In Sim, the Microsoft Word integration lets your agents own a document end to end. An agent can find the standard template, fill it with data pulled from a CRM or a form, export the result as a PDF, and send it — without a person opening Word. Because the integration edits the `.docx` package directly rather than regenerating it, an append or a find-and-replace leaves the document's existing styles, images, headers, and footers exactly as they were.
+
+### How documents are addressed
+
+Every operation identifies a document by its **drive item ID**, not by its file path. Pick one with the document selector, or paste an ID from an earlier step. Leave **Drive ID** empty to work in your personal OneDrive; set it to a SharePoint drive ID to work in a document library instead.
+
+### Writing content
+
+**Create Document** and **Replace Content** accept a small, predictable subset of Markdown:
+
+| You write | Word renders |
+| --------- | ------------ |
+| `# Heading`, `## Heading`, `### Heading` | Heading 1, 2, and 3 |
+| `- item` | A bulleted list item |
+| `**bold**`, `*italic*` | Bold and italic text |
+| Anything else | A plain paragraph |
+
+Unsupported Markdown is left as visible text rather than being dropped, so nothing goes missing silently.
+
+**Replace Content** overwrites the whole document — its previous content and formatting are discarded. To add to a document instead, use **Append Content**, which adds plain paragraphs to the end and leaves everything already there untouched.
+
+### Filling templates
+
+**Create from Template** is the fastest way to produce a formatted document. Point it at a template, give the new document a name, and supply **Placeholder Values** as a JSON object:
+
+```json
+{
+  "{{customer_name}}": "Acme Corp",
+  "{{effective_date}}": "2026-01-31",
+  "{{total}}": "$48,000"
+}
+```
+
+Placeholders are matched as literal text — there is no pattern syntax — so you can use whatever delimiter your template already uses. Any placeholder missing from the template is simply ignored, and the number of substitutions made is returned as `occurrencesChanged`, which is worth checking: a count of `0` means the keys do not match what is actually in the template.
+
+Word splits a sentence across several internal runs whenever formatting changes mid-line, so a placeholder like `{{customer_name}}` is often stored in pieces. Sim reassembles each paragraph before matching, so those placeholders are still found. When a match sits entirely inside one run, its formatting is preserved exactly; when a match straddles runs, that paragraph takes on the formatting of its first run.
+
+**Find and Replace Text** applies the same matching to a document already in place, and covers headers and footers as well as the body. Matching never crosses a paragraph break, which mirrors Word's own Replace All.
+
+### Permissions
+
+Connecting a Microsoft account grants Sim `Files.Read` and `Files.ReadWrite`, the permissions Microsoft Graph requires to read and write drive items. The same permissions cover SharePoint document libraries the account can already reach — Sim never gains access to anything the signed-in account could not open itself.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Microsoft Word into the workflow. Create .docx documents from text, fill a formatted template by substituting its placeholders, read a document back as text, replace or append content, find and replace text across the body plus headers and footers, list and search documents in OneDrive or SharePoint, and export a document as PDF.
+
+
+
+## Actions
+
+### Create Microsoft Word Document
+
+Create a new Microsoft Word (.docx) document in OneDrive or SharePoint from text content. Supports Markdown headings (# ## ###), bullets (-), and inline **bold** / *italic*. An existing document with the same name is never overwritten — the new one is given a unique name instead.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `name` | string | Yes | The name of the document to create \(e.g., "Q3 Report"\). A .docx extension is added when missing. |
+| `content` | string | No | The text content of the document. Markdown headings \(# ## ###\), bullets \(- item\), and inline **bold** / *italic* are converted to Word formatting; every other line becomes a paragraph. |
+| `folderId` | string | No | The ID of the folder to create the document in. If omitted, the document is created in the drive root. |
+| `driveId` | string | No | The ID of the drive to create the document in. Required for SharePoint. If omitted, uses the personal OneDrive. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `metadata` | object | Metadata for the created document |
+|   ↳ `documentId` | string | The drive item ID of the document |
+|   ↳ `name` | string | The document file name |
+|   ↳ `mimeType` | string | The document MIME type |
+|   ↳ `webViewLink` | string | Browser URL for opening the document |
+|   ↳ `size` | number | Document size in bytes |
+|   ↳ `createdTime` | string | ISO 8601 creation time |
+|   ↳ `modifiedTime` | string | ISO 8601 last modification time |
+
+### Create Microsoft Word Document from Template
+
+Copy an existing Microsoft Word (.docx) template to a new document and fill its placeholders. The template keeps all of its formatting, styles, headers, and footers, and is never modified. An existing document with the same name is never overwritten — the new one is given a unique name instead.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `templateDocumentId` | string | Yes | The drive item ID of the Word template to copy |
+| `name` | string | Yes | The name of the document to create \(e.g., "Acme — Services Agreement"\). A .docx extension is added when missing. |
+| `replacements` | json | No | A JSON object mapping each placeholder in the template to its value, e.g. \{"\{\{customer_name\}\}": "Acme Corp", "\{\{date\}\}": "2026-01-31"\}. Placeholders not present in the template are ignored. |
+| `matchCase` | boolean | No | Whether placeholder matching is case-sensitive. Defaults to false. |
+| `folderId` | string | No | The ID of the folder to create the new document in. If omitted, the drive root is used. |
+| `driveId` | string | No | The ID of the drive holding the template and the new document. Required for SharePoint. If omitted, uses the personal OneDrive. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `occurrencesChanged` | number | How many placeholder occurrences were filled in the new document |
+| `metadata` | object | Metadata for the newly created document |
+|   ↳ `documentId` | string | The drive item ID of the document |
+|   ↳ `name` | string | The document file name |
+|   ↳ `mimeType` | string | The document MIME type |
+|   ↳ `webViewLink` | string | Browser URL for opening the document |
+|   ↳ `size` | number | Document size in bytes |
+|   ↳ `createdTime` | string | ISO 8601 creation time |
+|   ↳ `modifiedTime` | string | ISO 8601 last modification time |
+
+### Read Microsoft Word Document
+
+Read the text content of a Microsoft Word (.docx) document stored in OneDrive or SharePoint.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `documentId` | string | Yes | The drive item ID of the Word document to read |
+| `driveId` | string | No | The ID of the drive containing the document. Required for SharePoint. If omitted, uses the personal OneDrive. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | The extracted text content of the document |
+| `metadata` | object | Metadata for the document that was read |
+|   ↳ `documentId` | string | The drive item ID of the document |
+|   ↳ `name` | string | The document file name |
+|   ↳ `mimeType` | string | The document MIME type |
+|   ↳ `webViewLink` | string | Browser URL for opening the document |
+|   ↳ `size` | number | Document size in bytes |
+|   ↳ `createdTime` | string | ISO 8601 creation time |
+|   ↳ `modifiedTime` | string | ISO 8601 last modification time |
+
+### Update Microsoft Word Document
+
+Replace the entire contents of an existing Microsoft Word (.docx) document with new text. The previous content and its formatting are discarded — use Append to add to a document instead.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `documentId` | string | Yes | The drive item ID of the Word document to replace |
+| `content` | string | Yes | The new text content of the document. Markdown headings \(# ## ###\), bullets \(- item\), and inline **bold** / *italic* are converted to Word formatting; every other line becomes a paragraph. |
+| `driveId` | string | No | The ID of the drive containing the document. Required for SharePoint. If omitted, uses the personal OneDrive. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `updatedContent` | boolean | Whether the document content was replaced |
+| `metadata` | object | Metadata for the updated document |
+|   ↳ `documentId` | string | The drive item ID of the document |
+|   ↳ `name` | string | The document file name |
+|   ↳ `mimeType` | string | The document MIME type |
+|   ↳ `webViewLink` | string | Browser URL for opening the document |
+|   ↳ `size` | number | Document size in bytes |
+|   ↳ `createdTime` | string | ISO 8601 creation time |
+|   ↳ `modifiedTime` | string | ISO 8601 last modification time |
+
+### Append to Microsoft Word Document
+
+Append plain-text paragraphs to the end of an existing Microsoft Word (.docx) document, leaving the existing content and formatting intact. Fails rather than overwriting if someone else changed the document while the edit was in flight.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `documentId` | string | Yes | The drive item ID of the Word document to append to |
+| `content` | string | Yes | The text to append. Each non-empty line becomes a paragraph at the end of the document. Markdown is not converted here — use Update to rewrite a document with formatting. |
+| `driveId` | string | No | The ID of the drive containing the document. Required for SharePoint. If omitted, uses the personal OneDrive. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `updatedContent` | boolean | Whether the paragraphs were appended to the document |
+| `metadata` | object | Metadata for the updated document |
+|   ↳ `documentId` | string | The drive item ID of the document |
+|   ↳ `name` | string | The document file name |
+|   ↳ `mimeType` | string | The document MIME type |
+|   ↳ `webViewLink` | string | Browser URL for opening the document |
+|   ↳ `size` | number | Document size in bytes |
+|   ↳ `createdTime` | string | ISO 8601 creation time |
+|   ↳ `modifiedTime` | string | ISO 8601 last modification time |
+
+### Replace Text in Microsoft Word Document
+
+Find and replace text throughout a Microsoft Word (.docx) document, including its headers and footers. Use this to fill placeholders in a template document. Fails rather than overwriting if someone else changed the document while the edit was in flight.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `documentId` | string | Yes | The drive item ID of the Word document to edit |
+| `findText` | string | Yes | The literal text to find \(e.g., "\{\{customer_name\}\}"\). Matched as plain text, not a pattern, and never across a paragraph break. |
+| `replaceText` | string | No | The text to substitute for each match. Omit to delete the matched text. |
+| `matchCase` | boolean | No | Whether matching is case-sensitive. Defaults to false. |
+| `driveId` | string | No | The ID of the drive containing the document. Required for SharePoint. If omitted, uses the personal OneDrive. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `occurrencesChanged` | number | How many occurrences of the search text were replaced |
+| `metadata` | object | Metadata for the edited document |
+|   ↳ `documentId` | string | The drive item ID of the document |
+|   ↳ `name` | string | The document file name |
+|   ↳ `mimeType` | string | The document MIME type |
+|   ↳ `webViewLink` | string | Browser URL for opening the document |
+|   ↳ `size` | number | Document size in bytes |
+|   ↳ `createdTime` | string | ISO 8601 creation time |
+|   ↳ `modifiedTime` | string | ISO 8601 last modification time |
+
+### List Microsoft Word Documents
+
+List or search Microsoft Word (.docx) documents in OneDrive or SharePoint. Non-Word items are filtered out of the results.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | No | Search text matched against file name, metadata, and content. If omitted, the documents directly inside the folder are listed. |
+| `folderId` | string | No | The ID of the folder to list or search within. If omitted, the drive root is used. |
+| `driveId` | string | No | The ID of the drive to list from. Required for SharePoint. If omitted, uses the personal OneDrive. |
+| `pageSize` | number | No | Maximum number of items to request from Microsoft Graph \(1-200, default 50\) |
+| `pageToken` | string | No | Continuation URL from a previous response's nextPageToken, used to fetch the next page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `documents` | array | The Word documents that matched |
+|   ↳ `documentId` | string | The drive item ID of the document |
+|   ↳ `name` | string | The document file name |
+|   ↳ `mimeType` | string | The document MIME type |
+|   ↳ `webViewLink` | string | Browser URL for opening the document |
+|   ↳ `size` | number | Document size in bytes |
+|   ↳ `createdTime` | string | ISO 8601 creation time |
+|   ↳ `modifiedTime` | string | ISO 8601 last modification time |
+| `nextPageToken` | string | Continuation URL for the next page of results, when more remain |
+
+### Export Microsoft Word Document as PDF
+
+Convert a Microsoft Word (.docx) document to PDF using Microsoft Graph and return it as a file.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `documentId` | string | Yes | The drive item ID of the Word document to convert |
+| `fileName` | string | No | Optional name for the generated PDF \(e.g., "report.pdf"\). Defaults to the document name with a .pdf extension. |
+| `driveId` | string | No | The ID of the drive containing the document. Required for SharePoint. If omitted, uses the personal OneDrive. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `file` | file | The converted PDF, stored in execution files |
+
+

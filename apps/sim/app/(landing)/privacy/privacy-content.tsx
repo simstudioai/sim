@@ -43,7 +43,7 @@ function richText(content: string): ReactNode {
 export const PRIVACY_CONFIG: LegalPageConfig = {
   title: 'Privacy Policy',
   description: 'Sim Studio, Inc. · Operating the Sim platform (sim.ai)',
-  lastUpdated: 'August 24, 2026',
+  lastUpdated: 'August 25, 2026',
   intro: [
     {
       kind: 'paragraph',
@@ -386,6 +386,91 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
       ],
     },
     {
+      id: 'data-privacy-framework',
+      heading: '3A. Data Privacy Framework',
+      blocks: [
+        { kind: 'subheading', text: 'Participation and Scope' },
+        {
+          kind: 'paragraph',
+          content: richText(
+            'Sim Studio, Inc. complies with the EU-U.S. Data Privacy Framework (EU-U.S. DPF), the UK Extension to the EU-U.S. DPF, and the Swiss-U.S. Data Privacy Framework (Swiss-U.S. DPF) as set forth by the U.S. Department of Commerce. Sim Studio, Inc. has certified to the U.S. Department of Commerce that it adheres to the EU-U.S. Data Privacy Framework Principles (EU-U.S. DPF Principles) with regard to the processing of Personal Data received from the European Union in reliance on the EU-U.S. DPF and from the United Kingdom and Gibraltar in reliance on the UK Extension to the EU-U.S. DPF. Sim Studio, Inc. has certified to the U.S. Department of Commerce that it adheres to the Swiss-U.S. Data Privacy Framework Principles (Swiss-U.S. DPF Principles) with regard to the processing of Personal Data received from Switzerland in reliance on the Swiss-U.S. DPF. If there is any conflict between this Privacy Policy and the applicable DPF Principles, the DPF Principles govern. To learn more about the DPF program and view our certification, visit the [Data Privacy Framework website](https://www.dataprivacyframework.gov/) and [Data Privacy Framework List](https://www.dataprivacyframework.gov/list).'
+          ),
+        },
+        {
+          kind: 'paragraph',
+          content: richText(
+            'Sim subjects all Personal Data received from the European Union, the United Kingdom and Gibraltar, and Switzerland in reliance on the applicable part of the DPF program to the relevant DPF Principles. Sim Studio, Inc. has no other U.S. entities or U.S. subsidiaries covered by its certification. This public policy covers non-human-resources Personal Data. Any human-resources data covered by the certification is addressed in the applicable employee privacy notice.'
+          ),
+        },
+        { kind: 'subheading', text: 'Notice, Use, and Choice' },
+        {
+          kind: 'paragraph',
+          content: richText(
+            "Sections 1 and 2 describe the types of Personal Data Sim collects and the purposes for which Sim collects and uses it. Sim may disclose Personal Data to cloud hosting and infrastructure providers, authentication providers, customer-support providers, analytics and advertising providers, payment processors, integration providers, AI model providers, professional advisers, public authorities, and parties involved in a corporate transaction, in each case for the purposes described in sections 4, 6, 8, 9, and 10A. Service Providers acting on Sim's behalf may process Personal Data only for limited and specified purposes consistent with Sim's instructions."
+          ),
+        },
+        {
+          kind: 'paragraph',
+          content: richText(
+            "Where the DPF Principles require choice, You may opt out of the disclosure of covered Personal Data to a third party that is not acting as Sim's agent or its use for a purpose materially different from the purpose for which it was originally collected or subsequently authorized. You may exercise this choice by contacting privacy@sim.ai. Sim obtains affirmative express consent before disclosing sensitive Personal Data to a third party or using it for a purpose other than the purpose for which it was originally collected or subsequently authorized, except where the DPF Principles allow otherwise. Sim also treats Personal Data as sensitive when a third party identifies and treats it as sensitive."
+          ),
+        },
+        { kind: 'subheading', text: 'Data Integrity, Purpose Limitation, and Security' },
+        {
+          kind: 'paragraph',
+          content: richText(
+            'Sim limits covered Personal Data to information relevant for the purposes of processing and does not process it in a way that is incompatible with those purposes unless subsequently authorized by the individual or otherwise permitted by the applicable DPF Principles. To the extent necessary for those purposes, Sim takes reasonable steps to ensure that covered Personal Data is reliable for its intended use, accurate, complete, and current. Sim retains covered Personal Data only for as long as it serves a processing purpose, subject to the exceptions permitted by the applicable DPF Principles. Section 5 describes the safeguards Sim uses to protect Personal Data against loss, misuse, and unauthorized access, disclosure, alteration, or destruction.'
+          ),
+        },
+        { kind: 'subheading', text: 'Accountability for Onward Transfers' },
+        {
+          kind: 'paragraph',
+          content: richText(
+            "For onward transfers of covered Personal Data to a third party acting as a controller, Sim complies with the Notice and Choice Principles and requires the recipient by contract to process the data only for limited and specified purposes consistent with the consent provided and to provide the same level of protection as the applicable DPF Principles. For transfers to a third party acting as an agent, Sim transfers covered Personal Data only for limited and specified purposes, requires at least the same level of privacy protection as the applicable DPF Principles, takes reasonable and appropriate steps to ensure that the agent processes the data consistently with Sim's DPF obligations, and takes reasonable and appropriate steps to stop and remediate unauthorized processing upon notice."
+          ),
+        },
+        {
+          kind: 'paragraph',
+          content: richText(
+            'Sim remains liable under the applicable DPF Principles if an agent processes covered Personal Data in a manner inconsistent with the DPF Principles, unless Sim proves that it is not responsible for the event giving rise to the damage.'
+          ),
+        },
+        { kind: 'subheading', text: 'Access and Public-Authority Requests' },
+        {
+          kind: 'paragraph',
+          content: richText(
+            'You may request access to covered Personal Data and ask Sim to correct, amend, or delete it where it is inaccurate or has been processed in violation of the applicable DPF Principles. The methods for submitting a request are described in sections 14 and 17. Sim may be required to disclose Personal Data in response to lawful requests by public authorities, including to meet national-security or law-enforcement requirements.'
+          ),
+        },
+        { kind: 'subheading', text: 'Questions, Complaints, and Independent Recourse' },
+        {
+          kind: 'paragraph',
+          content: richText(
+            'In compliance with the EU-U.S. DPF, the UK Extension to the EU-U.S. DPF, and the Swiss-U.S. DPF, Sim commits to resolve DPF Principles-related complaints about its collection and use of Personal Data. Individuals in the European Union, the United Kingdom and Gibraltar, and Switzerland with inquiries or complaints regarding Personal Data received in reliance on the applicable DPF program should first contact Sim using the information in section 17. Sim will respond to a DPF Principles-related complaint within 45 days.'
+          ),
+        },
+        {
+          kind: 'paragraph',
+          content: richText(
+            "For unresolved complaints, Sim commits to cooperate with and comply with the advice of the panel established by the European Union data protection authorities, the United Kingdom Information Commissioner's Office and the Gibraltar Regulatory Authority, and the Swiss Federal Data Protection and Information Commissioner, as applicable. These independent recourse mechanisms are available at no cost to You. For more information about submitting a complaint, visit the [DPF complaint guidance](https://www.dataprivacyframework.gov/program-articles/How-to-Submit-a-Complaint-Relating-to-a-Participating-Organization%E2%80%99s-Compliance-with-the-DPF-Principles)."
+          ),
+        },
+        { kind: 'subheading', text: 'Enforcement and Binding Arbitration' },
+        {
+          kind: 'paragraph',
+          content: richText(
+            "The Federal Trade Commission has jurisdiction over Sim Studio, Inc.'s compliance with the EU-U.S. DPF, the UK Extension to the EU-U.S. DPF, and the Swiss-U.S. DPF."
+          ),
+        },
+        {
+          kind: 'paragraph',
+          content: richText(
+            "Under certain conditions, You may invoke binding arbitration for residual claims regarding Sim's compliance with the applicable DPF Principles that have not been resolved through the other DPF mechanisms. For more information about the requirements and procedure for invoking binding arbitration, see [Annex I of the DPF Principles](https://www.dataprivacyframework.gov/framework-article/ANNEX-I-introduction)."
+          ),
+        },
+      ],
+    },
+    {
       id: 'disclosure-of-data',
       heading: '4. Disclosure Of Data',
       blocks: [
@@ -400,7 +485,7 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
         {
           kind: 'paragraph',
           content: richText(
-            'The Company may be required to disclose Your Personal Data if required by law or in response to valid requests by public authorities, including a court or government agency.'
+            'The Company may be required to disclose Your Personal Data if required by law or in response to valid requests by public authorities, including a court or government agency and to meet national-security or law-enforcement requirements.'
           ),
         },
         { kind: 'subheading', text: 'Legal Requirements' },
