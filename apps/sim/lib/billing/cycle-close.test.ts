@@ -223,6 +223,21 @@ describe('closeElapsedBillingPeriod', () => {
     expect(mockCaptureServerEvent).toHaveBeenCalledTimes(1)
   })
 
+  it('defers the close inside the settlement grace after a rollover', async () => {
+    // A run whose frozen attribution predates the rollover could still insert
+    // elapsed-period rows; the close waits until sums are final.
+    const result = await closeElapsedBillingPeriod(
+      subRow({
+        periodStart: new Date(Date.now() - 60_000),
+        lastClosedPeriodStart: new Date(Date.now() - 60_000 - 31 * 24 * 60 * 60 * 1000),
+      })
+    )
+
+    expect(result.status).toBe('skipped')
+    expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
+    expect(mockGetStampedPeriodRangeUsageCostByUser).not.toHaveBeenCalled()
+  })
+
   it('defers the close when overage is due but Stripe identifiers are missing', async () => {
     const result = await closeElapsedBillingPeriod(subRow({ stripeCustomerId: null }))
 

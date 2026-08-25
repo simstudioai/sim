@@ -35,6 +35,18 @@ const logger = createLogger('BillingCycleClose')
  */
 const MIN_CLOSE_INVOICE_DOLLARS = 0.5
 
+/**
+ * Settlement grace after a rollover before its elapsed period may close.
+ * Billing attribution is frozen at run start (the payer is immutable for the
+ * run), so a run that started just before the rollover can insert rows
+ * stamped with the elapsed period after it ends. Closing only once the
+ * rollover is older than any possible in-flight run guarantees the close's
+ * ledger sums are final — no straggler row is orphaned from the final
+ * overage or bookkeeping. Non-enterprise execution timeouts are far below
+ * this bound; the sweep simply picks the period up on a later run.
+ */
+const CLOSE_SETTLEMENT_GRACE_MS = 60 * 60 * 1000
+
 type SubscriptionRow = typeof subscriptionTable.$inferSelect
 
 export type CycleCloseStatus = 'initialized' | 'current' | 'closed' | 'already-closed' | 'skipped'
@@ -197,6 +209,12 @@ export async function closeElapsedBillingPeriod(sub: SubscriptionRow): Promise<C
       periodStart: periodStart.toISOString(),
     })
     return { ...base, status: 'initialized' }
+  }
+
+  if (Date.now() - periodStart.getTime() < CLOSE_SETTLEMENT_GRACE_MS) {
+    // Rollover too recent — a run started before it could still insert rows
+    // stamped with the elapsed period. A later sweep closes it with final sums.
+    return base
   }
 
   const marker = sub.lastClosedPeriodStart
