@@ -32,7 +32,7 @@ import {
   requiresPendingWebhookVerification,
 } from '@/lib/webhooks/pending-verification'
 import { getProviderHandler } from '@/lib/webhooks/providers'
-import type { WebhookProviderHandler } from '@/lib/webhooks/providers/types'
+import type { SyncInteractionContext, WebhookProviderHandler } from '@/lib/webhooks/providers/types'
 import { normalizeWebhookRegistrationPath } from '@/lib/webhooks/registration-identity'
 import { blockExistsInDeployment } from '@/lib/workflows/persistence/utils'
 import { SIM_TRIGGER_PROVIDER } from '@/lib/workspace-events/constants'
@@ -723,6 +723,35 @@ async function queueWebhookExecutionWithResult(
         provider: foundWebhook.provider,
         triggerType: 'webhook',
       } satisfies AsyncExecutionCorrelation)
+
+    /**
+     * Runs after event filters, the deployment-block check, and admission — so a
+     * filtered or rejected delivery never produces a side effect — and before the
+     * payload is assembled so the result rides into execution. A hook failure
+     * never blocks dispatch.
+     */
+    let syncInteraction: SyncInteractionContext | undefined
+    if (handler.prepareSyncDispatch) {
+      try {
+        const prepared = await handler.prepareSyncDispatch({
+          webhook: foundWebhook,
+          workflow: {
+            id: foundWorkflow.id,
+            userId: foundWorkflow.userId,
+            workspaceId: foundWorkflow.workspaceId,
+          },
+          body,
+          requestId: options.requestId,
+          providerConfig,
+        })
+        syncInteraction = prepared?.syncInteraction
+      } catch (error) {
+        logger.warn(`[${options.requestId}] prepareSyncDispatch failed; continuing dispatch`, {
+          provider: foundWebhook.provider,
+          error: toError(error).message,
+        })
+      }
+    }
     const payload = {
       webhookId: foundWebhook.id,
       workflowId: foundWorkflow.id,
@@ -750,6 +779,7 @@ async function queueWebhookExecutionWithResult(
       ...(options.executionTimeoutMs !== undefined
         ? { executionTimeoutMs: options.executionTimeoutMs }
         : {}),
+      ...(syncInteraction ? { syncInteraction } : {}),
     } satisfies WebhookExecutionPayload
 
     const shouldUseQueue = shouldUseDurableQueue(payload.provider, handler)

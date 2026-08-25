@@ -568,6 +568,80 @@ describe('webhook processor execution identity', () => {
   })
 })
 
+describe('webhook processor prepareSyncDispatch', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockPreprocessExecution.mockResolvedValue({
+      success: true,
+      actorUserId: 'actor-user-1',
+      billingAttribution,
+      executionTimeout: { sync: 0, async: 120_000 },
+    })
+    mockEnqueue.mockResolvedValue('job-1')
+    mockGetInlineJobQueue.mockResolvedValue({ enqueue: mockEnqueue })
+    mockGetJobQueue.mockResolvedValue({ enqueue: mockEnqueue })
+    mockProviderHandler.current = {}
+    mockShouldExecuteInline.mockReturnValue(false)
+    mockGenerateId.mockReturnValue('generated-execution-id')
+    workflowsPersistenceUtilsMockFns.mockBlockExistsInDeployment.mockResolvedValue(true)
+  })
+
+  const dispatch = () =>
+    dispatchResolvedWebhookTarget(
+      makeWebhookRecord({
+        path: 'incoming/slack',
+        provider: 'slack',
+        providerConfig: { openLoadingModal: true },
+      }),
+      makeWorkflowRecord({}),
+      { type: 'block_actions', trigger_id: 'trigger-1' },
+      createMockRequest('POST', { type: 'block_actions' }) as NextRequest,
+      { requestId: 'request-1', path: 'incoming/slack' }
+    )
+
+  it('puts the hook result on the enqueued payload', async () => {
+    const prepareSyncDispatch = vi
+      .fn()
+      .mockResolvedValue({ syncInteraction: { loadingViewId: 'V1' } })
+    mockProviderHandler.current = { prepareSyncDispatch }
+
+    const result = await dispatch()
+
+    expect(result.outcome).toBe('queued')
+    expect(prepareSyncDispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        body: { type: 'block_actions', trigger_id: 'trigger-1' },
+        workflow: expect.objectContaining({ id: 'workflow-1' }),
+        providerConfig: { openLoadingModal: true },
+        requestId: 'request-1',
+      })
+    )
+    expect(mockEnqueue.mock.calls[0]?.[1]).toMatchObject({
+      syncInteraction: { loadingViewId: 'V1' },
+    })
+  })
+
+  it('omits syncInteraction when the hook resolves null', async () => {
+    mockProviderHandler.current = { prepareSyncDispatch: vi.fn().mockResolvedValue(null) }
+
+    const result = await dispatch()
+
+    expect(result.outcome).toBe('queued')
+    expect(mockEnqueue.mock.calls[0]?.[1]).not.toHaveProperty('syncInteraction')
+  })
+
+  it('still queues when the hook throws', async () => {
+    mockProviderHandler.current = {
+      prepareSyncDispatch: vi.fn().mockRejectedValue(new Error('slack down')),
+    }
+
+    const result = await dispatch()
+
+    expect(result.outcome).toBe('queued')
+    expect(mockEnqueue.mock.calls[0]?.[1]).not.toHaveProperty('syncInteraction')
+  })
+})
+
 describe('polled webhook reservation ownership', () => {
   const foundWebhook = {
     id: 'webhook-1',
