@@ -1,5 +1,5 @@
+import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
 import { findProviderFromModel } from '@/providers/utils'
-import type { PermissionGroupConfig } from './types'
 
 /** Decides whether the caller's permission group allows a concrete model id. */
 export type IsModelUsable = (model: string) => boolean
