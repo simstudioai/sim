@@ -127,18 +127,14 @@ export const PlusMenuDropdown = React.memo(
       setOpen(false)
     }, [])
 
-    // Panel-only resources stay out of both prompt menus. The `+` browse menu
-    // also hides non-attachable and mention-only resource types. `@` mode
-    // exposes the remaining catalog and adds each live Browser/Terminal tab
-    // after its always-present whole-resource row.
+    // The hook has already excluded panel-only resources. The `+` browse menu
+    // also hides non-attachable and mention-only types; `@` mode adds each live
+    // Browser/Terminal tab after its always-present whole-resource row.
     const visibleResources = useMemo(() => {
-      const promptResources = availableResources.filter(
-        ({ type }) => !PANEL_ONLY_RESOURCE_TYPES.includes(type)
-      )
       if (isMention) {
-        return withDesktopTabMentions(promptResources, browserTabs, terminalTabs)
+        return withDesktopTabMentions(availableResources, browserTabs, terminalTabs)
       }
-      const attachable = promptResources.filter(
+      const attachable = availableResources.filter(
         ({ type }) => !NON_ATTACHABLE_RESOURCE_TYPES.has(type)
       )
       return attachable.filter(({ type }) => !MENTION_ONLY_RESOURCE_TYPES.has(type))

@@ -924,19 +924,28 @@ export const Sidebar = memo(function Sidebar({
       (id) => currentPath === `/workspace/${workspaceId}/chat/${id}`
     )
 
-    const onDeleteSuccess = () => {
-      useFolderStore.getState().clearChatSelection()
-      if (isViewingDeletedChat) {
-        navigateToPage(`/workspace/${workspaceId}/home`)
+    const deleteChats = () => {
+      const onSuccess = () => useFolderStore.getState().clearChatSelection()
+      if (chatIdsToDelete.length === 1) {
+        deleteChatMutation.mutate(chatIdsToDelete[0], { onSuccess })
+      } else {
+        deleteChatsMutation.mutate(chatIdsToDelete, { onSuccess })
       }
     }
 
-    if (chatIdsToDelete.length === 1) {
-      deleteChatMutation.mutate(chatIdsToDelete[0], { onSuccess: onDeleteSuccess })
-    } else {
-      deleteChatsMutation.mutate(chatIdsToDelete, { onSuccess: onDeleteSuccess })
-    }
     setIsChatDeleteModalOpen(false)
+    if (!isViewingDeletedChat) {
+      deleteChats()
+      return
+    }
+
+    requestMothershipNavigation(() => {
+      if (!isCollapsedRef.current) {
+        setSidebarWidth(SIDEBAR_WIDTH.MIN)
+      }
+      router.push(`/workspace/${workspaceId}/home`)
+      deleteChats()
+    })
   }
 
   const [visibleChatCount, setVisibleChatCount] = useState(5)

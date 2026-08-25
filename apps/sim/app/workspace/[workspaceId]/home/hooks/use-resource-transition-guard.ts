@@ -19,6 +19,13 @@ interface ResourceTransitionGuard {
   reset: () => void
 }
 
+const RESOURCE_HISTORY_SENTINEL_KEY = '__simResourceDraftSentinel'
+
+interface HistorySentinel {
+  token: string
+  url: string
+}
+
 /**
  * Owns the one dirty draft that can be mounted in Sim Chat's resource panel.
  * User transitions wait for confirmation, while agent-driven focus is routed
@@ -27,21 +34,39 @@ interface ResourceTransitionGuard {
 export function useResourceTransitionGuard(): ResourceTransitionGuard {
   const dirtyResourceIdRef = useRef<string | null>(null)
   const pendingTransitionRef = useRef<(() => void) | null>(null)
-  const hasHistorySentinelRef = useRef(false)
+  const historySentinelRef = useRef<HistorySentinel | null>(null)
   const [showDiscardConfirmation, setShowDiscardConfirmation] = useState(false)
 
   const seedHistorySentinel = useCallback(() => {
-    if (hasHistorySentinelRef.current) return
-    window.history.pushState(null, '', window.location.href)
-    hasHistorySentinelRef.current = true
+    if (historySentinelRef.current) return
+    const sentinel = { token: crypto.randomUUID(), url: window.location.href }
+    const currentState = window.history.state
+    window.history.pushState(
+      {
+        ...(currentState && typeof currentState === 'object' ? currentState : {}),
+        [RESOURCE_HISTORY_SENTINEL_KEY]: sentinel.token,
+      },
+      '',
+      sentinel.url
+    )
+    historySentinelRef.current = sentinel
   }, [])
 
   const retireHistorySentinel = useCallback((afterRetirement?: () => void) => {
-    if (!hasHistorySentinelRef.current) {
+    const sentinel = historySentinelRef.current
+    historySentinelRef.current = null
+    const currentState = window.history.state
+    const ownsCurrentEntry =
+      sentinel !== null &&
+      window.location.href === sentinel.url &&
+      currentState !== null &&
+      typeof currentState === 'object' &&
+      currentState[RESOURCE_HISTORY_SENTINEL_KEY] === sentinel.token
+
+    if (!ownsCurrentEntry) {
       afterRetirement?.()
       return
     }
-    hasHistorySentinelRef.current = false
     if (afterRetirement) {
       window.addEventListener('popstate', afterRetirement, { once: true })
     }
@@ -105,9 +130,9 @@ export function useResourceTransitionGuard(): ResourceTransitionGuard {
   const reset = useCallback(() => {
     dirtyResourceIdRef.current = null
     pendingTransitionRef.current = null
-    hasHistorySentinelRef.current = false
     setShowDiscardConfirmation(false)
-  }, [])
+    retireHistorySentinel()
+  }, [retireHistorySentinel])
 
   useEffect(() => {
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
@@ -124,7 +149,7 @@ export function useResourceTransitionGuard(): ResourceTransitionGuard {
 
     const handlePopState = () => {
       if (!dirtyResourceIdRef.current) return
-      hasHistorySentinelRef.current = false
+      historySentinelRef.current = null
       seedHistorySentinel()
       requestResourceTransition(() => window.history.back())
     }
@@ -161,9 +186,7 @@ export function useResourceTransitionGuard(): ResourceTransitionGuard {
       const current = new URL(window.location.href)
       if (
         destination.origin !== current.origin ||
-        (destination.pathname === current.pathname &&
-          destination.search === current.search &&
-          destination.hash === current.hash)
+        (destination.pathname === current.pathname && destination.search === current.search)
       ) {
         return
       }

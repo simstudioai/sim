@@ -38,10 +38,6 @@ import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/cr
 import { RESOURCE_HEADER_CLASSES } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
 import { useResourceTransitionGuard } from '@/app/workspace/[workspaceId]/home/hooks/use-resource-transition-guard'
 import { resolveWorkspaceResourceRef } from '@/app/workspace/[workspaceId]/home/resolve-resource-ref'
-import {
-  resolveResourceFromContext,
-  resourceTitleForContext,
-} from '@/app/workspace/[workspaceId]/home/resource-from-context'
 import { resourceParam, resourceUrlKeys } from '@/app/workspace/[workspaceId]/home/search-params'
 import { useFolders } from '@/hooks/queries/folders'
 import { useMarkMothershipChatRead } from '@/hooks/queries/mothership-chats'
@@ -65,9 +61,44 @@ import {
   useChat,
   useMothershipResize,
 } from './hooks'
-import type { FileAttachmentForApi, MothershipResource, WorkspaceResourceRef } from './types'
+import type {
+  FileAttachmentForApi,
+  MothershipResource,
+  MothershipResourceType,
+  WorkspaceResourceRef,
+} from './types'
 
 const logger = createLogger('Home')
+
+function resolveResourceFromContext(
+  context: ChatContext
+): { type: MothershipResourceType; id: string } | null {
+  switch (context.kind) {
+    case 'workflow':
+    case 'current_workflow':
+      return context.workflowId ? { type: 'workflow', id: context.workflowId } : null
+    case 'knowledge':
+      return context.knowledgeId ? { type: 'knowledgebase', id: context.knowledgeId } : null
+    case 'table':
+    case 'table_selection':
+      return context.tableId ? { type: 'table', id: context.tableId } : null
+    case 'file':
+    case 'file_selection':
+      return context.fileId ? { type: 'file', id: context.fileId } : null
+    case 'skill':
+      return context.skillId ? { type: 'skill', id: context.skillId } : null
+    case 'mcp':
+      return context.serverId ? { type: 'mcp_server', id: context.serverId } : null
+    default:
+      return null
+  }
+}
+
+function resourceTitleForContext(context: ChatContext): string {
+  if (context.kind === 'file_selection') return context.fileName
+  if (context.kind === 'table_selection') return context.tableName
+  return context.label
+}
 
 /**
  * The resource preview panel pulls in the file-viewer stack (rich-markdown

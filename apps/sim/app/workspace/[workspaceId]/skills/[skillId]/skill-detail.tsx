@@ -137,7 +137,7 @@ export function SkillDetail({
   const guard = useUnsavedChangesGuard({
     isDirty,
     backHref: skillsHref,
-    trapHistory: !embedded,
+    enabled: !embedded,
   })
 
   useEffect(() => {

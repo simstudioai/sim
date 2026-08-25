@@ -139,17 +139,9 @@ const PREVIEW_MODE_LABELS: Record<PreviewMode, string> = {
 }
 
 /**
- * Stable identity for the empty lookup across `enabled` toggles. The tab list
- * memo below takes this map as a dependency, so a fresh empty map each time
- * the open type set changes would rebuild every tab for no change in what they say.
- */
-const NO_RESOURCE_NAMES = new Map<string, string>()
-
-/**
  * Builds a `type:id` -> current name lookup from live query data so resource
- * tabs always reflect the latest name even after a rename. Skipped entirely
- * for only the resource families currently open. A file-only chat must not
- * fetch every workspace-wide resource list just to label one tab.
+ * tabs always reflect the latest name even after a rename. Each query is enabled
+ * only when that resource family has an open tab.
  */
 function useResourceNameLookup(
   workspaceId: string,
@@ -175,52 +167,19 @@ function useResourceNameLookup(
   const { data: mcpServers } = useMcpServers(workspaceId, { enabled: mcpServersEnabled })
 
   return useMemo(() => {
-    if (openTypes.size === 0) return NO_RESOURCE_NAMES
     const map = new Map<string, string>()
-    if (workflowsEnabled) {
-      for (const w of workflows ?? []) map.set(`workflow:${w.id}`, w.name)
+    for (const workflow of workflows ?? []) map.set(`workflow:${workflow.id}`, workflow.name)
+    for (const table of tables ?? []) map.set(`table:${table.id}`, table.name)
+    for (const file of files ?? []) map.set(`file:${file.id}`, file.name)
+    for (const knowledgeBase of knowledgeBases ?? []) {
+      map.set(`knowledgebase:${knowledgeBase.id}`, knowledgeBase.name)
     }
-    if (tablesEnabled) {
-      for (const t of tables ?? []) map.set(`table:${t.id}`, t.name)
-    }
-    if (filesEnabled) {
-      for (const f of files ?? []) map.set(`file:${f.id}`, f.name)
-    }
-    if (knowledgeBasesEnabled) {
-      for (const kb of knowledgeBases ?? []) map.set(`knowledgebase:${kb.id}`, kb.name)
-    }
-    if (foldersEnabled) {
-      for (const folder of folders ?? []) map.set(`folder:${folder.id}`, folder.name)
-    }
-    if (skillsEnabled) {
-      for (const skill of skills ?? []) map.set(`skill:${skill.id}`, skill.name)
-    }
-    if (customToolsEnabled) {
-      for (const tool of customTools ?? []) map.set(`custom_tool:${tool.id}`, tool.title)
-    }
-    if (mcpServersEnabled) {
-      for (const server of mcpServers ?? []) map.set(`mcp_server:${server.id}`, server.name)
-    }
+    for (const folder of folders ?? []) map.set(`folder:${folder.id}`, folder.name)
+    for (const skill of skills ?? []) map.set(`skill:${skill.id}`, skill.name)
+    for (const tool of customTools ?? []) map.set(`custom_tool:${tool.id}`, tool.title)
+    for (const server of mcpServers ?? []) map.set(`mcp_server:${server.id}`, server.name)
     return map
-  }, [
-    openTypes,
-    workflowsEnabled,
-    workflows,
-    tablesEnabled,
-    tables,
-    filesEnabled,
-    files,
-    knowledgeBasesEnabled,
-    knowledgeBases,
-    foldersEnabled,
-    folders,
-    skillsEnabled,
-    skills,
-    customToolsEnabled,
-    customTools,
-    mcpServersEnabled,
-    mcpServers,
-  ])
+  }, [workflows, tables, files, knowledgeBases, folders, skills, customTools, mcpServers])
 }
 
 interface ResourceTabsProps {

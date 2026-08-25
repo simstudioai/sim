@@ -113,14 +113,10 @@ describe('useResourceTransitionGuard', () => {
   })
 
   it('defers browser Back until the dirty draft is discarded', () => {
-    const pushState = vi.spyOn(window.history, 'pushState')
     const guard = renderGuard()
 
     act(() => guard.result().reportResourceDirty('mcp-1', true))
-    expect(pushState).toHaveBeenCalledOnce()
-
     act(() => window.dispatchEvent(new PopStateEvent('popstate')))
-    expect(pushState).toHaveBeenCalledTimes(2)
     expect(guard.result().showDiscardConfirmation).toBe(true)
 
     act(() => guard.result().dismissDiscardConfirmation())
@@ -133,6 +129,18 @@ describe('useResourceTransitionGuard', () => {
     act(() => window.dispatchEvent(new PopStateEvent('popstate')))
     expect(window.history.back).toHaveBeenCalledTimes(2)
     expect(guard.result().showDiscardConfirmation).toBe(false)
+    guard.unmount()
+  })
+
+  it('does not pop history after first-message routing replaces the sentinel', () => {
+    const guard = renderGuard()
+
+    act(() => guard.result().reportResourceDirty('custom-tool-1', true))
+    window.history.replaceState({ chat: 'chat-2' }, '', '/workspace/ws-1/chat/chat-2')
+    act(() => guard.result().reportResourceDirty('custom-tool-1', false))
+
+    expect(window.history.back).not.toHaveBeenCalled()
+    expect(window.location.pathname).toBe('/workspace/ws-1/chat/chat-2')
     guard.unmount()
   })
 
