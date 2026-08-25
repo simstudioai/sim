@@ -125,6 +125,45 @@ describe('table row TTL cleanup', () => {
     expect(mockSignalTableRowsChanged).toHaveBeenCalledTimes(1)
   })
 
+  it('gives each table one batch before returning to a backlogged table', async () => {
+    const secondTable = {
+      ...table,
+      id: 'table-2',
+    }
+    const attemptedTableIds: string[] = []
+    const tableAttempts = new Map<string, number>()
+    mockListExecute.mockResolvedValue([
+      { id: table.id, workspaceId: table.workspaceId },
+      { id: secondTable.id, workspaceId: secondTable.workspaceId },
+    ])
+    mockWithLockedTable.mockImplementation(async (tableId, mutate) => {
+      const freshTable = tableId === secondTable.id ? secondTable : table
+      return mutate(freshTable, {
+        execute: vi.fn(async () => {
+          attemptedTableIds.push(tableId)
+          const attempt = (tableAttempts.get(tableId) ?? 0) + 1
+          tableAttempts.set(tableId, attempt)
+          if (tableId === table.id && attempt === 1) {
+            return [{ count: 500, lastId: 'row-500' }]
+          }
+          if (tableId === secondTable.id) {
+            return [{ count: 1, lastId: 'row-1' }]
+          }
+          return [{ count: 0, lastId: null }]
+        }),
+      })
+    })
+
+    await expect(runCleanupTableRowTtl()).resolves.toEqual({
+      batches: 3,
+      deleted: 501,
+      limitReached: false,
+    })
+    expect(attemptedTableIds).toEqual([table.id, secondTable.id, table.id])
+    expect(mockSignalTableRowsChanged).toHaveBeenCalledWith(table.id)
+    expect(mockSignalTableRowsChanged).toHaveBeenCalledWith(secondTable.id)
+  })
+
   it('registers one serialized Trigger.dev task', () => {
     expect(cleanupTableRowTtlTask).toEqual(
       expect.objectContaining({

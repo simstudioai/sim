@@ -28,6 +28,13 @@ interface DeletedTtlBatch {
   lastId: string | null
 }
 
+interface TtlTableCleanupState {
+  ref: ExpiredTtlTableRef
+  afterId?: string
+  deleted: number
+  complete: boolean
+}
+
 export interface TableRowTtlCleanupResult {
   batches: number
   deleted: number
@@ -64,7 +71,9 @@ async function listExpiredTtlTables(nowEpochSeconds: number): Promise<ExpiredTtl
             )
           )::numeric <= ${nowEpochSeconds}
       )
-    ORDER BY ${userTableDefinitions.id}
+    ORDER BY
+      md5(${userTableDefinitions.id} || ${nowEpochSeconds}::text),
+      ${userTableDefinitions.id}
     LIMIT ${TTL_CLEANUP_MAX_BATCHES}
   `)
   return Array.isArray(rows) ? rows : []
@@ -169,33 +178,44 @@ export async function runCleanupTableRowTtl(
 
   const nowEpochSeconds = Math.floor(Date.now() / 1000)
   const tableRefs = await listExpiredTtlTables(nowEpochSeconds)
+  const tableStates: TtlTableCleanupState[] = tableRefs.map((ref) => ({
+    ref,
+    deleted: 0,
+    complete: false,
+  }))
   let deleted = 0
   let batches = 0
-  let lastBatchDeleted = 0
 
-  for (const ref of tableRefs) {
-    let afterId: string | undefined
-    let tableDeleted = 0
+  while (
+    batches < TTL_CLEANUP_MAX_BATCHES &&
+    !signal?.aborted &&
+    tableStates.some((state) => !state.complete)
+  ) {
+    for (const state of tableStates) {
+      if (state.complete) continue
+      if (batches === TTL_CLEANUP_MAX_BATCHES || signal?.aborted) break
 
-    while (batches < TTL_CLEANUP_MAX_BATCHES && !signal?.aborted) {
-      const batch = await deleteExpiredRowsForTable(ref, nowEpochSeconds, afterId)
-      if (!batch.attempted) break
+      const batch = await deleteExpiredRowsForTable(state.ref, nowEpochSeconds, state.afterId)
+      if (!batch.attempted) {
+        state.complete = true
+        continue
+      }
 
       batches++
       deleted += batch.deleted
-      tableDeleted += batch.deleted
-      lastBatchDeleted = batch.deleted
-      afterId = batch.lastId ?? undefined
-      if (batch.deleted < TTL_CLEANUP_BATCH_SIZE) break
+      state.deleted += batch.deleted
+      state.afterId = batch.lastId ?? undefined
+      if (batch.deleted < TTL_CLEANUP_BATCH_SIZE) state.complete = true
     }
+  }
 
-    if (tableDeleted > 0) signalTableRowsChanged(ref.id)
-    if (batches === TTL_CLEANUP_MAX_BATCHES || signal?.aborted) break
+  for (const state of tableStates) {
+    if (state.deleted > 0) signalTableRowsChanged(state.ref.id)
   }
 
   const limitReached =
     batches === TTL_CLEANUP_MAX_BATCHES &&
-    (lastBatchDeleted === TTL_CLEANUP_BATCH_SIZE || tableRefs.length === TTL_CLEANUP_MAX_BATCHES)
+    (tableStates.some((state) => !state.complete) || tableRefs.length === TTL_CLEANUP_MAX_BATCHES)
   logger.info('Table row TTL cleanup completed', { batches, deleted, limitReached })
   return { batches, deleted, limitReached }
 }
