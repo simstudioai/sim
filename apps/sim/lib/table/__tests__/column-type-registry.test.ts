@@ -9,6 +9,7 @@
  * be spread across those arms, so a new type either satisfies them or fails
  * here.
  */
+import { Table as TableIcon } from '@sim/emcn/icons'
 import { describe, expect, it } from 'vitest'
 import { zonedWallClockToUtc } from '@/lib/core/utils/timezone'
 import type { ColumnType } from '@/lib/table/column-types'
@@ -41,6 +42,17 @@ describe('registry shape', () => {
     expect(columnTypeById(undefined).id).toBe('string')
     expect(isColumnType('percent')).toBe(false)
     expect(isColumnType('currency')).toBe(true)
+  })
+
+  it('registers reference columns as configured string-backed columns', () => {
+    const definition = COLUMN_TYPE_REGISTRY.reference
+
+    expect(definition.label).toBe('Reference')
+    expect(definition.icon).toBe(TableIcon)
+    expect(definition.requiresConfigurationOnCreate).toBe(true)
+    expect(definition.hasConfiguration).toBe(true)
+    expect(definition.ownedMetadata).toEqual(['referenceTableId'])
+    expect(definition.jsonbCast).toBeNull()
   })
 
   it('only casts to numeric/timestamptz for types whose storage is actually that', () => {
@@ -317,19 +329,23 @@ describe('metadata ownership', () => {
   const options = [{ id: 'opt_a', name: 'A' }]
 
   it.each`
-    label                      | definition                                                  | valid    | needle
-    ${'options on select'}     | ${column({ type: 'select', options })}                      | ${true}  | ${''}
-    ${'options on string'}     | ${column({ type: 'string', options })}                      | ${false} | ${'cannot define options'}
-    ${'options on currency'}   | ${column({ type: 'currency', options })}                    | ${false} | ${'cannot define options'}
-    ${'multiple on number'}    | ${column({ type: 'number', multiple: true })}               | ${false} | ${'cannot be multiple'}
-    ${'code on currency'}      | ${column({ type: 'currency', currencyCode: 'USD' })}        | ${true}  | ${''}
-    ${'code on number'}        | ${column({ type: 'number', currencyCode: 'USD' })}          | ${false} | ${'cannot define a currency'}
-    ${'code on select'}        | ${column({ type: 'select', currencyCode: 'USD', options })} | ${false} | ${'cannot define a currency'}
-    ${'unsupported code'}      | ${column({ type: 'currency', currencyCode: 'ZZZ' })}        | ${false} | ${'invalid currency code'}
-    ${'unique on select'}      | ${column({ type: 'select', unique: true, options })}        | ${false} | ${'cannot be unique'}
-    ${'unique on currency'}    | ${column({ type: 'currency', unique: true })}               | ${true}  | ${''}
-    ${'select with no option'} | ${column({ type: 'select' })}                               | ${false} | ${'at least one option'}
-    ${'unknown type'}          | ${column({ type: 'percent' as ColumnDefinition['type'] })}  | ${false} | ${'invalid type'}
+    label                      | definition                                                         | valid    | needle
+    ${'options on select'}     | ${column({ type: 'select', options })}                             | ${true}  | ${''}
+    ${'options on string'}     | ${column({ type: 'string', options })}                             | ${false} | ${'cannot define options'}
+    ${'options on currency'}   | ${column({ type: 'currency', options })}                           | ${false} | ${'cannot define options'}
+    ${'multiple on number'}    | ${column({ type: 'number', multiple: true })}                      | ${false} | ${'cannot be multiple'}
+    ${'code on currency'}      | ${column({ type: 'currency', currencyCode: 'USD' })}               | ${true}  | ${''}
+    ${'code on number'}        | ${column({ type: 'number', currencyCode: 'USD' })}                 | ${false} | ${'cannot define a currency'}
+    ${'code on select'}        | ${column({ type: 'select', currencyCode: 'USD', options })}        | ${false} | ${'cannot define a currency'}
+    ${'unsupported code'}      | ${column({ type: 'currency', currencyCode: 'ZZZ' })}               | ${false} | ${'invalid currency code'}
+    ${'target on reference'}   | ${column({ type: 'reference', referenceTableId: 'tbl_anything' })} | ${true}  | ${''}
+    ${'missing target'}        | ${column({ type: 'reference' })}                                   | ${false} | ${'reference table'}
+    ${'empty target'}          | ${column({ type: 'reference', referenceTableId: '' })}             | ${false} | ${'reference table'}
+    ${'target on string'}      | ${column({ type: 'string', referenceTableId: 'tbl_other' })}       | ${false} | ${'reference another table'}
+    ${'unique on select'}      | ${column({ type: 'select', unique: true, options })}               | ${false} | ${'cannot be unique'}
+    ${'unique on currency'}    | ${column({ type: 'currency', unique: true })}                      | ${true}  | ${''}
+    ${'select with no option'} | ${column({ type: 'select' })}                                      | ${false} | ${'at least one option'}
+    ${'unknown type'}          | ${column({ type: 'percent' as ColumnDefinition['type'] })}         | ${false} | ${'invalid type'}
   `(
     'rejects $label',
     ({
@@ -346,6 +362,23 @@ describe('metadata ownership', () => {
       if (!valid) expect(result.errors.join(' ').toLowerCase()).toContain(needle.toLowerCase())
     }
   )
+
+  it('accepts arbitrary row-id strings without resolving them', () => {
+    const column = {
+      name: 'account',
+      type: 'reference',
+      referenceTableId: 'tbl_accounts',
+    } as ColumnDefinition
+    const definition = COLUMN_TYPE_REGISTRY.reference
+
+    expect(definition.coerce('not-a-real-row-id', column)).toEqual({
+      ok: true,
+      value: 'not-a-real-row-id',
+    })
+    expect(definition.coerce(97, column)).toEqual({ ok: true, value: '97' })
+    expect(definition.coerce(true, column)).toEqual({ ok: true, value: 'true' })
+    expect(definition.validateCell('not-a-real-row-id', column)).toBeNull()
+  })
 })
 
 /**

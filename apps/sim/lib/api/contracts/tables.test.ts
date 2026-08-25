@@ -2,7 +2,49 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { tableEventStreamQuerySchema, tableRowsQuerySchema } from '@/lib/api/contracts/tables'
+import {
+  createTableColumnBodySchema,
+  tableColumnSchema,
+  tableEventStreamQuerySchema,
+  tableRowsQuerySchema,
+  updateTableColumnBodySchema,
+} from '@/lib/api/contracts/tables'
+
+describe('reference column metadata', () => {
+  const referenceColumn = {
+    name: 'account',
+    type: 'reference',
+    referenceTableId: 'tbl_accounts',
+  }
+
+  it('preserves the target table id in every HTTP column schema', () => {
+    expect(tableColumnSchema.parse(referenceColumn).referenceTableId).toBe('tbl_accounts')
+    expect(
+      createTableColumnBodySchema.parse({
+        workspaceId: 'ws-1',
+        column: referenceColumn,
+      }).column.referenceTableId
+    ).toBe('tbl_accounts')
+    expect(
+      updateTableColumnBodySchema.parse({
+        workspaceId: 'ws-1',
+        columnName: 'account',
+        updates: { referenceTableId: 'tbl_other' },
+      }).updates.referenceTableId
+    ).toBe('tbl_other')
+  })
+
+  it('requires a non-empty target for reference columns', () => {
+    expect(tableColumnSchema.safeParse({ name: 'account', type: 'reference' }).success).toBe(false)
+    expect(tableColumnSchema.safeParse({ ...referenceColumn, referenceTableId: '' }).success).toBe(
+      false
+    )
+  })
+
+  it('rejects reference metadata on another column type', () => {
+    expect(tableColumnSchema.safeParse({ ...referenceColumn, type: 'string' }).success).toBe(false)
+  })
+})
 
 /**
  * `requestJson` parses the query through this schema on the CLIENT before building the URL, so

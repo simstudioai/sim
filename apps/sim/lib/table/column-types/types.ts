@@ -40,6 +40,7 @@ export const COLUMN_TYPES = [
   'ttl',
   'json',
   'select',
+  'reference',
 ] as const
 
 export type ColumnType = (typeof COLUMN_TYPES)[number]
@@ -62,7 +63,12 @@ export type ColumnCellEditor =
  * means extending this list and that type's `ownedMetadata` — not editing the
  * validator.
  */
-export const TYPE_SPECIFIC_COLUMN_KEYS = ['options', 'multiple', 'currencyCode'] as const
+export const TYPE_SPECIFIC_COLUMN_KEYS = [
+  'options',
+  'multiple',
+  'currencyCode',
+  'referenceTableId',
+] as const
 
 export type TypeSpecificColumnKey = (typeof TYPE_SPECIFIC_COLUMN_KEYS)[number]
 
