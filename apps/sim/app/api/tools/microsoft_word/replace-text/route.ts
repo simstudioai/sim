@@ -10,7 +10,7 @@ import {
   assertContentUnchanged,
   downloadDocumentContent,
   fetchDocumentItem,
-  getContentTag,
+  requireContentTag,
   toDocumentMetadata,
   uploadDocumentContent,
 } from '@/lib/microsoft-word/graph.server'
@@ -46,7 +46,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const basePath = getDocumentBasePath(documentId, driveId ?? undefined)
     const existingItem = await fetchDocumentItem(basePath, accessToken)
-    const contentTag = getContentTag(existingItem)
+    const contentTag = requireContentTag(existingItem)
 
     const existingBuffer = await downloadDocumentContent(basePath, accessToken)
     const { buffer, occurrencesChanged } = await replaceTextInDocx(

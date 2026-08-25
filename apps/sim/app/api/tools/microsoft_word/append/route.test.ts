@@ -172,6 +172,65 @@ describe('POST /api/tools/microsoft_word/append', () => {
     )
   })
 
+  it('refuses to write when Graph reports no version to compare against', async () => {
+    const untagged = {
+      id: 'doc-abc',
+      name: 'notes.docx',
+      file: {
+        mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      },
+    }
+    mockSecureFetchWithPinnedIP.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      statusText: '',
+      headers: new Headers(),
+      body: null,
+      text: async () => JSON.stringify(untagged),
+      json: async () => untagged,
+      arrayBuffer: async () => new ArrayBuffer(0),
+    })
+
+    const response = await POST(createMockRequest('POST', baseBody))
+
+    expect(response.status).toBe(409)
+    const data = (await response.json()) as { error: string }
+    expect(data.error).toMatch(/did not report a version/)
+    expect(mockSecureFetchWithPinnedIP.mock.calls.some((call) => call[2]?.method === 'PUT')).toBe(
+      false
+    )
+  })
+
+  it('refuses to write when the re-read reports no version', async () => {
+    const untagged = {
+      id: 'doc-abc',
+      name: 'notes.docx',
+      file: {
+        mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      },
+    }
+    mockSecureFetchWithPinnedIP
+      .mockResolvedValueOnce(itemResponse('tag-1'))
+      .mockResolvedValueOnce(await docxResponse())
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        statusText: '',
+        headers: new Headers(),
+        body: null,
+        text: async () => JSON.stringify(untagged),
+        json: async () => untagged,
+        arrayBuffer: async () => new ArrayBuffer(0),
+      })
+
+    const response = await POST(createMockRequest('POST', baseBody))
+
+    expect(response.status).toBe(409)
+    expect(mockSecureFetchWithPinnedIP.mock.calls.some((call) => call[2]?.method === 'PUT')).toBe(
+      false
+    )
+  })
+
   it('surfaces a 412 from the upload precondition as the same conflict', async () => {
     mockSecureFetchWithPinnedIP
       .mockResolvedValueOnce(itemResponse('tag-1'))

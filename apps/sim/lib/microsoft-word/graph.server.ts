@@ -191,24 +191,49 @@ export function documentChangedError(): GraphRequestError {
   return new GraphRequestError(CONFLICT_MESSAGE, 409)
 }
 
+/** Message shown when the document carries no version to compare against. */
+const UNVERIFIABLE_MESSAGE =
+  'Microsoft Graph did not report a version for this document, so Sim cannot confirm the edit would not overwrite someone else’s change and did not apply it. Use Replace Content if you intend to overwrite the document outright.'
+
+/**
+ * Raised when there is no version to compare, rather than writing unguarded.
+ *
+ * Graph returns `cTag` for every file and `eTag` for every drive item, so this
+ * should not be reachable in practice — but a read-modify-write that silently
+ * degrades to no protection is the failure this whole guard exists to prevent,
+ * so the missing-version path fails closed instead of proceeding.
+ */
+function unverifiableDocumentError(): GraphRequestError {
+  return new GraphRequestError(UNVERIFIABLE_MESSAGE, 409)
+}
+
+/**
+ * Returns the content tag an edit must be based on, refusing the edit outright
+ * when the item carries none.
+ */
+export function requireContentTag(item: GraphDriveItem): string {
+  const tag = getContentTag(item)
+  if (!tag) {
+    throw unverifiableDocumentError()
+  }
+  return tag
+}
+
 /**
  * Aborts a read-modify-write when the document's content changed since it was
  * read. Without this, two overlapping edits both succeed and the later upload
  * silently discards the earlier one.
  *
- * `expected` being undefined means Graph returned neither tag for this item, so
- * there is nothing to compare and the caller proceeds unguarded — the
- * `if-match` header on the upload is the remaining line of defense.
+ * Every branch fails closed: a changed tag, and equally a re-read that reports
+ * no tag at all, both refuse the write rather than fall through to it.
  */
 export async function assertContentUnchanged(
   basePath: string,
   accessToken: string,
-  expected: string | undefined
+  expected: string
 ): Promise<void> {
-  if (!expected) return
-
-  const current = getContentTag(await fetchDocumentItem(basePath, accessToken))
-  if (current && current !== expected) {
+  const current = requireContentTag(await fetchDocumentItem(basePath, accessToken))
+  if (current !== expected) {
     throw documentChangedError()
   }
 }
