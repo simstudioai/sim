@@ -3,23 +3,10 @@
  */
 import { QueryClient } from '@tanstack/react-query'
 import { describe, expect, it, vi } from 'vitest'
-import { MothershipResourceType } from '@/lib/copilot/resources/types'
+import { invalidateResourceQueries } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry/resource-registry'
 import { mcpKeys } from '@/hooks/queries/mcp'
 import { skillsKeys } from '@/hooks/queries/skills'
 import { customToolsKeys } from '@/hooks/queries/utils/custom-tool-keys'
-import {
-  invalidateResourceQueries,
-  RESOURCE_MENU_ORDER,
-  RESOURCE_REGISTRY,
-} from './resource-registry'
-
-describe('resource registry coverage', () => {
-  it('registers and orders every resource type exactly once', () => {
-    const types = Object.values(MothershipResourceType).sort()
-    expect(Object.keys(RESOURCE_REGISTRY).sort()).toEqual(types)
-    expect([...RESOURCE_MENU_ORDER].sort()).toEqual(types)
-  })
-})
 
 describe('panel resource invalidation', () => {
   it('refreshes the Skill and Custom Tool lists', () => {

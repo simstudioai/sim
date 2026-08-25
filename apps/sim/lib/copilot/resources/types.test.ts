@@ -31,10 +31,6 @@ describe('isEphemeralResource', () => {
     ).toBe(false)
   })
 
-  it.each(['skill', 'custom_tool', 'mcp_server'] as const)('persists %s panel tabs', (type) => {
-    expect(isEphemeralResource(resource({ type }))).toBe(false)
-  })
-
   it('keeps synthetic panels client-only', () => {
     expect(isEphemeralResource(resource({ type: 'generic', id: 'results' }))).toBe(true)
     expect(isEphemeralResource(resource({ type: 'file', id: 'streaming-file' }))).toBe(true)

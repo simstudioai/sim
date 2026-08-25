@@ -29,7 +29,6 @@ import {
   useDeleteCustomTool,
   useUpdateCustomTool,
 } from '@/hooks/queries/custom-tools'
-import { type CustomToolDraftSource, customToolSourceChanged } from './custom-tool-draft-sync'
 
 const logger = createLogger('CustomToolDetail')
 
@@ -76,7 +75,11 @@ export function CustomToolDetail({
 
   const [jsonSchema, setJsonSchema] = useState(seededSchema)
   const [functionCode, setFunctionCode] = useState(seededCode)
-  const [previousToolSource, setPreviousToolSource] = useState<CustomToolDraftSource | null>(() =>
+  const [previousToolSource, setPreviousToolSource] = useState<{
+    id: string
+    schema: string
+    code: string
+  } | null>(() =>
     tool
       ? { id: tool.id, schema: JSON.stringify(tool.schema, null, 2), code: tool.code ?? '' }
       : null
@@ -93,7 +96,10 @@ export function CustomToolDetail({
     }
     const switchedTool = previousToolSource?.id !== tool.id
     const sourceChanged =
-      previousToolSource !== null && customToolSourceChanged(previousToolSource, nextSource)
+      previousToolSource !== null &&
+      (previousToolSource.id !== nextSource.id ||
+        previousToolSource.schema !== nextSource.schema ||
+        previousToolSource.code !== nextSource.code)
 
     if (switchedTool || sourceChanged) {
       const hadLocalDraft = jsonSchema !== seededSchema || functionCode !== seededCode

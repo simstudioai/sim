@@ -51,7 +51,7 @@ vi.mock('@/hooks/queries/workspace-files', () => ({
   useWorkspaceFiles: () => ({ data: [], isPending: false }),
 }))
 
-import { useAvailableResources } from './add-resource-dropdown'
+import { useAvailableResources } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown/add-resource-dropdown'
 
 describe('useAvailableResources panel resource groups', () => {
   it('offers Skills, Custom Tools, and MCP servers to the panel picker', () => {

@@ -2,8 +2,8 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
+import { resolveResourceFromContext } from '@/app/workspace/[workspaceId]/home/resource-from-context'
 import type { ChatContext } from '@/stores/panel'
-import { resolveResourceFromContext } from './resource-from-context'
 
 describe('resolveResourceFromContext', () => {
   it.each([

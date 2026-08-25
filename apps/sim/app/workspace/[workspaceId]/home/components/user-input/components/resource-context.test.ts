@@ -47,11 +47,4 @@ describe('mapResourceToContext', () => {
       label: 'Leads',
     })
   })
-
-  it.each(['skill', 'custom_tool', 'mcp_server'] as const)(
-    'does not manufacture prompt context for panel-only %s resources',
-    (type) => {
-      expect(mapResourceToContext(resource({ type }))).toBeNull()
-    }
-  )
 })

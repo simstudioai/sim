@@ -28,11 +28,6 @@ import {
   validateSkillName,
 } from '@/app/workspace/[workspaceId]/skills/components/utils'
 import { useDeleteSkill, useSkills, useUpdateSkill } from '@/hooks/queries/skills'
-import {
-  type SkillDraftShape,
-  skillDraftMatchesSource,
-  skillSourceChanged,
-} from './skill-draft-sync'
 
 const logger = createLogger('SkillDetail')
 
@@ -84,7 +79,12 @@ export function SkillDetail({
   const [errors, setErrors] = useState<SkillFieldErrors>({})
   const [shareOpen, setShareOpen] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
-  const [previousSkillSource, setPreviousSkillSource] = useState<SkillDraftShape | null>(null)
+  const [previousSkillSource, setPreviousSkillSource] = useState<{
+    id: string
+    name: string
+    description: string
+    content: string
+  } | null>(null)
 
   /** Applies a full skill shape to all three drafts and remounts the Content editor. */
   const seedDrafts = (source: { name: string; description: string; content: string }) => {
@@ -106,16 +106,19 @@ export function SkillDetail({
     }
     const switchedSkill = previousSkillSource?.id !== skill.id
     const sourceChanged =
-      previousSkillSource !== null && skillSourceChanged(previousSkillSource, nextSource)
+      previousSkillSource !== null &&
+      (previousSkillSource.id !== nextSource.id ||
+        previousSkillSource.name !== nextSource.name ||
+        previousSkillSource.description !== nextSource.description ||
+        previousSkillSource.content !== nextSource.content)
 
     if (switchedSkill || sourceChanged) {
       const shouldReseed =
         switchedSkill ||
         previousSkillSource === null ||
-        skillDraftMatchesSource(
-          { name: nameDraft, description: descriptionDraft, content: contentDraft },
-          previousSkillSource
-        )
+        (nameDraft === previousSkillSource.name &&
+          descriptionDraft === previousSkillSource.description &&
+          contentDraft === previousSkillSource.content)
       setPreviousSkillSource(nextSource)
       if (shouldReseed) seedDrafts(skill)
     }
