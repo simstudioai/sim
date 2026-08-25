@@ -1,1 +1,0 @@
-ALTER TABLE "document" ADD COLUMN "processing_queue_token" text;

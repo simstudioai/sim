@@ -2133,15 +2133,8 @@
     {
       "idx": 305,
       "version": "7",
-      "when": 1787609452986,
-      "tag": "0305_omniscient_roughhouse",
-      "breakpoints": true
-    },
-    {
-      "idx": 306,
-      "version": "7",
-      "when": 1787622665952,
-      "tag": "0306_redundant_prowler",
+      "when": 1787629825452,
+      "tag": "0305_military_landau",
       "breakpoints": true
     }
   ]

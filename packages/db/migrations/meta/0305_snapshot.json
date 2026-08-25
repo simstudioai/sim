@@ -1,5 +1,5 @@
 {
-  "id": "1e794282-e9f2-4fb2-9fd4-3ce2283640fd",
+  "id": "4bfa1805-bd0f-4227-91f2-e42fa7d5caab",
   "prevId": "8b1525ae-147f-4e93-a624-0f5cff95a1d5",
   "version": "7",
   "dialect": "postgresql",
@@ -4769,6 +4769,12 @@
         "processing_queued_at": {
           "name": "processing_queued_at",
           "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "processing_queue_token": {
+          "name": "processing_queue_token",
+          "type": "text",
           "primaryKey": false,
           "notNull": false
         },
