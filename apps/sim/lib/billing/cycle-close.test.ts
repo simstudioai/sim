@@ -95,6 +95,21 @@ type SubInput = Parameters<typeof closeElapsedBillingPeriod>[0]
 const PERIOD_START = new Date('2026-08-01T00:00:00.000Z')
 const PREV_PERIOD_START = new Date('2026-07-01T00:00:00.000Z')
 
+/**
+ * The grace gate and lagging checks compare fixed period boundaries against
+ * `Date.now()`, so the suite pins the clock to stay hermetic on any host date.
+ */
+const FROZEN_NOW = new Date('2026-08-15T00:00:00.000Z')
+
+beforeEach(() => {
+  vi.useFakeTimers()
+  vi.setSystemTime(FROZEN_NOW)
+})
+
+afterAll(() => {
+  vi.useRealTimers()
+})
+
 function subRow(overrides: Partial<Record<string, unknown>> = {}): SubInput {
   return {
     id: 'sub-1',
@@ -305,6 +320,35 @@ describe('closeElapsedBillingPeriod', () => {
     })
   })
 
+  it('subtracts the current period tracker from the final overage', async () => {
+    queueOrgCloseReads({ trackerRow: { billedOverageThisPeriod: '30', creditBalance: '0' } })
+
+    const result = await closeElapsedBillingPeriod(subRow())
+
+    expect(result.status).toBe('closed')
+    expect(result.overageBilled).toBe(40)
+    const [, , payload] = mockEnqueueOutboxEvent.mock.calls[0]
+    expect(payload).toMatchObject({ amountCents: 4000 })
+  })
+
+  it('ignores the stale tracker when the close skipped forgiven periods', async () => {
+    // Marker two intervals back: the close forgives the older period and
+    // bills [Jul 1, Aug 1) only. The tracker's collections belong to the
+    // period that began at the marker, so none of them offset this close.
+    const staleMarker = new Date('2026-05-01T00:00:00.000Z')
+    queueOrgCloseReads({
+      markerRow: { lastClosedPeriodStart: staleMarker },
+      trackerRow: { billedOverageThisPeriod: '30', creditBalance: '0' },
+    })
+
+    const result = await closeElapsedBillingPeriod(subRow({ lastClosedPeriodStart: staleMarker }))
+
+    expect(result.status).toBe('closed')
+    expect(result.overageBilled).toBe(70)
+    const [, , payload] = mockEnqueueOutboxEvent.mock.calls[0]
+    expect(payload).toMatchObject({ amountCents: 7000 })
+  })
+
   it('applies organization credits before invoicing and skips Stripe when covered', async () => {
     queueOrgCloseReads({ orgRow: { creditBalance: '100' } })
 
@@ -508,16 +552,35 @@ describe('claimTerminalPeriod', () => {
 
   it('claims the marker from the fresh row period and returns it for settlement', async () => {
     queueTableRows(schemaMock.subscription, [
-      { periodStart: PERIOD_START, periodEnd: new Date('2026-09-01T00:00:00.000Z') },
+      {
+        periodStart: PERIOD_START,
+        periodEnd: new Date('2026-09-01T00:00:00.000Z'),
+        lastClosedPeriodStart: PERIOD_START,
+      },
     ])
 
     const terminal = await claimTerminalPeriod('sub-1')
 
     expect(terminal.periodStart).toEqual(PERIOD_START)
+    expect(terminal.markerWasCurrent).toBe(true)
     const markerSet = dbChainMockFns.set.mock.calls.find(
       (call) => (call[0] as Record<string, unknown>).lastClosedPeriodStart instanceof Date
     )
     expect(markerSet).toBeDefined()
+  })
+
+  it('reports a lagging marker so the terminal settlement ignores the stale tracker', async () => {
+    queueTableRows(schemaMock.subscription, [
+      {
+        periodStart: PERIOD_START,
+        periodEnd: new Date('2026-09-01T00:00:00.000Z'),
+        lastClosedPeriodStart: PREV_PERIOD_START,
+      },
+    ])
+
+    const terminal = await claimTerminalPeriod('sub-1')
+
+    expect(terminal.markerWasCurrent).toBe(false)
   })
 
   it('returns nulls without claiming when the subscription has no period', async () => {
@@ -525,7 +588,7 @@ describe('claimTerminalPeriod', () => {
 
     const terminal = await claimTerminalPeriod('sub-1')
 
-    expect(terminal).toEqual({ periodStart: null, periodEnd: null })
+    expect(terminal).toEqual({ periodStart: null, periodEnd: null, markerWasCurrent: true })
     expect(dbChainMockFns.set).not.toHaveBeenCalled()
   })
 })

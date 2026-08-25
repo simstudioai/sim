@@ -196,25 +196,41 @@ export async function closeElapsedPeriodBeforeDeletion(subscriptionId: string): 
  * including its outbox invoice — so deletion and sweep can never both bill
  * the same period. Call `closeElapsedPeriodBeforeDeletion` first so a lagging
  * elapsed period is settled rather than jumped. Returns the fresh period
- * bounds for the deletion flow to settle against.
+ * bounds for the deletion flow to settle against, plus `markerWasCurrent`:
+ * whether the close marker had already caught up to the terminal period
+ * before this claim. The `billedOverageThisPeriod` tracker only ever holds
+ * collections for the period that began at the marker (the threshold gate
+ * blocks settlement whenever the marker lags), so the terminal settlement
+ * must ignore the tracker when the marker was still lagging — its contents
+ * belong to a forgiven elapsed period, never to the terminal window.
  */
-export async function claimTerminalPeriod(
-  subscriptionId: string
-): Promise<{ periodStart: Date | null; periodEnd: Date | null }> {
+export async function claimTerminalPeriod(subscriptionId: string): Promise<{
+  periodStart: Date | null
+  periodEnd: Date | null
+  markerWasCurrent: boolean
+}> {
   return db.transaction(async (tx) => {
     const [row] = await tx
       .select({
         periodStart: subscriptionTable.periodStart,
         periodEnd: subscriptionTable.periodEnd,
+        lastClosedPeriodStart: subscriptionTable.lastClosedPeriodStart,
       })
       .from(subscriptionTable)
       .where(eq(subscriptionTable.id, subscriptionId))
       .for('update')
       .limit(1)
 
-    if (!row?.periodStart) return { periodStart: null, periodEnd: null }
+    if (!row?.periodStart) {
+      // Mirrors the threshold gate: a null `periodStart` cannot race a
+      // rollover, so any tracked collections are legitimately current.
+      return { periodStart: null, periodEnd: null, markerWasCurrent: true }
+    }
+    const markerWasCurrent =
+      !!row.lastClosedPeriodStart &&
+      row.lastClosedPeriodStart.getTime() >= row.periodStart.getTime()
     await claimCloseMarker(tx, subscriptionId, row.periodStart)
-    return { periodStart: row.periodStart, periodEnd: row.periodEnd }
+    return { periodStart: row.periodStart, periodEnd: row.periodEnd, markerWasCurrent }
   })
 }
 
@@ -514,7 +530,16 @@ export async function closeElapsedBillingPeriod(
           .where(eq(userStats.userId, trackerUserId))
           .limit(1)
 
-        const alreadyBilled = toNumber(toDecimal(tracker?.billedOverageThisPeriod))
+        // The tracker's collections belong to the period that began at the
+        // marker — the threshold gate blocks settlement whenever the marker
+        // lags, so nothing newer can be in it. When this close skipped
+        // forgiven periods (`closeFrom` advanced past the marker), those
+        // collections offset a forgiven period's overage, not this one's:
+        // count nothing against this close. The reset below still clears them.
+        const alreadyBilled =
+          closeFrom.getTime() === marker.getTime()
+            ? toNumber(toDecimal(tracker?.billedOverageThisPeriod))
+            : 0
         let remaining = Math.max(0, totalOverage - alreadyBilled)
 
         if (remaining > 0) {

@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { dbChainMockFns, drizzleOrmMock, schemaMock } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('drizzle-orm', () => {
   const sqlTag = () => {
@@ -24,6 +24,21 @@ import {
   computeBillingPeriodUsageWithDailyRefresh,
   computeDailyRefreshConsumed,
 } from '@/lib/billing/credits/daily-refresh'
+
+/**
+ * Refresh caps windows at `Date.now()`, so the suite pins the clock after
+ * every fixture period to stay hermetic on any host date.
+ */
+const FROZEN_NOW = new Date('2026-08-15T00:00:00.000Z')
+
+beforeEach(() => {
+  vi.useFakeTimers()
+  vi.setSystemTime(FROZEN_NOW)
+})
+
+afterAll(() => {
+  vi.useRealTimers()
+})
 
 describe('computeBillingPeriodUsageWithDailyRefresh', () => {
   const periodStart = new Date('2026-03-01T00:00:00.000Z')

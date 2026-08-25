@@ -350,7 +350,15 @@ export async function handleSubscriptionDeleted(
           return { totalOverage: 0, kind: 'enterprise' as const }
         }
 
-        const billedOverage = await getBilledOverageForSubscription(subscription)
+        // The tracker only ever holds collections for the period that began
+        // at the close marker — the threshold gate blocks settlement while
+        // the marker lags. If the marker was still lagging at claim time
+        // (the elapsed close above deferred), the tracked amount belongs to
+        // that forgiven elapsed period, not the terminal window: subtracting
+        // it would under-bill the final invoice, so count nothing.
+        const billedOverage = terminal.markerWasCurrent
+          ? await getBilledOverageForSubscription(subscription)
+          : 0
         const remainingOverage = Math.max(0, totalOverage - billedOverage)
 
         logger.info('Subscription deleted overage calculation', {
