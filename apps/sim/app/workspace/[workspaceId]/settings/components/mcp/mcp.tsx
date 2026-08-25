@@ -454,7 +454,7 @@ export function MCP({
     )
   }
 
-  if (serverId && serversError) {
+  if (serverId && serversError && !selectedServer) {
     return (
       <SettingsPanel
         back={{ text: 'MCP tools', icon: ArrowLeft, onSelect: handleBackToList }}

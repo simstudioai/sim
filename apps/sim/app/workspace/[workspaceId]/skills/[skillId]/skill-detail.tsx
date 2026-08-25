@@ -115,7 +115,7 @@ export function SkillDetail({
         previousSkillSource.description !== nextSource.description ||
         previousSkillSource.content !== nextSource.content)
 
-    if (switchedSkill || sourceChanged) {
+    if (switchedSkill || (sourceChanged && !updateSkill.isPending)) {
       const shouldReseed =
         switchedSkill ||
         previousSkillSource === null ||
@@ -127,12 +127,14 @@ export function SkillDetail({
     }
   }
 
+  const dirtyBaseline = previousSkillSource?.id === skill?.id ? previousSkillSource : skill
   const isDirty =
     !!skill &&
     !isBuiltin &&
-    (nameDraft !== skill.name ||
-      descriptionDraft !== skill.description ||
-      contentDraft !== skill.content)
+    !!dirtyBaseline &&
+    (nameDraft !== dirtyBaseline.name ||
+      descriptionDraft !== dirtyBaseline.description ||
+      contentDraft !== dirtyBaseline.content)
 
   const guard = useUnsavedChangesGuard({
     isDirty,

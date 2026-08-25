@@ -68,7 +68,7 @@ describe('useResourceTransitionGuard', () => {
     const guard = renderGuard()
 
     act(() => guard.result().reportResourceDirty('skill-1', true))
-    act(() => guard.result().routeAutomaticResourceFocus('skill-1', 'mcp-1', focus, markAttention))
+    act(() => guard.result().routeAutomaticResourceFocus('mcp-1', focus, markAttention))
 
     expect(focus).not.toHaveBeenCalled()
     expect(markAttention).toHaveBeenCalledOnce()
@@ -141,6 +141,36 @@ describe('useResourceTransitionGuard', () => {
 
     expect(window.history.back).not.toHaveBeenCalled()
     expect(window.location.pathname).toBe('/workspace/ws-1/chat/chat-2')
+    guard.unmount()
+  })
+
+  it('re-owns first-message history so Back cancellation stays put and discard leaves once', () => {
+    const guard = renderGuard()
+
+    act(() => guard.result().reportResourceDirty('skill-1', true))
+    window.history.replaceState(null, '', '/workspace/ws-1/chat/chat-2')
+    act(() => guard.result().rebaseHistorySentinel())
+
+    act(() => window.dispatchEvent(new PopStateEvent('popstate')))
+    expect(guard.result().showDiscardConfirmation).toBe(true)
+    act(() => guard.result().dismissDiscardConfirmation())
+    expect(window.location.pathname).toBe('/workspace/ws-1/chat/chat-2')
+
+    vi.mocked(window.history.back)
+      .mockImplementationOnce(() => {
+        window.history.replaceState({}, '', '/workspace/ws-1/chat/chat-2')
+        window.dispatchEvent(new PopStateEvent('popstate'))
+      })
+      .mockImplementationOnce(() => {
+        window.history.replaceState({}, '', '/workspace/ws-1/home')
+        window.dispatchEvent(new PopStateEvent('popstate'))
+      })
+
+    act(() => window.dispatchEvent(new PopStateEvent('popstate')))
+    act(() => guard.result().confirmDiscard())
+
+    expect(window.location.pathname).toBe('/workspace/ws-1/home')
+    expect(guard.result().showDiscardConfirmation).toBe(false)
     guard.unmount()
   })
 

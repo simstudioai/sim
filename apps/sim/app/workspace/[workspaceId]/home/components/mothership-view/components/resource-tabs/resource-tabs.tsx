@@ -177,7 +177,9 @@ function useResourceNameLookup(
     for (const folder of folders ?? []) map.set(`folder:${folder.id}`, folder.name)
     for (const skill of skills ?? []) map.set(`skill:${skill.id}`, skill.name)
     for (const tool of customTools ?? []) map.set(`custom_tool:${tool.id}`, tool.title)
-    for (const server of mcpServers ?? []) map.set(`mcp_server:${server.id}`, server.name)
+    for (const server of mcpServers ?? []) {
+      map.set(`mcp_server:${server.id}`, server.name || 'Unnamed server')
+    }
     return map
   }, [workflows, tables, files, knowledgeBases, folders, skills, customTools, mcpServers])
 }

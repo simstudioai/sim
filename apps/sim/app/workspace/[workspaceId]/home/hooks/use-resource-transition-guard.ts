@@ -10,13 +10,13 @@ interface ResourceTransitionGuard {
   reportResourceDirty: (resourceId: string, dirty: boolean) => void
   requestResourceTransition: (transition: () => void) => void
   routeAutomaticResourceFocus: (
-    activeResourceId: string | null,
     nextResourceId: string,
     focus: () => void,
     markAttention: () => void
   ) => void
   dismissDiscardConfirmation: () => void
   confirmDiscard: () => void
+  rebaseHistorySentinel: () => void
   reset: () => void
 }
 
@@ -74,6 +74,22 @@ export function useResourceTransitionGuard(): ResourceTransitionGuard {
     window.history.back()
   }, [])
 
+  const rebaseHistorySentinel = useCallback(() => {
+    if (!dirtyResourceIdRef.current) return
+    const sentinel = historySentinelRef.current
+    const currentState = window.history.state
+    const ownsCurrentEntry =
+      sentinel !== null &&
+      window.location.href === sentinel.url &&
+      currentState !== null &&
+      typeof currentState === 'object' &&
+      currentState[RESOURCE_HISTORY_SENTINEL_KEY] === sentinel.token
+    if (ownsCurrentEntry) return
+
+    historySentinelRef.current = null
+    seedHistorySentinel()
+  }, [seedHistorySentinel])
+
   const reportResourceDirty = useCallback(
     (resourceId: string, dirty: boolean) => {
       if (dirty) {
@@ -100,13 +116,13 @@ export function useResourceTransitionGuard(): ResourceTransitionGuard {
   }, [])
 
   const routeAutomaticResourceFocus = useCallback(
-    (
-      activeResourceId: string | null,
-      nextResourceId: string,
-      focus: () => void,
-      markAttention: () => void
-    ) => {
-      if (dirtyResourceIdRef.current === activeResourceId && activeResourceId !== nextResourceId) {
+    (nextResourceId: string, focus: () => void, markAttention: () => void) => {
+      // Resource upserts run before their focus event. Adding an item can move
+      // the derived fallback ID to that new last tab before this callback runs,
+      // even though the dirty editor is still what the user sees. The guard is
+      // the authoritative owner of that mounted dirty editor, so protect it
+      // directly instead of trusting an active ID that may already have moved.
+      if (dirtyResourceIdRef.current && dirtyResourceIdRef.current !== nextResourceId) {
         markAttention()
         return
       }
@@ -216,6 +232,7 @@ export function useResourceTransitionGuard(): ResourceTransitionGuard {
     routeAutomaticResourceFocus,
     dismissDiscardConfirmation,
     confirmDiscard,
+    rebaseHistorySentinel,
     reset,
   }
 }

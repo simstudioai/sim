@@ -216,6 +216,7 @@ export const GENERIC_RESOURCE_TITLES = new Set<string>([
   'Knowledge Base',
   'Folder',
   'Log',
+  'Integration',
   'Skill',
   'Custom Tool',
   'MCP Server',

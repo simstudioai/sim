@@ -246,6 +246,7 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
     routeAutomaticResourceFocus,
     dismissDiscardConfirmation,
     confirmDiscard,
+    rebaseHistorySentinel,
     reset: resetResourceTransitionGuard,
   } = useResourceTransitionGuard()
   const isResourceCollapsedRef = useRef(isResourceCollapsed)
@@ -253,6 +254,7 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
   const userOwnsResourceViewRef = useRef(false)
   const activeResourceParamRef = useRef(activeResourceParam)
   activeResourceParamRef.current = activeResourceParam
+  const effectiveActiveResourceIdRef = useRef<string | null>(activeResourceParam)
 
   function handleResourceEvent(resourceId: string, options?: ResourceEventOptions) {
     // Agent work surfaces the resource and switches to it as it is created or
@@ -260,7 +262,7 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
     // existing selection (see shouldActivateResourceEvent).
     if (isResourceCollapsedRef.current) setIsResourceCollapsed(false)
 
-    const activeResourceId = activeResourceParamRef.current
+    const activeResourceId = effectiveActiveResourceIdRef.current
     const markAttention = () => {
       setResourceActivityIds((current) => new Set(current).add(resourceId))
     }
@@ -269,7 +271,6 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
       return
     }
     routeAutomaticResourceFocus(
-      activeResourceId,
       resourceId,
       () => {
         setResourceActivityIds((current) => {
@@ -279,6 +280,7 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
           return next
         })
         if (activeResourceId !== resourceId) {
+          effectiveActiveResourceIdRef.current = resourceId
           activeResourceParamRef.current = resourceId
           setActiveResourceUrl(resourceId)
         }
@@ -330,7 +332,6 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
   )
 
   const { mothershipRef, handleResizePointerDown, clearWidth } = useMothershipResize(desktopScopeId)
-  const effectiveActiveResourceIdRef = useRef(activeResourceId)
   effectiveActiveResourceIdRef.current = activeResourceId
   const resourceAttentionChatIdRef = useRef(resolvedChatId)
 
@@ -407,6 +408,7 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
     wasSendingRef.current = false
     if (resolvedChatId) {
       markRead(resolvedChatId)
+      if (!previousChatId) rebaseHistorySentinel()
     } else {
       clearWidth()
       setIsResourceCollapsed(true)
@@ -416,7 +418,7 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
       setResourceActivityIds(new Set())
       resetResourceTransitionGuard()
     }
-  }, [resolvedChatId, markRead, clearWidth, resetResourceTransitionGuard])
+  }, [resolvedChatId, markRead, clearWidth, rebaseHistorySentinel, resetResourceTransitionGuard])
 
   useEffect(() => {
     if (wasSendingRef.current && !isSending && resolvedChatId) {

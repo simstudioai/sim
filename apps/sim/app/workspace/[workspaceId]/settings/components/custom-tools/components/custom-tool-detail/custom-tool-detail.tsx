@@ -110,7 +110,7 @@ export function CustomToolDetail({
         previousToolSource.schema !== nextSource.schema ||
         previousToolSource.code !== nextSource.code)
 
-    if (switchedTool || sourceChanged) {
+    if (switchedTool || (sourceChanged && !updateTool.isPending)) {
       const hadLocalDraft = jsonSchema !== seededSchema || functionCode !== seededCode
       setPreviousToolSource(nextSource)
       setSeededSchema(nextSource.schema)
