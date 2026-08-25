@@ -1389,6 +1389,78 @@ describe('Database Helpers', () => {
       expect(dbChainMockFns.where).toHaveBeenCalledTimes(1)
     })
 
+    it('serves a warm admitted version from the cache without the version SELECT', async () => {
+      queueTableRows(schemaMock.workflowDeploymentVersion, [
+        { id: 'dv-warm', state: buildDeployedState() },
+      ])
+
+      await dbHelpers.loadWorkflowDeploymentVersionState('wf-warm', 'dv-warm', 'workspace-1')
+      const second = await dbHelpers.loadWorkflowDeploymentVersionState(
+        'wf-warm',
+        'dv-warm',
+        'workspace-1'
+      )
+
+      expect(second.deploymentVersionId).toBe('dv-warm')
+      expect(dbChainMockFns.where).toHaveBeenCalledTimes(1)
+      expect(mockSanitizeAgentToolsInBlocks).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not serve a cached version to a different workflow id', async () => {
+      queueTableRows(schemaMock.workflowDeploymentVersion, [
+        { id: 'dv-mine', state: buildDeployedState() },
+      ])
+      await dbHelpers.loadWorkflowDeploymentVersionState('wf-mine', 'dv-mine', 'workspace-1')
+
+      await expect(
+        dbHelpers.loadWorkflowDeploymentVersionState('wf-other', 'dv-mine', 'workspace-1')
+      ).rejects.toThrow('Deployment dv-mine was not found for workflow wf-other')
+    })
+
+    it('blockExistsInDeployment answers from the admitted version and warms the cache', async () => {
+      queueTableRows(schemaMock.workflowDeploymentVersion, [
+        { id: 'dv-block', state: buildDeployedState() },
+      ])
+
+      await expect(
+        dbHelpers.blockExistsInDeployment('wf-block', 'block-1', {
+          deploymentVersionId: 'dv-block',
+          workspaceId: 'workspace-1',
+        })
+      ).resolves.toBe(true)
+
+      const deployed = await dbHelpers.loadWorkflowDeploymentVersionState(
+        'wf-block',
+        'dv-block',
+        'workspace-1'
+      )
+      expect(deployed.blocks['block-1']).toBeDefined()
+      expect(dbChainMockFns.where).toHaveBeenCalledTimes(1)
+
+      await expect(
+        dbHelpers.blockExistsInDeployment('wf-block', 'missing-block', {
+          deploymentVersionId: 'dv-block',
+          workspaceId: 'workspace-1',
+        })
+      ).resolves.toBe(false)
+    })
+
+    it('blockExistsInDeployment answers false when the admitted version is missing', async () => {
+      await expect(
+        dbHelpers.blockExistsInDeployment('wf-x', 'block-1', {
+          deploymentVersionId: 'dv-missing',
+          workspaceId: 'workspace-1',
+        })
+      ).resolves.toBe(false)
+    })
+
+    it('blockExistsInDeployment falls back to the raw active-version read without a version id', async () => {
+      queueTableRows(schemaMock.workflowDeploymentVersion, [{ state: buildDeployedState() }])
+
+      await expect(dbHelpers.blockExistsInDeployment('wf-raw', 'block-1')).resolves.toBe(true)
+      expect(mockSanitizeAgentToolsInBlocks).not.toHaveBeenCalled()
+    })
+
     it('invalidateDeployedStateCache(id) forces a rebuild on the next call', async () => {
       queueActiveVersion('dv-inv', buildDeployedState())
       queueActiveVersion('dv-inv', buildDeployedState())

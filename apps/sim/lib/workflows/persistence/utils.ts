@@ -94,11 +94,29 @@ export interface DeployedWorkflowData extends NormalizedWorkflowData {
   variables?: Record<string, unknown>
 }
 
+/**
+ * Answers whether a trigger block exists in the workflow's deployment. When the
+ * caller already knows the admitted `deploymentVersionId` (webhook rows carry
+ * it), the check goes through the LRU-backed version loader — warming the cache
+ * the execution path reads moments later — instead of re-reading the full state
+ * jsonb for one boolean. Without an id it falls back to the raw active-version
+ * read. Any failure answers `false`, matching the historical contract.
+ */
 export async function blockExistsInDeployment(
   workflowId: string,
-  blockId: string
+  blockId: string,
+  options?: { deploymentVersionId?: string | null; workspaceId?: string | null }
 ): Promise<boolean> {
   try {
+    if (options?.deploymentVersionId) {
+      const deployed = await loadWorkflowDeploymentVersionState(
+        workflowId,
+        options.deploymentVersionId,
+        options.workspaceId ?? undefined
+      )
+      return Boolean(deployed.blocks[blockId])
+    }
+
     const [result] = await db
       .select({ state: workflowDeploymentVersion.state })
       .from(workflowDeploymentVersion)
@@ -131,10 +149,12 @@ const DEPLOYED_STATE_CACHE_TTL_MS = 5 * 60 * 1000
  * absolute on purpose — it bounds the one non-immutable part, the live credential
  * remap in `applyBlockMigrations` — so credential changes still propagate.
  */
-const deployedStateCache = new LRUCache<string, DeployedWorkflowData>({
-  max: DEPLOYED_STATE_CACHE_MAX_ENTRIES,
-  ttl: DEPLOYED_STATE_CACHE_TTL_MS,
-})
+const deployedStateCache = new LRUCache<string, { workflowId: string; data: DeployedWorkflowData }>(
+  {
+    max: DEPLOYED_STATE_CACHE_MAX_ENTRIES,
+    ttl: DEPLOYED_STATE_CACHE_TTL_MS,
+  }
+)
 
 /** Evicts one deployed-state entry, or clears the cache when no id is given. */
 export function invalidateDeployedStateCache(deploymentVersionId?: string): void {
@@ -191,8 +211,8 @@ export async function materializeDeploymentState(
   executor?: DbOrTx
 ): Promise<DeployedWorkflowData> {
   const cached = deployedStateCache.get(version.id)
-  if (cached) {
-    return structuredClone(cached)
+  if (cached?.workflowId === workflowId) {
+    return structuredClone(cached.data)
   }
 
   const state = version.state as WorkflowState & { variables?: Record<string, unknown> }
@@ -241,7 +261,7 @@ export async function materializeDeploymentState(
     deploymentVersionId: version.id,
   }
 
-  deployedStateCache.set(version.id, deployedState)
+  deployedStateCache.set(version.id, { workflowId, data: deployedState })
   return structuredClone(deployedState)
 }
 
@@ -283,12 +303,21 @@ export async function loadDeployedWorkflowState(
 
 /**
  * Loads an immutable deployment snapshot by ID for work admitted before a later cutover.
+ *
+ * Cache-first: the id is immutable, so a warm LRU entry (guarded by matching
+ * `workflowId`) is byte-identical to what the SELECT + materialization below
+ * would produce, minus the full-state jsonb round trip.
  */
 export async function loadWorkflowDeploymentVersionState(
   workflowId: string,
   deploymentVersionId: string,
   providedWorkspaceId?: string
 ): Promise<DeployedWorkflowData> {
+  const cached = deployedStateCache.get(deploymentVersionId)
+  if (cached?.workflowId === workflowId) {
+    return structuredClone(cached.data)
+  }
+
   const [version] = await db
     .select({
       id: workflowDeploymentVersion.id,
