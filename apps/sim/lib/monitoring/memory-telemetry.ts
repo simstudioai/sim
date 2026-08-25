@@ -5,6 +5,7 @@
 
 import v8 from 'node:v8'
 import { createLogger } from '@sim/logger'
+import { getLargeValueCacheStats } from '@/lib/execution/payloads/cache'
 
 const logger = createLogger('MemoryTelemetry', { logLevel: 'INFO' })
 
@@ -19,6 +20,7 @@ export function startMemoryTelemetry(intervalMs = 60_000) {
   const timer = setInterval(() => {
     const mem = process.memoryUsage()
     const heap = v8.getHeapStatistics()
+    const largeValueCache = getLargeValueCacheStats()
 
     logger.info('Memory snapshot', {
       heapUsedMB: Math.round(mem.heapUsed / MB),
@@ -28,10 +30,13 @@ export function startMemoryTelemetry(intervalMs = 60_000) {
       arrayBuffersMB: Math.round(mem.arrayBuffers / MB),
       heapSizeLimitMB: Math.round(heap.heap_size_limit / MB),
       nativeContexts: heap.number_of_native_contexts,
+      detachedContexts: heap.number_of_detached_contexts,
       activeResources:
         typeof process.getActiveResourcesInfo === 'function'
           ? process.getActiveResourcesInfo().length
           : -1,
+      largeValueCacheEntries: largeValueCache.entries,
+      largeValueCacheTrackedMB: Math.round(largeValueCache.trackedBytes / MB),
       uptimeMin: Math.round(process.uptime() / 60),
     })
   }, intervalMs)

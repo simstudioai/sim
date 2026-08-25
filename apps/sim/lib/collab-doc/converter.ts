@@ -45,6 +45,8 @@ function markdownSchema(): Schema {
   return cachedSchema
 }
 
+let cachedJsdomWindow: import('jsdom').DOMWindow | null = null
+
 /**
  * Ensure a DOM exists for the TipTap editor the markdown engine constructs. In a `jsdom`/browser
  * environment `window` + `document` already exist and this is a no-op; in a plain Node server it
@@ -56,20 +58,28 @@ function markdownSchema(): Schema {
  * `document`-only guard (plus a sticky flag) skipped this setup — leaving TipTap to throw "there is no
  * window object available". Re-checking the globals every call means a partial stub can never wedge it.
  * When `window` is missing we install a coherent jsdom window+document pair, overwriting any such stub.
+ *
+ * Both the guard and the install go through `globalThis` explicitly, and the jsdom window itself is a
+ * module-level singleton. The server bundler can give a bundled module a `window` binding that does
+ * NOT read `globalThis` (the documented reason TipTap/Yjs sit in `serverExternalPackages` — see
+ * `next.config.ts`); a bare-`window` guard paired with a `globalThis.window` install can therefore
+ * disagree forever, re-entering the install on every call. Reading and writing the same object makes
+ * the guard self-consistent, and the singleton caps this module at ONE jsdom window (megabytes each)
+ * per process even if some runtime still defeats the guard.
  */
 function ensureDomForTipTap(): void {
-  if (typeof window !== 'undefined' && typeof document !== 'undefined') return
-  // Lazy require so the client bundle never pulls jsdom in. Bind to `jsdomWindow`, NOT `window` — a
-  // local `const window` would shadow the global and put the `typeof window` guard above in its
-  // temporal dead zone ("Cannot access 'window' before initialization").
-  const { JSDOM } = require('jsdom') as typeof import('jsdom')
-  const { window: jsdomWindow } = new JSDOM('<!doctype html><html><body></body></html>')
+  if (typeof globalThis.window !== 'undefined' && typeof globalThis.document !== 'undefined') return
+  if (!cachedJsdomWindow) {
+    // Lazy require so the client bundle never pulls jsdom in.
+    const { JSDOM } = require('jsdom') as typeof import('jsdom')
+    cachedJsdomWindow = new JSDOM('<!doctype html><html><body></body></html>').window
+  }
   // double-cast-allowed: assigning the jsdom shims onto the global needs an
   // index-signature view of `globalThis`, whose declared type has none.
   const g = globalThis as unknown as Record<string, unknown>
-  g.window = jsdomWindow
-  g.document = jsdomWindow.document
-  g.navigator ??= jsdomWindow.navigator
+  g.window = cachedJsdomWindow
+  g.document = cachedJsdomWindow.document
+  g.navigator ??= cachedJsdomWindow.navigator
 }
 
 /** Convert a file's markdown to a fresh collaborative {@link Y.Doc} (cold-start seed). */
