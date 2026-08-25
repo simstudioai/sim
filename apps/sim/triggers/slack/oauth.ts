@@ -20,6 +20,8 @@ const INTERACTION_FILTER_EVENTS = slackEventsSupportingFilter('interaction')
 // Bot/own toggles gate UI visibility only (the route applies them unconditionally),
 // so they are not catalog `filters`.
 const BOT_FILTER_EVENTS = ['message', 'app_mention']
+// Loading-modal opt-in gates UI visibility only; the ingest hook re-checks payload shape.
+const LOADING_MODAL_EVENTS = ['block_actions']
 const OWN_MESSAGE_EVENTS = ['message', 'app_mention', 'reaction_added', 'reaction_removed']
 
 /**
@@ -170,6 +172,45 @@ export const slackOAuthTrigger: TriggerConfig = {
       required: false,
       mode: 'trigger',
       condition: { field: 'eventType', value: INTERACTION_FILTER_EVENTS },
+    },
+    {
+      id: 'openLoadingModal',
+      title: 'Open loading modal',
+      type: 'switch',
+      defaultValue: false,
+      description:
+        'Immediately open a loading modal when the interaction arrives, before the workflow runs. Slack trigger IDs expire 3 seconds after the click, so opening a modal from inside the workflow is unreliable — update this one via its loading_view_id output instead.',
+      required: false,
+      mode: 'trigger',
+      condition: { field: 'eventType', value: LOADING_MODAL_EVENTS },
+    },
+    {
+      id: 'loadingModalTitle',
+      title: 'Loading modal title',
+      type: 'short-input',
+      placeholder: 'Working on it',
+      description: 'Title of the loading modal (max 24 characters).',
+      required: false,
+      mode: 'trigger',
+      condition: {
+        field: 'eventType',
+        value: LOADING_MODAL_EVENTS,
+        and: { field: 'openLoadingModal', value: true },
+      },
+    },
+    {
+      id: 'loadingModalText',
+      title: 'Loading modal text',
+      type: 'short-input',
+      placeholder: 'This will just take a moment…',
+      description: 'Body text shown in the loading modal.',
+      required: false,
+      mode: 'trigger',
+      condition: {
+        field: 'eventType',
+        value: LOADING_MODAL_EVENTS,
+        and: { field: 'openLoadingModal', value: true },
+      },
     },
     {
       id: 'filterBotMessages',
