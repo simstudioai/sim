@@ -85,13 +85,6 @@ vi.mock('@/lib/core/config/env', () => ({
     typeof value === 'string' ? value.toLowerCase() === 'false' || value === '0' : value === false,
 }))
 
-vi.mock('@/lib/uploads/setup', () => ({
-  S3_CONFIG: {
-    bucket: 'test-bucket',
-    region: 'test-region',
-  },
-}))
-
 vi.mock('@/lib/uploads/config', () => ({
   S3_CONFIG: mockS3Config,
   S3_KB_CONFIG: {
