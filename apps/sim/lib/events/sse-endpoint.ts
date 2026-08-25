@@ -6,6 +6,7 @@
  */
 
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { randomFloat } from '@sim/utils/random'
 import type { NextRequest } from 'next/server'
 import { getSession } from '@/lib/auth'
@@ -29,33 +30,30 @@ const encoder = new TextEncoder()
 export const HEARTBEAT_INTERVAL_MS = 30_000
 
 /**
- * Defensive ceiling on one connection's lifetime; `EventSource` reconnects past
- * this, so delivery continues across the boundary.
+ * Starts a make-before-break rotation for one connection. Healthy clients open
+ * a replacement before this stream closes; orphaned streams are released after
+ * the grace period without relying on runtime disconnect propagation. Because
+ * checks run on the heartbeat interval, the upper bound is the lifetime, jitter,
+ * grace period, and up to one heartbeat of scheduling delay.
  *
  * `request.signal` abort and stream `cancel()` are the primary teardown paths,
  * but both fire only when the runtime reports the client disconnect, and the
- * unread check below only catches a consumer that has stopped draining. This
- * releases whatever both miss, so retention is bounded by the ceiling instead
- * of by process uptime.
- *
- * Matches the ceiling `lib/realtime/event-stream-route.ts` already uses for the
- * same purpose. It is deliberately far longer than the unread window: a healthy
- * client is drained and therefore never unread, so a short ceiling would only
- * force reconnects on the connections that are working, and every reconnect is
- * a window in which a transient event can be missed.
+ * unread check below only catches queues the HTTP adapter leaves undrained. The
+ * production adapter may keep pulling after the socket disappears, so this
+ * deadline is the primary bound rather than a fallback.
  */
-export const MAX_CONNECTION_MS = 4 * 60 * 60 * 1000
+export const MAX_CONNECTION_MS = 15 * 60 * 1000
 
 /** Spreads reconnects so connections opened together do not expire together. */
 export const MAX_CONNECTION_JITTER_MS = 60_000
 
+/** Time for a healthy client to connect its replacement before the old stream closes. */
+export const ROTATION_GRACE_MS = 30_000
+
 /**
- * Undrained chunk count that marks a connection unread, which shortens the
- * reclaim window for a vanished consumer that the ceiling above would
- * otherwise hold for its full duration. The default queuing strategy reports
- * `desiredSize` as `1 - queued`, so this trips only once the consumer has
- * pulled nothing for several minutes — well beyond the transient backpressure
- * of a slow but live client.
+ * Best-effort queued-chunk limit for adapters that propagate backpressure into
+ * the Web Stream. This is not the lifecycle guarantee: adapters may keep
+ * pulling after a socket disappears, so the rotation deadline remains required.
  */
 export const MAX_UNDRAINED_CHUNKS = 16
 
@@ -85,10 +83,16 @@ export function createWorkspaceSSE(config: WorkspaceSSEConfig) {
     const cleanup = (reason: string) => {
       if (cleaned) return
       cleaned = true
-      for (const teardown of teardowns) {
-        teardown()
+      for (const teardown of teardowns.splice(0)) {
+        try {
+          teardown()
+        } catch (error) {
+          logger.warn(`SSE teardown failed for workspace ${workspaceId}`, {
+            reason,
+            error: getErrorMessage(error),
+          })
+        }
       }
-      teardowns.length = 0
       logger.info(`SSE connection closed for workspace ${workspaceId}`, { reason })
     }
 
@@ -103,56 +107,74 @@ export function createWorkspaceSSE(config: WorkspaceSSEConfig) {
           }
         }
 
-        const send = (eventName: string, data: Record<string, unknown>) => {
-          if (cleaned) return
+        const enqueue = (payload: string): boolean => {
+          if (cleaned) return false
           try {
-            controller.enqueue(
-              encoder.encode(`event: ${eventName}\ndata: ${JSON.stringify(data)}\n\n`)
-            )
-          } catch {
-            // Stream already closed
-          }
-        }
-
-        for (const subscription of config.subscriptions) {
-          teardowns.push(subscription.subscribe(workspaceId, send))
-        }
-
-        const deadline = Date.now() + MAX_CONNECTION_MS + randomFloat() * MAX_CONNECTION_JITTER_MS
-
-        const heartbeat = setInterval(() => {
-          if (cleaned) {
-            clearInterval(heartbeat)
-            return
-          }
-          if (Date.now() >= deadline) {
-            close('expired')
-            return
-          }
-          const desiredSize = controller.desiredSize
-          if (desiredSize !== null && desiredSize <= -MAX_UNDRAINED_CHUNKS) {
-            close('unread')
-            return
-          }
-          try {
-            controller.enqueue(encoder.encode(': heartbeat\n\n'))
+            controller.enqueue(encoder.encode(payload))
+            return true
           } catch {
             close('errored')
+            return false
           }
-        }, HEARTBEAT_INTERVAL_MS)
-        teardowns.push(() => clearInterval(heartbeat))
+        }
 
-        // `once` only self-removes if abort fires; the expiry and unread paths
-        // close the connection while the signal is still live, so the listener
-        // needs its own removal or it retains this whole scope.
-        const listenerScope = new AbortController()
-        request.signal.addEventListener('abort', () => close('aborted'), {
-          once: true,
-          signal: listenerScope.signal,
-        })
-        teardowns.push(() => listenerScope.abort())
+        const send = (eventName: string, data: Record<string, unknown>) => {
+          enqueue(`event: ${eventName}\ndata: ${JSON.stringify(data)}\n\n`)
+        }
 
-        logger.info(`SSE connection opened for workspace ${workspaceId}`)
+        try {
+          for (const subscription of config.subscriptions) {
+            teardowns.push(subscription.subscribe(workspaceId, send))
+          }
+
+          const rotationDeadline =
+            Date.now() + MAX_CONNECTION_MS + randomFloat() * MAX_CONNECTION_JITTER_MS
+          let rotationStartedAt: number | null = null
+
+          const heartbeat = setInterval(() => {
+            if (cleaned) {
+              clearInterval(heartbeat)
+              return
+            }
+
+            const now = Date.now()
+            if (rotationStartedAt !== null && now - rotationStartedAt >= ROTATION_GRACE_MS) {
+              close('rotated')
+              return
+            }
+            if (rotationStartedAt === null && now >= rotationDeadline) {
+              if (enqueue('event: rotate\ndata: {}\n\n')) {
+                rotationStartedAt = now
+              }
+              return
+            }
+
+            const desiredSize = controller.desiredSize
+            if (desiredSize !== null && desiredSize <= -MAX_UNDRAINED_CHUNKS) {
+              close('unread')
+              return
+            }
+            enqueue(': heartbeat\n\n')
+          }, HEARTBEAT_INTERVAL_MS)
+          teardowns.push(() => clearInterval(heartbeat))
+
+          const listenerScope = new AbortController()
+          request.signal.addEventListener('abort', () => close('aborted'), {
+            once: true,
+            signal: listenerScope.signal,
+          })
+          teardowns.push(() => listenerScope.abort())
+
+          logger.info(`SSE connection opened for workspace ${workspaceId}`)
+        } catch (error) {
+          cleanup('setup_failed')
+          logger.error(`Failed to open SSE connection for workspace ${workspaceId}`, {
+            error: getErrorMessage(error),
+          })
+          try {
+            controller.error(error)
+          } catch {}
+        }
       },
       cancel() {
         cleanup('cancelled')

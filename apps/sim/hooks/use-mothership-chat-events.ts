@@ -5,6 +5,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { getLiveAssistantMessageId } from '@/lib/copilot/chat/effective-transcript'
 import { isChatEnabled } from '@/lib/core/config/env-flags'
 import { suspendDesktopChatScopes } from '@/lib/desktop/chat-scope'
+import { createRotatingEventSource } from '@/lib/events/rotating-event-source'
 import { type MothershipChatHistory, mothershipChatKeys } from '@/hooks/queries/mothership-chats'
 
 const logger = createLogger('MothershipChatEvents')
@@ -167,45 +168,31 @@ export function useMothershipChatEvents(workspaceId: string | undefined) {
   useEffect(() => {
     if (!workspaceId || !isChatEnabled) return
 
-    const eventSource = new EventSource(
-      `/api/mothership/events?workspaceId=${encodeURIComponent(workspaceId)}`
-    )
-
-    eventSource.addEventListener('task_status', (event) => {
-      handleMothershipChatStatusEvent(
-        queryClient,
-        workspaceId,
-        event instanceof MessageEvent ? event.data : undefined
-      )
-    })
-
-    // `onopen` fires on the initial connect and on every auto-reconnect. Re-sync
-    // whenever a gap could have swallowed an event: on any reconnect, on the
-    // first open of a RE-subscription (switching workspace away and back tears
-    // the connection down, and the list/detail queries remount inside their
-    // stale times so they do not refetch on their own), and on a first open that
-    // only succeeded after an error (the initial queries may have failed during
-    // that gap and will not retry themselves). Skip only a clean first
-    // subscription — those queries fetch fresh on their own initial mount.
     const isResubscribe = everSubscribed.has(workspaceId)
     everSubscribed.add(workspaceId)
-    let opened = false
-    let erroredBeforeOpen = false
-
-    eventSource.onopen = () => {
-      if (opened || isResubscribe || erroredBeforeOpen) {
-        resyncMothershipChatCaches(queryClient, workspaceId)
-      }
-      opened = true
-    }
-
-    eventSource.onerror = () => {
-      if (!opened) erroredBeforeOpen = true
-      logger.warn(`SSE connection error for workspace ${workspaceId}`)
-    }
+    const connection = createRotatingEventSource({
+      url: `/api/mothership/events?workspaceId=${encodeURIComponent(workspaceId)}`,
+      events: {
+        task_status: (event) => {
+          handleMothershipChatStatusEvent(
+            queryClient,
+            workspaceId,
+            event instanceof MessageEvent ? event.data : undefined
+          )
+        },
+      },
+      onOpen: (reason) => {
+        if (reason === 'reconnect' || (reason === 'initial' && isResubscribe)) {
+          resyncMothershipChatCaches(queryClient, workspaceId)
+        }
+      },
+      onError: () => {
+        logger.warn(`SSE connection error for workspace ${workspaceId}`)
+      },
+    })
 
     return () => {
-      eventSource.close()
+      connection.close()
     }
   }, [workspaceId, queryClient])
 }

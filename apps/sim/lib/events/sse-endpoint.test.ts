@@ -8,23 +8,28 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   createWorkspaceSSE,
   HEARTBEAT_INTERVAL_MS,
-  MAX_CONNECTION_JITTER_MS,
   MAX_CONNECTION_MS,
   MAX_UNDRAINED_CHUNKS,
+  ROTATION_GRACE_MS,
 } from '@/lib/events/sse-endpoint'
 
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
+vi.mock('@sim/utils/random', () => ({ randomFloat: () => 0 }))
 
-const PAST_CEILING_MS = MAX_CONNECTION_MS + MAX_CONNECTION_JITTER_MS + HEARTBEAT_INTERVAL_MS
+const PAST_ROTATION_MS = MAX_CONNECTION_MS
+const PAST_ROTATION_CLOSE_MS = PAST_ROTATION_MS + ROTATION_GRACE_MS + HEARTBEAT_INTERVAL_MS
 
 /** Enough undrained heartbeats to trip the unread check, and no more. */
 const PAST_UNREAD_MS = (MAX_UNDRAINED_CHUNKS + 2) * HEARTBEAT_INTERVAL_MS
 
-async function openConnection(signal: AbortSignal = new AbortController().signal) {
+async function openConnection(
+  signal: AbortSignal = new AbortController().signal,
+  subscriptions?: Array<{ subscribe: () => () => void }>
+) {
   const unsubscribe = vi.fn()
   const handler = createWorkspaceSSE({
     label: 'test',
-    subscriptions: [{ subscribe: () => unsubscribe }],
+    subscriptions: subscriptions ?? [{ subscribe: () => unsubscribe }],
   })
   const request = new NextRequest(new URL('https://sim.test/api/test/events?workspaceId=ws-1'), {
     signal,
@@ -43,6 +48,16 @@ async function drain(body: ReadableStream<Uint8Array>): Promise<void> {
   }
 }
 
+async function collect(body: ReadableStream<Uint8Array>, chunks: string[]): Promise<void> {
+  const decoder = new TextDecoder()
+  const reader = body.getReader()
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) return
+    chunks.push(decoder.decode(value))
+  }
+}
+
 describe('createWorkspaceSSE', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -55,11 +70,27 @@ describe('createWorkspaceSSE', () => {
     vi.useRealTimers()
   })
 
-  it('releases subscriptions and closes the stream when the connection reaches its ceiling', async () => {
+  it('announces rotation before releasing the old connection', async () => {
+    const { body, unsubscribe } = await openConnection()
+    const chunks: string[] = []
+    const collected = collect(body, chunks)
+
+    await vi.advanceTimersByTimeAsync(PAST_ROTATION_MS)
+
+    expect(chunks).toContain('event: rotate\ndata: {}\n\n')
+    expect(unsubscribe).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(ROTATION_GRACE_MS + HEARTBEAT_INTERVAL_MS)
+
+    await collected
+    expect(unsubscribe).toHaveBeenCalledTimes(1)
+  })
+
+  it('closes an orphaned connection after the rotation grace period', async () => {
     const { body, unsubscribe } = await openConnection()
     const drained = drain(body)
 
-    await vi.advanceTimersByTimeAsync(PAST_CEILING_MS)
+    await vi.advanceTimersByTimeAsync(PAST_ROTATION_CLOSE_MS)
 
     await drained
     expect(unsubscribe).toHaveBeenCalledTimes(1)
@@ -104,8 +135,46 @@ describe('createWorkspaceSSE', () => {
     const { unsubscribe } = await openConnection(controller.signal)
 
     controller.abort()
-    await vi.advanceTimersByTimeAsync(PAST_CEILING_MS)
+    await vi.advanceTimersByTimeAsync(PAST_ROTATION_CLOSE_MS)
 
+    expect(unsubscribe).toHaveBeenCalledTimes(1)
+  })
+
+  it('runs every teardown when one unsubscribe throws', async () => {
+    const first = vi.fn(() => {
+      throw new Error('unsubscribe failed')
+    })
+    const second = vi.fn()
+    const controller = new AbortController()
+    await openConnection(controller.signal, [
+      { subscribe: () => first },
+      { subscribe: () => second },
+    ])
+
+    controller.abort()
+
+    expect(first).toHaveBeenCalledTimes(1)
+    expect(second).toHaveBeenCalledTimes(1)
+  })
+
+  it('releases earlier subscriptions when a later subscription fails to initialize', async () => {
+    const unsubscribe = vi.fn()
+    const handler = createWorkspaceSSE({
+      label: 'test',
+      subscriptions: [
+        { subscribe: () => unsubscribe },
+        {
+          subscribe: () => {
+            throw new Error('subscribe failed')
+          },
+        },
+      ],
+    })
+    const request = new NextRequest(new URL('https://sim.test/api/test/events?workspaceId=ws-1'))
+
+    const response = await handler(request)
+
+    await expect(response.body?.getReader().read()).rejects.toThrow('subscribe failed')
     expect(unsubscribe).toHaveBeenCalledTimes(1)
   })
 })
