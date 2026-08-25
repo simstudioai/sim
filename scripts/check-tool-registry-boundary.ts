@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 /**
- * Fails if a workspace route can reach the executable tool registry, or if any
- * route's module graph grows past its recorded baseline.
+ * Fails if a guarded entry can reach the executable tool registry, or if any
+ * entry's module graph grows past its recorded baseline.
  *
  * `@/tools/registry` is a barrel over 4,300+ tools whose `ToolConfig`s hold
  * closures (`request.headers`, `transformResponse`, `directExecution`). Those
@@ -28,6 +28,12 @@
  * chain that grew — the import edge every one of the new modules must pass
  * through — because a bare number is not actionable.
  *
+ * An entry with NO baseline row fails `--check` too. It used to be reported as
+ * informational, which meant adding an entry source silently opted its graphs
+ * out of the ratchet: seven catalog entries were unratcheted while the summary
+ * still read "✓ 41 entry graphs within their module-count baseline". Whatever
+ * the summary counts is what is actually enforced.
+ *
  * Usage:
  *   bun run scripts/check-tool-registry-boundary.ts            # registry gate only
  *   bun run scripts/check-tool-registry-boundary.ts --check    # + graph-weight ratchet
@@ -45,28 +51,16 @@ const APP = join(ROOT, 'apps/sim')
 /** Module no client-reachable entry may reach. */
 const FORBIDDEN = join(APP, 'tools/registry.ts')
 
-/**
- * Root the guard walks: every route entry Next.js composes under the workspace app.
- *
- * Discovered rather than listed. A hardcoded list goes stale silently — the
- * first version of this guard named `app/workspace/layout.tsx` as "the shared
- * shell", but that file only wraps `SocketProvider`; the real shell is
- * `app/workspace/[workspaceId]/layout.tsx`, which was never checked.
- *
- * Every filename here is composed by convention rather than imported, so each
- * must be enumerated: a page does not `import` its layout, its error boundary,
- * or its loading state, yet the route pays for all of them. `error.tsx` in
- * particular is always a Client Component — Next requires it — so a registry
- * edge there lands in the browser bundle as surely as one from a page.
- *
- * The root stays at `app/workspace`. Widening it to `app` reports
- * `(interfaces)/resume/[workflowId]/[executionId]/page.tsx`, which is a Server
- * Component (`runtime = 'nodejs'`, `force-dynamic`) whose `PauseResumeManager`
- * import resolves server-side and never reaches a client bundle. This guard
- * cannot tell the two apart, so it stays where the premise holds.
- */
-const ENTRY_ROOT = 'app/workspace'
-const ENTRY_FILENAMES = new Set([
+interface EntrySource {
+  /** Directory under `apps/sim` the entries are discovered in. */
+  root: string
+  /** Whether a file inside it counts as an entry. */
+  matches: (filename: string, fullPath: string) => boolean
+  /** Why this subtree must stay registry-free, printed when the root disappears. */
+  reason: string
+}
+
+const WORKSPACE_ENTRY_FILENAMES = new Set([
   'page.tsx',
   'layout.tsx',
   'error.tsx',
@@ -76,24 +70,6 @@ const ENTRY_FILENAMES = new Set([
   'default.tsx',
 ])
 
-/**
- * A default export, which every convention-composed entry must have — Next
- * renders the default and nothing else.
- *
- * The filename alone is not enough. `[workspaceId]/components/error/error.tsx`
- * is named like a boundary and is not one: it exports `ErrorShell` and
- * `ErrorState` for the thirteen real boundaries to use, and Next would reject
- * it as a boundary for having no default. Counting it as an entry both inflated
- * the coverage number and would have recorded a shared component in the
- * graph-weight baseline as though it were a route.
- *
- * All four declaring forms count — `export default …`, `export { default } from`,
- * `export { default, … } from`, and `export { X as default }`. `export { default
- * as X }` does not: it re-exports someone else's default under a name and leaves
- * the module without one. Missing a form is the dangerous direction, since the
- * entry would drop out of the walk and skip both the registry gate and the
- * graph-weight ratchet silently.
- */
 const DEFAULT_EXPORT_RE =
   /(?:^|\n)\s*export\s+default\b|(?:^|\n)\s*export\s*\{[^}]*(?:\bas\s+default\b|\bdefault\s*[,}])/
 
@@ -105,13 +81,85 @@ function hasDefaultExport(file: string): boolean {
   }
 }
 
-function collectEntries(dir: string, found: string[] = []): string[] {
+const isWorkspaceEntry = (filename: string, fullPath: string) =>
+  WORKSPACE_ENTRY_FILENAMES.has(filename) && hasDefaultExport(fullPath)
+const isRouteEntry = (filename: string) => filename === 'route.ts'
+const isSourceModule = (filename: string) =>
+  filename.endsWith('.ts') && !filename.endsWith('.test.ts')
+
+/**
+ * Subtrees the guard walks, each discovered rather than listed file by file.
+ * Discovery is what keeps a subtree honest: the first version of this guard
+ * named `app/workspace/layout.tsx` as "the shared shell", but that file only
+ * wraps `SocketProvider` — the real shell is
+ * `app/workspace/[workspaceId]/layout.tsx`, which was never checked. Layouts are
+ * enumerated separately from pages because Next.js composes them by convention:
+ * a page does not `import` its layout, so walking pages alone never reaches
+ * layout modules even though every route pays for them.
+ *
+ * API routes are covered per subtree rather than wholesale. 122 of the ~1,130
+ * route files legitimately reach the registry — every execute, deploy, import,
+ * and webhook path runs tools — so a blanket route rule would be an allowlist
+ * with 122 entries, which is not a rule. What earns a subtree a place here is
+ * that it *serves* tool and block metadata: reading `params`, `outputs`, `name`,
+ * or existence is exactly the set `@/tools/metadata` covers, so reaching the
+ * registry from one is always a mistake, and one that costs ~4,700 modules of
+ * server bundle and cold start per route.
+ */
+const ENTRY_SOURCES: readonly EntrySource[] = [
+  {
+    root: 'app/workspace',
+    matches: isWorkspaceEntry,
+    reason: 'client-reachable workspace convention entries',
+  },
+  {
+    root: 'app/api/v2/blocks',
+    matches: isRouteEntry,
+    reason: 'the public block catalog, which reads block metadata only',
+  },
+  {
+    root: 'app/api/v2/tools',
+    matches: isRouteEntry,
+    reason: 'the public tool catalog, which reads tool metadata only',
+  },
+  {
+    root: 'app/api/v2/connector-types',
+    matches: isRouteEntry,
+    reason: 'the public connector-type catalog',
+  },
+  {
+    /**
+     * Every projection module, not a barrel over them. The barrel measured a
+     * graph no consumer paid for: all six consumers deep-import, so guarding
+     * `index.ts` ratcheted a number nothing could regress. The modules
+     * themselves are what surfaces import, so they are what is guarded.
+     */
+    root: 'lib/catalog/projection',
+    matches: isSourceModule,
+    reason: 'the shared catalog projection, which every catalog surface imports',
+  },
+  {
+    /**
+     * The Copilot block-metadata tool: the reason the shared projection exists.
+     * Cutting its registry edge took it from ~6,756 modules to ~1,321, and
+     * nothing was holding that win — the tool appeared in no guarded subtree, so
+     * a single `getTool` import could have spent all of it silently.
+     */
+    root: 'lib/copilot/tools/server/blocks',
+    matches: (filename) => filename === 'get-blocks-metadata-tool.ts',
+    reason: 'the Copilot block-metadata tool, which reads block and tool metadata only',
+  },
+]
+
+function collectEntries(
+  dir: string,
+  matches: (filename: string, fullPath: string) => boolean,
+  found: string[] = []
+): string[] {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const full = join(dir, entry.name)
-    if (entry.isDirectory()) collectEntries(full, found)
-    else if (ENTRY_FILENAMES.has(entry.name) && hasDefaultExport(full)) {
-      found.push(relative(APP, full))
-    }
+    if (entry.isDirectory()) collectEntries(full, matches, found)
+    else if (matches(entry.name, full)) found.push(relative(APP, full))
   }
   return found
 }
@@ -251,7 +299,7 @@ function explainChain({ importedBy }: Walk, target: string): string[] {
   return chain.reverse()
 }
 
-const BASELINE_PATH = join(SCRIPT_DIR, 'check-tool-registry-boundary.baseline.json')
+export const BASELINE_PATH = join(SCRIPT_DIR, 'check-tool-registry-boundary.baseline.json')
 
 /**
  * A graph may grow by `max(TOLERANCE_MODULES, TOLERANCE_PERCENT%)` before failing.
@@ -271,13 +319,13 @@ const GATEWAY_MIN_MODULES = 30
 /** Gateways recorded per entry, largest first. */
 const GATEWAY_LIMIT = 8
 
-interface BaselineEntry {
+export interface BaselineEntry {
   modules: number
   /** Module → number of modules reachable *only* through it. See `gatewaysFor`. */
   gateways: Record<string, number>
 }
 
-interface Baseline {
+export interface Baseline {
   generatedFrom: string
   tolerance: { modules: number; percent: number }
   entries: Record<string, BaselineEntry>
@@ -428,7 +476,68 @@ function dominatorChain(walkResult: Walk, doms: Dominators, target: string): str
   return chain.reverse()
 }
 
-function loadBaseline(): Baseline | null {
+/**
+ * How each discovered entry compares against the recorded baseline.
+ *
+ * Pure so the ratchet's own policy is testable without walking the repo: which
+ * entries are enforced, which grew, and — the half that used to be advisory —
+ * which have no recorded row at all.
+ */
+export interface RatchetVerdict {
+  /** Entries actually compared against a recorded row. Only these are enforced. */
+  ratcheted: string[]
+  /** Entries with no baseline row. Nothing bounds their growth, so this fails. */
+  unbaselined: string[]
+  /** Entries that grew past their allowance. */
+  regressed: string[]
+  /** Entries that shrank far enough that the win is worth locking in. */
+  shrunk: string[]
+  /** Baseline rows whose entry no longer exists. */
+  removed: string[]
+}
+
+/** Compares discovered entry sizes against the baseline. */
+export function ratchetAgainstBaseline(
+  sizes: ReadonlyMap<string, number>,
+  baseline: Baseline
+): RatchetVerdict {
+  const verdict: RatchetVerdict = {
+    ratcheted: [],
+    unbaselined: [],
+    regressed: [],
+    shrunk: [],
+    removed: [],
+  }
+
+  for (const [entry, after] of sizes) {
+    const before = baseline.entries[entry]
+    if (!before) {
+      verdict.unbaselined.push(entry)
+      continue
+    }
+    verdict.ratcheted.push(entry)
+    const allowance = allowanceFor(before.modules)
+    if (after > before.modules + allowance) verdict.regressed.push(entry)
+    else if (after < before.modules - allowance) verdict.shrunk.push(entry)
+  }
+
+  verdict.removed = Object.keys(baseline.entries).filter((entry) => !sizes.has(entry))
+  return verdict
+}
+
+/**
+ * Whether a verdict fails the build.
+ *
+ * An unbaselined entry fails for the same reason a regressed one does: an entry
+ * nothing measures is an entry that can grow to any size. Treating it as
+ * informational is what let seven catalog entries sit outside the ratchet under
+ * a "✓ within baseline" summary.
+ */
+export function ratchetFailed(verdict: RatchetVerdict): boolean {
+  return verdict.unbaselined.length > 0 || verdict.regressed.length > 0
+}
+
+export function loadBaseline(): Baseline | null {
   try {
     return JSON.parse(readFileSync(BASELINE_PATH, 'utf8')) as Baseline
   } catch {
@@ -473,25 +582,45 @@ function reportRegression(entry: string, walkResult: Walk, before: BaselineEntry
   console.error(`   ${REBASELINE_HINT}`)
 }
 
+/**
+ * Every entry the guard walks, discovered from {@link ENTRY_SOURCES}.
+ *
+ * Exits rather than returning short when a source root vanishes or yields
+ * nothing: a guard that passes vacuously over the subtree it was written to
+ * protect is worse than no guard, because the summary line still says "✓".
+ */
+export function discoverEntries(): string[] {
+  const discovered: string[] = []
+  for (const source of ENTRY_SOURCES) {
+    const entryRoot = join(APP, source.root)
+    if (!existsSync(entryRoot)) {
+      console.error(
+        `❌ ${source.root} no longer exists — it guarded ${source.reason}. Update ENTRY_SOURCES.`
+      )
+      process.exit(1)
+    }
+    const found = collectEntries(entryRoot, source.matches)
+    if (found.length === 0) {
+      console.error(
+        `❌ No entries found under ${source.root}. Refusing to pass vacuously over ${source.reason}.`
+      )
+      process.exit(1)
+    }
+    discovered.push(...found)
+  }
+  return [...new Set(discovered)].sort()
+}
+
 function main() {
   const verbose = process.argv.includes('--verbose')
   const check = process.argv.includes('--check')
   const update = process.argv.includes('--update-baseline')
   const failures: string[] = []
   let ratchetFailures = 0
+  /** Entries actually compared against a recorded baseline, so the summary cannot overstate it. */
+  let ratchetedEntries = 0
 
-  const entryRoot = join(APP, ENTRY_ROOT)
-  if (!existsSync(entryRoot)) {
-    console.error(`❌ ${ENTRY_ROOT} no longer exists — update ENTRY_ROOT in this script.`)
-    process.exit(1)
-  }
-  const entries = collectEntries(entryRoot).sort()
-  if (entries.length === 0) {
-    console.error(
-      `❌ No page/layout entries found under ${ENTRY_ROOT}. Refusing to pass vacuously.`
-    )
-    process.exit(1)
-  }
+  const entries = discoverEntries()
 
   const walked = new Map<string, Walk>()
   for (const entry of entries) {
@@ -510,7 +639,7 @@ function main() {
 
   if (update) {
     const baseline: Baseline = {
-      generatedFrom: `${ENTRY_ROOT} page/layout module graphs`,
+      generatedFrom: `module graphs of every entry under: ${ENTRY_SOURCES.map((source) => source.root).join(', ')}`,
       tolerance: { modules: TOLERANCE_MODULES, percent: TOLERANCE_PERCENT },
       entries: {},
     }
@@ -538,56 +667,59 @@ function main() {
       process.exit(1)
     }
 
-    const shrunk: string[] = []
-    const unbaselined: string[] = []
-    let regressed = 0
+    const sizes = new Map(
+      entries.map((entry) => [entry, (walked.get(entry) as Walk).reachable.size])
+    )
+    const verdict = ratchetAgainstBaseline(sizes, baseline)
+    ratchetedEntries = verdict.ratcheted.length
 
-    for (const entry of entries) {
-      const result = walked.get(entry) as Walk
-      const before = baseline.entries[entry]
-      if (!before) {
-        unbaselined.push(`${entry} (${result.reachable.size} modules)`)
-        continue
-      }
-      const after = result.reachable.size
-      if (after > before.modules + allowanceFor(before.modules)) {
-        regressed++
-        reportRegression(entry, result, before, after)
-      } else if (after < before.modules - allowanceFor(before.modules)) {
-        shrunk.push(`${entry}: ${before.modules} → ${after} (−${before.modules - after})`)
-      }
+    for (const entry of verdict.regressed) {
+      reportRegression(
+        entry,
+        walked.get(entry) as Walk,
+        baseline.entries[entry],
+        sizes.get(entry) as number
+      )
     }
 
-    const removed = Object.keys(baseline.entries).filter((entry) => !entries.includes(entry))
-
-    if (shrunk.length > 0) {
-      console.log(`\nℹ ${shrunk.length} entr(ies) shrank below baseline:`)
-      for (const line of shrunk) console.log(`     ${line}`)
+    if (verdict.shrunk.length > 0) {
+      console.log(`\nℹ ${verdict.shrunk.length} entr(ies) shrank below baseline:`)
+      for (const entry of verdict.shrunk) {
+        const before = baseline.entries[entry].modules
+        const after = sizes.get(entry) as number
+        console.log(`     ${entry}: ${before} → ${after} (−${before - after})`)
+      }
       console.log(`   Lock the win in, or it can be spent again: ${RERECORD_COMMAND}`)
     }
-    if (unbaselined.length > 0) {
-      console.log(`\nℹ ${unbaselined.length} new entr(ies) not yet in the baseline (unratcheted):`)
-      for (const line of unbaselined) console.log(`     ${line}`)
-      console.log(`   ${REBASELINE_HINT}`)
+    if (verdict.unbaselined.length > 0) {
+      console.error(`\n❌ ${verdict.unbaselined.length} entr(ies) are not in the baseline, so`)
+      console.error('   nothing ratchets their module graphs — they can grow without bound:')
+      for (const entry of verdict.unbaselined) {
+        console.error(`     ${entry} (${sizes.get(entry)} modules)`)
+      }
+      console.error(`   Record them: ${RERECORD_COMMAND}`)
     }
-    if (removed.length > 0) {
-      console.log(`\nℹ ${removed.length} baseline entr(ies) no longer exist: ${removed.join(', ')}`)
+    if (verdict.removed.length > 0) {
+      console.log(
+        `\nℹ ${verdict.removed.length} baseline entr(ies) no longer exist: ${verdict.removed.join(', ')}`
+      )
     }
 
-    if (regressed > 0) {
-      ratchetFailures = regressed
+    if (verdict.regressed.length > 0) {
       console.error(
-        `\n${regressed} route(s) exceeded their module-graph baseline by more than max(${TOLERANCE_MODULES}, ${TOLERANCE_PERCENT}%).`
+        `\n${verdict.regressed.length} route(s) exceeded their module-graph baseline by more than max(${TOLERANCE_MODULES}, ${TOLERANCE_PERCENT}%).`
       )
       console.error(
         'Every module in a page graph is parsed and shipped, so this is a real page-weight cost.'
       )
     }
+
+    if (ratchetFailed(verdict)) ratchetFailures = 1
   }
 
   if (failures.length > 0) {
     console.error(
-      `\n${failures.length} route(s) reach the executable tool registry, which adds ~4,700 modules to each.`
+      `\n${failures.length} entr(ies) reach the executable tool registry, which adds ~4,700 modules to each.`
     )
     console.error(
       'Read the metadata instead: `@/tools/metadata` (params), `@/tools/metadata-outputs`'
@@ -600,9 +732,8 @@ function main() {
 
   if (failures.length > 0 || ratchetFailures > 0) process.exit(1)
 
-  console.log(`✓ tool registry stays out of ${entries.length} workspace page/layout graphs`)
-  if (check)
-    console.log(`✓ ${entries.length} page/layout graphs within their module-count baseline`)
+  console.log(`✓ tool registry stays out of ${entries.length} guarded entry graphs`)
+  if (check) console.log(`✓ ${ratchetedEntries} entry graphs within their module-count baseline`)
 }
 
-main()
+if (import.meta.main) main()

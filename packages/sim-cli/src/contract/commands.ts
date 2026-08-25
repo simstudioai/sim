@@ -7,6 +7,8 @@ const TABLE_READ_FILTER_HELP =
   'Condition: {"field":"status","op":"eq","value":"active"}. Groups: {"all":[{"field":"status","op":"eq","value":"active"}]} or {"any":[{"field":"status","op":"eq","value":"active"}]}; group entries may also be nested groups. Operators: eq, ne, gt, gte, lt, lte, in, nin, contains, ncontains, startsWith, endsWith, like, ilike, nlike, nilike, isEmpty, isNotEmpty, isNull, isNotNull'
 const TABLE_SORT_HELP =
   'Ordered sort keys: [{"field":"createdAt","direction":"desc"}] (direction: asc or desc)'
+const KNOWLEDGE_TAG_DEFINITIONS_HELP =
+  'Tag definitions: [{"tagSlot":"tag1","displayName":"category","fieldType":"text"}]'
 const CUSTOM_TOOL_SCHEMA_HELP =
   'OpenAI function schema: {"type":"function","function":{"name":"...","parameters":{"type":"object","properties":{}}}}'
 /**
@@ -29,13 +31,33 @@ const FOLDER_DELETE_FLAGS = {
   path: FOLDER_PATH_INPUT,
   recursive: { boolean: true, describe: 'Delete the folder and its descendants' },
 } as const
-const KNOWLEDGE_BASE_PATH_ARGUMENT = { id: 'knowledgeBaseId' } as const
+const KNOWLEDGE_BASE_PATH_ARGUMENT = { knowledgeBaseId: 'knowledgeBaseId' } as const
 const WORKFLOW_RUN_SCOPE = {
-  id: {
+  workflowId: {
     name: 'workflow',
     placeholder: 'workflowId',
     describe: 'Workflow ID',
   },
+} as const
+const FOLDER_PATHS_FLAG = { ...FOLDER_PATH_FLAG, list: true } as const
+const TARGET_FOLDER_PATH_FLAG = {
+  ...FOLDER_PATH_INPUT,
+  name: 'to',
+  describe: 'Destination folder path; omit for root',
+} as const
+/**
+ * The comma-split list filters every log read shares.
+ *
+ * `listLogs`, `getLogStats` and `queryLogs` accept the same `z.string()` fields
+ * that the route splits on commas. They live on one constant because a flag
+ * that means `--workflow` on one log command and `--workflow-ids` on the next
+ * is the exact divergence `spells one concept with one flag name` exists to
+ * catch, and nothing about that failure would point back here.
+ */
+const LOG_LIST_FILTER_FLAGS = {
+  workflowIds: { name: 'workflow', list: true },
+  folderPaths: FOLDER_PATHS_FLAG,
+  triggers: { name: 'trigger', list: true },
 } as const
 const FOLDER_COLUMN: ColumnSpec = { header: 'folder', path: 'folderPath', format: 'folder-path' }
 const FOLDER_LIST_COLUMNS: ColumnSpec[] = [
@@ -144,6 +166,20 @@ export const CLI_CONTRACT: CliContract = {
       selectAll: { boolean: true, describe: 'Apply to every document in the knowledge base' },
     },
   },
+  // Same overload again for chunks: PATCH `/chunks` is the bulk form of PATCH
+  // `/chunks/[chunkId]`.
+  bulkUpdateKnowledgeChunks: {
+    command: 'knowledge chunks batch-update',
+    describe: 'Enable, disable, or delete many chunks at once',
+    pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
+    flags: {
+      chunkIds: { name: 'chunk', list: true },
+    },
+    // `--operation delete` reaches the same destructive path as `knowledge
+    // chunks delete`, which is confirm-gated, so the bulk form is gated too.
+    // The document batch-update above is not: it only enables or disables.
+    confirm: 'This can delete every named chunk and its embedding, and cannot be undone.',
+  },
   createKnowledgeConnector: {
     pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
   },
@@ -236,9 +272,7 @@ export const CLI_CONTRACT: CliContract = {
   // `z.string()` that the route splits on commas. No generator can infer this.
   listLogs: {
     flags: {
-      workflowIds: { name: 'workflow', list: true },
-      folderPaths: { ...FOLDER_PATH_FLAG, list: true },
-      triggers: { name: 'trigger', list: true },
+      ...LOG_LIST_FILTER_FLAGS,
       // The `workflow` column below reads `workflow.name`, which the API only
       // sends at `full` — at its own `basic` default every row's workflow was an
       // em-dash and a run had nothing naming what ran. Asked for by default so
@@ -283,6 +317,104 @@ export const CLI_CONTRACT: CliContract = {
       { header: 'files', format: 'count' },
       { header: 'trace', path: 'traceSpans', format: 'trace-count' },
     ],
+  },
+  /**
+   * Single-record GETs. `deriveCommandPath` calls a `GET` a `list` unless the
+   * path ends in a parameter, so each of these derived to `... list` while
+   * returning exactly one thing — the defect already corrected above for
+   * `getWorkflowDeployment`. None of these spellings has shipped, so no
+   * `renamedFrom` is owed.
+   */
+  getMeta: {
+    command: 'meta status',
+    describe: 'Show what this API supports and which limits apply',
+  },
+  getWorkflowChatDeployment: {
+    command: 'workflows chat status',
+    describe: 'Show a workflow’s chat deployment',
+  },
+  getLogStats: {
+    command: 'logs stats',
+    describe: 'Summarize run counts, failures, and cost over a window',
+    flags: LOG_LIST_FILTER_FLAGS,
+  },
+  readFileText: {
+    command: 'files read',
+    describe: 'Read a file’s text content',
+  },
+  // Publishing a workflow for an outside agent to call, and withdrawing it.
+  createWorkflowMcpServer: {
+    flags: { workflowIds: { name: 'workflow', list: true } },
+  },
+  deleteWorkflowMcpServer: {
+    confirm: 'This deletes the MCP server, and any agent calling its tools loses access.',
+  },
+  undeployWorkflowMcpTool: {
+    confirm: 'This withdraws the tool, and any agent calling it loses access.',
+  },
+  duplicateWorkflow: {
+    flags: { folderPath: FOLDER_PATH_FLAG },
+  },
+  // Graph writes. None is delete-shaped by name, so neither destructive sweep
+  // reaches them, yet each can discard work: a state replace overwrites the
+  // whole draft with no conflict detection, an operations batch carries a
+  // `delete` arm, and a variables patch replaces the set.
+  /**
+   * The derived names read wrong here. `deriveCommandPath` calls a `GET` a
+   * `list` unless the path ends in a parameter, but `/workflows/[id]/state` is
+   * one graph, not a page of them; and `POST` derives to `create`, which
+   * describes neither replacing a graph nor applying a batch of edits to one.
+   * Each name is the operation's own verb instead.
+   */
+  getWorkflowState: { command: 'workflows state get' },
+  replaceWorkflowState: {
+    command: 'workflows state replace',
+    confirm: 'This replaces the entire draft graph and cannot be undone.',
+  },
+  applyWorkflowOperations: {
+    command: 'workflows operations apply',
+    confirm: 'This edits the draft graph, and a delete operation removes blocks and their edges.',
+  },
+  applyWorkflowVariables: {
+    confirm: 'This replaces the workflow’s variables and cannot be undone.',
+  },
+  // A revert is a graph write too: it overwrites the draft with an older
+  // deployment's graph. Nothing about the name says "delete", so the destructive
+  // sweep does not reach it, and the work it discards is whatever is in the
+  // draft right now.
+  revertWorkflowVersion: {
+    confirm: 'This overwrites the draft graph with the selected version and cannot be undone.',
+  },
+  // POST derives to `... create`, which creates nothing here. Named for the
+  // operation instead, matching the shipped `files move`.
+  moveWorkflows: {
+    command: 'workflows move',
+    flags: {
+      workflowIds: { name: 'workflow', list: true },
+      folderPath: FOLDER_PATH_FLAG,
+    },
+  },
+  moveTables: {
+    command: 'tables move',
+    flags: {
+      folderPaths: FOLDER_PATHS_FLAG,
+      targetFolderPath: TARGET_FOLDER_PATH_FLAG,
+    },
+  },
+  // `PATCH /rows` is already the filter form (`updateRowsByFilter`,
+  // one payload applied to every match). This is the AIP-234 batch — a distinct
+  // payload per listed row — so it needs a name that says "each", not a second
+  // `batch-`/`bulk-` spelling one word apart from its neighbour.
+  bulkUpdateTableRows: {
+    command: 'tables rows update-each',
+    describe: 'Apply a distinct patch to each listed row',
+  },
+  bulkDeleteTables: {
+    // `batch-`, not `bulk-`: `tables delete` exists, so this is the same
+    // collision rename as `files batch-delete` above and takes the same word.
+    command: 'tables batch-delete',
+    flags: { folderPaths: FOLDER_PATHS_FLAG },
+    confirm: 'This deletes every listed table and all of their rows.',
   },
   searchKnowledge: {
     // Accepts a string or an array on the wire; the CLI always sends the array.
@@ -429,6 +561,52 @@ export const CLI_CONTRACT: CliContract = {
   getKnowledgeDocument: { pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT },
   updateKnowledgeDocument: { pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT },
   listKnowledgeTags: { pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT },
+  createKnowledgeTag: { pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT },
+  updateKnowledgeTag: { pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT },
+  deleteKnowledgeTag: {
+    pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
+    confirm: 'This deletes the tag and clears its values on every document and chunk.',
+  },
+  // Both derive off their trailing segment (`knowledge next-slot list`,
+  // `knowledge usage list`), which loses the `tags` group they belong to and
+  // reads as a resource the API does not have.
+  getNextKnowledgeTagSlot: {
+    command: 'knowledge tags next-slot',
+    describe: 'Show which tag slot a create would take for a field type',
+    pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
+  },
+  listKnowledgeTagUsage: {
+    command: 'knowledge tags usage',
+    describe: 'Show how many documents and chunks carry each tag',
+    pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
+  },
+  addWorkspaceFilesToKnowledgeBase: {
+    pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
+    describe: 'Index files the workspace already stores',
+    flags: {
+      fileReferences: {
+        name: 'file',
+        list: true,
+        describe: 'Workspace file ID or key (repeatable)',
+      },
+    },
+  },
+  listKnowledgeChunks: {
+    pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
+    columns: [
+      { header: 'id' },
+      { header: 'index', path: 'chunkIndex' },
+      { header: 'tokens', path: 'tokenCount' },
+      { header: 'enabled' },
+    ],
+  },
+  createKnowledgeChunk: { pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT },
+  getKnowledgeChunk: { pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT },
+  updateKnowledgeChunk: { pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT },
+  deleteKnowledgeChunk: {
+    pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
+    confirm: 'This deletes the chunk and its embedding.',
+  },
   listKnowledgeDocuments: {
     pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
     columns: [
@@ -574,6 +752,7 @@ export const CLI_CONTRACT: CliContract = {
     describe: 'Show file metadata and sharing status',
     fields: [
       { header: 'id' },
+      { header: 'web URL', path: 'webUrl' },
       { header: 'name' },
       { header: 'size', format: 'bytes' },
       { header: 'type' },
@@ -595,11 +774,7 @@ export const CLI_CONTRACT: CliContract = {
     describe: 'Move files into another folder',
     flags: {
       fileIds: { list: true },
-      targetFolderPath: {
-        ...FOLDER_PATH_INPUT,
-        name: 'to',
-        describe: 'Destination folder path; omit for root',
-      },
+      targetFolderPath: TARGET_FOLDER_PATH_FLAG,
     },
   },
   renameFile: {
@@ -613,6 +788,97 @@ export const CLI_CONTRACT: CliContract = {
     command: 'files restore',
     renamedFrom: ['files restore create'],
     describe: 'Restore an archived file',
+  },
+  // Left to derive, the folder restore lands under `files restore` and turns
+  // that leaf back into a group holding a lone `create` — the exact shape the
+  // rename above exists to remove. It belongs beside the other folder verbs.
+  restoreFileFolder: {
+    command: 'files folders restore',
+    positionals: ['path'],
+    flags: { path: FOLDER_PATH_INPUT },
+    describe: 'Restore an archived file folder',
+  },
+  /**
+   * The restore family mirrors `restoreFile`/`restoreFileFolder` above: a
+   * `restore create` created nothing, and leaving the folder restore to derive
+   * collides with the resource restore on the same leaf.
+   */
+  restoreTable: {
+    command: 'tables restore',
+    describe: 'Restore an archived table',
+  },
+  restoreTableFolder: {
+    command: 'tables folders restore',
+    positionals: ['path'],
+    flags: { path: FOLDER_PATH_INPUT },
+    describe: 'Restore an archived table folder',
+  },
+  restoreKnowledgeBase: {
+    command: 'knowledge restore',
+    describe: 'Restore an archived knowledge base',
+  },
+  restoreWorkflow: {
+    command: 'workflows restore',
+    describe: 'Restore an archived workflow',
+  },
+  cancelTableDispatch: {
+    // `delete` reads as removing a record; this stops a run that is under way.
+    command: 'tables dispatches cancel',
+    describe: 'Cancel a running dispatch',
+    confirm:
+      'This stops the dispatch. Cells already handed to the queue keep running — use `tables cancel-runs` to stop those.',
+  },
+  replaceWorkflowChatDeployment: {
+    command: 'workflows chat publish',
+    describe: 'Publish or replace a workflow’s chat deployment',
+    confirm:
+      'This replaces the chat deployment wholesale. Any field you omit returns to its default, including a stored password or allow-list.',
+  },
+  deleteWorkflowChatDeployment: {
+    command: 'workflows chat unpublish',
+    describe: 'Take a workflow’s chat deployment offline',
+    confirm:
+      'This takes the chat offline and frees its identifier. The workflow itself stays deployed and executable.',
+  },
+  /**
+   * Both write the knowledge base's tag vocabulary, so they sit beside the
+   * per-definition `tags update`/`tags delete` rather than deriving onto them.
+   */
+  bulkSaveKnowledgeTagDefinitions: {
+    command: 'knowledge tags save',
+    describe: 'Declare the tag definitions a knowledge base needs',
+    pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
+    flags: {
+      definitions: { json: true, describe: KNOWLEDGE_TAG_DEFINITIONS_HELP },
+    },
+  },
+  deleteKnowledgeTagDefinitions: {
+    command: 'knowledge tags cleanup',
+    pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
+    describe: 'Remove tag definitions no document still uses',
+    confirm:
+      'This deletes every tag definition no document still uses. Their slots become free for a different field.',
+  },
+  unzipFile: {
+    // `files unzip create` created nothing; the verb is the whole command.
+    command: 'files unzip',
+    describe: 'Unzip an archive into a new folder beside it',
+    confirm: 'This writes every file in the archive into the workspace.',
+  },
+  /**
+   * Configured even though `buildGeneratedCommands` skips it: it only builds
+   * operations whose `responseMode` is `json` (runtime/build.ts), so this
+   * zip-streaming endpoint has no command today. The entry is not inert — the
+   * contract sweeps read it, and `folderPaths` must be marked for encoding
+   * here or `folder-path fields` fails.
+   */
+  bulkDownloadFiles: {
+    command: 'files bulk-download',
+    describe: 'Download files and folders as a zip archive',
+    flags: {
+      fileIds: { list: true },
+      folderPaths: FOLDER_PATHS_FLAG,
+    },
   },
   updateFileContent: {
     command: 'files set-content',
@@ -762,7 +1028,7 @@ export const CLI_CONTRACT: CliContract = {
   },
 
   // ─── The expanded tables surface ──────────────────────────────────────────
-  // `/cancel-runs`, `/rows/find`, `/query/count`, `/columns/run` and the
+  // `/cancel-runs`, `/rows/search`, `/query/count` and the
   // enrichment path all put a verb where the deriver expects a sub-resource, so
   // each became a group holding a lone `create`.
   cancelTableRuns: {
@@ -773,13 +1039,14 @@ export const CLI_CONTRACT: CliContract = {
       filter: { json: true, describe: TABLE_FILTER_HELP },
     },
   },
-  findTableRows: {
-    command: 'tables rows find',
-    describe: 'Find rows matching a predicate',
+  searchTableRows: {
+    command: 'tables rows search',
+    renamedFrom: ['tables rows find'],
+    describe: 'Search cells for a value and return their coordinates',
     flags: {
       // `--q` was the wire field spelled out; the same idea is `--query` on
       // `knowledge search`, and one concept should not have two flag names.
-      q: { name: 'query', renamedFrom: ['q'], describe: 'Value to find' },
+      q: { name: 'query', renamedFrom: ['q'], describe: 'Value to search for' },
       predicate: { name: 'filter', json: true, describe: TABLE_FILTER_HELP },
       sort: { json: true, describe: TABLE_SORT_HELP },
     },
@@ -801,9 +1068,10 @@ export const CLI_CONTRACT: CliContract = {
       },
     },
   },
-  runTableColumn: {
-    command: 'tables columns run',
-    describe: 'Run a column’s workflow',
+  createTableDispatch: {
+    command: 'tables dispatches create',
+    renamedFrom: ['tables columns run'],
+    describe: 'Start a column or enrichment run',
     flags: {
       groupIds: { list: true },
       rowIds: { list: true },
@@ -845,10 +1113,14 @@ export const CLI_CONTRACT: CliContract = {
   // `workflows execute create` and `workflows cancel create`.
   executeWorkflow: {
     command: 'workflows run',
-    describe: 'Run a deployed workflow',
+    describe: 'Run a deployed workflow or execute saved state manually',
     flags: {
       async: { boolean: true, describe: 'Queue the run and return immediately' },
       input: { json: true, describe: 'Trigger input as JSON' },
+      run: {
+        hidden: true,
+        describe: 'Low-level workflow state and entry-point selection',
+      },
       selectedOutputs: {
         name: 'select-output',
         list: true,

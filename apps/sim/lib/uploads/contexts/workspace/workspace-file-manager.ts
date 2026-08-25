@@ -2234,6 +2234,17 @@ export async function purgeCreatedWorkspaceFile(params: {
 /**
  * Restore a soft-deleted workspace file.
  */
+export interface PermanentlyDeleteWorkspaceFileResult {
+  /** The record as it stood before its row was removed. */
+  file: WorkspaceFileRecord
+  /**
+   * Whether the stored object was removed. `false` means the row is gone but
+   * the object outlived it and is now an orphan for the storage sweep, which is
+   * a recoverable state; the reverse never happens by construction.
+   */
+  objectDeleted: boolean
+}
+
 export async function restoreWorkspaceFile(workspaceId: string, fileId: string): Promise<void> {
   logger.info(`Restoring workspace file: ${fileId}`)
 

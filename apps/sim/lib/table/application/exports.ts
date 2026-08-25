@@ -30,6 +30,14 @@ export interface CreateTableExportInput {
 export interface TableExportResourceInput {
   exportId: string
   workspaceId: string
+  /**
+   * The table the caller addressed the export under. v2 nests the export reads beneath their
+   * parent table, so the id in the path is asserted against the export's stored `tableId` and
+   * a mismatch reports the same not-found an unknown id does — an export id cannot be used to
+   * probe which table it belongs to. The internal surface addresses exports by id alone and
+   * leaves this undefined.
+   */
+  tableId?: string
 }
 
 export interface TableExportResult {
@@ -52,6 +60,9 @@ async function resolveTableExportContext(
   input: TableExportResourceInput
 ): Promise<TableExportContext> {
   const record = await requireTableExport(input.exportId, input.workspaceId)
+  if (input.tableId !== undefined && input.tableId !== record.tableId) {
+    throw new OrchestrationError('not_found', 'Table export not found')
+  }
   const table = await getTableById(record.tableId)
   if (!table || table.workspaceId !== record.workspaceId) {
     throw new OrchestrationError('not_found', 'Table export not found')

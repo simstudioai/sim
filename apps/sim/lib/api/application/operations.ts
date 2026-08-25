@@ -1,0 +1,17 @@
+import { defineOperation } from '@/lib/core/application'
+
+/**
+ * Operations a credential performs on itself.
+ *
+ * They carry no workspace scope and no role: the resource *is* the
+ * authenticated key, so holding it is the whole authorization story. What is
+ * left — which kinds of principal may hold that resource — is declared here as
+ * data through {@link defineOperation}, so the policy is inspectable rather
+ * than hand-rolled inside the use case.
+ */
+export const v2MetaOperations = {
+  read: defineOperation({
+    id: 'meta.capabilities.read',
+    principalKinds: ['personal_api_key', 'workspace_api_key'],
+  }),
+} as const

@@ -468,7 +468,12 @@ describe('POST /api/credentials', () => {
       expect(data).toEqual({ code: 'invalid_credentials', error: 'invalid_credentials' })
     })
 
-    it('maps a provider outage to a 502, not a 400', async () => {
+    /**
+     * A provider outage is `503`, matching `PROVIDER_OUTAGE_CODES` and the v2
+     * surface. It was `502` here alone — the same failure rendered three ways
+     * across the two surfaces and the shared status helper.
+     */
+    it('maps a provider outage to a 503 with a Retry-After, not a 400', async () => {
       mockVerifyAndBuildServiceAccountSecret.mockRejectedValueOnce(
         new TokenServiceAccountValidationError('provider_unavailable', 502, {
           step: 'zoom_token_mint',
@@ -487,7 +492,8 @@ describe('POST /api/credentials', () => {
       const response = await POST(req)
       const data = await response.json()
 
-      expect(response.status).toBe(502)
+      expect(response.status).toBe(503)
+      expect(response.headers.get('Retry-After')).toBe('5')
       expect(data).toEqual({ code: 'provider_unavailable', error: 'provider_unavailable' })
     })
 

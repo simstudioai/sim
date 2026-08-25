@@ -6,7 +6,7 @@ describe('simLinkPath', () => {
 
   // Each destination must match a real route — skills/folders deep-link via query params (no [id] route).
   it('resolves every kind to its real in-app route', () => {
-    expect(simLinkPath(ws, 'file', 'f1')).toBe('/workspace/ws1/files/f1/view')
+    expect(simLinkPath(ws, 'file', 'f1')).toBe('/workspace/ws1/files/f1')
     expect(simLinkPath(ws, 'folder', 'd1')).toBe('/workspace/ws1/files?folderId=d1')
     expect(simLinkPath(ws, 'table', 't1')).toBe('/workspace/ws1/tables/t1')
     expect(simLinkPath(ws, 'knowledge', 'k1')).toBe('/workspace/ws1/knowledge/k1')

@@ -1,156 +1,47 @@
-import { db } from '@sim/db'
-import { chat } from '@sim/db/schema'
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
-import { and, eq, isNull } from 'drizzle-orm'
-import type { NextRequest } from 'next/server'
 import { createChatContract } from '@/lib/api/contracts/chats'
-import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
-import { getSession } from '@/lib/auth'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { performChatDeploy } from '@/lib/workflows/orchestration'
-import { checkWorkflowAccessForChatCreation } from '@/app/api/chat/utils'
-import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
+import { getValidationErrorMessage } from '@/lib/api/server'
 import {
-  ChatDeployAuthNotAllowedError,
-  validateChatDeployAuth,
-} from '@/ee/access-control/utils/permission-check'
+  defineInternalJsonRoute,
+  internalRateLimits,
+  internalSessionAuth,
+} from '@/lib/api/server/routes'
+import { generateRequestId } from '@/lib/core/utils/request'
+import { deployWorkflowChat } from '@/lib/workflows/application/chat-deployments'
+import { workflowOperations } from '@/lib/workflows/application/operations'
+import { createInternalChatDeploymentErrorPolicy } from '@/app/api/chat/error-policy'
+import { createErrorResponse } from '@/app/api/workflows/utils'
 
-const logger = createLogger('ChatAPI')
-
-export const GET = withRouteHandler(async (_request: NextRequest) => {
-  try {
-    const session = await getSession()
-
-    if (!session) {
-      return createErrorResponse('Unauthorized', 401)
-    }
-
-    // Get the user's chat deployments
-    const deployments = await db
-      .select()
-      .from(chat)
-      .where(and(eq(chat.userId, session.user.id), isNull(chat.archivedAt)))
-
-    return createSuccessResponse({
-      deployments: deployments.map((deployment) => ({
-        ...deployment,
-        includeToolCalls: deployment.includeToolCalls ?? false,
-      })),
-    })
-  } catch (error) {
-    logger.error('Error fetching chat deployments:', error)
-    return createErrorResponse(getErrorMessage(error, 'Failed to fetch chat deployments'), 500)
-  }
-})
-
-export const POST = withRouteHandler(async (request: NextRequest) => {
-  try {
-    const session = await getSession()
-
-    if (!session) {
-      return createErrorResponse('Unauthorized', 401)
-    }
-
-    const parsed = await parseRequest(
-      createChatContract,
-      request,
-      {},
-      {
-        validationErrorResponse: (error) =>
-          createErrorResponse(getValidationErrorMessage(error), 400, 'VALIDATION_ERROR'),
-      }
-    )
-    if (!parsed.success) return parsed.response
-
-    const {
-      workflowId,
-      identifier,
-      title,
-      description = '',
-      customizations,
-      authType = 'public',
-      password,
-      allowedEmails = [],
-      outputConfigs = [],
-      includeThinking = false,
-      includeToolCalls = false,
-    } = parsed.data.body
-
-    if (authType === 'password' && !password) {
-      return createErrorResponse('Password is required when using password protection', 400)
-    }
-
-    if (authType === 'email' && (!Array.isArray(allowedEmails) || allowedEmails.length === 0)) {
-      return createErrorResponse(
-        'At least one email or domain is required when using email access control',
-        400
-      )
-    }
-
-    if (authType === 'sso' && (!Array.isArray(allowedEmails) || allowedEmails.length === 0)) {
-      return createErrorResponse(
-        'At least one email or domain is required when using SSO access control',
-        400
-      )
-    }
-
-    const [existingIdentifier, { hasAccess, workflow: workflowRecord }] = await Promise.all([
-      db
-        .select()
-        .from(chat)
-        .where(and(eq(chat.identifier, identifier), isNull(chat.archivedAt)))
-        .limit(1),
-      checkWorkflowAccessForChatCreation(workflowId, session.user.id),
-    ])
-
-    if (existingIdentifier.length > 0) {
-      return createErrorResponse('Identifier already in use', 400)
-    }
-
-    if (!hasAccess || !workflowRecord) {
-      return createErrorResponse('Workflow not found or access denied', 404)
-    }
-
-    if (workflowRecord.workspaceId) {
-      try {
-        await validateChatDeployAuth(session.user.id, workflowRecord.workspaceId, authType)
-      } catch (error) {
-        if (error instanceof ChatDeployAuthNotAllowedError) {
-          return createErrorResponse(error.message, 403)
-        }
-        throw error
-      }
-    }
-
-    const result = await performChatDeploy({
-      workflowId,
-      userId: session.user.id,
-      identifier,
-      title,
-      description,
-      customizations,
-      authType,
-      password,
-      allowedEmails,
-      outputConfigs,
-      includeThinking,
-      includeToolCalls,
-      workspaceId: workflowRecord.workspaceId,
-    })
-
-    if (!result.success) {
-      return createErrorResponse(result.error || 'Failed to deploy chat', 500)
-    }
-
-    return createSuccessResponse({
-      id: result.chatId,
-      chatId: result.chatId,
-      chatUrl: result.chatUrl,
-      message: 'Chat deployment created successfully',
-    })
-  } catch (error) {
-    logger.error('Error creating chat deployment:', error)
-    return createErrorResponse(getErrorMessage(error, 'Failed to create chat deployment'), 500)
-  }
+/**
+ * Deploys a workflow as a chat.
+ *
+ * An adapter over `workflows.chat.deploy` — the same use case the Copilot
+ * `deploy_chat` tool calls. The route previously reimplemented that operation's
+ * authorization, identifier-uniqueness check, and auth-mode policy inline, so
+ * the two could disagree about who may deploy a chat.
+ */
+export const POST = defineInternalJsonRoute({
+  contract: createChatContract,
+  auth: internalSessionAuth,
+  operation: workflowOperations.deployChat,
+  rateLimit: internalRateLimits.none({
+    reason: 'Authenticated workspace UI chat deployments retain their existing admission policy.',
+  }),
+  errorPolicy: createInternalChatDeploymentErrorPolicy('Failed to create chat deployment'),
+  parseOptions: {
+    /**
+     * The editor's deploy modal renders `error` verbatim, so a contract refusal
+     * has to name the field it refused — the builder default renders every 400
+     * as the literal "Validation error" and demotes the specifics to `details`.
+     */
+    validationErrorResponse: (error) =>
+      createErrorResponse(getValidationErrorMessage(error), 400, 'VALIDATION_ERROR'),
+  },
+  mapInput: ({ body }) => ({ ...body, requestId: generateRequestId() }),
+  useCase: deployWorkflowChat,
+  present: (result) => ({
+    id: result.chatId,
+    chatId: result.chatId,
+    chatUrl: result.chatUrl,
+    message: 'Chat deployment created successfully',
+  }),
 })

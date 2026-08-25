@@ -65,6 +65,9 @@ interface DuplicateWorkflowResult {
   blocksCount: number
   edgesCount: number
   subflowsCount: number
+  /** Stamped by this function, so a caller can present the copy without re-reading it. */
+  createdAt: Date
+  updatedAt: Date
 }
 
 async function assertTargetFolderMutable(
@@ -480,6 +483,8 @@ export async function duplicateWorkflow(
       blocksCount: sourceBlocks.length,
       edgesCount: sourceEdges.length,
       subflowsCount: sourceSubflows.length,
+      createdAt: now,
+      updatedAt: now,
     }
   }
 

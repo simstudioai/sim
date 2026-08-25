@@ -36,8 +36,10 @@ vi.mock('@/lib/table/billing', () => ({
   getMaxRowsPerTable: mocks.getMaxRowsPerTable,
 }))
 
-import { REFILTERED_CURSOR_MESSAGE } from '@/lib/api/cursor-binding'
+import { v2ListTablesContract } from '@/lib/api/contracts/v2/tables'
+import { cursorRoute, cursorScopeKey, REFILTERED_CURSOR_MESSAGE } from '@/lib/api/cursor-binding'
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
+import { writeSortedCursor } from '@/app/api/v2/lib/response'
 import { GET, POST } from '@/app/api/v2/tables/route'
 
 const WORKSPACE_ID = 'workspace-1'
@@ -162,6 +164,42 @@ describe('/api/v2/tables', () => {
     })
   })
 
+  /**
+   * `scope` carries `.default('active')`, so it is present on every parsed
+   * query. Stamping it unconditionally would put a constant in every
+   * fingerprint and refuse every cursor minted before the param existed, with
+   * the misleading {@link REFILTERED_CURSOR_MESSAGE} — a caller that changed
+   * nothing would be told it changed a filter. The default must therefore
+   * contribute nothing to the scope.
+   */
+  it('resumes a cursor minted before scope entered the binding', async () => {
+    mocks.list.mockResolvedValue({
+      tables: [{ table, folderPath: '/' }],
+      nextKeys: undefined,
+      sortBy: 'createdAt',
+      sortOrder: 'asc',
+    })
+    const legacyCursor = writeSortedCursor(
+      ['2026-08-01T00:00:00.000Z', 'table-1'],
+      'createdAt',
+      'asc',
+      cursorScopeKey(cursorRoute(v2ListTablesContract), { workspaceId: WORKSPACE_ID })
+    ) as string
+
+    const response = await GET(
+      new NextRequest(
+        `http://localhost:3000/api/v2/tables?workspaceId=${WORKSPACE_ID}&cursor=${encodeURIComponent(legacyCursor)}`
+      )
+    )
+
+    expect(response.status).toBe(200)
+    expect(mocks.list).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({ after: ['2026-08-01T00:00:00.000Z', 'table-1'] }),
+      })
+    )
+  })
+
   it('lists through the semantic use case and preserves the cursor envelope', async () => {
     const request = new NextRequest(
       `http://localhost:3000/api/v2/tables?workspaceId=${WORKSPACE_ID}&limit=25`
@@ -173,6 +211,7 @@ describe('/api/v2/tables', () => {
       data: [
         {
           id: 'table-1',
+          webUrl: `https://test.sim.ai/workspace/${WORKSPACE_ID}/tables/table-1`,
           folderPath: '/',
           description: null,
           ownerEmail: 'owner@example.com',

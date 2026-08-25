@@ -14,8 +14,10 @@ const mocks = vi.hoisted(() => ({
   recordAudit: vi.fn(),
 }))
 
-vi.mock('@/lib/workflows/application/context', () => ({
+vi.mock('@/lib/workspaces/application/workspace-context', () => ({
   resolveActiveWorkspaceApplicationContext: mocks.resolveWorkspace,
+}))
+vi.mock('@/lib/workflows/application/context', () => ({
   resolveActiveWorkflowApplicationContext: mocks.resolveWorkflow,
 }))
 vi.mock('@sim/platform-authz/workspace', () => ({

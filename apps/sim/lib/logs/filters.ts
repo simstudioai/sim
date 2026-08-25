@@ -1,4 +1,4 @@
-import { workflow, workflowExecutionLogs } from '@sim/db/schema'
+import { folder, workflow, workflowExecutionLogs } from '@sim/db/schema'
 import { and, eq, gt, gte, inArray, lt, lte, ne, type SQL, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import type { TimeRange } from '@/stores/logs/filters/types'
@@ -165,6 +165,7 @@ function buildDateConditions(
 }
 
 function buildSearchConditions(params: {
+  workspaceId: string
   search?: string
   workflowName?: string
   folderName?: string
@@ -182,9 +183,24 @@ function buildSearchConditions(params: {
     conditions.push(sql`${workflow.name} ILIKE ${nameTerm}`)
   }
 
+  /**
+   * Matches the folder the run's workflow lives in, by name.
+   *
+   * The subquery is what makes it a folder filter at all: this condition used to
+   * ILIKE `workflow.name`, a copy of the clause directly above it, so
+   * `folder:support` quietly searched workflow names and reported the wrong runs
+   * with no error. The log queries join `workflow` but not `folder`, so the
+   * lookup is expressed as a membership test rather than by adding a join every
+   * caller of this builder would have to make.
+   */
   if (params.folderName) {
     const folderTerm = `%${params.folderName}%`
-    conditions.push(sql`${workflow.name} ILIKE ${folderTerm}`)
+    conditions.push(
+      // Scoped to the workspace and to workflow folders: `folder` holds every
+      // resource kind for every tenant, so an unscoped subquery is a full-table
+      // ILIKE on each search and matches ids it can never legitimately return.
+      sql`${workflow.folderId} IN (SELECT ${folder.id} FROM ${folder} WHERE ${folder.name} ILIKE ${folderTerm} AND ${folder.workspaceId} = ${params.workspaceId} AND ${folder.resourceType} = 'workflow' AND ${folder.deletedAt} IS NULL)`
+    )
   }
 
   if (params.executionId) {
@@ -297,6 +313,7 @@ export function buildFilterConditions(
   if (endCondition) conditions.push(endCondition)
 
   const searchConditions = buildSearchConditions({
+    workspaceId: params.workspaceId,
     search: params.search,
     workflowName: params.workflowName,
     folderName: params.folderName,

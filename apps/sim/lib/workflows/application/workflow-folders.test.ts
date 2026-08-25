@@ -16,7 +16,7 @@ const mocks = vi.hoisted(() => ({
   recordAudit: vi.fn(),
 }))
 
-vi.mock('@/lib/workflows/application/context', () => ({
+vi.mock('@/lib/workspaces/application/workspace-context', () => ({
   resolveActiveWorkspaceApplicationContext: mocks.resolveContext,
 }))
 vi.mock('@sim/platform-authz/workspace', () => ({
@@ -46,9 +46,11 @@ vi.mock('@/lib/folders/queries', () => ({
 }))
 
 import {
+  archivableWorkflowFolderPath,
   createWorkflowFolder,
   deleteWorkflowFolder,
   listWorkflowFolders,
+  workflowFolderPathForId,
 } from '@/lib/workflows/application/workflow-folders'
 
 const folder = {
@@ -209,5 +211,32 @@ describe('workflow folder application operations', () => {
     ).rejects.toBe(failure)
     expect(mocks.listRows).not.toHaveBeenCalled()
     expect(mocks.recordAudit).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * Archiving a folder cascades onto the workflows inside it but leaves their
+ * `folderId` pointing at the inactive row, and the folder index holds active
+ * folders only. `scope=archived` selects exactly that population, so the strict
+ * projector would throw a bare `Error` — an unclassified 500 that takes the
+ * whole page down with no cursor position able to step past the row.
+ */
+describe('folder path projection for archived workflows', () => {
+  const archivedFolderId = 'folder-archived'
+
+  it('throws on a dangling folder when the workflow is expected to be active', () => {
+    expect(() => workflowFolderPathForId(index, archivedFolderId)).toThrow()
+  })
+
+  it('answers the root path instead, which is where restore would place it', () => {
+    expect(archivableWorkflowFolderPath(index, archivedFolderId)).toBe('/')
+  })
+
+  it('still resolves a folder that is active', () => {
+    expect(archivableWorkflowFolderPath(index, folder.id)).toBe('/Reports')
+  })
+
+  it('treats no folder as the root', () => {
+    expect(archivableWorkflowFolderPath(index, null)).toBe('/')
   })
 })

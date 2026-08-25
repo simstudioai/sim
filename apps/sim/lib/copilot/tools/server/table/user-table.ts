@@ -26,7 +26,6 @@ import {
   updateTableColumnUseCase,
 } from '@/lib/table/application/columns'
 import {
-  copilotBatchUpdateRows,
   copilotDeleteRowsByFilter,
   copilotUpdateRowsByFilter,
 } from '@/lib/table/application/copilot-bulk-rows'
@@ -35,6 +34,7 @@ import {
   deleteTableGroupUseCase,
 } from '@/lib/table/application/groups'
 import {
+  batchUpdateTableRows,
   createTableRows,
   deleteTableRow,
   deleteTableRows,
@@ -79,6 +79,13 @@ type UserTableResult = {
   data?: any
 }
 
+/**
+ * Copilot's own batch ceiling, deliberately looser than the 1000 the internal
+ * and v2 batch-update contracts declare: Copilot parses no contract, so this is
+ * the only place the tool can refuse an oversized batch with a message the model
+ * can act on rather than a thrown domain error — and a batch it accepts today
+ * must keep working.
+ */
 const MAX_BATCH_SIZE = CSV_MAX_BATCH_SIZE
 
 function resolveAuthorizedWorkflowOutputs(
@@ -704,11 +711,13 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           assertNotAborted()
           const result = await executeCopilotTableUseCase(
             context,
-            copilotBatchUpdateRows,
+            batchUpdateTableRows,
             {
               tableId: args.tableId,
               assertedWorkspaceId: workspaceId,
               updates: updates as Array<{ rowId: string; data: RowData }>,
+              strictWrite: false,
+              dataKeying: 'names' as const,
             },
             { tableId: args.tableId }
           )

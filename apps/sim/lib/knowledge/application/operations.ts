@@ -29,17 +29,20 @@ const HUMAN_COPILOT_AND_EXECUTOR_PRINCIPAL_POLICY = {
 } as const
 
 export const knowledgeOperations = {
+  /**
+   * Lists the workspace's knowledge bases, active or archived.
+   *
+   * One operation covers both lifecycle scopes: the archived set is the same rows
+   * under a different `deleted_at` predicate, and it is the only discovery read
+   * that makes restore usable, so denying it to a principal that may archive and
+   * restore leaves that principal able to recover only the ids it happened to
+   * record itself.
+   */
   list: defineWorkspaceOperation({
     id: 'knowledge.list',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     ...ALL_PRINCIPAL_POLICY,
-  }),
-  listArchived: defineWorkspaceOperation({
-    id: 'knowledge.list_archived',
-    minimumRole: 'read',
-    workspaceApiKey: 'deny',
-    ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
   }),
   read: defineWorkspaceOperation({
     id: 'knowledge.read',
@@ -61,6 +64,19 @@ export const knowledgeOperations = {
   }),
   delete: defineWorkspaceOperation({
     id: 'knowledge.delete',
+    minimumRole: 'write',
+    workspaceApiKey: 'allow',
+    ...ALL_PRINCIPAL_POLICY,
+  }),
+  /**
+   * Un-archives a soft-deleted knowledge base.
+   *
+   * Deliberately the same policy as {@link knowledgeOperations.delete}: an
+   * operation's inverse must not be harder to reach than the operation, or a
+   * principal can archive a knowledge base it is then unable to recover.
+   */
+  restore: defineWorkspaceOperation({
+    id: 'knowledge.restore',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     ...ALL_PRINCIPAL_POLICY,
@@ -269,14 +285,22 @@ export const knowledgeOperations = {
     workspaceApiKey: 'deny',
     ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
   }),
+  /**
+   * Bulk upsert of a knowledge base's tag vocabulary.
+   *
+   * Named for the knowledge base it writes, not the document a caller used to
+   * address it through: the write targets `knowledge_base_tag_definitions` and
+   * its audit entry has always been a `KNOWLEDGE_BASE` one.
+   */
   saveDocumentTagDefinitions: defineWorkspaceOperation({
-    id: 'knowledge.tags.save_document_definitions',
+    id: 'knowledge.tags.bulk_save',
     minimumRole: 'write',
     workspaceApiKey: 'deny',
     ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
   }),
+  /** Removal over that same vocabulary — unused definitions, or all of them. */
   deleteDocumentTagDefinitions: defineWorkspaceOperation({
-    id: 'knowledge.tags.delete_document_definitions',
+    id: 'knowledge.tags.cleanup',
     minimumRole: 'write',
     workspaceApiKey: 'deny',
     ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,

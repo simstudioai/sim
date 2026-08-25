@@ -413,10 +413,24 @@ describe('Database Helpers', () => {
       )
     })
 
-    it('should return null when no blocks are found', async () => {
+    it('should return null when the workflow row is not found', async () => {
       const result = await dbHelpers.loadWorkflowFromNormalizedTables(mockWorkflowId)
 
       expect(result).toBeNull()
+    })
+
+    it('should load an existing blockless workflow as an empty graph', async () => {
+      queueLoadFixtures({ blocks: [] })
+
+      const result = await dbHelpers.loadWorkflowFromNormalizedTables(mockWorkflowId)
+
+      expect(result).toMatchObject({
+        blocks: {},
+        edges: [],
+        loops: {},
+        parallels: {},
+        isFromNormalizedTables: true,
+      })
     })
 
     it('should return null when database query fails', async () => {

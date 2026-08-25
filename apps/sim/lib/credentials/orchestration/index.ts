@@ -34,6 +34,7 @@ import {
   deleteWorkspaceEnvCredentials,
   syncPersonalEnvCredentialsForUser,
 } from '@/lib/credentials/environment'
+import type { ServiceAccountFieldId } from '@/lib/credentials/service-account-fields'
 import {
   ServiceAccountSecretError,
   verifyAndBuildServiceAccountSecret,
@@ -60,6 +61,27 @@ export {
   performCreateCredential,
   statusForCredentialOrchestrationError,
 } from './credential-create'
+
+/**
+ * Every secret field a reconnect can carry. Only a `service_account` credential
+ * has somewhere to store them, so this doubles as the set a non-service-account
+ * update must refuse rather than silently drop.
+ */
+const ROTATABLE_SECRET_FIELDS: readonly ServiceAccountFieldId[] = [
+  'serviceAccountJson',
+  'signingSecret',
+  'botToken',
+  'apiToken',
+  'domain',
+  'clientId',
+  'clientSecret',
+  'certificateId',
+  'orgId',
+  'dataCenter',
+  'authMethod',
+  'privateKey',
+  'username',
+]
 
 /**
  * Google's stored blob is the raw GCP JSON key, whose own `type` discriminator
@@ -238,23 +260,28 @@ export async function updateCredentialRecord(
     // secret is re-verified against the provider and re-encrypted through the
     // same builder the create path uses, so the rotation also yields the new
     // principal's derived display name and audit metadata.
-    const hasRotationSecret =
-      params.serviceAccountJson !== undefined ||
-      params.signingSecret !== undefined ||
-      params.botToken !== undefined ||
-      params.apiToken !== undefined ||
-      params.domain !== undefined ||
-      params.clientId !== undefined ||
-      params.clientSecret !== undefined ||
-      params.certificateId !== undefined ||
-      params.orgId !== undefined ||
-      params.dataCenter !== undefined ||
-      params.authMethod !== undefined ||
-      params.privateKey !== undefined ||
-      params.username !== undefined
+    const submittedSecretFields = ROTATABLE_SECRET_FIELDS.filter(
+      (field) => params[field] !== undefined
+    )
+    const hasRotationSecret = submittedSecretFields.length > 0
+
+    // Only a service account stores a rotatable secret blob. Every other type
+    // reaches the rotation branch below and falls straight through it, so an
+    // OAuth credential sent `{ displayName, apiToken }` used to answer 200 with
+    // the token silently discarded — the caller believing it had rotated a
+    // secret. Refused here rather than at one contract: the credential's type
+    // is only known once the row is loaded, so no request schema can decide it.
+    if (hasRotationSecret && params.credential.type !== 'service_account') {
+      return {
+        success: false,
+        error: `A ${params.credential.type} credential has no rotatable secret; ${submittedSecretFields.join(', ')} cannot be updated. Reconnect the credential instead.`,
+        errorCode: 'validation',
+      }
+    }
+
     let rotatedSlackBotUserId: string | undefined
     let rotatedAuditMetadata: Record<string, string> | undefined
-    if (hasRotationSecret && params.credential.type === 'service_account') {
+    if (hasRotationSecret) {
       const providerId = params.credential.providerId ?? ''
 
       // A reconnect rebuilds the secret blob from the submitted fields only, and

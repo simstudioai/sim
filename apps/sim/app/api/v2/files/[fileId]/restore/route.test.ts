@@ -99,6 +99,7 @@ describe('POST /api/v2/files/[fileId]/restore', () => {
     expect(await response.json()).toEqual({
       data: {
         id: FILE_ID,
+        webUrl: `https://test.sim.ai/workspace/${WORKSPACE_ID}/files/${FILE_ID}`,
         name: 'notes_restored.md',
         size: 12,
         type: 'text/markdown',

@@ -33,6 +33,38 @@ const logger = createLogger('WorkflowPersistenceLoad')
  * `resolveBlockRetryConfig` — which collapses a disabled policy to `null` —
  * must not be used on this path.
  */
+/**
+ * Stored subflow config coerced to the string the loaded shape declares.
+ *
+ * `config` is schemaless JSONB and the writers are looser than the readers:
+ * `?? ''` only replaces `null`/`undefined`, so an object or number written into
+ * `whileCondition` or `doWhileCondition` survived to a consumer whose schema
+ * asserts `z.string()`. On the v2 read that is a `500` on a workflow that opens
+ * fine in the editor. Non-strings are preserved as JSON rather than dropped, so
+ * nothing a caller wrote is lost.
+ *
+ * `forEachItems` and `distribution` deliberately do NOT go through this: both
+ * are declared `unknown[] | Record<string, unknown> | string` in
+ * `@sim/workflow-types` and published as that union by the v2 read schema, so a
+ * stored array is correct data rather than a shape to coerce.
+ */
+function storedConfigString(value: unknown): string {
+  if (typeof value === 'string') return value
+  if (value === null || value === undefined) return ''
+  try {
+    return JSON.stringify(value) ?? ''
+  } catch {
+    return ''
+  }
+}
+
+/** Stored subflow `nodes` filtered to the block-id strings the shape declares. */
+function storedConfigNodes(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((node): node is string => typeof node === 'string')
+    : []
+}
+
 function normalizeStoredBlockRetry(stored: unknown): BlockRetryConfig | undefined {
   if (stored == null || typeof stored !== 'object') return undefined
   const retry = stored as Record<string, unknown>
@@ -93,11 +125,8 @@ export async function loadWorkflowFromNormalizedTablesRaw(
         .limit(1),
     ])
 
-    if (blocks.length === 0) {
-      return null
-    }
-
-    if (!workflowRow?.workspaceId) {
+    if (!workflowRow) return null
+    if (!workflowRow.workspaceId) {
       throw new Error(`Workflow ${workflowId} has no workspace`)
     }
 
@@ -158,13 +187,13 @@ export async function loadWorkflowFromNormalizedTablesRaw(
 
         const loop: Loop = {
           id: subflow.id,
-          nodes: Array.isArray((config as Loop).nodes) ? (config as Loop).nodes : [],
+          nodes: storedConfigNodes((config as Loop).nodes),
           iterations:
             typeof (config as Loop).iterations === 'number' ? (config as Loop).iterations : 1,
           loopType,
           forEachItems: (config as Loop).forEachItems ?? '',
-          whileCondition: (config as Loop).whileCondition ?? '',
-          doWhileCondition: (config as Loop).doWhileCondition ?? '',
+          whileCondition: storedConfigString((config as Loop).whileCondition),
+          doWhileCondition: storedConfigString((config as Loop).doWhileCondition),
           enabled: blocksMap[subflow.id]?.enabled ?? true,
         }
         loops[subflow.id] = loop
@@ -184,7 +213,7 @@ export async function loadWorkflowFromNormalizedTablesRaw(
       } else if (subflow.type === SUBFLOW_TYPES.PARALLEL) {
         const parallel: Parallel = {
           id: subflow.id,
-          nodes: Array.isArray((config as Parallel).nodes) ? (config as Parallel).nodes : [],
+          nodes: storedConfigNodes((config as Parallel).nodes),
           count: typeof (config as Parallel).count === 'number' ? (config as Parallel).count : 5,
           distribution: (config as Parallel).distribution ?? '',
           parallelType:

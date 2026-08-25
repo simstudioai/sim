@@ -5,6 +5,7 @@ import { createLogger } from '@sim/logger'
 import { describe, expect, it } from 'vitest'
 import {
   extractStorageKey,
+  extractWorkspaceIdFromStorageKey,
   getMimeTypeFromExtension,
   inferContextFromKey,
   isAbortError,
@@ -116,6 +117,36 @@ describe('inferContextFromKey', () => {
   it('throws for empty or unrecognized keys', () => {
     expect(() => inferContextFromKey('')).toThrow()
     expect(() => inferContextFromKey('mystery/x')).toThrow()
+  })
+})
+
+describe('extractWorkspaceIdFromStorageKey', () => {
+  const WORKSPACE_ID = '11111111-1111-4111-8111-111111111111'
+  const WORKFLOW_ID = '33333333-3333-4333-8333-333333333333'
+  const EXECUTION_ID = '44444444-4444-4444-8444-444444444444'
+
+  it('reads the workspace out of the two key layouts that name one', () => {
+    expect(
+      extractWorkspaceIdFromStorageKey(`workspace/${WORKSPACE_ID}/1700000000000-abc-x.pdf`)
+    ).toBe(WORKSPACE_ID)
+    expect(
+      extractWorkspaceIdFromStorageKey(
+        `execution/${WORKSPACE_ID}/${WORKFLOW_ID}/${EXECUTION_ID}/x.png`
+      )
+    ).toBe(WORKSPACE_ID)
+  })
+
+  it('returns null for key layouts that name no workspace', () => {
+    expect(extractWorkspaceIdFromStorageKey('chat/x')).toBeNull()
+    expect(extractWorkspaceIdFromStorageKey('kb/x')).toBeNull()
+    expect(extractWorkspaceIdFromStorageKey('copilot/x')).toBeNull()
+    expect(extractWorkspaceIdFromStorageKey('profile-pictures/x')).toBeNull()
+    expect(extractWorkspaceIdFromStorageKey('')).toBeNull()
+  })
+
+  it('refuses a workspace segment that is not a workspace id', () => {
+    expect(extractWorkspaceIdFromStorageKey('workspace/other-tenant/x.pdf')).toBeNull()
+    expect(extractWorkspaceIdFromStorageKey(`workspace/${WORKSPACE_ID}`)).toBeNull()
   })
 })
 

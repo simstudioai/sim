@@ -701,6 +701,7 @@ export async function getTagUsageStats(
   requestId: string
 ): Promise<
   Array<{
+    id: string
     tagSlot: string
     displayName: string
     fieldType: string
@@ -743,6 +744,7 @@ export async function getTagUsageStats(
       )
 
     stats.push({
+      id: def.id,
       tagSlot: def.tagSlot,
       displayName: def.displayName,
       fieldType: def.fieldType,

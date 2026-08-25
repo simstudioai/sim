@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   completeSession: vi.fn(),
   finalizePurpose: vi.fn(),
   getOwnedSession: vi.fn(),
+  getPrincipalSession: vi.fn(),
   reauthorizeWorkspacePurpose: vi.fn(),
 }))
 
@@ -19,7 +20,7 @@ vi.mock('@/lib/uploads/upload-session/service', () => ({
   createUploadPartUrls: vi.fn(),
   createUploadSession: vi.fn(),
   getOwnedUploadSession: mocks.getOwnedSession,
-  getPrincipalUploadSession: vi.fn(),
+  getPrincipalUploadSession: mocks.getPrincipalSession,
 }))
 
 vi.mock('@/app/api/files/uploads/finalizers', () => ({
@@ -36,7 +37,10 @@ vi.mock('@/app/api/files/uploads/purposes', () => ({
   resolveUploadAttributionUserId: vi.fn(),
 }))
 
-import { completeInternalUploadSession } from '@/lib/uploads/upload-session/application'
+import {
+  completeInternalUploadSession,
+  readWorkspaceUploadSession,
+} from '@/lib/uploads/upload-session/application'
 import type { UploadSessionRecord } from '@/lib/uploads/upload-session/service'
 
 const principal = {
@@ -55,6 +59,7 @@ describe('upload session application', () => {
       value: { id: 'file-1' },
       completedFileId: 'file-1',
     })
+    mocks.getPrincipalSession.mockResolvedValue(session)
     mocks.completeSession.mockImplementation(async ({ session: claimed, finalize }) => {
       const finalized = await finalize(claimed)
       return {
@@ -79,6 +84,37 @@ describe('upload session application', () => {
     expect(mocks.finalizePurpose).toHaveBeenCalledWith(
       expect.objectContaining({ actor, principal, request })
     )
+  })
+
+  /**
+   * The read is a control leg, so it re-authorizes the caller's present
+   * workspace permission rather than trusting the session lookup alone.
+   */
+  it('re-authorizes a session read against the read operation', async () => {
+    const session = await readWorkspaceUploadSession(principal, {
+      uploadId: 'upload-1',
+      workspaceId: 'workspace-1',
+      uploadToken: 'upload-token',
+    })
+
+    expect(session.id).toBe('upload-1')
+    expect(mocks.reauthorizeWorkspacePurpose).toHaveBeenCalledWith(
+      principal,
+      expect.objectContaining({ id: 'upload-1' }),
+      expect.objectContaining({ id: 'files.upload.read', minimumRole: 'read' })
+    )
+  })
+
+  it('does not return a session whose re-authorization fails', async () => {
+    mocks.reauthorizeWorkspacePurpose.mockRejectedValueOnce(new Error('Upload session not found'))
+
+    await expect(
+      readWorkspaceUploadSession(principal, {
+        uploadId: 'upload-1',
+        workspaceId: 'workspace-1',
+        uploadToken: 'upload-token',
+      })
+    ).rejects.toThrow('Upload session not found')
   })
 })
 

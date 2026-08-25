@@ -909,6 +909,30 @@ describe('restoreFolder', () => {
     expect(dbChainMockFns.set).toHaveBeenCalledWith({ name: 'Reports (1)' })
   })
 
+  /**
+   * `projectAudit: false` is for an application use case that records `FOLDER_RESTORED`
+   * itself against the acting `Principal` — the `actorId: userId` entry here cannot express
+   * a non-human one, and both firing would double-count the restore.
+   */
+  it('suppresses its own audit entry when the caller projects one', async () => {
+    queueTableRows(schemaMock.folder, [folderRow({ deletedAt: ARCHIVED_AT })])
+
+    const result = await restoreFolder(baseRestore, { projectAudit: false })
+
+    expect(result.success).toBe(true)
+    expect(auditMock.recordAudit).not.toHaveBeenCalled()
+  })
+
+  it('records its own audit entry by default', async () => {
+    queueTableRows(schemaMock.folder, [folderRow({ deletedAt: ARCHIVED_AT })])
+
+    await restoreFolder(baseRestore)
+
+    expect(auditMock.recordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({ action: auditMock.AuditAction.FOLDER_RESTORED })
+    )
+  })
+
   it('leaves the name alone when nothing took it', async () => {
     queueTableRows(schemaMock.folder, [folderRow({ deletedAt: ARCHIVED_AT })])
 

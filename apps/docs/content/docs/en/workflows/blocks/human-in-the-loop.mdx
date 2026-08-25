@@ -174,7 +174,7 @@ Access resume data in downstream blocks using `<blockId.fieldName>`.
 
 ## API Execute Behavior
 
-When triggering a workflow through `POST /api/v2/workflows/{id}/execute`, HITL blocks cause the execution to pause and return the `_resume` data in the v2 response envelope. The legacy `POST /api/workflows/{id}/execute` endpoint remains available for existing integrations.
+When triggering a workflow through `POST /api/v2/workflows/{workflowId}/execute`, HITL blocks cause the execution to pause and return the `_resume` data in the v2 response envelope. The legacy `POST /api/workflows/{id}/execute` endpoint remains available for existing integrations.
 
 <Tabs items={['Sync (JSON)', 'Stream (SSE)', 'Async']}>
   <Tab>

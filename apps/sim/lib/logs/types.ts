@@ -230,6 +230,12 @@ export const PERSISTED_WORKFLOW_EXECUTION_STATUSES = [
 export type PersistedWorkflowExecutionStatus =
   (typeof PERSISTED_WORKFLOW_EXECUTION_STATUSES)[number]
 
+/** Narrows an already-validated status string onto the persisted vocabulary. */
+export function isPersistedWorkflowExecutionStatus(
+  value: string
+): value is PersistedWorkflowExecutionStatus {
+  return (PERSISTED_WORKFLOW_EXECUTION_STATUSES as readonly string[]).includes(value)
+}
 /**
  * In-flight statuses a crashed worker can strand, which the stale-execution
  * cron terminalizes. `pending` and `paused` are excluded: both are written as

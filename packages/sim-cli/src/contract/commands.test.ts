@@ -219,6 +219,19 @@ describe('folder-path fields', () => {
     expect(paths).toContain('providerId')
   })
 
+  /**
+   * `knowledge chunks batch-update --operation delete` reaches the same
+   * destructive path as the singular `knowledge chunks delete`, which is
+   * gated. Only the singular form was, so the bulk form deleted without one.
+   * The sibling document batch-update stays ungated: it only enables and
+   * disables.
+   */
+  it('gates every batch command whose operation set can delete', () => {
+    expect(CLI_CONTRACT.bulkUpdateKnowledgeChunks?.confirm).toBeTruthy()
+    expect(CLI_CONTRACT.deleteKnowledgeChunk?.confirm).toBeTruthy()
+    expect(CLI_CONTRACT.bulkUpdateKnowledgeDocuments?.confirm).toBeUndefined()
+  })
+
   it('mentions the variable that moves the profile files, since help names a path', () => {
     // The epilogue states where the files live, and SIM_CONFIG_DIR moves both.
     // Naming only ~/.sim made help wrong for anyone who had set it — including

@@ -232,6 +232,62 @@ describe('listWorkspaceAndLegacyKnowledgeBases', () => {
  * be able to clear `workspaceId` (which would orphan the KB to its original
  * `userId`, who may not be the caller).
  */
+describe('updateKnowledgeBase — chunking config persistence', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    dbChainMockFns.limit.mockReset()
+    resetDbChainMock()
+    dbChainMockFns.limit.mockResolvedValue([{ workspaceId: 'ws-current', userId: 'u-1' }])
+  })
+
+  /**
+   * The strategy fields are the half a `{ maxSize, minSize, overlap }` shape
+   * cannot describe, so they are what a narrower write type — or a destructure
+   * of only those three — drops. Nothing downstream re-derives them.
+   */
+  it('persists every declared chunking field, strategy included', async () => {
+    await updateKnowledgeBase(
+      'kb-1',
+      {
+        chunkingConfig: {
+          maxSize: 512,
+          minSize: 50,
+          overlap: 100,
+          strategy: 'markdown',
+          strategyOptions: { headingDepth: 3 },
+        },
+      },
+      'req-1'
+    )
+
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        chunkingConfig: {
+          maxSize: 512,
+          minSize: 50,
+          overlap: 100,
+          strategy: 'markdown',
+          strategyOptions: { headingDepth: 3 },
+        },
+      })
+    )
+  })
+
+  it('omits the strategy fields a caller did not set', async () => {
+    await updateKnowledgeBase(
+      'kb-1',
+      { chunkingConfig: { maxSize: 512, minSize: 50, overlap: 100 } },
+      'req-1'
+    )
+
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        chunkingConfig: { maxSize: 512, minSize: 50, overlap: 100 },
+      })
+    )
+  })
+})
+
 describe('updateKnowledgeBase — workspace transfer authorization', () => {
   beforeEach(() => {
     vi.clearAllMocks()

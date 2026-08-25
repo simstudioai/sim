@@ -20,8 +20,8 @@ const SELECTOR_HOOKS_DIR = path.join(ROOT, 'apps/sim/hooks/selectors')
  * file whose other seven baselines depend on that habit holding.
  */
 const BASELINE = {
-  totalRoutes: 1162,
-  zodRoutes: 1162,
+  totalRoutes: 1201,
+  zodRoutes: 1201,
   nonZodRoutes: 0,
 } as const
 

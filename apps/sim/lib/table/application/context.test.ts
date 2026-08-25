@@ -14,7 +14,10 @@ vi.mock('@/lib/workspaces/application/workspace-context', () => ({
   loadActiveWorkspaceApplicationContext: loadWorkspace,
 }))
 
-import { resolveActiveTableContext } from '@/lib/table/application/context'
+import {
+  resolveActiveTableContext,
+  resolveArchivedTableContext,
+} from '@/lib/table/application/context'
 
 const WORKSPACE_ONE = {
   workspaceId: 'workspace-1',
@@ -221,5 +224,56 @@ describe('table application context', () => {
     })
 
     expect(unhandled).toEqual([])
+  })
+})
+
+/**
+ * Restore is the one table operation whose subject is deliberately archived, so
+ * it needs a resolver the active one cannot provide — while keeping the same
+ * cross-workspace concealment.
+ */
+describe('resolveArchivedTableContext', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    loadWorkspace.mockResolvedValue(WORKSPACE_ONE)
+  })
+
+  it('loads a table the active resolver would report as missing', async () => {
+    const archived = {
+      id: 'table-1',
+      workspaceId: 'workspace-1',
+      archivedAt: new Date('2026-01-01'),
+    }
+    getTableById.mockResolvedValue(archived)
+
+    const context = await resolveArchivedTableContext({
+      tableId: 'table-1',
+      assertedWorkspaceId: 'workspace-1',
+    })
+
+    expect(getTableById).toHaveBeenCalledWith('table-1', { includeArchived: true })
+    expect(context.table).toBe(archived)
+    expect(context.workspaceId).toBe('workspace-1')
+  })
+
+  it('conceals an archived table in another workspace as not found', async () => {
+    getTableById.mockResolvedValue({
+      id: 'table-1',
+      workspaceId: 'workspace-2',
+      archivedAt: new Date('2026-01-01'),
+    })
+
+    await expect(
+      resolveArchivedTableContext({ tableId: 'table-1', assertedWorkspaceId: 'workspace-1' })
+    ).rejects.toMatchObject({ code: 'not_found' })
+    expect(loadWorkspace).not.toHaveBeenCalled()
+  })
+
+  it('reports a table id that resolves to nothing as not found', async () => {
+    getTableById.mockResolvedValue(null)
+
+    await expect(
+      resolveArchivedTableContext({ tableId: 'ghost', assertedWorkspaceId: 'workspace-1' })
+    ).rejects.toMatchObject({ code: 'not_found' })
   })
 })

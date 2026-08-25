@@ -170,7 +170,7 @@ export interface SkillSummaryPage {
  * keyset over `skill` columns therefore cannot express a position inside the
  * merged sequence — under `createdAt asc` the epoch-stamped built-ins all sort
  * ahead of every DB row and a SQL cursor would skip or repeat them. So this
- * follows the offset-cursor pattern that `GET /api/v2/knowledge/[id]/documents`
+ * follows the offset-cursor pattern that `GET /api/v2/knowledge/[knowledgeBaseId]/documents`
  * already uses.
  *
  * The consequence of that merge is that the DB half is read whole on every

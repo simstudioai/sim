@@ -6,10 +6,7 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
-import {
-  resolveActiveWorkflowApplicationContext,
-  resolveActiveWorkspaceApplicationContext,
-} from '@/lib/workflows/application/context'
+import { resolveActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import {
   resolveWorkflowFolderPath,
@@ -24,6 +21,7 @@ import {
   type ImportedWorkflow,
   importWorkflowIntoWorkspaceTransition,
 } from '@/lib/workflows/operations/import-workflow'
+import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
 
 export interface ImportWorkflowInput {
   workspaceId: string

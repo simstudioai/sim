@@ -25,6 +25,7 @@ import {
   PROVIDER_DEFINITIONS,
   SIM_AUTO_MODEL_ID,
 } from '@/providers/models'
+import { deriveHostedApiKeySupport } from '@/tools/hosted-api-key'
 import type { ToolConfig, ToolHostingCondition } from '@/tools/types'
 import { buildSlackManifest, SLACK_CAPABILITIES } from '@/triggers/slack/capabilities'
 import { buildSlackCustomBotRequestUrl } from '@/triggers/webhook-url'
@@ -593,11 +594,16 @@ function serializeSubBlock(sb: SubBlockConfig): Record<string, unknown> {
   if (sb.mode) result.mode = sb.mode
   if (sb.canonicalParamId) result.canonicalParamId = sb.canonicalParamId
   if (sb.condition && typeof sb.condition !== 'function') result.condition = sb.condition
-  if (sb.dependsOn) result.dependsOn = sb.dependsOn
+  // Copied, not aliased: these are the registry's own arrays, shared by every
+  // request in the process, so publishing one puts mutable registry state a
+  // single careless consumer away from corruption. The catalog projection this
+  // serializer parallels copies every array it publishes for the same reason.
+  if (sb.dependsOn)
+    result.dependsOn = Array.isArray(sb.dependsOn) ? [...sb.dependsOn] : sb.dependsOn
 
   // Include static options arrays for dropdowns
   if (Array.isArray(sb.options)) {
-    result.options = sb.options
+    result.options = [...sb.options]
   }
 
   return result
@@ -1146,7 +1152,10 @@ export function serializeIntegrationSchema(
       // field and load it" matches the callable tool and the block's tools.access.
       id: tool.id,
       name: tool.name,
-      description: getCopilotToolDescription(tool, { isHosted: hosted }),
+      description: getCopilotToolDescription(tool, {
+        isHosted: hosted,
+        hostedApiKey: deriveHostedApiKeySupport(tool.hosting),
+      }),
       version: tool.version,
       auth,
       oauth:

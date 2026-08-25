@@ -56,6 +56,13 @@ export interface ExtractWorkspaceFileInput {
 
 export interface ExtractWorkspaceFileResult {
   folderName: string
+  /**
+   * Internal display path of the destination folder, in the same
+   * `Parent/Child` form the folder manager stores. Surfaces that address
+   * folders by path project it themselves; the resolved name can differ from
+   * the requested one when a sibling folder already claimed it.
+   */
+  folderDisplayPath: string
   extractedCount: number
   skippedCount: number
 }
@@ -180,6 +187,7 @@ async function extractWorkspaceFileContents({
 
     return {
       folderName: rootFolder?.name ?? folderName,
+      folderDisplayPath: rootFolder?.path ?? folderName,
       extractedCount: result.extracted.length,
       skippedCount: result.skipped,
     }
@@ -226,6 +234,7 @@ export const extractWorkspaceFile = defineAuthorizedWorkspaceFileUseCase({
     description: `Unzipped workspace file ${context.fileId}`,
     metadata: {
       destinationFolder: result.folderName,
+      destinationFolderPath: result.folderDisplayPath,
       extractedCount: result.extractedCount,
       skippedCount: result.skippedCount,
     },
