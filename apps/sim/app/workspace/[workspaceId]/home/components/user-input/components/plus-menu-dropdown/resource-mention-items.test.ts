@@ -6,6 +6,7 @@ import {
 import type { AvailableItem } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown/resource-folder-tree'
 import {
   buildMentionPreview,
+  prioritizeWorkflowMentionGroup,
   resourceMentionMatches,
   withDesktopTabMentions,
 } from '@/app/workspace/[workspaceId]/home/components/user-input/components/plus-menu-dropdown/resource-mention-items'
@@ -156,5 +157,18 @@ describe('buildMentionPreview', () => {
   it('keeps a family shorter than the cap intact', () => {
     const preview = buildMentionPreview([{ type: 'workflow', items: many(2) }], () => 5)
     expect(preview).toHaveLength(2)
+  })
+})
+
+describe('prioritizeWorkflowMentionGroup', () => {
+  it('places workflows before logs without changing the surrounding resource order', () => {
+    const ordered = prioritizeWorkflowMentionGroup([
+      { type: 'task', items: [{ id: 'chat-1', name: 'Glean migration' }] },
+      { type: 'log', items: [{ id: 'log-1', name: 'Glean' }] },
+      { type: 'workflow', items: [{ id: 'workflow-1', name: 'Glean' }] },
+      { type: 'browser', items: [{ id: 'browser', name: 'Browser' }] },
+    ])
+
+    expect(ordered.map((group) => group.type)).toEqual(['task', 'workflow', 'log', 'browser'])
   })
 })
