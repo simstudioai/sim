@@ -9,7 +9,7 @@ export const appendTool: ToolConfig<MicrosoftWordToolParams, MicrosoftWordUpdate
   id: 'microsoft_word_append',
   name: 'Append to Microsoft Word Document',
   description:
-    'Append plain-text paragraphs to the end of an existing Microsoft Word (.docx) document, leaving the existing content and formatting intact.',
+    'Append plain-text paragraphs to the end of an existing Microsoft Word (.docx) document, leaving the existing content and formatting intact. Fails rather than overwriting if someone else changed the document while the edit was in flight.',
   version: '1.0',
   errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
 

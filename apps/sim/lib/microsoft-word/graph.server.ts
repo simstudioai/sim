@@ -14,8 +14,26 @@ interface GraphDriveItem {
   webUrl?: string
   createdDateTime?: string
   lastModifiedDateTime?: string
+  /** An eTag for the item's content, unchanged when only metadata changes. */
+  cTag?: string
+  /** An eTag for the whole item, metadata included. */
+  eTag?: string
   file?: { mimeType?: string }
   folder?: Record<string, unknown>
+}
+
+/**
+ * The token that identifies the exact content an edit was based on.
+ *
+ * `cTag` is the right one: Graph documents it as "an eTag for the content of the
+ * item" that does not move when only metadata changes, so a rename will not
+ * spuriously abort an edit. `eTag` is the fallback for the shapes where Graph
+ * omits `cTag`.
+ *
+ * @see https://learn.microsoft.com/en-us/graph/api/resources/driveitem
+ */
+export function getContentTag(item: GraphDriveItem): string | undefined {
+  return item.cTag ?? item.eTag
 }
 
 /** Thrown when Microsoft Graph rejects a request, carrying its HTTP status. */
@@ -143,16 +161,57 @@ export async function downloadConvertedContent(
   return Buffer.from(await response.arrayBuffer())
 }
 
+/** Message shown when someone else changed the document mid-edit. */
+const CONFLICT_MESSAGE =
+  'The document changed in OneDrive or SharePoint after Sim read it, so the edit was not applied and no other change was overwritten. Run the operation again to edit the current version.'
+
+/** Raised instead of overwriting a document that changed since it was read. */
+export function documentChangedError(): GraphRequestError {
+  return new GraphRequestError(CONFLICT_MESSAGE, 409)
+}
+
+/**
+ * Aborts a read-modify-write when the document's content changed since it was
+ * read. Without this, two overlapping edits both succeed and the later upload
+ * silently discards the earlier one.
+ *
+ * `expected` being undefined means Graph returned neither tag for this item, so
+ * there is nothing to compare and the caller proceeds unguarded — the
+ * `if-match` header on the upload is the remaining line of defense.
+ */
+export async function assertContentUnchanged(
+  basePath: string,
+  accessToken: string,
+  expected: string | undefined
+): Promise<void> {
+  if (!expected) return
+
+  const current = getContentTag(await fetchDocumentItem(basePath, accessToken))
+  if (current && current !== expected) {
+    throw documentChangedError()
+  }
+}
+
 /**
  * Uploads bytes as a drive item's content and returns the resulting item.
  *
+ * `ifMatch` carries the content tag the upload is based on. Graph documents
+ * `if-match` (and its `412 Precondition Failed` response) on the metadata
+ * update, not on this content endpoint, so it is sent as a second line of
+ * defense rather than the guarantee: an `If-Match` a server does not implement
+ * is ignored, and the caller's {@link assertContentUnchanged} check is what
+ * actually decides whether the write is safe. A `412` is surfaced as the same
+ * conflict either way.
+ *
  * @see https://learn.microsoft.com/en-us/graph/api/driveitem-put-content
+ * @see https://learn.microsoft.com/en-us/graph/api/driveitem-update
  */
 export async function uploadDocumentContent(
   url: string,
   accessToken: string,
   content: Buffer,
-  mimeType: string
+  mimeType: string,
+  ifMatch?: string
 ): Promise<GraphDriveItem> {
   const response = await graphFetch(url, 'documentUploadUrl', {
     method: 'PUT',
@@ -160,10 +219,14 @@ export async function uploadDocumentContent(
       Authorization: `Bearer ${accessToken}`,
       'Content-Type': mimeType,
       'Content-Length': String(content.length),
+      ...(ifMatch ? { 'if-match': ifMatch } : {}),
     },
     body: content,
   })
 
+  if (response.status === 412) {
+    throw documentChangedError()
+  }
   if (!response.ok) await raiseGraphError(response)
 
   return (await response.json()) as GraphDriveItem

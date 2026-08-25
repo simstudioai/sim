@@ -12,7 +12,7 @@ export const replaceTextTool: ToolConfig<
   id: 'microsoft_word_replace_text',
   name: 'Replace Text in Microsoft Word Document',
   description:
-    'Find and replace text throughout a Microsoft Word (.docx) document, including its headers and footers. Use this to fill placeholders in a template document.',
+    'Find and replace text throughout a Microsoft Word (.docx) document, including its headers and footers. Use this to fill placeholders in a template document. Fails rather than overwriting if someone else changed the document while the edit was in flight.',
   version: '1.0',
   errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
 

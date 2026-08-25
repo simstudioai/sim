@@ -79,7 +79,7 @@ Integrate Microsoft Word into the workflow. Create .docx documents from text, fi
 
 ### Create Microsoft Word Document
 
-Create a new Microsoft Word (.docx) document in OneDrive or SharePoint from text content. Supports Markdown headings (# ## ###), bullets (-), and inline **bold** / *italic*.
+Create a new Microsoft Word (.docx) document in OneDrive or SharePoint from text content. Supports Markdown headings (# ## ###), bullets (-), and inline **bold** / *italic*. An existing document with the same name is never overwritten — the new one is given a unique name instead.
 
 #### Input
 
@@ -105,7 +105,7 @@ Create a new Microsoft Word (.docx) document in OneDrive or SharePoint from text
 
 ### Create Microsoft Word Document from Template
 
-Copy an existing Microsoft Word (.docx) template to a new document and fill its placeholders. The template keeps all of its formatting, styles, headers, and footers, and is never modified.
+Copy an existing Microsoft Word (.docx) template to a new document and fill its placeholders. The template keeps all of its formatting, styles, headers, and footers, and is never modified. An existing document with the same name is never overwritten — the new one is given a unique name instead.
 
 #### Input
 
@@ -185,7 +185,7 @@ Replace the entire contents of an existing Microsoft Word (.docx) document with 
 
 ### Append to Microsoft Word Document
 
-Append plain-text paragraphs to the end of an existing Microsoft Word (.docx) document, leaving the existing content and formatting intact.
+Append plain-text paragraphs to the end of an existing Microsoft Word (.docx) document, leaving the existing content and formatting intact. Fails rather than overwriting if someone else changed the document while the edit was in flight.
 
 #### Input
 
@@ -211,7 +211,7 @@ Append plain-text paragraphs to the end of an existing Microsoft Word (.docx) do
 
 ### Replace Text in Microsoft Word Document
 
-Find and replace text throughout a Microsoft Word (.docx) document, including its headers and footers. Use this to fill placeholders in a template document.
+Find and replace text throughout a Microsoft Word (.docx) document, including its headers and footers. Use this to fill placeholders in a template document. Fails rather than overwriting if someone else changed the document while the edit was in flight.
 
 #### Input
 

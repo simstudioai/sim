@@ -67,3 +67,17 @@ export function ensureDocxExtension(name: string): string {
   const trimmed = name.trim()
   return trimmed.toLowerCase().endsWith('.docx') ? trimmed : `${trimmed}.docx`
 }
+
+/**
+ * Builds the path-addressed content-upload URL for a new document.
+ *
+ * `@microsoft.graph.conflictBehavior` is pinned to `rename` because PUT defaults
+ * to `replace`, which would let a create silently destroy an existing document
+ * that happens to share the name. Renaming never loses data, and the caller
+ * learns the name Graph actually used from the returned item.
+ *
+ * @see https://learn.microsoft.com/en-us/graph/api/resources/driveitem
+ */
+export function buildCreateUploadUrl(parentPath: string, fileName: string): string {
+  return `${parentPath}:/${encodeURIComponent(fileName)}:/content?%40microsoft.graph.conflictBehavior=rename`
+}

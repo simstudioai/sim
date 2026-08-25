@@ -9,7 +9,7 @@ export const createTool: ToolConfig<MicrosoftWordToolParams, MicrosoftWordCreate
   id: 'microsoft_word_create',
   name: 'Create Microsoft Word Document',
   description:
-    'Create a new Microsoft Word (.docx) document in OneDrive or SharePoint from text content. Supports Markdown headings (# ## ###), bullets (-), and inline **bold** / *italic*.',
+    'Create a new Microsoft Word (.docx) document in OneDrive or SharePoint from text content. Supports Markdown headings (# ## ###), bullets (-), and inline **bold** / *italic*. An existing document with the same name is never overwritten — the new one is given a unique name instead.',
   version: '1.0',
   errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
 

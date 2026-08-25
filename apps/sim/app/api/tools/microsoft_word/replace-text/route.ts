@@ -7,8 +7,10 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { DOCX_MIME_TYPE, replaceTextInDocx } from '@/lib/microsoft-word/document.server'
 import {
+  assertContentUnchanged,
   downloadDocumentContent,
   fetchDocumentItem,
+  getContentTag,
   toDocumentMetadata,
   uploadDocumentContent,
 } from '@/lib/microsoft-word/graph.server'
@@ -44,6 +46,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const basePath = getDocumentBasePath(documentId, driveId ?? undefined)
     const existingItem = await fetchDocumentItem(basePath, accessToken)
+    const contentTag = getContentTag(existingItem)
 
     const existingBuffer = await downloadDocumentContent(basePath, accessToken)
     const { buffer, occurrencesChanged } = await replaceTextInDocx(
@@ -63,11 +66,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       })
     }
 
+    await assertContentUnchanged(basePath, accessToken, contentTag)
+
     const item = await uploadDocumentContent(
       `${basePath}/content`,
       accessToken,
       buffer,
-      DOCX_MIME_TYPE
+      DOCX_MIME_TYPE,
+      contentTag
     )
 
     logger.info(`[${requestId}] Replaced text in Word document`, {

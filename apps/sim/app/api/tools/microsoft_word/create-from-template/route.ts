@@ -18,6 +18,7 @@ import {
 } from '@/lib/microsoft-word/graph.server'
 import { microsoftWordErrorResponse } from '@/app/api/tools/microsoft_word/utils'
 import {
+  buildCreateUploadUrl,
   ensureDocxExtension,
   getDocumentBasePath,
   getDriveBasePath,
@@ -71,7 +72,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const parentPath = folderId?.trim()
       ? getFolderBasePath(folderId, driveId ?? undefined)
       : `${getDriveBasePath(driveId ?? undefined)}/root`
-    const uploadUrl = `${parentPath}:/${encodeURIComponent(fileName)}:/content`
+    const uploadUrl = buildCreateUploadUrl(parentPath, fileName)
 
     const item = await uploadDocumentContent(uploadUrl, accessToken, filled.buffer, DOCX_MIME_TYPE)
 

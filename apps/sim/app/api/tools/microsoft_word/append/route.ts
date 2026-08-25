@@ -7,8 +7,10 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { appendParagraphsToDocx, DOCX_MIME_TYPE } from '@/lib/microsoft-word/document.server'
 import {
+  assertContentUnchanged,
   downloadDocumentContent,
   fetchDocumentItem,
+  getContentTag,
   toDocumentMetadata,
   uploadDocumentContent,
 } from '@/lib/microsoft-word/graph.server'
@@ -42,16 +44,19 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
   try {
     const basePath = getDocumentBasePath(documentId, driveId ?? undefined)
-    await fetchDocumentItem(basePath, accessToken)
+    const contentTag = getContentTag(await fetchDocumentItem(basePath, accessToken))
 
     const existingBuffer = await downloadDocumentContent(basePath, accessToken)
     const updatedBuffer = await appendParagraphsToDocx(existingBuffer, content)
+
+    await assertContentUnchanged(basePath, accessToken, contentTag)
 
     const item = await uploadDocumentContent(
       `${basePath}/content`,
       accessToken,
       updatedBuffer,
-      DOCX_MIME_TYPE
+      DOCX_MIME_TYPE,
+      contentTag
     )
 
     logger.info(`[${requestId}] Appended to Word document`, { documentId, size: item.size })
