@@ -137,6 +137,7 @@ export const adminV1TransferOwnershipBodySchema = z.object({
 const adminV1OrganizationMemberMutationResultSchema = adminV1MemberSchema.extend({
   action: z.enum(['created', 'updated', 'already_member']),
   billingActions: z.object({
+    /** @deprecated Always false — ledger entity stamps replaced join-time snapshots. */
     proUsageSnapshotted: z.boolean(),
     proCancelledAtPeriodEnd: z.boolean(),
   }),
@@ -147,9 +148,10 @@ const adminV1RemoveOrganizationMemberResultSchema = z.object({
   memberId: z.string(),
   userId: z.string(),
   billingActions: z.object({
-    /** Dollar amount of departed-member usage captured (0 when none). */
+    /** @deprecated Always 0 — a departed member's ledger rows stay stamped to the org's period. */
     usageCaptured: z.number(),
     proRestored: z.boolean(),
+    /** @deprecated Always false — no snapshot exists to restore. */
     usageRestored: z.boolean(),
     skipBillingLogic: z.boolean(),
   }),

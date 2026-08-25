@@ -520,6 +520,7 @@ export const schemaMock = {
     trialStart: 'subscription.trialStart',
     trialEnd: 'subscription.trialEnd',
     metadata: 'subscription.metadata',
+    lastClosedPeriodStart: 'subscription.lastClosedPeriodStart',
   },
   rateLimitBucket: {
     key: 'rateLimitBucket.key',
