@@ -4,6 +4,7 @@ import { googleAnalyticsPropertiesSelectorContract } from '@/lib/api/contracts/s
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { readResponseTextWithLimit } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   refreshAccessTokenIfNeeded,
@@ -15,6 +16,9 @@ import { getScopesForService } from '@/lib/oauth/utils'
 const logger = createLogger('GoogleAnalyticsPropertiesAPI')
 
 export const dynamic = 'force-dynamic'
+
+/** Provider error bodies are echoed into logs and the response, so cap what we read. */
+const MAX_ERROR_BODY_BYTES = 32 * 1024
 
 const MAX_ACCOUNT_SUMMARY_PAGES = 10
 const ACCOUNT_SUMMARY_PAGE_SIZE = 200
@@ -86,7 +90,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    const { items } = await drainGooglePagedList<AccountSummary, AccountSummariesResponse>({
+    const { items, truncated } = await drainGooglePagedList<
+      AccountSummary,
+      AccountSummariesResponse
+    >({
       buildUrl: (pageToken) => {
         const url = new URL('https://analyticsadmin.googleapis.com/v1beta/accountSummaries')
         url.searchParams.set('pageSize', String(ACCOUNT_SUMMARY_PAGE_SIZE))
@@ -100,7 +107,20 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
             'Content-Type': 'application/json',
           },
         }),
-      parseError: (response) => response.json().catch(() => ({})),
+      parseError: async (response) => {
+        try {
+          return JSON.parse(
+            await readResponseTextWithLimit(response, {
+              maxBytes: MAX_ERROR_BODY_BYTES,
+              label: 'Google Analytics account summaries error',
+            })
+          )
+        } catch {
+          // An oversized or unparseable provider error must not be materialized into
+          // the log and the response body; the status alone is still actionable.
+          return { error: `Provider returned status ${response.status}` }
+        }
+      },
       getItems: (body) => body.accountSummaries,
       getNextPageToken: (body) => body.nextPageToken,
       maxPages: MAX_ACCOUNT_SUMMARY_PAGES,
@@ -121,7 +141,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     )
 
-    return NextResponse.json({ properties })
+    if (truncated) {
+      logger.warn('Hit the Google Analytics pagination cap; the properties picker is incomplete', {
+        returned: properties.length,
+      })
+    }
+
+    return NextResponse.json({ properties, truncated })
   } catch (error) {
     if (error instanceof GooglePageError) {
       logger.error('Failed to fetch Google Analytics properties', {

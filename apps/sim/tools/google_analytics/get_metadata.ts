@@ -1,8 +1,9 @@
 import {
   extractGoogleApiError,
+  type GoogleAnalyticsDimensionMetadata,
   type GoogleAnalyticsGetMetadataParams,
   type GoogleAnalyticsGetMetadataResponse,
-  type GoogleAnalyticsMetadataField,
+  type GoogleAnalyticsMetricMetadata,
   normalizePropertyName,
   toBooleanParam,
 } from '@/tools/google_analytics/types'
@@ -12,24 +13,36 @@ interface RawMetadataField {
   apiName?: string
   uiName?: string
   description?: string
-  type?: string
-  dataType?: string
+  category?: string
   customDefinition?: boolean
   deprecatedApiNames?: string[]
 }
 
-/**
- * Normalizes a DimensionMetadata or MetricMetadata entry. Dimensions expose their
- * value type as `dataType`, metrics as `type`; both land on a single `type` field.
- */
-function toMetadataField(raw: RawMetadataField): GoogleAnalyticsMetadataField {
+interface RawMetricMetadata extends RawMetadataField {
+  type?: string
+  expression?: string
+}
+
+function toBaseField(raw: RawMetadataField) {
   return {
     apiName: raw.apiName ?? '',
     uiName: raw.uiName ?? null,
     description: raw.description ?? null,
-    type: raw.type ?? raw.dataType ?? null,
+    category: raw.category ?? null,
     customDefinition: raw.customDefinition ?? false,
     deprecatedApiNames: raw.deprecatedApiNames ?? [],
+  }
+}
+
+function toDimensionMetadata(raw: RawMetadataField): GoogleAnalyticsDimensionMetadata {
+  return toBaseField(raw)
+}
+
+function toMetricMetadata(raw: RawMetricMetadata): GoogleAnalyticsMetricMetadata {
+  return {
+    ...toBaseField(raw),
+    type: raw.type ?? null,
+    expression: raw.expression ?? null,
   }
 }
 
@@ -102,14 +115,14 @@ export const googleAnalyticsGetMetadataTool: ToolConfig<
       }
     }
 
-    let dimensions = (data.dimensions ?? []).map(toMetadataField)
-    let metrics = (data.metrics ?? []).map(toMetadataField)
+    let dimensions: GoogleAnalyticsDimensionMetadata[] = (data.dimensions ?? []).map(
+      toDimensionMetadata
+    )
+    let metrics: GoogleAnalyticsMetricMetadata[] = (data.metrics ?? []).map(toMetricMetadata)
 
     if (toBooleanParam(params?.customOnly)) {
-      dimensions = dimensions.filter(
-        (field: GoogleAnalyticsMetadataField) => field.customDefinition
-      )
-      metrics = metrics.filter((field: GoogleAnalyticsMetadataField) => field.customDefinition)
+      dimensions = dimensions.filter((field) => field.customDefinition)
+      metrics = metrics.filter((field) => field.customDefinition)
     }
 
     return {
@@ -144,7 +157,11 @@ export const googleAnalyticsGetMetadataTool: ToolConfig<
             description: 'What the dimension measures',
             nullable: true,
           },
-          type: { type: 'string', description: 'Value data type', nullable: true },
+          category: {
+            type: 'string',
+            description: 'Grouping the dimension belongs to, e.g. Page / Screen',
+            nullable: true,
+          },
           customDefinition: {
             type: 'boolean',
             description: 'Whether this is a property-specific custom dimension',
@@ -167,7 +184,17 @@ export const googleAnalyticsGetMetadataTool: ToolConfig<
           apiName: { type: 'string', description: 'Name used in report requests' },
           uiName: { type: 'string', description: 'Name shown in the GA4 UI', nullable: true },
           description: { type: 'string', description: 'What the metric measures', nullable: true },
-          type: { type: 'string', description: 'Value data type', nullable: true },
+          type: { type: 'string', description: 'Metric value type', nullable: true },
+          expression: {
+            type: 'string',
+            description: 'Formula for a derived metric',
+            nullable: true,
+          },
+          category: {
+            type: 'string',
+            description: 'Grouping the metric belongs to, e.g. Session',
+            nullable: true,
+          },
           customDefinition: {
             type: 'boolean',
             description: 'Whether this is a property-specific custom metric',

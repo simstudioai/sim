@@ -90,6 +90,18 @@ export function toBooleanParam(value: unknown): boolean | undefined {
 }
 
 /**
+ * Normalizes an optional numeric param. An untouched sub-block resolves to `null`
+ * and an emptied one to `''`; both are omissions, so `!== undefined` alone would
+ * serialize the string `"null"` into a query string or a JSON null into a body.
+ * An explicit `0` is meaningful and is preserved.
+ */
+export function toOptionalNumberParam(value: unknown): number | undefined {
+  if (value == null || value === '') return undefined
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : undefined
+}
+
+/**
  * Validates the `metricAggregations` list. Without at least one aggregation GA4
  * returns no `totals`, `maximums`, or `minimums` rows at all.
  */
@@ -308,20 +320,31 @@ export interface GoogleAnalyticsGetMetadataParams extends GoogleAnalyticsBasePar
   customOnly?: boolean
 }
 
-export interface GoogleAnalyticsMetadataField {
+interface GoogleAnalyticsMetadataFieldBase {
   apiName: string
   uiName: string | null
   description: string | null
-  type: string | null
+  category: string | null
   customDefinition: boolean
   deprecatedApiNames: string[]
+}
+
+/**
+ * `DimensionMetadata` carries no value-type field — unlike `MetricMetadata`, which
+ * has `type`. Dimensions are always string-valued, so there is nothing to report.
+ */
+export type GoogleAnalyticsDimensionMetadata = GoogleAnalyticsMetadataFieldBase
+
+export interface GoogleAnalyticsMetricMetadata extends GoogleAnalyticsMetadataFieldBase {
+  type: string | null
+  expression: string | null
 }
 
 export interface GoogleAnalyticsGetMetadataResponse extends ToolResponse {
   output: {
     name: string | null
-    dimensions: GoogleAnalyticsMetadataField[]
-    metrics: GoogleAnalyticsMetadataField[]
+    dimensions: GoogleAnalyticsDimensionMetadata[]
+    metrics: GoogleAnalyticsMetricMetadata[]
     totalDimensions: number
     totalMetrics: number
   }

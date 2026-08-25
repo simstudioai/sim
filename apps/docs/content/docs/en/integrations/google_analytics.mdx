@@ -207,14 +207,16 @@ List the dimensions and metrics available for reporting on a Google Analytics 4 
 |   ↳ `apiName` | string | Name used in report requests |
 |   ↳ `uiName` | string | Name shown in the GA4 UI |
 |   ↳ `description` | string | What the dimension measures |
-|   ↳ `type` | string | Value data type |
+|   ↳ `category` | string | Grouping the dimension belongs to, e.g. Page / Screen |
 |   ↳ `customDefinition` | boolean | Whether this is a property-specific custom dimension |
 |   ↳ `deprecatedApiNames` | array | Still-accepted deprecated names |
 | `metrics` | array | Metrics available for reporting |
 |   ↳ `apiName` | string | Name used in report requests |
 |   ↳ `uiName` | string | Name shown in the GA4 UI |
 |   ↳ `description` | string | What the metric measures |
-|   ↳ `type` | string | Value data type |
+|   ↳ `type` | string | Metric value type |
+|   ↳ `expression` | string | Formula for a derived metric |
+|   ↳ `category` | string | Grouping the metric belongs to, e.g. Session |
 |   ↳ `customDefinition` | boolean | Whether this is a property-specific custom metric |
 |   ↳ `deprecatedApiNames` | array | Still-accepted deprecated names |
 | `totalDimensions` | number | Number of dimensions returned |

@@ -27,13 +27,13 @@ export const googleAnalyticsPropertiesBodySchema = credentialWorkflowImpersonate
 export const googleAnalyticsAccountsSelectorContract = definePostSelector(
   '/api/tools/google_analytics/accounts',
   googleAnalyticsAccountsBodySchema,
-  z.object({ accounts: z.array(googleAnalyticsAccountSchema) })
+  z.object({ accounts: z.array(googleAnalyticsAccountSchema), truncated: z.boolean() })
 )
 
 export const googleAnalyticsPropertiesSelectorContract = definePostSelector(
   '/api/tools/google_analytics/properties',
   googleAnalyticsPropertiesBodySchema,
-  z.object({ properties: z.array(googleAnalyticsPropertySchema) })
+  z.object({ properties: z.array(googleAnalyticsPropertySchema), truncated: z.boolean() })
 )
 
 export type GoogleAnalyticsAccountsSelectorBody = ContractBodyInput<

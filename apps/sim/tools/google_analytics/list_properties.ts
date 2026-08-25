@@ -5,6 +5,7 @@ import {
   type GoogleAnalyticsProperty,
   normalizeAccountName,
   toBooleanParam,
+  toOptionalNumberParam,
   toProperty,
 } from '@/tools/google_analytics/types'
 import type { ToolConfig } from '@/tools/types'
@@ -62,7 +63,8 @@ export const googleAnalyticsListPropertiesTool: ToolConfig<
       const query = new URLSearchParams({
         filter: `parent:${normalizeAccountName(params.accountId)}`,
       })
-      if (params.pageSize !== undefined) query.set('pageSize', String(params.pageSize))
+      const pageSize = toOptionalNumberParam(params.pageSize)
+      if (pageSize !== undefined) query.set('pageSize', String(pageSize))
       if (params.pageToken) query.set('pageToken', params.pageToken)
       const showDeleted = toBooleanParam(params.showDeleted)
       if (showDeleted !== undefined) query.set('showDeleted', String(showDeleted))

@@ -4,6 +4,7 @@ import {
   type GoogleAnalyticsListDataStreamsParams,
   type GoogleAnalyticsListDataStreamsResponse,
   normalizePropertyName,
+  toOptionalNumberParam,
 } from '@/tools/google_analytics/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -86,7 +87,8 @@ export const googleAnalyticsListDataStreamsTool: ToolConfig<
   request: {
     url: (params) => {
       const query = new URLSearchParams()
-      if (params.pageSize !== undefined) query.set('pageSize', String(params.pageSize))
+      const pageSize = toOptionalNumberParam(params.pageSize)
+      if (pageSize !== undefined) query.set('pageSize', String(pageSize))
       if (params.pageToken) query.set('pageToken', params.pageToken)
       const suffix = query.toString()
       return `https://analyticsadmin.googleapis.com/v1beta/${normalizePropertyName(params.propertyId)}/dataStreams${suffix ? `?${suffix}` : ''}`

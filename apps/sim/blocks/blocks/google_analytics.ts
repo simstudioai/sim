@@ -68,28 +68,28 @@ export const GoogleAnalyticsBlock: BlockConfig = {
         run_report: [
           { text: 'Report', field: 'metrics', core: true },
           { text: 'by', field: 'dimensions' },
-          { text: 'for property', field: PROPERTY_FIELD },
+          { text: 'for property', field: PROPERTY_FIELD, core: true },
           { text: 'from', field: 'startDate', core: true },
           { text: 'to', field: 'endDate', core: true },
         ],
         run_realtime_report: [
           { text: 'Report realtime', field: 'metrics', core: true },
           { text: 'by', field: 'dimensions' },
-          { text: 'for property', field: PROPERTY_FIELD },
+          { text: 'for property', field: PROPERTY_FIELD, core: true },
         ],
         run_pivot_report: [
           { text: 'Pivot', field: 'metrics', core: true },
           { text: 'by', field: 'dimensions' },
-          { text: 'for property', field: PROPERTY_FIELD },
+          { text: 'for property', field: PROPERTY_FIELD, core: true },
         ],
         check_compatibility: [
           { text: 'Check compatibility of', field: 'metrics', core: true },
           { text: 'with', field: 'dimensions' },
-          { text: 'on property', field: PROPERTY_FIELD },
+          { text: 'on property', field: PROPERTY_FIELD, core: true },
         ],
         get_metadata: [
           'List available dimensions and metrics',
-          { text: 'for property', field: PROPERTY_FIELD },
+          { text: 'for property', field: PROPERTY_FIELD, core: true },
         ],
         list_accounts: ['List all accessible Analytics accounts'],
         list_account_summaries: ['List all accounts and their properties'],

@@ -10,6 +10,7 @@ import {
   toMetricAggregations,
   toMetricHeaders,
   toNameList,
+  toOptionalNumberParam,
   toReportMetadata,
   validateDateRangeValue,
 } from '@/tools/google_analytics/types'
@@ -185,8 +186,11 @@ export const googleAnalyticsRunReportTool: ToolConfig<
       const metricAggregations = toMetricAggregations(params.metricAggregations)
       if (metricAggregations.length > 0) body.metricAggregations = metricAggregations
 
-      if (params.limit !== undefined) body.limit = params.limit
-      if (params.offset !== undefined) body.offset = params.offset
+      const limit = toOptionalNumberParam(params.limit)
+      if (limit !== undefined) body.limit = limit
+
+      const offset = toOptionalNumberParam(params.offset)
+      if (offset !== undefined) body.offset = offset
       if (params.currencyCode) body.currencyCode = params.currencyCode
 
       const keepEmptyRows = toBooleanParam(params.keepEmptyRows)

@@ -4,6 +4,7 @@ import {
   type GoogleAnalyticsListAccountsParams,
   type GoogleAnalyticsListAccountsResponse,
   toBooleanParam,
+  toOptionalNumberParam,
 } from '@/tools/google_analytics/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -51,7 +52,8 @@ export const googleAnalyticsListAccountsTool: ToolConfig<
   request: {
     url: (params) => {
       const query = new URLSearchParams()
-      if (params.pageSize !== undefined) query.set('pageSize', String(params.pageSize))
+      const pageSize = toOptionalNumberParam(params.pageSize)
+      if (pageSize !== undefined) query.set('pageSize', String(pageSize))
       if (params.pageToken) query.set('pageToken', params.pageToken)
       const showDeleted = toBooleanParam(params.showDeleted)
       if (showDeleted !== undefined) query.set('showDeleted', String(showDeleted))

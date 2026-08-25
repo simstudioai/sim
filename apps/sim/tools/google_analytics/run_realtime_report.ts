@@ -9,6 +9,7 @@ import {
   toMetricAggregations,
   toMetricHeaders,
   toNameList,
+  toOptionalNumberParam,
 } from '@/tools/google_analytics/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -131,7 +132,8 @@ export const googleAnalyticsRunRealtimeReportTool: ToolConfig<
       const metricAggregations = toMetricAggregations(params.metricAggregations)
       if (metricAggregations.length > 0) body.metricAggregations = metricAggregations
 
-      if (params.limit !== undefined) body.limit = params.limit
+      const limit = toOptionalNumberParam(params.limit)
+      if (limit !== undefined) body.limit = limit
 
       return body
     },
