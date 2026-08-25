@@ -142,10 +142,7 @@ describe('MemoryMcpCache', () => {
     })
 
     it('does not throw for non-existent key', async () => {
-      // Should complete without throwing
-      await cache.delete('non-existent')
-      // If we get here, it worked
-      expect(true).toBe(true)
+      await expect(cache.delete('non-existent')).resolves.not.toThrow()
     })
 
     it('does not affect other entries', async () => {
