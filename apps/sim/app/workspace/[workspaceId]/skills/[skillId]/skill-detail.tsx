@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Chip, ChipConfirmModal, ChipLink, Send, toast } from '@sim/emcn'
 import { ArrowLeft } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
@@ -36,6 +36,8 @@ interface SkillDetailProps {
   skillId: string
   /** Reuses the editor inside Sim Chat without routing away after deletion. */
   embedded?: boolean
+  /** Reports draft state to the resource-panel transition guard. */
+  onDirtyChange?: (dirty: boolean) => void
   onDeleted?: () => void
 }
 
@@ -49,6 +51,7 @@ export function SkillDetail({
   workspaceId,
   skillId,
   embedded = false,
+  onDirtyChange,
   onDeleted,
 }: SkillDetailProps) {
   const router = useRouter()
@@ -131,7 +134,19 @@ export function SkillDetail({
       descriptionDraft !== skill.description ||
       contentDraft !== skill.content)
 
-  const guard = useUnsavedChangesGuard({ isDirty, backHref: skillsHref })
+  const guard = useUnsavedChangesGuard({
+    isDirty,
+    backHref: skillsHref,
+    trapHistory: !embedded,
+  })
+
+  useEffect(() => {
+    onDirtyChange?.(isDirty)
+  }, [isDirty, onDirtyChange])
+
+  useEffect(() => {
+    return () => onDirtyChange?.(false)
+  }, [onDirtyChange])
 
   const handleSave = async () => {
     if (!skill || !canEdit || !isDirty || updateSkill.isPending) return
@@ -320,11 +335,13 @@ export function SkillDetail({
         hideRole
       />
 
-      <UnsavedChangesModal
-        open={guard.showUnsavedAlert}
-        onOpenChange={guard.setShowUnsavedAlert}
-        onDiscard={guard.confirmDiscard}
-      />
+      {!embedded && (
+        <UnsavedChangesModal
+          open={guard.showUnsavedAlert}
+          onOpenChange={guard.setShowUnsavedAlert}
+          onDiscard={guard.confirmDiscard}
+        />
+      )}
     </>
   )
 }

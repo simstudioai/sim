@@ -8,6 +8,8 @@ interface UseUnsavedChangesGuardParams {
   isDirty: boolean
   /** Where a confirmed discard navigates to. */
   backHref: string
+  /** Whether this route owns browser-history navigation. Embedded surfaces disable it. */
+  trapHistory?: boolean
 }
 
 /**
@@ -23,7 +25,11 @@ interface UseUnsavedChangesGuardParams {
  * still mounted), never in cleanup, so an intentional discard/navigation away is
  * not reversed.
  */
-export function useUnsavedChangesGuard({ isDirty, backHref }: UseUnsavedChangesGuardParams) {
+export function useUnsavedChangesGuard({
+  isDirty,
+  backHref,
+  trapHistory = true,
+}: UseUnsavedChangesGuardParams) {
   const router = useRouter()
   const [showUnsavedAlert, setShowUnsavedAlert] = useState(false)
   const [isReleased, setIsReleased] = useState(false)
@@ -35,6 +41,7 @@ export function useUnsavedChangesGuard({ isDirty, backHref }: UseUnsavedChangesG
     // it, so track that: a later rearm() must seed a fresh one rather than trust a
     // stale ref and leave the surface unguarded.
     if (isReleased) {
+      if (!trapHistory) return
       if (!hasSentinelRef.current) return
       const handleSentinelConsumed = () => {
         hasSentinelRef.current = false
@@ -46,7 +53,7 @@ export function useUnsavedChangesGuard({ isDirty, backHref }: UseUnsavedChangesG
       // Clean again while still mounted (saved/reverted): pop the seeded entry so
       // it can't pile up across edit/save cycles. This runs in the effect body,
       // never on unmount, so navigating away mid-edit is never reversed.
-      if (hasSentinelRef.current) {
+      if (trapHistory && hasSentinelRef.current) {
         hasSentinelRef.current = false
         window.history.back()
       }
@@ -54,7 +61,7 @@ export function useUnsavedChangesGuard({ isDirty, backHref }: UseUnsavedChangesG
     }
     // Seed one same-URL entry so Back pops it (no route change) and fires
     // popstate, letting us confirm before the page actually leaves.
-    if (!hasSentinelRef.current) {
+    if (trapHistory && !hasSentinelRef.current) {
       window.history.pushState(null, '', window.location.href)
       hasSentinelRef.current = true
     }
@@ -66,12 +73,12 @@ export function useUnsavedChangesGuard({ isDirty, backHref }: UseUnsavedChangesG
       setShowUnsavedAlert(true)
     }
     window.addEventListener('beforeunload', handleBeforeUnload)
-    window.addEventListener('popstate', handlePopState)
+    if (trapHistory) window.addEventListener('popstate', handlePopState)
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload)
-      window.removeEventListener('popstate', handlePopState)
+      if (trapHistory) window.removeEventListener('popstate', handlePopState)
     }
-  }, [isDirty, isReleased])
+  }, [isDirty, isReleased, trapHistory])
 
   const handleBackClick = useCallback(
     (event: MouseEvent<HTMLAnchorElement>) => {

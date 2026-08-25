@@ -14,6 +14,7 @@ import {
 } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { PERSISTED_RESOURCE_TYPES } from '@/lib/copilot/resources/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const resolveWorkflowIdForUser = workflowsUtilsMockFns.mockResolveWorkflowIdForUser
@@ -343,6 +344,41 @@ describe('handleUnifiedChatPost', () => {
       expect.objectContaining({ contexts: [] }),
       { selectedModel: '' }
     )
+  })
+
+  it('accepts every persisted resource type plus generic at the chat boundary', async () => {
+    const resourceAttachments = [
+      ...PERSISTED_RESOURCE_TYPES.map((type) => ({
+        type,
+        id: `${type}-1`,
+        title: type,
+      })),
+      { type: 'generic' as const, id: 'generic-1', title: 'Temporary result' },
+    ]
+
+    const response = await handleUnifiedChatPost(
+      new NextRequest('http://localhost/api/copilot/chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          message: 'Keep all supported tabs open',
+          workspaceId: 'ws-1',
+          createNewChat: true,
+          resourceAttachments,
+        }),
+      })
+    )
+
+    expect(response.status).toBe(200)
+    const persisted = persistChatResources.mock.calls.at(-1)?.[1]
+    expect(persisted?.map((resource: { type: string }) => resource.type)).toEqual(
+      PERSISTED_RESOURCE_TYPES
+    )
+    expect(persisted).toContainEqual({
+      type: 'integration',
+      id: 'integration-1',
+      title: 'integration',
+    })
+    expect(persisted).not.toContainEqual(expect.objectContaining({ type: 'generic' }))
   })
 
   it('forwards the desktop local filesystem capability into payload construction', async () => {

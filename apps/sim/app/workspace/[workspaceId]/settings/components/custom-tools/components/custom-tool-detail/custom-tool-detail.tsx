@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { ChipConfirmModal, toast } from '@sim/emcn'
 import { ArrowLeft } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
@@ -38,7 +38,13 @@ interface CustomToolDetailProps {
   tool: CustomToolDefinition | null
   /** Viewers without edit rights get the same page with every control inert. */
   readOnly?: boolean
+  /** Embedded editors defer navigation through the resource panel's guard. */
+  embedded?: boolean
+  /** Reports draft state to the resource-panel transition guard. */
+  onDirtyChange?: (dirty: boolean) => void
   onBack: () => void
+  /** Lets an embedded detail close immediately after its resource was deleted. */
+  onDeleted?: () => void
   /** Lands the caller on the tool it just created, matching the skill create flow. */
   onCreated?: (toolId: string) => void
 }
@@ -53,7 +59,10 @@ export function CustomToolDetail({
   workspaceId,
   tool,
   readOnly = false,
+  embedded = false,
+  onDirtyChange,
   onBack,
+  onDeleted,
   onCreated,
 }: CustomToolDetailProps) {
   const isEditing = !!tool
@@ -153,7 +162,15 @@ export function CustomToolDetail({
     ? jsonSchema !== seededSchema || functionCode !== seededCode
     : jsonSchema.trim().length > 0 || functionCode.trim().length > 0
 
-  const guard = useSettingsUnsavedGuard({ isDirty: dirty })
+  const guard = useSettingsUnsavedGuard({ isDirty: dirty, enabled: !embedded })
+
+  useEffect(() => {
+    onDirtyChange?.(dirty)
+  }, [dirty, onDirtyChange])
+
+  useEffect(() => {
+    return () => onDirtyChange?.(false)
+  }, [onDirtyChange])
 
   const saving = createTool.isPending || updateTool.isPending
   const isSchemaValid = useMemo(() => validateCustomToolSchema(jsonSchema).isValid, [jsonSchema])
@@ -222,7 +239,8 @@ export function CustomToolDetail({
     setShowDeleteConfirm(false)
     try {
       await deleteTool.mutateAsync({ workspaceId, toolId: tool.id })
-      onBack()
+      if (onDeleted) onDeleted()
+      else onBack()
     } catch (error) {
       logger.error('Failed to delete custom tool', error)
       toast.error("Couldn't delete tool", {
@@ -335,11 +353,13 @@ export function CustomToolDetail({
         }}
       />
 
-      <UnsavedChangesModal
-        open={guard.showUnsavedModal}
-        onOpenChange={guard.setShowUnsavedModal}
-        onDiscard={guard.confirmDiscard}
-      />
+      {!embedded && (
+        <UnsavedChangesModal
+          open={guard.showUnsavedModal}
+          onOpenChange={guard.setShowUnsavedModal}
+          onDiscard={guard.confirmDiscard}
+        />
+      )}
     </>
   )
 }

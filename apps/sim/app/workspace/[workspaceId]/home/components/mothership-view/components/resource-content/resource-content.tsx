@@ -45,6 +45,7 @@ import {
   type PreviewMode,
   resolveFileCategory,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
+import { useMothershipResources } from '@/app/workspace/[workspaceId]/home/components/mothership-resources-context'
 import type { BrowserPanelOverlayController } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-panel-occlusion'
 import { BrowserSession } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-session'
 import { GenericResourceContent } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/generic-resource-content'
@@ -201,6 +202,11 @@ export const ResourceContent = memo(function ResourceContent({
   visible = true,
   onBrowserOverlayControllerChange,
 }: ResourceContentProps) {
+  const { reportResourceDirty } = useMothershipResources()
+  const handleDirtyChange = useCallback(
+    (dirty: boolean) => reportResourceDirty(resource.id, dirty),
+    [reportResourceDirty, resource.id]
+  )
   const streamFileName = previewSession?.fileName || 'file.md'
   const syntheticFile = useMemo(() => {
     const ext = getFileExtension(streamFileName)
@@ -333,6 +339,7 @@ export const ResourceContent = memo(function ResourceContent({
           workspaceId={workspaceId}
           skillId={resource.id}
           embedded
+          onDirtyChange={handleDirtyChange}
           onDeleted={() => onNotFound?.(resource.id)}
         />
       )
@@ -343,6 +350,7 @@ export const ResourceContent = memo(function ResourceContent({
           key={resource.id}
           workspaceId={workspaceId}
           toolId={resource.id}
+          onDirtyChange={handleDirtyChange}
           onClose={() => onNotFound?.(resource.id)}
         />
       )
@@ -448,11 +456,18 @@ function EmbeddedSettingsShell({ children }: { children: ReactNode }) {
 interface EmbeddedCustomToolProps {
   workspaceId: string
   toolId: string
+  onDirtyChange: (dirty: boolean) => void
   onClose: () => void
 }
 
-function EmbeddedCustomTool({ workspaceId, toolId, onClose }: EmbeddedCustomToolProps) {
+function EmbeddedCustomTool({
+  workspaceId,
+  toolId,
+  onDirtyChange,
+  onClose,
+}: EmbeddedCustomToolProps) {
   const workspacePermissions = useUserPermissionsContext()
+  const { requestResourceTransition } = useMothershipResources()
   const canEdit = canMutateWorkspaceSettingsSection('custom-tools', workspacePermissions)
   const { data: tools = [], isPending, isPlaceholderData, error } = useCustomTools(workspaceId)
   const tool = tools.find((candidate) => candidate.id === toolId)
@@ -466,7 +481,10 @@ function EmbeddedCustomTool({ workspaceId, toolId, onClose }: EmbeddedCustomTool
           workspaceId={workspaceId}
           tool={tool}
           readOnly={!canEdit}
-          onBack={onClose}
+          embedded
+          onDirtyChange={onDirtyChange}
+          onBack={() => requestResourceTransition(onClose)}
+          onDeleted={onClose}
         />
       ) : (
         <SettingsPanel
@@ -484,12 +502,20 @@ function EmbeddedCustomTool({ workspaceId, toolId, onClose }: EmbeddedCustomTool
 
 function EmbeddedResourceEditorAction({ href, label }: { href: string; label: string }) {
   const openInternalLink = useOpenInternalLink()
+  const { requestResourceTransition } = useMothershipResources()
+  const handleOpen = () => {
+    if (prefersInPlaceNavigation()) {
+      requestResourceTransition(() => openInternalLink(href))
+      return
+    }
+    openInternalLink(href)
+  }
   return (
     <Tooltip.Root>
       <Tooltip.Trigger asChild>
         <Button
           variant='subtle'
-          onClick={() => openInternalLink(href)}
+          onClick={handleOpen}
           className={RESOURCE_TAB_ICON_BUTTON_CLASS}
           aria-label={label}
         >

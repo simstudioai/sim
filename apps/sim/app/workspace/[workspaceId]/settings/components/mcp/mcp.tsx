@@ -200,6 +200,8 @@ export function MCP({ workspaceId: explicitWorkspaceId, serverId, onBack }: MCPP
   const {
     data: servers = [],
     isLoading: serversLoading,
+    isPending: serversPending,
+    isPlaceholderData: serversPlaceholder,
     error: serversError,
   } = useMcpServers(workspaceId)
   const { data: mcpToolsData = [], toolsStateByServer } = useMcpToolsQuery(workspaceId)
@@ -434,6 +436,30 @@ export function MCP({ workspaceId: explicitWorkspaceId, serverId, onBack }: MCPP
     />
   ) : null
 
+  if (serverId && (serversPending || serversPlaceholder)) {
+    return (
+      <SettingsPanel
+        back={{ text: 'MCP tools', icon: ArrowLeft, onSelect: handleBackToList }}
+        title='MCP server'
+      >
+        <SettingsEmptyState variant='inline'>Loading...</SettingsEmptyState>
+      </SettingsPanel>
+    )
+  }
+
+  if (serverId && serversError) {
+    return (
+      <SettingsPanel
+        back={{ text: 'MCP tools', icon: ArrowLeft, onSelect: handleBackToList }}
+        title='MCP server'
+      >
+        <SettingsEmptyState variant='inline' tone='error'>
+          {getErrorMessage(serversError, 'Failed to load this MCP server')}
+        </SettingsEmptyState>
+      </SettingsPanel>
+    )
+  }
+
   if (selectedServer) {
     const { server, tools } = selectedServer
     const transportLabel = formatTransportLabel(server.transport || 'http')
@@ -664,7 +690,7 @@ export function MCP({ workspaceId: explicitWorkspaceId, serverId, onBack }: MCPP
     )
   }
 
-  if (serverId && !serversLoading) {
+  if (serverId) {
     return (
       <SettingsPanel
         back={{ text: 'MCP tools', icon: ArrowLeft, onSelect: handleBackToList }}

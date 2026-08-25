@@ -34,7 +34,9 @@ import {
 } from '@/lib/mothership/events'
 import { captureEvent } from '@/lib/posthog/client'
 import { persistImportedWorkflow } from '@/lib/workflows/operations/import-export'
+import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/credential-detail'
 import { RESOURCE_HEADER_CLASSES } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
+import { useResourceTransitionGuard } from '@/app/workspace/[workspaceId]/home/hooks/use-resource-transition-guard'
 import { resolveWorkspaceResourceRef } from '@/app/workspace/[workspaceId]/home/resolve-resource-ref'
 import {
   resolveResourceFromContext,
@@ -206,6 +208,15 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
   const [isResourceCollapsed, setIsResourceCollapsed] = useState(true)
   const [skipResourceTransition, setSkipResourceTransition] = useState(false)
   const [resourceActivityIds, setResourceActivityIds] = useState<Set<string>>(new Set())
+  const {
+    showDiscardConfirmation,
+    reportResourceDirty,
+    requestResourceTransition,
+    routeAutomaticResourceFocus,
+    dismissDiscardConfirmation,
+    confirmDiscard,
+    reset: resetResourceTransitionGuard,
+  } = useResourceTransitionGuard()
   const isResourceCollapsedRef = useRef(isResourceCollapsed)
   isResourceCollapsedRef.current = isResourceCollapsed
   const userOwnsResourceViewRef = useRef(false)
@@ -219,20 +230,30 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
     if (isResourceCollapsedRef.current) setIsResourceCollapsed(false)
 
     const activeResourceId = activeResourceParamRef.current
-    if (!shouldActivateResourceEvent(activeResourceId, resourceId, options)) {
+    const markAttention = () => {
       setResourceActivityIds((current) => new Set(current).add(resourceId))
+    }
+    if (!shouldActivateResourceEvent(activeResourceId, resourceId, options)) {
+      markAttention()
       return
     }
-    setResourceActivityIds((current) => {
-      if (!current.has(resourceId)) return current
-      const next = new Set(current)
-      next.delete(resourceId)
-      return next
-    })
-    if (activeResourceId !== resourceId) {
-      activeResourceParamRef.current = resourceId
-      setActiveResourceUrl(resourceId)
-    }
+    routeAutomaticResourceFocus(
+      activeResourceId,
+      resourceId,
+      () => {
+        setResourceActivityIds((current) => {
+          if (!current.has(resourceId)) return current
+          const next = new Set(current)
+          next.delete(resourceId)
+          return next
+        })
+        if (activeResourceId !== resourceId) {
+          activeResourceParamRef.current = resourceId
+          setActiveResourceUrl(resourceId)
+        }
+      },
+      markAttention
+    )
   }
 
   const {
@@ -304,7 +325,7 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
     setIsResourceCollapsed(false)
   }
 
-  const selectResourceFromUser = useCallback(
+  const selectResourceImmediately = useCallback(
     (resourceId: string) => {
       userOwnsResourceViewRef.current = true
       clearResourceActivity(resourceId)
@@ -316,14 +337,25 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
     [setActiveResourceId, clearResourceActivity]
   )
 
-  const addResourceFromUser = useCallback(
+  const addResourceImmediately = useCallback(
     (resource: MothershipResource) => {
       userOwnsResourceViewRef.current = true
       addResource(resource)
-      selectResourceFromUser(resource.id)
+      selectResourceImmediately(resource.id)
       setIsResourceCollapsed(false)
     },
-    [addResource, selectResourceFromUser]
+    [addResource, selectResourceImmediately]
+  )
+
+  const addResourceFromUser = useCallback(
+    (resource: MothershipResource) => {
+      if (effectiveActiveResourceIdRef.current === resource.id) {
+        addResourceImmediately(resource)
+        return
+      }
+      requestResourceTransition(() => addResourceImmediately(resource))
+    },
+    [addResourceImmediately, requestResourceTransition]
   )
 
   const handleResourceResizePointerDown = useCallback(
@@ -351,8 +383,9 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
     if (!resolvedChatId || (previousChatId && previousChatId !== resolvedChatId)) {
       userOwnsResourceViewRef.current = false
       setResourceActivityIds(new Set())
+      resetResourceTransitionGuard()
     }
-  }, [resolvedChatId, markRead, clearWidth])
+  }, [resolvedChatId, markRead, clearWidth, resetResourceTransitionGuard])
 
   useEffect(() => {
     if (wasSendingRef.current && !isSending && resolvedChatId) {
@@ -499,7 +532,12 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
       return otherResolved?.type === resolved.type && otherResolved.id === resolved.id
     })
     if (stillReferenced) return
-    removeResource(resolved.type, resolved.id)
+    const remove = () => removeResource(resolved.type, resolved.id)
+    if (effectiveActiveResourceIdRef.current === resolved.id) {
+      requestResourceTransition(remove)
+    } else {
+      remove()
+    }
   }
 
   function openWorkspaceResource(resource: MothershipResource) {
@@ -655,11 +693,13 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
       )}
 
       <MothershipResourcesProvider
-        selectResource={selectResourceFromUser}
-        addResource={addResourceFromUser}
+        selectResource={selectResourceImmediately}
+        addResource={addResourceImmediately}
         removeResource={removeResource}
         reorderResources={reorderResources}
         collapseResource={collapseResource}
+        requestResourceTransition={requestResourceTransition}
+        reportResourceDirty={reportResourceDirty}
       >
         <Suspense fallback={null}>
           <MothershipView
@@ -680,6 +720,14 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
           />
         </Suspense>
       </MothershipResourcesProvider>
+
+      <UnsavedChangesModal
+        open={showDiscardConfirmation}
+        onOpenChange={(open) => {
+          if (!open) dismissDiscardConfirmation()
+        }}
+        onDiscard={confirmDiscard}
+      />
 
       <div
         className={cn('z-30', RESOURCE_HEADER_CLASSES.overlay, RESOURCE_HEADER_CLASSES.endPosition)}

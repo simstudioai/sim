@@ -3,6 +3,8 @@ import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
 interface UseSettingsUnsavedGuardParams {
   isDirty: boolean
+  /** Embedded editors use their host's guard instead of global settings navigation. */
+  enabled?: boolean
 }
 
 interface SettingsUnsavedGuard {
@@ -17,25 +19,32 @@ interface SettingsUnsavedGuard {
  */
 export function useSettingsUnsavedGuard({
   isDirty,
+  enabled = true,
 }: UseSettingsUnsavedGuardParams): SettingsUnsavedGuard {
   const setDirty = useSettingsDirtyStore((state) => state.setDirty)
   const reset = useSettingsDirtyStore((state) => state.reset)
-  const isDirtyRef = useRef(isDirty)
+  const isDirtyRef = useRef(enabled && isDirty)
   const pendingLeaveRef = useRef<(() => void) | null>(null)
   const [showUnsavedModal, setShowUnsavedModal] = useState(false)
 
   useEffect(() => {
-    isDirtyRef.current = isDirty
+    isDirtyRef.current = enabled && isDirty
+    if (!enabled) {
+      pendingLeaveRef.current = null
+      setShowUnsavedModal(false)
+      return
+    }
     setDirty(isDirty)
     if (!isDirty) {
       pendingLeaveRef.current = null
       setShowUnsavedModal(false)
     }
-  }, [isDirty, setDirty])
+  }, [enabled, isDirty, setDirty])
 
   useEffect(() => {
+    if (!enabled) return
     return () => reset()
-  }, [reset])
+  }, [enabled, reset])
 
   const guardBack = useCallback((onLeave: () => void) => {
     if (isDirtyRef.current) {
