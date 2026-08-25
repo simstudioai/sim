@@ -289,6 +289,9 @@ const areSubBlockRowPropsEqual = (
   const prevValue = subBlockId ? prevProps.allSubBlockValues?.[subBlockId]?.value : undefined
   const nextValue = subBlockId ? nextProps.allSubBlockValues?.[subBlockId]?.value : undefined
   const valueEqual = prevValue === nextValue || isEqual(prevValue, nextValue)
+  const codeLanguageEqual =
+    prevProps.subBlock?.type !== 'code' ||
+    prevProps.allSubBlockValues?.language?.value === nextProps.allSubBlockValues?.language?.value
 
   return (
     prevProps.title === nextProps.title &&
@@ -299,6 +302,7 @@ const areSubBlockRowPropsEqual = (
     prevProps.workflowId === nextProps.workflowId &&
     prevProps.blockId === nextProps.blockId &&
     valueEqual &&
+    codeLanguageEqual &&
     prevProps.displayAdvancedOptions === nextProps.displayAdvancedOptions &&
     prevProps.canonicalIndex === nextProps.canonicalIndex &&
     prevProps.canonicalModeOverrides === nextProps.canonicalModeOverrides &&

@@ -68,6 +68,7 @@ describe('OverflowSpan code preview', () => {
     const preview = document.querySelector('[data-code-hover-card]')
     expect(preview).toHaveTextContent('line 20')
     expect(preview).toHaveClass('w-fit', 'max-w-[min(16rem,calc(100vw-2rem))]', 'shadow-sm')
+    expect(preview).toHaveStyle({ maxWidth: 'min(256px, calc(100vw - 2rem))' })
     expect(preview?.querySelector('.overflow-x-auto')).toHaveClass('overflow-y-auto')
     expect(preview?.querySelector('.tabular-nums')).toBeNull()
     expect(preview?.querySelector('pre')).toHaveClass('px-2', 'py-1.5', 'text-caption', 'leading-5')
@@ -117,6 +118,69 @@ describe('OverflowSpan code preview', () => {
     act(() => {
       vi.advanceTimersByTime(1)
     })
+    expect(document.querySelector('[data-code-hover-card]')).toBeNull()
+  })
+
+  it('opens from the keyboard and keeps the preview available while it is focused', () => {
+    act(() => {
+      root?.render(
+        <OverflowSpan
+          value='const value = 1'
+          className='truncate'
+          codePreview={{ code: 'const value = 1', language: 'javascript' }}
+        />
+      )
+    })
+
+    const trigger = host?.querySelector<HTMLElement>('span[role="button"]')
+    if (!trigger) throw new Error('Overflow trigger did not render')
+    Object.defineProperties(trigger, {
+      clientWidth: { configurable: true, value: 50 },
+      scrollWidth: { configurable: true, value: 200 },
+    })
+
+    act(() => trigger.focus())
+    const preview = document.querySelector<HTMLElement>('[data-code-hover-card]')
+    expect(preview).not.toBeNull()
+    expect(trigger).toHaveAttribute('aria-expanded', 'true')
+
+    act(() => preview?.focus())
+    act(() => vi.advanceTimersByTime(600))
+    expect(document.querySelector('[data-code-hover-card]')).not.toBeNull()
+
+    act(() =>
+      preview?.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Escape' }))
+    )
+    expect(document.querySelector('[data-code-hover-card]')).toBeNull()
+    expect(trigger).toHaveFocus()
+  })
+
+  it('toggles the clipped preview on touch', () => {
+    act(() => {
+      root?.render(
+        <OverflowSpan
+          value='const value = 1'
+          className='truncate'
+          codePreview={{ code: 'const value = 1', language: 'javascript' }}
+        />
+      )
+    })
+
+    const trigger = host?.querySelector<HTMLElement>('span[role="button"]')
+    if (!trigger) throw new Error('Overflow trigger did not render')
+    Object.defineProperties(trigger, {
+      clientWidth: { configurable: true, value: 50 },
+      scrollWidth: { configurable: true, value: 200 },
+    })
+    const pointerDown = () => {
+      const event = new MouseEvent('pointerdown', { bubbles: true, cancelable: true })
+      Object.defineProperty(event, 'pointerType', { value: 'touch' })
+      trigger.dispatchEvent(event)
+    }
+
+    act(pointerDown)
+    expect(document.querySelector('[data-code-hover-card]')).not.toBeNull()
+    act(pointerDown)
     expect(document.querySelector('[data-code-hover-card]')).toBeNull()
   })
 })

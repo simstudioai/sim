@@ -536,7 +536,11 @@ const PopoverContent = React.forwardRef<
     // and the component's custom navigation state.
 
     const effectiveMaxWidth =
-      maxWidth ?? (appearance === 'tooltip' ? TOOLTIP_MAX_WIDTH_PX : undefined)
+      maxWidth !== undefined
+        ? `${maxWidth}px`
+        : appearance === 'tooltip'
+          ? `min(${TOOLTIP_MAX_WIDTH_PX}px, calc(100vw - 2rem))`
+          : undefined
     const hasUserWidthConstraint =
       effectiveMaxWidth !== undefined ||
       minWidth !== undefined ||
@@ -607,8 +611,7 @@ const PopoverContent = React.forwardRef<
         )}
         style={{
           maxHeight: `${maxHeight || 400}px`,
-          maxWidth:
-            effectiveMaxWidth !== undefined ? `${effectiveMaxWidth}px` : 'calc(100vw - 16px)',
+          maxWidth: effectiveMaxWidth ?? 'calc(100vw - 16px)',
           minWidth:
             minWidth !== undefined
               ? `${minWidth}px`
