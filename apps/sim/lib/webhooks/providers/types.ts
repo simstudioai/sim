@@ -44,12 +44,39 @@ export interface FormatInputContext {
    * credential → account → owner chain; absent on paths that never resolved it.
    */
   credentialOwnerUserId?: string
+  /** Interaction context created synchronously at ingest (see {@link SyncInteractionContext}). */
+  syncInteraction?: SyncInteractionContext
 }
 
 /** Result of custom input preparation. */
 export interface FormatInputResult {
   input: unknown
   skip?: { message: string }
+}
+
+/**
+ * Interaction context created synchronously at ingest before enqueue, e.g. a
+ * Slack loading modal opened while the interaction's trigger_id was still
+ * fresh. Persisted with the job payload, so it carries identifiers only —
+ * never token material.
+ */
+export interface SyncInteractionContext {
+  /** Slack view id of the loading modal opened via views.open on the ingest path. */
+  loadingViewId: string
+}
+
+/** Context for synchronous pre-enqueue dispatch preparation. */
+export interface PrepareSyncDispatchContext {
+  webhook: Record<string, unknown>
+  workflow: { id: string; userId: string; workspaceId?: string | null }
+  body: unknown
+  requestId: string
+  providerConfig: Record<string, unknown>
+}
+
+/** Result of synchronous pre-enqueue dispatch preparation. */
+export interface PrepareSyncDispatchResult {
+  syncInteraction?: SyncInteractionContext
 }
 
 /** Context for provider-specific file processing before execution. */
@@ -170,6 +197,15 @@ export interface WebhookProviderHandler {
 
   /** Custom error response when queuing fails. Return null for default 500. */
   formatQueueErrorResponse?(): NextResponse | null
+
+  /**
+   * Provider work that must run synchronously on the ingest path after admission
+   * and immediately before the execution is enqueued — e.g. opening a Slack
+   * loading modal while the interaction's 3-second trigger_id is still fresh.
+   * Implementations must swallow provider-side failures and return null; the
+   * processor additionally guards the call so a throw can never fail dispatch.
+   */
+  prepareSyncDispatch?(ctx: PrepareSyncDispatchContext): Promise<PrepareSyncDispatchResult | null>
 
   /** Custom input preparation. When defined, replaces the default pass-through of the raw body. */
   formatInput?(ctx: FormatInputContext): Promise<FormatInputResult>
