@@ -145,6 +145,26 @@ describe('ttl columns', () => {
     expect(COLUMN_TYPE_REGISTRY.ttl.coerce(1_700_000_000.5, column)).toEqual({ ok: false })
   })
 
+  it.each(['2023-02-29', '2023-02-29T12:00:00', '2023-02-29T12:00:00-05:00'])(
+    'rejects a nonexistent ISO calendar input: %s',
+    (value) => {
+      expect(COLUMN_TYPE_REGISTRY.ttl.coerce(value, column, { timezone: 'UTC' })).toEqual({
+        ok: false,
+      })
+    }
+  )
+
+  it.each([
+    ['2024-02-29', '2024-02-29T00:00:00Z'],
+    ['2024-02-29T12:00:00', '2024-02-29T12:00:00Z'],
+    ['2024-02-29T12:00:00-05:00', '2024-02-29T17:00:00Z'],
+  ])('accepts a valid leap-day ISO calendar input: %s', (value, expectedInstant) => {
+    expect(COLUMN_TYPE_REGISTRY.ttl.coerce(value, column, { timezone: 'UTC' })).toEqual({
+      ok: true,
+      value: Math.floor(Date.parse(expectedInstant) / 1000),
+    })
+  })
+
   it('renders and edits epoch seconds as a date', () => {
     expect(COLUMN_TYPE_REGISTRY.ttl.formatForDisplay(1_700_000_000, column)).toBe(
       '11/14/2023 10:13:20 PM'

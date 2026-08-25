@@ -9,7 +9,7 @@ import {
 import type { ColumnDefinition } from '@/lib/table/types'
 
 const NUMERIC_VALUE_PATTERN = /^-?\d+(?:\.\d+)?$/
-const EXPLICIT_OFFSET_PATTERN = /(?:Z|[+-]\d{2}:?\d{2})$/i
+const ISO_DATE_PREFIX_PATTERN = /^(\d{4}-\d{2}-\d{2})(?:$|[T ])/i
 
 function isRepresentableEpochSeconds(value: number): boolean {
   return Number.isSafeInteger(value) && !Number.isNaN(new Date(value * 1000).getTime())
@@ -36,19 +36,14 @@ export function parseTtlEpochSeconds(
     return isRepresentableEpochSeconds(numeric) ? numeric : null
   }
 
-  if (EXPLICIT_OFFSET_PATTERN.test(trimmed)) {
-    const milliseconds = Date.parse(trimmed)
-    if (Number.isNaN(milliseconds)) return null
-    const seconds = Math.floor(milliseconds / 1000)
-    return isRepresentableEpochSeconds(seconds) ? seconds : null
-  }
-
   const normalized = normalizeDateCellValue(trimmed, options)
   if (normalized === null) return null
   const instant = /^\d{4}-\d{2}-\d{2}$/.test(normalized)
     ? normalizeDateCellValue(`${normalized}T00:00:00`, options)
     : normalized
   if (instant === null) return null
+  const inputIsoDate = trimmed.match(ISO_DATE_PREFIX_PATTERN)?.[1]
+  if (inputIsoDate && instant.slice(0, 10) !== inputIsoDate) return null
   const milliseconds = Date.parse(instant)
   if (Number.isNaN(milliseconds)) return null
   const seconds = Math.floor(milliseconds / 1000)
