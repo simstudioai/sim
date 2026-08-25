@@ -154,7 +154,7 @@ function highlightCodeReferences(
   for (const { original, placeholder } of placeholders) {
     highlighted = highlighted.replace(
       placeholder,
-      `<span data-code-reference="">${escapeHtml(original)}</span>`
+      () => `<span data-code-reference="">${escapeHtml(original)}</span>`
     )
   }
   return highlighted
@@ -1270,7 +1270,7 @@ const ViewerInner = memo(function ViewerInner({
     }
 
     return visibleLineIndices.map((idx) => {
-      let html = highlightOrEscape(prism, displayLines[idx], language)
+      let html = highlightOrEscape(prism, displayLines[idx], language, highlightWorkflowReferences)
       const matchCounter = { count: cumulativeMatches[idx] }
       html = applySearchHighlighting(html, searchQuery, currentMatchIndex, matchCounter)
       return { lineNumber: idx + 1, html: html || '&nbsp;' }

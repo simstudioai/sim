@@ -34,4 +34,21 @@ describe('workflow references', () => {
       ]
     )
   })
+
+  it('rejects compact boolean and nested comparison expressions', () => {
+    expect(findWorkflowReferenceTokens('value <limit && value>max')).toEqual([])
+    expect(findWorkflowReferenceTokens('value<limit||value>max')).toEqual([])
+    expect(findWorkflowReferenceTokens('a<b<c>d')).toEqual([])
+  })
+
+  it('retains a reference after a comparison prefix', () => {
+    expect(findWorkflowReferenceTokens('value < <block.output>')).toEqual([
+      {
+        kind: 'workflow',
+        value: '<block.output>',
+        start: 8,
+        end: 22,
+      },
+    ])
+  })
 })

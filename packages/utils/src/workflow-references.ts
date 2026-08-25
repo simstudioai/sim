@@ -1,10 +1,10 @@
 const REFERENCE_START = '<'
 const REFERENCE_END = '>'
 const REFERENCE_PATH_DELIMITER = '.'
-const INVALID_REFERENCE_CHARS = /[+*/=<>!]/
+const INVALID_REFERENCE_CHARS = /[+*/=<>!&|]/
 const LEADING_REFERENCE_PATTERN = /^[<>=!\s]*$/
 const ENV_REFERENCE_PATTERN = /\{\{[^{}\r\n]+\}\}/g
-const ANGLE_REFERENCE_PATTERN = /<[^<>\r\n]+>/g
+const ANGLE_REFERENCE_PATTERN = /<[^>\r\n]+>/g
 
 export type WorkflowReferenceTokenKind = 'environment' | 'workflow'
 
@@ -68,11 +68,12 @@ export function findWorkflowReferenceTokens(source: string): WorkflowReferenceTo
   }
 
   for (const match of source.matchAll(ANGLE_REFERENCE_PATTERN)) {
-    const start = match.index
-    const end = start + match[0].length
-    if (!isLikelyWorkflowReferenceSegment(match[0])) continue
+    const split = splitWorkflowReferenceSegment(match[0])
+    if (!split || !isLikelyWorkflowReferenceSegment(match[0])) continue
+    const start = match.index + split.leading.length
+    const end = start + split.reference.length
     if (tokens.some((token) => start < token.end && end > token.start)) continue
-    tokens.push({ kind: 'workflow', value: match[0], start, end })
+    tokens.push({ kind: 'workflow', value: split.reference, start, end })
   }
 
   return tokens.sort((left, right) => left.start - right.start)
