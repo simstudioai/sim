@@ -693,6 +693,7 @@ async function executeWebhookJobInternal(
   )
   loggingSession.setExecutionDeadlineAt(getExecutionDeadlineAt(timeoutController.signal))
 
+  const preprocessStartedAt = Date.now()
   const preprocessResult = await preprocessExecution({
     workflowId: payload.workflowId,
     userId: payload.userId,
@@ -710,6 +711,7 @@ async function executeWebhookJobInternal(
     executionType: 'async',
     executionDeadlineAt: getExecutionDeadlineAt(timeoutController.signal)?.getTime(),
   })
+  const preprocessEndedAt = Date.now()
 
   if (!preprocessResult.success) {
     const failure = preprocessResult.error
@@ -779,6 +781,7 @@ async function executeWebhookJobInternal(
         ? resolveCredentialAccountUserId(payload.credentialId)
         : Promise.resolve(undefined),
     ])
+    const loadsEndedAt = Date.now()
     const credentialAccountUserId = resolvedCredentialUserId
     if (payload.credentialId && !credentialAccountUserId) {
       logger.warn(
@@ -842,6 +845,7 @@ async function executeWebhookJobInternal(
         },
       }
     )
+    const providerConfigEndedAt = Date.now()
 
     if (handler.formatInput) {
       const result = await handler.formatInput({
@@ -858,6 +862,7 @@ async function executeWebhookJobInternal(
     } else {
       input = payload.body as Record<string, unknown> | null
     }
+    const formatInputEndedAt = Date.now()
 
     if (!input && handler.handleEmptyInput) {
       const skipResult = handler.handleEmptyInput(requestId)
@@ -1007,6 +1012,10 @@ async function executeWebhookJobInternal(
           payload.webhookReceivedAt !== undefined ? now - payload.webhookReceivedAt : undefined,
         triggerAgeMs:
           payload.triggerTimestampMs !== undefined ? now - payload.triggerTimestampMs : undefined,
+        preprocessMs: preprocessEndedAt - preprocessStartedAt,
+        loadsMs: loadsEndedAt - preprocessEndedAt,
+        providerConfigMs: providerConfigEndedAt - loadsEndedAt,
+        formatInputMs: formatInputEndedAt - providerConfigEndedAt,
       })
     }
 
@@ -1018,10 +1027,34 @@ async function executeWebhookJobInternal(
       []
     )
 
+    /**
+     * The dispatch-latency line above fires before executeWorkflowCore, so it cannot
+     * see the core's own setup (custom-block gate, env resolution, logging start,
+     * serialization). This logs once, when the first block actually starts — the
+     * moment that decides a trigger_id-bound provider's race against its expiry.
+     */
+    let executorStartLogged = false
+    const logExecutorStart = async () => {
+      if (executorStartLogged) return
+      executorStartLogged = true
+      if (payload.webhookReceivedAt === undefined && payload.triggerTimestampMs === undefined) {
+        return
+      }
+      const now = Date.now()
+      logger.info(`[${requestId}] Webhook executor started`, {
+        workflowId: payload.workflowId,
+        provider: payload.provider,
+        executorStartLatencyMs:
+          payload.webhookReceivedAt !== undefined ? now - payload.webhookReceivedAt : undefined,
+        executorStartTriggerAgeMs:
+          payload.triggerTimestampMs !== undefined ? now - payload.triggerTimestampMs : undefined,
+      })
+    }
+
     workflowCoreStarted = true
     const executionResult = await executeWorkflowCore({
       snapshot,
-      callbacks: {},
+      callbacks: { onBlockStart: logExecutorStart },
       loggingSession,
       trustedInitialResolvedSecretTraceProvenance:
         resolvedSecretTraceRegistry.exportProvenanceForValue(triggerInput),
