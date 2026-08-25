@@ -51,11 +51,10 @@ export function isServiceAccountProviderId(value: string): boolean {
 }
 
 /**
- * The block type whose preview gate governs a service-account provider's setup
- * surface, or `null` when the provider is ungated. A custom Slack bot is only
- * usable through `slack_v2`, so its setup form must stay hidden wherever that
- * block is preview-hidden — both the in-chat connect button and the tool that
- * offers it read this so they can't disagree on availability.
+ * The block type that owns a service-account provider's setup surface, or
+ * `null` when it is independent of block visibility. Custom Slack bots belong
+ * to `slack_v2`, so its kill switch is honored without making the released bot
+ * flow depend on a preview reveal.
  */
 export function getServiceAccountGatingBlockType(providerId: string): string | null {
   return providerId === SLACK_CUSTOM_BOT_PROVIDER_ID ? 'slack_v2' : null

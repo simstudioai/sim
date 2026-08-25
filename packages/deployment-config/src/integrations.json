@@ -19729,6 +19729,201 @@
       "tags": ["automation"]
     },
     {
+      "type": "semrush",
+      "slug": "semrush",
+      "name": "Semrush",
+      "description": "Research SEO and paid search data with Semrush",
+      "longDescription": "Query the Semrush SEO API for domain, subdomain, and URL traffic overviews, organic and paid keywords, ad and product listing creatives, competitor sets, keyword research, and backlink profiles. Requires a Semrush subscription with API units.",
+      "bgColor": "#FFFFFF",
+      "iconName": "SemrushIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/semrush",
+      "operations": [
+        {
+          "name": "Domain Overview",
+          "description": "Get the Semrush rank plus organic and paid search totals for a domain in one regional database."
+        },
+        {
+          "name": "Domain Overview (All Databases)",
+          "description": "Get organic and paid search totals for a domain across every regional Semrush database."
+        },
+        {
+          "name": "Domain Overview History",
+          "description": "Get the historical trend of a domain rank plus its organic and paid search totals."
+        },
+        {
+          "name": "Domain Organic Keywords",
+          "description": "List the keywords a domain ranks for in Google organic search, with position, volume, and traffic share."
+        },
+        {
+          "name": "Domain Paid Keywords",
+          "description": "List the keywords a domain buys in Google Ads, with ad position, copy, and traffic share."
+        },
+        {
+          "name": "Domain Ad Copies",
+          "description": "List the unique Google Ads creatives a domain runs, with title, description, and keyword count."
+        },
+        {
+          "name": "Domain Ad History",
+          "description": "List a domain past Google Ads placements month by month, with the copy used each time."
+        },
+        {
+          "name": "Organic Competitors",
+          "description": "List the domains competing with a target domain in Google organic search results."
+        },
+        {
+          "name": "Paid Competitors",
+          "description": "List the domains competing with a target domain in Google paid search results."
+        },
+        {
+          "name": "Domain PLA Keywords",
+          "description": "List the keywords that trigger a domain product listing ads, with the promoted product and price."
+        },
+        {
+          "name": "Domain PLA Copies",
+          "description": "List the unique product listing ads a domain runs, with product title, price, and shop name."
+        },
+        {
+          "name": "Domain vs. Domain",
+          "description": "Compare up to five domains on the keywords they rank for, returning each domain position side by side."
+        },
+        {
+          "name": "Subdomain Overview",
+          "description": "Get the organic and paid search totals for a subdomain in one regional database."
+        },
+        {
+          "name": "Subdomain Overview (All Databases)",
+          "description": "Get organic and paid search totals for a subdomain across every regional Semrush database."
+        },
+        {
+          "name": "Subdomain Overview History",
+          "description": "Get the historical trend of a subdomain organic and paid search totals."
+        },
+        {
+          "name": "Subdomain Organic Keywords",
+          "description": "List the keywords a subdomain ranks for in Google organic search."
+        },
+        {
+          "name": "Subdomain Paid Keywords",
+          "description": "List the keywords a subdomain buys in Google Ads."
+        },
+        {
+          "name": "Subdomain Ad Copies",
+          "description": "List the unique Google Ads creatives a subdomain runs."
+        },
+        {
+          "name": "URL Overview",
+          "description": "Get the organic and paid search totals for a single URL in one regional database."
+        },
+        {
+          "name": "URL Overview (All Databases)",
+          "description": "Get organic and paid search totals for a single URL across every regional Semrush database."
+        },
+        {
+          "name": "URL Overview History",
+          "description": "Get the historical trend of a URL organic and paid search totals."
+        },
+        {
+          "name": "URL Organic Keywords",
+          "description": "List the keywords a single URL ranks for in Google organic search."
+        },
+        {
+          "name": "URL Paid Keywords",
+          "description": "List the keywords a single URL is advertised on in Google Ads, with the ad copy used."
+        },
+        {
+          "name": "Keyword Overview",
+          "description": "Get search volume, CPC, competition, difficulty, and intent for a single keyword."
+        },
+        {
+          "name": "Keyword Overview (All Databases)",
+          "description": "Get search volume, CPC, and competition for a keyword across every regional Semrush database."
+        },
+        {
+          "name": "Batch Keyword Overview",
+          "description": "Get search volume, CPC, competition, difficulty, and intent for up to 100 keywords at once."
+        },
+        {
+          "name": "Keyword Difficulty",
+          "description": "Get the Keyword Difficulty Index for up to 100 keywords at once."
+        },
+        {
+          "name": "Related Keywords",
+          "description": "Find keywords semantically related to a seed keyword, with volume, difficulty, and relevance."
+        },
+        {
+          "name": "Broad Match Keywords",
+          "description": "Find broad-match and phrase-match variations of a seed keyword, with volume and difficulty."
+        },
+        {
+          "name": "Keyword Questions",
+          "description": "Find question-form keywords containing a seed keyword, with volume and difficulty."
+        },
+        {
+          "name": "Organic Results",
+          "description": "List the domains and URLs ranking in Google organic search results for a keyword."
+        },
+        {
+          "name": "Paid Results",
+          "description": "List the domains and URLs advertising on a keyword in Google paid search results."
+        },
+        {
+          "name": "Keyword Ad History",
+          "description": "List which domains advertised on a keyword month by month, with the copy each one used."
+        },
+        {
+          "name": "Winners and Losers",
+          "description": "List the domains that gained or lost the most organic and paid search visibility in a database."
+        },
+        {
+          "name": "Top Domains",
+          "description": "List the highest-ranked domains in a regional database by Semrush rank."
+        },
+        {
+          "name": "Backlinks Overview",
+          "description": "Get the Authority Score and backlink profile totals for a domain, subdomain, or URL."
+        },
+        {
+          "name": "Backlinks",
+          "description": "List the backlinks pointing at a domain, subdomain, or URL, with source page, anchor, and authority."
+        },
+        {
+          "name": "Referring Domains",
+          "description": "List the domains linking to a target, with Authority Score, backlink count, and country."
+        },
+        {
+          "name": "Referring IPs",
+          "description": "List the IP addresses linking to a target, with the domain and backlink counts behind each one."
+        },
+        {
+          "name": "Backlink TLD Distribution",
+          "description": "Break a target backlink profile down by the top-level domain of its referring domains."
+        },
+        {
+          "name": "Backlink Country Distribution",
+          "description": "Break a target backlink profile down by the country of its referring domains."
+        },
+        {
+          "name": "Backlink Anchors",
+          "description": "List the anchor texts used in backlinks to a target, with domain and backlink counts."
+        },
+        {
+          "name": "Indexed Pages",
+          "description": "List the pages of a target that attract backlinks, with response code and link counts."
+        },
+        {
+          "name": "Backlink Competitors",
+          "description": "List domains with a backlink profile similar to the target, ranked by shared referring domains."
+        }
+      ],
+      "operationCount": 44,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "analytics",
+      "tags": ["seo", "marketing", "data-analytics"]
+    },
+    {
       "type": "sendblue",
       "slug": "sendblue",
       "name": "Sendblue",
@@ -20471,7 +20666,7 @@
       "tags": ["enrichment", "sales-engagement"]
     },
     {
-      "type": "slack",
+      "type": "slack_v2",
       "slug": "slack",
       "name": "Slack",
       "description": "Send, update, delete messages, manage views and modals, add or remove reactions, manage canvases, get channel info and user presence in Slack",
@@ -20652,9 +20847,9 @@
       "operationCount": 42,
       "triggers": [
         {
-          "id": "slack_webhook",
-          "name": "Slack Webhook",
-          "description": "Trigger workflow from Slack events like mentions, messages, and reactions"
+          "id": "slack_oauth",
+          "name": "Slack",
+          "description": "Trigger from Slack events (mentions, messages, reactions)"
         }
       ],
       "triggerCount": 1,

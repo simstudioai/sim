@@ -278,6 +278,7 @@ export const DOCS_MANIFEST: readonly string[] = [
   'integrations/sap_concur.mdx',
   'integrations/sap_s4hana.mdx',
   'integrations/secrets_manager.mdx',
+  'integrations/semrush.mdx',
   'integrations/sendblue.mdx',
   'integrations/sendgrid.mdx',
   'integrations/sentry.mdx',

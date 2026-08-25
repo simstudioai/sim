@@ -94,9 +94,11 @@ const logger = createLogger('OAuth')
  * with "unapproved permissions requested" when any requested scope is not on the
  * app's approved list, so these stay out of the default grant.
  */
-const SLACK_APPROVAL_GATED_SCOPES = isSlackExtendedScopesEnabled
-  ? (['assistant:write', 'app_mentions:read', 'im:history'] as const)
-  : ([] as const)
+export function getSlackApprovalGatedScopes(enabled: boolean): readonly string[] {
+  return enabled ? ['assistant:write', 'app_mentions:read', 'im:history'] : []
+}
+
+const SLACK_APPROVAL_GATED_SCOPES = getSlackApprovalGatedScopes(isSlackExtendedScopesEnabled)
 
 export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
   'claude-platform': {

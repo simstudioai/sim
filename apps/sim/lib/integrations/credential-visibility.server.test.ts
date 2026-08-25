@@ -58,25 +58,22 @@ function availability(
 describe('integration credential visibility', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    getBlockMock.mockImplementation((type: string) => ({
-      type,
-      ...(type === 'slack_v2' ? { preview: true } : {}),
-    }))
+    getBlockMock.mockImplementation((type: string) => ({ type }))
     getIntegrationAvailabilityMock.mockReturnValue([
       availability('notion_v2', 'limited', {
         oauthAvailable: false,
         serviceAccountAvailable: true,
       }),
-      availability('slack', 'unavailable', {
+      availability('slack_v2', 'limited', {
         oauthAvailable: false,
-        serviceAccountAvailable: false,
+        serviceAccountAvailable: true,
       }),
     ])
   })
 
   it('applies the integration allowlist to OAuth and service-account credentials', () => {
     const visibility = createIntegrationCredentialVisibility({
-      allowedIntegrationTypes: new Set(['slack']),
+      allowedIntegrationTypes: new Set(['slack_v2']),
       blockVisibility: null,
       oauthServices: SERVICES,
     })
@@ -106,45 +103,31 @@ describe('integration credential visibility', () => {
     ).toBe(true)
   })
 
-  it('requires the Slack preview reveal for custom-bot credentials', () => {
-    const hidden = createIntegrationCredentialVisibility({
-      allowedIntegrationTypes: new Set(['slack']),
+  it('exposes released Slack custom-bot credentials without a preview reveal', () => {
+    const visibility = createIntegrationCredentialVisibility({
+      allowedIntegrationTypes: new Set(['slack_v2']),
       blockVisibility: null,
-      oauthServices: SERVICES,
-    })
-    const revealed = createIntegrationCredentialVisibility({
-      allowedIntegrationTypes: new Set(['slack']),
-      blockVisibility: {
-        revealed: new Set(['slack_v2']),
-        disabled: new Set(),
-        previewTagged: new Set(['slack_v2']),
-      },
       oauthServices: SERVICES,
     })
 
     const credential = { providerId: 'slack-custom-bot', type: 'service_account' } as const
-    expect(hidden.isCredentialVisible(credential)).toBe(false)
-    expect(revealed.isCredentialVisible(credential)).toBe(true)
+    expect(visibility.isCredentialVisible(credential)).toBe(true)
   })
 
-  it('projects partial OAuth state through a revealed service-account preview', () => {
+  it('keeps custom bots available with partial OAuth configuration unless Slack is disabled', () => {
     getIntegrationAvailabilityMock.mockReturnValue([
-      availability('slack', 'misconfigured', {
+      availability('slack_v2', 'limited', {
         oauthAvailable: false,
-        serviceAccountAvailable: false,
+        serviceAccountAvailable: true,
       }),
     ])
     const visibility = createIntegrationCredentialVisibility({
-      allowedIntegrationTypes: new Set(['slack']),
-      blockVisibility: {
-        revealed: new Set(['slack_v2']),
-        disabled: new Set(),
-        previewTagged: new Set(['slack_v2']),
-      },
+      allowedIntegrationTypes: new Set(['slack_v2']),
+      blockVisibility: null,
       oauthServices: SERVICES,
     })
     const disabled = createIntegrationCredentialVisibility({
-      allowedIntegrationTypes: new Set(['slack']),
+      allowedIntegrationTypes: new Set(['slack_v2']),
       blockVisibility: {
         revealed: new Set(['slack_v2']),
         disabled: new Set(['slack_v2']),
