@@ -504,9 +504,10 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       })
     }
 
-    const retentionThreshold = new Date(Date.now() - JOB_RETENTION_HOURS * 60 * 60 * 1000)
+    const retentionNow = Date.now()
+    const retentionThreshold = new Date(retentionNow - JOB_RETENTION_HOURS * 60 * 60 * 1000)
     const irrecoverableCarrierRetentionThreshold = new Date(
-      Date.now() - SCHEDULE_CARRIER_IRRECOVERABLE_RETENTION_HOURS * 60 * 60 * 1000
+      retentionNow - SCHEDULE_CARRIER_IRRECOVERABLE_RETENTION_HOURS * 60 * 60 * 1000
     )
     let asyncJobsDeleted = 0
 
