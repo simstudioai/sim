@@ -17,6 +17,12 @@ const ctx = (body: unknown) => ({
 const eventOf = (input: unknown) =>
   (input as { event: Record<string, unknown> }).event as Record<string, unknown>
 
+describe('slackHandler responses', () => {
+  it('returns a retryable failure when queue admission fails', () => {
+    expect(slackHandler.formatQueueErrorResponse!().status).toBe(500)
+  })
+})
+
 describe('slackHandler formatInput - Events API', () => {
   it('maps an app_mention event', async () => {
     const { input } = await slackHandler.formatInput!(

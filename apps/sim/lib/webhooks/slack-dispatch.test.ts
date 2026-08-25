@@ -17,7 +17,11 @@ vi.mock('@/lib/webhooks/providers/slack', () => ({
 }))
 
 import { dispatchResolvedWebhookTarget } from '@/lib/webhooks/processor'
-import { dispatchSlackWebhooks } from '@/lib/webhooks/slack-dispatch'
+import {
+  dispatchSlackWebhooks,
+  getSlackDispatchFailureResponse,
+  getSlackDispatchResponse,
+} from '@/lib/webhooks/slack-dispatch'
 
 describe('dispatchSlackWebhooks', () => {
   it('dispatches at most ten targets concurrently and preserves result order', async () => {
@@ -67,5 +71,44 @@ describe('dispatchSlackWebhooks', () => {
     expect(results.map(({ response }) => response.status)).toEqual(
       Array.from({ length: 12 }, (_, index) => 200 + index)
     )
+  })
+
+  it('returns the failure when no Slack target is acknowledged', () => {
+    const response = getSlackDispatchResponse([
+      {
+        outcome: 'failed',
+        response: new NextResponse(null, { status: 500 }),
+        reason: 'queue-failed',
+      },
+    ])
+
+    expect(response.status).toBe(500)
+  })
+
+  it('acknowledges a mixed fan-out when at least one Slack target queues', () => {
+    const response = getSlackDispatchResponse([
+      {
+        outcome: 'failed',
+        response: new NextResponse(null, { status: 500 }),
+        reason: 'queue-failed',
+      },
+      {
+        outcome: 'queued',
+        response: new NextResponse(null, { status: 200 }),
+        reason: 'queued',
+      },
+    ])
+
+    expect(response.status).toBe(200)
+  })
+
+  it('fails fast when a failed Slack dispatch carries a successful response', () => {
+    expect(() =>
+      getSlackDispatchFailureResponse({
+        outcome: 'failed',
+        response: new NextResponse(null, { status: 200 }),
+        reason: 'queue-failed',
+      })
+    ).toThrow('Failed Slack dispatch returned successful HTTP status 200')
   })
 })

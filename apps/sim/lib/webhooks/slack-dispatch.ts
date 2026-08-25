@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import type { NextRequest } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import {
   dispatchResolvedWebhookTarget,
@@ -16,6 +16,36 @@ interface DispatchSlackWebhooksOptions {
   request: NextRequest
   requestId: string
   receivedAt: number
+}
+
+/** Returns the non-success response that tells Slack to retry a failed delivery. */
+export function getSlackDispatchFailureResponse(result: WebhookDispatchResult): NextResponse {
+  if (result.outcome !== 'failed') {
+    throw new Error(`Expected failed Slack dispatch, received ${result.outcome}`)
+  }
+  if (result.response.ok) {
+    throw new Error(
+      `Failed Slack dispatch returned successful HTTP status ${result.response.status}`
+    )
+  }
+  return result.response
+}
+
+/** Reduces a Slack fan-out to one provider acknowledgment or retry response. */
+export function getSlackDispatchResponse(results: WebhookDispatchResult[]): NextResponse {
+  const acknowledged = results.some(
+    (result) => result.outcome !== 'failed' && result.reason !== 'block-missing'
+  )
+  if (acknowledged) {
+    return new NextResponse(null, { status: 200 })
+  }
+
+  const failure = results.find((result) => result.outcome === 'failed')
+  if (failure) {
+    return getSlackDispatchFailureResponse(failure)
+  }
+
+  return new NextResponse(null, { status: 200 })
 }
 
 /**

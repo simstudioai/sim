@@ -43,7 +43,7 @@ function webhook(id: string) {
 
 async function run(body: Record<string, unknown>) {
   mockParseWebhookBody.mockResolvedValue({ body, rawBody: JSON.stringify(body) })
-  await POST(makeRequest())
+  return POST(makeRequest())
 }
 
 const messageBody = {
@@ -81,6 +81,18 @@ describe('Slack app webhook route', () => {
     })
     await run(messageBody)
     expect(mockDispatchResolvedWebhookTarget).toHaveBeenCalledTimes(1)
+  })
+
+  it('returns a retryable failure when no target queues', async () => {
+    mockDispatchResolvedWebhookTarget.mockResolvedValue({
+      outcome: 'failed',
+      response: new Response(null, { status: 500 }),
+      reason: 'queue-failed',
+    })
+
+    const response = await run(messageBody)
+
+    expect(response.status).toBe(500)
   })
 
   it('routes via Slack Connect authorizations and dedups overlapping webhooks', async () => {

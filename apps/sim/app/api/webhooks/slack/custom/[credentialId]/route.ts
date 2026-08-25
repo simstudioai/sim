@@ -8,6 +8,7 @@ import {
   dispatchSlackCustomBotCredential,
   verifySlackCustomBotCredentialRequest,
 } from '@/lib/webhooks/slack-custom-ingress'
+import { getSlackDispatchResponse } from '@/lib/webhooks/slack-dispatch'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -74,13 +75,5 @@ async function handleSlackCustomBotWebhook(
     requestId,
     receivedAt,
   })
-  const acknowledged = dispatchResults.some(
-    (result) => result.outcome !== 'failed' && result.reason !== 'block-missing'
-  )
-  if (!acknowledged) {
-    const failure = dispatchResults.find((result) => result.outcome === 'failed')
-    if (failure) return failure.response
-  }
-
-  return new NextResponse(null, { status: 200 })
+  return getSlackDispatchResponse(dispatchResults)
 }

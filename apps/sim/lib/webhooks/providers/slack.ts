@@ -860,7 +860,7 @@ export const slackHandler: WebhookProviderHandler = {
   },
 
   formatQueueErrorResponse() {
-    return new NextResponse(null, { status: 200 })
+    return new NextResponse(null, { status: 500 })
   },
 
   /**

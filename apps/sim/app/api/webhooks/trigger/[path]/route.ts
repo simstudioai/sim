@@ -27,6 +27,7 @@ import {
   getLegacySlackCustomBotCredentialId,
   verifySlackCustomBotCredentialRequest,
 } from '@/lib/webhooks/slack-custom-ingress'
+import { getSlackDispatchFailureResponse } from '@/lib/webhooks/slack-dispatch'
 
 const logger = createLogger('WebhookTriggerAPI')
 const MAX_LEGACY_SLACK_CREDENTIALS_PER_PATH = 25
@@ -263,7 +264,7 @@ async function handleWebhookDelivery(
   let hasPermanentlyIgnoredLegacyTarget = false
   for (const dispatchResult of legacySlackDispatchResults) {
     if (dispatchResult.outcome === 'failed') {
-      failures.push(dispatchResult.response)
+      failures.push(getSlackDispatchFailureResponse(dispatchResult))
       continue
     }
     if (dispatchResult.reason === 'block-missing') {
