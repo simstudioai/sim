@@ -122,6 +122,17 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
 
   const publisher = new StreamWriter({ streamId, chatId, requestId })
 
+  // Declared at function scope (same rationale as `cancelReason` below) so the
+  // leak backstop in the orchestration's outer finally can always reach them:
+  // the stream registration above, the abort poller, and the keepalive are
+  // process-held resources, and a throw that bypasses the inner finally's
+  // ordered teardown (e.g. `resetBuffer` failing on a Redis blip before the
+  // lifecycle starts) previously orphaned them — the poller and keepalive
+  // intervals then ran, and the activeStreams entry sat, for the life of the
+  // process.
+  let abortPoller: ReturnType<typeof startAbortPoller> | undefined
+  let processResourcesReleased = false
+
   // Classify cancel: signal.reason (explicit-stop set) wins, then
   // clientDisconnected, else Unknown (latent contract bug — log it).
   const recordCancelled = (errorMessage?: string): CopilotRequestCancelReasonValue => {
@@ -220,7 +231,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
             })
           }
 
-          const abortPoller = startAbortPoller(streamId, abortController, {
+          abortPoller = startAbortPoller(streamId, abortController, {
             requestId,
             chatId,
           })
@@ -347,6 +358,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
             if (chatId) {
               await releasePendingChatStream(chatId, streamId)
             }
+            processResourcesReleased = true
             await scheduleBufferCleanup(streamId)
             await scheduleFilePreviewSessionCleanup(streamId)
             await cleanupAbortMarker(streamId)
@@ -371,6 +383,24 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
           rootError = error
           throw error
         } finally {
+          // Leak backstop for throws that bypassed the inner finally's
+          // ordered teardown (a session reset failing before the lifecycle
+          // started, or the teardown itself throwing before its release
+          // lines). Every step is idempotent — clearInterval and
+          // stopKeepalive no-op when already stopped, unregister is a keyed
+          // delete, and the chat-stream release is ownership-guarded against
+          // a successor stream — and none of them throw, so the otel finish
+          // below always still runs. On the normal path the flag set by the
+          // ordered teardown skips this entirely.
+          if (!processResourcesReleased) {
+            processResourcesReleased = true
+            clearInterval(abortPoller)
+            publisher.stopKeepalive()
+            unregisterActiveStream(streamId)
+            if (chatId) {
+              await releasePendingChatStream(chatId, streamId)
+            }
+          }
           // `finish` is idempotent, so it's safe whether the POST
           // handler started the root (and may also call finish on an
           // error path before the stream ran) or we did. The cancel

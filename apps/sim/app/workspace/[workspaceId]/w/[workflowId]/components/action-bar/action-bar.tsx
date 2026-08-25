@@ -205,7 +205,7 @@ export const ActionBar = memo(
       collaborativeBatchToggleBlockEnabled,
       collaborativeBatchToggleLocked,
     } = useCollaborativeWorkflow()
-    const { setPendingSelection } = useWorkflowRegistry()
+    const setPendingSelection = useWorkflowRegistry((state) => state.setPendingSelection)
     const { handleCancelExecution, handleRunFromBlock } = useWorkflowExecution()
     const handleDuplicateBlock = useCallback(() => {
       const { copyBlocks, preparePasteData } = useWorkflowRegistry.getState()
@@ -249,7 +249,7 @@ export const ActionBar = memo(
         })
       )
 
-    const { activeWorkflowId } = useWorkflowRegistry()
+    const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
     const snapshot = useLastExecutionSnapshot(activeWorkflowId)
     const userPermissions = useUserPermissionsContext()
     const edges = useWorkflowStore((state) => state.edges)

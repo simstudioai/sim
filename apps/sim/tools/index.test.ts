@@ -3623,12 +3623,6 @@ describe('Automatic Internal Route Detection', () => {
     Object.assign(tools, originalTools)
   })
 
-  it('PLACEHOLDER - external routes are called directly', async () => {
-    // Placeholder test to maintain test count - external URLs now go direct
-    // No proxy is used for external URLs anymore - they use secureFetchWithPinnedIP
-    expect(true).toBe(true)
-  })
-
   it('should call external URLs directly with SSRF protection', async () => {
     // External URLs now use secureFetchWithPinnedIP which uses Node's http/https modules
     // This test verifies the proxy is NOT called for external URLs

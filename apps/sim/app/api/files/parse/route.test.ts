@@ -103,7 +103,6 @@ vi.mock('path', () => ({
   extname: actualPath.extname,
 }))
 
-vi.mock('@/lib/uploads/setup.server', () => ({}))
 vi.mock('@/lib/uploads/core/setup.server', () => ({
   UPLOAD_DIR_SERVER: '/test/uploads',
 }))
