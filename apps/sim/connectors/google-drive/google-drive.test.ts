@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import * as XLSX from 'xlsx'
 
 const { mockFetchWithRetry } = vi.hoisted(() => ({ mockFetchWithRetry: vi.fn() }))
 
@@ -164,23 +165,44 @@ describe('Google Drive export failures', () => {
     })
   })
 
-  it('preserves the established first-sheet CSV export without parser truncation regressions', async () => {
+  it('hands the complete XLSX workbook to the shared parser instead of exporting only sheet one', async () => {
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([]), 'Empty first sheet')
+    XLSX.utils.book_append_sheet(
+      workbook,
+      XLSX.utils.aoa_to_sheet([
+        ['month', 'revenue'],
+        ['Jan', 100],
+      ]),
+      'Revenue'
+    )
+    const workbookBytes = Buffer.from(XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' }))
+
     mockFetchWithRetry
       .mockResolvedValueOnce(
         jsonResponse(
           fileMetadata({ name: 'Revenue model', mimeType: GOOGLE_SPREADSHEET_MIME_TYPE })
         )
       )
-      .mockResolvedValueOnce(new Response('month,revenue\nJan,100'))
+      .mockResolvedValueOnce(new Response(workbookBytes))
 
     const document = await googleDriveConnector.getDocument('token', {}, FILE_ID)
     const exportUrl = String(mockFetchWithRetry.mock.calls[1][0])
 
-    expect(exportUrl).toContain('mimeType=text%2Fcsv')
-    expect(document?.content).toBe('month,revenue\nJan,100')
-    expect(document?.mimeType).toBe('text/plain')
-    expect(document?.sourceFile).toBeUndefined()
-    expect(document?.contentHash).toBe('gdrive:drive-file-1:2026-08-20T12:00:00Z')
+    expect(exportUrl).toContain(
+      'mimeType=application%2Fvnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    expect(document?.content).toBe('')
+    expect(document?.mimeType).toBe(
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    expect(document?.sourceFile).toMatchObject({
+      fileName: 'Revenue model.xlsx',
+      mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    })
+    expect(document?.sourceFile?.bytes).toEqual(workbookBytes)
+    expect(document?.skippedReason).toBeUndefined()
+    expect(document?.contentHash).toBe('gdrive:v2:drive-file-1:2026-08-20T12:00:00Z')
   })
 
   it('marks an empty export as an authoritative skip', async () => {
@@ -246,6 +268,19 @@ describe('Google Drive connector limits', () => {
     expect(first.hasMore).toBe(true)
     expect(second.documents.map((document) => document.externalId)).toEqual(['indexable'])
     expect(syncContext.totalDocsFetched).toBe(1)
+  })
+
+  it('makes an incomplete cross-corpus search non-authoritative', async () => {
+    mockFetchWithRetry.mockResolvedValueOnce(
+      jsonResponse({ files: [fileMetadata()], incompleteSearch: true })
+    )
+    const syncContext: Record<string, unknown> = {}
+
+    const result = await googleDriveConnector.listDocuments('token', {}, undefined, syncContext)
+
+    expect(result.documents.map((document) => document.externalId)).toEqual([FILE_ID])
+    expect(result.reconciliationSafe).toBe(false)
+    expect(syncContext.listingCapped).toBe(true)
   })
 
   it.each(['1.5', 'Infinity', 1.5, Number.POSITIVE_INFINITY])(

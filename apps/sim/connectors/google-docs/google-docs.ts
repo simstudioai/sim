@@ -87,6 +87,9 @@ interface DocsParagraphElement {
   textRun?: { content?: string }
   richLink?: { richLinkProperties?: { title?: string; uri?: string } }
   person?: { personProperties?: { name?: string; email?: string } }
+  dateElement?: { dateElementProperties?: { displayText?: string } }
+  equation?: Record<string, unknown>
+  inlineObjectElement?: { inlineObjectId?: string }
 }
 
 /**
@@ -115,14 +118,22 @@ interface DocsStructuralElement {
   }
 }
 
+interface DocsContentRegion {
+  content?: DocsStructuralElement[]
+}
+
 /**
- * A tab of a Google Doc. Tabs may nest arbitrarily deep via `childTabs`. This
- * connector indexes the body text of each tab; headers, footers, footnotes, and
- * inline-object payloads are outside its current plain-text coverage.
+ * A Google Doc tab. Tabs may nest through `childTabs`; non-text objects are
+ * tracked separately so an object-only document is not mistaken for empty text.
  */
 interface DocsTab {
   documentTab?: {
-    body?: { content?: DocsStructuralElement[] }
+    body?: DocsContentRegion
+    headers?: Record<string, DocsContentRegion>
+    footers?: Record<string, DocsContentRegion>
+    footnotes?: Record<string, DocsContentRegion>
+    inlineObjects?: Record<string, unknown>
+    positionedObjects?: Record<string, unknown>
   }
   childTabs?: DocsTab[]
 }
@@ -194,6 +205,9 @@ function paragraphElementText(element: DocsParagraphElement): string {
     const { name, email } = element.person.personProperties
     return name || email || ''
   }
+  if (element.dateElement?.dateElementProperties?.displayText) {
+    return element.dateElement.dateElementProperties.displayText
+  }
   return ''
 }
 
@@ -242,26 +256,99 @@ function extractTextFromStructuralElements(elements: DocsStructuralElement[]): s
  * Collects the text of a tab and every descendant tab, depth-first in the order
  * the Docs API returns them.
  */
-function extractTextFromTabs(tabs: DocsTab[]): string[] {
-  const parts: string[] = []
+interface DocsExtraction {
+  parts: string[]
+  hasUnresolvedContent: boolean
+}
 
-  for (const tab of tabs) {
-    const content = tab.documentTab?.body?.content
-    if (content) parts.push(...extractTextFromStructuralElements(content))
-    if (tab.childTabs?.length) parts.push(...extractTextFromTabs(tab.childTabs))
+function hasUnresolvedStructuralContent(elements: DocsStructuralElement[]): boolean {
+  for (const element of elements) {
+    if (
+      element.paragraph?.elements?.some(
+        (paragraphElement) =>
+          Boolean(paragraphElement.equation) || Boolean(paragraphElement.inlineObjectElement)
+      )
+    ) {
+      return true
+    }
+
+    for (const row of element.table?.tableRows ?? []) {
+      for (const cell of row.tableCells ?? []) {
+        if (cell.content && hasUnresolvedStructuralContent(cell.content)) return true
+      }
+    }
+
+    if (
+      element.tableOfContents?.content &&
+      hasUnresolvedStructuralContent(element.tableOfContents.content)
+    ) {
+      return true
+    }
   }
 
-  return parts
+  return false
+}
+
+function appendRegionText(parts: string[], regions?: Record<string, DocsContentRegion>): boolean {
+  if (!regions) return false
+  let hasUnresolvedContent = false
+  for (const region of Object.values(regions)) {
+    if (region.content) {
+      parts.push(...extractTextFromStructuralElements(region.content))
+      hasUnresolvedContent ||= hasUnresolvedStructuralContent(region.content)
+    }
+  }
+  return hasUnresolvedContent
+}
+
+function extractTextFromTabs(tabs: DocsTab[]): DocsExtraction {
+  const parts: string[] = []
+  let hasUnresolvedContent = false
+
+  for (const tab of tabs) {
+    const documentTab = tab.documentTab
+    const content = documentTab?.body?.content
+    if (content) {
+      parts.push(...extractTextFromStructuralElements(content))
+      hasUnresolvedContent ||= hasUnresolvedStructuralContent(content)
+    }
+    if (appendRegionText(parts, documentTab?.headers)) hasUnresolvedContent = true
+    if (appendRegionText(parts, documentTab?.footers)) hasUnresolvedContent = true
+    if (appendRegionText(parts, documentTab?.footnotes)) hasUnresolvedContent = true
+
+    if (
+      Object.keys(documentTab?.inlineObjects ?? {}).length > 0 ||
+      Object.keys(documentTab?.positionedObjects ?? {}).length > 0
+    ) {
+      hasUnresolvedContent = true
+    }
+
+    if (tab.childTabs?.length) {
+      const child = extractTextFromTabs(tab.childTabs)
+      parts.push(...child.parts)
+      hasUnresolvedContent ||= child.hasUnresolvedContent
+    }
+  }
+
+  return { parts, hasUnresolvedContent }
 }
 
 /**
  * Extracts plain text from a Google Docs API document response. `tabs` is the
  * source of truth because `includeTabsContent=true` moves all content there and
- * leaves the legacy top-level text fields empty. Extraction intentionally covers
- * tab body text only; unsupported resource types are not represented as complete.
+ * leaves the legacy top-level fields empty. The unresolved-content bit prevents
+ * an image- or equation-only document from being mistaken for an empty one.
  */
-function extractTextFromDocument(doc: DocsDocument): string {
-  return doc.tabs?.length ? extractTextFromTabs(doc.tabs).join('\n').trim() : ''
+function extractTextFromDocument(doc: DocsDocument): {
+  content: string
+  hasUnresolvedContent: boolean
+} {
+  if (!doc.tabs?.length) return { content: '', hasUnresolvedContent: false }
+  const extracted = extractTextFromTabs(doc.tabs)
+  return {
+    content: extracted.parts.join('\n').trim(),
+    hasUnresolvedContent: extracted.hasUnresolvedContent,
+  }
 }
 
 /**
@@ -272,7 +359,10 @@ function extractTextFromDocument(doc: DocsDocument): string {
  * {@link MAX_DOCS_RESPONSE_BYTES} so it surfaces as a visible skipped row rather
  * than being buffered whole.
  */
-async function fetchDocContent(accessToken: string, documentId: string): Promise<string> {
+async function fetchDocContent(
+  accessToken: string,
+  documentId: string
+): Promise<{ content: string; hasUnresolvedContent: boolean }> {
   const params = new URLSearchParams({
     includeTabsContent: 'true',
     fields: GOOGLE_DOC_CONTENT_FIELDS,
@@ -448,6 +538,7 @@ export const googleDocsConnector: ConnectorConfig = {
       documents,
       nextCursor: hitLimit ? undefined : nextPageToken,
       hasMore: hitLimit ? false : Boolean(nextPageToken),
+      reconciliationSafe: incompleteSearch ? false : undefined,
     }
   },
 
@@ -480,8 +571,14 @@ export const googleDocsConnector: ConnectorConfig = {
     if (file.mimeType !== GOOGLE_DOC_MIME_TYPE) return null
 
     try {
-      const content = await fetchDocContent(accessToken, file.id)
+      const { content, hasUnresolvedContent } = await fetchDocContent(accessToken, file.id)
       if (!content.trim()) {
+        if (hasUnresolvedContent) {
+          return markSkipped(
+            fileToStub(file),
+            'Document contains non-text elements but no extractable text'
+          )
+        }
         return {
           ...markSkipped(fileToStub(file), 'Document contains no extractable text'),
           skippedExistingDisposition: 'replace',

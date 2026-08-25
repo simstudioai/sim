@@ -1,50 +1,21 @@
 import { createLogger } from '@sim/logger'
-import { task, tasks } from '@trigger.dev/sdk'
-import { resolveTriggerRegion } from '@/lib/core/async-jobs/region'
+import { task } from '@trigger.dev/sdk'
 import { env, envNumber } from '@/lib/core/config/env'
 import { EMBEDDING_QUOTA_EXHAUSTED_MESSAGE, isEmbeddingQuotaExhaustion } from '@/lib/embeddings'
-import { EMBEDDING_QUOTA_CIRCUIT_TTL_MS } from '@/lib/embeddings/quota-circuit'
 import { isPermanentDocumentProcessingError } from '@/lib/knowledge/documents/document-processing-error'
 import {
   assertDocumentProcessingPayload,
   type DocumentProcessingBillingContext,
   type DocumentProcessingPayload,
 } from '@/lib/knowledge/documents/processing-payload'
+import {
+  resolveQuotaContinuationDelayMs,
+  scheduleDocumentProcessingQuotaContinuation,
+} from '@/lib/knowledge/documents/processing-quota-continuation'
 import { processDocumentAsync } from '@/lib/knowledge/documents/service'
 
 const logger = createLogger('TriggerKnowledgeProcessing')
-const MAX_QUOTA_CONTINUATION_DELAY_MS = 6 * 60 * 60 * 1000
-const MAX_QUOTA_BACKOFF_EXPONENT = Math.ceil(
-  Math.log2(MAX_QUOTA_CONTINUATION_DELAY_MS / EMBEDDING_QUOTA_CIRCUIT_TTL_MS)
-)
-
-/** Backs durable quota continuations off to a six-hour polling ceiling. */
-export function resolveQuotaContinuationDelayMs(quotaRetryCount: number): number {
-  const exponent = Math.min(Math.max(quotaRetryCount - 1, 0), MAX_QUOTA_BACKOFF_EXPONENT)
-  return Math.min(EMBEDDING_QUOTA_CIRCUIT_TTL_MS * 2 ** exponent, MAX_QUOTA_CONTINUATION_DELAY_MS)
-}
-
-/**
- * Hands quota-blocked work to a new delayed run before the current run completes.
- * A Trigger run has a finite attempt budget, so retrying the same run can still
- * strand an upload during a prolonged outage. Chaining acknowledged runs keeps
- * recovery durable until credit returns; a failed handoff throws and consumes the
- * current run's ordinary infrastructure retries instead of claiming success.
- */
-async function scheduleQuotaContinuation(payload: DocumentProcessingPayload): Promise<void> {
-  const quotaRetryCount = (payload.quotaRetryCount ?? 0) + 1
-  const delayMs = resolveQuotaContinuationDelayMs(quotaRetryCount)
-  await tasks.trigger(
-    'knowledge-process-document',
-    { ...payload, quotaRetryCount },
-    {
-      delay: new Date(Date.now() + delayMs),
-      idempotencyKey: `knowledge-quota-${payload.documentId}-${payload.requestId}-${quotaRetryCount}`,
-      tags: [`knowledgeBaseId:${payload.knowledgeBaseId}`, `documentId:${payload.documentId}`],
-      region: await resolveTriggerRegion(),
-    }
-  )
-}
+export { resolveQuotaContinuationDelayMs }
 
 export async function runDocumentProcessing(
   rawPayload: DocumentProcessingPayload,
@@ -78,8 +49,16 @@ export async function runDocumentProcessing(
       billingContext,
       requestId,
       {
-        chargedAtDispatch: attemptNumber === 1 && payload.quotaRetryCount === undefined,
-        processingQueuedAt: new Date(payload.processingQueuedAt),
+        chargedAtDispatch:
+          (payload.chargedAtDispatch ?? payload.processingQueuedAt !== undefined) &&
+          attemptNumber === 1 &&
+          payload.quotaRetryCount === undefined,
+        ...(payload.processingQueueToken
+          ? { processingQueueToken: payload.processingQueueToken }
+          : {}),
+        ...(payload.processingQueuedAt
+          ? { processingQueuedAt: new Date(payload.processingQueuedAt) }
+          : {}),
       }
     )
 
@@ -97,7 +76,7 @@ export async function runDocumentProcessing(
         filename: docData.filename,
         quotaRetryCount: payload.quotaRetryCount ?? 0,
       })
-      await scheduleQuotaContinuation(payload)
+      await scheduleDocumentProcessingQuotaContinuation(payload)
       return {
         success: false,
         outcome: 'quota_deferred' as const,

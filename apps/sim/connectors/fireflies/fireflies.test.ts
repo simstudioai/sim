@@ -80,6 +80,42 @@ describe('fireflies listDocuments', () => {
     expect(calls[0].query).not.toContain('50')
   })
 
+  it.each([
+    [
+      { is_live: true, meeting_info: { summary_status: 'processing' } },
+      { is_live: false, meeting_info: { summary_status: 'processing' } },
+    ],
+    [
+      { is_live: false, meeting_info: { summary_status: 'processing' } },
+      { is_live: false, meeting_info: { summary_status: 'processed' } },
+    ],
+  ])('changes the listing hash when transcript lifecycle state changes', async (before, after) => {
+    const calls = mockGraphQL([
+      { body: { data: { transcripts: [transcript('t0', before)] } } },
+      { body: { data: { transcripts: [transcript('t0', after)] } } },
+    ])
+
+    const first = await firefliesConnector.listDocuments('key', {}, undefined, {})
+    const second = await firefliesConnector.listDocuments('key', {}, undefined, {})
+
+    expect(first.documents[0].contentHash).not.toBe(second.documents[0].contentHash)
+    expect(calls[0].query).toContain('is_live')
+    expect(calls[0].query).toContain('summary_status')
+  })
+
+  it.each(['-1', '1.5', 'Infinity', '9007199254740992', 'opaque'])(
+    'rejects invalid pagination cursor %s before calling Fireflies',
+    async (cursor) => {
+      const fetchMock = vi.fn()
+      vi.stubGlobal('fetch', fetchMock)
+
+      await expect(firefliesConnector.listDocuments('key', {}, cursor, {})).rejects.toThrow(
+        'Invalid Fireflies connector pagination cursor'
+      )
+      expect(fetchMock).not.toHaveBeenCalled()
+    }
+  )
+
   it('marks offset pagination unsafe for deletion reconciliation even when exhausted', async () => {
     mockGraphQL([page(3)])
     const syncContext: Record<string, unknown> = {}

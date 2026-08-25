@@ -60,7 +60,14 @@ export function splitAtWordBoundaries(
   chunkSizeChars: number,
   stepChars?: number
 ): string[] {
-  const parts: string[] = []
+  return Array.from(iterateWordBoundaryChunks(text, chunkSizeChars, stepChars))
+}
+
+export function* iterateWordBoundaryChunks(
+  text: string,
+  chunkSizeChars: number,
+  stepChars?: number
+): Generator<string> {
   let pos = 0
 
   while (pos < text.length) {
@@ -68,30 +75,65 @@ export function splitAtWordBoundaries(
 
     if (end < text.length) {
       const lastSpace = text.lastIndexOf(' ', end)
-      if (lastSpace > pos) {
-        end = lastSpace
-      }
+      if (lastSpace > pos) end = lastSpace
     }
 
     const part = text.slice(pos, end).trim()
-    if (part) {
-      parts.push(part)
-    }
+    if (part) yield part
 
     if (stepChars !== undefined) {
-      // Sliding window: advance by step for predictable overlap
       const nextPos = pos + Math.max(1, stepChars)
       if (nextPos >= text.length) break
       pos = nextPos
     } else {
-      // Non-overlapping: advance from end of extracted content
       if (end >= text.length) break
       pos = end
     }
     while (pos < text.length && text[pos] === ' ') pos++
   }
+}
 
-  return parts
+/** Iterates literal-separated parts while preserving String.split's raw part values. */
+export function* iterateLiteralParts(text: string, separator: string): Generator<string> {
+  if (!separator) {
+    yield text
+    return
+  }
+
+  let cursor = 0
+  while (cursor <= text.length) {
+    const next = text.indexOf(separator, cursor)
+    if (next === -1) {
+      yield text.slice(cursor)
+      return
+    }
+    yield text.slice(cursor, next)
+    cursor = next + separator.length
+  }
+}
+
+export function hasMultipleNonEmptyLiteralParts(text: string, separator: string): boolean {
+  let nonEmptyParts = 0
+  for (const part of iterateLiteralParts(text, separator)) {
+    if (!part.trim()) continue
+    nonEmptyParts++
+    if (nonEmptyParts === 2) return true
+  }
+  return false
+}
+
+/** Iterates lines without allocating an array proportional to line count. */
+export function* iterateLines(text: string): Generator<string> {
+  let cursor = 0
+  while (cursor <= text.length) {
+    const next = text.indexOf('\n', cursor)
+    if (next === -1) {
+      yield text.slice(cursor)
+      return
+    }
+    yield text.slice(cursor, next)
+    cursor = next + 1
+  }
 }
 
 export function buildChunks(texts: string[], overlapTokens: number): Chunk[] {

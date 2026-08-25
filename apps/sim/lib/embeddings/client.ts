@@ -14,6 +14,7 @@ import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
   isPayloadSizeLimitError,
+  readResponseJsonWithLimit,
   readResponseTextWithLimit,
 } from '@/lib/core/utils/stream-limits'
 import {
@@ -96,17 +97,37 @@ const EMBEDDING_REQUEST_TIMEOUT_MS = 60_000
  */
 const BATCH_TOKEN_TARGET = 8192
 
+/**
+ * Hard ceiling on one successful embedding response.
+ *
+ * Gemini's documented 100-item request cap at the catalog's largest 3,072
+ * dimensions fits comfortably inside 16 MiB, including a conservative JSON
+ * representation allowance. Larger OpenAI-style batches are split below from
+ * their expected vector width, so the guard rejects malformed provider output
+ * rather than valid catalog traffic.
+ */
+export const MAX_EMBEDDING_SUCCESS_RESPONSE_BYTES = 16 * 1024 * 1024
+
+/** Leaves room for the provider envelope, usage metadata, indices, and delimiters. */
+const EMBEDDING_RESPONSE_ENVELOPE_RESERVE_BYTES = 64 * 1024
+
+/**
+ * JSON may render a finite double with more characters than its in-memory
+ * representation. Thirty-two bytes per coordinate is deliberately conservative
+ * for the number, comma, and surrounding array syntax.
+ */
+const EMBEDDING_RESPONSE_BYTES_PER_DIMENSION = 32
+const EMBEDDING_RESPONSE_BYTES_PER_ITEM = 128
+
 /** Retries after the initial attempt, per embedding request. */
 export const EMBEDDING_MAX_RETRIES = 5
 
-/** Ceiling on a single wait between embedding attempts, including a provider-stated one. */
+/** Ceiling on exponential backoff when the provider supplies no retry delay. */
 export const EMBEDDING_MAX_RETRY_DELAY_MS = 30_000
 
 /**
- * Longest a request can stay in the retry loop: every attempt waits at most the
- * ceiling, so the budget is what the attempts span in total. A provider window
- * that reopens inside this is still reachable even though each individual wait
- * is clamped below it.
+ * Longest a request can stay in the retry loop. An admitted provider-stated wait
+ * is honored in full when it fits inside this deadline.
  */
 const EMBEDDING_RETRY_BUDGET_MS = EMBEDDING_MAX_RETRIES * EMBEDDING_MAX_RETRY_DELAY_MS
 
@@ -126,6 +147,13 @@ export class EmbeddingAPIError extends Error {
     super(message)
     this.name = 'EmbeddingAPIError'
     this.status = status
+  }
+}
+
+class EmbeddingResponseValidationError extends EmbeddingAPIError {
+  constructor(message: string) {
+    super(`Embedding API returned an invalid success response: ${message}`, 502)
+    this.name = 'EmbeddingResponseValidationError'
   }
 }
 
@@ -214,12 +242,9 @@ async function readEmbeddingErrorBody(response: Response): Promise<EmbeddingErro
 /**
  * True when the provider's stated wait outlasts the entire retry budget.
  *
- * The comparison is against {@link EMBEDDING_RETRY_BUDGET_MS} rather than the
- * per-attempt ceiling, because a window longer than one wait is still reachable:
- * the attempts are clamped individually but accumulate, so a 35s window reopens
- * before the second one lands. Only a window outlasting every attempt is
- * genuinely unreachable, and retrying into it spends the budget waiting on
- * something that cannot happen.
+ * The retry layer honors a provider-stated wait in full only when it fits inside
+ * the remaining operation deadline. A wait longer than the entire embedding
+ * budget can therefore never be admitted.
  *
  * The error stays transient — it just is not worth retrying here — so refusing
  * the retry surfaces it immediately and the fallback chain, which classifies
@@ -243,6 +268,7 @@ function statedWaitOutlastsBudget(error: unknown): boolean {
  */
 function isWorthRetrying(error: unknown): boolean {
   if (!isTransientEmbeddingError(error)) return false
+  if (error instanceof EmbeddingResponseValidationError) return false
   if (error instanceof EmbeddingAPIError && error.quotaExhausted) return false
   return !statedWaitOutlastsBudget(error)
 }
@@ -353,6 +379,49 @@ async function resolveProvider(model: string, options: EmbedOptions): Promise<Re
   }
 }
 
+function validateEmbeddingBatch(
+  value: unknown,
+  expectedCount: number,
+  expectedDimensions: number | undefined
+): { embeddings: number[][]; dimensions: number } {
+  if (!Array.isArray(value)) {
+    throw new EmbeddingResponseValidationError('the vector payload is not an array')
+  }
+  if (value.length !== expectedCount) {
+    throw new EmbeddingResponseValidationError(
+      `returned ${value.length} embeddings for ${expectedCount} inputs`
+    )
+  }
+
+  let resolvedDimensions = expectedDimensions
+  for (let index = 0; index < value.length; index++) {
+    const vector = value[index]
+    if (!Array.isArray(vector) || vector.length === 0) {
+      throw new EmbeddingResponseValidationError(`vector ${index} is empty or not an array`)
+    }
+    if (
+      vector.some((coordinate) => typeof coordinate !== 'number' || !Number.isFinite(coordinate))
+    ) {
+      throw new EmbeddingResponseValidationError(
+        `vector ${index} contains a non-numeric or non-finite coordinate`
+      )
+    }
+
+    resolvedDimensions ??= vector.length
+    if (vector.length !== resolvedDimensions) {
+      const qualifier = expectedDimensions === undefined ? 'inconsistent' : 'unexpected'
+      throw new EmbeddingResponseValidationError(
+        `vector ${index} has ${vector.length} ${qualifier} dimensions; expected ${resolvedDimensions}`
+      )
+    }
+  }
+
+  if (resolvedDimensions === undefined) {
+    throw new EmbeddingResponseValidationError('the response did not contain any vectors')
+  }
+  return { embeddings: value as number[][], dimensions: resolvedDimensions }
+}
+
 /** `inputs` are already projected and batched by the embedding orchestrator. */
 async function callEmbeddingAPI(
   inputs: string[],
@@ -367,8 +436,9 @@ async function callEmbeddingAPI(
    * support rejects the parameter outright — sending it populated with the
    * native size is a 400, not a no-op.
    */
-  requestedDimensions: number | undefined
-): Promise<{ embeddings: number[][]; totalTokens: number }> {
+  requestedDimensions: number | undefined,
+  expectedDimensions: number | undefined
+): Promise<{ embeddings: number[][]; totalTokens: number; dimensions: number }> {
   return retryWithExponentialBackoff(
     async () => {
       if (await isEmbeddingQuotaCircuitOpen(quotaCircuitIdentity)) {
@@ -424,8 +494,21 @@ async function callEmbeddingAPI(
         throw error
       }
 
-      const json = await response.json()
-      const embeddings = request.parse(json)
+      const json = await readResponseJsonWithLimit(response, {
+        maxBytes: MAX_EMBEDDING_SUCCESS_RESPONSE_BYTES,
+        label: 'Embedding API success response',
+      })
+      let parsedEmbeddings: unknown
+      try {
+        parsedEmbeddings = request.parse(json)
+      } catch {
+        throw new EmbeddingResponseValidationError('the vector payload could not be parsed')
+      }
+      const { embeddings, dimensions } = validateEmbeddingBatch(
+        parsedEmbeddings,
+        inputs.length,
+        expectedDimensions
+      )
       /**
        * Fallback for a response that carries no usage block. Estimated with the
        * provider's own tokenizer, which is approximate for every non-OpenAI
@@ -435,15 +518,13 @@ async function callEmbeddingAPI(
         request.parseTokens?.(json) ??
         inputs.reduce((sum, text) => sum + estimateTokenCount(text, tokenizerProvider).count, 0)
 
-      return { embeddings, totalTokens }
+      return { embeddings, totalTokens, dimensions }
     },
     {
       /**
        * Sized against a rate-limit window rather than a transient blip. The
-       * provider states its reset in tens of seconds, and the loop clamps that
-       * stated wait to `maxDelayMs` — at the previous 10s ceiling every attempt
-       * fired before the window reopened, so the budget was spent without one
-       * retry landing in the reopened window.
+       * provider states its reset in tens of seconds, and the loop honors that
+       * wait when it fits inside the operation budget.
        *
        * Bounded so a fully saturated provider cannot outlive the task: five
        * attempts at the ceiling is well inside `KB_CONFIG_MAX_DURATION`, and
@@ -452,7 +533,7 @@ async function callEmbeddingAPI(
       maxRetries: EMBEDDING_MAX_RETRIES,
       initialDelayMs: 1000,
       maxDelayMs: EMBEDDING_MAX_RETRY_DELAY_MS,
-      maxRetryAfterMs: EMBEDDING_RETRY_BUDGET_MS,
+      retryBudgetMs: EMBEDDING_RETRY_BUDGET_MS,
       retryCondition: isWorthRetrying,
     }
   )
@@ -530,7 +611,8 @@ async function embedWithProvider(
     boundedInputs,
     model,
     getEmbeddingInputLimits(provider.info),
-    provider.adapter.maxItemsPerRequest
+    provider.adapter.maxItemsPerRequest,
+    provider.dimensions
   )
 
   const batchResults = await mapWithConcurrency(
@@ -545,7 +627,8 @@ async function embedWithProvider(
           taskType,
           provider.providerId,
           provider.quotaCircuitIdentity,
-          requestedDimensions
+          requestedDimensions,
+          provider.dimensions
         )
       } catch (error) {
         const message = `Failed to generate embeddings for batch ${i + 1}/${batches.length}:`
@@ -576,7 +659,8 @@ function createEmbeddingBatches(
   boundedInputs: string[],
   model: string,
   limits: Pick<EmbeddingInputLimits, 'maxInputTokens' | 'maxTokensPerRequest'>,
-  itemLimit: number | undefined
+  itemLimit: number | undefined,
+  dimensions: number | undefined
 ): string[][] {
   const ceiling = limits.maxInputTokens
 
@@ -600,21 +684,45 @@ function createEmbeddingBatches(
   )
 
   const tokenBatches = batchByTokenLimit(boundedInputs, requestBudget, model)
-  return itemLimit ? tokenBatches.flatMap((batch) => chunkArray(batch, itemLimit)) : tokenBatches
+  const responseItemLimit = dimensions
+    ? Math.max(
+        1,
+        Math.floor(
+          (MAX_EMBEDDING_SUCCESS_RESPONSE_BYTES - EMBEDDING_RESPONSE_ENVELOPE_RESERVE_BYTES) /
+            (dimensions * EMBEDDING_RESPONSE_BYTES_PER_DIMENSION +
+              EMBEDDING_RESPONSE_BYTES_PER_ITEM)
+        )
+      )
+    : undefined
+  const effectiveItemLimit =
+    itemLimit && responseItemLimit
+      ? Math.min(itemLimit, responseItemLimit)
+      : (itemLimit ?? responseItemLimit)
+
+  return effectiveItemLimit
+    ? tokenBatches.flatMap((batch) => chunkArray(batch, effectiveItemLimit))
+    : tokenBatches
 }
 
 function combineEmbeddingBatches(
-  batchResults: readonly { embeddings: number[][]; totalTokens: number }[]
-): { embeddings: number[][]; totalTokens: number } {
+  batchResults: readonly { embeddings: number[][]; totalTokens: number; dimensions: number }[]
+): { embeddings: number[][]; totalTokens: number; dimensions: number | undefined } {
   const embeddings: number[][] = []
   let totalTokens = 0
+  let dimensions: number | undefined
   for (const batch of batchResults) {
+    dimensions ??= batch.dimensions
+    if (batch.dimensions !== dimensions) {
+      throw new EmbeddingResponseValidationError(
+        `concurrent batches returned inconsistent dimensions (${dimensions} and ${batch.dimensions})`
+      )
+    }
     for (const vector of batch.embeddings) {
       embeddings.push(vector)
     }
     totalTokens += batch.totalTokens
   }
-  return { embeddings, totalTokens }
+  return { embeddings, totalTokens, dimensions }
 }
 
 /**
@@ -658,7 +766,13 @@ export async function embedOpenRouter(
     nativeDimensions: options.dimensions ?? 0,
   })
   const quotaCircuitIdentity = createEmbeddingQuotaCircuitIdentity('openrouter', options.apiKey)
-  const batches = createEmbeddingBatches(boundedInputs, model, limits, adapter.maxItemsPerRequest)
+  const batches = createEmbeddingBatches(
+    boundedInputs,
+    model,
+    limits,
+    adapter.maxItemsPerRequest,
+    options.dimensions
+  )
   const batchResults = await mapWithConcurrency(batches, MAX_CONCURRENT_BATCHES, async (batch) =>
     callEmbeddingAPI(
       batch,
@@ -667,25 +781,15 @@ export async function embedOpenRouter(
       'document',
       'openrouter',
       quotaCircuitIdentity,
+      options.dimensions,
       options.dimensions
     )
   )
   const result = combineEmbeddingBatches(batchResults)
 
-  if (result.embeddings.length !== boundedInputs.length) {
-    throw new Error(
-      `OpenRouter returned ${result.embeddings.length} embeddings for ${boundedInputs.length} inputs`
-    )
-  }
-  const dimensions = result.embeddings[0]?.length
-  if (!dimensions) throw new Error('OpenRouter returned an empty embedding vector')
-  if (result.embeddings.some((embedding) => embedding.length !== dimensions)) {
-    throw new Error('OpenRouter returned embedding vectors with inconsistent dimensions')
-  }
-  if (options.dimensions !== undefined && dimensions !== options.dimensions) {
-    throw new Error(
-      `OpenRouter returned ${dimensions} dimensions instead of the requested ${options.dimensions}`
-    )
+  const dimensions = result.dimensions
+  if (dimensions === undefined) {
+    throw new EmbeddingResponseValidationError('the response did not contain any vectors')
   }
 
   return {
@@ -808,7 +912,8 @@ export async function embedKnowledgeForDeployment(
     boundedInputs,
     model,
     info,
-    itemLimits.length > 0 ? Math.min(...itemLimits) : undefined
+    itemLimits.length > 0 ? Math.min(...itemLimits) : undefined,
+    dimensions
   )
   const batchResults = await mapWithConcurrency(
     batches,
@@ -823,7 +928,8 @@ export async function embedKnowledgeForDeployment(
             taskType,
             provider.providerId,
             provider.quotaCircuitIdentity,
-            options.dimensions
+            options.dimensions,
+            provider.dimensions
           )),
           provider,
         }))

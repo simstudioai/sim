@@ -295,10 +295,12 @@ export interface ReadResponseWithLimitOptions extends ReadStreamWithLimitOptions
   headers?: { get(name: string): string | null }
   preferTextFallback?: boolean
   allowNoBodyFallback?: boolean
+  requestMethod?: string
 }
 
 export async function readResponseToBufferWithLimit(
   response: {
+    status?: number
     headers?: { get(name: string): string | null }
     body?: ReadableStream<Uint8Array> | null
     arrayBuffer?: () => Promise<ArrayBuffer>
@@ -316,6 +318,13 @@ export async function readResponseToBufferWithLimit(
       await response.body?.cancel(error).catch(() => {})
     }
     throw error
+  }
+  const isSemanticallyBodyless =
+    response.status === 204 ||
+    response.status === 205 ||
+    options.requestMethod?.toUpperCase() === 'HEAD'
+  if (!response.body && isSemanticallyBodyless) {
+    return Buffer.alloc(0)
   }
   if (!options.allowNoBodyFallback && !response.body && contentLength === null) {
     throw new PayloadSizeLimitError({
@@ -351,6 +360,7 @@ export async function readResponseToBufferWithLimit(
 
 export async function readResponseTextWithLimit(
   response: {
+    status?: number
     headers?: { get(name: string): string | null }
     body?: ReadableStream<Uint8Array> | null
     arrayBuffer?: () => Promise<ArrayBuffer>

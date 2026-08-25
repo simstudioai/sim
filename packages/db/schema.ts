@@ -2554,6 +2554,8 @@ export const document = pgTable(
      * this column existed.
      */
     processingQueuedAt: timestamp('processing_queued_at'),
+    /** Opaque dispatch generation; NULL identifies payloads created before token rollout. */
+    processingQueueToken: text('processing_queue_token'),
     processingStartedAt: timestamp('processing_started_at'),
     processingCompletedAt: timestamp('processing_completed_at'),
     processingError: text('processing_error'),

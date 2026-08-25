@@ -201,6 +201,19 @@ describe('redactSensitiveValues', () => {
     expect(result).not.toContain('space+secret')
   })
 
+  it.concurrent('redacts overlapping secrets longest-first', () => {
+    const result = redactExactSensitiveValues('provider echoed abcSECRET', ['abc', 'abcSECRET'])
+
+    expect(result).toBe('provider echoed [REDACTED]')
+    expect(result).not.toContain('SECRET')
+  })
+
+  it.concurrent('redacts mixed-case percent escapes', () => {
+    const result = redactExactSensitiveValues('provider echoed %2f%3A', ['/:'])
+
+    expect(result).toBe('provider echoed [REDACTED]')
+  })
+
   it.concurrent('should not modify safe strings', () => {
     const input = 'This is a normal string with no secrets'
     const result = redactSensitiveValues(input)

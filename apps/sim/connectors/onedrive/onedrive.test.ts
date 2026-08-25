@@ -318,4 +318,35 @@ describe('onedrive getDocument', () => {
     expect(fetched?.contentDeferred).toBe(false)
     expect(fetched?.content).toBe('hello')
   })
+
+  it('marks an empty file as an authoritative skip', async () => {
+    const item = file('empty', 'empty.txt', 0)
+    mockFetchWithRetry.mockImplementation(async (url: string) => {
+      if (url.endsWith('/content')) {
+        return {
+          ok: true,
+          status: 200,
+          body: null,
+          headers: new Headers({ 'content-length': '0' }),
+          arrayBuffer: async () => new ArrayBuffer(0),
+        } as unknown as Response
+      }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => item,
+        text: async () => '',
+      } as unknown as Response
+    })
+
+    const document = await onedriveConnector.getDocument!('token', {}, 'empty')
+
+    expect(document).toMatchObject({
+      externalId: 'empty',
+      content: '',
+      contentDeferred: false,
+      skippedReason: 'Document contains no extractable text',
+      skippedExistingDisposition: 'replace',
+    })
+  })
 })

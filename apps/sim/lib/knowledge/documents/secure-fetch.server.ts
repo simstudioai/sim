@@ -3,6 +3,7 @@ import {
   type SecureFetchResponse,
   secureFetchWithValidation,
 } from '@/lib/core/security/input-validation.server'
+import { isSensitiveKey, redactExactSensitiveValues } from '@/lib/core/security/redaction'
 import {
   attachRetryHeaders,
   type HTTPError,
@@ -17,6 +18,27 @@ export interface SecureFetchRetryOptions extends RetryOptions {
   allowHttp?: boolean
   timeout?: number
   maxResponseBytes?: number
+}
+
+function getRequestCredentialValues(options: SecureFetchOptions): string[] {
+  const values: string[] = []
+  for (const [name, value] of Object.entries(options.headers ?? {})) {
+    if (!isSensitiveKey(name)) continue
+    values.push(value)
+
+    const schemeSeparator = value.indexOf(' ')
+    if (schemeSeparator > 0) {
+      values.push(value.slice(schemeSeparator + 1))
+    }
+
+    if (/^Basic\s+/i.test(value)) {
+      const decoded = Buffer.from(value.slice(schemeSeparator + 1), 'base64').toString('utf8')
+      values.push(decoded)
+      const credentialSeparator = decoded.lastIndexOf(':')
+      if (credentialSeparator >= 0) values.push(decoded.slice(credentialSeparator + 1))
+    }
+  }
+  return values
 }
 
 /**
@@ -35,6 +57,7 @@ export async function secureFetchWithRetry(
   retryOptions: SecureFetchRetryOptions = {}
 ): Promise<SecureFetchResponse> {
   const { allowHttp, timeout, maxResponseBytes, ...retry } = retryOptions
+  const requestCredentialValues = getRequestCredentialValues(options)
 
   return retryWithExponentialBackoff(async () => {
     const response = await secureFetchWithValidation(
@@ -57,7 +80,10 @@ export async function secureFetchWithRetry(
      * limit) use instead.
      */
     if (!response.ok && isRetryableError({ status: response.status, headers: response.headers })) {
-      const errorText = await readBoundedHttpErrorBody(response)
+      const errorText = redactExactSensitiveValues(
+        await readBoundedHttpErrorBody(response),
+        requestCredentialValues
+      )
       const error: HTTPError = new Error(
         `HTTP ${response.status}: ${response.statusText} - ${errorText}`
       )

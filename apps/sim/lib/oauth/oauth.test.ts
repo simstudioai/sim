@@ -692,7 +692,21 @@ describe('OAuth Token Refresh', () => {
       const result = await withMockFetch(mockFetch, () => refreshOAuthToken('slack', refreshToken))
 
       expect(result.ok).toBe(false)
-      if (!result.ok) expect(result.message).not.toContain(refreshToken)
+      if (!result.ok) {
+        expect(result.message).not.toContain(refreshToken)
+        expect(result.errorCode).toBeUndefined()
+      }
+    })
+
+    it.concurrent('uses canonical endpoints without following credential redirects', async () => {
+      const mockFetch = createMockFetch(defaultOAuthResponse)
+
+      await withMockFetch(mockFetch, () => refreshOAuthToken('google', 'test_refresh_token'))
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({ redirect: 'error' })
+      )
     })
 
     it.concurrent('should return failure for network errors', async () => {

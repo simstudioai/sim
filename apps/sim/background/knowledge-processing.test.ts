@@ -115,6 +115,76 @@ describe('knowledge processing worker', () => {
     expect(mockProcessDocumentAsync).not.toHaveBeenCalled()
   })
 
+  it('rejects a queue token that is not the request generation', async () => {
+    await expect(
+      runDocumentProcessing({
+        ...WORKSPACE_PAYLOAD,
+        processingQueueToken: 'another-request',
+      })
+    ).rejects.toThrow('Document processing queue token is invalid')
+    expect(mockProcessDocumentAsync).not.toHaveBeenCalled()
+  })
+
+  it('rejects a new queue token without its canonical queue stamp', async () => {
+    const { processingQueuedAt: _processingQueuedAt, ...payloadWithoutStamp } = WORKSPACE_PAYLOAD
+
+    await expect(
+      runDocumentProcessing({
+        ...payloadWithoutStamp,
+        processingQueueToken: 'request-1',
+      })
+    ).rejects.toThrow('Document processing payload is missing its queue stamp')
+    expect(mockProcessDocumentAsync).not.toHaveBeenCalled()
+  })
+
+  it('rejects a new dispatch charge marker without a queue token', async () => {
+    await expect(
+      runDocumentProcessing({
+        ...WORKSPACE_PAYLOAD,
+        chargedAtDispatch: true,
+      })
+    ).rejects.toThrow('Document processing dispatch charge marker requires a queue token')
+    expect(mockProcessDocumentAsync).not.toHaveBeenCalled()
+  })
+
+  it('accepts a literal pre-rollout staging payload without synthesizing a generation stamp', async () => {
+    const { processingQueuedAt: _processingQueuedAt, ...stagingPayload } = WORKSPACE_PAYLOAD
+
+    await runDocumentProcessing(stagingPayload)
+
+    expect(mockProcessDocumentAsync).toHaveBeenLastCalledWith(
+      'knowledge-base-1',
+      'document-1',
+      BASE_PAYLOAD.docData,
+      {},
+      expect.objectContaining({ billingScope: 'workspace' }),
+      'request-1',
+      { chargedAtDispatch: false }
+    )
+  })
+
+  it('propagates a new queue token while accepting legacy queuedAt-only payloads', async () => {
+    await runDocumentProcessing({
+      ...WORKSPACE_PAYLOAD,
+      processingQueueToken: 'request-1',
+      chargedAtDispatch: false,
+    })
+
+    expect(mockProcessDocumentAsync).toHaveBeenLastCalledWith(
+      expect.any(String),
+      expect.any(String),
+      expect.any(Object),
+      expect.any(Object),
+      expect.any(Object),
+      'request-1',
+      expect.objectContaining({
+        chargedAtDispatch: false,
+        processingQueueToken: 'request-1',
+        processingQueuedAt: new Date(BASE_PAYLOAD.processingQueuedAt),
+      })
+    )
+  })
+
   it('preserves the validated actor and payer snapshot through serialization', async () => {
     await runDocumentProcessing(structuredClone(WORKSPACE_PAYLOAD))
 

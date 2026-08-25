@@ -61,7 +61,6 @@ export class PermanentDocumentProcessingError extends Error {
  */
 export const MAX_DOCUMENT_CHUNKS = 5_000
 
-/** Rejects an indexing pass before embedding vectors are allocated. */
 export function assertDocumentChunkCountWithinLimit(chunkCount: number): void {
   if (chunkCount <= MAX_DOCUMENT_CHUNKS) return
   throw new PermanentDocumentProcessingError(

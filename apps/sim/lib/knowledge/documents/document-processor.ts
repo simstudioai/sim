@@ -5,6 +5,7 @@ import { PDFDocument } from 'pdf-lib'
 import { getBYOKKey } from '@/lib/api-key/byok'
 import {
   type Chunk,
+  ChunkLimitExceededError,
   JsonYamlChunker,
   RecursiveChunker,
   RegexChunker,
@@ -24,7 +25,10 @@ import {
 import { parseBuffer } from '@/lib/file-parsers'
 import { decodeDataUriWithinLimit } from '@/lib/file-parsers/data-uri'
 import type { FileParseMetadata, FileParseResult } from '@/lib/file-parsers/types'
-import { PermanentDocumentProcessingError } from '@/lib/knowledge/documents/document-processing-error'
+import {
+  MAX_DOCUMENT_CHUNKS,
+  PermanentDocumentProcessingError,
+} from '@/lib/knowledge/documents/document-processing-error'
 import {
   resolveParserExtension,
   resolveStoredArtifactExtension,
@@ -161,7 +165,12 @@ async function applyStrategy(
   minCharactersPerChunk: number,
   strategyOptions?: StrategyOptions
 ): Promise<Chunk[]> {
-  const baseOptions = { chunkSize, chunkOverlap, minCharactersPerChunk }
+  const baseOptions = {
+    chunkSize,
+    chunkOverlap,
+    minCharactersPerChunk,
+    maxChunks: MAX_DOCUMENT_CHUNKS,
+  }
 
   switch (strategy) {
     case 'token': {
@@ -249,42 +258,67 @@ export async function processDocument(
     let chunks: Chunk[]
     const metadata: FileParseMetadata = parseResult.metadata ?? {}
 
-    if (strategy && strategy !== 'auto') {
-      logger.info(`Using explicit chunking strategy: ${strategy}`)
-      chunks = await applyStrategy(
-        strategy,
-        content,
-        chunkSize,
-        chunkOverlap,
-        minCharactersPerChunk,
-        strategyOptions
-      )
-    } else {
-      const isJsonYaml =
-        metadata.type === 'json' ||
-        metadata.type === 'yaml' ||
-        mimeType.includes('json') ||
-        mimeType.includes('yaml')
-
-      if (isJsonYaml && JsonYamlChunker.isStructuredData(content)) {
-        logger.info('Using JSON/YAML chunker for structured data')
-        chunks = await JsonYamlChunker.chunkJsonYaml(content, {
+    try {
+      if (strategy && strategy !== 'auto') {
+        logger.info(`Using explicit chunking strategy: ${strategy}`)
+        chunks = await applyStrategy(
+          strategy,
+          content,
           chunkSize,
+          chunkOverlap,
           minCharactersPerChunk,
-        })
-      } else if (StructuredDataChunker.isStructuredData(content, mimeType)) {
-        logger.info('Using structured data chunker for spreadsheet/CSV content')
-        const rowCount = metadata.totalRows ?? metadata.rowCount
-        chunks = await StructuredDataChunker.chunkStructuredData(content, {
-          chunkSize,
-          headers: metadata.headers,
-          totalRows: typeof rowCount === 'number' ? rowCount : undefined,
-          sheetName: metadata.sheetNames?.[0],
-        })
+          strategyOptions
+        )
       } else {
-        const chunker = new TextChunker({ chunkSize, chunkOverlap, minCharactersPerChunk })
-        chunks = await chunker.chunk(content)
+        const isJsonYaml =
+          metadata.type === 'json' ||
+          metadata.type === 'yaml' ||
+          mimeType.includes('json') ||
+          mimeType.includes('yaml')
+
+        if (isJsonYaml && JsonYamlChunker.isStructuredData(content)) {
+          logger.info('Using JSON/YAML chunker for structured data')
+          chunks = await JsonYamlChunker.chunkJsonYaml(content, {
+            chunkSize,
+            minCharactersPerChunk,
+            maxChunks: MAX_DOCUMENT_CHUNKS,
+          })
+        } else if (StructuredDataChunker.isStructuredData(content, mimeType)) {
+          logger.info('Using structured data chunker for spreadsheet/CSV content')
+          const rowCount = metadata.totalRows ?? metadata.rowCount
+          chunks = await StructuredDataChunker.chunkStructuredData(content, {
+            chunkSize,
+            headers: metadata.headers,
+            totalRows: typeof rowCount === 'number' ? rowCount : undefined,
+            sheetName: metadata.sheetNames?.[0],
+            maxChunks: MAX_DOCUMENT_CHUNKS,
+          })
+        } else {
+          const chunker = new TextChunker({
+            chunkSize,
+            chunkOverlap,
+            minCharactersPerChunk,
+            maxChunks: MAX_DOCUMENT_CHUNKS,
+          })
+          chunks = await chunker.chunk(content)
+        }
       }
+    } catch (error) {
+      if (error instanceof ChunkLimitExceededError) {
+        throw new PermanentDocumentProcessingError(
+          'document_complexity_limit',
+          `This document would produce more than ${error.maxChunks.toLocaleString()} index chunks. Split it into smaller files or increase its knowledge-base chunk size, then retry.`,
+          error
+        )
+      }
+      throw error
+    }
+
+    if (chunks.length === 0) {
+      throw new PermanentDocumentProcessingError(
+        'no_extractable_text',
+        `The chunking strategy produced no indexable text for ${filename}. Adjust the chunking settings or replace the document content, then retry.`
+      )
     }
 
     const characterCount = content.length

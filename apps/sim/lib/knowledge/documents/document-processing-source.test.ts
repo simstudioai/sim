@@ -3,25 +3,36 @@
  */
 import {
   dbChainMockFns,
+  defaultMockEnv,
   hasMockCondition,
   type MockCondition,
   resetDbChainMock,
+  resetEnvFlagsMock,
   schemaMock,
+  setEnvFlags,
 } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockCheckActorUsageLimits,
+  mockBatchTrigger,
   mockGenerateEmbeddings,
   mockGetBoundWorkspaceFileSecretProvenanceByMetadata,
   mockGetFileMetadataByKeys,
   mockProcessDocument,
+  mockTrigger,
 } = vi.hoisted(() => ({
   mockCheckActorUsageLimits: vi.fn(),
+  mockBatchTrigger: vi.fn(),
   mockGenerateEmbeddings: vi.fn(),
   mockGetBoundWorkspaceFileSecretProvenanceByMetadata: vi.fn(),
   mockGetFileMetadataByKeys: vi.fn(),
   mockProcessDocument: vi.fn(),
+  mockTrigger: vi.fn(),
+}))
+
+vi.mock('@trigger.dev/sdk', () => ({
+  tasks: { batchTrigger: mockBatchTrigger, trigger: mockTrigger },
 }))
 
 vi.mock('@/lib/billing/calculations/usage-monitor', () => ({
@@ -54,9 +65,14 @@ vi.mock('@/lib/uploads/server/metadata', () => ({
   getFileMetadataByKeys: mockGetFileMetadataByKeys,
 }))
 
+import { env } from '@/lib/core/config/env'
+import {
+  markInsideTriggerRun,
+  resetInsideTriggerRunForTests,
+} from '@/lib/core/config/trigger-runtime'
 import { EmbeddingQuotaExhaustedError } from '@/lib/embeddings/client'
 import { PermanentDocumentProcessingError } from '@/lib/knowledge/documents/document-processing-error'
-import { processDocumentAsync } from '@/lib/knowledge/documents/service'
+import { processDocumentAsync, processDocumentsWithQueue } from '@/lib/knowledge/documents/service'
 
 const PERSISTED_KEY = 'workspace/workspace-1/persisted.pdf'
 const PERSISTED_URL = `/api/files/serve/${encodeURIComponent(PERSISTED_KEY)}?context=workspace`
@@ -325,7 +341,7 @@ describe('processDocumentAsync write guards', () => {
     expect(guardForStatusWrite('processing')).toBeDefined()
   })
 
-  it('claims only the queue generation carried by the worker', async () => {
+  it('accepts a legacy queuedAt-only payload only while the row has no token', async () => {
     dbChainMockFns.limit
       .mockResolvedValueOnce([PERSISTED_CONTEXT])
       .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
@@ -361,6 +377,101 @@ describe('processDocumentAsync write guards', () => {
           node.right === processingQueuedAt
       )
     ).toBe(true)
+    expect(
+      hasMockCondition(
+        claimGuard,
+        (node: MockCondition) =>
+          node.type === 'isNull' && node.column === schemaMock.document.processingQueueToken
+      )
+    ).toBe(true)
+  })
+
+  it('accepts a pre-rollout payload only while the row has no token', async () => {
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([PERSISTED_CONTEXT])
+      .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
+      .mockResolvedValueOnce([{ id: 'document-1' }])
+    mockGetFileMetadataByKeys.mockResolvedValue([SOURCE_BINDING])
+    mockGetBoundWorkspaceFileSecretProvenanceByMetadata.mockResolvedValue(
+      new Map([[SOURCE_BINDING.id, { status: 'exact', entries: [] }]])
+    )
+
+    await processDocumentAsync(
+      'knowledge-base-1',
+      'document-1',
+      {
+        filename: 'a.pdf',
+        fileUrl: 'https://example.com/a.pdf',
+        fileSize: 1,
+        mimeType: 'text/plain',
+      },
+      {},
+      undefined,
+      'request-1',
+      { chargedAtDispatch: false }
+    )
+
+    const claimGuard = guardForStatusWrite('processing')
+    expect(
+      hasMockCondition(
+        claimGuard,
+        (node: MockCondition) =>
+          node.type === 'isNull' && node.column === schemaMock.document.processingQueueToken
+      )
+    ).toBe(true)
+    expect(
+      hasMockCondition(
+        claimGuard,
+        (node: MockCondition) =>
+          node.type === 'eq' && node.left === schemaMock.document.processingQueuedAt
+      )
+    ).toBe(false)
+  })
+
+  it('uses the queue token as the authoritative claim and final-write generation', async () => {
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([PERSISTED_CONTEXT])
+      .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
+      .mockResolvedValueOnce([{ id: 'document-1' }])
+    mockGetFileMetadataByKeys.mockResolvedValue([SOURCE_BINDING])
+    mockGetBoundWorkspaceFileSecretProvenanceByMetadata.mockResolvedValue(
+      new Map([[SOURCE_BINDING.id, { status: 'exact', entries: [] }]])
+    )
+
+    await processDocumentAsync(
+      'knowledge-base-1',
+      'document-1',
+      {
+        filename: 'a.pdf',
+        fileUrl: 'https://example.com/a.pdf',
+        fileSize: 1,
+        mimeType: 'text/plain',
+      },
+      {},
+      undefined,
+      'request-1',
+      {
+        chargedAtDispatch: true,
+        processingQueueToken: 'request-1',
+        processingQueuedAt: new Date('2026-08-24T22:00:00.000Z'),
+      }
+    )
+
+    const tokenGuardCount = dbChainMockFns.where.mock.calls.filter((call) =>
+      hasMockCondition(
+        call[0],
+        (node: MockCondition) =>
+          node.type === 'eq' &&
+          node.left === schemaMock.document.processingQueueToken &&
+          node.right === 'request-1'
+      )
+    ).length
+    expect(tokenGuardCount).toBeGreaterThanOrEqual(3)
+
+    const completion = dbChainMockFns.set.mock.calls.find(
+      (call) => (call[0] as Record<string, unknown> | undefined)?.processingStatus === 'completed'
+    )
+    expect(completion?.[0]).toMatchObject({ processingQueueToken: null })
   })
 
   it('does not process or bill a document it failed to claim', async () => {
@@ -549,4 +660,91 @@ describe('processDocumentAsync write guards', () => {
       }
     }
   )
+})
+
+describe('in-process quota continuation dispatch', () => {
+  const envSnapshot = { ...env }
+  const queuedDocument = {
+    documentId: 'document-1',
+    filename: PERSISTED_CONTEXT.filename,
+    fileUrl: PERSISTED_CONTEXT.fileUrl,
+    fileSize: PERSISTED_CONTEXT.fileSize,
+    mimeType: PERSISTED_CONTEXT.mimeType,
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    resetInsideTriggerRunForTests()
+    setEnvFlags({ isTriggerDevEnabled: false })
+    for (const key of Object.keys(env)) delete (env as Record<string, unknown>)[key]
+    Object.assign(env, { ...defaultMockEnv, TRIGGER_SECRET_KEY: undefined })
+    dbChainMockFns.returning.mockResolvedValue([{ id: 'document-1' }])
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([{ userId: 'knowledge-owner', workspaceId: null }])
+      .mockResolvedValueOnce([PERSISTED_CONTEXT])
+      .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
+      .mockResolvedValueOnce([{ id: 'document-1' }])
+    mockCheckActorUsageLimits.mockResolvedValue({ isExceeded: false })
+    mockGetFileMetadataByKeys.mockResolvedValue([SOURCE_BINDING])
+    mockGetBoundWorkspaceFileSecretProvenanceByMetadata.mockResolvedValue(
+      new Map([[SOURCE_BINDING.id, { status: 'exact', entries: [] }]])
+    )
+    mockProcessDocument.mockResolvedValue({
+      chunks: [{ text: 'Index me', metadata: { startIndex: 0, endIndex: 8 } }],
+      metadata: { chunkCount: 1, tokenCount: 2, characterCount: 8 },
+    })
+    mockGenerateEmbeddings.mockRejectedValue(new EmbeddingQuotaExhaustedError('openai'))
+    mockTrigger.mockResolvedValue({ id: 'quota-continuation-run' })
+  })
+
+  afterEach(() => {
+    resetInsideTriggerRunForTests()
+    resetEnvFlagsMock()
+  })
+
+  afterAll(() => {
+    for (const key of Object.keys(env)) delete (env as Record<string, unknown>)[key]
+    Object.assign(env, envSnapshot)
+  })
+
+  it('durably defers quota exhaustion in direct mode before reporting acceptance', async () => {
+    await expect(
+      processDocumentsWithQueue([queuedDocument], 'knowledge-base-1', {}, 'request-1', undefined)
+    ).resolves.toEqual({ requested: 1, accepted: 1, failed: 0 })
+
+    expect(mockTrigger).toHaveBeenCalledWith(
+      'knowledge-process-document',
+      expect.objectContaining({ documentId: 'document-1', quotaRetryCount: 1 }),
+      expect.objectContaining({
+        idempotencyKey: 'knowledge-quota-document-1-request-1-1',
+      })
+    )
+  })
+
+  it('durably defers quota exhaustion after a failed Trigger batch fallback', async () => {
+    markInsideTriggerRun()
+    mockBatchTrigger.mockRejectedValue(new Error('batch unavailable'))
+
+    await expect(
+      processDocumentsWithQueue([queuedDocument], 'knowledge-base-1', {}, 'request-1', undefined)
+    ).resolves.toEqual({ requested: 1, accepted: 1, failed: 0 })
+
+    expect(mockBatchTrigger).toHaveBeenCalledTimes(1)
+    expect(mockTrigger).toHaveBeenCalledWith(
+      'knowledge-process-document',
+      expect.objectContaining({ documentId: 'document-1', quotaRetryCount: 1 }),
+      expect.objectContaining({
+        idempotencyKey: 'knowledge-quota-document-1-request-1-1',
+      })
+    )
+  })
+
+  it('reports failure when direct quota continuation handoff is unavailable', async () => {
+    mockTrigger.mockRejectedValue(new Error('continuation unavailable'))
+
+    await expect(
+      processDocumentsWithQueue([queuedDocument], 'knowledge-base-1', {}, 'request-1', undefined)
+    ).rejects.toThrow('document processing dispatches failed')
+  })
 })

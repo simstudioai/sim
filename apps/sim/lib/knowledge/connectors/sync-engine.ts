@@ -22,6 +22,7 @@ import {
   isNull,
   lt,
   ne,
+  or,
   sql,
 } from 'drizzle-orm'
 import { decryptApiKey } from '@/lib/api-key/crypto'
@@ -114,7 +115,6 @@ const MAX_PAGES = 500
  */
 export const CONNECTOR_SYNC_MAX_CORPUS_DOCUMENTS = 50_000
 
-/** Maximum retained inline source payload before classification begins. */
 export const CONNECTOR_SYNC_MAX_SOURCE_PAYLOAD_BYTES = 256 * 1024 * 1024
 const MAX_SAFE_TITLE_LENGTH = 200
 /**
@@ -350,19 +350,13 @@ export interface StuckDocumentSweepCandidate {
  * never lost. The user-facing retry stays immediate — it writes `pending` and
  * dispatches without consulting the sweep at all.
  *
- * This narrows the duplicate-dispatch window; it cannot close it. A grace
- * period is a timing guarantee, and no timing guarantee is a correctness one:
- * a document queued for longer than the grace is still reclaimed while its
- * original run waits, and Trigger.dev will not deduplicate the second dispatch
- * because the idempotency key `processDocumentsWithQueue` uses is
- * `doc-process-<documentId>-<requestId>` with a fresh `requestId` per dispatch
- * — scoped per dispatch by design, so it blocks intra-dispatch retries and
- * nothing else. Each duplicate run mints its own indexing pass and bills for
- * it, which is the double-billing `451d2ccbde` closed for the inline path.
- * Closing it durably needs state, not timing: a document-scoped idempotency
- * key, or a dispatch-generation column the worker carries and checks before
- * indexing, so a superseded run declines to bill. That is a larger change than
- * this hotfix.
+ * The grace decides when a queued run may be superseded, but correctness does
+ * not depend on that timing judgment. Every task carries the queue stamp its
+ * dispatch installed and must match it before claiming or billing the row. A
+ * sweep clears the abandoned stamp before installing a new one, so a late old
+ * task declines while the replacement proceeds. Queue admission also claims
+ * only an empty stamp, preventing concurrent callers from charging or enqueuing
+ * two live generations for the same pending document.
  */
 export function isStuckDocumentSweepEligible(doc: StuckDocumentSweepCandidate, now: Date): boolean {
   switch (doc.processingStatus) {
@@ -386,6 +380,32 @@ export function isStuckDocumentSweepEligible(doc: StuckDocumentSweepCandidate, n
     case 'completed':
       return false
   }
+}
+
+export function stuckDocumentSweepAgeAnchor(doc: StuckDocumentSweepCandidate): Date {
+  switch (doc.processingStatus) {
+    case 'failed':
+      return doc.processingCompletedAt ?? doc.processingQueuedAt ?? doc.uploadedAt
+    case 'pending':
+      return doc.processingQueuedAt ?? doc.uploadedAt
+    case 'processing':
+      return doc.processingStartedAt ?? new Date(0)
+    case 'completed':
+      return doc.uploadedAt
+  }
+}
+
+export function selectStuckDocumentSweepCandidates<
+  T extends StuckDocumentSweepCandidate & { id: string },
+>(documents: T[], now: Date, limit = STUCK_RETRY_MAX_CANDIDATES_PER_SYNC): T[] {
+  return documents
+    .filter((doc) => isStuckDocumentSweepEligible(doc, now))
+    .sort((left, right) => {
+      const ageOrder =
+        stuckDocumentSweepAgeAnchor(left).getTime() - stuckDocumentSweepAgeAnchor(right).getTime()
+      return ageOrder || left.id.localeCompare(right.id)
+    })
+    .slice(0, limit)
 }
 
 /** Sanitizes a document title for use in S3 storage keys. */
@@ -2341,16 +2361,14 @@ export async function executeSync(
                     },
                   })
                 } else {
-                  // Already-indexed content stays last-known-good, but this source
-                  // change was not verified and must keep the watermark replayable.
+                  /** Preserve last-known-good content and replay the unverified source change. */
                   recordUnverifiedExistingRefresh(result, failedExternalIds, op.extDoc.externalId)
                 }
               }
               return null
             }
             if (!hasIndexablePayload(fullDoc)) {
-              // An empty re-fetch leaves an already-indexed update as
-              // last-known-good while holding the incremental watermark.
+              /** An empty refresh cannot replace or advance past last-known-good content. */
               if (op.type === 'update') {
                 recordUnverifiedExistingRefresh(result, failedExternalIds, op.extDoc.externalId)
               }
@@ -2745,15 +2763,17 @@ export async function executeSync(
      * Reclaims documents this connector left unfinished: a terminated attempt, a
      * dispatch that never produced a run, or a run abandoned mid-processing.
      *
-     * The query narrows to this connector's non-terminal documents inside the
-     * `RETRY_WINDOW_DAYS` window and excludes anything created by this sync;
-     * {@link isStuckDocumentSweepEligible} then makes the per-document decision,
-     * so the age rules live in one place rather than being split between SQL and
-     * TypeScript. Skipped (oversized) documents are recorded as content-less
-     * `failed` rows with no storage key and can never be reprocessed, so they are
-     * excluded outright.
+     * The query applies each status's age rule before the candidate limit, so
+     * recently requeued old uploads cannot hide genuinely overdue work. The same
+     * rules are evaluated again after candidate rows are locked below. Skipped
+     * documents are content-less `failed` rows with no storage key and therefore
+     * remain excluded outright.
      */
     const sweepEvaluatedAt = new Date()
+    const queuedGraceCutoff = new Date(sweepEvaluatedAt.getTime() - QUEUED_DISPATCH_GRACE_MS)
+    const processingStaleCutoff = new Date(
+      sweepEvaluatedAt.getTime() - STALE_PROCESSING_MINUTES * 60 * 1000
+    )
     const sweepCandidates = await db
       .select({
         id: document.id,
@@ -2772,6 +2792,23 @@ export async function executeSync(
         and(
           eq(document.connectorId, connectorId),
           inArray(document.processingStatus, SWEEPABLE_PROCESSING_STATUSES),
+          or(
+            and(
+              eq(document.processingStatus, 'failed'),
+              sql`COALESCE(${document.processingCompletedAt}, ${document.processingQueuedAt}, ${document.uploadedAt}) < ${sql.param(queuedGraceCutoff, document.processingCompletedAt)}`
+            ),
+            and(
+              eq(document.processingStatus, 'pending'),
+              sql`COALESCE(${document.processingQueuedAt}, ${document.uploadedAt}) < ${sql.param(queuedGraceCutoff, document.processingQueuedAt)}`
+            ),
+            and(
+              eq(document.processingStatus, 'processing'),
+              or(
+                isNull(document.processingStartedAt),
+                lt(document.processingStartedAt, processingStaleCutoff)
+              )
+            )
+          ),
           // Dead letters are left alone: past the budget, re-dispatching only
           // re-bills a document that has failed the same way every time.
           lt(document.processingAttempts, MAX_PROCESSING_ATTEMPTS),
@@ -2783,18 +2820,21 @@ export async function executeSync(
           isNull(document.deletedAt)
         )
       )
-      /**
-       * Oldest first, so the most overdue documents drain before newer ones and
-       * the bound below can never starve a document indefinitely. Without an
-       * order the limit would take an arbitrary subset each sync.
-       */
-      .orderBy(asc(document.uploadedAt))
-      .limit(STUCK_RETRY_MAX_CANDIDATES_PER_SYNC)
-    const stuckDocs = sweepCandidates
-      .filter((row): row is typeof row & { processingStatus: DocumentProcessingStatus } =>
-        isDocumentProcessingStatus(row.processingStatus)
+      .orderBy(
+        asc(sql`CASE
+          WHEN ${document.processingStatus} = 'failed'
+            THEN COALESCE(${document.processingCompletedAt}, ${document.processingQueuedAt}, ${document.uploadedAt})
+          WHEN ${document.processingStatus} = 'pending'
+            THEN COALESCE(${document.processingQueuedAt}, ${document.uploadedAt})
+          ELSE COALESCE(${document.processingStartedAt}, ${sql.param(new Date(0), document.processingStartedAt)})
+        END`),
+        asc(document.id)
       )
-      .filter((doc) => isStuckDocumentSweepEligible(doc, sweepEvaluatedAt))
+      .limit(STUCK_RETRY_MAX_CANDIDATES_PER_SYNC)
+    const stuckDocs = sweepCandidates.filter(
+      (row): row is typeof row & { processingStatus: DocumentProcessingStatus } =>
+        isDocumentProcessingStatus(row.processingStatus)
+    )
 
     if (stuckDocs.length > 0) {
       logger.info(`Retrying ${stuckDocs.length} stuck documents`, { connectorId })
@@ -2825,24 +2865,42 @@ export async function executeSync(
             .for('update')
           if (!heldSyncLock) throw new SyncLockLostException(connectorId)
 
-          const stillOwnedIds = new Set(
-            (
-              await tx
-                .select({ id: document.id })
-                .from(document)
-                .where(
-                  and(
-                    inArray(document.id, stuckDocIds),
-                    eq(document.connectorId, connectorId),
-                    eq(document.userExcluded, false),
-                    isNotNull(document.storageKey),
-                    isNull(document.archivedAt),
-                    isNull(document.deletedAt)
-                  )
-                )
-            ).map((d) => d.id)
+          const lockedCandidates = await tx
+            .select({
+              id: document.id,
+              fileUrl: document.fileUrl,
+              filename: document.filename,
+              fileSize: document.fileSize,
+              mimeType: document.mimeType,
+              processingStatus: document.processingStatus,
+              processingQueuedAt: document.processingQueuedAt,
+              processingStartedAt: document.processingStartedAt,
+              processingCompletedAt: document.processingCompletedAt,
+              uploadedAt: document.uploadedAt,
+            })
+            .from(document)
+            .where(
+              and(
+                inArray(document.id, stuckDocIds),
+                eq(document.connectorId, connectorId),
+                inArray(document.processingStatus, SWEEPABLE_PROCESSING_STATUSES),
+                lt(document.processingAttempts, MAX_PROCESSING_ATTEMPTS),
+                eq(document.userExcluded, false),
+                isNotNull(document.storageKey),
+                isNull(document.archivedAt),
+                isNull(document.deletedAt)
+              )
+            )
+            .orderBy(asc(document.id))
+            .for('update')
+
+          retryDocs = selectStuckDocumentSweepCandidates(
+            lockedCandidates.filter(
+              (row): row is typeof row & { processingStatus: DocumentProcessingStatus } =>
+                isDocumentProcessingStatus(row.processingStatus)
+            ),
+            sweepEvaluatedAt
           )
-          retryDocs = stuckDocs.filter((doc) => stillOwnedIds.has(doc.id))
 
           if (retryDocs.length > 0) {
             const retryDocIds = retryDocs.map((doc) => doc.id)
@@ -2857,6 +2915,7 @@ export async function executeSync(
                  * generation through `markDocumentsQueued`.
                  */
                 processingQueuedAt: null,
+                processingQueueToken: null,
                 processingStartedAt: null,
                 processingCompletedAt: null,
                 processingError: null,
@@ -2865,11 +2924,10 @@ export async function executeSync(
                 characterCount: 0,
               })
               /**
-               * Re-asserts ownership, lifecycle state, retry budget, and the
-               * processing status the candidate read filtered on. A worker or
-               * lifecycle mutation can change any of them between that read
-               * and this write; only rows the guarded reset actually returns
-               * have their embeddings removed and are dispatched again.
+               * These rows were freshly revalidated and locked above. The
+               * lifecycle predicates remain as defence in depth; the row locks
+               * ensure no retry can install a newer queue generation between
+               * that eligibility decision and this reset.
                */
               .where(
                 and(
@@ -3212,6 +3270,7 @@ export async function persistSkippedDocuments(
           processingStartedAt: null,
           processingCompletedAt: new Date(),
           processingQueuedAt: null,
+          processingQueueToken: null,
           processingAttempts: 0,
           chunkCount: 0,
           tokenCount: 0,
@@ -3408,6 +3467,9 @@ async function updateDocument(
           processingStatus: 'pending',
           /** Prevents an older delayed worker from claiming newly stored content. */
           processingQueuedAt: null,
+          processingQueueToken: null,
+          /** A new document version starts with a fresh unattended-retry budget. */
+          processingAttempts: 0,
           processingStartedAt: null,
           processingCompletedAt: null,
           processingError: null,

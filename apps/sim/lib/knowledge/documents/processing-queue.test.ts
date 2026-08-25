@@ -4,8 +4,12 @@
 import {
   dbChainMockFns,
   defaultMockEnv,
+  flattenMockConditions,
+  hasMockCondition,
+  type MockCondition,
   resetDbChainMock,
   resetEnvFlagsMock,
+  schemaMock,
   setEnvFlags,
 } from '@sim/testing'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -117,12 +121,39 @@ describe('processDocumentsWithQueue billing attribution', () => {
       },
       processingOptions: {},
       requestId: 'request-1',
+      processingQueueToken: 'request-1',
+      chargedAtDispatch: true,
       processingQueuedAt: processingQueuedAt.toISOString(),
       billingScope: 'workspace',
       actorUserId: 'external-admin',
       workspaceId: 'workspace-1',
       billingAttribution: BILLING_ATTRIBUTION,
     })
+
+    const freshAdmissionGuard = dbChainMockFns.where.mock.calls.find((call) =>
+      hasMockCondition(
+        call[0],
+        (node: MockCondition) =>
+          node.type === 'isNull' && node.column === schemaMock.document.processingQueueToken
+      )
+    )?.[0]
+    expect(freshAdmissionGuard).toBeDefined()
+    expect(
+      hasMockCondition(
+        freshAdmissionGuard,
+        (node: MockCondition) =>
+          node.type === 'eq' &&
+          node.left === schemaMock.document.processingStatus &&
+          node.right === 'pending'
+      )
+    ).toBe(true)
+    expect(
+      hasMockCondition(
+        freshAdmissionGuard,
+        (node: MockCondition) =>
+          node.type === 'isNull' && node.column === schemaMock.document.processingQueuedAt
+      )
+    ).toBe(true)
   })
 
   it('rejects missing workspace attribution without enqueueing', async () => {
@@ -225,6 +256,168 @@ describe('processDocumentsWithQueue dispatch backend', () => {
     )
 
     expect(result).toEqual({ requested: 1, accepted: 1, failed: 0 })
+  })
+
+  it('does not dispatch when a different request owns the queue generation', async () => {
+    markInsideTriggerRun()
+    dbChainMockFns.returning.mockResolvedValueOnce([]).mockResolvedValueOnce([])
+
+    const result = await processDocumentsWithQueue(
+      [DOCUMENT],
+      'knowledge-base-1',
+      {},
+      'request-1',
+      BILLING_ATTRIBUTION
+    )
+
+    expect(result).toEqual({ requested: 1, accepted: 1, failed: 0 })
+    expect(mockBatchTrigger).not.toHaveBeenCalled()
+  })
+
+  it('resumes the same outbox request with its original stamp and no new charge', async () => {
+    markInsideTriggerRun()
+    const originalQueuedAt = new Date('2026-08-24T22:00:00.000Z')
+    dbChainMockFns.returning
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ id: 'document-1', processingQueuedAt: originalQueuedAt }])
+
+    const result = await processDocumentsWithQueue(
+      [DOCUMENT],
+      'knowledge-base-1',
+      {},
+      'request-1',
+      BILLING_ATTRIBUTION
+    )
+
+    expect(result).toEqual({ requested: 1, accepted: 1, failed: 0 })
+    const payload = mockBatchTrigger.mock.calls[0][1][0].payload
+    expect(payload).toMatchObject({
+      processingQueueToken: 'request-1',
+      processingQueuedAt: originalQueuedAt.toISOString(),
+      chargedAtDispatch: false,
+    })
+    const resumeWrite = dbChainMockFns.set.mock.calls.find(
+      (call) =>
+        (call[0] as Record<string, unknown> | undefined)?.processingQueueToken === 'request-1' &&
+        !('processingQueuedAt' in ((call[0] as Record<string, unknown> | undefined) ?? {}))
+    )
+    expect(resumeWrite?.[0]).not.toHaveProperty('processingAttempts')
+
+    const resumeGuard = dbChainMockFns.where.mock.calls.find((call) =>
+      hasMockCondition(
+        call[0],
+        (node: MockCondition) =>
+          node.type === 'eq' &&
+          node.left === schemaMock.document.processingQueueToken &&
+          node.right === 'request-1'
+      )
+    )?.[0]
+    expect(resumeGuard).toBeDefined()
+    expect(
+      hasMockCondition(
+        resumeGuard,
+        (node: MockCondition) =>
+          node.type === 'isNotNull' && node.column === schemaMock.document.processingQueuedAt
+      )
+    ).toBe(true)
+    const statusGuard = flattenMockConditions(resumeGuard).find(
+      (node: MockCondition) => node.type === 'or'
+    )
+    expect(statusGuard).toBeDefined()
+    const statusConditions = statusGuard?.conditions as MockCondition[]
+    expect(statusConditions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'eq',
+          left: schemaMock.document.processingStatus,
+          right: 'pending',
+        }),
+        expect.objectContaining({
+          type: 'eq',
+          left: schemaMock.document.processingStatus,
+          right: 'failed',
+        }),
+      ])
+    )
+  })
+
+  it('keeps a failed same-request replay retryable without clearing its prior stamp', async () => {
+    markInsideTriggerRun()
+    const originalQueuedAt = new Date('2026-08-24T22:00:00.000Z')
+    dbChainMockFns.returning
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ id: 'document-1', processingQueuedAt: originalQueuedAt }])
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([{ userId: 'knowledge-owner', workspaceId: 'workspace-1' }])
+      .mockRejectedValueOnce(new Error('direct fallback unavailable'))
+    mockBatchTrigger.mockRejectedValueOnce(new Error('trigger unavailable'))
+
+    await expect(
+      processDocumentsWithQueue(
+        [DOCUMENT],
+        'knowledge-base-1',
+        {},
+        'request-1',
+        BILLING_ATTRIBUTION
+      )
+    ).rejects.toThrow('document processing dispatches failed')
+
+    expect(
+      dbChainMockFns.set.mock.calls.some(
+        (call) => (call[0] as Record<string, unknown> | undefined)?.processingQueueToken === null
+      )
+    ).toBe(false)
+  })
+
+  it('reports only successful same-request replay dispatches in a partial batch', async () => {
+    markInsideTriggerRun()
+    const originalQueuedAt = new Date('2026-08-24T22:00:00.000Z')
+    const documents = Array.from({ length: 1001 }, (_, index) => ({
+      ...DOCUMENT,
+      documentId: `document-${index}`,
+      filename: `document-${index}.txt`,
+    }))
+    dbChainMockFns.returning
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce(
+        documents.map((doc) => ({ id: doc.documentId, processingQueuedAt: originalQueuedAt }))
+      )
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([{ userId: 'knowledge-owner', workspaceId: 'workspace-1' }])
+      .mockRejectedValueOnce(new Error('direct fallback unavailable'))
+    mockBatchTrigger
+      .mockResolvedValueOnce({ batchId: 'batch-1' })
+      .mockRejectedValueOnce(new Error('second batch unavailable'))
+
+    const result = await processDocumentsWithQueue(
+      documents,
+      'knowledge-base-1',
+      {},
+      'request-1',
+      BILLING_ATTRIBUTION
+    )
+
+    expect(result).toEqual({ requested: 1001, accepted: 1000, failed: 1 })
+  })
+
+  it('deduplicates document IDs while preserving first-seen dispatch order', async () => {
+    markInsideTriggerRun()
+    const secondDocument = { ...DOCUMENT, documentId: 'document-2', filename: 'second.txt' }
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'document-1' }, { id: 'document-2' }])
+
+    const result = await processDocumentsWithQueue(
+      [DOCUMENT, DOCUMENT, secondDocument],
+      'knowledge-base-1',
+      {},
+      'request-1',
+      BILLING_ATTRIBUTION
+    )
+
+    expect(result).toEqual({ requested: 2, accepted: 2, failed: 0 })
+    expect(mockBatchTrigger.mock.calls[0][1].map((job) => job.payload.documentId)).toEqual([
+      'document-1',
+      'document-2',
+    ])
   })
 
   it('returns an empty dispatch summary without resolving billing context', async () => {

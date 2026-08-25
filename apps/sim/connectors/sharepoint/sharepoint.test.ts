@@ -638,6 +638,26 @@ describe('getDocument content extraction', () => {
     expect(doc?.sourceFile).toBeUndefined()
     expect(doc?.mimeType).toBe('text/plain')
   })
+
+  it('marks an empty file as an authoritative skip', async () => {
+    const item = file('empty', 'empty.txt')
+    mockFetchWithRetry.mockImplementation(async (url: string) => {
+      if (url.endsWith('/content')) return new Response(new Uint8Array(0))
+      return new Response(JSON.stringify(item), {
+        headers: { 'content-type': 'application/json' },
+      })
+    })
+
+    const document = await get('empty')
+
+    expect(document).toMatchObject({
+      externalId: 'empty',
+      content: '',
+      contentDeferred: false,
+      skippedReason: 'Document contains no extractable text',
+      skippedExistingDisposition: 'replace',
+    })
+  })
 })
 
 describe('serverRelativePathFromUrl', () => {

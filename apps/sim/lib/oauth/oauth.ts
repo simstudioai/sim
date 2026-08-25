@@ -1993,6 +1993,13 @@ function extractErrorCode(value: unknown): string | undefined {
   return undefined
 }
 
+function safeOAuthErrorCode(value: unknown, secrets: string[]): string | undefined {
+  const errorCode = extractErrorCode(value)
+  if (!errorCode) return undefined
+  const safeCode = redactExactSensitiveValues(errorCode, secrets).trim().toLowerCase()
+  return /^[a-z0-9][a-z0-9._:-]{0,127}$/.test(safeCode) ? safeCode : undefined
+}
+
 /**
  * Hard deadline on the token-endpoint exchange. This function does not coalesce
  * on its own; its sole production caller (`performCoalescedRefresh` in the OAuth
@@ -2031,6 +2038,7 @@ async function refreshInstagramLongLivedToken(
 
   const response = await fetch(url.toString(), {
     method: 'GET',
+    redirect: 'error',
     signal: AbortSignal.timeout(TOKEN_REFRESH_TIMEOUT_MS),
   })
 
@@ -2041,21 +2049,20 @@ async function refreshInstagramLongLivedToken(
   const responseData = parseOAuthResponse(responseText)
 
   if (!response.ok) {
-    const errorSummary = safeOAuthDiagnostic(responseText, [
-      longLivedToken,
-      config.clientSecret ?? '',
-    ])
+    const exactSecrets = [longLivedToken, config.clientSecret ?? '']
+    const errorSummary = safeOAuthDiagnostic(responseText, exactSecrets)
+    const errorCode = safeOAuthErrorCode(responseData, exactSecrets)
     logger.error('Instagram long-lived token refresh failed:', {
       status: response.status,
       statusText: response.statusText,
       error: errorSummary,
-      errorCode: extractErrorCode(responseData),
+      errorCode,
       providerId,
       tokenEndpoint: config.tokenEndpoint,
     })
     return {
       ok: false,
-      errorCode: extractErrorCode(responseData),
+      errorCode,
       message: `Failed to refresh token: ${response.status} ${errorSummary}`,
     }
   }
@@ -2101,6 +2108,7 @@ export async function refreshOAuthToken(
       method: 'POST',
       headers,
       body: useJsonBody ? JSON.stringify(bodyParams) : new URLSearchParams(bodyParams).toString(),
+      redirect: 'error',
       signal: AbortSignal.timeout(TOKEN_REFRESH_TIMEOUT_MS),
     })
 
@@ -2112,12 +2120,13 @@ export async function refreshOAuthToken(
 
     if (!response.ok) {
       const errorSummary = safeOAuthDiagnostic(responseText, exactSecrets)
+      const errorCode = safeOAuthErrorCode(responseData, exactSecrets)
 
       logger.error('Token refresh failed:', {
         status: response.status,
         statusText: response.statusText,
         error: errorSummary,
-        errorCode: extractErrorCode(responseData),
+        errorCode,
         providerId,
         tokenEndpoint: config.tokenEndpoint,
         hasClientId: !!config.clientId,
@@ -2126,7 +2135,7 @@ export async function refreshOAuthToken(
       })
       return {
         ok: false,
-        errorCode: extractErrorCode(responseData),
+        errorCode,
         message: `Failed to refresh token: ${response.status} ${errorSummary}`,
       }
     }
@@ -2138,8 +2147,11 @@ export async function refreshOAuthToken(
     }
 
     if (data.ok === false) {
-      const errorCode = typeof data.error === 'string' ? data.error : undefined
-      const safeError = safeOAuthDiagnostic(errorCode ?? 'unknown', exactSecrets)
+      const errorCode = safeOAuthErrorCode(data, exactSecrets)
+      const safeError = safeOAuthDiagnostic(
+        typeof data.error === 'string' ? data.error : 'unknown',
+        exactSecrets
+      )
       logger.error('Token refresh failed:', {
         status: response.status,
         statusText: response.statusText,

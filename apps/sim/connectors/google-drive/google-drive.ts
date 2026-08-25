@@ -25,9 +25,11 @@ import {
 
 const logger = createLogger('GoogleDriveConnector')
 
+const XLSX_MIME_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+
 const GOOGLE_WORKSPACE_EXPORTS: Record<string, string> = {
   'application/vnd.google-apps.document': 'text/plain',
-  'application/vnd.google-apps.spreadsheet': 'text/csv',
+  'application/vnd.google-apps.spreadsheet': XLSX_MIME_TYPE,
   'application/vnd.google-apps.presentation': 'text/plain',
 }
 
@@ -139,11 +141,26 @@ async function downloadTextFile(accessToken: string, fileId: string): Promise<st
   return buffer.toString('utf8')
 }
 
-type FilePayload = Pick<ExternalDocument, 'content' | 'mimeType'>
+type FilePayload = Pick<ExternalDocument, 'content' | 'mimeType' | 'sourceFile'>
+
+function xlsxFileName(name: string): string {
+  return name.toLowerCase().endsWith('.xlsx') ? name : `${name}.xlsx`
+}
 
 async function fetchFilePayload(accessToken: string, file: DriveFile): Promise<FilePayload> {
   if (GOOGLE_WORKSPACE_EXPORTS[file.mimeType]) {
     const bytes = await exportGoogleWorkspaceFile(accessToken, file.id, file.mimeType)
+    if (file.mimeType === 'application/vnd.google-apps.spreadsheet') {
+      return {
+        content: '',
+        mimeType: XLSX_MIME_TYPE,
+        sourceFile: {
+          bytes,
+          fileName: xlsxFileName(file.name || 'Untitled'),
+          mimeType: XLSX_MIME_TYPE,
+        },
+      }
+    }
     return { content: bytes.toString('utf8'), mimeType: 'text/plain' }
   }
   if (file.mimeType === 'text/html') {
@@ -208,6 +225,14 @@ function buildQuery(sourceConfig: Record<string, unknown>): string {
 }
 
 function fileToStub(file: DriveFile): ExternalDocument {
+  /**
+   * Sheets moved from a first-sheet-only CSV export to the complete XLSX source.
+   * The namespace forces one rehydration for existing rows whose old hash would
+   * otherwise preserve embeddings that omit every sheet after the first.
+   */
+  const hashNamespace =
+    file.mimeType === 'application/vnd.google-apps.spreadsheet' ? 'gdrive:v2' : 'gdrive'
+
   return {
     externalId: file.id,
     title: file.name || 'Untitled',
@@ -215,7 +240,7 @@ function fileToStub(file: DriveFile): ExternalDocument {
     contentDeferred: true,
     mimeType: 'text/plain',
     sourceUrl: file.webViewLink || `https://drive.google.com/file/d/${file.id}/view`,
-    contentHash: `gdrive:${file.id}:${file.modifiedTime ?? ''}`,
+    contentHash: `${hashNamespace}:${file.id}:${file.modifiedTime ?? ''}`,
     metadata: {
       originalMimeType: file.mimeType,
       modifiedTime: file.modifiedTime,
@@ -325,6 +350,7 @@ export const googleDriveConnector: ConnectorConfig = {
       documents: page.documents,
       nextCursor: hitLimit ? undefined : nextPageToken,
       hasMore: hitLimit ? false : Boolean(nextPageToken),
+      reconciliationSafe: incompleteSearch ? false : undefined,
     }
   },
 
@@ -369,7 +395,7 @@ export const googleDriveConnector: ConnectorConfig = {
 
     try {
       const payload = await fetchFilePayload(accessToken, file)
-      if (!payload.content.trim()) {
+      if (!payload.content.trim() && !payload.sourceFile?.bytes.length) {
         return {
           ...markSkipped(
             { ...fileToStub(file), ...payload },

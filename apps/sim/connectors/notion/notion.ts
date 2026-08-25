@@ -30,12 +30,23 @@ const MAX_CONFIGURED_DATABASES = 100
 const MAX_DATABASE_RESPONSE_BYTES = 1024 * 1024
 const MAX_DATA_SOURCES_PER_DATABASE = 100
 const MAX_TOTAL_DATA_SOURCES = 500
+const MAX_NOTION_UNKNOWN_BLOCK_IDS = 100
+const MAX_NOTION_MARKDOWN_RECOVERY_IDS = 200
+const MAX_NOTION_MARKDOWN_RECOVERY_REQUESTS = 200
+const NOTION_DATA_SOURCE_CURSOR_PREFIX = 'notion-data-sources:v1:'
 const MAX_PAGES_VALIDATION_ERROR = 'Max pages must be a positive safe integer, or 0 for unlimited'
 
 interface NotionMarkdownResponse {
   markdown?: unknown
   truncated?: unknown
   unknown_block_ids?: unknown
+}
+
+interface ParsedNotionMarkdownResponse {
+  markdown: string
+  truncated: boolean
+  unknownBlockIds: string[]
+  responseBytes: number
 }
 
 interface NotionDataSourceReference {
@@ -50,6 +61,11 @@ interface ResolvedNotionDataSource {
 interface NotionDataSourceCache {
   databaseIds: string[]
   dataSources: ResolvedNotionDataSource[]
+}
+
+interface NotionDataSourceCursor {
+  sourceIndex: number
+  cursor?: string
 }
 
 const DATA_SOURCE_CACHE_KEY = 'notionResolvedDataSources'
@@ -98,6 +114,20 @@ class NotionApiError extends Error {
     this.status = status
     this.code = code
     this.requestId = requestId
+  }
+}
+
+class NotionMarkdownRecoveryLimitError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'NotionMarkdownRecoveryLimitError'
+  }
+}
+
+class NotionMarkdownIncompleteError extends Error {
+  constructor() {
+    super('Notion page contains blocks the connection cannot access and was not indexed completely')
+    this.name = 'NotionMarkdownIncompleteError'
   }
 }
 
@@ -154,20 +184,17 @@ function extractTitle(properties: Record<string, unknown>): string {
   return 'Untitled'
 }
 
-/** Returns true for either legacy or current Notion trash markers. */
 function isPageTrashed(page: Record<string, unknown>): boolean {
   return page.in_trash === true || page.archived === true
 }
 
-/**
- * Retrieves Notion's server-rendered markdown for a page. The endpoint expands
- * nested blocks in one request and reports when its output is incomplete. An
- * incomplete response is rejected so the metadata hash cannot freeze partial
- * page content as a successful hydration.
- */
-async function fetchPageMarkdown(accessToken: string, pageId: string): Promise<string> {
+async function fetchMarkdownResponse(
+  accessToken: string,
+  pageId: string,
+  remainingBytes: number
+): Promise<ParsedNotionMarkdownResponse> {
   const response = await fetchWithRetry(
-    `${NOTION_BASE_URL}/pages/${encodeURIComponent(pageId)}/markdown`,
+    `${NOTION_BASE_URL}/pages/${encodeURIComponent(pageId)}/markdown?include_transcript=true`,
     {
       method: 'GET',
       headers: {
@@ -181,7 +208,7 @@ async function fetchPageMarkdown(accessToken: string, pageId: string): Promise<s
     throw await notionApiError(response, `Failed to fetch markdown for ${pageId}`)
   }
 
-  const body = await readBodyWithLimit(response, CONNECTOR_MAX_FILE_BYTES)
+  const body = await readBodyWithLimit(response, remainingBytes)
   if (!body) throw new ConnectorFileTooLargeError(CONNECTOR_MAX_FILE_BYTES)
 
   let data: NotionMarkdownResponse
@@ -190,21 +217,188 @@ async function fetchPageMarkdown(accessToken: string, pageId: string): Promise<s
   } catch {
     throw new Error(`Notion returned invalid JSON markdown for ${pageId}`)
   }
-  const unknownBlockIds = Array.isArray(data.unknown_block_ids)
-    ? data.unknown_block_ids.filter((value): value is string => typeof value === 'string')
-    : []
-
-  if (data.truncated === true || unknownBlockIds.length > 0) {
-    throw new Error(
-      `Notion returned incomplete markdown for ${pageId}: truncated=${data.truncated === true}, unknownBlocks=${unknownBlockIds.length}`
+  if (
+    typeof data.markdown !== 'string' ||
+    typeof data.truncated !== 'boolean' ||
+    !Array.isArray(data.unknown_block_ids) ||
+    !data.unknown_block_ids.every((value): value is string => typeof value === 'string')
+  ) {
+    throw new Error(`Notion returned an invalid markdown response for ${pageId}`)
+  }
+  if (data.unknown_block_ids.length > MAX_NOTION_UNKNOWN_BLOCK_IDS) {
+    throw new NotionMarkdownRecoveryLimitError(
+      `Notion returned more than ${MAX_NOTION_UNKNOWN_BLOCK_IDS} recovery block IDs for one markdown response and the page was not indexed`
     )
   }
 
-  if (typeof data.markdown !== 'string') {
-    throw new Error(`Notion returned an invalid markdown response for ${pageId}`)
+  return {
+    markdown: data.markdown,
+    truncated: data.truncated,
+    unknownBlockIds: data.unknown_block_ids,
+    responseBytes: body.byteLength,
+  }
+}
+
+function richTextToPlainText(value: unknown): string {
+  if (!Array.isArray(value)) return ''
+  return value
+    .map((item) => {
+      if (!item || typeof item !== 'object') return ''
+      const plainText = (item as { plain_text?: unknown }).plain_text
+      return typeof plainText === 'string' ? plainText : ''
+    })
+    .join('')
+}
+
+function unsupportedBlockFallback(block: Record<string, unknown>): string {
+  const type = typeof block.type === 'string' ? block.type : ''
+  const payload = type && block[type] && typeof block[type] === 'object' ? block[type] : undefined
+  if (!payload || Array.isArray(payload)) return ''
+
+  const value = payload as Record<string, unknown>
+  const text =
+    richTextToPlainText(value.rich_text) ||
+    richTextToPlainText(value.caption) ||
+    richTextToPlainText(value.title)
+  const url = typeof value.url === 'string' ? value.url : ''
+  return [text, url].filter(Boolean).join('\n')
+}
+
+async function fetchUnsupportedBlockFallback(
+  accessToken: string,
+  blockId: string,
+  remainingBytes: number
+): Promise<{ content: string; responseBytes: number }> {
+  const response = await fetchWithRetry(
+    `${NOTION_BASE_URL}/blocks/${encodeURIComponent(blockId)}`,
+    {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Notion-Version': NOTION_API_VERSION,
+      },
+    }
+  )
+
+  if (!response.ok) {
+    const error = await notionApiError(response, `Failed to fetch unsupported block ${blockId}`)
+    if (error.status === 404 && error.code === 'object_not_found') {
+      throw new NotionMarkdownIncompleteError()
+    }
+    throw error
   }
 
-  return data.markdown
+  const body = await readBodyWithLimit(response, remainingBytes)
+  if (!body) throw new ConnectorFileTooLargeError(CONNECTOR_MAX_FILE_BYTES)
+
+  let block: Record<string, unknown>
+  try {
+    const parsed: unknown = JSON.parse(body.toString('utf8'))
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error('Invalid block envelope')
+    }
+    block = parsed as Record<string, unknown>
+  } catch {
+    throw new Error(`Notion returned invalid JSON for unsupported block ${blockId}`)
+  }
+
+  return { content: unsupportedBlockFallback(block), responseBytes: body.byteLength }
+}
+
+type MarkdownRecoveryTarget = { id: string; mode: 'markdown' | 'block' }
+
+/**
+ * Retrieves complete enhanced markdown while following Notion's documented
+ * `unknown_block_ids` recovery flow. Inaccessible blocks make the hydration
+ * non-authoritative; unsupported markdown block types fall back to the structured
+ * block endpoint. Aggregate bytes and follow-up requests are bounded across the
+ * whole hydration, so recovery cannot become an unbounded fan-out.
+ */
+async function fetchPageMarkdown(accessToken: string, pageId: string): Promise<string> {
+  const pending: MarkdownRecoveryTarget[] = [{ id: pageId, mode: 'markdown' }]
+  const queued = new Set<string>([`markdown:${pageId}`])
+  const recoveryIds = new Set<string>()
+  const visited = new Set<string>()
+  const markdownParts: string[] = []
+  let pendingIndex = 0
+  let totalResponseBytes = 0
+  let recoveryRequests = 0
+
+  const enqueue = (target: MarkdownRecoveryTarget) => {
+    if (target.id !== pageId && !recoveryIds.has(target.id)) {
+      recoveryIds.add(target.id)
+      if (recoveryIds.size > MAX_NOTION_MARKDOWN_RECOVERY_IDS) {
+        throw new NotionMarkdownRecoveryLimitError(
+          `Notion page requires more than ${MAX_NOTION_MARKDOWN_RECOVERY_IDS} unique markdown recovery IDs and was not indexed`
+        )
+      }
+    }
+
+    const key = `${target.mode}:${target.id}`
+    if (queued.has(key)) return
+    queued.add(key)
+    pending.push(target)
+  }
+
+  while (pendingIndex < pending.length) {
+    const target = pending[pendingIndex++]
+    const visitKey = `${target.mode}:${target.id}`
+    if (visited.has(visitKey)) continue
+    visited.add(visitKey)
+
+    if (target.id !== pageId || target.mode !== 'markdown') {
+      recoveryRequests++
+      if (recoveryRequests > MAX_NOTION_MARKDOWN_RECOVERY_REQUESTS) {
+        throw new NotionMarkdownRecoveryLimitError(
+          `Notion page requires more than ${MAX_NOTION_MARKDOWN_RECOVERY_REQUESTS} markdown recovery requests and was not indexed`
+        )
+      }
+    }
+
+    const remainingBytes = CONNECTOR_MAX_FILE_BYTES - totalResponseBytes
+    if (remainingBytes <= 0) throw new ConnectorFileTooLargeError(CONNECTOR_MAX_FILE_BYTES)
+
+    if (target.mode === 'block') {
+      const fallback = await fetchUnsupportedBlockFallback(accessToken, target.id, remainingBytes)
+      totalResponseBytes += fallback.responseBytes
+      if (fallback.content) markdownParts.push(fallback.content)
+      continue
+    }
+
+    let markdownResponse: ParsedNotionMarkdownResponse
+    try {
+      markdownResponse = await fetchMarkdownResponse(accessToken, target.id, remainingBytes)
+    } catch (error) {
+      if (target.id !== pageId && error instanceof NotionApiError) {
+        if (error.status === 404 && error.code === 'object_not_found') {
+          throw new NotionMarkdownIncompleteError()
+        }
+        if (error.status === 400 && error.code === 'validation_error') {
+          enqueue({ id: target.id, mode: 'block' })
+          continue
+        }
+      }
+      throw error
+    }
+
+    totalResponseBytes += markdownResponse.responseBytes
+    if (markdownResponse.markdown) markdownParts.push(markdownResponse.markdown)
+
+    if (markdownResponse.truncated && markdownResponse.unknownBlockIds.length === 0) {
+      throw new NotionMarkdownRecoveryLimitError(
+        'Notion returned truncated markdown without recovery block IDs and the page was not indexed'
+      )
+    }
+
+    for (const unknownBlockId of markdownResponse.unknownBlockIds) {
+      enqueue({
+        id: unknownBlockId,
+        mode: markdownResponse.truncated ? 'markdown' : 'block',
+      })
+    }
+  }
+
+  return markdownParts.join('\n\n')
 }
 
 /**
@@ -248,14 +442,14 @@ function pageToStub(page: Record<string, unknown>): ExternalDocument {
     mimeType: 'text/plain',
     sourceUrl: url,
     /**
-     * The `v2` namespace is a one-time invalidation. The hash is metadata-only,
+     * The `v3` namespace is a one-time invalidation. The hash is metadata-only,
      * so a stored page whose `last_edited_time` has not moved is classified
      * `unchanged` and never re-hydrated — meaning it would keep the incomplete
      * single-level block rendering used before Notion's complete-page markdown
      * endpoint was adopted. The scoped bump forces one re-hydration per page,
      * after which normal hash gating resumes.
      */
-    contentHash: `notion:v2:${pageId}:${lastEditedTime}`,
+    contentHash: `notion:v3:${pageId}:${lastEditedTime}`,
     metadata: {
       tags,
       lastModified: page.last_edited_time as string,
@@ -328,6 +522,21 @@ export const notionConnector: ConnectorConfig = {
     } catch (error) {
       if (error instanceof ConnectorFileTooLargeError) {
         return markSkipped(stub, sizeLimitSkipReason(error.limitBytes))
+      }
+      if (error instanceof NotionMarkdownRecoveryLimitError) {
+        return markSkipped(stub, error.message)
+      }
+      if (error instanceof NotionMarkdownIncompleteError) {
+        return {
+          ...markSkipped(stub, error.message),
+          /**
+           * Access to a nested block can change without moving the parent page's
+           * `last_edited_time`. Persist a connector-owned retry marker rather than
+           * the listing hash so the next listing classifies this document as changed
+           * and retries hydration. Existing indexed content remains last-known-good.
+           */
+          contentHash: `notion:retry:v1:${stub.externalId}`,
+        }
       }
       throw error
     }
@@ -483,6 +692,8 @@ async function listFromWorkspace(
     documents,
     nextCursor,
     hasMore: hitLimit ? false : data.has_more === true,
+    /** Notion documents that workspace search is not an exhaustive enumeration. */
+    reconciliationSafe: false,
   }
 }
 
@@ -623,7 +834,94 @@ async function resolveDatabaseDataSourcesForSync(
   return dataSources
 }
 
-/** Lists pages from the configured databases through the current data-source API. */
+function encodeDataSourceCursor(cursor: NotionDataSourceCursor): string {
+  return `${NOTION_DATA_SOURCE_CURSOR_PREFIX}${encodeURIComponent(JSON.stringify(cursor))}`
+}
+
+function decodeLegacyDatabaseCursor(
+  cursor: string,
+  databaseIds: string[],
+  dataSources: ResolvedNotionDataSource[]
+): NotionDataSourceCursor | undefined {
+  if (databaseIds.length <= 1) return undefined
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(cursor) as unknown
+  } catch {
+    return undefined
+  }
+
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return undefined
+  const keys = Object.keys(parsed)
+  if (
+    !keys.includes('databaseIndex') ||
+    keys.some((key) => key !== 'databaseIndex' && key !== 'cursor')
+  ) {
+    return undefined
+  }
+
+  const value = parsed as { databaseIndex?: unknown; cursor?: unknown }
+  if (
+    !Number.isSafeInteger(value.databaseIndex) ||
+    Number(value.databaseIndex) < 0 ||
+    (value.cursor !== undefined && typeof value.cursor !== 'string')
+  ) {
+    return undefined
+  }
+
+  const databaseIndex = Number(value.databaseIndex)
+  if (databaseIndex >= databaseIds.length) {
+    throw new Error('Invalid Notion connector legacy database cursor')
+  }
+  const databaseId = databaseIds[databaseIndex]
+  const sourceIndex = dataSources.findIndex((source) => source.databaseId === databaseId)
+  if (sourceIndex < 0) {
+    throw new Error('Invalid Notion connector legacy database cursor')
+  }
+
+  return { sourceIndex, cursor: value.cursor as string | undefined }
+}
+
+function decodeDataSourceCursor(
+  cursor: string,
+  databaseIds: string[],
+  dataSources: ResolvedNotionDataSource[]
+): NotionDataSourceCursor {
+  if (!cursor.startsWith(NOTION_DATA_SOURCE_CURSOR_PREFIX)) {
+    return (
+      decodeLegacyDatabaseCursor(cursor, databaseIds, dataSources) ?? { sourceIndex: 0, cursor }
+    )
+  }
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(
+      decodeURIComponent(cursor.slice(NOTION_DATA_SOURCE_CURSOR_PREFIX.length))
+    ) as unknown
+  } catch {
+    throw new Error('Invalid Notion connector data-source cursor')
+  }
+
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('Invalid Notion connector data-source cursor')
+  }
+  const value = parsed as { sourceIndex?: unknown; cursor?: unknown }
+  if (
+    !Number.isSafeInteger(value.sourceIndex) ||
+    Number(value.sourceIndex) < 0 ||
+    Number(value.sourceIndex) >= dataSources.length ||
+    (value.cursor !== undefined && typeof value.cursor !== 'string')
+  ) {
+    throw new Error('Invalid Notion connector data-source cursor')
+  }
+
+  return {
+    sourceIndex: Number(value.sourceIndex),
+    cursor: value.cursor as string | undefined,
+  }
+}
+
 async function listFromDatabases(
   accessToken: string,
   databaseIds: string[],
@@ -636,44 +934,9 @@ async function listFromDatabases(
   let startCursor: string | undefined
 
   if (cursor) {
-    let parsed: unknown
-    try {
-      parsed = JSON.parse(cursor) as unknown
-    } catch {
-      startCursor = cursor
-    }
-
-    if (parsed && typeof parsed === 'object') {
-      const compound = parsed as {
-        cursor?: unknown
-        databaseIndex?: unknown
-        sourceIndex?: unknown
-      }
-      if (Number.isSafeInteger(compound.sourceIndex) && Number(compound.sourceIndex) >= 0) {
-        sourceIndex = Number(compound.sourceIndex)
-      } else if (
-        Number.isSafeInteger(compound.databaseIndex) &&
-        Number(compound.databaseIndex) >= 0
-      ) {
-        const legacyDatabaseIndex = Number(compound.databaseIndex)
-        if (legacyDatabaseIndex >= databaseIds.length) {
-          throw new Error('Invalid Notion connector database cursor')
-        }
-        const legacyDatabaseId = databaseIds[legacyDatabaseIndex]
-        const legacySourceIndex = dataSources.findIndex(
-          (source) => source.databaseId === legacyDatabaseId
-        )
-        sourceIndex = legacySourceIndex >= 0 ? legacySourceIndex : 0
-      } else {
-        throw new Error('Invalid Notion connector data-source cursor')
-      }
-      if (compound.cursor !== undefined && typeof compound.cursor !== 'string') {
-        throw new Error('Invalid Notion connector cursor')
-      }
-      startCursor = compound.cursor
-    } else if (parsed !== undefined) {
-      startCursor = cursor
-    }
+    const decoded = decodeDataSourceCursor(cursor, databaseIds, dataSources)
+    sourceIndex = decoded.sourceIndex
+    startCursor = decoded.cursor
   }
 
   if (!Number.isSafeInteger(sourceIndex) || sourceIndex < 0 || sourceIndex >= dataSources.length) {
@@ -683,6 +946,7 @@ async function listFromDatabases(
   const documents: ExternalDocument[] = []
   let nextCursor: string | undefined
   let hasMore = false
+  let queryResultIncomplete = false
 
   if (sourceIndex < dataSources.length) {
     const { databaseId, dataSourceId } = dataSources[sourceIndex]
@@ -728,13 +992,21 @@ async function listFromDatabases(
     const pages = results.filter((result) => result.object === 'page' && !isPageTrashed(result))
     documents.push(...pages.map(pageToStub))
 
+    queryResultIncomplete =
+      data.request_status?.type === 'incomplete' &&
+      data.request_status?.incomplete_reason === 'query_result_limit_reached'
+
+    if (queryResultIncomplete && syncContext) {
+      syncContext.listingCapped = true
+      syncContext.reconciliationUnsafe = true
+    }
+
     if (data.has_more === true && typeof data.next_cursor === 'string') {
       const nextStart = data.next_cursor as string
-      nextCursor =
-        dataSources.length === 1 ? nextStart : JSON.stringify({ sourceIndex, cursor: nextStart })
+      nextCursor = encodeDataSourceCursor({ sourceIndex, cursor: nextStart })
       hasMore = true
     } else if (sourceIndex + 1 < dataSources.length) {
-      nextCursor = JSON.stringify({ sourceIndex: sourceIndex + 1 })
+      nextCursor = encodeDataSourceCursor({ sourceIndex: sourceIndex + 1 })
       hasMore = true
     }
   }
@@ -752,6 +1024,8 @@ async function listFromDatabases(
     documents,
     nextCursor: hasMore ? nextCursor : undefined,
     hasMore,
+    reconciliationSafe:
+      queryResultIncomplete || syncContext?.reconciliationUnsafe === true ? false : undefined,
   }
 }
 
@@ -805,11 +1079,11 @@ async function listFromParentPage(
   // Also include the root page itself on the first call (no cursor)
   const pageIdsToFetch = !cursor ? [rootPageId, ...childPageIds] : childPageIds
 
-  // Fetch page metadata (not content) in concurrent batches to build stubs.
-  // Every metadata failure makes the result non-authoritative: the child ID came
-  // from this parent listing, and Notion's object_not_found also represents lost
-  // access, so even a 404 cannot prove the child was deleted.
   const documents: ExternalDocument[] = []
+  /**
+   * A child metadata failure makes this listing non-authoritative. Notion uses
+   * `object_not_found` for lost access too, so even a 404 cannot prove deletion.
+   */
   let droppedByError = false
   let pageIdsProcessed = 0
 

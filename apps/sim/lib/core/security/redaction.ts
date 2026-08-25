@@ -116,20 +116,19 @@ export function redactSensitiveValues(value: string): string {
  */
 export function redactExactSensitiveValues(value: string, secrets: string[]): string {
   let result = redactSensitiveValues(value)
-  for (const secret of secrets) {
-    if (!secret) continue
+  const orderedSecrets = [...new Set(secrets.filter(Boolean))].sort(
+    (left, right) => right.length - left.length
+  )
+  for (const secret of orderedSecrets) {
     result = result.replaceAll(secret, REDACTED_MARKER)
     const encodedVariants = new Set([
       encodeURIComponent(secret),
       new URLSearchParams({ value: secret }).toString().slice('value='.length),
     ])
     for (const encoded of encodedVariants) {
-      if (encoded !== secret) result = result.replaceAll(encoded, REDACTED_MARKER)
-      const lowercaseEscapes = encoded.replace(/%[0-9A-F]{2}/g, (sequence) =>
-        sequence.toLowerCase()
-      )
-      if (lowercaseEscapes !== encoded) {
-        result = result.replaceAll(lowercaseEscapes, REDACTED_MARKER)
+      if (encoded !== secret) {
+        const escaped = encoded.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+        result = result.replace(new RegExp(escaped, 'gi'), REDACTED_MARKER)
       }
     }
   }

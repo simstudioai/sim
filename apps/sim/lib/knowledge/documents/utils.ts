@@ -42,13 +42,9 @@ export interface RetryOptions {
   maxRetries?: number
   initialDelayMs?: number
   maxDelayMs?: number
-  /**
-   * Longest server-stated wait this operation is willing to service. Defaults
-   * to `maxDelayMs`, preserving the connector behavior where one request must
-   * not outlive its per-attempt latency budget. Callers with a larger overall
-   * budget may admit a longer window while each individual sleep remains
-   * clamped to `maxDelayMs`.
-   */
+  /** Total wall-clock budget available to waits between retry attempts. */
+  retryBudgetMs?: number
+  /** Longest individual server-stated wait this operation will admit. */
   maxRetryAfterMs?: number
   backoffMultiplier?: number
   retryCondition?: (error: unknown) => boolean
@@ -194,8 +190,7 @@ function parseRateLimitResetMs(value: string, nowMs: number): number | undefined
  * The reset fallback applies only once {@link hasRateLimitEvidence} holds.
  * GitHub and X stamp their rate-limit headers on *every* response, so an
  * ungated fallback would turn a transient 502 — quota untouched — into a wait
- * until the end of the hourly window, which the retry loop then clamps to a
- * flat `maxDelayMs` on every attempt instead of climbing the backoff ladder.
+ * until the end of the hourly window instead of climbing the backoff ladder.
  * Gating also matches GitHub's own instruction: "If the `x-ratelimit-remaining`
  * header is `0`, you should not make another request until after the time
  * specified by the `x-ratelimit-reset` header."
@@ -309,10 +304,30 @@ export async function retryWithExponentialBackoff<T>(
     maxRetries = 5,
     initialDelayMs = 1000,
     maxDelayMs = 30000,
-    maxRetryAfterMs = maxDelayMs,
+    retryBudgetMs,
     backoffMultiplier = 2,
     retryCondition = isRetryableError,
   } = options
+  const maxRetryAfterMs = options.maxRetryAfterMs ?? retryBudgetMs ?? maxDelayMs
+
+  if (!Number.isSafeInteger(maxRetries) || maxRetries < 0) {
+    throw new Error('Retry maxRetries must be a non-negative safe integer')
+  }
+  for (const [name, value] of [
+    ['initialDelayMs', initialDelayMs],
+    ['maxDelayMs', maxDelayMs],
+    ['maxRetryAfterMs', maxRetryAfterMs],
+    ...(retryBudgetMs === undefined ? [] : [['retryBudgetMs', retryBudgetMs] as const]),
+  ] as const) {
+    if (!Number.isFinite(value) || value < 0) {
+      throw new Error(`Retry ${name} must be a finite non-negative number`)
+    }
+  }
+  if (!Number.isFinite(backoffMultiplier) || backoffMultiplier <= 0) {
+    throw new Error('Retry backoffMultiplier must be a finite positive number')
+  }
+  const effectiveRetryBudgetMs = retryBudgetMs ?? maxRetries * Math.max(maxDelayMs, maxRetryAfterMs)
+  const retryDeadlineMs = Date.now() + effectiveRetryBudgetMs
 
   let lastError: Error | undefined
   let delay = initialDelayMs
@@ -350,25 +365,35 @@ export async function retryWithExponentialBackoff<T>(
        * Use the server-stated wait (Retry-After, or the rate-limit reset
        * header) when present, otherwise exponential backoff.
        *
-       * A server-stated wait beyond this operation's total retry budget
-       * terminates the cycle. Sleeping for a full GitHub/X window would wedge
-       * the sync. A caller that explicitly admits a longer window still clamps
-       * each individual sleep to `maxDelayMs`, so concurrency and task-duration
-       * bounds remain unchanged while consecutive waits can reach that window.
+       * A server-stated wait is authoritative when it fits inside the remaining
+       * operation budget. It is never shortened into an early request that the
+       * provider explicitly told us not to make.
        */
       const retryAfterMs = (lastError as HTTPError)?.retryAfterMs
 
+      const remainingBudgetMs = Math.max(0, retryDeadlineMs - Date.now())
       if (retryAfterMs && retryAfterMs > maxRetryAfterMs) {
         logger.warn(
-          `Server-stated retry wait ${retryAfterMs}ms exceeds retry budget ${maxRetryAfterMs}ms — ending this retry cycle`
+          `Server-stated retry wait ${retryAfterMs}ms exceeds per-wait ceiling ${maxRetryAfterMs}ms — ending this retry cycle`
+        )
+        throw lastError
+      }
+      if (retryAfterMs && retryAfterMs > remainingBudgetMs) {
+        logger.warn(
+          `Server-stated retry wait ${retryAfterMs}ms exceeds remaining retry budget ${remainingBudgetMs}ms — ending this retry cycle`
         )
         throw lastError
       }
 
       const jitter = randomFloat() * 0.1 * delay
-      const actualDelay = retryAfterMs
-        ? Math.min(retryAfterMs, maxDelayMs)
-        : Math.min(delay + jitter, maxDelayMs)
+      const actualDelay = retryAfterMs ? retryAfterMs : Math.min(delay + jitter, maxDelayMs)
+
+      if (actualDelay > remainingBudgetMs) {
+        logger.warn(
+          `Retry delay ${Math.round(actualDelay)}ms exceeds remaining retry budget ${Math.round(remainingBudgetMs)}ms — ending this retry cycle`
+        )
+        throw lastError
+      }
 
       logger.info(
         `Retrying in ${Math.round(actualDelay)}ms (attempt ${attempt + 1}/${maxRetries + 1})${retryAfterMs ? ' (server-stated)' : ''}`

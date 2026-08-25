@@ -13,6 +13,7 @@ import {
   embedOpenRouter,
   isEmbeddingQuotaExhaustion,
   isTransientEmbeddingError,
+  MAX_EMBEDDING_SUCCESS_RESPONSE_BYTES,
 } from '@/lib/embeddings/client'
 import { resetEmbeddingQuotaCircuitsForTesting } from '@/lib/embeddings/quota-circuit'
 
@@ -41,11 +42,46 @@ function jsonResponse(body: unknown, status = 200, responseHeaders?: HeadersInit
   })
 }
 
-function openAIBody(vectors: number[][], totalTokens = 5) {
+function rawJsonResponse(body: string, status = 200): Response {
+  return new Response(body, {
+    status,
+    statusText: String(status),
+    headers: new Headers({ 'content-type': 'application/json' }),
+  })
+}
+
+function sizedVector(values: number[], dimensions: number): number[] {
+  return [...values, ...Array(Math.max(0, dimensions - values.length)).fill(0)].slice(0, dimensions)
+}
+
+function openAIBody(vectors: number[][], totalTokens = 5, dimensions: number | null = 1536) {
   return {
-    data: vectors.map((embedding) => ({ embedding })),
+    data: vectors.map((embedding) => ({
+      embedding: dimensions === null ? embedding : sizedVector(embedding, dimensions),
+    })),
     usage: { total_tokens: totalTokens },
   }
+}
+
+function oversizedChunkedSuccessResponse(): Response {
+  const chunkBytes = 1024 * 1024
+  const chunk = new Uint8Array(chunkBytes).fill(0x20)
+  const chunkCount = Math.floor(MAX_EMBEDDING_SUCCESS_RESPONSE_BYTES / chunkBytes) + 1
+  let emitted = 0
+
+  return new Response(
+    new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (emitted >= chunkCount) {
+          controller.close()
+          return
+        }
+        controller.enqueue(chunk)
+        emitted++
+      },
+    }),
+    { status: 200 }
+  )
 }
 
 let fetchMock: ReturnType<typeof vi.fn>
@@ -91,7 +127,8 @@ describe('embed', () => {
       input: ['hello'],
       model: 'text-embedding-3-small',
     })
-    expect(result.embeddings).toEqual([[1, 2, 3]])
+    expect(result.embeddings[0].slice(0, 3)).toEqual([1, 2, 3])
+    expect(result.embeddings[0]).toHaveLength(1536)
     expect(result.totalTokens).toBe(4)
     expect(result.dimensions).toBe(1536)
     expect(result.pricingId).toBe('text-embedding-3-small')
@@ -105,7 +142,9 @@ describe('embed', () => {
       const body = JSON.parse((init as RequestInit).body as string)
       const count = body.requests.length
       // Each vector encodes its global input index so ordering is verifiable.
-      const embeddings = Array.from({ length: count }, (_, i) => ({ values: [cursor + i] }))
+      const embeddings = Array.from({ length: count }, (_, i) => ({
+        values: sizedVector([cursor + i], 3072),
+      }))
       cursor += count
       return jsonResponse({ embeddings })
     })
@@ -127,7 +166,9 @@ describe('embed', () => {
   })
 
   it('estimates tokens when the provider omits usage', async () => {
-    fetchMock.mockResolvedValue(jsonResponse({ embeddings: [{ values: [1, 2] }] }))
+    fetchMock.mockResolvedValue(
+      jsonResponse({ embeddings: [{ values: sizedVector([1, 2], 3072) }] })
+    )
 
     const result = await embed(['some text to embed'], {
       model: 'gemini-embedding-001',
@@ -140,7 +181,7 @@ describe('embed', () => {
   it("bills Gemini on its reported token count rather than tiktoken's guess", async () => {
     fetchMock.mockResolvedValue(
       jsonResponse({
-        embeddings: [{ values: [1, 2] }],
+        embeddings: [{ values: sizedVector([1, 2], 3072) }],
         usageMetadata: { promptTokenCount: 4321 },
       })
     )
@@ -175,11 +216,40 @@ describe('embed', () => {
     expect(result.embeddings).toHaveLength(40)
   })
 
+  it('splits max-dimension batches to the successful-response byte budget and preserves order', async () => {
+    fetchMock.mockImplementation(async (_url, init) => {
+      const body = JSON.parse((init as RequestInit).body as string)
+      const inputs = body.input as string[]
+      return jsonResponse(
+        openAIBody(
+          inputs.map((input) => [Number(input.slice(1))]),
+          inputs.length,
+          3072
+        )
+      )
+    })
+    const inputs = Array.from({ length: 400 }, (_, index) => `i${index}`)
+
+    const result = await embed(inputs, {
+      model: 'text-embedding-3-large',
+      apiKey: 'sk-test',
+    })
+
+    expect(
+      fetchMock.mock.calls.map(
+        ([, init]) => JSON.parse((init as RequestInit).body as string).input.length
+      )
+    ).toEqual([169, 169, 62])
+    expect(result.embeddings.map(([value]) => value)).toEqual(
+      inputs.map((input) => Number(input.slice(1)))
+    )
+  })
+
   it('keeps a long Cohere input whole rather than cutting it to the batch budget', async () => {
     fetchMock.mockImplementation(async (_url, init) => {
       const body = JSON.parse((init as RequestInit).body as string)
       return jsonResponse({
-        embeddings: { float: body.texts.map(() => [1]) },
+        embeddings: { float: body.texts.map(() => sizedVector([1], 1536)) },
         meta: { billed_units: { input_tokens: 1 } },
       })
     })
@@ -197,7 +267,7 @@ describe('embed', () => {
   })
 
   it('forwards a supported dimension reduction and reports it back', async () => {
-    fetchMock.mockResolvedValue(jsonResponse(openAIBody([[1, 2]])))
+    fetchMock.mockResolvedValue(jsonResponse(openAIBody([[1, 2]], 5, 1024)))
 
     const result = await embed(['hello'], {
       model: 'text-embedding-3-large',
@@ -232,7 +302,7 @@ describe('embed', () => {
   it('omits the dimension field for a model without Matryoshka support', async () => {
     fetchMock.mockResolvedValue(
       jsonResponse({
-        data: [{ embedding: [1, 2], index: 0 }],
+        data: [{ embedding: sizedVector([1, 2], 1024), index: 0 }],
         usage: { total_tokens: 5 },
       })
     )
@@ -268,6 +338,117 @@ describe('embed', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
+  it('rejects an oversized chunked success response before JSON materialization', async () => {
+    fetchMock.mockResolvedValue(oversizedChunkedSuccessResponse())
+
+    await expect(
+      embed(['hello'], { model: 'text-embedding-3-small', apiKey: 'sk-test' })
+    ).rejects.toMatchObject({
+      name: 'PayloadSizeLimitError',
+      label: 'Embedding API success response',
+      maxBytes: MAX_EMBEDDING_SUCCESS_RESPONSE_BYTES,
+    })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([
+    {
+      name: 'the wrong number of vectors',
+      inputs: ['alpha', 'beta'],
+      body: openAIBody([[1]], 2),
+      message: 'returned 1 embeddings for 2 inputs',
+    },
+    {
+      name: 'an empty vector',
+      inputs: ['alpha'],
+      body: openAIBody([[]], 1, null),
+      message: 'vector 0 is empty or not an array',
+    },
+    {
+      name: 'a vector with the wrong catalog dimension',
+      inputs: ['alpha'],
+      body: openAIBody([[1, 2]], 1, null),
+      message: 'vector 0 has 2 unexpected dimensions; expected 1536',
+    },
+    {
+      name: 'a vector with a nonnumeric coordinate',
+      inputs: ['alpha'],
+      body: { data: [{ embedding: [1, 'invalid'] }], usage: { total_tokens: 1 } },
+      message: 'vector 0 contains a non-numeric or non-finite coordinate',
+    },
+    {
+      name: 'an unparseable vector envelope',
+      inputs: ['alpha'],
+      body: { data: {}, usage: { total_tokens: 1 } },
+      message: 'the vector payload could not be parsed',
+    },
+  ])('rejects a valid-JSON success body containing $name', async ({ inputs, body, message }) => {
+    fetchMock.mockResolvedValue(jsonResponse(body))
+
+    await expect(
+      embed(inputs, { model: 'text-embedding-3-small', apiKey: 'sk-test' })
+    ).rejects.toMatchObject({
+      name: 'EmbeddingResponseValidationError',
+      message: expect.stringContaining(message),
+    })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('rejects a valid-JSON success body containing a non-finite coordinate', async () => {
+    fetchMock.mockResolvedValue(
+      rawJsonResponse('{"data":[{"embedding":[1e999]}],"usage":{"total_tokens":1}}')
+    )
+
+    await expect(
+      embed(['alpha'], { model: 'text-embedding-3-small', apiKey: 'sk-test' })
+    ).rejects.toMatchObject({
+      name: 'EmbeddingResponseValidationError',
+      message: expect.stringContaining('non-numeric or non-finite coordinate'),
+    })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('rejects one malformed concurrent batch after admitting all independent batches', async () => {
+    const inputs = Array.from({ length: 3 }, (_, index) => `i${index} ${'word '.repeat(5000)}`)
+    fetchMock.mockImplementation(async (_url, init) => {
+      const body = JSON.parse((init as RequestInit).body as string)
+      const input = (body.input as string[])[0]
+      return input.startsWith('i1')
+        ? jsonResponse({ data: [], usage: { total_tokens: 1 } })
+        : jsonResponse(openAIBody([[Number(input[1])]], 1))
+    })
+
+    await expect(
+      embed(inputs, { model: 'text-embedding-3-small', apiKey: 'sk-test' })
+    ).rejects.toMatchObject({
+      name: 'EmbeddingResponseValidationError',
+      message: expect.stringContaining('returned 0 embeddings for 1 inputs'),
+    })
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+  })
+
+  it('preserves input order when concurrent batches complete out of order', async () => {
+    const inputs = Array.from({ length: 3 }, (_, index) => `i${index} ${'word '.repeat(5000)}`)
+    const responders = new Map<string, (response: Response) => void>()
+    fetchMock.mockImplementation(
+      async (_url, init) =>
+        new Promise<Response>((resolve) => {
+          const body = JSON.parse((init as RequestInit).body as string)
+          const input = (body.input as string[])[0]
+          responders.set(input.slice(0, 2), resolve)
+        })
+    )
+
+    const pending = embed(inputs, { model: 'text-embedding-3-small', apiKey: 'sk-test' })
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3))
+    for (const index of [2, 1, 0]) {
+      responders.get(`i${index}`)?.(jsonResponse(openAIBody([[index]], 1)))
+    }
+    const result = await pending
+
+    expect(result.embeddings.map(([value]) => value)).toEqual([0, 1, 2])
+  })
+
   it('retries a rate-limited request and succeeds on a later attempt', async () => {
     fetchMock
       .mockResolvedValueOnce(jsonResponse({ error: 'slow down' }, 429))
@@ -279,7 +460,7 @@ describe('embed', () => {
     })
 
     expect(fetchMock).toHaveBeenCalledTimes(2)
-    expect(result.embeddings).toEqual([[7, 8]])
+    expect(result.embeddings[0].slice(0, 2)).toEqual([7, 8])
   })
 
   it('marks a caller-supplied key as BYOK so Sim does not bill for it', async () => {
@@ -295,7 +476,7 @@ describe('embed', () => {
   })
 
   it('uses OpenRouter as an explicit transport for an OpenAI catalog model', async () => {
-    fetchMock.mockResolvedValue(jsonResponse(openAIBody([[1, 2]])))
+    fetchMock.mockResolvedValue(jsonResponse(openAIBody([[1, 2]], 5, 1024)))
 
     await embed(['hello'], {
       model: 'text-embedding-3-large',
@@ -321,7 +502,9 @@ describe('embed', () => {
    */
   describe('per-model token limits', () => {
     it("truncates against Gemini's lower ceiling rather than a shared constant", async () => {
-      fetchMock.mockResolvedValue(jsonResponse({ embeddings: [{ values: [1] }] }))
+      fetchMock.mockResolvedValue(
+        jsonResponse({ embeddings: [{ values: sizedVector([1], 3072) }] })
+      )
       // ~10k tokens: over Gemini's 2048 ceiling, but under the old 8000 constant,
       // so this used to reach the provider whole and come back a 502.
       const long = 'word '.repeat(8000)
@@ -335,7 +518,10 @@ describe('embed', () => {
 
     it("keeps text intact up to Cohere's much higher ceiling", async () => {
       fetchMock.mockResolvedValue(
-        jsonResponse({ embeddings: { float: [[1]] }, meta: { billed_units: { input_tokens: 9 } } })
+        jsonResponse({
+          embeddings: { float: [sizedVector([1], 1536)] },
+          meta: { billed_units: { input_tokens: 9 } },
+        })
       )
       // Over the old 8000 constant, well under Cohere's 128k, so it must survive.
       const long = 'word '.repeat(8000)
@@ -383,7 +569,9 @@ describe('embed', () => {
 
     it('estimates tokens from the projected values, not the originals', async () => {
       // Gemini omits usage, so the token count is estimated from what was sent.
-      fetchMock.mockResolvedValue(jsonResponse({ embeddings: [{ values: [1, 2, 3] }] }))
+      fetchMock.mockResolvedValue(
+        jsonResponse({ embeddings: [{ values: sizedVector([1, 2, 3], 3072) }] })
+      )
 
       const result = await embed(['x'.repeat(400)], {
         model: 'gemini-embedding-001',
@@ -404,7 +592,9 @@ describe('embed', () => {
      * shortening one discarded content that would have fit.
      */
     it('batches the projected text, not the original', async () => {
-      fetchMock.mockResolvedValue(jsonResponse({ embeddings: [{ values: [1] }] }))
+      fetchMock.mockResolvedValue(
+        jsonResponse({ embeddings: [{ values: sizedVector([1], 3072) }] })
+      )
       // Under Gemini's 2048 ceiling before projection, far over it after.
       const short = 'secret'
 
@@ -447,7 +637,8 @@ describe('embedOpenRouter', () => {
             [1, 2, 3],
             [4, 5, 6],
           ],
-          7
+          7,
+          null
         )
       )
     )
@@ -479,7 +670,7 @@ describe('embedOpenRouter', () => {
   })
 
   it('fails when OpenRouter returns the wrong number of vectors', async () => {
-    fetchMock.mockResolvedValue(jsonResponse(openAIBody([[1, 2]])))
+    fetchMock.mockResolvedValue(jsonResponse(openAIBody([[1, 2]], 5, null)))
 
     await expect(
       embedOpenRouter(['alpha', 'beta'], {
@@ -492,7 +683,7 @@ describe('embedOpenRouter', () => {
   })
 
   it('fails when OpenRouter returns inconsistent vector dimensions', async () => {
-    fetchMock.mockResolvedValue(jsonResponse(openAIBody([[1, 2], [3]])))
+    fetchMock.mockResolvedValue(jsonResponse(openAIBody([[1, 2], [3]], 5, null)))
 
     await expect(
       embedOpenRouter(['alpha', 'beta'], {
@@ -502,6 +693,47 @@ describe('embedOpenRouter', () => {
         projectInputs: null,
       })
     ).rejects.toThrow('inconsistent dimensions')
+  })
+
+  it('fails when OpenRouter violates an explicitly requested dimension', async () => {
+    fetchMock.mockResolvedValue(jsonResponse(openAIBody([[1, 2]], 5, null)))
+
+    await expect(
+      embedOpenRouter(['alpha'], {
+        model: 'openrouter/qwen/qwen3-embedding-8b',
+        apiKey: 'or-test',
+        maxInputTokens: 32768,
+        dimensions: 3,
+        projectInputs: null,
+      })
+    ).rejects.toThrow('vector 0 has 2 unexpected dimensions; expected 3')
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('rejects inconsistent dimensions across concurrent dynamic-model batches', async () => {
+    const inputs = Array.from({ length: 2049 }, (_, index) => `i${index}`)
+    fetchMock.mockImplementation(async (_url, init) => {
+      const body = JSON.parse((init as RequestInit).body as string)
+      const batch = body.input as string[]
+      const embedding = batch.length === 1 ? [2, 3, 4] : [1, 3]
+      return jsonResponse(
+        openAIBody(
+          batch.map(() => embedding),
+          batch.length,
+          null
+        )
+      )
+    })
+
+    await expect(
+      embedOpenRouter(inputs, {
+        model: 'openrouter/qwen/qwen3-embedding-8b',
+        apiKey: 'or-test',
+        maxInputTokens: 32768,
+        projectInputs: null,
+      })
+    ).rejects.toThrow('concurrent batches returned inconsistent dimensions (2 and 3)')
+    expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
   it('treats OpenRouter HTTP 402 as exhausted credit and opens the circuit', async () => {
@@ -524,7 +756,7 @@ describe('embedOpenRouter', () => {
   })
 
   it('truncates inputs to the selected model context length', async () => {
-    fetchMock.mockResolvedValue(jsonResponse(openAIBody([[1, 2]])))
+    fetchMock.mockResolvedValue(jsonResponse(openAIBody([[1, 2]], 5, null)))
 
     await embedOpenRouter(['alpha beta gamma'], {
       model: 'openrouter/thenlper/gte-base',
@@ -546,7 +778,8 @@ describe('embedOpenRouter', () => {
       return jsonResponse(
         openAIBody(
           inputs.map((input) => [Number(input.slice(1))]),
-          inputs.length
+          inputs.length,
+          null
         )
       )
     })
@@ -605,12 +838,13 @@ describe('knowledge embedding transport fallback', () => {
       dimensions: 1536,
     })
     expect(result).toMatchObject({
-      embeddings: [[1, 2]],
       billableTokens: 3,
       isBYOK: false,
       modelName: 'text-embedding-3-small',
       dimensions: 1536,
     })
+    expect(result.embeddings[0].slice(0, 2)).toEqual([1, 2])
+    expect(result.embeddings[0]).toHaveLength(1536)
   })
 
   it('keeps the original OpenAI path when OpenRouter is not configured', async () => {
@@ -666,7 +900,9 @@ describe('knowledge embedding transport fallback', () => {
 
   it('does not use OpenRouter for non-OpenAI knowledge models', async () => {
     setEnv({ GEMINI_API_KEY: 'gemini-test', OPENROUTER_API_KEY: 'or-test' })
-    fetchMock.mockResolvedValue(jsonResponse({ embeddings: [{ values: [1, 2] }] }))
+    fetchMock.mockResolvedValue(
+      jsonResponse({ embeddings: [{ values: sizedVector([1, 2], 1536) }] })
+    )
 
     await embedKnowledgeForDeployment(
       ['hello'],
@@ -698,6 +934,23 @@ describe('knowledge embedding transport fallback', () => {
     expect(fetchMock).toHaveBeenCalledOnce()
   })
 
+  it('falls back once when a provider returns a malformed success body', async () => {
+    setEnv({ OPENAI_API_KEY: 'openai-test', OPENROUTER_API_KEY: 'or-test' })
+    fetchMock.mockImplementation(async (url) =>
+      url === 'https://api.openai.com/v1/embeddings'
+        ? jsonResponse({ data: [], usage: { total_tokens: 1 } })
+        : jsonResponse(openAIBody([[7, 8]], 2))
+    )
+
+    const result = await embedKnowledgeForDeployment(['hello'], options, false)
+
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      'https://api.openai.com/v1/embeddings',
+      'https://openrouter.ai/api/v1/embeddings',
+    ])
+    expect(result.embeddings[0].slice(0, 2)).toEqual([7, 8])
+  })
+
   it('falls back immediately when the first provider credential has exhausted credit', async () => {
     setEnv({ OPENAI_API_KEY: 'openai-test', OPENROUTER_API_KEY: 'or-test' })
     fetchMock.mockImplementation(async (url) =>
@@ -713,7 +966,7 @@ describe('knowledge embedding transport fallback', () => {
       'https://api.openai.com/v1/embeddings',
       'https://openrouter.ai/api/v1/embeddings',
     ])
-    expect(result.embeddings).toEqual([[7, 8]])
+    expect(result.embeddings[0].slice(0, 2)).toEqual([7, 8])
   })
 
   it('falls back after transient retries and projects inputs only once', async () => {
@@ -737,7 +990,7 @@ describe('knowledge embedding transport fallback', () => {
     ).toBe(true)
     expect(fetchMock.mock.calls[attempts][0]).toBe('https://openrouter.ai/api/v1/embeddings')
     expect(projectInputs).toHaveBeenCalledOnce()
-    expect(result.embeddings).toEqual([[7, 8]])
+    expect(result.embeddings[0].slice(0, 2)).toEqual([7, 8])
   })
 
   it('falls back only the failed batch and retains successful provider work', async () => {
@@ -769,7 +1022,7 @@ describe('knowledge embedding transport fallback', () => {
     expect(openRouterInputs).toEqual([secondInput])
     // The succeeding batch, every attempt on the failing one, then its fallback.
     expect(fetchMock).toHaveBeenCalledTimes(1 + (EMBEDDING_MAX_RETRIES + 1) + 1)
-    expect(result.embeddings).toEqual([[1], [2]])
+    expect(result.embeddings.map(([value]) => value)).toEqual([1, 2])
     expect(result.totalTokens).toBe(6)
     expect(result.billableTokens).toBe(3)
     expect(result.isBYOK).toBe(false)
@@ -834,7 +1087,7 @@ describe('knowledge embedding transport fallback', () => {
 
     const openAICalls = fetchMock.mock.calls.filter(([url]) => url.includes('api.openai.com'))
     expect(openAICalls).toHaveLength(1)
-    expect(result.embeddings).toEqual([[9, 9]])
+    expect(result.embeddings[0].slice(0, 2)).toEqual([9, 9])
   })
 
   /**
@@ -869,7 +1122,7 @@ describe('knowledge embedding transport fallback', () => {
     const result = await pending
 
     expect(fetchMock).toHaveBeenCalledTimes(2)
-    expect(result.embeddings).toEqual([[4, 4]])
+    expect(result.embeddings[0].slice(0, 2)).toEqual([4, 4])
   })
 
   /**
@@ -969,7 +1222,7 @@ describe('knowledge embedding transport fallback', () => {
     const result = await pending
 
     expect(fetchMock).toHaveBeenCalledTimes(2)
-    expect(result.embeddings).toEqual([[5, 5]])
+    expect(result.embeddings[0].slice(0, 2)).toEqual([5, 5])
   })
 
   /**

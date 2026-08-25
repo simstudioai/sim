@@ -88,6 +88,7 @@ import {
   type DocumentProcessingPayload,
   hasDocumentProcessingBillingScope,
 } from '@/lib/knowledge/documents/processing-payload'
+import { scheduleDocumentProcessingQuotaContinuation } from '@/lib/knowledge/documents/processing-quota-continuation'
 import {
   buildTagFilterCondition,
   type TagFilterCondition,
@@ -636,10 +637,11 @@ const TRIGGER_BATCH_SIZE = 1000
 /**
  * Immediate outcome of handing document work to its execution backend.
  *
- * `accepted` means Trigger.dev accepted the child run, or the direct fallback
- * finished the job. It deliberately does not claim that an asynchronous child
- * succeeded: that eventual outcome belongs to the document row and child task
- * run, neither of which the dispatching connector waits for.
+ * `accepted` means Trigger.dev accepted the child run, the direct fallback
+ * finished the job, or a concurrent caller already installed a live queue
+ * generation for the document. It deliberately does not claim that an
+ * asynchronous child succeeded: that eventual outcome belongs to the document
+ * row and child task run, neither of which the dispatching connector waits for.
  */
 export interface DocumentProcessingDispatchResult {
   requested: number
@@ -652,7 +654,9 @@ function buildJobPayload(
   knowledgeBaseId: string,
   processingOptions: ProcessingOptions,
   requestId: string,
+  processingQueueToken: string,
   processingQueuedAt: Date,
+  chargedAtDispatch: boolean,
   billingContext: DocumentProcessingBillingContext
 ): DocumentProcessingPayload {
   return createDocumentProcessingPayload(
@@ -667,6 +671,8 @@ function buildJobPayload(
       },
       processingOptions,
       requestId,
+      processingQueueToken,
+      chargedAtDispatch,
       processingQueuedAt: processingQueuedAt.toISOString(),
     },
     billingContext
@@ -727,18 +733,28 @@ async function resolveDocumentProcessingBillingContext(
  * queue has not started, and a leftover value from a prior run would otherwise
  * be reported as this attempt's start time.
  *
- * Guarded on `pending` so it can never disturb a document a worker has already
- * claimed — `processDocumentAsync` uses `processingStartedAt` as a
- * compare-and-set token, and overwriting it under a live run would strand that
- * run's completion writes. If the worker wins the race, this update matches no
- * rows and the worker's own timestamps stand, which is the correct outcome:
- * queue wait no longer matters once processing has begun.
+ * Guarded on `pending` and an empty queue stamp, so concurrent dispatch callers
+ * cannot both charge and enqueue the same document. Returning the rows this
+ * write claimed lets the caller dispatch only its own generation. A worker that
+ * already claimed the row or another caller that already queued it wins cleanly;
+ * this update matches nothing and leaves that live generation untouched.
  */
-async function markDocumentsQueued(documentIds: string[], queuedAt: Date): Promise<void> {
-  await db
+interface QueuedDocumentGeneration {
+  readonly documentId: string
+  readonly processingQueuedAt: Date
+  readonly chargedAtDispatch: boolean
+}
+
+async function markDocumentsQueued(
+  documentIds: string[],
+  queueToken: string,
+  queuedAt: Date
+): Promise<QueuedDocumentGeneration[]> {
+  const claimed = await db
     .update(document)
     .set({
       processingQueuedAt: queuedAt,
+      processingQueueToken: queueToken,
       processingStartedAt: null,
       // Spent here because this is the one write every dispatch passes through,
       // and it is already guarded — so the budget cannot be charged twice for a
@@ -747,7 +763,52 @@ async function markDocumentsQueued(documentIds: string[], queuedAt: Date): Promi
       // happened, so only attempts a worker could have seen are ever spent.
       processingAttempts: sql`${document.processingAttempts} + 1`,
     })
-    .where(and(inArray(document.id, documentIds), eq(document.processingStatus, 'pending')))
+    .where(
+      and(
+        inArray(document.id, documentIds),
+        eq(document.processingStatus, 'pending'),
+        isNull(document.processingQueueToken),
+        isNull(document.processingQueuedAt)
+      )
+    )
+    .returning({ id: document.id })
+
+  const claimedIds = new Set(claimed.map((row) => row.id))
+  const unclaimedIds = documentIds.filter((documentId) => !claimedIds.has(documentId))
+  const resumed =
+    unclaimedIds.length === 0
+      ? []
+      : await db
+          .update(document)
+          .set({ processingQueueToken: queueToken })
+          .where(
+            and(
+              inArray(document.id, unclaimedIds),
+              or(eq(document.processingStatus, 'pending'), eq(document.processingStatus, 'failed')),
+              eq(document.processingQueueToken, queueToken),
+              isNotNull(document.processingQueuedAt)
+            )
+          )
+          .returning({ id: document.id, processingQueuedAt: document.processingQueuedAt })
+
+  return [
+    ...claimed.map((row) => ({
+      documentId: row.id,
+      processingQueuedAt: queuedAt,
+      chargedAtDispatch: true,
+    })),
+    ...resumed.flatMap((row) =>
+      row.processingQueuedAt
+        ? [
+            {
+              documentId: row.id,
+              processingQueuedAt: row.processingQueuedAt,
+              chargedAtDispatch: false,
+            },
+          ]
+        : []
+    ),
+  ]
 }
 
 /**
@@ -779,18 +840,19 @@ async function markDocumentsQueued(documentIds: string[], queuedAt: Date): Promi
  * call wrote, so a concurrent dispatch that has already re-stamped a document
  * is left alone.
  */
-async function clearDocumentsQueued(documentIds: string[], queuedAt: Date): Promise<void> {
+async function clearDocumentsQueued(documentIds: string[], queueToken: string): Promise<void> {
   await db
     .update(document)
     .set({
       processingQueuedAt: null,
+      processingQueueToken: null,
       processingAttempts: sql`GREATEST(${document.processingAttempts} - 1, 0)`,
     })
     .where(
       and(
         inArray(document.id, documentIds),
         eq(document.processingStatus, 'pending'),
-        eq(document.processingQueuedAt, queuedAt)
+        eq(document.processingQueueToken, queueToken)
       )
     )
 }
@@ -809,7 +871,13 @@ export async function processDocumentsWithQueue(
   requestId: string,
   billingAttribution: BillingAttributionSnapshot | undefined
 ): Promise<DocumentProcessingDispatchResult> {
-  if (createdDocuments.length === 0) {
+  const seenDocumentIds = new Set<string>()
+  const uniqueDocuments = createdDocuments.filter((createdDocument) => {
+    if (seenDocumentIds.has(createdDocument.documentId)) return false
+    seenDocumentIds.add(createdDocument.documentId)
+    return true
+  })
+  if (uniqueDocuments.length === 0) {
     return { requested: 0, accepted: 0, failed: 0 }
   }
 
@@ -817,12 +885,41 @@ export async function processDocumentsWithQueue(
     knowledgeBaseId,
     billingAttribution
   )
+  const requested = uniqueDocuments.length
   const queuedAt = new Date()
-  const jobPayloads = createdDocuments.map((doc) =>
-    buildJobPayload(doc, knowledgeBaseId, processingOptions, requestId, queuedAt, billingContext)
+  const documentIds = uniqueDocuments.map((doc) => doc.documentId)
+  const queuedGenerations = await markDocumentsQueued(documentIds, requestId, queuedAt)
+  const generationByDocumentId = new Map(
+    queuedGenerations.map((generation) => [generation.documentId, generation])
   )
-  const documentIds = createdDocuments.map((doc) => doc.documentId)
-  await markDocumentsQueued(documentIds, queuedAt)
+  const queuedDocuments = uniqueDocuments.filter((doc) =>
+    generationByDocumentId.has(doc.documentId)
+  )
+  const ownedByAnotherGeneration = requested - queuedDocuments.length
+  const newlyClaimedIds = queuedGenerations
+    .filter((generation) => generation.chargedAtDispatch)
+    .map((generation) => generation.documentId)
+
+  if (queuedDocuments.length === 0) {
+    logger.info(`[${requestId}] Document processing already has a live queue generation`, {
+      count: ownedByAnotherGeneration,
+    })
+    return { requested, accepted: ownedByAnotherGeneration, failed: 0 }
+  }
+
+  const jobPayloads = queuedDocuments.map((doc) => {
+    const generation = generationByDocumentId.get(doc.documentId)!
+    return buildJobPayload(
+      doc,
+      knowledgeBaseId,
+      processingOptions,
+      requestId,
+      requestId,
+      generation.processingQueuedAt,
+      generation.chargedAtDispatch,
+      billingContext
+    )
+  })
 
   const useTrigger = isTriggerAvailable()
   logger.info(
@@ -830,15 +927,15 @@ export async function processDocumentsWithQueue(
     { backend: useTrigger ? 'trigger-dev' : 'direct' }
   )
 
-  const dispatched = useTrigger
+  const dispatchedIds = useTrigger
     ? await dispatchViaBatchTrigger(jobPayloads, requestId)
     : await dispatchInProcess(jobPayloads, requestId)
 
   logger.info(
-    `[${requestId}] Document dispatch complete: ${dispatched}/${jobPayloads.length} succeeded`
+    `[${requestId}] Document dispatch complete: ${dispatchedIds.size}/${jobPayloads.length} succeeded`
   )
 
-  if (dispatched === 0) {
+  if (dispatchedIds.size === 0) {
     /**
      * Best-effort, unlike the stamp itself: failing to write the stamp means the
      * grace cannot be promised and dispatching anyway is the unsafe direction, so
@@ -846,27 +943,31 @@ export async function processDocumentsWithQueue(
      * period, so it must not mask the dispatch failure that is the real error.
      */
     try {
-      await clearDocumentsQueued(documentIds, queuedAt)
+      if (newlyClaimedIds.length > 0) {
+        await clearDocumentsQueued(newlyClaimedIds, requestId)
+      }
     } catch (error) {
       logger.warn(`[${requestId}] Failed to withdraw the queue stamp after a failed dispatch`, {
         error: getErrorMessage(error),
       })
     }
-    throw new Error(`All ${jobPayloads.length} document processing dispatches failed`)
+    if (ownedByAnotherGeneration === 0) {
+      throw new Error(`All ${jobPayloads.length} document processing dispatches failed`)
+    }
   }
 
   return {
-    requested: jobPayloads.length,
-    accepted: dispatched,
-    failed: jobPayloads.length - dispatched,
+    requested,
+    accepted: ownedByAnotherGeneration + dispatchedIds.size,
+    failed: queuedDocuments.length - dispatchedIds.size,
   }
 }
 
 async function dispatchViaBatchTrigger(
   jobPayloads: DocumentProcessingPayload[],
   requestId: string
-): Promise<number> {
-  let dispatched = 0
+): Promise<Set<string>> {
+  const dispatchedIds = new Set<string>()
   const batchIds: string[] = []
   const undispatched: DocumentProcessingPayload[] = []
   const region = await resolveTriggerRegion()
@@ -890,7 +991,7 @@ async function dispatchViaBatchTrigger(
         }))
       )
       batchIds.push(result.batchId)
-      dispatched += chunk.length
+      for (const payload of chunk) dispatchedIds.add(payload.documentId)
     } catch (error) {
       logger.error(`[${requestId}] Failed to batchTrigger ${chunk.length} document jobs`, {
         error: getErrorMessage(error),
@@ -911,10 +1012,11 @@ async function dispatchViaBatchTrigger(
     logger.warn(
       `[${requestId}] Processing ${undispatched.length} documents in-process after failed enqueue`
     )
-    dispatched += await dispatchInProcess(undispatched, requestId)
+    const directlyDispatchedIds = await dispatchInProcess(undispatched, requestId)
+    for (const documentId of directlyDispatchedIds) dispatchedIds.add(documentId)
   }
 
-  return dispatched
+  return dispatchedIds
 }
 
 /** Each in-process job runs chunking + embedding + many DB inserts. */
@@ -923,14 +1025,16 @@ const IN_PROCESS_DISPATCH_CONCURRENCY = 5
 export interface DocumentProcessingAttemptContext {
   /** True only when this invocation follows a successful queue-budget charge. */
   readonly chargedAtDispatch: boolean
+  /** Opaque generation token; absent only for payloads created before token rollout. */
+  readonly processingQueueToken?: string
   /** Queue generation this invocation is allowed to claim. */
-  readonly processingQueuedAt: Date
+  readonly processingQueuedAt?: Date
 }
 
 async function dispatchInProcess(
   jobPayloads: DocumentProcessingPayload[],
   requestId: string
-): Promise<number> {
+): Promise<Set<string>> {
   const results = await mapWithConcurrency(
     jobPayloads,
     IN_PROCESS_DISPATCH_CONCURRENCY,
@@ -943,23 +1047,59 @@ async function dispatchInProcess(
           p.processingOptions,
           p,
           p.requestId,
-          { chargedAtDispatch: true, processingQueuedAt: new Date(p.processingQueuedAt) }
+          {
+            chargedAtDispatch: p.chargedAtDispatch ?? true,
+            processingQueueToken: p.processingQueueToken,
+            ...(p.processingQueuedAt ? { processingQueuedAt: new Date(p.processingQueuedAt) } : {}),
+          }
         )
         return true
       } catch (error) {
-        if (isPermanentDocumentProcessingError(error) || isEmbeddingQuotaExhaustion(error)) {
+        if (isPermanentDocumentProcessingError(error)) {
           logger.warn(`[${requestId}] Document processing reached an expected terminal state`, {
-            ...(isPermanentDocumentProcessingError(error) ? { code: error.code } : {}),
-            quotaDeferred: isEmbeddingQuotaExhaustion(error),
+            code: error.code,
           })
           return true
+        }
+        if (isEmbeddingQuotaExhaustion(error)) {
+          try {
+            await scheduleDocumentProcessingQuotaContinuation(p)
+            logger.warn(`[${requestId}] Embedding quota is exhausted; continuation scheduled`, {
+              documentId: p.documentId,
+              quotaRetryCount: p.quotaRetryCount ?? 0,
+            })
+            return true
+          } catch (continuationError) {
+            logger.error(`[${requestId}] Failed to schedule embedding quota continuation`, {
+              documentId: p.documentId,
+              error: getErrorMessage(continuationError),
+            })
+            return false
+          }
         }
         logger.error(`[${requestId}] Document dispatch failed`, { error: getErrorMessage(error) })
         return false
       }
     }
   )
-  return results.filter(Boolean).length
+  return new Set(
+    results.flatMap((succeeded, index) => (succeeded ? [jobPayloads[index].documentId] : []))
+  )
+}
+
+function queueGenerationConditions(
+  attemptContext: DocumentProcessingAttemptContext | undefined
+): SQL[] {
+  if (!attemptContext) return []
+  if (attemptContext.processingQueueToken) {
+    return [eq(document.processingQueueToken, attemptContext.processingQueueToken)]
+  }
+  return attemptContext.processingQueuedAt
+    ? [
+        isNull(document.processingQueueToken),
+        eq(document.processingQueuedAt, attemptContext.processingQueuedAt),
+      ]
+    : [isNull(document.processingQueueToken)]
 }
 
 /**
@@ -1065,6 +1205,7 @@ export async function processDocumentAsync(
           and(
             eq(document.id, documentId),
             ne(document.processingStatus, 'completed'),
+            ...queueGenerationConditions(attemptContext),
             isNull(document.archivedAt),
             isNull(document.deletedAt)
           )
@@ -1106,9 +1247,7 @@ export async function processDocumentAsync(
         and(
           eq(document.id, documentId),
           ne(document.processingStatus, 'completed'),
-          ...(attemptContext
-            ? [eq(document.processingQueuedAt, attemptContext.processingQueuedAt)]
-            : []),
+          ...queueGenerationConditions(attemptContext),
           isNull(document.archivedAt),
           isNull(document.deletedAt)
         )
@@ -1193,7 +1332,8 @@ export async function processDocumentAsync(
           and(
             eq(document.id, documentId),
             eq(document.processingStatus, 'processing'),
-            eq(document.processingStartedAt, processingStartedAt)
+            eq(document.processingStartedAt, processingStartedAt),
+            ...queueGenerationConditions(attemptContext)
           )
         )
       return
@@ -1335,6 +1475,7 @@ export async function processDocumentAsync(
                   eq(document.id, documentId),
                   eq(document.processingStatus, 'processing'),
                   eq(document.processingStartedAt, processingStartedAt),
+                  ...queueGenerationConditions(attemptContext),
                   isNull(document.archivedAt),
                   isNull(document.deletedAt),
                   isNull(knowledgeBase.deletedAt)
@@ -1392,12 +1533,14 @@ export async function processDocumentAsync(
                 // A completed pass clears the budget: the next failure starts
                 // from a full allowance rather than inheriting a stale count.
                 processingAttempts: 0,
+                processingQueueToken: null,
               })
               .where(
                 and(
                   eq(document.id, documentId),
                   eq(document.processingStatus, 'processing'),
-                  eq(document.processingStartedAt, processingStartedAt)
+                  eq(document.processingStartedAt, processingStartedAt),
+                  ...queueGenerationConditions(attemptContext)
                 )
               )
             return true
@@ -1527,7 +1670,8 @@ export async function processDocumentAsync(
         and(
           eq(document.id, documentId),
           eq(document.processingStatus, 'processing'),
-          eq(document.processingStartedAt, processingStartedAt)
+          eq(document.processingStartedAt, processingStartedAt),
+          ...queueGenerationConditions(attemptContext)
         )
       )
 
@@ -2746,6 +2890,7 @@ export async function retryDocumentProcessing(
          * reopens the row. The dispatch below installs its fresh generation.
          */
         processingQueuedAt: null,
+        processingQueueToken: null,
         processingStartedAt: null,
         processingCompletedAt: null,
         processingError: null,

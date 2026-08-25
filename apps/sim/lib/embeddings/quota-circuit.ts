@@ -116,7 +116,6 @@ export async function openEmbeddingQuotaCircuit(
   }
 }
 
-/** Clears only process-local quota state for deterministic tests. */
 export function resetEmbeddingQuotaCircuitsForTesting(): void {
   localCircuits.clear()
 }

@@ -220,6 +220,30 @@ describe('stream limits', () => {
     expect(explicitlyBounded).toBe('hello')
   })
 
+  it.each([204, 205])('accepts a semantically bodyless HTTP %i response', async (status) => {
+    const text = vi.fn(async () => 'must not be materialized')
+
+    const result = await readResponseTextWithLimit(
+      { status, body: null, text },
+      { maxBytes: 100, label: 'bodyless response' }
+    )
+
+    expect(result).toBe('')
+    expect(text).not.toHaveBeenCalled()
+  })
+
+  it('accepts a semantically bodyless HEAD response', async () => {
+    const text = vi.fn(async () => 'must not be materialized')
+
+    const result = await readResponseTextWithLimit(
+      { status: 200, body: null, text },
+      { maxBytes: 100, label: 'HEAD response', requestMethod: 'HEAD' }
+    )
+
+    expect(result).toBe('')
+    expect(text).not.toHaveBeenCalled()
+  })
+
   it('cancels when the abort signal is already aborted', async () => {
     const controller = new AbortController()
     controller.abort(new Error('stop'))

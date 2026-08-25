@@ -12,7 +12,12 @@ import {
 } from '@/lib/knowledge/documents/utils'
 import { firefliesConnectorMeta } from '@/connectors/fireflies/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { ConnectorFileTooLargeError, markSkipped, parseTagDate } from '@/connectors/utils'
+import {
+  ConnectorFileTooLargeError,
+  computeContentHash,
+  markSkipped,
+  parseTagDate,
+} from '@/connectors/utils'
 
 const logger = createLogger('FirefliesConnector')
 
@@ -45,6 +50,18 @@ function parseMaxTranscripts(value: unknown): number {
   return parsed
 }
 
+function parsePaginationCursor(cursor?: string): number {
+  if (cursor === undefined) return 0
+  if (!/^\d+$/.test(cursor)) {
+    throw new Error('Invalid Fireflies connector pagination cursor')
+  }
+  const parsed = Number(cursor)
+  if (!Number.isSafeInteger(parsed)) {
+    throw new Error('Invalid Fireflies connector pagination cursor')
+  }
+  return parsed
+}
+
 interface FirefliesTranscript {
   id: string
   title: string
@@ -57,6 +74,10 @@ interface FirefliesTranscript {
   participants?: string[]
   transcript_url?: string
   speakers?: { name: string }[]
+  is_live?: boolean
+  meeting_info?: {
+    summary_status?: string
+  }
   sentences?: { speaker_name: string; text: string }[]
   summary?: {
     /** Fireflies documents a string; tolerate the historical array shape defensively. */
@@ -304,9 +325,21 @@ function formatTranscriptContent(transcript: FirefliesTranscript): string {
  * `getDocument`, so the metadata-derived `contentHash` is byte-identical on both
  * paths and a hydrated transcript is never seen as changed.
  */
-function transcriptToStub(transcript: FirefliesTranscript): ExternalDocument {
+async function transcriptToStub(transcript: FirefliesTranscript): Promise<ExternalDocument> {
   const meetingDate = transcript.date ? new Date(transcript.date).toISOString() : undefined
   const speakerNames = transcript.speakers?.map((s) => s.name).filter(Boolean) ?? []
+  const lifecycleHash = await computeContentHash(
+    JSON.stringify({
+      date: transcript.date ?? null,
+      duration: transcript.duration ?? null,
+      title: transcript.title ?? null,
+      host: transcript.host_email || transcript.organizer_email || null,
+      participants: transcript.participants ?? [],
+      speakers: speakerNames,
+      isLive: transcript.is_live ?? null,
+      summaryStatus: transcript.meeting_info?.summary_status ?? null,
+    })
+  )
 
   return {
     externalId: transcript.id,
@@ -315,14 +348,7 @@ function transcriptToStub(transcript: FirefliesTranscript): ExternalDocument {
     contentDeferred: true,
     mimeType: 'text/plain',
     sourceUrl: transcript.transcript_url || undefined,
-    contentHash: `fireflies:v2:${transcript.id}:${JSON.stringify({
-      date: transcript.date ?? null,
-      duration: transcript.duration ?? null,
-      title: transcript.title ?? null,
-      host: transcript.host_email || transcript.organizer_email || null,
-      participants: transcript.participants ?? [],
-      speakers: speakerNames,
-    })}`,
+    contentHash: `fireflies:v2:${transcript.id}:${lifecycleHash}`,
     metadata: {
       hostEmail: transcript.host_email || transcript.organizer_email,
       duration: transcript.duration,
@@ -359,7 +385,7 @@ export const firefliesConnector: ConnectorConfig = {
     const hostEmail = (sourceConfig.hostEmail as string) || ''
     const maxTranscripts = parseMaxTranscripts(sourceConfig.maxTranscripts)
 
-    const skip = cursor ? Number(cursor) : 0
+    const skip = parsePaginationCursor(cursor)
     const prevFetched = (syncContext?.totalDocsFetched as number) ?? 0
 
     /**
@@ -429,6 +455,10 @@ export const firefliesConnector: ConnectorConfig = {
           speakers {
             name
           }
+          is_live
+          meeting_info {
+            summary_status
+          }
         }
       }`,
       variables
@@ -438,18 +468,19 @@ export const firefliesConnector: ConnectorConfig = {
       Array.isArray(data.transcripts) ? data.transcripts : []
     ) as FirefliesTranscript[]
 
-    const allStubs = transcripts.filter((t) => Boolean(t?.id)).map(transcriptToStub)
+    const allStubs = await Promise.all(
+      transcripts.filter((t) => Boolean(t?.id)).map(transcriptToStub)
+    )
     const documents = maxTranscripts > 0 ? allStubs.slice(0, remaining) : allStubs
 
     const totalFetched = prevFetched + documents.length
     if (syncContext) syncContext.totalDocsFetched = totalFetched
 
     /**
-     * `listingCapped` blocks the sync engine's deletion reconciliation, so it is
-     * set only when the cap actually hid transcripts that still exist — either
-     * the probe row came back, or the page came back full. A cap that lands
-     * exactly on source exhaustion leaves a short page and stays reconcilable,
-     * otherwise deleted meetings could never be removed from the KB.
+     * Record a configured cap only when it actually hid transcripts — either the
+     * probe row came back, or the page came back full. The separate
+     * `reconciliationSafe: false` result reflects the provider's offset pagination
+     * regardless of whether this user-configured cap was reached.
      */
     const moreAvailable = allStubs.length > documents.length || transcripts.length === pageSize
     const hitLimit = maxTranscripts > 0 && totalFetched >= maxTranscripts
@@ -497,6 +528,10 @@ export const firefliesConnector: ConnectorConfig = {
             speakers {
               name
             }
+            is_live
+            meeting_info {
+              summary_status
+            }
             sentences {
               speaker_name
               text
@@ -515,7 +550,7 @@ export const firefliesConnector: ConnectorConfig = {
       const transcript = data.transcript as FirefliesTranscript | null
       if (!transcript?.id) return null
 
-      const stub = transcriptToStub(transcript)
+      const stub = await transcriptToStub(transcript)
       let content: string
       try {
         content = formatTranscriptContent(transcript)

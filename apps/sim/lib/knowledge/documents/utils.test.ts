@@ -18,6 +18,7 @@ import {
   hasRateLimitEvidence,
   isRetryableError,
   resolveRetryDelayMs,
+  retryWithExponentialBackoff,
 } from './utils'
 
 /** Case-insensitive header reader over a plain lowercase-keyed record. */
@@ -43,7 +44,7 @@ function fakeResponse(
   }
 }
 
-const FAST_RETRY = { initialDelayMs: 1, maxDelayMs: 2, maxRetries: 3 }
+const FAST_RETRY = { initialDelayMs: 1, maxDelayMs: 2, maxRetries: 3, retryBudgetMs: 50 }
 
 describe('isRetryableError', () => {
   describe('retryable status codes', () => {
@@ -327,8 +328,7 @@ describe('resolveRetryDelayMs', () => {
   /**
    * GitHub and X stamp their rate-limit headers on every response. Without the
    * evidence gate a transient 502 would be handed the rest of the hourly window
-   * as its wait, which the retry loop clamps to a flat maxDelayMs on every
-   * attempt — replacing the exponential ladder with 5x the wall-clock stall.
+   * as its wait instead of following the exponential backoff ladder.
    */
   it.concurrent('ignores a reset header when the quota is NOT exhausted', () => {
     expect(
@@ -382,7 +382,7 @@ describe('resolveRetryDelayMs', () => {
   })
 
   /** The 30s default cap in `parseRetryAfter` must not truncate the value here. */
-  it.concurrent('does not truncate a long Retry-After — the retry loop owns the cap', () => {
+  it.concurrent('does not truncate a long Retry-After — retry policy owns admission', () => {
     expect(resolveRetryDelayMs(headers({ 'retry-after': '900' }), NOW)).toBe(900_000)
   })
 })
@@ -537,6 +537,83 @@ describe('fetchWithRetry rate-limit handling', () => {
   })
 })
 
+describe('retryWithExponentialBackoff retry budget', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('honors an admitted server delay without making an early request', async () => {
+    vi.useFakeTimers()
+    const retryable = Object.assign(new Error('rate limited'), {
+      status: 429,
+      retryAfterMs: 120,
+    })
+    const operation = vi.fn().mockRejectedValueOnce(retryable).mockResolvedValueOnce('ok')
+
+    const result = retryWithExponentialBackoff(operation, {
+      maxRetries: 1,
+      initialDelayMs: 10,
+      maxDelayMs: 30,
+      retryBudgetMs: 150,
+    })
+
+    await vi.advanceTimersByTimeAsync(119)
+    expect(operation).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(1)
+    await expect(result).resolves.toBe('ok')
+    expect(operation).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not retry when the server delay exceeds the operation budget', async () => {
+    const retryable = Object.assign(new Error('rate limited'), {
+      status: 429,
+      retryAfterMs: 120,
+    })
+    const operation = vi.fn().mockRejectedValue(retryable)
+
+    await expect(
+      retryWithExponentialBackoff(operation, {
+        maxRetries: 3,
+        initialDelayMs: 1,
+        maxDelayMs: 30,
+        retryBudgetMs: 100,
+      })
+    ).rejects.toThrow('rate limited')
+    expect(operation).toHaveBeenCalledOnce()
+  })
+
+  it('does not treat the legacy per-wait ceiling as a cumulative retry budget', async () => {
+    vi.useFakeTimers()
+    const retryable = Object.assign(new Error('service unavailable'), { status: 503 })
+    const operation = vi
+      .fn()
+      .mockRejectedValueOnce(retryable)
+      .mockRejectedValueOnce(retryable)
+      .mockResolvedValueOnce('ok')
+
+    const result = retryWithExponentialBackoff(operation, {
+      maxRetries: 2,
+      initialDelayMs: 10,
+      maxDelayMs: 20,
+      maxRetryAfterMs: 15,
+    })
+
+    await vi.runAllTimersAsync()
+    await expect(result).resolves.toBe('ok')
+    expect(operation).toHaveBeenCalledTimes(3)
+  })
+
+  it.each([
+    { retryBudgetMs: Number.NaN },
+    { retryBudgetMs: Number.POSITIVE_INFINITY },
+    { maxRetryAfterMs: -1 },
+  ])('rejects invalid retry timing options: %o', async (invalid) => {
+    await expect(retryWithExponentialBackoff(async () => 'ok', invalid)).rejects.toThrow(
+      /finite non-negative/
+    )
+  })
+})
+
 describe('secureFetchWithRetry', () => {
   beforeEach(() => {
     mockSecureFetchWithValidation.mockReset()
@@ -666,5 +743,24 @@ describe('secureFetchWithRetry', () => {
 
     expect(response.status).toBe(200)
     expect(mockSecureFetchWithValidation).toHaveBeenCalledTimes(2)
+  })
+
+  it('redacts request credentials echoed by a retryable response', async () => {
+    const accessToken = 'bare-gitlab-token-that-must-not-escape'
+    mockSecureFetchWithValidation.mockResolvedValue(
+      new Response(`echo: ${accessToken}`, { status: 503 }) as never
+    )
+
+    const error = await secureFetchWithRetry(
+      'https://gitlab.example.com/api/v4/projects',
+      { method: 'GET', headers: { 'PRIVATE-TOKEN': accessToken } },
+      { ...FAST_RETRY, maxRetries: 0 }
+    ).then(
+      () => undefined,
+      (caught) => caught as Error
+    )
+
+    expect(error?.message).toContain('[REDACTED]')
+    expect(error?.message).not.toContain(accessToken)
   })
 })

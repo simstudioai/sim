@@ -182,6 +182,149 @@ describe('googleDocsConnector', () => {
       })
     })
 
+    it('maps an oversized chunked hydration response to a visible skip', async () => {
+      const chunk = new Uint8Array(34 * 1024 * 1024)
+      let chunksSent = 0
+      let streamCancelled = false
+      const stream = new ReadableStream<Uint8Array>({
+        pull(controller) {
+          chunksSent += 1
+          controller.enqueue(chunk)
+        },
+        cancel() {
+          streamCancelled = true
+        },
+      })
+      stubFetchDocument(new Response(stream, { status: 200 }))
+
+      await expect(
+        googleDocsConnector.getDocument(ACCESS_TOKEN, {}, DOCUMENT_ID)
+      ).resolves.toMatchObject({
+        externalId: DOCUMENT_ID,
+        content: '',
+        contentDeferred: false,
+        skippedReason: 'File exceeds the 100MB size limit and was not indexed',
+      })
+      expect(chunksSent).toBeGreaterThanOrEqual(3)
+      expect(streamCancelled).toBe(true)
+    })
+
+    it('extracts headers, footers, and footnotes from every tab', async () => {
+      stubFetchDocument(
+        new Response(
+          JSON.stringify({
+            tabs: [
+              {
+                documentTab: {
+                  body: { content: [] },
+                  headers: {
+                    header1: {
+                      content: [
+                        { paragraph: { elements: [{ textRun: { content: 'Header text\n' } }] } },
+                      ],
+                    },
+                    dateHeader: {
+                      content: [
+                        {
+                          paragraph: {
+                            elements: [
+                              {
+                                dateElement: {
+                                  dateElementProperties: { displayText: 'Aug 24, 2026' },
+                                },
+                              },
+                            ],
+                          },
+                        },
+                      ],
+                    },
+                  },
+                  footers: {
+                    footer1: {
+                      content: [
+                        { paragraph: { elements: [{ textRun: { content: 'Footer text\n' } }] } },
+                      ],
+                    },
+                  },
+                  footnotes: {
+                    footnote1: {
+                      content: [
+                        {
+                          paragraph: { elements: [{ textRun: { content: 'Footnote text\n' } }] },
+                        },
+                      ],
+                    },
+                  },
+                },
+              },
+            ],
+          }),
+          { status: 200 }
+        )
+      )
+
+      await expect(
+        googleDocsConnector.getDocument(ACCESS_TOKEN, {}, DOCUMENT_ID)
+      ).resolves.toMatchObject({
+        content: 'Header text\nAug 24, 2026\nFooter text\nFootnote text',
+        contentDeferred: false,
+      })
+    })
+
+    it('does not authoritatively replace prior content for an embedded-object-only doc', async () => {
+      stubFetchDocument(
+        new Response(
+          JSON.stringify({
+            tabs: [
+              {
+                documentTab: {
+                  body: { content: [] },
+                  inlineObjects: { image1: { inlineObjectProperties: {} } },
+                },
+              },
+            ],
+          }),
+          { status: 200 }
+        )
+      )
+
+      const document = await googleDocsConnector.getDocument(ACCESS_TOKEN, {}, DOCUMENT_ID)
+
+      expect(document).toMatchObject({
+        content: '',
+        contentDeferred: false,
+        skippedReason: 'Document contains non-text elements but no extractable text',
+      })
+      expect(document?.skippedExistingDisposition).toBeUndefined()
+    })
+
+    it('does not authoritatively replace prior content for an equation-only doc', async () => {
+      stubFetchDocument(
+        new Response(
+          JSON.stringify({
+            tabs: [
+              {
+                documentTab: {
+                  body: {
+                    content: [{ paragraph: { elements: [{ equation: {} }] } }],
+                  },
+                },
+              },
+            ],
+          }),
+          { status: 200 }
+        )
+      )
+
+      const document = await googleDocsConnector.getDocument(ACCESS_TOKEN, {}, DOCUMENT_ID)
+
+      expect(document).toMatchObject({
+        content: '',
+        skippedReason: 'Document contains non-text elements but no extractable text',
+      })
+      expect(document?.skippedExistingDisposition).toBeUndefined()
+    })
+
     it('keeps the metadata hash identical between listing and hydration', async () => {
       let driveRequestCount = 0
       vi.stubGlobal(
@@ -242,6 +385,84 @@ describe('googleDocsConnector', () => {
       expect(result).toEqual({ documents: [], hasMore: false })
       expect(syncContext.listingCapped).toBe(true)
       expect(fetchMock).not.toHaveBeenCalled()
+    })
+
+    it('suppresses reconciliation when Drive reports an incomplete search', async () => {
+      const fetchMock = vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            files: [DRIVE_FILE],
+            incompleteSearch: true,
+          }),
+          { status: 200 }
+        )
+      )
+      vi.stubGlobal('fetch', fetchMock)
+      const syncContext: Record<string, unknown> = {}
+
+      const result = await googleDocsConnector.listDocuments(
+        ACCESS_TOKEN,
+        {},
+        undefined,
+        syncContext
+      )
+
+      expect(result.documents.map((document) => document.externalId)).toEqual([DOCUMENT_ID])
+      expect(result.hasMore).toBe(false)
+      expect(result.reconciliationSafe).toBe(false)
+      expect(syncContext.listingCapped).toBe(true)
+    })
+
+    it('keeps an exactly exhausted cap authoritative when Drive is exhausted', async () => {
+      const files = [DRIVE_FILE, { ...DRIVE_FILE, id: 'document-def', name: 'Launch plan' }]
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValue(new Response(JSON.stringify({ files }), { status: 200 }))
+      vi.stubGlobal('fetch', fetchMock)
+      const syncContext: Record<string, unknown> = {}
+
+      const result = await googleDocsConnector.listDocuments(
+        ACCESS_TOKEN,
+        { maxDocs: '2' },
+        undefined,
+        syncContext
+      )
+
+      expect(result.documents.map((document) => document.externalId)).toEqual([
+        DOCUMENT_ID,
+        'document-def',
+      ])
+      expect(result).toMatchObject({ hasMore: false })
+      expect(result.nextCursor).toBeUndefined()
+      expect(syncContext.listingCapped).toBeUndefined()
+      expect(new URL(String(fetchMock.mock.calls[0][0])).searchParams.get('pageSize')).toBe('2')
+    })
+
+    it('suppresses reconciliation when the cap is reached with another Drive page', async () => {
+      const files = [DRIVE_FILE, { ...DRIVE_FILE, id: 'document-def', name: 'Launch plan' }]
+      const fetchMock = vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            files,
+            nextPageToken: 'next-page-token',
+          }),
+          { status: 200 }
+        )
+      )
+      vi.stubGlobal('fetch', fetchMock)
+      const syncContext: Record<string, unknown> = {}
+
+      const result = await googleDocsConnector.listDocuments(
+        ACCESS_TOKEN,
+        { maxDocs: '2' },
+        undefined,
+        syncContext
+      )
+
+      expect(result.documents).toHaveLength(2)
+      expect(result.hasMore).toBe(false)
+      expect(result.nextCursor).toBeUndefined()
+      expect(syncContext.listingCapped).toBe(true)
     })
 
     it.each(['1.5', 'Infinity', 1.5, Number.POSITIVE_INFINITY])(

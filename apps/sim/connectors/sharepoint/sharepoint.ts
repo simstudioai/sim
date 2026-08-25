@@ -876,8 +876,7 @@ export const sharepointConnector: ConnectorConfig = {
         break
       }
 
-      // Retain subfolders only when traversal will continue. A maxFiles stop must
-      // not fail merely because folders beyond the requested scope exceed the cap.
+      /** A max-files stop must not validate folders beyond the requested scope. */
       appendPendingSharePointFolders(state.folderStack, subfolders)
 
       if (nextLink) {
@@ -970,7 +969,15 @@ export const sharepointConnector: ConnectorConfig = {
 
     try {
       const payload = await fetchFilePayload(accessToken, driveId, item.id, item.name)
-      if (!hasIndexablePayload(payload)) return null
+      if (!hasIndexablePayload(payload)) {
+        return {
+          ...markSkipped(
+            itemToStub(item, siteName ?? siteUrl),
+            'Document contains no extractable text'
+          ),
+          skippedExistingDisposition: 'replace',
+        }
+      }
 
       const stub = itemToStub(item, siteName ?? siteUrl)
       return { ...stub, ...payload, contentDeferred: false }

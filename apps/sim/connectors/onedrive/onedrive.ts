@@ -395,7 +395,12 @@ export const onedriveConnector: ConnectorConfig = {
 
     try {
       const payload = await fetchFilePayload(accessToken, item.id, item.name)
-      if (!hasIndexablePayload(payload)) return null
+      if (!hasIndexablePayload(payload)) {
+        return {
+          ...markSkipped(fileToStub(item), 'Document contains no extractable text'),
+          skippedExistingDisposition: 'replace',
+        }
+      }
 
       const stub = fileToStub(item)
       return { ...stub, ...payload, contentDeferred: false }

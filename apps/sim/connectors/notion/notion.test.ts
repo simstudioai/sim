@@ -47,6 +47,10 @@ function dataSources(prefix: string, count: number): { id: string; name: string 
   }))
 }
 
+function dataSourceCursor(value: Record<string, unknown>): string {
+  return `notion-data-sources:v1:${encodeURIComponent(JSON.stringify(value))}`
+}
+
 describe('notion markdown hydration', () => {
   beforeEach(() => {
     mockFetchWithRetry.mockReset()
@@ -65,10 +69,11 @@ describe('notion markdown hydration', () => {
 
     expect(document?.content).toContain('Overview')
     expect(document?.content).toContain('Nested tab content')
+    expect(document?.contentHash).toBe('notion:v3:page-1:2026-08-02T00:00:00.000Z')
     expect(mockFetchWithRetry).toHaveBeenCalledTimes(2)
     expect(mockFetchWithRetry.mock.calls.map(([url]) => String(url))).toEqual([
       'https://api.notion.com/v1/pages/page-1',
-      'https://api.notion.com/v1/pages/page-1/markdown',
+      'https://api.notion.com/v1/pages/page-1/markdown?include_transcript=true',
     ])
 
     for (const [, options] of mockFetchWithRetry.mock.calls) {
@@ -78,22 +83,208 @@ describe('notion markdown hydration', () => {
     }
   })
 
-  it.each([
-    [{ markdown: 'Partial', truncated: true, unknown_block_ids: [] }, 'truncated=true'],
-    [
-      { markdown: 'Partial', truncated: false, unknown_block_ids: ['unknown-1'] },
-      'unknownBlocks=1',
-    ],
-  ])(
-    'rejects incomplete markdown so it cannot become a stable-hash success',
-    async (body, reason) => {
-      mockFetchWithRetry
-        .mockResolvedValueOnce(notionResponse(page()))
-        .mockResolvedValueOnce(notionResponse(body))
+  it('recovers truncated markdown from every provider-supplied block ID', async () => {
+    mockFetchWithRetry
+      .mockResolvedValueOnce(notionResponse(page()))
+      .mockResolvedValueOnce(
+        notionResponse({
+          markdown: '# Root\n\n<unknown>',
+          truncated: true,
+          unknown_block_ids: ['nested-1'],
+        })
+      )
+      .mockResolvedValueOnce(
+        notionResponse({
+          markdown: 'Recovered nested content',
+          truncated: false,
+          unknown_block_ids: [],
+        })
+      )
 
-      await expect(notionConnector.getDocument('token', {}, 'page-1')).rejects.toThrow(reason)
-    }
-  )
+    const document = await notionConnector.getDocument('token', {}, 'page-1')
+
+    expect(document?.content).toContain('# Root')
+    expect(document?.content).toContain('Recovered nested content')
+    expect(mockFetchWithRetry.mock.calls.map(([url]) => String(url))).toEqual([
+      'https://api.notion.com/v1/pages/page-1',
+      'https://api.notion.com/v1/pages/page-1/markdown?include_transcript=true',
+      'https://api.notion.com/v1/pages/nested-1/markdown?include_transcript=true',
+    ])
+  })
+
+  it('marks inaccessible recovery blocks retryable instead of stabilizing partial markdown', async () => {
+    mockFetchWithRetry
+      .mockResolvedValueOnce(notionResponse(page()))
+      .mockResolvedValueOnce(
+        notionResponse({
+          markdown: 'Available content',
+          truncated: true,
+          unknown_block_ids: ['inaccessible-1'],
+        })
+      )
+      .mockResolvedValueOnce(
+        notionResponse(
+          {
+            object: 'error',
+            code: 'object_not_found',
+            message: 'Block is inaccessible',
+            request_id: 'request-inaccessible-1',
+          },
+          404
+        )
+      )
+
+    const document = await notionConnector.getDocument('token', {}, 'page-1')
+
+    expect(document).toMatchObject({
+      content: '',
+      contentDeferred: false,
+      contentHash: 'notion:retry:v1:page-1',
+      skippedReason:
+        'Notion page contains blocks the connection cannot access and was not indexed completely',
+    })
+    expect(document?.skippedExistingDisposition).toBeUndefined()
+  })
+
+  it('marks an inaccessible unsupported-block fallback retryable', async () => {
+    mockFetchWithRetry
+      .mockResolvedValueOnce(notionResponse(page()))
+      .mockResolvedValueOnce(
+        notionResponse({
+          markdown: 'Before unsupported block: <unknown>',
+          truncated: false,
+          unknown_block_ids: ['bookmark-1'],
+        })
+      )
+      .mockResolvedValueOnce(
+        notionResponse(
+          {
+            object: 'error',
+            code: 'object_not_found',
+            message: 'Block is inaccessible',
+            request_id: 'request-bookmark-1',
+          },
+          404
+        )
+      )
+
+    const document = await notionConnector.getDocument('token', {}, 'page-1')
+
+    expect(document).toMatchObject({
+      content: '',
+      contentHash: 'notion:retry:v1:page-1',
+      skippedReason:
+        'Notion page contains blocks the connection cannot access and was not indexed completely',
+    })
+  })
+
+  it('uses the block endpoint to recover unsupported markdown block types', async () => {
+    mockFetchWithRetry
+      .mockResolvedValueOnce(notionResponse(page()))
+      .mockResolvedValueOnce(
+        notionResponse({
+          markdown: 'Before unsupported block: <unknown>',
+          truncated: false,
+          unknown_block_ids: ['bookmark-1'],
+        })
+      )
+      .mockResolvedValueOnce(
+        notionResponse({
+          object: 'block',
+          id: 'bookmark-1',
+          type: 'bookmark',
+          bookmark: {
+            caption: [{ plain_text: 'Provider documentation' }],
+            url: 'https://developers.notion.com/',
+          },
+        })
+      )
+
+    const document = await notionConnector.getDocument('token', {}, 'page-1')
+
+    expect(document?.content).toContain('Provider documentation')
+    expect(document?.content).toContain('https://developers.notion.com/')
+    expect(String(mockFetchWithRetry.mock.calls[2][0])).toBe(
+      'https://api.notion.com/v1/blocks/bookmark-1'
+    )
+  })
+
+  it('marks an unrecoverable truncated response as skipped rather than storing partial content', async () => {
+    mockFetchWithRetry
+      .mockResolvedValueOnce(notionResponse(page()))
+      .mockResolvedValueOnce(
+        notionResponse({ markdown: 'Partial', truncated: true, unknown_block_ids: [] })
+      )
+
+    const document = await notionConnector.getDocument('token', {}, 'page-1')
+
+    expect(document?.contentDeferred).toBe(false)
+    expect(document?.skippedReason).toContain('truncated markdown without recovery block IDs')
+  })
+
+  it('bounds aggregate markdown recovery requests across nested unknown blocks', async () => {
+    const firstHundredIds = Array.from({ length: 100 }, (_, index) => `nested-${index + 1}`)
+    mockFetchWithRetry
+      .mockResolvedValueOnce(notionResponse(page()))
+      .mockResolvedValueOnce(
+        notionResponse({ markdown: 'Root', truncated: true, unknown_block_ids: firstHundredIds })
+      )
+      .mockImplementation((url: string) => {
+        if (url.includes('/pages/nested-1/markdown')) {
+          return Promise.resolve(
+            notionResponse({
+              markdown: 'Nested 1',
+              truncated: true,
+              unknown_block_ids: ['nested-101'],
+            })
+          )
+        }
+        if (url.includes('/pages/')) {
+          return Promise.resolve(
+            notionResponse(
+              {
+                object: 'error',
+                code: 'validation_error',
+                message: 'Unsupported markdown block type',
+                request_id: 'request-unsupported',
+              },
+              400
+            )
+          )
+        }
+        return Promise.resolve(
+          notionResponse({ object: 'block', type: 'bookmark', bookmark: { url } })
+        )
+      })
+
+    const document = await notionConnector.getDocument('token', {}, 'page-1')
+
+    expect(document?.contentDeferred).toBe(false)
+    expect(document?.skippedReason).toContain('more than 200 markdown recovery requests')
+    expect(mockFetchWithRetry).toHaveBeenCalledTimes(202)
+  })
+
+  it('bounds aggregate unique recovery IDs before the pending queue can fan out', async () => {
+    const ids = (start: number, count: number) =>
+      Array.from({ length: count }, (_, index) => `nested-${start + index}`)
+    mockFetchWithRetry
+      .mockResolvedValueOnce(notionResponse(page()))
+      .mockResolvedValueOnce(
+        notionResponse({ markdown: 'Root', truncated: true, unknown_block_ids: ids(1, 100) })
+      )
+      .mockResolvedValueOnce(
+        notionResponse({ markdown: 'Nested 1', truncated: true, unknown_block_ids: ids(101, 100) })
+      )
+      .mockResolvedValueOnce(
+        notionResponse({ markdown: 'Nested 2', truncated: true, unknown_block_ids: ['nested-201'] })
+      )
+
+    const document = await notionConnector.getDocument('token', {}, 'page-1')
+
+    expect(document?.contentDeferred).toBe(false)
+    expect(document?.skippedReason).toContain('more than 200 unique markdown recovery IDs')
+    expect(mockFetchWithRetry).toHaveBeenCalledTimes(4)
+  })
 
   it('propagates redacted structured diagnostics from the markdown endpoint', async () => {
     mockFetchWithRetry.mockResolvedValueOnce(notionResponse(page())).mockResolvedValueOnce(
@@ -171,6 +362,7 @@ describe('notion listing completeness', () => {
 
     expect(result.documents).toHaveLength(2)
     expect(result.hasMore).toBe(false)
+    expect(result.reconciliationSafe).toBe(false)
     expect(syncContext.listingCapped).toBeUndefined()
   })
 
@@ -220,7 +412,7 @@ describe('notion listing completeness', () => {
     )
 
     expect(first.documents.map((document) => document.externalId)).toEqual(['page-1'])
-    expect(first.nextCursor).toBe(JSON.stringify({ sourceIndex: 1 }))
+    expect(first.nextCursor).toBe(dataSourceCursor({ sourceIndex: 1 }))
     expect(first.hasMore).toBe(true)
     expect(String(mockFetchWithRetry.mock.calls[1][0])).toBe(
       'https://api.notion.com/v1/data_sources/source-1/query'
@@ -243,6 +435,42 @@ describe('notion listing completeness', () => {
       'https://api.notion.com/v1/data_sources/source-2/query'
     )
     expect(mockFetchWithRetry).toHaveBeenCalledTimes(3)
+  })
+
+  it('makes a data-source listing non-authoritative when Notion reports its 10,000-row ceiling', async () => {
+    mockFetchWithRetry
+      .mockResolvedValueOnce(
+        notionResponse({
+          object: 'database',
+          id: 'database-1',
+          data_sources: [{ id: 'source-1', name: 'Primary' }],
+        })
+      )
+      .mockResolvedValueOnce(
+        notionResponse({
+          results: [page('page-10000')],
+          has_more: false,
+          next_cursor: null,
+          request_status: {
+            type: 'incomplete',
+            incomplete_reason: 'query_result_limit_reached',
+          },
+        })
+      )
+    const syncContext: Record<string, unknown> = {}
+
+    const result = await notionConnector.listDocuments(
+      'token',
+      { scope: 'database', databaseId: 'database-1' },
+      undefined,
+      syncContext
+    )
+
+    expect(result.documents.map((document) => document.externalId)).toEqual(['page-10000'])
+    expect(result.hasMore).toBe(false)
+    expect(result.reconciliationSafe).toBe(false)
+    expect(syncContext.listingCapped).toBe(true)
+    expect(syncContext.reconciliationUnsafe).toBe(true)
   })
 
   it('bounds configured database IDs before validation fans out', async () => {
@@ -371,6 +599,115 @@ describe('notion listing completeness', () => {
     expect(queryBody.start_cursor).toBe('legacy-provider-cursor')
   })
 
+  it('wraps a new provider cursor even when only one data source is configured', async () => {
+    mockFetchWithRetry
+      .mockResolvedValueOnce(
+        notionResponse({ data_sources: [{ id: 'source-1', name: 'Primary' }] })
+      )
+      .mockResolvedValueOnce(
+        notionResponse({ results: [page('page-1')], has_more: true, next_cursor: 'provider-next' })
+      )
+
+    const result = await notionConnector.listDocuments('token', {
+      scope: 'database',
+      databaseId: 'database-1',
+    })
+
+    expect(result.nextCursor).toBe(dataSourceCursor({ sourceIndex: 0, cursor: 'provider-next' }))
+  })
+
+  it('passes a JSON-looking provider cursor through without interpreting it', async () => {
+    const providerCursor = JSON.stringify({ databaseIndex: 0, cursor: 'provider-opaque' })
+    mockFetchWithRetry
+      .mockResolvedValueOnce(
+        notionResponse({ data_sources: [{ id: 'source-1', name: 'Primary' }] })
+      )
+      .mockResolvedValueOnce(
+        notionResponse({ results: [page('page-1')], has_more: false, next_cursor: null })
+      )
+
+    await notionConnector.listDocuments(
+      'token',
+      { scope: 'database', databaseId: 'database-1' },
+      providerCursor
+    )
+
+    const queryBody = JSON.parse(
+      String((mockFetchWithRetry.mock.calls[1][1] as RequestInit).body)
+    ) as Record<string, unknown>
+    expect(queryBody.start_cursor).toBe(providerCursor)
+  })
+
+  it('resumes a production legacy database cursor at the first current data source for that database', async () => {
+    mockFetchWithRetry
+      .mockResolvedValueOnce(
+        notionResponse({
+          data_sources: [{ id: 'database-1-source-1' }, { id: 'database-1-source-2' }],
+        })
+      )
+      .mockResolvedValueOnce(notionResponse({ data_sources: [{ id: 'database-2-source-1' }] }))
+      .mockResolvedValueOnce(
+        notionResponse({ results: [page('page-2')], has_more: false, next_cursor: null })
+      )
+
+    const result = await notionConnector.listDocuments(
+      'token',
+      { scope: 'database', databaseId: ['database-1', 'database-2'] },
+      JSON.stringify({ databaseIndex: 1, cursor: 'legacy-provider-cursor' })
+    )
+
+    expect(result.documents.map((document) => document.externalId)).toEqual(['page-2'])
+    expect(String(mockFetchWithRetry.mock.calls[2][0])).toBe(
+      'https://api.notion.com/v1/data_sources/database-2-source-1/query'
+    )
+    const queryBody = JSON.parse(
+      String((mockFetchWithRetry.mock.calls[2][1] as RequestInit).body)
+    ) as Record<string, unknown>
+    expect(queryBody.start_cursor).toBe('legacy-provider-cursor')
+  })
+
+  it.each([
+    '{"databaseIndex":1',
+    JSON.stringify({ databaseIndex: '1', cursor: 'provider-cursor' }),
+    JSON.stringify({ databaseIndex: 1, cursor: 'provider-cursor', provider: true }),
+  ])('keeps malformed or lookalike JSON provider cursor opaque: %s', async (providerCursor) => {
+    mockFetchWithRetry
+      .mockResolvedValueOnce(notionResponse({ data_sources: [{ id: 'database-1-source-1' }] }))
+      .mockResolvedValueOnce(notionResponse({ data_sources: [{ id: 'database-2-source-1' }] }))
+      .mockResolvedValueOnce(
+        notionResponse({ results: [page('page-1')], has_more: false, next_cursor: null })
+      )
+
+    await notionConnector.listDocuments(
+      'token',
+      { scope: 'database', databaseId: ['database-1', 'database-2'] },
+      providerCursor
+    )
+
+    expect(String(mockFetchWithRetry.mock.calls[2][0])).toBe(
+      'https://api.notion.com/v1/data_sources/database-1-source-1/query'
+    )
+    const queryBody = JSON.parse(
+      String((mockFetchWithRetry.mock.calls[2][1] as RequestInit).body)
+    ) as Record<string, unknown>
+    expect(queryBody.start_cursor).toBe(providerCursor)
+  })
+
+  it('rejects an out-of-range production legacy database cursor', async () => {
+    mockFetchWithRetry
+      .mockResolvedValueOnce(notionResponse({ data_sources: [{ id: 'database-1-source-1' }] }))
+      .mockResolvedValueOnce(notionResponse({ data_sources: [{ id: 'database-2-source-1' }] }))
+
+    await expect(
+      notionConnector.listDocuments(
+        'token',
+        { scope: 'database', databaseId: ['database-1', 'database-2'] },
+        JSON.stringify({ databaseIndex: 2 })
+      )
+    ).rejects.toThrow('Invalid Notion connector legacy database cursor')
+    expect(mockFetchWithRetry).toHaveBeenCalledTimes(2)
+  })
+
   it('rejects an out-of-bounds compound data-source cursor', async () => {
     mockFetchWithRetry.mockResolvedValueOnce(
       notionResponse({ data_sources: [{ id: 'source-1', name: 'Primary' }] })
@@ -380,7 +717,7 @@ describe('notion listing completeness', () => {
       notionConnector.listDocuments(
         'token',
         { scope: 'database', databaseId: 'database-1' },
-        JSON.stringify({ sourceIndex: 3 })
+        dataSourceCursor({ sourceIndex: 3 })
       )
     ).rejects.toThrow('Invalid Notion connector data-source cursor')
     expect(mockFetchWithRetry).toHaveBeenCalledTimes(1)
@@ -415,6 +752,109 @@ describe('notion listing completeness', () => {
     ])
     expect(mockFetchWithRetry).toHaveBeenCalledTimes(3)
     expect(syncContext.listingCapped).toBe(true)
+  })
+
+  it('caps parent metadata concurrency and preserves documents after out-of-order completion', async () => {
+    const childIds = Array.from({ length: 5 }, (_, index) => `child-${index + 1}`)
+    const pending = new Map<string, (response: Response) => void>()
+    let activeRequests = 0
+    let peakRequests = 0
+
+    mockFetchWithRetry.mockImplementation((url: string) => {
+      const requestUrl = String(url)
+      if (requestUrl.includes('/blocks/root-page/children')) {
+        return Promise.resolve(
+          notionResponse({
+            results: childIds.map((id) => ({ id, type: 'child_page' })),
+            has_more: false,
+            next_cursor: null,
+          })
+        )
+      }
+
+      const pageId = decodeURIComponent(requestUrl.split('/pages/')[1] ?? '')
+      activeRequests += 1
+      peakRequests = Math.max(peakRequests, activeRequests)
+      return new Promise<Response>((resolve) => {
+        pending.set(pageId, (response) => {
+          pending.delete(pageId)
+          activeRequests -= 1
+          resolve(response)
+        })
+      })
+    })
+
+    const listingPromise = notionConnector.listDocuments('token', {
+      scope: 'page',
+      rootPageId: 'root-page',
+    })
+
+    await vi.waitFor(() => {
+      expect([...pending.keys()].sort()).toEqual(['child-1', 'child-2', 'root-page'])
+    })
+    pending.get('child-2')?.(notionResponse(page('child-2')))
+    pending.get('root-page')?.(notionResponse(page('root-page')))
+    pending.get('child-1')?.(notionResponse(page('child-1')))
+
+    await vi.waitFor(() => {
+      expect([...pending.keys()].sort()).toEqual(['child-3', 'child-4', 'child-5'])
+    })
+    pending.get('child-5')?.(notionResponse(page('child-5')))
+    pending.get('child-3')?.(notionResponse(page('child-3')))
+    pending.get('child-4')?.(notionResponse(page('child-4')))
+
+    const result = await listingPromise
+
+    expect(peakRequests).toBe(3)
+    expect(result.documents.map((document) => document.externalId)).toEqual([
+      'root-page',
+      'child-1',
+      'child-2',
+      'child-3',
+      'child-4',
+      'child-5',
+    ])
+  })
+
+  it('keeps all metadata failures non-authoritative under a small maxPages cap', async () => {
+    mockFetchWithRetry.mockResolvedValueOnce(
+      notionResponse({
+        results: [
+          { id: 'child-1', type: 'child_page' },
+          { id: 'child-2', type: 'child_page' },
+          { id: 'child-3', type: 'child_page' },
+        ],
+        has_more: false,
+        next_cursor: null,
+      })
+    )
+    for (const pageId of ['root-page', 'child-1', 'child-2', 'child-3']) {
+      mockFetchWithRetry.mockResolvedValueOnce(
+        notionResponse(
+          {
+            object: 'error',
+            code: 'internal_server_error',
+            message: `Temporary failure for ${pageId}`,
+            request_id: `request-${pageId}`,
+          },
+          503
+        )
+      )
+    }
+    const syncContext: Record<string, unknown> = {}
+
+    const result = await notionConnector.listDocuments(
+      'token',
+      { scope: 'page', rootPageId: 'root-page', maxPages: '2' },
+      undefined,
+      syncContext
+    )
+
+    expect(result.documents).toEqual([])
+    expect(result.hasMore).toBe(false)
+    expect(mockFetchWithRetry).toHaveBeenCalledTimes(5)
+    expect(syncContext.listingCapped).toBe(true)
+    expect(syncContext.reconciliationUnsafe).toBe(true)
   })
 
   it('makes a parent-page listing non-authoritative when live metadata is omitted by error', async () => {

@@ -208,6 +208,14 @@ describe('retryDocumentProcessing requeue guard', () => {
           node.values.join(',') === 'completed,failed'
       )
     ).toBe(true)
+    const reset = dbChainMockFns.set.mock.calls.find(
+      (call) => (call[0] as Record<string, unknown> | undefined)?.processingStatus === 'pending'
+    )
+    expect(reset?.[0]).toMatchObject({
+      processingQueuedAt: null,
+      processingQueueToken: null,
+    })
+    expect(reset?.[0]).not.toHaveProperty('processingAttempts')
   })
 
   it('also requeues a pending document whose dispatch is certainly lost', async () => {
