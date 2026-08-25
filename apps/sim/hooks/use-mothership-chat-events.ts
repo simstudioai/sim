@@ -138,13 +138,22 @@ export function handleMothershipChatStatusEvent(
  * no connection was open — so any reconnect may have missed a create, rename,
  * delete, or completion. Invalidating the workspace lists and every chat detail
  * reconciles from the server; only queries that are currently mounted refetch.
+ *
+ * A chat whose stream this client is rendering locally is left alone, for the
+ * same reason status events skip it: refetching mid-stream would replace the
+ * optimistic transcript with a server copy that does not yet hold the in-flight
+ * message. That chat reconciles when its own stream finishes.
  */
 export function resyncMothershipChatCaches(
   queryClient: Pick<QueryClient, 'invalidateQueries'>,
   workspaceId: string
 ): void {
   queryClient.invalidateQueries({ queryKey: mothershipChatKeys.workspaceLists(workspaceId) })
-  queryClient.invalidateQueries({ queryKey: mothershipChatKeys.details() })
+  queryClient.invalidateQueries({
+    queryKey: mothershipChatKeys.details(),
+    predicate: (query) =>
+      !isLocalOptimisticActiveStream(query.state.data as MothershipChatHistory | undefined),
+  })
 }
 
 /**

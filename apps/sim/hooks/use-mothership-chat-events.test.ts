@@ -432,15 +432,41 @@ describe('resyncMothershipChatCaches', () => {
     vi.clearAllMocks()
   })
 
-  it('invalidates the workspace lists and every chat detail', () => {
+  function detailPredicate() {
+    resyncMothershipChatCaches(queryClient, 'ws-1')
+    const predicate = queryClient.invalidateQueries.mock.calls
+      .map(([arg]: [{ predicate?: (query: unknown) => boolean }]) => arg.predicate)
+      .find(Boolean)
+    if (!predicate) throw new Error('detail invalidation did not pass a predicate')
+    return (data: unknown) => predicate({ state: { data } })
+  }
+
+  it('invalidates the workspace lists and the chat details', () => {
     resyncMothershipChatCaches(queryClient, 'ws-1')
 
     expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(2)
     expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
       queryKey: mothershipChatKeys.workspaceLists('ws-1'),
     })
-    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-      queryKey: mothershipChatKeys.details(),
-    })
+    expect(queryClient.invalidateQueries).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: mothershipChatKeys.details() })
+    )
+  })
+
+  it('skips the detail of a chat whose stream this client is rendering locally', () => {
+    expect(
+      detailPredicate()({
+        messages: [{ id: 'new-stream' }, { id: 'live-assistant:new-stream' }],
+        activeStreamId: 'new-stream',
+      })
+    ).toBe(false)
+  })
+
+  it('invalidates details with no active stream, and streams not rendered locally', () => {
+    const predicate = detailPredicate()
+
+    expect(predicate(undefined)).toBe(true)
+    expect(predicate({ messages: [{ id: 'stream-1' }] })).toBe(true)
+    expect(predicate({ messages: [{ id: 'stream-1' }], activeStreamId: 'stream-1' })).toBe(true)
   })
 })
