@@ -1,5 +1,5 @@
 ---
-name: build-sim-workflow
+name: build-workflow
 description: Create or modify Sim workflows through the sim CLI. Use when translating a workflow request into blocks, inputs, connections, variables, and atomic graph edits; not for only running or deploying an existing workflow.
 ---
 

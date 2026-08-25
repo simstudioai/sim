@@ -3,7 +3,20 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-const skillsDirectory = resolve(packageRoot, 'skills')
+const pluginRoot = resolve(packageRoot, 'sim')
+const skillsDirectory = resolve(pluginRoot, 'skills')
+const pluginManifestPaths = [
+  resolve(pluginRoot, '.codex-plugin', 'plugin.json'),
+  resolve(pluginRoot, '.claude-plugin', 'plugin.json'),
+] as const
+const pluginName = 'sim'
+const expectedSkillNames = [
+  'build-workflow',
+  'deploy-workflow',
+  'knowledge-base',
+  'run-workflow',
+  'table',
+] as const
 const skillNamePattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 const MAX_SKILL_NAME_LENGTH = 64
 const MAX_SKILL_DESCRIPTION_LENGTH = 1024
@@ -15,6 +28,30 @@ function frontmatterValue(frontmatter: string, key: string): string | undefined 
     .find((line) => line.startsWith(prefix))
     ?.slice(prefix.length)
     .trim()
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+async function readJsonObject(path: string): Promise<Record<string, unknown>> {
+  const parsed: unknown = JSON.parse(await readFile(path, 'utf8'))
+  if (!isRecord(parsed)) throw new Error(`${path}: expected a JSON object`)
+  return parsed
+}
+
+async function validatePluginManifest(path: string, version: string): Promise<void> {
+  const manifest = await readJsonObject(path)
+  if (manifest.name !== pluginName) throw new Error(`${path}: plugin name must be ${pluginName}`)
+  if (manifest.version !== version) {
+    throw new Error(`${path}: version must match package version ${version}`)
+  }
+  if (typeof manifest.description !== 'string' || !manifest.description.trim()) {
+    throw new Error(`${path}: description is required`)
+  }
+  if (manifest.skills !== './skills/') {
+    throw new Error(`${path}: skills must point to ./skills/`)
+  }
 }
 
 async function validateSkill(directoryName: string): Promise<void> {
@@ -51,8 +88,23 @@ async function validateSkill(directoryName: string): Promise<void> {
 }
 
 const entries = await readdir(skillsDirectory, { withFileTypes: true })
-const skillDirectories = entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name)
+const skillDirectories = entries
+  .filter((entry) => entry.isDirectory())
+  .map((entry) => entry.name)
+  .sort()
 if (skillDirectories.length === 0) throw new Error('sim-skills must contain at least one skill')
+if (skillDirectories.join('\n') !== expectedSkillNames.join('\n')) {
+  throw new Error(`Expected Sim skills: ${expectedSkillNames.join(', ')}`)
+}
 
-await Promise.all(skillDirectories.map(validateSkill))
-process.stdout.write(`Validated ${skillDirectories.length} Sim skills.\n`)
+const packageManifest = await readJsonObject(resolve(packageRoot, 'package.json'))
+const packageVersion = packageManifest.version
+if (typeof packageVersion !== 'string' || !packageVersion) {
+  throw new Error('package.json: version is required')
+}
+
+await Promise.all([
+  ...skillDirectories.map(validateSkill),
+  ...pluginManifestPaths.map((path) => validatePluginManifest(path, packageVersion)),
+])
+process.stdout.write(`Validated the ${pluginName} plugin and ${skillDirectories.length} skills.\n`)

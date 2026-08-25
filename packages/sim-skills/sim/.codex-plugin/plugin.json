@@ -1,0 +1,28 @@
+{
+  "name": "sim",
+  "version": "0.1.0",
+  "description": "Build, run, deploy, and operate Sim workflows, tables, and knowledge bases.",
+  "author": {
+    "name": "Sim",
+    "url": "https://sim.ai"
+  },
+  "homepage": "https://docs.sim.ai",
+  "repository": "https://github.com/simstudioai/sim",
+  "license": "Apache-2.0",
+  "keywords": ["sim", "workflows", "automation", "tables", "knowledge-bases"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Sim",
+    "shortDescription": "Build and operate Sim workflows",
+    "longDescription": "Use the Sim CLI to build, test, deploy, and debug workflows, plus manage tables and knowledge bases.",
+    "developerName": "Sim",
+    "category": "Productivity",
+    "capabilities": ["Read", "Write"],
+    "websiteURL": "https://sim.ai",
+    "defaultPrompt": [
+      "Build a Sim workflow for this automation",
+      "Run and debug my Sim workflow",
+      "Create a Sim table for this data"
+    ]
+  }
+}

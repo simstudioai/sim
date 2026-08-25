@@ -1,7 +1,7 @@
 {
   "name": "sim-skills",
   "version": "0.1.0",
-  "description": "Official Agent Skills for building workflows and operating Sim resources",
+  "description": "Official Sim plugin and Agent Skills for building workflows and operating Sim resources",
   "type": "module",
   "bin": {
     "sim-skills": "dist/index.js"
@@ -21,11 +21,12 @@
   },
   "files": [
     "dist",
-    "skills"
+    "sim"
   ],
   "keywords": [
     "sim",
     "agent-skills",
+    "plugin",
     "ai-agents",
     "workflow",
     "automation"

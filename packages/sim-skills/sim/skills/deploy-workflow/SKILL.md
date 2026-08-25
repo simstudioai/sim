@@ -1,5 +1,5 @@
 ---
-name: deploy-sim-workflow
+name: deploy-workflow
 description: Publish and manage Sim workflows as APIs, chat deployments, or MCP tools through the sim CLI. Use when a tested workflow is ready to expose or deployment state must be inspected or changed; not for building or debugging a draft graph.
 ---
 

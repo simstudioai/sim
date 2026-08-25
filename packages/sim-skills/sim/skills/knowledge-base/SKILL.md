@@ -1,5 +1,5 @@
 ---
-name: sim-knowledge-base
+name: knowledge-base
 description: Create and operate Sim knowledge bases through the sim CLI. Use when configuring chunking, ingesting local or workspace documents, setting up connectors, managing tags or chunks, and verifying retrieval; not for ordinary table data or workflow graph edits.
 ---
 

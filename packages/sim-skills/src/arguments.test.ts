@@ -3,14 +3,14 @@ import { buildInstallerArguments } from './arguments'
 
 describe('buildInstallerArguments', () => {
   it('installs the bundled pack when no arguments are supplied', () => {
-    expect(buildInstallerArguments('/pack', [])).toEqual(['add', '/pack'])
+    expect(buildInstallerArguments('/plugin', [])).toEqual(['add', '/plugin'])
   })
 
   it('forwards standard installer flags after the local pack', () => {
     expect(
-      buildInstallerArguments('/pack', [
+      buildInstallerArguments('/plugin', [
         '--skill',
-        'build-sim-workflow',
+        'build-workflow',
         '--agent',
         'codex',
         '--global',
@@ -18,9 +18,9 @@ describe('buildInstallerArguments', () => {
       ])
     ).toEqual([
       'add',
-      '/pack',
+      '/plugin',
       '--skill',
-      'build-sim-workflow',
+      'build-workflow',
       '--agent',
       'codex',
       '--global',
@@ -29,16 +29,16 @@ describe('buildInstallerArguments', () => {
   })
 
   it.each(['install', 'add'])('accepts the %s alias', (command) => {
-    expect(buildInstallerArguments('/pack', [command, '--list'])).toEqual([
+    expect(buildInstallerArguments('/plugin', [command, '--list'])).toEqual([
       'add',
-      '/pack',
+      '/plugin',
       '--list',
     ])
   })
 
   it('rejects unknown commands instead of guessing', () => {
-    expect(() => buildInstallerArguments('/pack', ['build-sim-workflow'])).toThrow(
-      'Unknown command "build-sim-workflow"'
+    expect(() => buildInstallerArguments('/plugin', ['build-workflow'])).toThrow(
+      'Unknown command "build-workflow"'
     )
   })
 })

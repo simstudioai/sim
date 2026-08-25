@@ -7,11 +7,11 @@ import { fileURLToPath } from 'node:url'
 import { buildInstallerArguments } from './arguments'
 
 const currentDirectory = dirname(fileURLToPath(import.meta.url))
-const packageRoot = resolve(currentDirectory, '..')
+const pluginRoot = resolve(currentDirectory, '../sim')
 const require = createRequire(import.meta.url)
 const installerPackage = require.resolve('skills/package.json')
 const installerCli = resolve(dirname(installerPackage), 'bin/cli.mjs')
-const installerArguments = buildInstallerArguments(packageRoot, process.argv.slice(2))
+const installerArguments = buildInstallerArguments(pluginRoot, process.argv.slice(2))
 
 const result = spawnSync(process.execPath, [installerCli, ...installerArguments], {
   cwd: process.cwd(),

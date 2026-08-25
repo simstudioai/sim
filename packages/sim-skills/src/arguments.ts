@@ -4,13 +4,13 @@
  * shortest `bunx sim-skills --skill ...` form.
  */
 export function buildInstallerArguments(
-  packageRoot: string,
+  pluginRoot: string,
   arguments_: readonly string[]
 ): string[] {
   const [command, ...rest] = arguments_
 
   if (command === 'install' || command === 'add') {
-    return ['add', packageRoot, ...rest]
+    return ['add', pluginRoot, ...rest]
   }
 
   if (command && !command.startsWith('-')) {
@@ -19,5 +19,5 @@ export function buildInstallerArguments(
     )
   }
 
-  return ['add', packageRoot, ...arguments_]
+  return ['add', pluginRoot, ...arguments_]
 }

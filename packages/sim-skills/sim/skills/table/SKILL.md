@@ -1,5 +1,5 @@
 ---
-name: sim-table
+name: table
 description: Create and operate Sim tables through the sim CLI. Use when designing typed schemas, loading or querying rows, importing CSV data, or connecting a workflow or enrichment to table columns; not for knowledge-base documents or workflow graph edits.
 ---
 

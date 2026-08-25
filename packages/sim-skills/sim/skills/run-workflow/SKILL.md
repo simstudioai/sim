@@ -1,5 +1,5 @@
 ---
-name: run-sim-workflow
+name: run-workflow
 description: Test and debug Sim workflows through the sim CLI using manual runs, trigger payloads, run-from-block, selected outputs, and run records. Use after authoring or when diagnosing execution; not for graph edits or deployment changes.
 ---
 
