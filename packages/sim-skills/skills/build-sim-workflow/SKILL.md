@@ -16,6 +16,26 @@ for available resources and accepted shapes.
   asked for a new workflow.
 - Read an existing draft with `sim --output json workflows state get <workflowId>` before editing it.
   Preserve blocks, edges, variables, and deployment state outside the requested change.
+- If the workflow is locked or read-only, stop instead of attempting an alternate mutation path.
+
+## Design before encoding
+
+- Translate the request into an entry point, required transformations or decisions, external
+  actions, and an observable terminal result. Decide what successful output should look like before
+  choosing blocks.
+- Treat the graph as a typed program: block inputs are arguments, block outputs are return values,
+  and references are data flow. Inspect an upstream output schema before referencing a field, and
+  make sure its shape matches what the downstream input accepts.
+- Build the smallest graph that expresses the behavior:
+  - Connect blocks directly when there is no real decision to make.
+  - Use a Function block for deterministic parsing, validation, calculation, and reshaping. Do not
+    spend an Agent block on work that should always produce the same result for the same input.
+  - Use an Agent block for language understanding, generation, or dynamic tool use.
+  - Use a Condition block for explicit predicates and a Router block for semantic classification.
+  - Use a Loop only for iteration. Do not create graph cycles to model repetition.
+  - Use Parallel only when branches are independent; keep data-dependent work sequential.
+- Every added block must be reachable from the intended entry point and contribute to a terminal
+  path. Trace downstream references before editing or deleting an existing producer.
 
 ## Discover before composing
 
@@ -27,6 +47,11 @@ for available resources and accepted shapes.
   or output contract is needed.
 - Resolve credentials and resource identifiers before writing them into a graph. Do not embed raw
   secrets in an operations file.
+- Discover trigger behavior from the catalog. A service trigger may be an integration block with
+  trigger mode enabled, while a built-in trigger may have its own block type; never substitute a
+  trigger configuration id for a block id.
+- Select models, operations, and modes from the returned schema. Do not guess an id from a label or
+  reuse an id from another integration.
 
 ## Author one semantic batch
 
@@ -98,4 +123,12 @@ sim --output json workflows operations apply <workflowId> \
 ```
 
 Read the state again and verify the requested blocks, inputs, and edges. Report minted ids and any
-advisory lint that remains. Do not deploy or execute unless the user asked for that next step.
+advisory lint that remains. Confirm that changed references resolve, every branch reaches the
+intended destination, nested blocks remain in the correct loop or parallel scope, and no block was
+orphaned by a replaced connection set.
+
+When the request includes a working or tested workflow and execution is safe, use the run skill to
+manually test the saved draft with realistic input. Judge the returned values, not only the terminal
+status, and fix then rerun when behavior is wrong. Manual runs require a personal API-key profile;
+do not deploy merely to test. Do not execute a workflow whose external side effects have not been
+authorized.
