@@ -550,7 +550,7 @@ describe('claimTerminalPeriod', () => {
     dbChainMockFns.returning.mockResolvedValue([{ id: 'sub-1' }])
   })
 
-  it('claims the marker from the fresh row period and returns it for settlement', async () => {
+  it('returns the fresh period without rewriting a current marker', async () => {
     queueTableRows(schemaMock.subscription, [
       {
         periodStart: PERIOD_START,
@@ -563,13 +563,10 @@ describe('claimTerminalPeriod', () => {
 
     expect(terminal.periodStart).toEqual(PERIOD_START)
     expect(terminal.markerWasCurrent).toBe(true)
-    const markerSet = dbChainMockFns.set.mock.calls.find(
-      (call) => (call[0] as Record<string, unknown>).lastClosedPeriodStart instanceof Date
-    )
-    expect(markerSet).toBeDefined()
+    expect(dbChainMockFns.set).not.toHaveBeenCalled()
   })
 
-  it('reports a lagging marker so the terminal settlement ignores the stale tracker', async () => {
+  it('reports a lagging marker without jumping it, so the caller can close and re-claim', async () => {
     queueTableRows(schemaMock.subscription, [
       {
         periodStart: PERIOD_START,
@@ -581,6 +578,25 @@ describe('claimTerminalPeriod', () => {
     const terminal = await claimTerminalPeriod('sub-1')
 
     expect(terminal.markerWasCurrent).toBe(false)
+    expect(dbChainMockFns.set).not.toHaveBeenCalled()
+  })
+
+  it('seals a lagging marker on request, forgiving the unclosed period loudly', async () => {
+    queueTableRows(schemaMock.subscription, [
+      {
+        periodStart: PERIOD_START,
+        periodEnd: new Date('2026-09-01T00:00:00.000Z'),
+        lastClosedPeriodStart: PREV_PERIOD_START,
+      },
+    ])
+
+    const terminal = await claimTerminalPeriod('sub-1', { sealLagging: true })
+
+    expect(terminal.markerWasCurrent).toBe(false)
+    const markerSet = dbChainMockFns.set.mock.calls.find(
+      (call) => (call[0] as Record<string, unknown>).lastClosedPeriodStart instanceof Date
+    )
+    expect(markerSet).toBeDefined()
   })
 
   it('returns nulls without claiming when the subscription has no period', async () => {

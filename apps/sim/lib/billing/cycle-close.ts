@@ -197,14 +197,25 @@ export async function closeElapsedPeriodBeforeDeletion(subscriptionId: string): 
  * the same period. Call `closeElapsedPeriodBeforeDeletion` first so a lagging
  * elapsed period is settled rather than jumped. Returns the fresh period
  * bounds for the deletion flow to settle against, plus `markerWasCurrent`:
- * whether the close marker had already caught up to the terminal period
- * before this claim. The `billedOverageThisPeriod` tracker only ever holds
- * collections for the period that began at the marker (the threshold gate
- * blocks settlement whenever the marker lags), so the terminal settlement
- * must ignore the tracker when the marker was still lagging — its contents
- * belong to a forgiven elapsed period, never to the terminal window.
+ * whether the close marker had already caught up to the terminal period.
+ * The `billedOverageThisPeriod` tracker only ever holds collections for the
+ * period that began at the marker (the threshold gate blocks settlement
+ * whenever the marker lags), so the terminal settlement must ignore the
+ * tracker when the marker was still lagging — its contents belong to a
+ * forgiven elapsed period, never to the terminal window.
+ *
+ * A lagging marker means an elapsed period is still unclosed — either the
+ * preceding close deferred, or a rollover committed between that close and
+ * this claim. By default the claim then leaves the marker untouched so the
+ * caller can run the close again and re-claim; `sealLagging` advances the
+ * marker over the unclosed period anyway (logging the forgiveness), which
+ * also guarantees an in-flight sweep that selected this subscription before
+ * its status changed aborts its own conflicting close.
  */
-export async function claimTerminalPeriod(subscriptionId: string): Promise<{
+export async function claimTerminalPeriod(
+  subscriptionId: string,
+  options: { sealLagging?: boolean } = {}
+): Promise<{
   periodStart: Date | null
   periodEnd: Date | null
   markerWasCurrent: boolean
@@ -229,7 +240,17 @@ export async function claimTerminalPeriod(subscriptionId: string): Promise<{
     const markerWasCurrent =
       !!row.lastClosedPeriodStart &&
       row.lastClosedPeriodStart.getTime() >= row.periodStart.getTime()
-    await claimCloseMarker(tx, subscriptionId, row.periodStart)
+    if (!markerWasCurrent && options.sealLagging) {
+      logger.error(
+        'Sealing an unclosed elapsed period at terminal claim; residual overage forgiven',
+        {
+          subscriptionId,
+          marker: row.lastClosedPeriodStart?.toISOString() ?? null,
+          periodStart: row.periodStart.toISOString(),
+        }
+      )
+      await claimCloseMarker(tx, subscriptionId, row.periodStart)
+    }
     return { periodStart: row.periodStart, periodEnd: row.periodEnd, markerWasCurrent }
   })
 }
@@ -713,6 +734,7 @@ export async function writeFinalPeriodBookkeeping(sub: {
   id: string
   plan: string | null
   referenceId: string
+  billingInterval?: string | null
   periodStart?: Date | null
   periodEnd?: Date | null
   metadata?: unknown

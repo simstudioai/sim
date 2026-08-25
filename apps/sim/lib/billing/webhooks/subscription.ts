@@ -260,6 +260,7 @@ export async function handleSubscriptionDeleted(
     referenceId: string
     stripeSubscriptionId: string | null
     seats?: number | null
+    billingInterval?: string | null
     periodStart?: Date | null
     periodEnd?: Date | null
     metadata?: unknown
@@ -293,10 +294,17 @@ export async function handleSubscriptionDeleted(
 
         // Then claim the terminal period BEFORE computing or charging: this
         // reads the row's fresh period (webhook payloads can be stale across
-        // a rollover) and serializes with the cycle-close sweep — an
-        // in-flight close fails its guarded marker claim and rolls back, so
-        // both paths can never bill the same period.
-        const terminal = await claimTerminalPeriod(subscription.id)
+        // a rollover) and serializes with the cycle-close sweep. A lagging
+        // marker here means the close above deferred OR a rollover committed
+        // in between — run the close once more (it settles a freshly elapsed
+        // period; a deferred close defers again, loudly), then seal so the
+        // marker cannot be raced indefinitely and an in-flight sweep aborts
+        // its conflicting close.
+        let terminal = await claimTerminalPeriod(subscription.id)
+        if (!terminal.markerWasCurrent) {
+          await closeElapsedPeriodBeforeDeletion(subscription.id)
+          terminal = await claimTerminalPeriod(subscription.id, { sealLagging: true })
+        }
         const settlementPeriod = {
           periodStart: terminal.periodStart ?? subscription.periodStart ?? null,
           periodEnd: terminal.periodEnd ?? subscription.periodEnd ?? null,
@@ -313,6 +321,7 @@ export async function handleSubscriptionDeleted(
             id: subscription.id,
             plan: subscription.plan,
             referenceId: subscription.referenceId,
+            billingInterval: subscription.billingInterval ?? null,
             ...settlementPeriod,
             metadata: subscription.metadata,
           })
@@ -442,6 +451,7 @@ export async function handleSubscriptionDeleted(
           id: subscription.id,
           plan: subscription.plan,
           referenceId: subscription.referenceId,
+          billingInterval: subscription.billingInterval ?? null,
           ...settlementPeriod,
           metadata: subscription.metadata,
         })
