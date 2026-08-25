@@ -134,10 +134,15 @@ describe('provider tool identities', () => {
         timeSegments: [],
       },
     }
+    let settleStream: (() => void) | undefined
+    const canSettle = new Promise<void>((resolve) => {
+      settleStream = resolve
+    })
     const response: StreamingExecution = {
       streamFormat: 'agent-events-v1',
       stream: new ReadableStream<AgentStreamEvent>({
-        start(controller) {
+        async pull(controller) {
+          await canSettle
           controller.enqueue({ type: 'tool_call_start', id: 'call-1', name: alias })
           output.toolCalls = { list: [{ name: alias }], count: 1 }
           output.providerTiming?.timeSegments?.push({
@@ -160,6 +165,7 @@ describe('provider tool identities', () => {
     }
 
     projectStreamingExecutionToolIdentities(response, identities)
+    settleStream?.()
     const events = await readEvents(response.stream)
 
     expect(events).toEqual([

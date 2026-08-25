@@ -1732,7 +1732,7 @@ async function executeToolImplementation(
       contextParams.credential = contextParams.oauthCredential
     }
     if (contextParams.credential) {
-      logger.info(`[${requestId}] Resolving tool access token`, { toolId })
+      logger.info(`[${requestId}] Resolving tool access token`, { toolId: normalizedToolId })
       try {
         const workflowId = scope.workflowId
         const userId = scope.userId
