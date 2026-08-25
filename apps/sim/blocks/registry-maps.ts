@@ -215,6 +215,7 @@ import {
 } from '@/blocks/blocks/microsoft_excel'
 import { MicrosoftPlannerBlock, MicrosoftPlannerBlockMeta } from '@/blocks/blocks/microsoft_planner'
 import { MicrosoftTeamsBlock, MicrosoftTeamsBlockMeta } from '@/blocks/blocks/microsoft_teams'
+import { MicrosoftWordBlock, MicrosoftWordBlockMeta } from '@/blocks/blocks/microsoft_word'
 import { MillionVerifierBlock, MillionVerifierBlockMeta } from '@/blocks/blocks/millionverifier'
 import { MintlifyBlock, MintlifyBlockMeta } from '@/blocks/blocks/mintlify'
 import {
@@ -559,6 +560,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   microsoft_excel_v2: MicrosoftExcelV2Block,
   microsoft_planner: MicrosoftPlannerBlock,
   microsoft_teams: MicrosoftTeamsBlock,
+  microsoft_word: MicrosoftWordBlock,
   mintlify: MintlifyBlock,
   mistral_parse: MistralParseBlock,
   mistral_parse_v2: MistralParseV2Block,
@@ -876,6 +878,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   microsoft_excel_v2: MicrosoftExcelV2BlockMeta,
   microsoft_planner: MicrosoftPlannerBlockMeta,
   microsoft_teams: MicrosoftTeamsBlockMeta,
+  microsoft_word: MicrosoftWordBlockMeta,
   millionverifier: MillionVerifierBlockMeta,
   mintlify: MintlifyBlockMeta,
   mistral_parse: MistralParseBlockMeta,

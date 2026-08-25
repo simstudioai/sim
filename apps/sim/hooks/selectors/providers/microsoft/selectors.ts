@@ -360,6 +360,7 @@ export const microsoftSelectors = {
       'selectors',
       'microsoft.word',
       context.oauthCredential ?? 'none',
+      context.driveId ?? 'none',
       search ?? '',
     ],
     enabled: ({ context }) => Boolean(context.oauthCredential),
@@ -369,6 +370,7 @@ export const microsoftSelectors = {
         query: {
           credentialId,
           query: search,
+          driveId: context.driveId,
           workflowId: context.workflowId,
           fileType: 'word',
         },

@@ -476,6 +476,16 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
 
 /** Scope labels that cannot be keyed by scope alone because providers reuse names. */
 const PROVIDER_SCOPE_DESCRIPTIONS: Readonly<Record<string, Readonly<Record<string, string>>>> = {
+  /**
+   * Word documents are ordinary drive items, so the integration asks for the
+   * generic Files permissions. The shared labels name OneDrive specifically,
+   * which reads as the wrong product on the Word consent screen and omits the
+   * SharePoint libraries the same scopes cover.
+   */
+  'microsoft-word': {
+    'Files.Read': 'Read your Word documents in OneDrive and SharePoint',
+    'Files.ReadWrite': 'Read, create, and edit your Word documents in OneDrive and SharePoint',
+  },
   bitbucket: {
     account: 'View your Bitbucket account and workspace memberships',
     repository: 'View repositories and source code',

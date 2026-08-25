@@ -43,6 +43,7 @@ import {
   MicrosoftPlannerIcon,
   MicrosoftSharepointIcon,
   MicrosoftTeamsIcon,
+  MicrosoftWordIcon,
   MondayIcon,
   NetSuiteIcon,
   NotionIcon,
@@ -442,6 +443,21 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'Files.Read',
           'Sites.Read.All',
         ],
+      },
+      'microsoft-word': {
+        name: 'Microsoft Word',
+        description: 'Connect to Microsoft Word and manage documents.',
+        providerId: 'microsoft-word',
+        icon: MicrosoftWordIcon,
+        baseProviderIcon: MicrosoftIcon,
+        /**
+         * Word documents are ordinary drive items, so the integration reads and
+         * writes them through the Files permissions rather than a Word-specific
+         * scope — Microsoft Graph exposes no Word API of its own.
+         *
+         * @see https://learn.microsoft.com/en-us/graph/permissions-reference
+         */
+        scopes: ['openid', 'profile', 'email', 'Files.Read', 'Files.ReadWrite', 'offline_access'],
       },
       outlook: {
         name: 'Outlook',

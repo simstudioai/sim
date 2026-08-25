@@ -3018,6 +3018,16 @@ import {
   microsoftTeamsWriteChatTool,
 } from '@/tools/microsoft_teams'
 import {
+  microsoftWordAppendTool,
+  microsoftWordCreateFromTemplateTool,
+  microsoftWordCreateTool,
+  microsoftWordExportPdfTool,
+  microsoftWordListTool,
+  microsoftWordReadTool,
+  microsoftWordReplaceTextTool,
+  microsoftWordUpdateTool,
+} from '@/tools/microsoft_word'
+import {
   millionverifierGetCreditsTool,
   millionverifierVerifyEmailTool,
 } from '@/tools/millionverifier'
@@ -9681,6 +9691,14 @@ export const tools: Record<string, ToolConfig> = {
   microsoft_planner_create_bucket: microsoftPlannerCreateBucketTool,
   microsoft_planner_update_bucket: microsoftPlannerUpdateBucketTool,
   microsoft_planner_delete_bucket: microsoftPlannerDeleteBucketTool,
+  microsoft_word_create: microsoftWordCreateTool,
+  microsoft_word_create_from_template: microsoftWordCreateFromTemplateTool,
+  microsoft_word_read: microsoftWordReadTool,
+  microsoft_word_update: microsoftWordUpdateTool,
+  microsoft_word_append: microsoftWordAppendTool,
+  microsoft_word_replace_text: microsoftWordReplaceTextTool,
+  microsoft_word_list: microsoftWordListTool,
+  microsoft_word_export_pdf: microsoftWordExportPdfTool,
   microsoft_planner_get_task_details: microsoftPlannerGetTaskDetailsTool,
   microsoft_planner_update_task_details: microsoftPlannerUpdateTaskDetailsTool,
   google_calendar_create: googleCalendarCreateTool,
