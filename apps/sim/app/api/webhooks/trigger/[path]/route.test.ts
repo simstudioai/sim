@@ -104,8 +104,6 @@ const testData = {
 }
 
 const {
-  generateRequestHashMock,
-  validateSlackSignatureMock,
   handleWhatsAppVerificationMock,
   handleSlackChallengeMock,
   processWhatsAppDeduplicationMock,
@@ -121,8 +119,6 @@ const {
   admissionRejectedResponseMock,
   tryAdmitMock,
 } = vi.hoisted(() => ({
-  generateRequestHashMock: vi.fn().mockResolvedValue('test-hash-123'),
-  validateSlackSignatureMock: vi.fn().mockResolvedValue(true),
   handleWhatsAppVerificationMock: vi.fn().mockResolvedValue(null),
   handleSlackChallengeMock: vi.fn().mockReturnValue(null),
   processWhatsAppDeduplicationMock: vi.fn().mockResolvedValue(null),
@@ -203,21 +199,12 @@ vi.mock('@/background/webhook-execution', () => ({
   }),
 }))
 
-vi.mock('@/background/logs-webhook-delivery', () => ({
-  logsWebhookDelivery: {},
-}))
-
 vi.mock('@/lib/webhooks/utils', () => ({
   handleWhatsAppVerification: handleWhatsAppVerificationMock,
   handleSlackChallenge: handleSlackChallengeMock,
   processWhatsAppDeduplication: processWhatsAppDeduplicationMock,
   processGenericDeduplication: processGenericDeduplicationMock,
   processWebhook: processWebhookMock,
-}))
-
-vi.mock('@/app/api/webhooks/utils', () => ({
-  generateRequestHash: generateRequestHashMock,
-  validateSlackSignature: validateSlackSignatureMock,
 }))
 
 vi.mock('@/executor', () => ({

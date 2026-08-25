@@ -18,7 +18,6 @@ export { tinesProfile } from '@/lib/compare/data/competitors/tines'
 export { vellumProfile } from '@/lib/compare/data/competitors/vellum'
 export { workatoProfile } from '@/lib/compare/data/competitors/workato'
 export { zapierProfile } from '@/lib/compare/data/competitors/zapier'
-export { SIM_FEATURES } from '@/lib/compare/data/feature-catalog'
 export { simProfile } from '@/lib/compare/data/sim'
 export type {
   ComparisonFacts,
@@ -26,7 +25,4 @@ export type {
   CompetitorProfile,
   Fact,
   FactSource,
-  FeatureCategory,
-  SimFeature,
 } from '@/lib/compare/data/types'
-export { featuresByCategory, featuresByTag } from '@/lib/compare/data/types'
