@@ -153,6 +153,50 @@ describe('get blocks metadata', () => {
     expect(Object.keys(slack.operations).sort()).toEqual(['canvas', 'send'])
   })
 
+  /**
+   * A block whose operation ids ARE its tool ids, declaring no
+   * `tools.config.tool`. The catalog projection cannot fill `operation.toolId`
+   * for it, so gating on that field alone would publish every denied operation.
+   */
+  const selectorlessBlock = {
+    type: 'sqs',
+    name: 'SQS',
+    description: 'Queue.',
+    category: 'tools',
+    bgColor: '#000000',
+    icon: () => null,
+    subBlocks: [
+      {
+        id: 'operation',
+        title: 'Operation',
+        type: 'dropdown',
+        options: [
+          { label: 'Send', id: 'sqs_send' },
+          { label: 'Receive', id: 'sqs_receive' },
+        ],
+      },
+    ],
+    tools: { access: ['sqs_send', 'sqs_receive'] },
+    inputs: {},
+    outputs: {},
+  } as unknown as BlockConfig
+
+  it('withholds a denied operation on a block that declares no tool selector', async () => {
+    mockGetUserPermissionConfig.mockResolvedValue({
+      allowedIntegrations: ['sqs'],
+      deniedTools: ['sqs_receive'],
+    })
+    vi.mocked(getBlock).mockReturnValue(selectorlessBlock)
+
+    const result = await getBlocksMetadataServerTool.execute(
+      { blockIds: ['sqs'] },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+
+    const sqs = result.metadata.sqs as { operations: Record<string, unknown> }
+    expect(Object.keys(sqs.operations)).toEqual(['sqs_send'])
+  })
+
   it('withholds a block whose every operation the group denies', async () => {
     mockGetUserPermissionConfig.mockResolvedValue({
       allowedIntegrations: ['slack'],

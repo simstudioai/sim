@@ -20,9 +20,11 @@ import { getServiceAccountProviderForProviderId } from '@/lib/oauth/utils'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
 import { intersectIntegrationAllowlists } from '@/lib/permission-groups/integration-allowlist'
 import {
+  collectDeniedOperationIds,
   createToolAccessGate,
   type IsToolAllowed,
   OPERATION_SUBBLOCK_ID,
+  type OperationGateBlock,
 } from '@/lib/permission-groups/operation-access'
 import { getBlock } from '@/blocks/registry'
 import { AuthMode, type BlockConfig, type SubBlockConfig } from '@/blocks/types'
@@ -134,13 +136,15 @@ function toCopilotBlockMetadata(detail: CatalogBlockDetail): CopilotBlockMetadat
  */
 function withDeniedToolsRemoved(
   metadata: CopilotBlockMetadata,
+  block: OperationGateBlock,
   isToolAllowed: IsToolAllowed
 ): CopilotBlockMetadata | null {
   const operations = metadata.operations ?? {}
-  const deniedOperations = new Set<string>()
-  for (const [operationId, operation] of Object.entries(operations)) {
-    if (operation.toolId && !isToolAllowed(operation.toolId)) deniedOperations.add(operationId)
-  }
+  /* Resolved through the shared operation gate rather than `operation.toolId`:
+     the catalog projection fills that field only from `tools.config.tool`, so a
+     block whose operation ids ARE its tool ids leaves it undefined and every one
+     of its operations would read as permitted. */
+  const deniedOperations = collectDeniedOperationIds(block, Object.keys(operations), isToolAllowed)
   const tools = metadata.tools.filter((tool) => isToolAllowed(tool.id))
   if (deniedOperations.size === 0 && tools.length === metadata.tools.length) return metadata
 
@@ -278,7 +282,7 @@ export const getBlocksMetadataServerTool: BaseServerTool<
           continue
         }
 
-        const permitted = withDeniedToolsRemoved(metadata, isToolAllowed)
+        const permitted = withDeniedToolsRemoved(metadata, blockConfig, isToolAllowed)
         if (!permitted) {
           logger.debug('Block has no operation this permission group allows', { blockId })
           continue

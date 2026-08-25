@@ -455,6 +455,7 @@ function getStaticToolConfigs(): ReadonlyMap<string, ToolConfig> {
 }
 
 const BLOCK_SCHEMA_PATH_PREFIX = 'components/blocks/'
+const INTEGRATION_SCHEMA_PATH_PREFIX = 'components/integrations/'
 
 /** The per-viewer projections applied to a shared static component file. */
 interface StaticFileProjection {
@@ -1049,6 +1050,13 @@ export class WorkspaceVFS {
               isToolAllowed,
             }
             for (const [path, content] of getStaticComponentFiles()) {
+              /* Integration schemas are authored per viewer from
+                 `viewerIntegrationTools` immediately below, which is the only
+                 projection that knows the group's per-tool denylist. Stamping
+                 the shared copy first would publish a denied operation's schema
+                 that the loop below never overwrites, because it only writes the
+                 operations the viewer may use. */
+              if (path.startsWith(INTEGRATION_SCHEMA_PATH_PREFIX)) continue
               if (isStaticFileHidden(path, blockVisibility, staticFileGate)) continue
               this.files.set(path, projectStaticComponentFile(path, content, staticFileProjection))
             }
