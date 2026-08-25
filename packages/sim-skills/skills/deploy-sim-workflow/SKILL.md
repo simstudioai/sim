@@ -25,8 +25,9 @@ post-deployment state.
   title, welcome message, and access policy with `workflows chat publish`; inspect with
   `workflows chat status`. A chat deployment also publishes the workflow API.
 - **MCP tool:** for another AI agent calling the workflow as a tool. Inspect or create the target with
-  `workflow-mcp-servers list` or `workflow-mcp-servers create`, then publish with
-  `workflow-mcp-servers tools create` using a clear tool name, description, and input descriptions.
+  `workflow-mcp-servers list` or `workflow-mcp-servers create`. Deploy the workflow API first when it
+  has no active deployment, then publish with `workflow-mcp-servers tools create` using a clear tool
+  name, description, and descriptions for real deployed workflow inputs.
 
 Do not choose a surface from convenience. Ask when the intended caller does not make it clear.
 
@@ -35,8 +36,9 @@ Do not choose a surface from convenience. Ask when the intended caller does not 
 - A protected chat must include the required password or allowed-email list. Fail instead of
   publishing an unusable access policy.
 - Use a lowercase hyphenated chat slug.
-- Map chat and MCP outputs from real block output fields returned by the catalog or a successful run,
-  not display labels.
+- Map chat outputs from real block output fields returned by the catalog or a successful run, not
+  display labels. MCP generates its schema from deployed workflow inputs; parameter descriptions
+  must name those real input fields, and unknown names are ignored.
 - Reuse an existing MCP server when it is the intended tool collection; do not create duplicates by
   default.
 

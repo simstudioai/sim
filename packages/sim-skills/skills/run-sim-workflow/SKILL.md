@@ -56,10 +56,11 @@ workflow and contains the state the selected block needs.
 
 1. Read the returned run id, status, error, and selected outputs.
 2. Inspect the run with
-   `sim --output json workflows runs get <workflowId> <runId> --include-output`.
+   `sim --output json workflows runs get <runId> --workflow <workflowId> --include-output`.
 3. Read the workflow state and confirm the failing block's current inputs and connections.
 4. Correct the graph with the build skill. Do not hide a deterministic failure behind retries or a
    different execution mode.
 
-Report which mode ran, the terminal status, the relevant output or error, and the run id. Never print
-profile credentials or raw secrets from block inputs.
+Report which mode ran, the terminal status, and the relevant output or error. Include the run id when
+the selected execution mode returns one; `--follow` streams omit it. Never print profile credentials
+or raw secrets from block inputs.
