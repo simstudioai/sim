@@ -189,8 +189,19 @@ describe('organization identity transitions', () => {
     expect(container).not.toHaveTextContent('Member A')
     expect(container).not.toHaveTextContent('org-a')
     expect(container.querySelector('button')).toBeNull()
-    expect(mockGetFullOrganization).toHaveBeenCalledWith({
-      query: { organizationId: 'org-b' },
-    })
+    expect(mockGetFullOrganization).toHaveBeenCalledWith(
+      expect.objectContaining({ query: { organizationId: 'org-b' } })
+    )
+  })
+
+  it('forwards the query signal so an in-flight org fetch can be cancelled', async () => {
+    mockGetFullOrganization.mockResolvedValue({ data: ORGANIZATION_A })
+
+    renderOrganization('org-a')
+
+    await flushQueries()
+
+    const [args] = mockGetFullOrganization.mock.calls[0]
+    expect(args.fetchOptions?.signal).toBeInstanceOf(AbortSignal)
   })
 })
