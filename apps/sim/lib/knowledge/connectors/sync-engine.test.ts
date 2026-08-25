@@ -20,6 +20,7 @@ import {
   isConnectorRunnableStatus,
   isStuckDocumentSweepEligible,
   mergeHydratedDocument,
+  mergeHydratedSkippedDocument,
   type PreviousListingObservation,
   selectStuckDocumentSweepCandidates,
   stuckDocumentSweepAgeAnchor,
@@ -1212,6 +1213,38 @@ describe('mergeHydratedDocument', () => {
 
     expect(merged.title).toBe('Report.pdf')
     expect(merged.sourceUrl).toBe('https://example.com/a')
+  })
+})
+
+describe('mergeHydratedSkippedDocument', () => {
+  it('keeps the listing hash when hydration reports a synthetic skip hash', () => {
+    const listed: ExternalDocument = {
+      externalId: 'transcript-1',
+      title: 'Weekly sync',
+      content: '',
+      contentDeferred: true,
+      mimeType: 'text/plain',
+      contentHash: 'fireflies:v2:transcript-1:lifecycle-hash',
+      metadata: { meetingDate: '2026-08-24T00:00:00.000Z' },
+    }
+    const skipped: ExternalDocument = {
+      ...listed,
+      contentDeferred: false,
+      contentHash: 'fireflies:oversized-response:transcript-1',
+      skippedReason: 'Transcript response exceeds the safe hydration limit',
+      metadata: { duration: 45 },
+    }
+
+    expect(mergeHydratedSkippedDocument(listed, skipped)).toMatchObject({
+      content: '',
+      contentDeferred: false,
+      contentHash: listed.contentHash,
+      skippedReason: skipped.skippedReason,
+      metadata: {
+        meetingDate: '2026-08-24T00:00:00.000Z',
+        duration: 45,
+      },
+    })
   })
 })
 

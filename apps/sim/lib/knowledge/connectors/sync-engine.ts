@@ -560,6 +560,29 @@ export function mergeHydratedDocument(
 }
 
 /**
+ * Merges a hydration-time skip marker onto its listing stub.
+ *
+ * A skipped hydration did not verify indexable content, so its provider-specific
+ * fallback hash cannot supersede the listing hash used by the next sync's change
+ * classification. Keeping the listing hash makes a newly persisted skip stable
+ * until the source metadata changes, while still carrying the reason and metadata
+ * discovered during hydration.
+ */
+export function mergeHydratedSkippedDocument(
+  stub: ExternalDocument,
+  hydrated: ExternalDocument
+): ExternalDocument {
+  return {
+    ...stub,
+    content: '',
+    contentDeferred: false,
+    skippedReason: hydrated.skippedReason,
+    skippedExistingDisposition: hydrated.skippedExistingDisposition,
+    metadata: { ...stub.metadata, ...hydrated.metadata },
+  }
+}
+
+/**
  * A listed deferred document is known to exist at listing time. A null hydration
  * is therefore ambiguous provider failure, not authoritative deletion: treating
  * it as a successful drop can advance an incremental watermark past a document
@@ -2339,26 +2362,14 @@ export async function executeSync(
               if (op.type === 'add') {
                 skipOps.push({
                   type: 'skip',
-                  extDoc: {
-                    ...op.extDoc,
-                    skippedReason: fullDoc.skippedReason,
-                    skippedExistingDisposition: fullDoc.skippedExistingDisposition,
-                    contentHash: fullDoc.contentHash ?? op.extDoc.contentHash,
-                    metadata: { ...op.extDoc.metadata, ...fullDoc.metadata },
-                  },
+                  extDoc: mergeHydratedSkippedDocument(op.extDoc, fullDoc),
                 })
               } else if (op.type === 'update') {
                 if (fullDoc.skippedExistingDisposition === 'replace') {
                   skipOps.push({
                     type: 'skip',
                     existingId: op.existingId,
-                    extDoc: {
-                      ...op.extDoc,
-                      skippedReason: fullDoc.skippedReason,
-                      skippedExistingDisposition: 'replace',
-                      contentHash: fullDoc.contentHash ?? op.extDoc.contentHash,
-                      metadata: { ...op.extDoc.metadata, ...fullDoc.metadata },
-                    },
+                    extDoc: mergeHydratedSkippedDocument(op.extDoc, fullDoc),
                   })
                 } else {
                   /** Preserve last-known-good content and replay the unverified source change. */
