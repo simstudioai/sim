@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import { chat, workflow } from '@sim/db/schema'
-import { and, eq, isNull } from 'drizzle-orm'
+import { and, eq, isNull, or } from 'drizzle-orm'
 import {
   type CursorKey,
   type KeysetKey,
@@ -25,7 +25,12 @@ import {
 export type ChatDeploymentRow = typeof chat.$inferSelect
 export type ChatDeploymentSortBy = 'identifier' | 'createdAt' | 'updatedAt'
 
-const chatDeploymentId = textKey<ChatDeploymentRow>(chat.id, (row) => row.id)
+export interface ChatDeploymentWithWorkflowStatus {
+  chat: ChatDeploymentRow
+  isWorkflowDeployed: boolean
+}
+
+const chatDeploymentId = textKey<ChatDeploymentWithWorkflowStatus>(chat.id, (row) => row.chat.id)
 
 /**
  * Keyset orderings for the public list's sortable fields, made total over the
@@ -34,18 +39,25 @@ const chatDeploymentId = textKey<ChatDeploymentRow>(chat.id, (row) => row.id)
  */
 const CHAT_DEPLOYMENT_SORTS = {
   identifier: [
-    textKey<ChatDeploymentRow>(chat.identifier, (row) => row.identifier),
+    textKey<ChatDeploymentWithWorkflowStatus>(chat.identifier, (row) => row.chat.identifier),
     chatDeploymentId,
   ],
   createdAt: [
-    timestampKey<ChatDeploymentRow>(chat.createdAt, (row) => row.createdAt),
+    timestampKey<ChatDeploymentWithWorkflowStatus>(chat.createdAt, (row) => row.chat.createdAt),
     chatDeploymentId,
   ],
   updatedAt: [
-    timestampKey<ChatDeploymentRow>(chat.updatedAt, (row) => row.updatedAt),
+    timestampKey<ChatDeploymentWithWorkflowStatus>(chat.updatedAt, (row) => row.chat.updatedAt),
     chatDeploymentId,
   ],
-} satisfies Record<ChatDeploymentSortBy, readonly KeysetKey<ChatDeploymentRow>[]>
+} satisfies Record<ChatDeploymentSortBy, readonly KeysetKey<ChatDeploymentWithWorkflowStatus>[]>
+
+function effectiveChatActiveFilter(isActive: boolean | undefined) {
+  if (isActive === undefined) return undefined
+  return isActive
+    ? and(eq(chat.isActive, true), eq(workflow.isDeployed, true))
+    : or(eq(chat.isActive, false), eq(workflow.isDeployed, false))
+}
 
 /** One keyset page of live chat deployments whose workflow lives in a workspace. */
 export async function listWorkspaceChatDeployments(params: {
@@ -56,13 +68,13 @@ export async function listWorkspaceChatDeployments(params: {
   sortOrder?: ListSortOrder
   limit: number
   cursorKeys?: CursorKey[]
-}): Promise<KeysetPage<ChatDeploymentRow>> {
+}): Promise<KeysetPage<ChatDeploymentWithWorkflowStatus>> {
   const { sortBy = 'createdAt', sortOrder = 'desc', limit } = params
   const keys = CHAT_DEPLOYMENT_SORTS[sortBy]
   const resumeAfter = resumeKeyset(keys, params.cursorKeys, sortOrder)
 
   const rows = await db
-    .select({ chat })
+    .select({ chat, isWorkflowDeployed: workflow.isDeployed })
     .from(chat)
     .innerJoin(workflow, eq(chat.workflowId, workflow.id))
     .where(
@@ -71,18 +83,14 @@ export async function listWorkspaceChatDeployments(params: {
         isNull(workflow.archivedAt),
         isNull(chat.archivedAt),
         params.workflowId === undefined ? undefined : eq(chat.workflowId, params.workflowId),
-        params.isActive === undefined ? undefined : eq(chat.isActive, params.isActive),
+        effectiveChatActiveFilter(params.isActive),
         resumeAfter
       )
     )
     .orderBy(...listOrderBy(keysetColumns(keys), sortOrder))
     .limit(limit + 1)
 
-  return keysetPage(
-    keys,
-    rows.map((row) => row.chat),
-    limit
-  )
+  return keysetPage(keys, rows, limit)
 }
 
 /**

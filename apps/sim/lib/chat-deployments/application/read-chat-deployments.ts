@@ -30,6 +30,15 @@ export function toChatDeploymentView(row: ChatDeploymentRow): ChatDeploymentView
   }
 }
 
+/** A chat can answer only while both it and its workflow deployment are active. */
+export function toEffectiveChatDeploymentView(
+  row: ChatDeploymentRow,
+  isWorkflowDeployed: boolean
+): ChatDeploymentView {
+  const deployment = toChatDeploymentView(row)
+  return { ...deployment, isActive: deployment.isActive && isWorkflowDeployed }
+}
+
 export interface ListChatDeploymentsInput {
   workspaceId: string
   workflowId?: string
@@ -56,7 +65,9 @@ export const listChatDeployments = defineAuthorizedWorkspaceUseCase({
       cursorKeys: input.cursorKeys,
     })
     return {
-      deployments: page.data.map(toChatDeploymentView),
+      deployments: page.data.map(({ chat, isWorkflowDeployed }) =>
+        toEffectiveChatDeploymentView(chat, isWorkflowDeployed)
+      ),
       nextCursorKeys: page.nextCursorKeys,
     }
   },

@@ -171,7 +171,12 @@ describe('/api/v2/workflows/[workflowId]/deployments/chat', () => {
     mocks.resolveWorkflowContext.mockResolvedValue({
       ...workspaceContext,
       workflowId: WORKFLOW_ID,
-      workflow: { id: WORKFLOW_ID, name: 'Support', workspaceId: WORKSPACE_ID },
+      workflow: {
+        id: WORKFLOW_ID,
+        name: 'Support',
+        workspaceId: WORKSPACE_ID,
+        isDeployed: true,
+      },
     })
     mocks.getLiveChatDeployment.mockResolvedValue(chatRow())
     mocks.getIdentifierOwner.mockResolvedValue(null)
@@ -213,6 +218,23 @@ describe('/api/v2/workflows/[workflowId]/deployments/chat', () => {
 
       expect(response.status).toBe(404)
       expect((await response.json()).error.code).toBe('NOT_FOUND')
+    })
+
+    it('reports the chat inactive when its workflow is undeployed', async () => {
+      mocks.resolveWorkflowContext.mockResolvedValue({
+        ...workspaceContext,
+        workflowId: WORKFLOW_ID,
+        workflow: {
+          id: WORKFLOW_ID,
+          name: 'Support',
+          workspaceId: WORKSPACE_ID,
+          isDeployed: false,
+        },
+      })
+
+      const body = await (await get()).json()
+
+      expect(body.data.isActive).toBe(false)
     })
 
     /** The gate configuration it carries is admin-only, unlike the workspace list. */

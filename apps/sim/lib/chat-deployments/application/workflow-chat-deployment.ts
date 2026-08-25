@@ -18,6 +18,7 @@ import { chatDeploymentOperations } from '@/lib/chat-deployments/application/ope
 import {
   type ChatDeploymentView,
   toChatDeploymentView,
+  toEffectiveChatDeploymentView,
 } from '@/lib/chat-deployments/application/read-chat-deployments'
 import {
   getChatDeploymentIdOwningIdentifier,
@@ -96,7 +97,10 @@ export const readWorkflowChatDeployment = defineAuthorizedWorkspaceUseCase({
   authorizationOptions: {},
   async execute({ context }): Promise<WorkflowChatDeploymentResult> {
     return {
-      deployment: toChatDeploymentView(requireWorkflowChatDeployment(context)),
+      deployment: toEffectiveChatDeploymentView(
+        requireWorkflowChatDeployment(context),
+        context.workflow.isDeployed
+      ),
       workspaceId: context.workspaceId,
       workflowId: context.workflowId,
     }

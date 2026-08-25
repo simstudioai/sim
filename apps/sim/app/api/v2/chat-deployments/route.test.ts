@@ -151,7 +151,10 @@ describe('/api/v2/chat-deployments', () => {
       workflowId: WORKFLOW_ID,
       workflow: { id: WORKFLOW_ID, name: 'Support', workspaceId: WORKSPACE_ID },
     })
-    mocks.listDeployments.mockResolvedValue({ data: [chatRow()], nextCursorKeys: null })
+    mocks.listDeployments.mockResolvedValue({
+      data: [{ chat: chatRow(), isWorkflowDeployed: true }],
+      nextCursorKeys: null,
+    })
     mocks.getLiveChatDeployment.mockResolvedValue(null)
     mocks.getIdentifierOwner.mockResolvedValue(null)
     mocks.validateChatDeployAuth.mockResolvedValue(undefined)
@@ -203,12 +206,15 @@ describe('/api/v2/chat-deployments', () => {
     it('omits the fields the admin-gated detail read carries', async () => {
       mocks.listDeployments.mockResolvedValue({
         data: [
-          chatRow({
-            authType: 'password',
-            password: 'encrypted-secret',
-            allowedEmails: ['gated@example.com'],
-            customizations: { primaryColor: '#gated', welcomeMessage: 'gated-welcome' },
-          }),
+          {
+            chat: chatRow({
+              authType: 'password',
+              password: 'encrypted-secret',
+              allowedEmails: ['gated@example.com'],
+              customizations: { primaryColor: '#gated', welcomeMessage: 'gated-welcome' },
+            }),
+            isWorkflowDeployed: true,
+          },
         ],
         nextCursorKeys: null,
       })
@@ -229,7 +235,12 @@ describe('/api/v2/chat-deployments', () => {
     /** Narrowing must not cost discovery: the mode label and identity stay. */
     it('still carries what a caller needs to decide whether to fetch the detail', async () => {
       mocks.listDeployments.mockResolvedValue({
-        data: [chatRow({ authType: 'password', password: 'encrypted-secret' })],
+        data: [
+          {
+            chat: chatRow({ authType: 'password', password: 'encrypted-secret' }),
+            isWorkflowDeployed: true,
+          },
+        ],
         nextCursorKeys: null,
       })
 
@@ -246,6 +257,17 @@ describe('/api/v2/chat-deployments', () => {
       })
     })
 
+    it('reports a configured chat inactive when its workflow is undeployed', async () => {
+      mocks.listDeployments.mockResolvedValue({
+        data: [{ chat: chatRow({ isActive: true }), isWorkflowDeployed: false }],
+        nextCursorKeys: null,
+      })
+
+      const body = await (await get()).json()
+
+      expect(body.data[0].isActive).toBe(false)
+    })
+
     it('passes the workflow and active filters to the read', async () => {
       await get(`?workspaceId=${WORKSPACE_ID}&workflowId=${WORKFLOW_ID}&isActive=false`)
 
@@ -256,7 +278,7 @@ describe('/api/v2/chat-deployments', () => {
 
     it('rejects a cursor minted under different filters', async () => {
       mocks.listDeployments.mockResolvedValue({
-        data: [chatRow()],
+        data: [{ chat: chatRow(), isWorkflowDeployed: true }],
         nextCursorKeys: [{ key: 'createdAt', value: '2026-06-12T10:30:00.000Z' }],
       })
       const cursor = (await (await get()).json()).nextCursor
