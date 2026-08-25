@@ -36,11 +36,11 @@ async function eligibleOrgForWorkspace(
 ): Promise<string | null> {
   const ws = await getWorkspaceWithOwner(workspaceId, { includeArchived: true })
   if (!ws?.organizationId) return null
-  if (!(await isFeatureEnabled('deploy-as-block', { userId, orgId: ws.organizationId }))) {
-    return null
-  }
-  if (!(await isOrganizationOnEnterprisePlan(ws.organizationId))) return null
-  return ws.organizationId
+  const [flagEnabled, onEnterprisePlan] = await Promise.all([
+    isFeatureEnabled('deploy-as-block', { userId, orgId: ws.organizationId }),
+    isOrganizationOnEnterprisePlan(ws.organizationId),
+  ])
+  return flagEnabled && onEnterprisePlan ? ws.organizationId : null
 }
 
 /**

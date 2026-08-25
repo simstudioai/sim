@@ -525,9 +525,25 @@ async function executeWorkflowCoreImpl(
       }
     }
 
-    const [workflowState, env] = await Promise.all([
+    /**
+     * Resolves the org/workspace PII redaction row once for this run; serves both
+     * the input stage and the block-outputs stage (threaded into the executor).
+     * Depends only on the workspace id, so it loads alongside the state and env.
+     */
+    const loadPiiRedactionRow = async () => {
+      const [row] = await db
+        .select({ orgSettings: organization.dataRetentionSettings })
+        .from(workspace)
+        .leftJoin(organization, eq(organization.id, workspace.organizationId))
+        .where(eq(workspace.id, providedWorkspaceId))
+        .limit(1)
+      return row
+    }
+
+    const [workflowState, env, piiRedactionRow] = await Promise.all([
       loadWorkflowState(),
       getExecutionEnvironment(personalEnvUserId, workspaceEnvUserId, providedWorkspaceId),
+      loadPiiRedactionRow(),
     ])
 
     const { blocks, loops, parallels } = workflowState
@@ -808,22 +824,14 @@ async function executeWorkflowCoreImpl(
       allowLargeValueWorkflowScope,
     })
 
-    // Resolve the org/workspace PII redaction policy once; serves both the input
-    // stage (below) and the block-outputs stage (threaded into the executor).
-    // Resolved from stored rules UNCONDITIONALLY — deliberately NOT gated on the
-    // `pii-redaction` feature flag. The flag gates configuration (the settings
-    // route); a transient/false flag read at execution time would skip masking
-    // and leak PII (fail-open). Stored rules are only writable by entitled orgs,
-    // so their presence is the source of truth; absence yields the disabled
-    // default (one indexed lookup, no masking cost for non-PII orgs).
-    const [row] = await db
-      .select({ orgSettings: organization.dataRetentionSettings })
-      .from(workspace)
-      .leftJoin(organization, eq(organization.id, workspace.organizationId))
-      .where(eq(workspace.id, providedWorkspaceId))
-      .limit(1)
+    // The policy applies from stored rules UNCONDITIONALLY — deliberately NOT
+    // gated on the `pii-redaction` feature flag. The flag gates configuration
+    // (the settings route); a transient/false flag read at execution time would
+    // skip masking and leak PII (fail-open). Stored rules are only writable by
+    // entitled orgs, so their presence is the source of truth; absence yields
+    // the disabled default (one indexed lookup, no masking cost for non-PII orgs).
     const piiRedaction: EffectivePiiRedaction = resolveEffectivePiiRedaction({
-      orgSettings: row?.orgSettings,
+      orgSettings: piiRedactionRow?.orgSettings,
       workspaceId: providedWorkspaceId,
     })
 
