@@ -56,14 +56,6 @@ interface FeatureFlagDefinition {
 
 /** The single registry of known flags. To add a flag, add one entry here. */
 const FEATURE_FLAGS = {
-  'table-snapshot-cache': {
-    description:
-      'Mount Sim tables into code sandboxes by reference via a version-keyed CSV snapshot in ' +
-      'object storage (reused across runs until the table mutates) instead of draining the whole ' +
-      'table into web-process heap. resolveInputFiles evaluates without user context — use ' +
-      'enabled:true for global rollout rather than per-user targeting.',
-    fallback: 'TABLE_SNAPSHOT_CACHE',
-  },
   'pii-redaction': {
     description:
       'Redact PII from workflow logs via configurable Data Retention rules (Presidio at the ' +

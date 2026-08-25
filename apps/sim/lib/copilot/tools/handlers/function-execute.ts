@@ -11,7 +11,6 @@ import {
   materializeCopilotCodeSecrets,
 } from '@/lib/copilot/tools/secret-mount-materializer.server'
 import { decodeVfsPathSegments, encodeVfsPathSegments } from '@/lib/copilot/vfs/path-utils'
-import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { neutralizeCsvFormula, toCsvRow } from '@/lib/core/utils/csv'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import type { PrivateSecretProvenanceBundleV1 } from '@/lib/execution/model-input-provenance'
@@ -61,13 +60,6 @@ const logger = createLogger('CopilotFunctionExecute')
 const MAX_FILE_SIZE = 10 * 1024 * 1024
 const MAX_TOTAL_SIZE = 50 * 1024 * 1024
 const MAX_MOUNTED_FILES = 500
-
-/**
- * Below this row count a table mounts via the direct inline CSV path — the version-keyed snapshot
- * cache (storage round-trip) only pays off for larger/hot tables. Behind the feature flag either
- * way; this just keeps tiny one-shot tables on the cheaper path.
- */
-const SNAPSHOT_MIN_ROWS = 500
 
 /**
  * Lifetime of a presigned URL handed to the sandbox to fetch a mounted object (table snapshot or
@@ -475,7 +467,6 @@ export async function resolveInputFiles(
     const tablePathLookup = hasTablePathRefs
       ? new Map((await listTables(workspaceId)).map((table) => [table.name, table]))
       : undefined
-    const snapshotCacheEnabled = await isFeatureEnabled('table-snapshot-cache')
     for (const tableRef of inputTables) {
       const tableId =
         typeof tableRef === 'string'
@@ -496,8 +487,8 @@ export async function resolveInputFiles(
           : undefined
       const mountPath = sandboxPath || `/home/user/tables/${table.id}.csv`
 
-      // Large/hot tables mount by reference from a version-keyed CSV snapshot in object storage.
-      if (snapshotCacheEnabled && table.rowCount >= SNAPSHOT_MIN_ROWS) {
+      /** Tables that exceed the bounded inline query mount from a complete versioned snapshot. */
+      if (table.rowCount > TABLE_LIMITS.DEFAULT_QUERY_LIMIT) {
         const snapshot = await getOrCreateTableSnapshot(table, 'copilot-fn-exec')
         if (!resolvedSecretTraceRegistry) {
           throw new Error(
@@ -556,8 +547,7 @@ export async function resolveInputFiles(
         continue
       }
 
-      // Keep the prior bounded mount — draining the whole table here was backed
-      // out for OOM, so don't ride the new unbounded queryRows default.
+      /** The table fits completely within the bounded inline query. */
       const rows = await queryRows(
         table,
         { limit: TABLE_LIMITS.DEFAULT_QUERY_LIMIT },

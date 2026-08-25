@@ -11,7 +11,6 @@ import {
 } from '@/lib/execution/private-tool-metadata'
 
 const {
-  mockIsFeatureEnabled,
   mockGetTableById,
   mockListTables,
   mockQueryRows,
@@ -36,7 +35,6 @@ const {
   mockLoadTableRowSecretProvenance,
   mockIsTableSnapshotSafeForModelMount,
 } = vi.hoisted(() => ({
-  mockIsFeatureEnabled: vi.fn(),
   mockGetTableById: vi.fn(),
   mockListTables: vi.fn(),
   mockQueryRows: vi.fn(),
@@ -62,7 +60,6 @@ const {
   mockIsTableSnapshotSafeForModelMount: vi.fn(),
 }))
 
-vi.mock('@/lib/core/config/feature-flags', () => ({ isFeatureEnabled: mockIsFeatureEnabled }))
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 vi.mock('@/lib/table/service', () => ({
   getTableById: mockGetTableById,
@@ -128,12 +125,13 @@ vi.mock('@/lib/execution/remote-sandbox/workspace-sandboxes', () => ({
 import { projectToolResultForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
 import { executeFunctionExecute } from '@/lib/copilot/tools/handlers/function-execute'
 import { executeRunCode } from '@/lib/copilot/tools/handlers/run-code'
+import { TABLE_LIMITS } from '@/lib/table/constants'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const table = {
   id: 'tbl_1',
   workspaceId: 'ws_1',
-  rowCount: 1000,
+  rowCount: TABLE_LIMITS.DEFAULT_QUERY_LIMIT + 1,
   schema: { columns: [{ id: 'col_name', name: 'name', type: 'string' }] },
 }
 
@@ -150,8 +148,6 @@ function mountedFiles() {
   }
   return params._sandboxFiles ?? []
 }
-
-const snapshotCacheOn = (flag: string) => Promise.resolve(flag === 'table-snapshot-cache')
 
 function resetExecutionMocks(): void {
   vi.clearAllMocks()
@@ -576,17 +572,22 @@ describe('executeFunctionExecute table mounts', () => {
     resetExecutionMocks()
     mockExecuteTool.mockResolvedValue({ success: true })
     mockGetTableById.mockResolvedValue(table)
-    mockIsFeatureEnabled.mockResolvedValue(false)
     // Row data is keyed by stable column id at rest, not display name.
     mockQueryRows.mockResolvedValue({ rows: [{ data: { col_name: 'Ada' } }] })
     mockHasCloudStorage.mockReturnValue(true)
     mockGeneratePresignedDownloadUrl.mockResolvedValue('https://s3.example/presigned?sig=abc')
   })
 
-  it('flag OFF: drains the table inline via queryRows (existing path)', async () => {
+  it('mounts a table at the inline row limit without truncation', async () => {
+    mockGetTableById.mockResolvedValue({ ...table, rowCount: TABLE_LIMITS.DEFAULT_QUERY_LIMIT })
+
     await executeFunctionExecute({ inputTables: ['tbl_1'] }, context as never)
 
-    expect(mockQueryRows).toHaveBeenCalledTimes(1)
+    expect(mockQueryRows).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'tbl_1' }),
+      { limit: TABLE_LIMITS.DEFAULT_QUERY_LIMIT },
+      'copilot-fn-exec'
+    )
     expect(mockGetOrCreateTableSnapshot).not.toHaveBeenCalled()
     const files = mountedFiles()
     expect(files[0].path).toBe('/home/user/tables/tbl_1.csv')
@@ -640,8 +641,7 @@ describe('executeFunctionExecute table mounts', () => {
     expect(mountedFiles()[0].content).toBe('email\na@b.com')
   })
 
-  it('flag ON + cloud storage: mounts by presigned URL, no bytes through web', async () => {
-    mockIsFeatureEnabled.mockImplementation(snapshotCacheOn)
+  it('mounts a table above the inline row limit by presigned snapshot URL', async () => {
     mockGetOrCreateTableSnapshot.mockResolvedValue({
       key: 'table-snapshots/ws_1/tbl_1/v5.csv',
       size: 9,
@@ -665,8 +665,7 @@ describe('executeFunctionExecute table mounts', () => {
     })
   })
 
-  it('flag ON + local storage: falls back to a buffered content mount', async () => {
-    mockIsFeatureEnabled.mockImplementation(snapshotCacheOn)
+  it('mounts a complete snapshot through a bounded buffer with local storage', async () => {
     mockHasCloudStorage.mockReturnValue(false)
     mockGetOrCreateTableSnapshot.mockResolvedValue({
       key: 'table-snapshots/ws_1/tbl_1/v5.csv',
@@ -687,8 +686,7 @@ describe('executeFunctionExecute table mounts', () => {
     expect(file.type).toBeUndefined()
   })
 
-  it('flag ON + unknown snapshot provenance still mounts and taints model egress', async () => {
-    mockIsFeatureEnabled.mockImplementation(snapshotCacheOn)
+  it('unknown snapshot provenance still mounts and taints model egress', async () => {
     mockIsTableSnapshotSafeForModelMount.mockResolvedValue(false)
     mockGetOrCreateTableSnapshot.mockResolvedValue({
       key: 'table-snapshots/ws_1/tbl_1/v5.csv',
@@ -717,7 +715,8 @@ describe('executeFunctionExecute table mounts', () => {
     expect(projectToolResultForCopilot(result, parentRegistry)).toEqual({ success: true })
   })
 
-  it('flag OFF + unknown row provenance still mounts and taints model egress', async () => {
+  it('unknown inline row provenance still mounts and taints model egress', async () => {
+    mockGetTableById.mockResolvedValue({ ...table, rowCount: TABLE_LIMITS.DEFAULT_QUERY_LIMIT })
     mockLoadTableRowSecretProvenance.mockResolvedValue({
       version: 1,
       complete: false,
@@ -745,18 +744,7 @@ describe('executeFunctionExecute table mounts', () => {
     expect(projectToolResultForCopilot(result, parentRegistry)).toEqual({ success: true })
   })
 
-  it('flag ON but small table stays on the inline path', async () => {
-    mockIsFeatureEnabled.mockImplementation(snapshotCacheOn)
-    mockGetTableById.mockResolvedValue({ ...table, rowCount: 10 })
-
-    await executeFunctionExecute({ inputTables: ['tbl_1'] }, context as never)
-
-    expect(mockGetOrCreateTableSnapshot).not.toHaveBeenCalled()
-    expect(mockQueryRows).toHaveBeenCalledTimes(1)
-  })
-
-  it('flag ON + cloud: throws when the snapshot exceeds the table mount limit', async () => {
-    mockIsFeatureEnabled.mockImplementation(snapshotCacheOn)
+  it('throws when a cloud snapshot exceeds the table mount limit', async () => {
     mockGetOrCreateTableSnapshot.mockResolvedValue({
       key: 'table-snapshots/ws_1/tbl_1/v5.csv',
       size: 600 * 1024 * 1024,
@@ -769,8 +757,7 @@ describe('executeFunctionExecute table mounts', () => {
     expect(mockGeneratePresignedDownloadUrl).not.toHaveBeenCalled()
   })
 
-  it('flag ON + local: throws when the snapshot exceeds the per-file mount limit', async () => {
-    mockIsFeatureEnabled.mockImplementation(snapshotCacheOn)
+  it('throws when a local snapshot exceeds the per-file mount limit', async () => {
     mockHasCloudStorage.mockReturnValue(false)
     mockGetOrCreateTableSnapshot.mockResolvedValue({
       key: 'table-snapshots/ws_1/tbl_1/v5.csv',
@@ -809,7 +796,6 @@ describe('executeFunctionExecute file mounts', () => {
   beforeEach(() => {
     resetExecutionMocks()
     mockExecuteTool.mockResolvedValue({ success: true })
-    mockIsFeatureEnabled.mockResolvedValue(false)
     mockHasCloudStorage.mockReturnValue(true)
     mockGeneratePresignedDownloadUrl.mockResolvedValue('https://s3.example/file?sig=abc')
     mockListWorkspaceFiles.mockResolvedValue([fileRecord])
@@ -1167,7 +1153,6 @@ describe('executeFunctionExecute unmountable namespaces', () => {
   beforeEach(() => {
     resetExecutionMocks()
     mockExecuteTool.mockResolvedValue({ success: true })
-    mockIsFeatureEnabled.mockResolvedValue(false)
     mockHasCloudStorage.mockReturnValue(true)
     mockListWorkspaceFiles.mockResolvedValue([])
     mockFindWorkspaceFileRecord.mockReturnValue(null)
