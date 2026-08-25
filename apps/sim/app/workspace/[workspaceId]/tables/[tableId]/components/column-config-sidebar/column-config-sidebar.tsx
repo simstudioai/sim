@@ -6,6 +6,7 @@ import { X } from '@sim/emcn/icons'
 import { toError } from '@sim/utils/errors'
 import { findValidationIssue, isValidationError } from '@/lib/api/client/errors'
 import type { ColumnDefinition, SelectOption } from '@/lib/table'
+import { columnTypeOf } from '@/lib/table/column-types'
 import {
   DEFAULT_CURRENCY_CODE,
   getCurrencyOptions,
@@ -15,7 +16,7 @@ import {
   FieldError,
   RequiredLabel,
 } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/sidebar-fields'
-import { useAddTableColumn, useUpdateColumn } from '@/hooks/queries/tables'
+import { useAddTableColumn, useTablesList, useUpdateColumn } from '@/hooks/queries/tables'
 import { SelectOptionsEditor } from '../select-field'
 import { columnTypeOptionsForTable } from './column-types'
 
@@ -56,9 +57,6 @@ interface ColumnConfigSidebarProps {
   tableRowTtlEnabled: boolean
   workspaceId: string
   tableId: string
-  /** Notify parent of a rename so it can rewrite local `columnOrder` /
-   *  `columnWidths` keys that reference the old name. */
-  onColumnRename?: (oldName: string, newName: string) => void
 }
 
 /**
@@ -108,7 +106,6 @@ function ColumnConfigBody({
   tableRowTtlEnabled,
   workspaceId,
   tableId,
-  onColumnRename,
 }: ColumnConfigBodyProps) {
   const updateColumn = useUpdateColumn({ workspaceId, tableId })
   const addColumn = useAddTableColumn({ workspaceId, tableId })
@@ -133,14 +130,24 @@ function ColumnConfigBody({
       ? resolveCurrencyCode(existingColumn?.currencyCode)
       : DEFAULT_CURRENCY_CODE
   )
+  const [referenceTableInput, setReferenceTableInput] = useState<string>(() =>
+    config.mode === 'edit' ? (existingColumn?.referenceTableId ?? '') : ''
+  )
   const [showValidation, setShowValidation] = useState(false)
   const [nameError, setNameError] = useState<string | null>(null)
   const [optionsError, setOptionsError] = useState<string | null>(null)
+  const [referenceTableError, setReferenceTableError] = useState<string | null>(null)
 
   const saveDisabled = updateColumn.isPending || addColumn.isPending
   const trimmedName = nameInput.trim()
   const wantsOptions = isSelectType(typeInput)
   const wantsCurrency = typeInput === 'currency'
+  const wantsReference = typeInput === 'reference'
+  const supportsUnique = columnTypeOf(typeInput).supportsUnique
+  const { data: workspaceTables = [] } = useTablesList(workspaceId, 'active', {
+    enabled: wantsReference,
+  })
+  const tableOptions = workspaceTables.map((table) => ({ value: table.id, label: table.name }))
   const trimmedOptions = optionsInput.map((o) => ({ ...o, name: o.name.trim() }))
 
   /** Client-side option validation mirroring the server rules; returns an error message or null. */
@@ -153,8 +160,13 @@ function ColumnConfigBody({
     return null
   }
 
+  function validateReferenceTable(): string | null {
+    if (!wantsReference || referenceTableInput) return null
+    return 'Select a table'
+  }
+
   async function handleSave() {
-    if (!trimmedName) {
+    if (config.mode === 'create' && !trimmedName) {
       setShowValidation(true)
       return
     }
@@ -164,47 +176,48 @@ function ColumnConfigBody({
       setOptionsError(optionsIssue)
       return
     }
+    const referenceTableIssue = validateReferenceTable()
+    if (referenceTableIssue) {
+      setReferenceTableError(referenceTableIssue)
+      return
+    }
 
     try {
       if (config.mode === 'create') {
         await addColumn.mutateAsync({
           name: trimmedName,
           type: typeInput,
-          // Select columns don't expose a unique constraint.
-          ...(!wantsOptions && uniqueInput ? { unique: true } : {}),
+          ...(supportsUnique && uniqueInput ? { unique: true } : {}),
           ...(wantsOptions ? { options: trimmedOptions } : {}),
           ...(wantsOptions && multipleInput ? { multiple: true } : {}),
           ...(wantsCurrency ? { currencyCode: currencyInput } : {}),
+          ...(wantsReference ? { referenceTableId: referenceTableInput } : {}),
         })
         toast.success(`Added "${trimmedName}"`)
         onClose()
         return
       }
 
-      // `config.columnName` is the column id; compare against the current display
-      // name to detect an actual rename.
-      const renamed = trimmedName !== (existingColumn?.name ?? config.columnName)
       const typeChanged = !!existingColumn && existingColumn.type !== typeInput
       const uniqueChanged =
-        !wantsOptions && !!existingColumn && !!existingColumn.unique !== uniqueInput
-      // Select columns don't offer a Unique control, so converting a unique
-      // column to select would strand the constraint with no way to clear it.
-      const uniqueCleared = wantsOptions && !!existingColumn?.unique
+        supportsUnique && !!existingColumn && !!existingColumn.unique !== uniqueInput
+      const uniqueCleared = !supportsUnique && !!existingColumn?.unique
       const optionsChanged =
         wantsOptions && !optionsEqual(existingColumn?.options ?? [], trimmedOptions)
       const multipleChanged = wantsOptions && !!existingColumn?.multiple !== multipleInput
       const currencyChanged =
         wantsCurrency && resolveCurrencyCode(existingColumn?.currencyCode) !== currencyInput
+      const referenceTableChanged =
+        wantsReference && existingColumn?.referenceTableId !== referenceTableInput
 
       const updates: {
-        name?: string
         type?: ColumnDefinition['type']
         unique?: boolean
         options?: SelectOption[]
         multiple?: boolean
         currencyCode?: string
+        referenceTableId?: string
       } = {
-        ...(renamed ? { name: trimmedName } : {}),
         ...(typeChanged ? { type: typeInput } : {}),
         ...(uniqueChanged ? { unique: uniqueInput } : {}),
         ...(uniqueCleared ? { unique: false } : {}),
@@ -213,6 +226,9 @@ function ColumnConfigBody({
         ...(wantsCurrency && (typeChanged || currencyChanged)
           ? { currencyCode: currencyInput }
           : {}),
+        ...(wantsReference && (typeChanged || referenceTableChanged)
+          ? { referenceTableId: referenceTableInput }
+          : {}),
       }
       if (Object.keys(updates).length === 0) {
         onClose()
@@ -220,8 +236,7 @@ function ColumnConfigBody({
       }
 
       await updateColumn.mutateAsync({ columnName: config.columnName, updates })
-      if (renamed) onColumnRename?.(config.columnName, trimmedName)
-      toast.success(`Saved "${trimmedName}"`)
+      toast.success(`Saved "${existingColumn?.name ?? config.columnName}"`)
       onClose()
     } catch (err) {
       if (isValidationError(err)) {
@@ -254,23 +269,25 @@ function ColumnConfigBody({
       </div>
 
       <div className='flex-1 overflow-y-auto overflow-x-hidden px-2 pt-3 pb-2 [overflow-anchor:none]'>
-        <div className='flex flex-col gap-[9.5px]'>
-          <RequiredLabel htmlFor='column-sidebar-name'>Column name</RequiredLabel>
-          <ChipInput
-            id='column-sidebar-name'
-            value={nameInput}
-            onChange={(e) => {
-              setNameInput(e.target.value)
-              if (nameError) setNameError(null)
-            }}
-            spellCheck={false}
-            autoComplete='off'
-            error={Boolean((showValidation && !trimmedName) || nameError)}
-            aria-invalid={(showValidation && !trimmedName) || nameError ? true : undefined}
-          />
-          {showValidation && !trimmedName && <FieldError message='Column name is required' />}
-          {nameError && !(showValidation && !trimmedName) && <FieldError message={nameError} />}
-        </div>
+        {config.mode === 'create' && (
+          <div className='flex flex-col gap-[9.5px]'>
+            <RequiredLabel htmlFor='column-sidebar-name'>Column name</RequiredLabel>
+            <ChipInput
+              id='column-sidebar-name'
+              value={nameInput}
+              onChange={(e) => {
+                setNameInput(e.target.value)
+                if (nameError) setNameError(null)
+              }}
+              spellCheck={false}
+              autoComplete='off'
+              error={Boolean((showValidation && !trimmedName) || nameError)}
+              aria-invalid={(showValidation && !trimmedName) || nameError ? true : undefined}
+            />
+            {showValidation && !trimmedName && <FieldError message='Column name is required' />}
+            {nameError && !(showValidation && !trimmedName) && <FieldError message={nameError} />}
+          </div>
+        )}
 
         {config.mode === 'edit' && (
           <>
@@ -341,8 +358,29 @@ function ColumnConfigBody({
           </>
         )}
 
-        {/* Select columns don't expose a unique constraint. */}
-        {!wantsOptions && (
+        {wantsReference && (
+          <>
+            <FieldDivider />
+            <div className='flex flex-col gap-[9.5px]'>
+              <RequiredLabel>Table</RequiredLabel>
+              <ChipCombobox
+                options={tableOptions}
+                value={referenceTableInput}
+                onChange={(value) => {
+                  setReferenceTableInput(value)
+                  if (referenceTableError) setReferenceTableError(null)
+                }}
+                placeholder='Select table'
+                searchable
+                searchPlaceholder='Search tables'
+                maxHeight={260}
+              />
+              {referenceTableError && <FieldError message={referenceTableError} />}
+            </div>
+          </>
+        )}
+
+        {supportsUnique && (
           <>
             <FieldDivider />
             <div className='flex flex-col gap-[9.5px]'>
