@@ -2,10 +2,7 @@ import { useEffect } from 'react'
 import { createLogger } from '@sim/logger'
 import type { QueryClient } from '@tanstack/react-query'
 import { useQueryClient } from '@tanstack/react-query'
-import {
-  getLiveAssistantMessageId,
-  isTerminalStreamStatus,
-} from '@/lib/copilot/chat/effective-transcript'
+import { getLiveAssistantMessageId } from '@/lib/copilot/chat/effective-transcript'
 import { isChatEnabled } from '@/lib/core/config/env-flags'
 import { suspendDesktopChatScopes } from '@/lib/desktop/chat-scope'
 import { type MothershipChatHistory, mothershipChatKeys } from '@/hooks/queries/mothership-chats'
@@ -39,23 +36,6 @@ function isLocalOptimisticActiveStream(current: MothershipChatHistory | undefine
   if (!current?.activeStreamId) return false
   const liveAssistantId = getLiveAssistantMessageId(current.activeStreamId)
   return current.messages.some((message) => message.id === liveAssistantId)
-}
-
-/**
- * True while this client is still rendering a stream for the chat.
- *
- * The optimistic markers alone are not enough: a finished turn can leave
- * `activeStreamId` and its live-assistant message in the cache (finalization
- * skips detail invalidation when a follow-up is queued), and treating those as
- * live would exclude the chat from every future resync — permanently, since
- * only a refetch would clear them. Requiring a non-terminal snapshot status
- * keeps the skip to turns that are genuinely still streaming.
- */
-function isStreamingLocally(current: MothershipChatHistory | undefined) {
-  return (
-    isLocalOptimisticActiveStream(current) &&
-    !isTerminalStreamStatus(current?.streamSnapshot?.status)
-  )
 }
 
 /**
@@ -152,28 +132,25 @@ export function handleMothershipChatStatusEvent(
 }
 
 /**
- * Re-syncs chat caches after a gap in the event stream.
+ * Re-syncs the workspace chat lists after a gap in the event stream.
  *
  * `task_status` events are transient — nothing replays what was published while
- * no connection was open — so any reconnect may have missed a create, rename,
- * delete, or completion. Invalidating the workspace lists and every chat detail
- * reconciles from the server; only queries that are currently mounted refetch.
+ * no connection was open — so a reconnect may have missed a create, rename, or
+ * delete. The lists carry that workspace-level state, and refetching them is
+ * always safe.
  *
- * A chat this client is still streaming is left alone, for the same reason
- * status events skip it: refetching mid-stream would replace the optimistic
- * transcript with a server copy that does not yet hold the in-flight message.
- * That chat reconciles when its own stream finishes.
+ * Chat details are deliberately left alone. The only one that would refetch is
+ * the mounted chat, which may be rendering an in-flight stream, and refetching
+ * there replaces the optimistic transcript with a server copy that does not yet
+ * hold the streaming message. Cached state cannot reliably say whether a turn is
+ * still running — the optimistic markers outlive it — so detail reconciliation
+ * stays as it is today and belongs with the streaming state that can answer it.
  */
 export function resyncMothershipChatCaches(
   queryClient: Pick<QueryClient, 'invalidateQueries'>,
   workspaceId: string
 ): void {
   queryClient.invalidateQueries({ queryKey: mothershipChatKeys.workspaceLists(workspaceId) })
-  queryClient.invalidateQueries({
-    queryKey: mothershipChatKeys.details(),
-    predicate: (query) =>
-      !isStreamingLocally(query.state.data as MothershipChatHistory | undefined),
-  })
 }
 
 /**

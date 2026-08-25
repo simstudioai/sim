@@ -29,16 +29,22 @@ const encoder = new TextEncoder()
 export const HEARTBEAT_INTERVAL_MS = 30_000
 
 /**
- * Hard ceiling on one connection's lifetime.
+ * Defensive ceiling on one connection's lifetime; `EventSource` reconnects past
+ * this, so delivery continues across the boundary.
  *
  * `request.signal` abort and stream `cancel()` are the primary teardown paths,
- * but both fire only when the runtime reports the client disconnect. This
- * ceiling releases the connection without depending on that report, so a
- * missed disconnect costs one connection rather than accumulating for the life
- * of the process. `EventSource` reconnects on its own, so delivery continues
- * across the boundary.
+ * but both fire only when the runtime reports the client disconnect, and the
+ * unread check below only catches a consumer that has stopped draining. This
+ * releases whatever both miss, so retention is bounded by the ceiling instead
+ * of by process uptime.
+ *
+ * Matches the ceiling `lib/realtime/event-stream-route.ts` already uses for the
+ * same purpose. It is deliberately far longer than the unread window: a healthy
+ * client is drained and therefore never unread, so a short ceiling would only
+ * force reconnects on the connections that are working, and every reconnect is
+ * a window in which a transient event can be missed.
  */
-export const MAX_CONNECTION_MS = 15 * 60 * 1000
+export const MAX_CONNECTION_MS = 4 * 60 * 60 * 1000
 
 /** Spreads reconnects so connections opened together do not expire together. */
 export const MAX_CONNECTION_JITTER_MS = 60_000

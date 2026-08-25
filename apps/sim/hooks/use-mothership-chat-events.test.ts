@@ -432,55 +432,20 @@ describe('resyncMothershipChatCaches', () => {
     vi.clearAllMocks()
   })
 
-  function detailPredicate() {
-    resyncMothershipChatCaches(queryClient, 'ws-1')
-    const predicate = queryClient.invalidateQueries.mock.calls
-      .map(([arg]: [{ predicate?: (query: unknown) => boolean }]) => arg.predicate)
-      .find(Boolean)
-    if (!predicate) throw new Error('detail invalidation did not pass a predicate')
-    return (data: unknown) => predicate({ state: { data } })
-  }
-
-  it('invalidates the workspace lists and the chat details', () => {
+  it('invalidates the workspace lists', () => {
     resyncMothershipChatCaches(queryClient, 'ws-1')
 
-    expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(2)
+    expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(1)
     expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
       queryKey: mothershipChatKeys.workspaceLists('ws-1'),
     })
-    expect(queryClient.invalidateQueries).toHaveBeenCalledWith(
+  })
+
+  it('leaves chat details untouched so a mounted stream cannot be refetched mid-turn', () => {
+    resyncMothershipChatCaches(queryClient, 'ws-1')
+
+    expect(queryClient.invalidateQueries).not.toHaveBeenCalledWith(
       expect.objectContaining({ queryKey: mothershipChatKeys.details() })
     )
-  })
-
-  it('skips the detail of a chat this client is still streaming', () => {
-    expect(
-      detailPredicate()({
-        messages: [{ id: 'new-stream' }, { id: 'live-assistant:new-stream' }],
-        activeStreamId: 'new-stream',
-        streamSnapshot: { events: [], previewSessions: [], status: 'streaming' },
-      })
-    ).toBe(false)
-  })
-
-  it('invalidates a chat whose stream finished but left its optimistic markers cached', () => {
-    const predicate = detailPredicate()
-    const finished = (status: string) => ({
-      messages: [{ id: 'new-stream' }, { id: 'live-assistant:new-stream' }],
-      activeStreamId: 'new-stream',
-      streamSnapshot: { events: [], previewSessions: [], status },
-    })
-
-    expect(predicate(finished('complete'))).toBe(true)
-    expect(predicate(finished('error'))).toBe(true)
-    expect(predicate(finished('cancelled'))).toBe(true)
-  })
-
-  it('invalidates details with no active stream, and streams not rendered locally', () => {
-    const predicate = detailPredicate()
-
-    expect(predicate(undefined)).toBe(true)
-    expect(predicate({ messages: [{ id: 'stream-1' }] })).toBe(true)
-    expect(predicate({ messages: [{ id: 'stream-1' }], activeStreamId: 'stream-1' })).toBe(true)
   })
 })
