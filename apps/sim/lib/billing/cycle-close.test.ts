@@ -110,19 +110,27 @@ function subRow(overrides: Partial<Record<string, unknown>> = {}): SubInput {
 
 /**
  * Queues the org close's reads in table order: member roster, in-tx member
- * userStats lock, organization credit row, subscription marker re-read, and
- * the tracker userStats row.
+ * userStats lock, organization credit row, subscription marker re-read, the
+ * under-lock roster revalidation, and the tracker userStats row.
  */
 function queueOrgCloseReads({
   members = [{ userId: 'owner-1', role: 'owner' }],
   orgRow = { creditBalance: '0' },
   markerRow = { lastClosedPeriodStart: PREV_PERIOD_START },
+  lockedRoster = members,
   trackerRow = { billedOverageThisPeriod: '0', creditBalance: '0' },
+}: {
+  members?: { userId: string; role: string }[]
+  orgRow?: Record<string, unknown>
+  markerRow?: Record<string, unknown>
+  lockedRoster?: { userId: string; role: string }[]
+  trackerRow?: Record<string, unknown>
 } = {}) {
   queueTableRows(schemaMock.member, members)
   queueTableRows(schemaMock.userStats, [])
   queueTableRows(schemaMock.organization, [orgRow])
   queueTableRows(schemaMock.subscription, [markerRow])
+  queueTableRows(schemaMock.member, lockedRoster)
   queueTableRows(schemaMock.userStats, [trackerRow])
 }
 
@@ -297,6 +305,21 @@ describe('closeElapsedBillingPeriod', () => {
     expect(mockRecordAudit).not.toHaveBeenCalled()
   })
 
+  it('defers when the organization roster changed between preflight and the locked transaction', async () => {
+    queueOrgCloseReads({
+      lockedRoster: [
+        { userId: 'owner-1', role: 'member' },
+        { userId: 'member-2', role: 'owner' },
+      ],
+    })
+
+    const result = await closeElapsedBillingPeriod(subRow())
+
+    expect(result.status).toBe('skipped')
+    expect(mockEnqueueOutboxEvent).not.toHaveBeenCalled()
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+  })
+
   it('no-ops when a concurrent closer already advanced the marker', async () => {
     queueOrgCloseReads({ markerRow: { lastClosedPeriodStart: PERIOD_START } })
 
@@ -451,16 +474,18 @@ describe('sweepBillingCycleCloses', () => {
     mockIsEnterprise.mockReturnValue(false)
   })
 
-  it('initializes lagging markers and isolates per-subscription failures', async () => {
+  it('initializes every candidate with a lagging marker', async () => {
+    // Both rows are shaped like rows the sweep's candidate query can actually
+    // return: entitled, non-null periodStart, marker lagging (null).
     queueTableRows(schemaMock.subscription, [
       subRow({ id: 'sub-a', lastClosedPeriodStart: null }),
-      subRow({ id: 'sub-b', lastClosedPeriodStart: null, periodStart: null }),
+      subRow({ id: 'sub-b', lastClosedPeriodStart: null }),
     ])
 
     const summary = await sweepBillingCycleCloses()
 
     expect(summary.candidates).toBe(2)
-    expect(summary.initialized).toBe(1)
+    expect(summary.initialized).toBe(2)
     expect(summary.failed).toBe(0)
   })
 })

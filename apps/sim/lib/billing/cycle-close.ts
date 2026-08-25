@@ -62,6 +62,14 @@ function minusOneInterval(date: Date, billingInterval: string | null): Date {
   return result
 }
 
+/** Order-insensitive membership fingerprint for under-lock roster revalidation. */
+function rosterSignature(rows: { userId: string; role: string }[]): string {
+  return rows
+    .map((row) => `${row.userId}:${row.role}`)
+    .sort()
+    .join('|')
+}
+
 function hasEnterpriseReportingAnchor(sub: { plan: string | null; metadata?: unknown }): boolean {
   return (
     isEnterprise(sub.plan) &&
@@ -299,7 +307,9 @@ export async function closeElapsedBillingPeriod(sub: SubscriptionRow): Promise<C
     }
   }
 
-  const billingPeriodLabel = closeFrom.toISOString().slice(0, 7)
+  // Labels use the closed period's END month, matching threshold billing's
+  // period-end labeling for overage invoices.
+  const billingPeriodLabel = periodStart.toISOString().slice(0, 7)
   const collectMoney = !enterprise && totalOverage > 0
   if (collectMoney && (!sub.stripeCustomerId || !sub.stripeSubscriptionId)) {
     // Claiming the marker here would silently forgive the overage. Defer the
@@ -331,7 +341,11 @@ export async function closeElapsedBillingPeriod(sub: SubscriptionRow): Promise<C
   const closeResult = await db.transaction(
     async (
       tx
-    ): Promise<{ status: 'closed' | 'already-closed'; billed: number; creditsApplied: number }> => {
+    ): Promise<{
+      status: 'closed' | 'already-closed' | 'membership-changed'
+      billed: number
+      creditsApplied: number
+    }> => {
       await tx.execute(sql.raw(`SET LOCAL lock_timeout = '${BILLING_LOCK_TIMEOUT_MS}ms'`))
 
       // Canonical lock order: member userStats rows, then the organization row.
@@ -366,6 +380,20 @@ export async function closeElapsedBillingPeriod(sub: SubscriptionRow): Promise<C
         current.lastClosedPeriodStart.getTime() >= periodStart.getTime()
       ) {
         return { status: 'already-closed', billed: 0, creditsApplied: 0 }
+      }
+
+      // Re-read the roster under the locks, mirroring threshold billing: an
+      // owner transfer moves `billedOverageThisPeriod` between rows, so a
+      // roster read from before the locks could settle against the wrong
+      // tracker or reset a stale member set. The sweep simply retries.
+      if (orgScoped) {
+        const lockedRoster = await tx
+          .select({ userId: member.userId, role: member.role })
+          .from(member)
+          .where(eq(member.organizationId, sub.referenceId))
+        if (rosterSignature(lockedRoster) !== rosterSignature(memberRows)) {
+          return { status: 'membership-changed', billed: 0, creditsApplied: 0 }
+        }
       }
 
       let billed = 0
@@ -480,6 +508,13 @@ export async function closeElapsedBillingPeriod(sub: SubscriptionRow): Promise<C
 
   if (closeResult.status === 'already-closed') {
     return { ...base, status: 'already-closed' }
+  }
+  if (closeResult.status === 'membership-changed') {
+    logger.info('Deferring cycle close: organization membership changed mid-close', {
+      subscriptionId: sub.id,
+      organizationId: sub.referenceId,
+    })
+    return base
   }
 
   logger.info('Closed billing period', {
