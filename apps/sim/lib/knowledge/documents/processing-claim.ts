@@ -91,6 +91,7 @@ export async function failStaleDocumentProcessingClaim({
     .set({
       processingStatus: 'failed',
       processingError: 'Processing timed out. Please retry or re-sync the connector.',
+      processingDeferredUntil: null,
       processingCompletedAt: now,
     })
     .where(
@@ -144,6 +145,7 @@ export async function failUndispatchedDocumentProcessing({
     .set({
       processingStatus: 'failed',
       processingError: error,
+      processingDeferredUntil: null,
       processingCompletedAt: now,
     })
     .where(

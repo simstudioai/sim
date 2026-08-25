@@ -307,6 +307,7 @@ export interface StuckDocumentSweepCandidate {
   processingStatus: DocumentProcessingStatus
   processingQueuedAt: Date | null
   processingStartedAt: Date | null
+  processingDeferredUntil: Date | null
   processingCompletedAt: Date | null
   uploadedAt: Date
 }
@@ -366,6 +367,12 @@ export function isStuckDocumentSweepEligible(doc: StuckDocumentSweepCandidate, n
       return now.getTime() - lastAttemptEndedAt.getTime() > QUEUED_DISPATCH_GRACE_MS
     }
     case 'pending': {
+      if (doc.processingDeferredUntil) {
+        return (
+          now.getTime() - doc.processingDeferredUntil.getTime() >
+          STALE_PROCESSING_MINUTES * 60 * 1000
+        )
+      }
       const queuedAt = doc.processingQueuedAt ?? doc.uploadedAt
       return now.getTime() - queuedAt.getTime() > QUEUED_DISPATCH_GRACE_MS
     }
@@ -387,7 +394,7 @@ export function stuckDocumentSweepAgeAnchor(doc: StuckDocumentSweepCandidate): D
     case 'failed':
       return doc.processingCompletedAt ?? doc.processingQueuedAt ?? doc.uploadedAt
     case 'pending':
-      return doc.processingQueuedAt ?? doc.uploadedAt
+      return doc.processingDeferredUntil ?? doc.processingQueuedAt ?? doc.uploadedAt
     case 'processing':
       return doc.processingStartedAt ?? new Date(0)
     case 'completed':
@@ -2833,6 +2840,7 @@ export async function executeSync(
         processingStatus: document.processingStatus,
         processingQueuedAt: document.processingQueuedAt,
         processingStartedAt: document.processingStartedAt,
+        processingDeferredUntil: document.processingDeferredUntil,
         processingCompletedAt: document.processingCompletedAt,
         uploadedAt: document.uploadedAt,
       })
@@ -2848,7 +2856,16 @@ export async function executeSync(
             ),
             and(
               eq(document.processingStatus, 'pending'),
-              sql`COALESCE(${document.processingQueuedAt}, ${document.uploadedAt}) < ${sql.param(queuedGraceCutoff, document.processingQueuedAt)}`
+              or(
+                and(
+                  isNotNull(document.processingDeferredUntil),
+                  lt(document.processingDeferredUntil, processingStaleCutoff)
+                ),
+                and(
+                  isNull(document.processingDeferredUntil),
+                  sql`COALESCE(${document.processingQueuedAt}, ${document.uploadedAt}) < ${sql.param(queuedGraceCutoff, document.processingQueuedAt)}`
+                )
+              )
             ),
             and(
               eq(document.processingStatus, 'processing'),
@@ -2874,7 +2891,7 @@ export async function executeSync(
           WHEN ${document.processingStatus} = 'failed'
             THEN COALESCE(${document.processingCompletedAt}, ${document.processingQueuedAt}, ${document.uploadedAt})
           WHEN ${document.processingStatus} = 'pending'
-            THEN COALESCE(${document.processingQueuedAt}, ${document.uploadedAt})
+            THEN COALESCE(${document.processingDeferredUntil}, ${document.processingQueuedAt}, ${document.uploadedAt})
           ELSE COALESCE(${document.processingStartedAt}, ${sql.param(new Date(0), document.processingStartedAt)})
         END`),
         asc(document.id)
@@ -2924,6 +2941,7 @@ export async function executeSync(
               processingStatus: document.processingStatus,
               processingQueuedAt: document.processingQueuedAt,
               processingStartedAt: document.processingStartedAt,
+              processingDeferredUntil: document.processingDeferredUntil,
               processingCompletedAt: document.processingCompletedAt,
               uploadedAt: document.uploadedAt,
             })
@@ -2966,6 +2984,7 @@ export async function executeSync(
                 processingQueuedAt: null,
                 processingQueueToken: null,
                 processingStartedAt: null,
+                processingDeferredUntil: null,
                 processingCompletedAt: null,
                 processingError: null,
                 chunkCount: 0,
@@ -3317,6 +3336,7 @@ export async function persistSkippedDocuments(
           processingStatus: skipped.processingStatus,
           processingError: skipped.processingError,
           processingStartedAt: null,
+          processingDeferredUntil: null,
           processingCompletedAt: new Date(),
           processingQueuedAt: null,
           processingQueueToken: null,
@@ -3552,6 +3572,7 @@ async function updateDocument(
           /** Prevents an older delayed worker from claiming newly stored content. */
           processingQueuedAt: null,
           processingQueueToken: null,
+          processingDeferredUntil: null,
           /** A new document version starts with a fresh unattended-retry budget. */
           processingAttempts: 0,
           processingStartedAt: null,

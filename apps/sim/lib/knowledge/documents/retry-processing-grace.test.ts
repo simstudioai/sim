@@ -265,6 +265,23 @@ describe('retryDocumentProcessing requeue guard', () => {
       expect((fragment.values[2] as { value: Date }).value).toEqual(
         new Date(now.getTime() - QUEUED_DISPATCH_GRACE_MS)
       )
+      expect(
+        hasBranch(
+          statusGuard(),
+          (node: MockCondition) =>
+            node.type === 'isNull' && node.column === schemaMock.document.processingDeferredUntil
+        )
+      ).toBe(true)
+      expect(
+        hasBranch(
+          statusGuard(),
+          (node: MockCondition) =>
+            node.type === 'lt' &&
+            node.left === schemaMock.document.processingDeferredUntil &&
+            node.right instanceof Date &&
+            node.right.getTime() === now.getTime() - QUEUED_DISPATCH_GRACE_MS
+        )
+      ).toBe(true)
     } finally {
       vi.useRealTimers()
     }
@@ -283,6 +300,8 @@ describe('retryDocumentProcessing requeue guard', () => {
       processingStatus: 'pending' as const,
       processingQueuedAt: null,
       processingStartedAt: null,
+      processingDeferredUntil: null,
+      processingCompletedAt: null,
       uploadedAt,
     }
 

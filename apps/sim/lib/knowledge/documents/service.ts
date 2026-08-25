@@ -775,6 +775,7 @@ async function markDocumentsQueued(
         processingQueuedAt: queuedAt,
         processingQueueToken: queueToken,
         processingStartedAt: null,
+        processingDeferredUntil: null,
         // Spent here because this is the one write every dispatch passes through,
         // and it is already guarded — so the budget cannot be charged twice for a
         // single dispatch, nor skipped by a caller that dispatches another way.
@@ -823,6 +824,7 @@ async function markDocumentsQueued(
                   )
                 ),
                 isNotNull(document.processingQueuedAt),
+                isNull(document.processingDeferredUntil),
                 eq(document.userExcluded, false),
                 isNull(document.archivedAt),
                 isNull(document.deletedAt)
@@ -1125,6 +1127,8 @@ export interface DocumentProcessingAttemptContext {
   readonly processingQueueToken?: string
   /** Queue generation this invocation is allowed to claim. */
   readonly processingQueuedAt?: Date
+  /** Durably schedules the next quota attempt and returns its execution time. */
+  readonly scheduleQuotaContinuation?: () => Promise<Date>
 }
 
 async function dispatchInProcess(
@@ -1147,6 +1151,7 @@ async function dispatchInProcess(
             chargedAtDispatch: p.chargedAtDispatch ?? true,
             processingQueueToken: p.processingQueueToken,
             ...(p.processingQueuedAt ? { processingQueuedAt: new Date(p.processingQueuedAt) } : {}),
+            scheduleQuotaContinuation: () => scheduleDocumentProcessingQuotaContinuation(p),
           }
         )
         return true
@@ -1158,20 +1163,11 @@ async function dispatchInProcess(
           return true
         }
         if (isEmbeddingQuotaExhaustion(error)) {
-          try {
-            await scheduleDocumentProcessingQuotaContinuation(p)
-            logger.warn(`[${requestId}] Embedding quota is exhausted; continuation scheduled`, {
-              documentId: p.documentId,
-              quotaRetryCount: p.quotaRetryCount ?? 0,
-            })
-            return true
-          } catch (continuationError) {
-            logger.error(`[${requestId}] Failed to schedule embedding quota continuation`, {
-              documentId: p.documentId,
-              error: getErrorMessage(continuationError),
-            })
-            return false
-          }
+          logger.warn(`[${requestId}] Embedding quota is exhausted; continuation scheduled`, {
+            documentId: p.documentId,
+            quotaRetryCount: p.quotaRetryCount ?? 0,
+          })
+          return true
         }
         logger.error(`[${requestId}] Document dispatch failed`, { error: getErrorMessage(error) })
         return false
@@ -1294,6 +1290,7 @@ export async function processDocumentAsync(
         .set({
           processingStatus: 'failed',
           processingError: 'Document or knowledge base no longer exists',
+          processingDeferredUntil: null,
           processingCompletedAt: new Date(),
         })
         // Never overwrite a finished pass, and never resurrect state on a row
@@ -1338,6 +1335,7 @@ export async function processDocumentAsync(
       .set({
         processingStatus: 'processing',
         processingStartedAt,
+        processingDeferredUntil: null,
         processingCompletedAt: null,
         processingError: null,
       })
@@ -1425,6 +1423,7 @@ export async function processDocumentAsync(
           processingStatus: 'failed',
           processingError:
             usageGate.message ?? 'Usage limit exceeded. Please upgrade your plan to continue.',
+          processingDeferredUntil: null,
           processingCompletedAt: new Date(),
         })
         .where(
@@ -1638,6 +1637,7 @@ export async function processDocumentAsync(
                 processingAttempts: 0,
                 processingQueueToken: null,
                 processingQueuedAt: null,
+                processingDeferredUntil: null,
               })
               .where(
                 and(
@@ -1744,18 +1744,33 @@ export async function processDocumentAsync(
     const processingTime = Date.now() - startTime
     const embeddingQuotaExhausted = isEmbeddingQuotaExhaustion(error)
     const permanentError = toPermanentDocumentProcessingError(error, processingFilename)
-    const recordedError = permanentError ?? error
+    let recordedError = permanentError ?? error
+    let quotaDeferredUntil: Date | null = null
+    let quotaContinuationAttempted = false
+    if (embeddingQuotaExhausted && attemptContext?.scheduleQuotaContinuation) {
+      quotaContinuationAttempted = true
+      try {
+        quotaDeferredUntil = await attemptContext.scheduleQuotaContinuation()
+      } catch (continuationError) {
+        recordedError = continuationError
+      }
+    }
+    const quotaContinuationFailed = quotaContinuationAttempted && !quotaDeferredUntil
     const errorMessage = embeddingQuotaExhausted
-      ? EMBEDDING_QUOTA_EXHAUSTED_MESSAGE
+      ? quotaContinuationFailed
+        ? getErrorMessage(recordedError, 'Embedding quota continuation dispatch failed')
+        : EMBEDDING_QUOTA_EXHAUSTED_MESSAGE
       : getErrorMessage(recordedError, 'Unknown error')
     const logContext = {
-      errorType: toError(error).name,
+      errorType: toError(recordedError).name,
       knowledgeBaseId,
       mimeType: docData.mimeType,
       fileSize: docData.fileSize,
     }
-    const logMessage = `[${documentId}] Failed to process document after ${processingTime}ms:`
-    if (embeddingQuotaExhausted || permanentError) {
+    const logMessage = quotaDeferredUntil
+      ? `[${documentId}] Deferred document processing after ${processingTime}ms:`
+      : `[${documentId}] Failed to process document after ${processingTime}ms:`
+    if ((embeddingQuotaExhausted && !quotaContinuationFailed) || permanentError) {
       logger.warn(logMessage, logContext)
     } else {
       logger.error(logMessage, logContext)
@@ -1764,9 +1779,14 @@ export async function processDocumentAsync(
     await db
       .update(document)
       .set({
-        processingStatus: 'failed',
-        processingError: errorMessage,
-        processingCompletedAt: new Date(),
+        processingStatus: quotaDeferredUntil ? 'pending' : 'failed',
+        processingError: quotaDeferredUntil ? null : errorMessage,
+        processingStartedAt: quotaDeferredUntil ? null : processingStartedAt,
+        ...(quotaDeferredUntil && attemptContext?.processingQueueToken
+          ? { processingQueuedAt: quotaDeferredUntil }
+          : {}),
+        processingDeferredUntil: quotaDeferredUntil,
+        processingCompletedAt: quotaDeferredUntil ? null : new Date(),
         ...(permanentError
           ? { processingAttempts: MAX_PROCESSING_ATTEMPTS }
           : embeddingQuotaExhausted && attemptContext?.chargedAtDispatch
@@ -3007,6 +3027,7 @@ export async function retryDocumentProcessing(
         processingQueuedAt: null,
         processingQueueToken: null,
         processingStartedAt: null,
+        processingDeferredUntil: null,
         processingCompletedAt: null,
         processingError: null,
         chunkCount: 0,
@@ -3020,7 +3041,11 @@ export async function retryDocumentProcessing(
             inArray(document.processingStatus, ['completed', 'failed']),
             and(
               eq(document.processingStatus, 'pending'),
-              sql`COALESCE(${document.processingQueuedAt}, ${document.uploadedAt}) < ${sql.param(queuedGraceCutoff, document.processingQueuedAt)}`
+              sql`COALESCE(${document.processingQueuedAt}, ${document.uploadedAt}) < ${sql.param(queuedGraceCutoff, document.processingQueuedAt)}`,
+              or(
+                isNull(document.processingDeferredUntil),
+                lt(document.processingDeferredUntil, queuedGraceCutoff)
+              )
             )
           ),
           isNull(document.archivedAt),

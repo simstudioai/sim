@@ -121,6 +121,7 @@ describe('failStaleDocumentProcessingClaim', () => {
     expect(dbChainMockFns.set).toHaveBeenCalledWith({
       processingStatus: 'failed',
       processingError: 'Processing timed out. Please retry or re-sync the connector.',
+      processingDeferredUntil: null,
       processingCompletedAt: NOW,
     })
   })
@@ -187,6 +188,7 @@ describe('failUndispatchedDocumentProcessing', () => {
     expect(dbChainMockFns.set).toHaveBeenCalledWith({
       processingStatus: 'failed',
       processingError: 'Failed to start processing',
+      processingDeferredUntil: null,
       processingCompletedAt: NOW,
     })
   })

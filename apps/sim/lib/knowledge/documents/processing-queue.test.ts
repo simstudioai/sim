@@ -280,6 +280,12 @@ describe('processDocumentsWithQueue dispatch backend', () => {
     )
 
     expect(result).toEqual({ requested: 1, accepted: 1, failed: 0, failedDocumentIds: [] })
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        processingQueueToken: 'request-1',
+        processingDeferredUntil: null,
+      })
+    )
   })
 
   it('does not dispatch when a different request owns the queue generation', async () => {
@@ -417,6 +423,13 @@ describe('processDocumentsWithQueue dispatch backend', () => {
     expect(resumeWrite?.[0]).not.toHaveProperty('processingAttempts')
 
     const resumeGuard = guardForResumeWrite()
+    expect(
+      hasMockCondition(
+        resumeGuard,
+        (node: MockCondition) =>
+          node.type === 'isNull' && node.column === schemaMock.document.processingDeferredUntil
+      )
+    ).toBe(true)
     const sameTokenBranch = resumeAlternatives(resumeGuard).find((condition) =>
       hasMockCondition(
         condition,

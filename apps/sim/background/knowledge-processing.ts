@@ -59,6 +59,7 @@ export async function runDocumentProcessing(
         ...(payload.processingQueuedAt
           ? { processingQueuedAt: new Date(payload.processingQueuedAt) }
           : {}),
+        scheduleQuotaContinuation: () => scheduleDocumentProcessingQuotaContinuation(payload),
       }
     )
 
@@ -76,7 +77,6 @@ export async function runDocumentProcessing(
         filename: docData.filename,
         quotaRetryCount: payload.quotaRetryCount ?? 0,
       })
-      await scheduleDocumentProcessingQuotaContinuation(payload)
       return {
         success: false,
         outcome: 'quota_deferred' as const,

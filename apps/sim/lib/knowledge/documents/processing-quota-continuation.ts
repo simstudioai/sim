@@ -21,17 +21,24 @@ export function resolveQuotaContinuationDelayMs(quotaRetryCount: number): number
  */
 export async function scheduleDocumentProcessingQuotaContinuation(
   payload: DocumentProcessingPayload
-): Promise<void> {
+): Promise<Date> {
   const quotaRetryCount = (payload.quotaRetryCount ?? 0) + 1
   const delayMs = resolveQuotaContinuationDelayMs(quotaRetryCount)
+  const region = await resolveTriggerRegion()
+  const deferredUntil = new Date(Date.now() + delayMs)
   await tasks.trigger(
     'knowledge-process-document',
-    { ...payload, quotaRetryCount },
     {
-      delay: new Date(Date.now() + delayMs),
+      ...payload,
+      ...(payload.processingQueueToken ? { processingQueuedAt: deferredUntil.toISOString() } : {}),
+      quotaRetryCount,
+    },
+    {
+      delay: deferredUntil,
       idempotencyKey: `knowledge-quota-${payload.documentId}-${payload.requestId}-${quotaRetryCount}`,
       tags: [`knowledgeBaseId:${payload.knowledgeBaseId}`, `documentId:${payload.documentId}`],
-      region: await resolveTriggerRegion(),
+      region,
     }
   )
+  return deferredUntil
 }

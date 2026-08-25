@@ -2557,6 +2557,8 @@ export const document = pgTable(
     /** Opaque dispatch generation; NULL identifies payloads created before token rollout. */
     processingQueueToken: text('processing_queue_token'),
     processingStartedAt: timestamp('processing_started_at'),
+    /** Scheduled execution time of an accepted durable quota continuation. */
+    processingDeferredUntil: timestamp('processing_deferred_until'),
     processingCompletedAt: timestamp('processing_completed_at'),
     processingError: text('processing_error'),
 

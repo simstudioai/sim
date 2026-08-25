@@ -641,6 +641,7 @@ describe('connector content replacement processing state', () => {
         processingStatus: 'pending',
         processingQueuedAt: null,
         processingQueueToken: null,
+        processingDeferredUntil: null,
         processingAttempts: 0,
       })
     )
@@ -719,6 +720,7 @@ describe('persistSkippedDocuments', () => {
         processingError: 'Document contains no extractable text',
         processingQueuedAt: null,
         processingQueueToken: null,
+        processingDeferredUntil: null,
         processingAttempts: 0,
         chunkCount: 0,
         contentHash: 'new-empty-hash',
@@ -1392,6 +1394,7 @@ describe('isStuckDocumentSweepEligible', () => {
     overrides: {
       processingQueuedAt?: Date | null
       processingStartedAt?: Date | null
+      processingDeferredUntil?: Date | null
       processingCompletedAt?: Date | null
       uploadedAt?: Date
     } = {}
@@ -1399,6 +1402,7 @@ describe('isStuckDocumentSweepEligible', () => {
     processingStatus,
     processingQueuedAt: overrides.processingQueuedAt ?? null,
     processingStartedAt: overrides.processingStartedAt ?? null,
+    processingDeferredUntil: overrides.processingDeferredUntil ?? null,
     processingCompletedAt: overrides.processingCompletedAt ?? null,
     uploadedAt: overrides.uploadedAt ?? minutesBefore(5),
   })
@@ -1456,6 +1460,27 @@ describe('isStuckDocumentSweepEligible', () => {
         now
       )
     ).toBe(false)
+  })
+
+  it('reclaims a quota-deferred document only after its due time is stale', () => {
+    expect(
+      isStuckDocumentSweepEligible(
+        candidate('pending', { processingDeferredUntil: minutesBefore(44) }),
+        now
+      )
+    ).toBe(false)
+    expect(
+      isStuckDocumentSweepEligible(
+        candidate('pending', { processingDeferredUntil: minutesBefore(45) }),
+        now
+      )
+    ).toBe(false)
+    expect(
+      isStuckDocumentSweepEligible(
+        candidate('pending', { processingDeferredUntil: minutesBefore(46) }),
+        now
+      )
+    ).toBe(true)
   })
 
   it('leaves a failed document alone while its Trigger retries may still run', () => {
@@ -1574,6 +1599,7 @@ describe('selectStuckDocumentSweepCandidates', () => {
   const oldCandidate = {
     processingQueuedAt: minutesBefore(300),
     processingStartedAt: null,
+    processingDeferredUntil: null,
     processingCompletedAt: null,
     uploadedAt: minutesBefore(600),
   }
@@ -1599,6 +1625,19 @@ describe('selectStuckDocumentSweepCandidates', () => {
         processingStatus: 'processing',
         ...oldCandidate,
         processingStartedAt: minutesBefore(1),
+      },
+    },
+    {
+      name: 'live quota continuation',
+      stale: {
+        processingStatus: 'pending',
+        ...oldCandidate,
+        processingDeferredUntil: minutesBefore(60),
+      },
+      fresh: {
+        processingStatus: 'pending',
+        ...oldCandidate,
+        processingDeferredUntil: minutesBefore(1),
       },
     },
     {

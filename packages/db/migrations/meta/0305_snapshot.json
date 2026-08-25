@@ -1,5 +1,5 @@
 {
-  "id": "4bfa1805-bd0f-4227-91f2-e42fa7d5caab",
+  "id": "855c9701-d55f-4235-bd0d-3482653452bd",
   "prevId": "8b1525ae-147f-4e93-a624-0f5cff95a1d5",
   "version": "7",
   "dialect": "postgresql",
@@ -4780,6 +4780,12 @@
         },
         "processing_started_at": {
           "name": "processing_started_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "processing_deferred_until": {
+          "name": "processing_deferred_until",
           "type": "timestamp",
           "primaryKey": false,
           "notNull": false

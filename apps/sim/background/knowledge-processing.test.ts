@@ -69,6 +69,16 @@ const WORKSPACE_PAYLOAD = {
   billingAttribution: BILLING_ATTRIBUTION,
 }
 
+function mockQuotaExhaustion(error: EmbeddingQuotaExhaustedError): void {
+  mockProcessDocumentAsync.mockImplementation(async (...args: unknown[]) => {
+    const attemptContext = args[6] as {
+      scheduleQuotaContinuation?: () => Promise<Date>
+    }
+    await attemptContext.scheduleQuotaContinuation?.()
+    throw error
+  })
+}
+
 describe('knowledge processing worker', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -163,7 +173,10 @@ describe('knowledge processing worker', () => {
       {},
       expect.objectContaining({ billingScope: 'workspace' }),
       'request-1',
-      { chargedAtDispatch: false }
+      expect.objectContaining({
+        chargedAtDispatch: false,
+        scheduleQuotaContinuation: expect.any(Function),
+      })
     )
   })
 
@@ -204,10 +217,11 @@ describe('knowledge processing worker', () => {
         billingAttribution: BILLING_ATTRIBUTION,
       },
       BASE_PAYLOAD.requestId,
-      {
+      expect.objectContaining({
         chargedAtDispatch: true,
         processingQueuedAt: new Date(BASE_PAYLOAD.processingQueuedAt),
-      }
+        scheduleQuotaContinuation: expect.any(Function),
+      })
     )
   })
 
@@ -250,10 +264,11 @@ describe('knowledge processing worker', () => {
         workspaceId: null,
       },
       BASE_PAYLOAD.requestId,
-      {
+      expect.objectContaining({
         chargedAtDispatch: true,
         processingQueuedAt: new Date(BASE_PAYLOAD.processingQueuedAt),
-      }
+        scheduleQuotaContinuation: expect.any(Function),
+      })
     )
   })
 
@@ -310,7 +325,7 @@ describe('knowledge processing worker', () => {
   it('durably continues quota exhaustion beyond the task attempt budget', async () => {
     vi.spyOn(Date, 'now').mockReturnValue(1_000)
     const quotaError = new EmbeddingQuotaExhaustedError('openai')
-    mockProcessDocumentAsync.mockRejectedValue(quotaError)
+    mockQuotaExhaustion(quotaError)
 
     await expect(
       runDocumentProcessing({
@@ -326,6 +341,7 @@ describe('knowledge processing worker', () => {
       expect.objectContaining({
         documentId: 'document-1',
         requestId: 'request-1',
+        processingQueuedAt: BASE_PAYLOAD.processingQueuedAt,
         quotaRetryCount: 1,
       }),
       expect.objectContaining({
@@ -337,7 +353,7 @@ describe('knowledge processing worker', () => {
   })
 
   it('keeps the task failed when the durable continuation handoff fails', async () => {
-    mockProcessDocumentAsync.mockRejectedValue(new EmbeddingQuotaExhaustedError('openai'))
+    mockQuotaExhaustion(new EmbeddingQuotaExhaustedError('openai'))
     const dispatchError = new Error('Trigger dispatch unavailable')
     mockTrigger.mockRejectedValue(dispatchError)
 
@@ -352,7 +368,7 @@ describe('knowledge processing worker', () => {
   })
 
   it('continues an existing quota chain with the same indexing pass identity', async () => {
-    mockProcessDocumentAsync.mockRejectedValue(new EmbeddingQuotaExhaustedError('openai'))
+    mockQuotaExhaustion(new EmbeddingQuotaExhaustedError('openai'))
 
     await runDocumentProcessing({
       ...BASE_PAYLOAD,
@@ -393,10 +409,11 @@ describe('knowledge processing worker', () => {
         workspaceId: null,
       },
       BASE_PAYLOAD.requestId,
-      {
+      expect.objectContaining({
         chargedAtDispatch: false,
         processingQueuedAt: new Date(BASE_PAYLOAD.processingQueuedAt),
-      }
+        scheduleQuotaContinuation: expect.any(Function),
+      })
     )
   })
 
@@ -416,10 +433,11 @@ describe('knowledge processing worker', () => {
       {},
       expect.objectContaining({ billingScope: 'non-workspace' }),
       BASE_PAYLOAD.requestId,
-      {
+      expect.objectContaining({
         chargedAtDispatch: false,
         processingQueuedAt: new Date(BASE_PAYLOAD.processingQueuedAt),
-      }
+        scheduleQuotaContinuation: expect.any(Function),
+      })
     )
   })
 })
