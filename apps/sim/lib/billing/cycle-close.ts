@@ -314,6 +314,19 @@ export async function closeElapsedBillingPeriod(sub: SubscriptionRow): Promise<C
     })
     return base
   }
+  if (collectMoney && orgScoped && !trackerUserId) {
+    // Same defer as missing Stripe state: without an owner row there is no
+    // billed-overage tracker or credit target, and claiming the marker would
+    // silently forgive the overage. The sweep retries once ownership is
+    // repaired; mirrors threshold billing's missing-owner handling.
+    logger.error('Deferring cycle close: overage due but organization has no owner', {
+      subscriptionId: sub.id,
+      organizationId: sub.referenceId,
+      plan: sub.plan,
+      totalOverage,
+    })
+    return base
+  }
 
   const closeResult = await db.transaction(
     async (

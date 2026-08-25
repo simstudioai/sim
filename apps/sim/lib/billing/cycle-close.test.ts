@@ -226,18 +226,31 @@ describe('closeElapsedBillingPeriod', () => {
   })
 
   it('derives the closed window from the ledger period stamps when they drift from calendar math', async () => {
-    // Rows for the elapsed period are stamped starting Jul 3 (anchor drift);
-    // the stamped boundary — not periodStart minus one interval — must bound
-    // the refresh window.
+    // Rows for the elapsed period are stamped starting Jul 3 (anchor drift)
+    // while the marker sits at Jul 1: only the stamp lookup can produce the
+    // Jul 3 bound — calendar math (periodStart minus one interval) would keep
+    // the window at Jul 1.
     const stampedPrevStart = new Date('2026-07-03T00:00:00.000Z')
     queueTableRows(schemaMock.usageLog, [{ start: stampedPrevStart }])
     queueOrgCloseReads()
 
-    await closeElapsedBillingPeriod(subRow({ lastClosedPeriodStart: stampedPrevStart }))
+    await closeElapsedBillingPeriod(subRow({ lastClosedPeriodStart: PREV_PERIOD_START }))
 
     expect(mockComputeOrgOverageAmount).toHaveBeenCalledWith(
       expect.objectContaining({ periodStart: stampedPrevStart, periodEnd: PERIOD_START })
     )
+  })
+
+  it('defers the close when overage is due but the organization has no owner', async () => {
+    mockGetStampedPeriodRangeUsageCostByUser.mockResolvedValue(new Map([['departed-1', 150]]))
+    // Member roster has no owner-role row.
+    queueTableRows(schemaMock.member, [{ userId: 'member-1', role: 'member' }])
+
+    const result = await closeElapsedBillingPeriod(subRow())
+
+    expect(result.status).toBe('skipped')
+    expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
+    expect(mockEnqueueOutboxEvent).not.toHaveBeenCalled()
   })
 
   it('includes departed members with billed ledger usage in the refresh actor set', async () => {
