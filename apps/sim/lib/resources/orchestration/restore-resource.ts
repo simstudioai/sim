@@ -48,8 +48,9 @@ type RestorableFolderType = 'folder' | 'knowledge_folder' | 'table_folder'
 /**
  * Deliberately a total `Record` over the folder types, not a `Partial` one: adding a tree to
  * `RestorableFolderType` without a mapping here has to fail the build. With a partial map the
- * lookup would yield `undefined`, `performRestoreFolder` would fall back to its `'workflow'`
- * default, and the restore would silently target the wrong tree.
+ * lookup would yield `undefined`, which `restoreFolder` types as a required
+ * `FolderResourceType` — so the failure would surface as an undefined folder config deep in
+ * the cascade rather than at the call site.
  */
 const FOLDER_RESOURCE_TYPE_BY_RESTORABLE: Record<RestorableFolderType, FolderResourceType> = {
   folder: 'workflow',
