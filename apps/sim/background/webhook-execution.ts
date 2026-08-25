@@ -56,6 +56,7 @@ import {
   type WebhookEnvResolutionOptions,
 } from '@/lib/webhooks/env-resolver'
 import { getProviderHandler } from '@/lib/webhooks/providers'
+import type { SyncInteractionContext } from '@/lib/webhooks/providers/types'
 import {
   executeWorkflowCore,
   wasExecutionFinalizedByCore,
@@ -306,6 +307,12 @@ export type WebhookExecutionPayload = {
    * first delivery and on legacy queued jobs.
    */
   infraRetryCount?: number
+  /**
+   * Interaction context created synchronously at ingest (e.g. a Slack loading
+   * modal's view id). Identifiers only — never token material; this payload is
+   * persisted by the durable queue branch.
+   */
+  syncInteraction?: SyncInteractionContext
 }
 
 const WEBHOOK_INFRA_RETRY_BASE_MS = envNumber(env.WEBHOOK_INFRA_RETRY_BASE_MS, 30_000, {
@@ -897,6 +904,7 @@ async function executeWebhookJobInternal(
         ...(formatInputCredentialOwnerUserId
           ? { credentialOwnerUserId: formatInputCredentialOwnerUserId }
           : {}),
+        ...(payload.syncInteraction ? { syncInteraction: payload.syncInteraction } : {}),
       })
       input = result.input as Record<string, unknown> | null
       skipMessage = result.skip?.message

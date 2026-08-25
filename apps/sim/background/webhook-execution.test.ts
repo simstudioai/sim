@@ -437,6 +437,34 @@ describe('executeWebhookJob fault vs error handling', () => {
     )
   })
 
+  it('forwards the payload syncInteraction into formatInput', async () => {
+    const formatInput = vi.fn().mockResolvedValue({ input: { event: {} } })
+    mockGetProviderHandler.mockReturnValue({ formatInput })
+    mockExecuteWorkflowCore.mockResolvedValue({
+      success: true,
+      status: 'completed',
+      output: {},
+      logs: [],
+      executionState: {
+        blockStates: {},
+        executedBlocks: [],
+        blockLogs: [],
+        decisions: {},
+        completedLoops: [],
+        activeExecutionPath: [],
+      },
+    })
+
+    await executeWebhookJob({
+      ...payload,
+      syncInteraction: { loadingViewId: 'V-loading' },
+    })
+
+    expect(formatInput).toHaveBeenCalledWith(
+      expect.objectContaining({ syncInteraction: { loadingViewId: 'V-loading' } })
+    )
+  })
+
   it('loads rows and keeps account checks without warm context', async () => {
     mockExecuteWorkflowCore.mockResolvedValue({
       success: true,

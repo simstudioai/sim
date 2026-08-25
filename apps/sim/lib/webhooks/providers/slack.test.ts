@@ -1,4 +1,15 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { mockGetSlackBotCredential } = vi.hoisted(() => ({
+  mockGetSlackBotCredential: vi.fn(),
+}))
+
+vi.mock('@/lib/oauth/credential-service', () => ({
+  getSlackBotCredential: mockGetSlackBotCredential,
+  refreshAccessTokenIfNeeded: vi.fn(),
+  resolveOAuthAccountId: vi.fn(),
+}))
+
 import {
   handleSlackChallenge,
   resolveSlackEventKey,
@@ -593,5 +604,187 @@ describe('slackHandler.shouldSkipEvent (custom-app path)', () => {
       )
     ).toBe(false)
     expect(slackHandler.shouldSkipEvent!(skipCtx({}, message))).toBe(false)
+  })
+})
+
+describe('slackHandler prepareSyncDispatch', () => {
+  const fetchMock = vi.fn()
+
+  const syncCtx = (body: unknown, providerConfig: Record<string, unknown>) => ({
+    webhook: {},
+    workflow: { id: 'wf', userId: 'u' },
+    body,
+    requestId: 'slack-test',
+    providerConfig,
+  })
+
+  const blockActions = (overrides: Record<string, unknown> = {}) => ({
+    type: 'block_actions',
+    trigger_id: 'trigger-1',
+    user: { id: 'U1' },
+    actions: [{ action_id: 'a1', type: 'button' }],
+    ...overrides,
+  })
+
+  const enabledConfig = { openLoadingModal: true, botToken: 'xoxb-test' }
+
+  const slackOk = (viewId = 'V123') => ({
+    json: async () => ({ ok: true, view: { id: viewId } }),
+    status: 200,
+  })
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.stubGlobal('fetch', fetchMock)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('opens the loading modal for a message button click and returns the view id', async () => {
+    fetchMock.mockResolvedValue(slackOk('V123'))
+
+    const result = await slackHandler.prepareSyncDispatch!(syncCtx(blockActions(), enabledConfig))
+
+    expect(result).toEqual({ syncInteraction: { loadingViewId: 'V123' } })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(url).toBe('https://slack.com/api/views.open')
+    expect(init.headers.Authorization).toBe('Bearer xoxb-test')
+    const requestBody = JSON.parse(init.body)
+    expect(requestBody.trigger_id).toBe('trigger-1')
+    expect(requestBody.view.callback_id).toBe('sim_loading_modal')
+    expect(requestBody.view.title.text).toBe('Working on it')
+    expect(requestBody.view.blocks[0].text.text).toBe('This will just take a moment…')
+  })
+
+  it('opens for message_action and shortcut payloads', async () => {
+    fetchMock.mockResolvedValue(slackOk())
+
+    await expect(
+      slackHandler.prepareSyncDispatch!(
+        syncCtx({ type: 'message_action', trigger_id: 't2' }, enabledConfig)
+      )
+    ).resolves.toEqual({ syncInteraction: { loadingViewId: 'V123' } })
+    await expect(
+      slackHandler.prepareSyncDispatch!(
+        syncCtx({ type: 'shortcut', trigger_id: 't3' }, enabledConfig)
+      )
+    ).resolves.toEqual({ syncInteraction: { loadingViewId: 'V123' } })
+  })
+
+  it('applies the configured title and text, truncating the title to 24 characters', async () => {
+    fetchMock.mockResolvedValue(slackOk())
+
+    await slackHandler.prepareSyncDispatch!(
+      syncCtx(blockActions(), {
+        ...enabledConfig,
+        loadingModalTitle: 'A very long modal title that overflows',
+        loadingModalText: 'Custom body',
+      })
+    )
+
+    const requestBody = JSON.parse(fetchMock.mock.calls[0][1].body)
+    expect(requestBody.view.title.text.length).toBeLessThanOrEqual(24)
+    expect(requestBody.view.blocks[0].text.text).toBe('Custom body')
+  })
+
+  it('never fires for ineligible payloads or when the option is off', async () => {
+    const cases: Array<[unknown, Record<string, unknown>]> = [
+      [blockActions(), { botToken: 'xoxb-test' }],
+      [blockActions({ view: { id: 'V-open' } }), enabledConfig],
+      [{ type: 'view_submission', trigger_id: 't' }, enabledConfig],
+      [{ type: 'view_closed', trigger_id: 't' }, enabledConfig],
+      [{ event: { type: 'message' }, type: 'event_callback' }, enabledConfig],
+      [{ command: '/run', trigger_id: 't' }, enabledConfig],
+      [blockActions({ trigger_id: undefined }), enabledConfig],
+      [blockActions({ trigger_id: '' }), enabledConfig],
+      ['not-an-object', enabledConfig],
+    ]
+
+    for (const [body, config] of cases) {
+      await expect(slackHandler.prepareSyncDispatch!(syncCtx(body, config))).resolves.toBeNull()
+    }
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('returns null without calling Slack when no bot token resolves', async () => {
+    await expect(
+      slackHandler.prepareSyncDispatch!(syncCtx(blockActions(), { openLoadingModal: true }))
+    ).resolves.toBeNull()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('resolves the token from a custom-bot credential', async () => {
+    mockGetSlackBotCredential.mockResolvedValue({ botToken: 'xoxb-cred' })
+    fetchMock.mockResolvedValue(slackOk('V-cred'))
+
+    const result = await slackHandler.prepareSyncDispatch!(
+      syncCtx(blockActions(), { openLoadingModal: true, credentialId: 'credential-1' })
+    )
+
+    expect(result).toEqual({ syncInteraction: { loadingViewId: 'V-cred' } })
+    expect(fetchMock.mock.calls[0][1].headers.Authorization).toBe('Bearer xoxb-cred')
+  })
+
+  it('tolerates Slack rejections, network failures, and timeouts without throwing', async () => {
+    fetchMock.mockResolvedValueOnce({
+      json: async () => ({ ok: false, error: 'expired_trigger_id' }),
+      status: 200,
+    })
+    await expect(
+      slackHandler.prepareSyncDispatch!(syncCtx(blockActions(), enabledConfig))
+    ).resolves.toBeNull()
+
+    fetchMock.mockResolvedValueOnce({
+      json: async () => ({ ok: false, error: 'exchanged_trigger_id' }),
+      status: 200,
+    })
+    await expect(
+      slackHandler.prepareSyncDispatch!(syncCtx(blockActions(), enabledConfig))
+    ).resolves.toBeNull()
+
+    fetchMock.mockRejectedValueOnce(new Error('network down'))
+    await expect(
+      slackHandler.prepareSyncDispatch!(syncCtx(blockActions(), enabledConfig))
+    ).resolves.toBeNull()
+
+    fetchMock.mockRejectedValueOnce(
+      Object.assign(new Error('The operation was aborted'), { name: 'TimeoutError' })
+    )
+    await expect(
+      slackHandler.prepareSyncDispatch!(syncCtx(blockActions(), enabledConfig))
+    ).resolves.toBeNull()
+  })
+})
+
+describe('slackHandler formatInput - loading_view_id', () => {
+  const interactiveBody = {
+    type: 'block_actions',
+    trigger_id: 'trigger-1',
+    user: { id: 'U1', username: 'alice' },
+    actions: [{ action_id: 'a1', type: 'button', value: 'go' }],
+  }
+
+  it('surfaces the ingest-created loading view id on interactive payloads', async () => {
+    const { input } = await slackHandler.formatInput!({
+      ...ctx(interactiveBody),
+      syncInteraction: { loadingViewId: 'V123' },
+    })
+
+    expect(eventOf(input).loading_view_id).toBe('V123')
+  })
+
+  it('defaults to an empty loading_view_id without a sync interaction', async () => {
+    const { input } = await slackHandler.formatInput!(ctx(interactiveBody))
+    expect(eventOf(input).loading_view_id).toBe('')
+  })
+
+  it('keeps the empty default on Events API payloads', async () => {
+    const { input } = await slackHandler.formatInput!(
+      ctx({ team_id: 'T1', event: { type: 'app_mention', channel: 'C1', ts: '1.2' } })
+    )
+    expect(eventOf(input).loading_view_id).toBe('')
   })
 })
