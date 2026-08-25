@@ -73,9 +73,10 @@
   color: #dc2626;
 }
 
-/* Blue accents for <var> and {{ENV}} placeholders - light mode */
-.code-editor-theme.code-editor-theme .text-blue-500 {
-  color: #1d4ed8;
+/* Platform accent for <workflow.reference> and {{ENV}} placeholders */
+.code-editor-theme.code-editor-theme [data-code-reference],
+.code-editor-theme.code-editor-theme .token [data-code-reference] {
+  color: var(--brand-secondary);
 }
 
 /**
@@ -141,11 +142,6 @@
 
 .dark .code-editor-theme.code-editor-theme .token.deleted {
   color: #f87171;
-}
-
-/* Blue accents for <var> and {{ENV}} placeholders - dark mode */
-.dark .code-editor-theme.code-editor-theme .text-blue-500 {
-  color: #35b6ff;
 }
 
 /* Ensure transparent backgrounds */

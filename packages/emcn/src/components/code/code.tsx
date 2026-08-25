@@ -10,6 +10,7 @@ import {
   useRef,
   useState,
 } from 'react'
+import { findWorkflowReferenceTokens } from '@sim/utils/workflow-references'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { ChevronRight } from '../../icons'
 import { cn } from '../../lib/cn'
@@ -105,10 +106,58 @@ function escapeHtml(text: string): string {
  * @param language - The language key (e.g. `json`, `javascript`, `python`)
  * @returns Highlighted HTML, or escaped plaintext as a fallback
  */
-function highlightOrEscape(prism: PrismModule | null, text: string, language: string): string {
-  if (!prism) return escapeHtml(text)
-  const grammar = prism.languages[language] || prism.languages.javascript
-  return prism.highlight(text, grammar, language)
+function highlightOrEscape(
+  prism: PrismModule | null,
+  text: string,
+  language: string,
+  highlightWorkflowReferences = false
+): string {
+  const highlightSource = (source: string) => {
+    if (!prism) return escapeHtml(source)
+    const grammar = prism.languages[language] || prism.languages.javascript
+    return prism.highlight(source, grammar, language)
+  }
+
+  return highlightWorkflowReferences
+    ? highlightCodeReferences(text, highlightSource)
+    : highlightSource(text)
+}
+
+interface CodeReferencePlaceholder {
+  original: string
+  placeholder: string
+}
+
+function highlightCodeReferences(
+  source: string,
+  highlightSource: (source: string) => string
+): string {
+  const placeholders: CodeReferencePlaceholder[] = []
+  let cursor = 0
+  let maskedSource = ''
+
+  const maskReference = (original: string) => {
+    let placeholder = `__SIM_CODE_REFERENCE_${placeholders.length}__`
+    while (source.includes(placeholder)) placeholder += '_'
+    placeholders.push({ original, placeholder })
+    return placeholder
+  }
+
+  for (const token of findWorkflowReferenceTokens(source)) {
+    maskedSource += source.slice(cursor, token.start)
+    maskedSource += maskReference(token.value)
+    cursor = token.end
+  }
+  maskedSource += source.slice(cursor)
+
+  let highlighted = highlightSource(maskedSource)
+  for (const { original, placeholder } of placeholders) {
+    highlighted = highlighted.replace(
+      placeholder,
+      `<span data-code-reference="">${escapeHtml(original)}</span>`
+    )
+  }
+  return highlighted
 }
 
 /**
@@ -817,6 +866,8 @@ interface CodeViewerProps {
   className?: string
   /** Visual density for read-only code. */
   density?: CodeViewerDensity
+  /** Highlight Sim `{{ENV}}` and `<block.output>` references with the platform accent. */
+  highlightWorkflowReferences?: boolean
   /** Left padding offset (useful for terminal alignment) */
   paddingLeft?: number
   /** Inline styles for the gutter (e.g., to override background) */
@@ -905,6 +956,7 @@ type ViewerInnerProps = {
   className?: string
   /** Visual density for read-only code. */
   density: CodeViewerDensity
+  highlightWorkflowReferences: boolean
   /** Left padding offset in pixels */
   paddingLeft: number
   /** Custom styles for the gutter */
@@ -933,6 +985,7 @@ const VirtualizedViewerInner = memo(function VirtualizedViewerInner({
   language,
   className,
   density,
+  highlightWorkflowReferences,
   paddingLeft,
   gutterStyle,
   wrapText,
@@ -995,7 +1048,7 @@ const VirtualizedViewerInner = memo(function VirtualizedViewerInner({
     const hasSearch = searchQuery?.trim()
 
     return visibleLineIndices.map((idx) => {
-      let html = highlightOrEscape(prism, displayLines[idx], language)
+      let html = highlightOrEscape(prism, displayLines[idx], language, highlightWorkflowReferences)
 
       if (hasSearch && searchQuery) {
         const result = applySearchHighlightingToLine(
@@ -1013,6 +1066,7 @@ const VirtualizedViewerInner = memo(function VirtualizedViewerInner({
     prism,
     displayLines,
     language,
+    highlightWorkflowReferences,
     visibleLineIndices,
     searchQuery,
     currentMatchIndex,
@@ -1149,6 +1203,7 @@ const ViewerInner = memo(function ViewerInner({
   language,
   className,
   density,
+  highlightWorkflowReferences,
   paddingLeft,
   gutterStyle,
   wrapText,
@@ -1208,7 +1263,9 @@ const ViewerInner = memo(function ViewerInner({
     if (!searchQuery?.trim()) {
       return visibleLineIndices.map((idx) => ({
         lineNumber: idx + 1,
-        html: highlightOrEscape(prism, displayLines[idx], language) || '&nbsp;',
+        html:
+          highlightOrEscape(prism, displayLines[idx], language, highlightWorkflowReferences) ||
+          '&nbsp;',
       }))
     }
 
@@ -1222,6 +1279,7 @@ const ViewerInner = memo(function ViewerInner({
     prism,
     displayLines,
     language,
+    highlightWorkflowReferences,
     visibleLineIndices,
     searchQuery,
     currentMatchIndex,
@@ -1231,14 +1289,22 @@ const ViewerInner = memo(function ViewerInner({
   // Pre-compute simple highlighted code (for no-gutter mode)
   const highlightedCode = useMemo(() => {
     const visibleCode = visibleLineIndices.map((idx) => displayLines[idx]).join('\n')
-    let html = highlightOrEscape(prism, visibleCode, language)
+    let html = highlightOrEscape(prism, visibleCode, language, highlightWorkflowReferences)
 
     if (searchQuery?.trim()) {
       const matchCounter = { count: 0 }
       html = applySearchHighlighting(html, searchQuery, currentMatchIndex, matchCounter)
     }
     return html
-  }, [prism, displayLines, language, visibleLineIndices, searchQuery, currentMatchIndex])
+  }, [
+    prism,
+    displayLines,
+    language,
+    highlightWorkflowReferences,
+    visibleLineIndices,
+    searchQuery,
+    currentMatchIndex,
+  ])
 
   const whitespaceClass = wrapText ? 'whitespace-pre-wrap break-words' : 'whitespace-pre'
 
@@ -1358,6 +1424,7 @@ function Viewer({
   language = 'json',
   className,
   density = 'default',
+  highlightWorkflowReferences = false,
   paddingLeft = 0,
   gutterStyle,
   wrapText = false,
@@ -1374,6 +1441,7 @@ function Viewer({
     language,
     className,
     density,
+    highlightWorkflowReferences,
     paddingLeft,
     gutterStyle,
     wrapText,
