@@ -7,8 +7,10 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { TableDefinition } from '@/lib/table'
 
 const {
+  mockAddTableColumn,
   mockUpdateColumnType,
   mockUpdateColumnOptions,
+  mockUpdateColumnReference,
   mockResolveWorkspaceFileReference,
   mockGetBoundWorkspaceFileSecretProvenance,
   mockDownloadWorkspaceFile,
@@ -37,8 +39,10 @@ const {
   mockResolveWorkflowContext,
   fakeEnrichment,
 } = vi.hoisted(() => ({
+  mockAddTableColumn: vi.fn(),
   mockUpdateColumnType: vi.fn(),
   mockUpdateColumnOptions: vi.fn(),
+  mockUpdateColumnReference: vi.fn(),
   mockResolveWorkspaceFileReference: vi.fn(),
   mockGetBoundWorkspaceFileSecretProvenance: vi.fn(),
   mockDownloadWorkspaceFile: vi.fn(),
@@ -197,11 +201,13 @@ vi.mock('@/lib/table/workflow-groups/service', () => ({
 }))
 
 vi.mock('@/lib/table/columns/service', () => ({
-  addTableColumn: vi.fn(),
+  addTableColumn: mockAddTableColumn,
   deleteColumn: vi.fn(),
   deleteColumns: mockDeleteColumns,
   renameColumn: vi.fn(),
   updateColumnConstraints: vi.fn(),
+  updateColumnCurrency: vi.fn(),
+  updateColumnReference: mockUpdateColumnReference,
   updateColumnType: mockUpdateColumnType,
   updateColumnOptions: mockUpdateColumnOptions,
 }))
@@ -1679,6 +1685,94 @@ describe('userTableServerTool.update_rows_by_filter', () => {
     expect(result.success).toBe(true)
     expect(mockQueryRows).not.toHaveBeenCalled()
     expect(mockUpdateRowsByFilter).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('userTableServerTool reference column metadata', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetTableById.mockResolvedValue(buildTable())
+    mockAddTableColumn.mockImplementation(
+      async (_tableId: string, column: TableDefinition['schema']['columns'][number]) =>
+        buildTable({ schema: { columns: [column] } })
+    )
+  })
+
+  it('forwards the target when adding a reference column', async () => {
+    const result = await userTableServerTool.execute(
+      {
+        operation: 'add_column',
+        args: {
+          tableId: 'tbl_1',
+          column: {
+            name: 'account',
+            type: 'reference',
+            referenceTableId: 'tbl_accounts',
+          },
+        },
+      },
+      buildToolContext()
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockAddTableColumn).toHaveBeenCalledWith(
+      'tbl_1',
+      expect.objectContaining({
+        type: 'reference',
+        referenceTableId: 'tbl_accounts',
+      }),
+      expect.any(String),
+      { expectedWorkspaceId: 'workspace-1' }
+    )
+  })
+
+  it('forwards a target-only update to the shared reference service', async () => {
+    const referenceTable = buildTable({
+      schema: {
+        columns: [
+          {
+            id: 'col_account',
+            name: 'account',
+            type: 'reference',
+            referenceTableId: 'tbl_accounts',
+          },
+        ],
+      },
+    })
+    mockGetTableById.mockResolvedValue(referenceTable)
+    mockUpdateColumnReference.mockResolvedValue({
+      ...referenceTable,
+      schema: {
+        columns: [
+          {
+            ...referenceTable.schema.columns[0],
+            referenceTableId: 'tbl_companies',
+          },
+        ],
+      },
+    })
+
+    const result = await userTableServerTool.execute(
+      {
+        operation: 'update_column',
+        args: {
+          tableId: 'tbl_1',
+          columnName: 'account',
+          referenceTableId: 'tbl_companies',
+        },
+      },
+      buildToolContext()
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockUpdateColumnReference).toHaveBeenCalledWith(
+      expect.objectContaining({
+        columnName: 'col_account',
+        referenceTableId: 'tbl_companies',
+      }),
+      expect.any(String),
+      { expectedWorkspaceId: 'workspace-1' }
+    )
   })
 })
 
