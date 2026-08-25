@@ -1,7 +1,5 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import { truncate } from '@sim/utils/string'
-import { redactSensitiveValues } from '@/lib/core/security/redaction'
 import {
   fetchWithRetry,
   readBoundedHttpErrorPayload,
@@ -24,7 +22,6 @@ const logger = createLogger('NotionConnector')
 
 const NOTION_API_VERSION = '2026-03-11'
 const NOTION_BASE_URL = 'https://api.notion.com/v1'
-const MAX_NOTION_ERROR_MESSAGE_LENGTH = 500
 const PAGE_METADATA_CONCURRENCY = 3
 const MAX_CONFIGURED_DATABASES = 100
 const MAX_DATABASE_RESPONSE_BYTES = 1024 * 1024
@@ -131,16 +128,9 @@ class NotionApiError extends Error {
   readonly code?: string
   readonly requestId?: string
 
-  constructor(
-    operation: string,
-    status: number,
-    code?: string,
-    detail?: string,
-    requestId?: string
-  ) {
+  constructor(operation: string, status: number, code?: string, requestId?: string) {
     const fields = [String(status)]
     if (code) fields.push(`code=${code}`)
-    if (detail) fields.push(`message=${detail}`)
     if (requestId) fields.push(`requestId=${requestId}`)
     super(`${operation}: ${fields.join(', ')}`)
     this.name = 'NotionApiError'
@@ -167,9 +157,8 @@ class NotionMarkdownIncompleteError extends Error {
 /**
  * Builds a bounded error from Notion's documented JSON error envelope.
  *
- * Only the stable error code, human-readable message, and request ID are
- * retained. Arbitrary response data and request headers are deliberately not
- * serialized into logs.
+ * Only strictly validated machine identifiers are retained. The provider's
+ * free-form message is omitted because it can echo request values or secrets.
  */
 async function notionApiError(response: Response, operation: string): Promise<NotionApiError> {
   let body: NotionApiErrorBody = {}
@@ -186,18 +175,12 @@ async function notionApiError(response: Response, operation: string): Promise<No
     body = {}
   }
 
-  const code = typeof body.code === 'string' ? truncate(body.code.trim(), 100) : undefined
-  const detail =
-    typeof body.message === 'string'
-      ? truncate(
-          redactSensitiveValues(body.message).replace(/\s+/g, ' ').trim(),
-          MAX_NOTION_ERROR_MESSAGE_LENGTH
-        )
-      : undefined
-  const requestId =
-    typeof body.request_id === 'string' ? truncate(body.request_id.trim(), 100) : undefined
+  const rawCode = typeof body.code === 'string' ? body.code.trim() : ''
+  const code = /^[a-z0-9_]{1,100}$/i.test(rawCode) ? rawCode : undefined
+  const rawRequestId = typeof body.request_id === 'string' ? body.request_id.trim() : ''
+  const requestId = /^[a-z0-9-]{1,100}$/i.test(rawRequestId) ? rawRequestId : undefined
 
-  return new NotionApiError(operation, response.status, code, detail, requestId)
+  return new NotionApiError(operation, response.status, code, requestId)
 }
 
 /**

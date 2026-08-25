@@ -1,6 +1,5 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { truncate } from '@sim/utils/string'
 import {
   AirtableIcon,
   AsanaIcon,
@@ -2025,8 +2024,8 @@ function oauthResponseRecord(value: unknown): Record<string, unknown> | undefine
     : undefined
 }
 
-function safeOAuthDiagnostic(responseText: string, secrets: string[]): string {
-  return truncate(redactExactSensitiveValues(responseText, secrets), 1000)
+function safeOAuthDiagnostic(_responseText: string, _secrets: string[]): string {
+  return '[token endpoint response omitted]'
 }
 
 async function refreshInstagramLongLivedToken(
@@ -2218,8 +2217,12 @@ export async function refreshOAuthToken(
       refreshToken: newRefreshToken ?? refreshToken,
     }
   } catch (error) {
-    const message = redactExactSensitiveValues(toError(error).message, exactSecrets)
-    logger.error('Error refreshing token:', { error: message })
+    const normalized = toError(error)
+    const message =
+      normalized.name === 'PayloadSizeLimitError' || normalized.message.startsWith('OAuth client ')
+        ? normalized.message
+        : 'Token refresh failed'
+    logger.error('Error refreshing token', { errorType: normalized.name })
     return { ok: false, message }
   }
 }

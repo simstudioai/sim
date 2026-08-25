@@ -639,6 +639,20 @@ describe('getDocument content extraction', () => {
     expect(doc?.mimeType).toBe('text/plain')
   })
 
+  it('authoritatively skips a listed file that changed to a folder', async () => {
+    mockGraph({
+      [`${GRAPH}/drives/${DEFAULT_DRIVE_ID}/items/folder?$select=${ITEM_SELECT}`]: {
+        body: folder('folder', 'Former document'),
+      },
+    })
+
+    await expect(get('folder')).resolves.toMatchObject({
+      content: '',
+      skippedReason: 'File is no longer an indexable document',
+      skippedExistingDisposition: 'replace',
+    })
+  })
+
   it('marks an empty file as an authoritative skip', async () => {
     const item = file('empty', 'empty.txt')
     mockFetchWithRetry.mockImplementation(async (url: string) => {

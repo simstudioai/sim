@@ -18,6 +18,7 @@ const {
   mockBatchTrigger,
   mockGenerateEmbeddings,
   mockGetBoundWorkspaceFileSecretProvenanceByMetadata,
+  mockGetEmbeddingModelInfo,
   mockGetFileMetadataByKeys,
   mockProcessDocument,
   mockTrigger,
@@ -26,6 +27,7 @@ const {
   mockBatchTrigger: vi.fn(),
   mockGenerateEmbeddings: vi.fn(),
   mockGetBoundWorkspaceFileSecretProvenanceByMetadata: vi.fn(),
+  mockGetEmbeddingModelInfo: vi.fn(),
   mockGetFileMetadataByKeys: vi.fn(),
   mockProcessDocument: vi.fn(),
   mockTrigger: vi.fn(),
@@ -45,7 +47,7 @@ vi.mock('@/lib/knowledge/documents/document-processor', () => ({
 
 vi.mock('@/lib/knowledge/embedding-models', () => ({
   EMBEDDING_DIMENSIONS: 1536,
-  getEmbeddingModelInfo: vi.fn(() => ({ tokenizerProvider: 'openai' })),
+  getEmbeddingModelInfo: mockGetEmbeddingModelInfo,
 }))
 
 vi.mock('@/lib/knowledge/embeddings', () => ({
@@ -75,6 +77,7 @@ import { EMBEDDING_QUOTA_EXHAUSTED_MESSAGE } from '@/lib/embeddings'
 import { EmbeddingQuotaExhaustedError } from '@/lib/embeddings/client'
 import { PermanentDocumentProcessingError } from '@/lib/knowledge/documents/document-processing-error'
 import { processDocumentAsync, processDocumentsWithQueue } from '@/lib/knowledge/documents/service'
+import { MAX_PROCESSING_ATTEMPTS } from '@/lib/knowledge/documents/types'
 
 const PERSISTED_KEY = 'workspace/workspace-1/persisted.pdf'
 const PERSISTED_URL = `/api/files/serve/${encodeURIComponent(PERSISTED_KEY)}?context=workspace`
@@ -177,6 +180,10 @@ describe('knowledge document processing source', () => {
     mockProcessDocument.mockResolvedValue({
       chunks: [],
       metadata: { chunkCount: 0, tokenCount: 0, characterCount: 0 },
+    })
+    mockGetEmbeddingModelInfo.mockReturnValue({
+      tokenizerProvider: 'openai',
+      maxInputTokens: 8191,
     })
   })
 
@@ -293,6 +300,10 @@ describe('processDocumentAsync write guards', () => {
     mockProcessDocument.mockResolvedValue({
       chunks: [],
       metadata: { chunkCount: 0, tokenCount: 0, characterCount: 0 },
+    })
+    mockGetEmbeddingModelInfo.mockReturnValue({
+      tokenizerProvider: 'openai',
+      maxInputTokens: 8191,
     })
   })
 
@@ -585,6 +596,44 @@ describe('processDocumentAsync write guards', () => {
     expect((completion?.[0] as Record<string, unknown>).processingAttempts).toBe(0)
   })
 
+  it('fails before embedding when a stored chunk exceeds the model input ceiling', async () => {
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([PERSISTED_CONTEXT])
+      .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
+      .mockResolvedValueOnce([{ id: 'document-1' }])
+    mockGetFileMetadataByKeys.mockResolvedValue([SOURCE_BINDING])
+    mockGetBoundWorkspaceFileSecretProvenanceByMetadata.mockResolvedValue(
+      new Map([[SOURCE_BINDING.id, { status: 'exact', entries: [] }]])
+    )
+    mockGetEmbeddingModelInfo.mockReturnValue({
+      tokenizerProvider: 'openai',
+      maxInputTokens: 1,
+    })
+    mockProcessDocument.mockResolvedValue({
+      chunks: [
+        {
+          text: 'This chunk is too large for the selected embedding model.',
+          metadata: { startIndex: 0, endIndex: 57 },
+        },
+      ],
+      metadata: { chunkCount: 1, tokenCount: 12, characterCount: 57 },
+    })
+
+    await expect(
+      processDocumentAsync('knowledge-base-1', 'document-1', {
+        filename: 'large.txt',
+        fileUrl: 'https://example.com/large.txt',
+        fileSize: 57,
+        mimeType: 'text/plain',
+      })
+    ).rejects.toMatchObject({
+      name: 'PermanentDocumentProcessingError',
+      code: 'document_complexity_limit',
+    })
+
+    expect(mockGenerateEmbeddings).not.toHaveBeenCalled()
+  })
+
   it('dead-letters deterministic input failures after recording an actionable reason', async () => {
     dbChainMockFns.limit
       .mockResolvedValueOnce([PERSISTED_CONTEXT])
@@ -741,6 +790,10 @@ describe('in-process quota continuation dispatch', () => {
       chunks: [{ text: 'Index me', metadata: { startIndex: 0, endIndex: 8 } }],
       metadata: { chunkCount: 1, tokenCount: 2, characterCount: 8 },
     })
+    mockGetEmbeddingModelInfo.mockReturnValue({
+      tokenizerProvider: 'openai',
+      maxInputTokens: 8191,
+    })
     mockGenerateEmbeddings.mockRejectedValue(new EmbeddingQuotaExhaustedError('openai'))
     mockTrigger.mockResolvedValue({ id: 'quota-continuation-run' })
   })
@@ -767,14 +820,18 @@ describe('in-process quota continuation dispatch', () => {
       'knowledge-process-document',
       expect.objectContaining({
         documentId: 'document-1',
-        processingQueuedAt: new Date(1_000 + 5 * 60 * 1000).toISOString(),
+        processingQueuedAt: expect.any(String),
         quotaRetryCount: 1,
       }),
       expect.objectContaining({
         idempotencyKey: 'knowledge-quota-document-1-request-1-1',
-        delay: new Date(1_000 + 5 * 60 * 1000),
+        delay: expect.any(Date),
       })
     )
+
+    const deferredUntil = mockTrigger.mock.calls[0]?.[2]?.delay as Date
+    expect(deferredUntil.getTime()).toBeGreaterThanOrEqual(1_000 + 5 * 60 * 1000 * 0.8)
+    expect(deferredUntil.getTime()).toBeLessThanOrEqual(1_000 + 5 * 60 * 1000 * 1.2)
 
     const deferredWriteIndex = dbChainMockFns.set.mock.calls.findIndex(
       (call) =>
@@ -783,9 +840,9 @@ describe('in-process quota continuation dispatch', () => {
     expect(deferredWriteIndex).toBeGreaterThanOrEqual(0)
     expect(dbChainMockFns.set.mock.calls[deferredWriteIndex]?.[0]).toMatchObject({
       processingStatus: 'pending',
-      processingQueuedAt: new Date(1_000 + 5 * 60 * 1000),
+      processingQueuedAt: deferredUntil,
       processingStartedAt: null,
-      processingDeferredUntil: new Date(1_000 + 5 * 60 * 1000),
+      processingDeferredUntil: deferredUntil,
       processingCompletedAt: null,
       processingError: null,
     })
@@ -854,6 +911,40 @@ describe('in-process quota continuation dispatch', () => {
         )
       )
     ).toBe(true)
+  })
+
+  it('stops automatic retries after the bounded quota continuation chain is exhausted', async () => {
+    resetDbChainMock()
+    dbChainMockFns.returning.mockResolvedValue([{ id: 'document-1' }])
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([PERSISTED_CONTEXT])
+      .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
+      .mockResolvedValueOnce([{ id: 'document-1' }])
+
+    await expect(
+      processDocumentAsync(
+        'knowledge-base-1',
+        'document-1',
+        queuedDocument,
+        {},
+        undefined,
+        'request-1',
+        {
+          chargedAtDispatch: false,
+          processingQueuedAt: new Date('2026-08-24T22:00:00.000Z'),
+          quotaContinuationExhausted: true,
+        }
+      )
+    ).rejects.toBeInstanceOf(EmbeddingQuotaExhaustedError)
+
+    const failure = dbChainMockFns.set.mock.calls.find(
+      (call) => (call[0] as Record<string, unknown> | undefined)?.processingStatus === 'failed'
+    )
+    expect(failure?.[0]).toMatchObject({
+      processingError: EMBEDDING_QUOTA_EXHAUSTED_MESSAGE,
+      processingAttempts: MAX_PROCESSING_ATTEMPTS,
+    })
+    expect(mockTrigger).not.toHaveBeenCalled()
   })
 
   it('durably defers quota exhaustion after a failed Trigger batch fallback', async () => {

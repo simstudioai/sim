@@ -29,6 +29,7 @@ vi.mock('@/lib/knowledge/documents/service', () => ({
 import { EmbeddingQuotaExhaustedError } from '@/lib/embeddings/client'
 import { EMBEDDING_QUOTA_CIRCUIT_TTL_MS } from '@/lib/embeddings/quota-circuit'
 import { PermanentDocumentProcessingError } from '@/lib/knowledge/documents/document-processing-error'
+import { MAX_QUOTA_CONTINUATION_ATTEMPTS } from '@/lib/knowledge/documents/processing-quota-continuation'
 import {
   resolveQuotaContinuationDelayMs,
   runDocumentProcessing,
@@ -345,10 +346,38 @@ describe('knowledge processing worker', () => {
         quotaRetryCount: 1,
       }),
       expect.objectContaining({
-        delay: new Date(1_000 + EMBEDDING_QUOTA_CIRCUIT_TTL_MS),
+        delay: expect.any(Date),
         idempotencyKey: 'knowledge-quota-document-1-request-1-1',
         region: 'us-east-1',
       })
+    )
+    const delay = mockTrigger.mock.calls[0]?.[2]?.delay as Date
+    expect(delay.getTime()).toBeGreaterThanOrEqual(1_000 + EMBEDDING_QUOTA_CIRCUIT_TTL_MS * 0.8)
+    expect(delay.getTime()).toBeLessThanOrEqual(1_000 + EMBEDDING_QUOTA_CIRCUIT_TTL_MS * 1.2)
+  })
+
+  it('ends a quota chain after the bounded continuation horizon', async () => {
+    mockQuotaExhaustion(new EmbeddingQuotaExhaustedError('openai'))
+
+    await expect(
+      runDocumentProcessing({
+        ...BASE_PAYLOAD,
+        quotaRetryCount: MAX_QUOTA_CONTINUATION_ATTEMPTS,
+        billingScope: 'non-workspace',
+        actorUserId: 'legacy-owner',
+        workspaceId: null,
+      })
+    ).resolves.toMatchObject({ success: false, outcome: 'quota_exhausted' })
+
+    expect(mockTrigger).not.toHaveBeenCalled()
+    expect(mockProcessDocumentAsync).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.any(String),
+      expect.any(Object),
+      expect.any(Object),
+      expect.any(Object),
+      expect.any(String),
+      expect.objectContaining({ quotaContinuationExhausted: true })
     )
   })
 
@@ -456,8 +485,15 @@ describe('knowledge-process-document task configuration', () => {
   })
 
   it('backs durable quota continuations off to a bounded polling interval', () => {
-    expect(resolveQuotaContinuationDelayMs(1)).toBe(EMBEDDING_QUOTA_CIRCUIT_TTL_MS)
-    expect(resolveQuotaContinuationDelayMs(2)).toBe(EMBEDDING_QUOTA_CIRCUIT_TTL_MS * 2)
-    expect(resolveQuotaContinuationDelayMs(Number.MAX_SAFE_INTEGER)).toBe(6 * 60 * 60 * 1000)
+    const first = resolveQuotaContinuationDelayMs(1)
+    const second = resolveQuotaContinuationDelayMs(2)
+    const capped = resolveQuotaContinuationDelayMs(Number.MAX_SAFE_INTEGER)
+
+    expect(first).toBeGreaterThanOrEqual(EMBEDDING_QUOTA_CIRCUIT_TTL_MS * 0.8)
+    expect(first).toBeLessThanOrEqual(EMBEDDING_QUOTA_CIRCUIT_TTL_MS * 1.2)
+    expect(second).toBeGreaterThanOrEqual(EMBEDDING_QUOTA_CIRCUIT_TTL_MS * 2 * 0.8)
+    expect(second).toBeLessThanOrEqual(EMBEDDING_QUOTA_CIRCUIT_TTL_MS * 2 * 1.2)
+    expect(capped).toBeGreaterThanOrEqual(6 * 60 * 60 * 1000 * 0.8)
+    expect(capped).toBeLessThanOrEqual(6 * 60 * 60 * 1000)
   })
 })

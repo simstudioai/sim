@@ -75,4 +75,18 @@ describe('document chunk production ceiling', () => {
       code: 'no_extractable_text',
     } satisfies Partial<PermanentDocumentProcessingError>)
   })
+
+  it('does not index a parser preview as the complete document', async () => {
+    mockParseBuffer.mockResolvedValue({
+      content: 'first 1,000 spreadsheet rows',
+      metadata: { truncated: true },
+    })
+
+    await expect(
+      processDocument('data:text/csv;base64,dGVzdA==', 'large.csv', 'text/csv', 100, 0, 10)
+    ).rejects.toMatchObject({
+      name: 'PermanentDocumentProcessingError',
+      code: 'document_complexity_limit',
+    } satisfies Partial<PermanentDocumentProcessingError>)
+  })
 })

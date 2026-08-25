@@ -421,7 +421,10 @@ export const googleDriveConnector: ConnectorConfig = {
         fileId: file.id,
         mimeType: file.mimeType,
       })
-      return null
+      return {
+        ...markSkipped(fileToStub(file), 'File is no longer an indexable document'),
+        skippedExistingDisposition: 'replace',
+      }
     }
 
     try {

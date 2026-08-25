@@ -1,11 +1,7 @@
-import { truncate } from '@sim/utils/string'
-import { redactSensitiveValues } from '@/lib/core/security/redaction'
 import { readBodyWithLimit } from '@/connectors/utils'
 
 const GOOGLE_ERROR_BODY_MAX_BYTES = 64 * 1024
-const GOOGLE_ERROR_MESSAGE_MAX_LENGTH = 500
 const GOOGLE_ERROR_REASON_MAX_COUNT = 16
-const GOOGLE_ERROR_REASON_MAX_LENGTH = 100
 
 const EXPORT_TOO_LARGE_REASONS = new Set(['exportSizeLimitExceeded'])
 const PERMISSION_REASONS = new Set([
@@ -78,24 +74,9 @@ function parseErrorBody(value: unknown): ParsedGoogleErrorBody | undefined {
   }
 }
 
-function normalizeMessage(message: string | undefined): string | undefined {
-  if (!message) return undefined
-  const singleLine = message
-    .replace(/[\u0000-\u001f\u007f]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-  return singleLine
-    ? truncate(redactSensitiveValues(singleLine), GOOGLE_ERROR_MESSAGE_MAX_LENGTH, '')
-    : undefined
-}
-
 function normalizeReason(reason: string): string | undefined {
-  const singleLine = reason
-    .replace(/[\u0000-\u001f\u007f]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-  if (!singleLine) return undefined
-  return truncate(redactSensitiveValues(singleLine), GOOGLE_ERROR_REASON_MAX_LENGTH, '')
+  const normalized = reason.trim()
+  return /^[A-Za-z][A-Za-z0-9_.-]{0,99}$/.test(normalized) ? normalized : undefined
 }
 
 function classifyGoogleDriveError(
@@ -158,14 +139,10 @@ export async function readGoogleDriveApiError(response: Response): Promise<Googl
     0,
     GOOGLE_ERROR_REASON_MAX_COUNT
   )
-  const providerMessage = normalizeMessage(
-    parsedBody?.error?.message ?? entries.find((entry) => entry.message)?.message
-  )
-
   return new GoogleDriveApiError(
     response.status,
     reasons,
     classifyGoogleDriveError(response.status, rawReasons),
-    providerMessage
+    undefined
   )
 }

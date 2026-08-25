@@ -1,12 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { isRecordLike } from '@sim/utils/object'
-import { truncate } from '@sim/utils/string'
-import { redactSensitiveValues } from '@/lib/core/security/redaction'
 import {
   fetchWithRetry,
-  readBoundedHttpErrorPayload,
-  sanitizeHttpErrorDiagnostic,
+  readBoundedHttpErrorBody,
   VALIDATE_RETRY_OPTIONS,
 } from '@/lib/knowledge/documents/utils'
 import { googleDocsConnectorMeta } from '@/connectors/google-docs/meta'
@@ -149,27 +145,8 @@ interface DocsDocument {
 
 /** Describes a Google API failure without leaking an unbounded response body. */
 async function describeGoogleApiFailure(response: Response): Promise<string> {
-  const payload = await readBoundedHttpErrorPayload(response)
-  if (!payload.ok) return String(response.status)
-
-  const rawBody = payload.body
-  const normalizedBody = sanitizeHttpErrorDiagnostic(rawBody).replace(/\s+/g, ' ').trim()
-  if (!normalizedBody) return String(response.status)
-
-  try {
-    const parsed: unknown = JSON.parse(rawBody)
-    if (isRecordLike(parsed) && isRecordLike(parsed.error)) {
-      const message = parsed.error.message
-      if (typeof message === 'string' && message.trim()) {
-        const safeMessage = redactSensitiveValues(message).replace(/\s+/g, ' ').trim()
-        return `${response.status} — ${truncate(safeMessage, 500)}`
-      }
-    }
-  } catch {
-    return `${response.status} — ${truncate(normalizedBody, 500)}`
-  }
-
-  return `${response.status} — ${truncate(normalizedBody, 500)}`
+  await readBoundedHttpErrorBody(response)
+  return String(response.status)
 }
 
 /**
@@ -572,7 +549,12 @@ export const googleDocsConnector: ConnectorConfig = {
     const file = (await response.json()) as DriveFile & { trashed?: boolean }
 
     if (file.trashed) return null
-    if (file.mimeType !== GOOGLE_DOC_MIME_TYPE) return null
+    if (file.mimeType !== GOOGLE_DOC_MIME_TYPE) {
+      return {
+        ...markSkipped(fileToStub(file), 'File is no longer a Google Doc'),
+        skippedExistingDisposition: 'replace',
+      }
+    }
 
     try {
       const { content, hasUnresolvedContent } = await fetchDocContent(accessToken, file.id)

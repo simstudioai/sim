@@ -487,9 +487,21 @@ describe('classifyExternalDoc', () => {
         {
           id: 'doc-1',
           contentHash: 'old',
+          storageKey: 'kb/indexed-file.txt',
         }
       )
     ).toEqual({ type: 'unchanged' })
+  })
+
+  it('refreshes an existing skipped placeholder without turning it into a source failure', async () => {
+    const { classifyExternalDoc } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    expect(
+      classifyExternalDoc(
+        { ...base, content: '', skippedReason: 'too big' },
+        { id: 'doc-1', contentHash: 'old', storageKey: null }
+      )
+    ).toEqual({ type: 'skip', existingId: 'doc-1' })
   })
 
   it('replaces stale indexed content for an authoritative skip', async () => {
@@ -2225,6 +2237,23 @@ describe('buildSyncFailureUpdate', () => {
     expect(buildSyncFailureUpdate(now, MAX_CONSECUTIVE_FAILURES, 'boom').lastSyncError).toBe(
       CONNECTOR_AUTO_DISABLED_ERROR
     )
+  })
+})
+
+describe('buildSyncCapacityUpdate', () => {
+  it('requires operator action without consuming the transient-failure breaker', async () => {
+    const { buildSyncCapacityUpdate } = await import('@/lib/knowledge/connectors/sync-engine')
+    const now = new Date('2026-08-20T00:00:00.000Z')
+
+    expect(buildSyncCapacityUpdate(now, 2, 'source is too large')).toEqual({
+      status: 'error',
+      lastSyncError: 'source is too large',
+      nextSyncAt: null,
+      consecutiveFailures: 2,
+      syncLockToken: null,
+      syncLockLeaseAt: null,
+      updatedAt: now,
+    })
   })
 })
 

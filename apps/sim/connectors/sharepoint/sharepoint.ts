@@ -964,7 +964,13 @@ export const sharepointConnector: ConnectorConfig = {
     const item = (await response.json()) as DriveItem
 
     if (!item.file || !isIndexableConnectorFile(item.name)) {
-      return null
+      return {
+        ...markSkipped(
+          itemToStub(item, siteName ?? siteUrl),
+          'File is no longer an indexable document'
+        ),
+        skippedExistingDisposition: 'replace',
+      }
     }
 
     try {

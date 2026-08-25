@@ -77,6 +77,7 @@ import {
 import {
   assertDocumentChunkCountWithinLimit,
   isPermanentDocumentProcessingError,
+  PermanentDocumentProcessingError,
   toPermanentDocumentProcessingError,
 } from '@/lib/knowledge/documents/document-processing-error'
 import { processDocument } from '@/lib/knowledge/documents/document-processor'
@@ -1210,6 +1211,8 @@ export interface DocumentProcessingAttemptContext {
   readonly processingQueuedAt?: Date
   /** Durably schedules the next quota attempt and returns its execution time. */
   readonly scheduleQuotaContinuation?: () => Promise<Date>
+  /** The durable quota retry horizon was exhausted for this indexing pass. */
+  readonly quotaContinuationExhausted?: boolean
   /** Signals that this invocation owns the persisted processing generation. */
   readonly onClaimed?: () => void
 }
@@ -1589,6 +1592,19 @@ export async function processDocumentAsync(
           )
 
           const chunkTexts = processed.chunks.map((chunk) => chunk.text)
+          const embeddingModelInfo = getEmbeddingModelInfo(kbEmbeddingModel)
+          for (let chunkIndex = 0; chunkIndex < chunkTexts.length; chunkIndex++) {
+            const tokenCount = estimateTokenCount(
+              chunkTexts[chunkIndex],
+              embeddingModelInfo.tokenizerProvider
+            ).count
+            if (tokenCount > embeddingModelInfo.maxInputTokens) {
+              throw new PermanentDocumentProcessingError(
+                'document_complexity_limit',
+                `Chunk ${chunkIndex + 1} contains ${tokenCount.toLocaleString()} estimated tokens, exceeding the ${embeddingModelInfo.maxInputTokens.toLocaleString()}-token limit for ${kbEmbeddingModel}. Reduce the knowledge-base chunk size and retry.`
+              )
+            }
+          }
           const embeddings: number[][] = []
 
           if (chunkTexts.length > 0) {
@@ -1624,7 +1640,7 @@ export async function processDocumentAsync(
 
           logger.info(`[${documentId}] Embeddings generated, creating embedding records with tags`)
 
-          const tokenizerProvider = getEmbeddingModelInfo(kbEmbeddingModel).tokenizerProvider
+          const tokenizerProvider = embeddingModelInfo.tokenizerProvider
 
           const chunkProvenances = processed.chunks.map((chunk) =>
             documentSecretContext.tracked
@@ -1889,7 +1905,8 @@ export async function processDocumentAsync(
           : {}),
         processingDeferredUntil: quotaDeferredUntil,
         processingCompletedAt: quotaDeferredUntil ? null : new Date(),
-        ...(permanentError
+        ...(permanentError ||
+        (embeddingQuotaExhausted && attemptContext?.quotaContinuationExhausted)
           ? { processingAttempts: MAX_PROCESSING_ATTEMPTS }
           : embeddingQuotaExhausted && attemptContext?.chargedAtDispatch
             ? { processingAttempts: sql`GREATEST(${document.processingAttempts} - 1, 0)` }

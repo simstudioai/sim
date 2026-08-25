@@ -4,15 +4,7 @@ import { sleep } from '@sim/utils/helpers'
 import { randomFloat } from '@sim/utils/random'
 import { parseRetryAfter } from '@sim/utils/retry'
 import { truncate } from '@sim/utils/string'
-import {
-  collectSensitiveHeaderValues,
-  decodePercentEscapes,
-  isSensitiveKey,
-  REDACTED_MARKER,
-  redactApiKeys,
-  redactKnownSensitiveValues,
-  redactSensitiveValues,
-} from '@/lib/core/security/redaction'
+import { redactSensitiveValues } from '@/lib/core/security/redaction'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
   isPayloadSizeLimitError,
@@ -59,255 +51,14 @@ export interface RetryOptions {
 }
 
 const MAX_HTTP_ERROR_DIAGNOSTIC_CHARS = 2000
-const MAX_STRUCTURED_ERROR_DEPTH = 100
-const STRUCTURED_ERROR_SANITIZATION_FAILURE =
-  '[response body omitted: unable to safely sanitize structured error]'
-const UNTRUSTED_REDACTION_MARKER_SENTINEL = '\u0000SIM_UNTRUSTED_REDACTION_MARKER\u0000'
-const DOUBLE_QUOTED_STRUCTURED_KEY_PATTERN = /"((?:\\[\s\S]|[^"\\])*)"\s*[:=]/g
-const SINGLE_QUOTED_STRUCTURED_KEY_PATTERN = /'((?:\\[\s\S]|[^'\\])*)'\s*[:=]/g
-const UNQUOTED_STRUCTURED_KEY_PATTERN =
-  /(?:^|[^-A-Za-z0-9_\\])((?:[A-Za-z0-9_-]|\\(?:u\{[0-9A-Fa-f]{1,6}\}|\r\n|[\s\S]))+)\s*[:=]/g
-const STRUCTURED_CONTINUATION_PATTERN =
-  /^(?:"(?:\\[\s\S]|[^"\\])*"|'(?:\\[\s\S]|[^'\\])*'|(?:[A-Za-z0-9_-]|\\(?:u\{[0-9A-Fa-f]{1,6}\}|\r\n|[\s\S]))+)\s*[:=]/
-
-interface RedactedHttpErrorJson {
-  value: unknown
-  unsafe: boolean
-}
-
-function redactHttpErrorJsonStrings(
-  value: unknown,
-  sensitiveValues: string[],
-  depth = 0
-): RedactedHttpErrorJson {
-  if (depth > MAX_STRUCTURED_ERROR_DEPTH) {
-    return { value: STRUCTURED_ERROR_SANITIZATION_FAILURE, unsafe: true }
-  }
-  if (typeof value === 'string') {
-    const sanitized = sanitizeDiagnosticText(value, sensitiveValues)
-    return {
-      value: sanitized.unsafe ? STRUCTURED_ERROR_SANITIZATION_FAILURE : sanitized.value,
-      unsafe: false,
-    }
-  }
-  if (Array.isArray(value)) {
-    const sanitizedItems = value.map((item) =>
-      redactHttpErrorJsonStrings(item, sensitiveValues, depth + 1)
-    )
-    return {
-      value: sanitizedItems.map((item) => item.value),
-      unsafe: sanitizedItems.some((item) => item.unsafe),
-    }
-  }
-  if (value && typeof value === 'object') {
-    const entries: [string, unknown][] = []
-    const sanitizedKeys = new Set<string>()
-    for (const [key, nested] of Object.entries(value)) {
-      const sanitizedKey = sanitizeDiagnosticText(key, sensitiveValues)
-      if (sanitizedKey.unsafe || sanitizedKeys.has(sanitizedKey.value)) {
-        return { value: STRUCTURED_ERROR_SANITIZATION_FAILURE, unsafe: true }
-      }
-
-      const sanitizedNested = redactHttpErrorJsonStrings(nested, sensitiveValues, depth + 1)
-      if (sanitizedNested.unsafe) {
-        return { value: STRUCTURED_ERROR_SANITIZATION_FAILURE, unsafe: true }
-      }
-      sanitizedKeys.add(sanitizedKey.value)
-      entries.push([sanitizedKey.value, sanitizedNested.value])
-    }
-    return { value: Object.fromEntries(entries), unsafe: false }
-  }
-  return { value, unsafe: false }
-}
-
-function hasSafeRedactedRemainder(value: string): boolean {
-  let remaining = value.replace(/^[\t\f\v ]+/, '')
-  while (/^[}\]]/.test(remaining)) {
-    remaining = remaining.slice(1).replace(/^[\t\f\v ]+/, '')
-  }
-  if (remaining === '') return true
-
-  if (/^[,;&]/.test(remaining)) {
-    remaining = remaining.slice(1).replace(/^[\t\f\v ]+/, '')
-  } else if (/^(?:\r\n|[\r\n])/.test(remaining)) {
-    remaining = remaining.replace(/^(?:(?:\r\n|[\r\n])[\t\f\v ]*)+/, '')
-  } else {
-    return false
-  }
-
-  while (/^[}\]]/.test(remaining)) {
-    remaining = remaining.slice(1).replace(/^[\t\f\v ]+/, '')
-  }
-  return remaining === '' || STRUCTURED_CONTINUATION_PATTERN.test(remaining)
-}
-
-function isSafelyRedactedAssignment(value: string, valueStart: number): boolean {
-  let remaining = value.slice(valueStart).trimStart()
-  const quote = remaining[0] === '"' || remaining[0] === "'" ? remaining[0] : undefined
-  if (quote) remaining = remaining.slice(1).replace(/^[\t\f\v ]+/, '')
-
-  const scheme = /^(?:Bearer|Basic)[\t ]+/i.exec(remaining)
-  if (scheme) remaining = remaining.slice(scheme[0].length)
-  if (!remaining.startsWith(REDACTED_MARKER)) return false
-  remaining = remaining.slice(REDACTED_MARKER.length)
-
-  if (quote) {
-    remaining = remaining.replace(/^[\t\f\v ]+/, '')
-    if (!remaining.startsWith(quote)) return false
-    remaining = remaining.slice(1)
-  }
-
-  return hasSafeRedactedRemainder(remaining)
-}
-
-function decodeEscapedStructuredKey(value: string): string | undefined {
-  if (/\\[0-9]|\\(?:\r\n|[\r\n\u2028\u2029])/.test(value)) return undefined
-  try {
-    return value.replace(
-      /\\(?:u\{([0-9A-Fa-f]{1,6})\}|u([0-9A-Fa-f]{4})|x([0-9A-Fa-f]{2})|([\s\S]))/g,
-      (_match, codePoint: string, codeUnit: string, byte: string, escaped: string) => {
-        if (codePoint) return String.fromCodePoint(Number.parseInt(codePoint, 16))
-        if (codeUnit) return String.fromCharCode(Number.parseInt(codeUnit, 16))
-        if (byte) return String.fromCharCode(Number.parseInt(byte, 16))
-        return escaped
-      }
-    )
-  } catch {
-    return undefined
-  }
-}
-
-function sanitizeDiagnosticText(
-  value: string,
-  sensitiveValues: string[]
-): { value: string; unsafe: boolean } {
-  if (
-    value.includes(UNTRUSTED_REDACTION_MARKER_SENTINEL) ||
-    sensitiveValues.some((sensitiveValue) =>
-      sensitiveValue.includes(UNTRUSTED_REDACTION_MARKER_SENTINEL)
-    )
-  ) {
-    return { value: STRUCTURED_ERROR_SANITIZATION_FAILURE, unsafe: true }
-  }
-
-  const protectedValue = value.replaceAll(REDACTED_MARKER, UNTRUSTED_REDACTION_MARKER_SENTINEL)
-  const protectedSensitiveValues = sensitiveValues.map((sensitiveValue) =>
-    sensitiveValue.replaceAll(REDACTED_MARKER, UNTRUSTED_REDACTION_MARKER_SENTINEL)
-  )
-  const decodedValue = decodePercentEscapes(value)
-  if (!decodedValue.ok) {
-    return { value: STRUCTURED_ERROR_SANITIZATION_FAILURE, unsafe: true }
-  }
-  const decodedSensitiveValues: string[] = []
-  for (const sensitiveValue of sensitiveValues) {
-    const decodedSensitiveValue = decodePercentEscapes(sensitiveValue)
-    if (decodedSensitiveValue.ok && decodedSensitiveValue.value) {
-      decodedSensitiveValues.push(decodedSensitiveValue.value)
-    } else if (sensitiveValue) decodedSensitiveValues.push(sensitiveValue)
-  }
-  const untrustedMarkerProbe = decodedValue.value.replaceAll(
-    REDACTED_MARKER,
-    UNTRUSTED_REDACTION_MARKER_SENTINEL
-  )
-  if (
-    untrustedMarkerProbe.includes(UNTRUSTED_REDACTION_MARKER_SENTINEL) &&
-    containsSensitiveStructuredAssignment(untrustedMarkerProbe)
-  ) {
-    return { value: STRUCTURED_ERROR_SANITIZATION_FAILURE, unsafe: true }
-  }
-  const genericallyRedacted = redactSensitiveValues(protectedValue)
-  if (genericallyRedacted === REDACTED_MARKER && protectedValue !== REDACTED_MARKER) {
-    return { value: STRUCTURED_ERROR_SANITIZATION_FAILURE, unsafe: true }
-  }
-  const genericProbe = decodePercentEscapes(genericallyRedacted)
-  if (!genericProbe.ok || containsSensitiveStructuredAssignment(genericProbe.value)) {
-    return { value: STRUCTURED_ERROR_SANITIZATION_FAILURE, unsafe: true }
-  }
-  const sanitized = redactSensitiveValues(
-    redactKnownSensitiveValues(protectedValue, protectedSensitiveValues)
-  )
-  const sanitizedProbe = decodePercentEscapes(sanitized)
-  const formDecodedSanitizedProbe = sanitizedProbe.ok
-    ? sanitizedProbe.value.replaceAll('+', ' ')
-    : undefined
-  return {
-    value: sanitized.replaceAll(UNTRUSTED_REDACTION_MARKER_SENTINEL, REDACTED_MARKER),
-    unsafe:
-      !sanitizedProbe.ok ||
-      containsSensitiveStructuredAssignment(sanitizedProbe.value) ||
-      decodedSensitiveValues.some(
-        (sensitiveValue) =>
-          sanitizedProbe.value.includes(sensitiveValue) ||
-          formDecodedSanitizedProbe?.includes(sensitiveValue)
-      ),
-  }
-}
-
-function containsSensitiveStructuredAssignment(value: string): boolean {
-  for (const match of value.matchAll(DOUBLE_QUOTED_STRUCTURED_KEY_PATTERN)) {
-    let key: unknown
-    try {
-      key = JSON.parse(`"${match[1]}"`)
-    } catch {
-      return true
-    }
-    if (
-      typeof key === 'string' &&
-      isSensitiveKey(key) &&
-      !isSafelyRedactedAssignment(value, (match.index ?? 0) + match[0].length)
-    ) {
-      return true
-    }
-  }
-
-  for (const match of value.matchAll(SINGLE_QUOTED_STRUCTURED_KEY_PATTERN)) {
-    const key = decodeEscapedStructuredKey(match[1])
-    if (key === undefined) return true
-    if (
-      isSensitiveKey(key) &&
-      !isSafelyRedactedAssignment(value, (match.index ?? 0) + match[0].length)
-    ) {
-      return true
-    }
-  }
-
-  for (const match of value.matchAll(UNQUOTED_STRUCTURED_KEY_PATTERN)) {
-    const key = decodeEscapedStructuredKey(match[1])
-    if (key === undefined) return true
-    if (
-      isSensitiveKey(key) &&
-      !isSafelyRedactedAssignment(value, (match.index ?? 0) + match[0].length)
-    ) {
-      return true
-    }
-  }
-  return false
-}
+const HTTP_ERROR_BODY_OMITTED = '[response body omitted]'
 
 /** Produces a redacted, bounded diagnostic from an already byte-bounded body. */
 export function sanitizeHttpErrorDiagnostic(
-  body: string,
-  options: { sensitiveValues?: string[] } = {}
+  _body: string,
+  _options: { sensitiveValues?: string[] } = {}
 ): string {
-  const sensitiveValues = options.sensitiveValues ?? []
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(body)
-  } catch {
-    const sanitizedText = sanitizeDiagnosticText(body, sensitiveValues)
-    if (sanitizedText.unsafe) {
-      return STRUCTURED_ERROR_SANITIZATION_FAILURE
-    }
-    return truncate(sanitizedText.value, MAX_HTTP_ERROR_DIAGNOSTIC_CHARS)
-  }
-
-  try {
-    const sanitized = redactHttpErrorJsonStrings(redactApiKeys(parsed), sensitiveValues)
-    if (sanitized.unsafe) return STRUCTURED_ERROR_SANITIZATION_FAILURE
-    return truncate(JSON.stringify(sanitized.value), MAX_HTTP_ERROR_DIAGNOSTIC_CHARS)
-  } catch {
-    return STRUCTURED_ERROR_SANITIZATION_FAILURE
-  }
+  return HTTP_ERROR_BODY_OMITTED
 }
 
 /**
@@ -322,18 +73,16 @@ export async function readBoundedHttpErrorBody(
     arrayBuffer?: () => Promise<ArrayBuffer>
     text?: () => Promise<string>
   },
-  options: { sensitiveValues?: string[] } = {}
+  _options: { sensitiveValues?: string[] } = {}
 ): Promise<string> {
   const payload = await readBoundedHttpErrorPayload(response)
   if (payload.ok) {
-    return sanitizeHttpErrorDiagnostic(payload.body, options)
+    return HTTP_ERROR_BODY_OMITTED
   }
 
-  if (payload.reason === 'too_large') {
-    return `[response body omitted: exceeded ${DEFAULT_MAX_ERROR_BODY_BYTES} bytes]`
-  }
-  const safeMessage = sanitizeHttpErrorDiagnostic(payload.message, options)
-  return truncate(`[response body unavailable: ${safeMessage}]`, MAX_HTTP_ERROR_DIAGNOSTIC_CHARS)
+  return payload.reason === 'too_large'
+    ? `[response body omitted: exceeded ${DEFAULT_MAX_ERROR_BODY_BYTES} bytes]`
+    : '[response body unavailable]'
 }
 
 export type BoundedHttpErrorPayload =
@@ -361,19 +110,8 @@ export async function readBoundedHttpErrorPayload(response: {
       }),
     }
   } catch (error) {
-    if (
-      isPayloadSizeLimitError(error) &&
-      error.observedBytes !== undefined &&
-      error.observedBytes > error.maxBytes
-    ) {
-      return { ok: false, reason: 'too_large' }
-    }
     if (isPayloadSizeLimitError(error)) {
-      return {
-        ok: false,
-        reason: 'unavailable',
-        message: 'no readable body or trustworthy Content-Length',
-      }
+      return { ok: false, reason: 'too_large' }
     }
     return { ok: false, reason: 'unavailable', message: toError(error).message }
   }
@@ -731,15 +469,11 @@ export async function fetchWithRetry(
   options: RequestInit = {},
   retryOptions: RetryOptions = {}
 ): Promise<Response> {
-  const requestCredentialValues = collectSensitiveHeaderValues(options.headers)
-
   return retryWithExponentialBackoff(async () => {
     const response = await fetch(url, options)
 
     if (!response.ok && isRetryableError({ status: response.status, headers: response.headers })) {
-      const errorText = await readBoundedHttpErrorBody(response, {
-        sensitiveValues: requestCredentialValues,
-      })
+      const errorText = await readBoundedHttpErrorBody(response)
       const error: HTTPError = new Error(
         `HTTP ${response.status}: ${response.statusText} - ${errorText}`
       )

@@ -170,7 +170,9 @@ const CONNECTOR_DELETION_CLEANUP_BATCH_SIZE = 250
  */
 const PROCESSING_QUEUE_CONCURRENCY = envNumber(env.KB_CONFIG_CONCURRENCY_LIMIT, 20)
 
-class ConnectorSyncWorkingSetLimitError extends Error {
+class ConnectorSyncCapacityError extends Error {}
+
+class ConnectorSyncWorkingSetLimitError extends ConnectorSyncCapacityError {
   constructor(connectorId: string, scope: 'source listing' | 'owned corpus') {
     super(
       `Connector ${connectorId} ${scope} exceeds the safe per-corpus limit of ${CONNECTOR_SYNC_MAX_CORPUS_DOCUMENTS.toLocaleString()} documents. Narrow the configured source scope or set a connector document limit before syncing again.`
@@ -225,7 +227,7 @@ export function addSourcePagePayloadBytes(
   for (const doc of documents) {
     nextBytes += retainedExternalDocumentBytes(doc)
     if (nextBytes > CONNECTOR_SYNC_MAX_SOURCE_PAYLOAD_BYTES) {
-      throw new Error(
+      throw new ConnectorSyncCapacityError(
         `Connector source listing exceeds the safe retained-payload limit of ${CONNECTOR_SYNC_MAX_SOURCE_PAYLOAD_BYTES.toLocaleString()} bytes. Use a narrower source scope or a deferred-content connector.`
       )
     }
@@ -480,12 +482,12 @@ export function classifyExternalDoc(
     | 'skippedReason'
     | 'skippedExistingDisposition'
   >,
-  existing: { id: string; contentHash: string | null } | undefined,
+  existing: { id: string; contentHash: string | null; storageKey?: string | null } | undefined,
   forceRehydrate = false
 ): DocClassification {
   if (extDoc.skippedReason) {
     if (!existing) return { type: 'skip' }
-    return extDoc.skippedExistingDisposition === 'replace'
+    return existing.storageKey === null || extDoc.skippedExistingDisposition === 'replace'
       ? { type: 'skip', existingId: existing.id }
       : { type: 'unchanged' }
   }
@@ -1335,6 +1337,27 @@ export function buildSyncFailureUpdate(
 }
 
 /**
+ * A deterministic capacity rejection needs operator action, not an automatic
+ * retry or the transient-failure circuit breaker. Keep its precise diagnostic,
+ * release the lock, and leave the connector manually runnable.
+ */
+export function buildSyncCapacityUpdate(
+  now: Date,
+  previousFailures: number | null | undefined,
+  errorMessage: string
+) {
+  return {
+    status: 'error' as const,
+    lastSyncError: errorMessage,
+    nextSyncAt: null,
+    consecutiveFailures: previousFailures ?? 0,
+    syncLockToken: null,
+    syncLockLeaseAt: null,
+    updatedAt: now,
+  }
+}
+
+/**
  * The connector row a successful sync writes.
  *
  * `holdNotice` is threaded through rather than written when the hold is detected
@@ -2135,6 +2158,7 @@ export async function executeSync(
         id: document.id,
         externalId: document.externalId,
         contentHash: document.contentHash,
+        storageKey: document.storageKey,
         /**
          * Projected as well as filtered: the SQL predicate and the in-memory guard in
          * partitionSyncReconciliation must both hold, so dropping either one alone cannot make
@@ -2169,6 +2193,7 @@ export async function executeSync(
         id: document.id,
         externalId: document.externalId,
         contentHash: document.contentHash,
+        storageKey: document.storageKey,
         deletedAt: document.deletedAt,
         /**
          * Gates hard deletion in partitionSyncReconciliation without gating resurrection.
@@ -3128,11 +3153,10 @@ export async function executeSync(
     try {
       await completeSyncLog(syncLogId, 'failed', result, { errorMessage })
 
-      const failureUpdate = buildSyncFailureUpdate(
-        new Date(),
-        connector.consecutiveFailures,
-        errorMessage
-      )
+      const failureUpdate =
+        error instanceof ConnectorSyncCapacityError
+          ? buildSyncCapacityUpdate(new Date(), connector.consecutiveFailures, errorMessage)
+          : buildSyncFailureUpdate(new Date(), connector.consecutiveFailures, errorMessage)
 
       if (failureUpdate.status === 'disabled') {
         logger.warn('Connector disabled after repeated failures', {

@@ -1,17 +1,27 @@
+import { backoffWithJitter } from '@sim/utils/retry'
 import { tasks } from '@trigger.dev/sdk'
 import { resolveTriggerRegion } from '@/lib/core/async-jobs/region'
 import { EMBEDDING_QUOTA_CIRCUIT_TTL_MS } from '@/lib/embeddings/quota-circuit'
 import type { DocumentProcessingPayload } from '@/lib/knowledge/documents/processing-payload'
 
 const MAX_QUOTA_CONTINUATION_DELAY_MS = 6 * 60 * 60 * 1000
-const MAX_QUOTA_BACKOFF_EXPONENT = Math.ceil(
-  Math.log2(MAX_QUOTA_CONTINUATION_DELAY_MS / EMBEDDING_QUOTA_CIRCUIT_TTL_MS)
-)
+export const MAX_QUOTA_CONTINUATION_ATTEMPTS = 8
 
-/** Backs durable quota continuations off to a six-hour polling ceiling. */
+/** Backs durable quota continuations off with jitter to a six-hour polling ceiling. */
 export function resolveQuotaContinuationDelayMs(quotaRetryCount: number): number {
-  const exponent = Math.min(Math.max(quotaRetryCount - 1, 0), MAX_QUOTA_BACKOFF_EXPONENT)
-  return Math.min(EMBEDDING_QUOTA_CIRCUIT_TTL_MS * 2 ** exponent, MAX_QUOTA_CONTINUATION_DELAY_MS)
+  return Math.min(
+    backoffWithJitter(Math.max(quotaRetryCount, 1), null, {
+      baseMs: EMBEDDING_QUOTA_CIRCUIT_TTL_MS,
+      maxMs: MAX_QUOTA_CONTINUATION_DELAY_MS,
+    }),
+    MAX_QUOTA_CONTINUATION_DELAY_MS
+  )
+}
+
+export function canScheduleDocumentProcessingQuotaContinuation(
+  payload: Pick<DocumentProcessingPayload, 'quotaRetryCount'>
+): boolean {
+  return (payload.quotaRetryCount ?? 0) < MAX_QUOTA_CONTINUATION_ATTEMPTS
 }
 
 /**
@@ -22,6 +32,9 @@ export function resolveQuotaContinuationDelayMs(quotaRetryCount: number): number
 export async function scheduleDocumentProcessingQuotaContinuation(
   payload: DocumentProcessingPayload
 ): Promise<Date> {
+  if (!canScheduleDocumentProcessingQuotaContinuation(payload)) {
+    throw new Error('Document processing quota continuation limit reached')
+  }
   const quotaRetryCount = (payload.quotaRetryCount ?? 0) + 1
   const delayMs = resolveQuotaContinuationDelayMs(quotaRetryCount)
   const region = await resolveTriggerRegion()

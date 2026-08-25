@@ -316,13 +316,13 @@ describe('fireflies listDocuments', () => {
     expect(global.fetch).toHaveBeenCalledTimes(2)
   })
 
-  it('surfaces the errors[] message on a non-2xx response', async () => {
+  it('surfaces a validated errors[] code without the provider message', async () => {
     mockGraphQL([
       { status: 403, body: { errors: [{ message: 'Upgrade required', code: 'paid_required' }] } },
     ])
 
     await expect(firefliesConnector.listDocuments('key', {}, undefined, {})).rejects.toThrow(
-      /Upgrade required/
+      /paid_required/
     )
     expect(global.fetch).toHaveBeenCalledTimes(1)
   })

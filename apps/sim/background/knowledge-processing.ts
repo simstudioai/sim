@@ -9,6 +9,8 @@ import {
   type DocumentProcessingPayload,
 } from '@/lib/knowledge/documents/processing-payload'
 import {
+  canScheduleDocumentProcessingQuotaContinuation,
+  MAX_QUOTA_CONTINUATION_ATTEMPTS,
   resolveQuotaContinuationDelayMs,
   scheduleDocumentProcessingQuotaContinuation,
 } from '@/lib/knowledge/documents/processing-quota-continuation'
@@ -37,6 +39,7 @@ export async function runDocumentProcessing(
           actorUserId: payload.actorUserId,
           workspaceId: null,
         }
+  const canScheduleQuotaContinuation = canScheduleDocumentProcessingQuotaContinuation(payload)
 
   logger.info(`[${requestId}] Starting Trigger.dev processing for document: ${docData.filename}`)
 
@@ -59,7 +62,11 @@ export async function runDocumentProcessing(
         ...(payload.processingQueuedAt
           ? { processingQueuedAt: new Date(payload.processingQueuedAt) }
           : {}),
-        scheduleQuotaContinuation: () => scheduleDocumentProcessingQuotaContinuation(payload),
+        ...(canScheduleQuotaContinuation
+          ? {
+              scheduleQuotaContinuation: () => scheduleDocumentProcessingQuotaContinuation(payload),
+            }
+          : { quotaContinuationExhausted: true }),
       }
     )
 
@@ -73,13 +80,16 @@ export async function runDocumentProcessing(
     }
   } catch (error) {
     if (isEmbeddingQuotaExhaustion(error)) {
-      logger.warn(`[${requestId}] Embedding quota is exhausted; scheduling a continuation`, {
+      const outcome = canScheduleQuotaContinuation ? 'quota_deferred' : 'quota_exhausted'
+      logger.warn(`[${requestId}] Embedding quota is exhausted`, {
         filename: docData.filename,
         quotaRetryCount: payload.quotaRetryCount ?? 0,
+        continuationLimit: MAX_QUOTA_CONTINUATION_ATTEMPTS,
+        outcome,
       })
       return {
         success: false,
-        outcome: 'quota_deferred' as const,
+        outcome,
         documentId,
         filename: docData.filename,
         error: EMBEDDING_QUOTA_EXHAUSTED_MESSAGE,

@@ -3,7 +3,6 @@ import {
   type SecureFetchResponse,
   secureFetchWithValidation,
 } from '@/lib/core/security/input-validation.server'
-import { collectSensitiveHeaderValues } from '@/lib/core/security/redaction'
 import {
   attachRetryHeaders,
   type HTTPError,
@@ -36,8 +35,6 @@ export async function secureFetchWithRetry(
   retryOptions: SecureFetchRetryOptions = {}
 ): Promise<SecureFetchResponse> {
   const { allowHttp, timeout, maxResponseBytes, ...retry } = retryOptions
-  const requestCredentialValues = collectSensitiveHeaderValues(options.headers)
-
   return retryWithExponentialBackoff(async () => {
     const response = await secureFetchWithValidation(
       url,
@@ -59,9 +56,7 @@ export async function secureFetchWithRetry(
      * limit) use instead.
      */
     if (!response.ok && isRetryableError({ status: response.status, headers: response.headers })) {
-      const errorText = await readBoundedHttpErrorBody(response, {
-        sensitiveValues: requestCredentialValues,
-      })
+      const errorText = await readBoundedHttpErrorBody(response)
       const error: HTTPError = new Error(
         `HTTP ${response.status}: ${response.statusText} - ${errorText}`
       )

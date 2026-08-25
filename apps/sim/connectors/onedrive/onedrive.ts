@@ -391,7 +391,12 @@ export const onedriveConnector: ConnectorConfig = {
 
     const item = (await response.json()) as OneDriveItem
 
-    if (!item.file || !isIndexableConnectorFile(item.name)) return null
+    if (!item.file || !isIndexableConnectorFile(item.name)) {
+      return {
+        ...markSkipped(fileToStub(item), 'File is no longer an indexable document'),
+        skippedExistingDisposition: 'replace',
+      }
+    }
 
     try {
       const payload = await fetchFilePayload(accessToken, item.id, item.name)

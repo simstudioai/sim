@@ -342,7 +342,7 @@ describe('notion markdown hydration', () => {
     expect(mockFetchWithRetry).toHaveBeenCalledTimes(4)
   })
 
-  it('propagates redacted structured diagnostics from the markdown endpoint', async () => {
+  it('omits free-form provider diagnostics from the markdown endpoint', async () => {
     mockFetchWithRetry.mockResolvedValueOnce(notionResponse(page())).mockResolvedValueOnce(
       notionResponse(
         {
@@ -356,11 +356,11 @@ describe('notion markdown hydration', () => {
     )
 
     await expect(notionConnector.getDocument('token', {}, 'page-1')).rejects.toThrow(
-      'Failed to fetch markdown for page-1: 400, code=validation_error, message=The start_cursor provided is invalid. Authorization: Bearer [REDACTED], requestId=request-2'
+      'Failed to fetch markdown for page-1: 400, code=validation_error, requestId=request-2'
     )
   })
 
-  it('preserves structured diagnostics from a valid error envelope larger than 2KB', async () => {
+  it('preserves only machine identifiers from a valid error envelope larger than 2KB', async () => {
     mockFetchWithRetry.mockResolvedValueOnce(notionResponse(page())).mockResolvedValueOnce(
       notionResponse(
         {
@@ -375,7 +375,7 @@ describe('notion markdown hydration', () => {
     )
 
     await expect(notionConnector.getDocument('token', {}, 'page-1')).rejects.toThrow(
-      'Failed to fetch markdown for page-1: 400, code=validation_error, message=The start_cursor provided is invalid, requestId=request-large'
+      'Failed to fetch markdown for page-1: 400, code=validation_error, requestId=request-large'
     )
   })
 

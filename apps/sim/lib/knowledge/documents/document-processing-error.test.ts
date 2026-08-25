@@ -24,7 +24,7 @@ describe('document processing failure taxonomy', () => {
     })
   })
 
-  it('recognizes an archive rejection preserved only through a parser wrapper', () => {
+  it('does not infer archive safety from untyped exception text', () => {
     const failure = classifyDocumentProcessingFailure(
       new Error(
         'Failed to parse XLSX buffer: Archive total uncompressed size exceeds 157286400 bytes'
@@ -33,35 +33,32 @@ describe('document processing failure taxonomy', () => {
     )
 
     expect(failure).toMatchObject({
-      disposition: 'permanent',
-      code: 'archive_safety_limit',
+      disposition: 'transient',
+      code: 'transient_processing_failure',
     })
   })
 
-  it('classifies password-protected workbooks as permanent input failures', () => {
+  it('does not infer encryption from untyped exception text', () => {
     const failure = classifyDocumentProcessingFailure(
       new Error('Failed to parse XLSX buffer: File is password-protected'),
       'Reconciliation.xlsx'
     )
 
-    expect(failure).toEqual({
-      disposition: 'permanent',
-      code: 'encrypted_file',
-      userMessage: 'This file is encrypted or password-protected. Remove the protection and retry.',
+    expect(failure).toMatchObject({
+      disposition: 'transient',
+      code: 'transient_processing_failure',
     })
   })
 
-  it('classifies unreadable Office containers with an actionable repair path', () => {
+  it('does not dead-letter Office files from untyped exception text', () => {
     const failure = classifyDocumentProcessingFailure(
       new Error('Failed to parse DOCX buffer: Failed to extract text from DOCX file'),
       'Letterhead.dotx'
     )
 
-    expect(failure).toEqual({
-      disposition: 'permanent',
-      code: 'unreadable_office_file',
-      userMessage:
-        'This DOTX file could not be read. Open and re-save it as a valid DOTX file, then retry.',
+    expect(failure).toMatchObject({
+      disposition: 'transient',
+      code: 'transient_processing_failure',
     })
   })
 

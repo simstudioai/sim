@@ -284,6 +284,21 @@ describe('onedrive getDocument', () => {
     expect(doc).toBeNull()
   })
 
+  it('authoritatively skips a listed file that changed to a folder', async () => {
+    mockGraph({
+      [`${GRAPH}/me/drive/items/f1?$select=id,name,webUrl,size,file,folder,lastModifiedDateTime,createdBy,parentReference`]:
+        {
+          body: folder('f1', 'Former document'),
+        },
+    })
+
+    await expect(onedriveConnector.getDocument!('token', {}, 'f1')).resolves.toMatchObject({
+      content: '',
+      skippedReason: 'File is no longer an indexable document',
+      skippedExistingDisposition: 'replace',
+    })
+  })
+
   it('produces the same contentHash as the listing stub', async () => {
     const item = file('f1', 'a.txt')
     mockGraph({

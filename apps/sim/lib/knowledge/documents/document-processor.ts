@@ -15,7 +15,7 @@ import {
   TokenChunker,
 } from '@/lib/chunkers'
 import type { ChunkingStrategy, StrategyOptions } from '@/lib/chunkers/types'
-import { env, envNumber } from '@/lib/core/config/env'
+import { env } from '@/lib/core/config/env'
 import { OCR_CAPABILITY, requireCapability } from '@/lib/core/config/env-capabilities'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
@@ -55,23 +55,17 @@ const TIMEOUTS = {
 } as const
 
 const DEFAULT_OCR_CHUNK_CONCURRENCY = 2
-const MAX_OCR_CHUNK_CONCURRENCY = 10
 const MAX_OCR_PDF_PAGES = 10_000
 const MAX_OCR_PDF_CHUNKS = 10
 const MAX_OCR_SPLIT_BYTES = 2 * MAX_FILE_SIZE
 const MAX_OCR_RESPONSE_BYTES = 32 * 1024 * 1024
 const MAX_OCR_OUTPUT_TEXT_BYTES = 20 * 1024 * 1024
 
-function boundedPositiveInteger(value: number, fallback: number, maximum: number): number {
-  if (!Number.isFinite(value)) return fallback
-  return Math.min(maximum, Math.max(1, Math.floor(value)))
-}
-
-const MAX_CONCURRENT_CHUNKS = boundedPositiveInteger(
-  envNumber(env.KB_CONFIG_CHUNK_CONCURRENCY, DEFAULT_OCR_CHUNK_CONCURRENCY),
-  DEFAULT_OCR_CHUNK_CONCURRENCY,
-  MAX_OCR_CHUNK_CONCURRENCY
-)
+/**
+ * Two concurrent OCR chunks keep the source, split-buffer, response, and
+ * extracted-text ceilings inside one worker's aggregate memory budget.
+ */
+const MAX_CONCURRENT_CHUNKS = DEFAULT_OCR_CHUNK_CONCURRENCY
 
 type OCRResult = {
   success: boolean
@@ -252,6 +246,13 @@ export async function processDocument(
       throw new PermanentDocumentProcessingError(
         'no_extractable_text',
         unreadableDocumentMessage(filename)
+      )
+    }
+
+    if (parseResult.metadata?.truncated) {
+      throw new PermanentDocumentProcessingError(
+        'document_complexity_limit',
+        'This document exceeds the complete-extraction limit and was not indexed. Split it into smaller files and retry.'
       )
     }
 
@@ -598,6 +599,14 @@ function processOCRContent(result: OCRResult, filename: string, expectedPages?: 
       `OCR provider returned an incomplete page result: expected ${expectedPages}, received ${pageCount ?? 0}`
     )
   }
+  if (
+    expectedPages === undefined &&
+    (!Number.isFinite(pageCount) ||
+      !Number.isFinite(pagesProcessed) ||
+      pageCount !== pagesProcessed)
+  ) {
+    throw new Error('OCR provider did not report a complete page count for this PDF')
+  }
   if (!content.trim()) {
     throw new PermanentDocumentProcessingError(
       'no_extractable_text',
@@ -657,10 +666,9 @@ async function makeOCRRequest(
       })
     } catch (error) {
       if (response.ok && isPayloadSizeLimitError(error)) {
-        throw new PermanentDocumentProcessingError(
-          'document_complexity_limit',
-          `OCR output exceeded the safe response limit of ${MAX_OCR_RESPONSE_BYTES} bytes`,
-          error
+        throw new Error(
+          `OCR provider response exceeded the safe envelope limit of ${MAX_OCR_RESPONSE_BYTES} bytes`,
+          { cause: error }
         )
       }
       if (!response.ok && isPayloadSizeLimitError(error)) {
@@ -772,9 +780,9 @@ async function recognizeWithAzureOCR(
 
   const ocrResult = (await response.json()) as AzureOCRResponse
 
+  const returnedPages = ocrResult.pages?.length ?? 0
+  const processedPages = ocrResult.usage_info?.pages_processed
   if (expectedPages !== undefined) {
-    const returnedPages = ocrResult.pages?.length ?? 0
-    const processedPages = ocrResult.usage_info?.pages_processed
     if (
       returnedPages !== expectedPages ||
       (processedPages !== undefined && processedPages !== expectedPages)
@@ -783,6 +791,12 @@ async function recognizeWithAzureOCR(
         `OCR provider returned an incomplete page result: expected ${expectedPages}, received ${returnedPages}`
       )
     }
+  } else if (
+    returnedPages === 0 ||
+    !Number.isFinite(processedPages) ||
+    processedPages !== returnedPages
+  ) {
+    throw new Error('OCR provider did not report a complete page count for this PDF')
   }
 
   /**
@@ -1117,6 +1131,13 @@ async function ocrPdfInChunks(
     throw new Error(
       `OCR completed ${outcomes.length - failures.length} of ${chunkCount} chunks; indexing the document would omit the rest`,
       { cause: new AggregateError(failures.map((failure) => failure.error)) }
+    )
+  }
+
+  const emptyChunks = outcomes.filter((outcome) => outcome.kind === 'empty')
+  if (emptyChunks.length > 0 && emptyChunks.length < outcomes.length) {
+    throw new Error(
+      `OCR returned no text for ${emptyChunks.length} of ${chunkCount} chunks; indexing the document would omit those pages`
     )
   }
 

@@ -47,6 +47,27 @@ describe('googleDocsConnector', () => {
   })
 
   describe('getDocument', () => {
+    it('authoritatively skips a listed document that changed type', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(
+          async () =>
+            new Response(
+              JSON.stringify({ ...DRIVE_FILE, mimeType: 'application/pdf', trashed: false }),
+              { status: 200 }
+            )
+        )
+      )
+
+      await expect(
+        googleDocsConnector.getDocument(ACCESS_TOKEN, {}, DOCUMENT_ID)
+      ).resolves.toMatchObject({
+        content: '',
+        skippedReason: 'File is no longer a Google Doc',
+        skippedExistingDisposition: 'replace',
+      })
+    })
+
     it('requests the tab response view and extracts nested tab content', async () => {
       const fetchMock = stubFetchDocument(
         new Response(
@@ -131,7 +152,7 @@ describe('googleDocsConnector', () => {
       expect(docsUrl.searchParams.get('fields')).toBe('tabs')
     })
 
-    it('includes the structured Google API error message when hydration fails', async () => {
+    it('omits the structured Google API error message when hydration fails', async () => {
       stubFetchDocument(
         new Response(
           JSON.stringify({
@@ -146,11 +167,11 @@ describe('googleDocsConnector', () => {
       )
 
       await expect(googleDocsConnector.getDocument(ACCESS_TOKEN, {}, DOCUMENT_ID)).rejects.toThrow(
-        `Failed to fetch Google Doc content ${DOCUMENT_ID}: 400 — Invalid field selection tabs`
+        `Failed to fetch Google Doc content ${DOCUMENT_ID}: 400`
       )
     })
 
-    it('preserves a structured Google API error message from an envelope larger than 2KB', async () => {
+    it('omits a structured Google API error message from an envelope larger than 2KB', async () => {
       stubFetchDocument(
         new Response(
           JSON.stringify({
@@ -166,11 +187,11 @@ describe('googleDocsConnector', () => {
       )
 
       await expect(googleDocsConnector.getDocument(ACCESS_TOKEN, {}, DOCUMENT_ID)).rejects.toThrow(
-        `Failed to fetch Google Doc content ${DOCUMENT_ID}: 400 — Invalid field selection tabs`
+        `Failed to fetch Google Doc content ${DOCUMENT_ID}: 400`
       )
     })
 
-    it('redacts credentials from bounded Google API diagnostics', async () => {
+    it('omits credentials from bounded Google API diagnostics', async () => {
       stubFetchDocument(
         new Response(
           JSON.stringify({
@@ -185,7 +206,7 @@ describe('googleDocsConnector', () => {
       )
 
       await expect(googleDocsConnector.getDocument(ACCESS_TOKEN, {}, DOCUMENT_ID)).rejects.toThrow(
-        `Failed to fetch Google Doc content ${DOCUMENT_ID}: 403 — Authorization: Bearer [REDACTED]`
+        `Failed to fetch Google Doc content ${DOCUMENT_ID}: 403`
       )
     })
 
@@ -200,7 +221,7 @@ describe('googleDocsConnector', () => {
         (caught) => caught as Error
       )
 
-      expect(error?.message).toContain('[REDACTED]')
+      expect(error?.message).toBe(`Failed to fetch Google Doc content ${DOCUMENT_ID}: 400`)
       expect(error?.message).not.toContain(secret)
     })
 

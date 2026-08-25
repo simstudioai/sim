@@ -83,7 +83,7 @@ describe('Google Drive API error parsing', () => {
     expect(error).toBeInstanceOf(GoogleDriveApiError)
     expect(error.kind).toBe(kind)
     expect(error.reasons).toEqual([reason])
-    expect(error.providerMessage).toBe('Provider message')
+    expect(error.providerMessage).toBeUndefined()
   })
 
   it('classifies retryable statuses even without a structured reason', async () => {
@@ -96,16 +96,13 @@ describe('Google Drive API error parsing', () => {
     expect(error.message).not.toContain('upstream unavailable')
   })
 
-  it('bounds and normalizes the provider message used for diagnostics', async () => {
+  it('omits provider messages from diagnostics', async () => {
     const message = `Authorization: Bearer private-token\ncontext ${'x'.repeat(700)}`
     const error = await readGoogleDriveApiError(
       driveErrorResponse('insufficientFilePermissions', message)
     )
 
-    expect(error.providerMessage).not.toContain('\n')
-    expect(error.providerMessage!.length).toBeLessThanOrEqual(500)
-    expect(error.providerMessage).toContain('Authorization: Bearer [REDACTED]')
-    expect(error.providerMessage).not.toContain('private-token')
+    expect(error.providerMessage).toBeUndefined()
     expect(error.message).not.toContain('private-token')
   })
 
@@ -128,8 +125,7 @@ describe('Google Drive API error parsing', () => {
     )
 
     expect(error.kind).toBe('quota')
-    expect(error.reasons).toHaveLength(16)
-    expect(error.reasons.every((reason) => reason.length <= 100)).toBe(true)
+    expect(error.reasons).toEqual(['quotaExceeded'])
     expect(JSON.stringify(error.reasons)).not.toContain(secret)
     expect(error.message).not.toContain(secret)
   })
@@ -306,6 +302,19 @@ describe('Google Drive export failures', () => {
       skippedExistingDisposition: 'replace',
       skippedReason: 'Document contains no extractable text',
     })
+  })
+
+  it('authoritatively skips a listed file that changed to an unsupported type', async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse(fileMetadata({ name: 'diagram.png', mimeType: 'image/png' }))
+    )
+
+    await expect(googleDriveConnector.getDocument('token', {}, FILE_ID)).resolves.toMatchObject({
+      content: '',
+      skippedReason: 'File is no longer an indexable document',
+      skippedExistingDisposition: 'replace',
+    })
+    expect(mockFetch).toHaveBeenCalledTimes(1)
   })
 })
 

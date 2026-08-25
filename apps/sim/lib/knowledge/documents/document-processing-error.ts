@@ -52,12 +52,11 @@ export class PermanentDocumentProcessingError extends Error {
 /**
  * Maximum vectors and embedding records retained before the atomic index swap.
  *
- * Each vector is an array of JavaScript numbers. At 3,072 dimensions, the old
- * 100,000-chunk ceiling could retain multiple gigabytes before accounting for
- * response JSON, chunk text, provenance, and insert records. Five thousand
- * bounds raw vector values to roughly 120 MiB while remaining far above an
- * ordinary document. Larger inputs need to be split to preserve the atomic
- * replacement behavior without silently truncating indexed content.
+ * Each knowledge-base vector is 1,536 JavaScript numbers. The old 100,000-chunk
+ * ceiling could retain well over a gigabyte before response JSON, array
+ * overhead, chunk text, provenance, and insert records. Five thousand bounds
+ * raw vector values to roughly 59 MiB while preserving the atomic replacement
+ * behavior instead of silently truncating indexed content.
  */
 export const MAX_DOCUMENT_CHUNKS = 5_000
 
@@ -93,39 +92,6 @@ const OFFICE_REPAIR_EXTENSIONS = new Set([
   'ods',
   'odp',
 ])
-
-const ARCHIVE_SAFETY_PATTERN =
-  /zipbomb|archive (?:entry|total)|compression ratio|too large to (?:parse|preview) safely/i
-const ARCHIVE_INTEGRITY_PATTERN =
-  /central directory|overlapping zip entries|archive contents do not match declared sizes|unverifiable zip-shaped archive/i
-const ENCRYPTED_FILE_PATTERN =
-  /password[- ]protected|encrypted (?:file|workbook|document)|password is required/i
-const NO_TEXT_PATTERN = /no text could be extracted/i
-const UNSUPPORTED_FILE_PATTERN = /unsupported file type|does not support buffer parsing/i
-const INVALID_FILE_PATTERN = /empty buffer provided|invalid data uri format/i
-const OFFICE_PARSE_PATTERN =
-  /failed to parse (?:docx|xlsx|powerpoint|opendocument)|invalid (?:docx|xlsx|zip)|unsupported zip|corrupt(?:ed)? (?:office|document|workbook|archive)/i
-
-function errorEvidence(error: unknown): string {
-  const evidence: string[] = []
-  const seen = new Set<unknown>()
-  const pending: unknown[] = [error]
-
-  while (pending.length > 0 && evidence.length < 16) {
-    const current = pending.shift()
-    if (current === undefined || current === null || seen.has(current)) continue
-    seen.add(current)
-    if (current instanceof Error) {
-      evidence.push(current.name, current.message)
-      if (current.cause !== undefined) pending.push(current.cause)
-      if (current instanceof AggregateError) pending.push(...current.errors.slice(0, 8))
-    } else {
-      evidence.push(getErrorMessage(current))
-    }
-  }
-
-  return evidence.join(' ')
-}
 
 function officeFormatName(filename: string): string {
   const extension = getFileExtension(filename)
@@ -211,9 +177,7 @@ export function classifyDocumentProcessingFailure(
     }
   }
 
-  const evidence = errorEvidence(error)
-
-  if (error instanceof ArchiveIntegrityError || ARCHIVE_INTEGRITY_PATTERN.test(evidence)) {
+  if (error instanceof ArchiveIntegrityError) {
     return OFFICE_REPAIR_EXTENSIONS.has(extension)
       ? {
           disposition: 'permanent',
@@ -228,52 +192,12 @@ export function classifyDocumentProcessingFailure(
         }
   }
 
-  if (error instanceof ZipBombError || ARCHIVE_SAFETY_PATTERN.test(evidence)) {
+  if (error instanceof ZipBombError) {
     return {
       disposition: 'permanent',
       code: 'archive_safety_limit',
       userMessage:
         'This file expands beyond the safe processing limit and was not indexed. Reduce its size or split it into smaller files, then retry.',
-    }
-  }
-
-  if (ENCRYPTED_FILE_PATTERN.test(evidence)) {
-    return {
-      disposition: 'permanent',
-      code: 'encrypted_file',
-      userMessage: 'This file is encrypted or password-protected. Remove the protection and retry.',
-    }
-  }
-
-  if (UNSUPPORTED_FILE_PATTERN.test(evidence)) {
-    return {
-      disposition: 'permanent',
-      code: 'unsupported_file_type',
-      userMessage: `This file type is not supported for indexing. Convert it to a supported format and retry.`,
-    }
-  }
-
-  if (INVALID_FILE_PATTERN.test(evidence)) {
-    return {
-      disposition: 'permanent',
-      code: 'invalid_file',
-      userMessage: 'This file is empty or invalid. Replace it with a valid file and retry.',
-    }
-  }
-
-  if (NO_TEXT_PATTERN.test(evidence)) {
-    return {
-      disposition: 'permanent',
-      code: 'no_extractable_text',
-      userMessage: getErrorMessage(error),
-    }
-  }
-
-  if (OFFICE_REPAIR_EXTENSIONS.has(extension) && OFFICE_PARSE_PATTERN.test(evidence)) {
-    return {
-      disposition: 'permanent',
-      code: 'unreadable_office_file',
-      userMessage: `This ${officeFormatName(filename)} file could not be read. Open and re-save it as a valid ${officeFormatName(filename)} file, then retry.`,
     }
   }
 

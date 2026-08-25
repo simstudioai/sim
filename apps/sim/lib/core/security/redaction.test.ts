@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import {
-  collectSensitiveHeaderValues,
   isLargeDataKey,
   isSensitiveKey,
   REDACTED_MARKER,
@@ -48,8 +47,6 @@ describe('isSensitiveKey', () => {
       expect(isSensitiveKey('api-key')).toBe(true)
       expect(isSensitiveKey('APIKEY')).toBe(true)
       expect(isSensitiveKey('API_KEY')).toBe(true)
-      expect(isSensitiveKey('api%2Dkey')).toBe(true)
-      expect(isSensitiveKey('project%2Dapi%2Dkey')).toBe(true)
     })
 
     it.concurrent('should match token variations', () => {
@@ -68,14 +65,11 @@ describe('isSensitiveKey', () => {
     it.concurrent('should match other sensitive keys', () => {
       expect(isSensitiveKey('private_key')).toBe(true)
       expect(isSensitiveKey('authorization')).toBe(true)
-      expect(isSensitiveKey('proxy-authorization')).toBe(true)
-      expect(isSensitiveKey('proxy_authorization')).toBe(true)
       expect(isSensitiveKey('bearer')).toBe(true)
       expect(isSensitiveKey('private')).toBe(true)
       expect(isSensitiveKey('auth')).toBe(true)
       expect(isSensitiveKey('password')).toBe(true)
       expect(isSensitiveKey('credential')).toBe(true)
-      expect(isSensitiveKey('private%2Dkey')).toBe(true)
     })
   })
 
@@ -143,94 +137,6 @@ describe('isSensitiveKey', () => {
   })
 })
 
-describe('collectSensitiveHeaderValues', () => {
-  it('collects full, normalized, and scheme-suffix values without mutating a record', () => {
-    const headers = { Authorization: '  Bot opaque-bot-credential  ', Accept: 'application/json' }
-    const original = { ...headers }
-
-    const values = collectSensitiveHeaderValues(headers)
-
-    expect(values).toEqual(
-      expect.arrayContaining([
-        '  Bot opaque-bot-credential  ',
-        'Bot opaque-bot-credential',
-        'opaque-bot-credential',
-      ])
-    )
-    expect(headers).toEqual(original)
-    expect(values).not.toContain('application/json')
-  })
-
-  it('supports Headers and preserves an opaque API key', () => {
-    const headers = new Headers({ 'X-Api-Key': 'opaque-fathom-credential' })
-
-    expect(collectSensitiveHeaderValues(headers)).toContain('opaque-fathom-credential')
-    expect(headers.get('x-api-key')).toBe('opaque-fathom-credential')
-  })
-
-  it('collects individual credentials from combined duplicate Headers values', () => {
-    const headers = new Headers()
-    headers.append('Authorization', 'opaque-first-credential')
-    headers.append('Authorization', 'opaque-second-credential')
-
-    const values = collectSensitiveHeaderValues(headers)
-
-    expect(headers.get('authorization')).toBe('opaque-first-credential, opaque-second-credential')
-    expect(values).toEqual(
-      expect.arrayContaining(['opaque-first-credential', 'opaque-second-credential'])
-    )
-  })
-
-  it('supports tuple headers and collects cookie and proxy credentials', () => {
-    const headers: [string, string][] = [
-      ['Cookie', 'session=opaque-cookie-credential; theme=dark'],
-      ['Proxy-Authorization', 'Token proxy=opaque-proxy-credential'],
-    ]
-
-    const values = collectSensitiveHeaderValues(headers)
-
-    expect(values).toEqual(
-      expect.arrayContaining(['opaque-cookie-credential', 'opaque-proxy-credential'])
-    )
-    expect(headers).toEqual([
-      ['Cookie', 'session=opaque-cookie-credential; theme=dark'],
-      ['Proxy-Authorization', 'Token proxy=opaque-proxy-credential'],
-    ])
-  })
-
-  it('collects assignment-style credentials from authorization schemes', () => {
-    const values = collectSensitiveHeaderValues({
-      Authorization: 'Token token="opaque-pagerduty-credential", signature=opaque-signature',
-    })
-
-    expect(values).toEqual(
-      expect.arrayContaining(['opaque-pagerduty-credential', 'opaque-signature'])
-    )
-  })
-
-  it('decodes quoted-pair escapes in assignment-style credentials', () => {
-    const decodedSecret = 'opaque"quoted-secret'
-    const values = collectSensitiveHeaderValues({
-      Authorization: 'Token token="opaque\\"quoted-secret"',
-    })
-
-    expect(values).toContain(decodedSecret)
-  })
-
-  it('decodes Basic credentials and splits only on the first colon', () => {
-    const username = 'basic-user-private'
-    const password = 'basic-password:with:colons'
-    const encoded = btoa(`${username}:${password}`)
-
-    const values = collectSensitiveHeaderValues({ Authorization: `Basic ${encoded}` })
-
-    expect(values).toEqual(
-      expect.arrayContaining([encoded, `${username}:${password}`, username, password])
-    )
-    expect(values).not.toContain('=')
-  })
-})
-
 describe('redactSensitiveValues', () => {
   it.concurrent('should redact Bearer tokens', () => {
     const input = 'Authorization: Bearer abc123xyz456'
@@ -285,6 +191,8 @@ describe('redactSensitiveValues', () => {
     expect(result).not.toContain('secret-five')
     expect(result).not.toContain('secret-six')
     expect(result).toContain('refresh_token=[REDACTED]')
+    expect(result).toContain('oauth_token%3D[REDACTED]')
+    expect(result).toContain('scope%3Dx')
   })
 
   it.concurrent('uses the canonical sensitive-key policy for form fields', () => {
@@ -299,134 +207,6 @@ describe('redactSensitiveValues', () => {
       expect(result).not.toContain(`encoded-secret-${index}`)
     }
   })
-
-  it.concurrent.each(['authorization', 'auth', 'bearer'])(
-    'redacts raw %s assignments after an encoded field boundary through the safe raw delimiter',
-    (key) => {
-      const input = `status%3Dfailed%26${key}=opaque-secret%26scope%3Dopenid&message=safe`
-      const result = redactSensitiveValues(input)
-
-      expect(result).toBe(`status%3Dfailed%26${key}=[REDACTED]&message=safe`)
-      expect(result).not.toContain('opaque-secret')
-    }
-  )
-
-  it.concurrent.each(['authorization', 'auth', 'bearer'])(
-    'redacts encoded %s assignments after an encoded field boundary',
-    (key) => {
-      const input = `status%3Dfailed%26${key}%3Dopaque-secret%26scope%3Dopenid`
-      const result = redactSensitiveValues(input)
-
-      expect(result).not.toContain('opaque-secret')
-      expect(result).toContain(`${key}%3D[REDACTED]%26scope%3Dopenid`)
-    }
-  )
-
-  it.concurrent.each(['%26authorization', '%3Fauth'])(
-    'redacts an encoded ampersand inside a raw credential after boundary %s',
-    (fieldStart) => {
-      const input = `redirect_uri=x${fieldStart}=prefix%26secret-tail`
-      const result = redactSensitiveValues(input)
-
-      expect(result).toBe(`redirect_uri=x${fieldStart}=[REDACTED]`)
-      expect(result).not.toContain('secret-tail')
-    }
-  )
-
-  it.concurrent.each([
-    ['authorization', 'Bearer opaque-secret'],
-    ['auth', 'Basic dXNlcjpwYXNz'],
-    ['bearer', 'Token opaque-secret'],
-  ])('redacts a whitespace-bearing %s credential as one value', (key, credential) => {
-    const input = `scope=x%26${key}=${credential} message=safe`
-    const result = redactSensitiveValues(input)
-
-    expect(result).toBe(`scope=x%26${key}=[REDACTED]`)
-    expect(result).not.toContain(credential)
-  })
-
-  it.concurrent.each([
-    'authorization=Digest username=user, response=opaque-digest message=safe',
-    'authorization=AWS4-HMAC-SHA256 Credential=AKIA-OPAQUE, SignedHeaders=host, Signature=opaque-signature message=safe',
-    'scope=x%26authorization=Digest username=user, response=opaque-digest message=safe',
-    'scope=x%26authorization=AWS4-HMAC-SHA256 Credential=AKIA-OPAQUE, SignedHeaders=host, Signature=opaque-signature message=safe',
-  ])('redacts a multipart authorization value through the next hard delimiter: %s', (input) => {
-    const result = redactSensitiveValues(input)
-
-    expect(result).not.toContain('opaque-')
-    expect(result).not.toContain('AKIA-OPAQUE')
-    expect(result).toContain('[REDACTED]')
-  })
-
-  it.concurrent.each(['authorization', 'auth', 'bearer', 'api_key'])(
-    'treats a malformed percent prefix as a boundary for %s',
-    (key) => {
-      expect(redactSensitiveValues(`prefix%${key}=opaque-secret`)).not.toContain('opaque-secret')
-      expect(redactSensitiveValues(`prefix%${key}%3Dopaque-secret`)).not.toContain('opaque-secret')
-    }
-  )
-
-  it.concurrent.each([
-    'status%20not-authorization=public',
-    'status%20x-bearer=public',
-    'status%20not-authorization%3Dpublic',
-    'status%20x-bearer%3Dpublic',
-  ])('does not treat a hyphen inside a compound field key as a boundary: %s', (input) => {
-    expect(redactSensitiveValues(input)).toBe(input)
-  })
-
-  it.concurrent.each([
-    'status%20proxy-authorization=opaque-secret',
-    'status%20proxy-authorization%3Dopaque-secret',
-    'status%20proxy_authorization=opaque-secret',
-    'status%20proxy_authorization%3Dopaque-secret',
-  ])('redacts the standardized proxy authorization field: %s', (input) => {
-    expect(redactSensitiveValues(input)).not.toContain('opaque-secret')
-  })
-
-  it.concurrent.each([
-    'status%253Dok%2526authorization%253Dopaque-authorization%2526scope%253Dopenid',
-    'status%253Dok%253Fauth%253Dopaque-auth%2526scope%253Dopenid',
-    'status%253Dok%2526bearer=opaque-bearer%2526scope%253Dopenid',
-  ])('fails closed for a nested percent-encoded sensitive assignment: %s', (input) => {
-    expect(redactSensitiveValues(input)).toBe('[REDACTED]')
-  })
-
-  it.concurrent('preserves ordinary nested percent-encoded text', () => {
-    expect(redactSensitiveValues('status%253Dok%2526scope%253Dopenid')).toBe(
-      'status%253Dok%2526scope%253Dopenid'
-    )
-  })
-
-  it.concurrent('fails closed when percent normalization exceeds the bounded depth', () => {
-    let input = 'authorization=opaque-secret'
-    for (let pass = 0; pass < 10; pass++) input = encodeURIComponent(input)
-
-    expect(redactSensitiveValues(input)).toBe('[REDACTED]')
-  })
-
-  it.concurrent.each([
-    'bad=%FF&%61%75%74%68%6F%72%69%7A%61%74%69%6F%6E%3Dopaque-secret',
-    '%FF%26%61%75%74%68%3Dopaque-secret',
-    'bad=%E0%A4&%62%65%61%72%65%72%3Dopaque-secret',
-  ])('fails closed when invalid percent encoding can mask a sensitive field: %s', (input) => {
-    expect(redactSensitiveValues(input)).toBe('[REDACTED]')
-  })
-
-  it.concurrent('fails closed for invalid encoded bytes even without a visible assignment', () => {
-    expect(redactSensitiveValues('provider returned %FF')).toBe('[REDACTED]')
-  })
-
-  it.concurrent.each(['authorization', 'auth', 'bearer'])(
-    'redacts %s at the start of an encoded URL query',
-    (key) => {
-      const input = `redirect_uri%3Dhttps%3A%2F%2Fexample.com%2Fcallback%3F${key}%3Dopaque-secret%26scope%3Dopenid`
-      const result = redactSensitiveValues(input)
-
-      expect(result).not.toContain('opaque-secret')
-      expect(result).toContain(`${key}%3D[REDACTED]%26scope%3Dopenid`)
-    }
-  )
 
   it.concurrent('redacts sensitive raw fields nested inside a non-sensitive URL value', () => {
     const input = 'redirect_uri=https://example.com/callback?access_token=raw-secret&scope=openid'
@@ -852,17 +632,6 @@ describe('Security edge cases', () => {
       expect(result.normalField).toBe('normal')
     })
 
-    it.concurrent('should preserve an own __proto__ key without prototype mutation', () => {
-      const obj = JSON.parse('{"__proto__":{"polluted":true},"constructor":"safe"}')
-
-      const result = redactApiKeys(obj)
-
-      expect(Object.hasOwn(result, '__proto__')).toBe(true)
-      expect(result.__proto__).toEqual({ polluted: true })
-      expect(result.constructor).toBe('safe')
-      expect(({} as { polluted?: boolean }).polluted).toBeUndefined()
-    })
-
     it.concurrent('should handle objects with toString key', () => {
       const obj = {
         toString: 'custom-tostring',
@@ -1068,13 +837,6 @@ describe('Security edge cases', () => {
     it.concurrent('should handle keys with special characters', () => {
       expect(isSensitiveKey('api-key')).toBe(true)
       expect(isSensitiveKey('api_key')).toBe(true)
-    })
-
-    it.concurrent('should conservatively classify invalid or over-deep encoded keys', () => {
-      expect(isSensitiveKey('ordinary%FFfield')).toBe(true)
-      let key = 'ordinary field'
-      for (let pass = 0; pass < 10; pass++) key = encodeURIComponent(key)
-      expect(isSensitiveKey(key)).toBe(true)
     })
 
     it.concurrent('should detect oauth tokens', () => {

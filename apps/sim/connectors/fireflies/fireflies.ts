@@ -1,7 +1,5 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import { truncate } from '@sim/utils/string'
-import { redactExactSensitiveValues } from '@/lib/core/security/redaction'
 import { isPayloadSizeLimitError, readResponseTextWithLimit } from '@/lib/core/utils/stream-limits'
 import {
   isRetryableError,
@@ -25,7 +23,6 @@ const FIREFLIES_GRAPHQL_URL = 'https://api.fireflies.ai/graphql'
 const TRANSCRIPTS_PER_PAGE = 50
 const FIREFLIES_MAX_RESPONSE_BYTES = 16 * 1024 * 1024
 const FIREFLIES_MAX_EXTRACTED_CONTENT_BYTES = 8 * 1024 * 1024
-const FIREFLIES_MAX_ERROR_MESSAGE_CHARS = 2000
 const FIREFLIES_DEFAULT_MAX_RETRY_DELAY_MS = 120_000
 const FIREFLIES_DEFAULT_MAX_RETRIES = 2
 const FIREFLIES_EXTRACTED_CONTENT_SKIP_REASON =
@@ -198,29 +195,25 @@ async function firefliesGraphQL(
 
       const firstError = data?.errors?.[0]
       if (firstError) {
-        const code = firstError.code ? ` (${firstError.code})` : ''
-        const safeMessage = truncate(
-          redactExactSensitiveValues(firstError.message || 'Unknown GraphQL error', [accessToken]),
-          FIREFLIES_MAX_ERROR_MESSAGE_CHARS
-        )
+        const safeCode =
+          typeof firstError.code === 'string' && /^[A-Za-z0-9_.-]{1,64}$/.test(firstError.code)
+            ? firstError.code
+            : undefined
+        const code = safeCode ? ` (${safeCode})` : ''
         const retryAt = firstError.extensions?.metadata?.retryAfter
         const graphQLRetryAfterMs =
           typeof retryAt === 'number' && retryAt > Date.now() ? retryAt - Date.now() : undefined
         throw new FirefliesApiError(
-          `Fireflies API error${code}: ${safeMessage}`,
-          firstError.code,
+          `Fireflies API error${code}`,
+          safeCode,
           firstError.extensions?.status ?? response.status,
           graphQLRetryAfterMs ?? headerRetryAfterMs
         )
       }
 
       if (!response.ok) {
-        const safeDiagnostic = truncate(
-          redactExactSensitiveValues(rawBody, [accessToken]),
-          FIREFLIES_MAX_ERROR_MESSAGE_CHARS
-        )
         throw new FirefliesApiError(
-          `Fireflies API HTTP error: ${response.status}${safeDiagnostic ? `: ${safeDiagnostic}` : ''}`,
+          `Fireflies API HTTP error: ${response.status} (response body omitted)`,
           undefined,
           response.status,
           headerRetryAfterMs
