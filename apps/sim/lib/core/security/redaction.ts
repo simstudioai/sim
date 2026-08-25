@@ -28,6 +28,7 @@ const SENSITIVE_KEY_PATTERNS: RegExp[] = [
   /^.*api[_-]?key$/i,
   /^passphrase$/i,
   /^authorization$/i,
+  /^proxy[_-]?authorization$/i,
   /^bearer$/i,
   /^private$/i,
   /^auth$/i,
@@ -41,6 +42,17 @@ const SENSITIVE_VALUE_PATTERNS: Array<{
   pattern: RegExp
   replacement: string
 }> = [
+  // Single-token authorization headers retain their scheme for diagnostics.
+  {
+    pattern: /\b((?:proxy[_-]?)?authorization[ \t]*:[ \t]*(?:Bearer|Basic)[ \t]+)[^\r\n]*/gi,
+    replacement: `$1${REDACTED_MARKER}`,
+  },
+  // Parameterized and unknown authorization headers fail closed through the line ending.
+  {
+    pattern:
+      /\b((?:proxy[_-]?)?authorization[ \t]*:)(?![ \t]*(?:Bearer|Basic)[ \t])[ \t]*[^\r\n]*/gi,
+    replacement: `$1 ${REDACTED_MARKER}`,
+  },
   // Bearer tokens
   {
     pattern: /Bearer\s+[A-Za-z0-9\-._~+/]+=*/gi,
@@ -73,15 +85,61 @@ const SENSITIVE_VALUE_PATTERNS: Array<{
   },
 ]
 
-const FORM_FIELD_MARKER_PATTERN = /\b([A-Za-z0-9_-]+)=/gi
-const ENCODED_FORM_FIELD_MARKER_PATTERN = /\b([A-Za-z0-9_-]+)%3D/gi
-const FORM_VALUE_DELIMITER_PATTERN = /&|\s+(?=[A-Za-z0-9_-]+(?:=|%3D))/gi
-const ENCODED_FORM_VALUE_DELIMITER_PATTERN = /%26|&|\s+(?=[A-Za-z0-9_-]+(?:=|%3D))/gi
+const FORM_FIELD_MARKER_PATTERN = /=|%(?:25)*3D/i
+const ENCODED_FORM_KEY_COMPONENT_PATTERN = /%[0-9A-F]{2}/i
+const FORM_WHITESPACE_PATTERN = /\s/u
+const AUTHORIZATION_FORM_KEYS = new Set(['authorization', 'proxyauthorization'])
+const SINGLE_TOKEN_AUTHORIZATION_PATTERN = /^(?:Bearer|Basic)\s+\S+/i
+const MAX_EXACT_SECRET_ENCODING_LAYERS = 3
 
-interface SensitiveValueSpan {
+interface ActiveSensitiveFormField {
   start: number
-  end: number
+  encodingDepth: number
+  whitespaceBoundaryAfter?: number
 }
+
+interface NormalizedFormKey {
+  value: string
+  complete: boolean
+}
+
+interface FormKeySpan {
+  endIndex: number
+  malformed: boolean
+}
+
+type EncodedFormMarkerKind = 'delimiter' | 'field' | 'query'
+
+interface EncodedFormMarker {
+  kind: EncodedFormMarkerKind
+  text: string
+}
+
+type FormFieldPrefixKind =
+  | 'start'
+  | 'delimiter'
+  | 'encoded-delimiter'
+  | 'encoded-query'
+  | 'whitespace'
+  | 'other'
+
+interface FormFieldToken {
+  kind: 'field'
+  index: number
+  endIndex: number
+  key: string
+  fieldMarker: string
+  prefixKind: FormFieldPrefixKind
+  prefixMarker?: string
+}
+
+interface FormDelimiterToken {
+  kind: 'delimiter'
+  index: number
+  delimiter: string
+}
+
+type FormToken = FormFieldToken | FormDelimiterToken
 
 export function isSensitiveKey(key: string): boolean {
   const lowerKey = key.toLowerCase()
@@ -89,75 +147,249 @@ export function isSensitiveKey(key: string): boolean {
   return SENSITIVE_KEY_PATTERNS.some((pattern) => pattern.test(lowerKey))
 }
 
-function findFormValueEnd(delimiterPositions: number[], start: number): number {
-  let lower = 0
-  let upper = delimiterPositions.length
-  while (lower < upper) {
-    const middle = Math.floor((lower + upper) / 2)
-    if (delimiterPositions[middle] < start) lower = middle + 1
-    else upper = middle
-  }
-  return delimiterPositions[lower]
+function getFormEncodingDepth(marker: string): number {
+  return marker.length === 1 ? 0 : (marker.length - 1) / 2
 }
 
-function collectSensitiveValueSpans(
-  value: string,
-  markerPattern: RegExp,
-  delimiterPositions: number[]
-): SensitiveValueSpan[] {
-  const spans: SensitiveValueSpan[] = []
-  for (const match of value.matchAll(markerPattern)) {
-    if (match.index === undefined || !isSensitiveKey(match[1])) continue
-    const start = match.index + match[0].length
-    const end = findFormValueEnd(delimiterPositions, start)
-    if (end > start) spans.push({ start, end })
-  }
-  return spans
+function normalizeFormKey(key: string): string {
+  return key.toLowerCase().replaceAll('_', '').replaceAll('-', '')
 }
 
-function collectDelimiterPositions(value: string, pattern: RegExp): number[] {
-  const delimiterPositions: number[] = []
-  for (const match of value.matchAll(pattern)) {
-    if (match.index !== undefined) delimiterPositions.push(match.index)
+function decodeFormKey(key: string): NormalizedFormKey {
+  let value = key
+  let decodedLayer = false
+  for (let layer = 0; layer < MAX_EXACT_SECRET_ENCODING_LAYERS; layer++) {
+    if (!ENCODED_FORM_KEY_COMPONENT_PATTERN.test(value)) {
+      return { value, complete: decodedLayer || !value.includes('%') }
+    }
+    try {
+      value = decodeURIComponent(value)
+      decodedLayer = true
+    } catch {
+      return { value, complete: false }
+    }
   }
-  delimiterPositions.push(value.length)
-  return delimiterPositions
+  return { value, complete: !ENCODED_FORM_KEY_COMPONENT_PATTERN.test(value) }
+}
+
+function isAuthorizationFormKey(key: string): boolean {
+  return AUTHORIZATION_FORM_KEYS.has(normalizeFormKey(key))
+}
+
+function isRawFormKeyCharacter(character: string): boolean {
+  const code = character.charCodeAt(0)
+  return (
+    (code >= 48 && code <= 57) ||
+    (code >= 65 && code <= 90) ||
+    (code >= 97 && code <= 122) ||
+    character === '_' ||
+    character === '-'
+  )
+}
+
+function readEncodedFormMarker(value: string, index: number): EncodedFormMarker | undefined {
+  if (value[index] !== '%') return undefined
+
+  let cursor = index + 1
+  while (value.slice(cursor, cursor + 2).toLowerCase() === '25') cursor += 2
+
+  const code = value.slice(cursor, cursor + 2).toLowerCase()
+  const kind: EncodedFormMarkerKind | undefined =
+    code === '26' ? 'delimiter' : code === '3d' ? 'field' : code === '3f' ? 'query' : undefined
+  if (!kind) return undefined
+  return { kind, text: value.slice(index, cursor + 2) }
+}
+
+function readFormKeySpan(value: string, start: number): FormKeySpan {
+  let cursor = start
+  let malformed = false
+  while (cursor < value.length) {
+    if (isRawFormKeyCharacter(value[cursor])) {
+      cursor++
+      continue
+    }
+    if (value[cursor] !== '%') break
+
+    const encodedMarker = readEncodedFormMarker(value, cursor)
+    if (encodedMarker) {
+      if (encodedMarker.kind === 'field') break
+      if (!malformed && !decodeFormKey(value.slice(start, cursor)).complete) malformed = true
+      if (!malformed) break
+      cursor += encodedMarker.text.length
+      continue
+    }
+
+    const componentStart = cursor
+    cursor++
+    for (let offset = 0; offset < 2 && cursor < value.length; offset++) {
+      const character = value[cursor]
+      if (
+        character === '%' ||
+        character === '&' ||
+        character === '=' ||
+        FORM_WHITESPACE_PATTERN.test(character)
+      ) {
+        break
+      }
+      cursor++
+    }
+    if (!ENCODED_FORM_KEY_COMPONENT_PATTERN.test(value.slice(componentStart, cursor))) {
+      malformed = true
+    }
+  }
+  return { endIndex: cursor, malformed }
+}
+
+/** Iterates form fields and delimiters without regex backtracking over provider-controlled input. */
+function* iterateFormTokens(value: string): Generator<FormToken> {
+  let index = 0
+
+  while (index < value.length) {
+    const encodedPrefix = readEncodedFormMarker(value, index)
+    let prefixKind: FormFieldPrefixKind | undefined
+    let keyStart = index
+    let prefixMarker: string | undefined
+
+    if (encodedPrefix?.kind === 'delimiter' || encodedPrefix?.kind === 'query') {
+      prefixKind = encodedPrefix.kind === 'delimiter' ? 'encoded-delimiter' : 'encoded-query'
+      prefixMarker = encodedPrefix.text
+      keyStart += encodedPrefix.text.length
+    } else if (value[index] === '&') {
+      prefixKind = 'delimiter'
+      keyStart++
+    } else if (FORM_WHITESPACE_PATTERN.test(value[index])) {
+      prefixKind = 'whitespace'
+      while (keyStart < value.length && FORM_WHITESPACE_PATTERN.test(value[keyStart])) keyStart++
+    } else if (!isRawFormKeyCharacter(value[index]) && value[index] !== '%') {
+      prefixKind = 'other'
+      keyStart++
+    } else if (index === 0) {
+      prefixKind = 'start'
+    }
+
+    if (prefixKind) {
+      const { endIndex: keyEnd } = readFormKeySpan(value, keyStart)
+      const encodedFieldMarker = readEncodedFormMarker(value, keyEnd)
+      const fieldMarker =
+        value[keyEnd] === '='
+          ? '='
+          : encodedFieldMarker?.kind === 'field'
+            ? encodedFieldMarker.text
+            : undefined
+
+      if (keyEnd > keyStart && fieldMarker) {
+        const endIndex = keyEnd + fieldMarker.length
+        yield {
+          kind: 'field',
+          index,
+          endIndex,
+          key: value.slice(keyStart, keyEnd),
+          fieldMarker,
+          prefixKind,
+          prefixMarker,
+        }
+        index = endIndex
+        continue
+      }
+
+      if (encodedPrefix?.kind === 'delimiter') {
+        yield { kind: 'delimiter', index, delimiter: encodedPrefix.text }
+        index += encodedPrefix.text.length
+        continue
+      }
+      if (value[index] === '&') {
+        yield { kind: 'delimiter', index, delimiter: '&' }
+        index++
+        continue
+      }
+
+      index = Math.max(index + 1, keyEnd)
+      continue
+    }
+
+    if (isRawFormKeyCharacter(value[index])) {
+      do index++
+      while (index < value.length && isRawFormKeyCharacter(value[index]))
+      continue
+    }
+    index++
+  }
+}
+
+function findWhitespaceRunStart(value: string, end: number): number {
+  let start = end
+  while (start > 0 && /\s/u.test(value[start - 1])) start--
+  return start
 }
 
 function redactSensitiveFormFields(value: string): string {
-  const formDelimiterPositions = collectDelimiterPositions(value, FORM_VALUE_DELIMITER_PATTERN)
-  const encodedDelimiterPositions = collectDelimiterPositions(
-    value,
-    ENCODED_FORM_VALUE_DELIMITER_PATTERN
-  )
-  const spans = [
-    ...collectSensitiveValueSpans(value, FORM_FIELD_MARKER_PATTERN, formDelimiterPositions),
-    ...collectSensitiveValueSpans(
-      value,
-      ENCODED_FORM_FIELD_MARKER_PATTERN,
-      encodedDelimiterPositions
-    ),
-  ].sort((left, right) => left.start - right.start || right.end - left.end)
-
-  if (spans.length === 0) return value
-
-  const merged: SensitiveValueSpan[] = []
-  for (const span of spans) {
-    const previous = merged.at(-1)
-    if (previous && span.start <= previous.end) {
-      previous.end = Math.max(previous.end, span.end)
-    } else {
-      merged.push({ ...span })
-    }
-  }
+  if (!FORM_FIELD_MARKER_PATTERN.test(value)) return value
 
   let result = ''
   let cursor = 0
-  for (const span of merged) {
-    result += `${value.slice(cursor, span.start)}${REDACTED_MARKER}`
-    cursor = span.end
+  let activeField: ActiveSensitiveFormField | undefined
+
+  const closeActiveField = (end: number) => {
+    if (!activeField) return
+    if (end > activeField.start) {
+      result += `${value.slice(cursor, activeField.start)}${REDACTED_MARKER}`
+      cursor = end
+    }
+    activeField = undefined
   }
-  return result + value.slice(cursor)
+
+  for (const token of iterateFormTokens(value)) {
+    if (token.kind === 'field') {
+      if (activeField && token.prefixKind !== 'start') {
+        const boundaryIndex =
+          token.prefixKind === 'whitespace'
+            ? findWhitespaceRunStart(value, token.index)
+            : token.index
+        const closesActiveField =
+          token.prefixKind === 'delimiter' ||
+          (token.prefixKind === 'encoded-delimiter' &&
+            token.prefixMarker !== undefined &&
+            getFormEncodingDepth(token.prefixMarker) === activeField.encodingDepth) ||
+          (token.prefixKind === 'whitespace' &&
+            activeField.whitespaceBoundaryAfter !== undefined &&
+            boundaryIndex >= activeField.whitespaceBoundaryAfter)
+        if (closesActiveField) closeActiveField(boundaryIndex)
+      }
+
+      const normalizedKey = decodeFormKey(token.key)
+      if (!activeField && (!normalizedKey.complete || isSensitiveKey(normalizedKey.value))) {
+        const start = token.endIndex
+        const authorization = normalizedKey.complete && isAuthorizationFormKey(normalizedKey.value)
+        const singleTokenAuthorization = authorization
+          ? value.slice(start).match(SINGLE_TOKEN_AUTHORIZATION_PATTERN)?.[0]
+          : undefined
+        activeField = {
+          start,
+          encodingDepth: getFormEncodingDepth(token.fieldMarker),
+          whitespaceBoundaryAfter: authorization
+            ? singleTokenAuthorization === undefined
+              ? undefined
+              : start + singleTokenAuthorization.length
+            : normalizedKey.complete
+              ? start
+              : undefined,
+        }
+      }
+      continue
+    }
+
+    if (!activeField) continue
+
+    if (
+      token.delimiter === '&' ||
+      getFormEncodingDepth(token.delimiter) === activeField.encodingDepth
+    ) {
+      closeActiveField(token.index)
+    }
+  }
+
+  closeActiveField(value.length)
+  return cursor === 0 ? value : result + value.slice(cursor)
 }
 
 /**
@@ -190,10 +422,15 @@ export function redactKnownSensitiveValues(value: string, secrets: string[]): st
   )
   for (const secret of orderedSecrets) {
     result = result.replaceAll(secret, REDACTED_MARKER)
-    const encodedVariants = new Set([
-      encodeURIComponent(secret),
-      new URLSearchParams({ value: secret }).toString().slice('value='.length),
-    ])
+    const encodedVariants = new Set<string>()
+    let uriEncoded = secret
+    let formEncoded = secret
+    for (let layer = 0; layer < MAX_EXACT_SECRET_ENCODING_LAYERS; layer++) {
+      uriEncoded = encodeURIComponent(uriEncoded)
+      formEncoded = new URLSearchParams({ value: formEncoded }).toString().slice('value='.length)
+      encodedVariants.add(uriEncoded)
+      encodedVariants.add(formEncoded)
+    }
     for (const encoded of encodedVariants) {
       if (encoded !== secret) {
         const escaped = encoded.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')

@@ -1,5 +1,7 @@
 import type { Chunk } from '@/lib/chunkers/types'
 
+const MAX_TOKEN_CHUNK_SIZE = Math.floor(Number.MAX_SAFE_INTEGER / 4)
+
 /** 1 token ≈ 4 characters for English text */
 export function estimateTokens(text: string): number {
   if (!text?.trim()) return 0
@@ -8,6 +10,19 @@ export function estimateTokens(text: string): number {
 
 export function tokensToChars(tokens: number): number {
   return tokens * 4
+}
+
+export function assertPositiveSafeInteger(value: number, name: string): void {
+  if (!Number.isSafeInteger(value) || value <= 0) {
+    throw new Error(`${name} must be a positive safe integer`)
+  }
+}
+
+export function normalizeTokenChunkSize(value: number, name: string): number {
+  if (!Number.isFinite(value) || value < 1 || value > MAX_TOKEN_CHUNK_SIZE) {
+    throw new Error(`${name} must be a finite number between 1 and ${MAX_TOKEN_CHUNK_SIZE}`)
+  }
+  return Math.floor(value)
 }
 
 export function cleanText(text: string): string {
@@ -69,12 +84,33 @@ export interface WordBoundaryChunkSpan {
   endIndex: number
 }
 
+/** Iterates bounded word-aware source slices without trimming or skipping characters. */
+export function* iterateLosslessWordBoundaryChunkSpans(
+  text: string,
+  chunkSizeChars: number
+): Generator<WordBoundaryChunkSpan> {
+  assertPositiveSafeInteger(chunkSizeChars, 'Lossless word-boundary chunk size')
+
+  let startIndex = 0
+  while (startIndex < text.length) {
+    let endIndex = Math.min(startIndex + chunkSizeChars, text.length)
+    if (endIndex < text.length) {
+      const lastSpace = text.lastIndexOf(' ', endIndex - 1)
+      if (lastSpace > startIndex) endIndex = lastSpace + 1
+    }
+    yield { text: text.slice(startIndex, endIndex), startIndex, endIndex }
+    startIndex = endIndex
+  }
+}
+
 /** Iterates trimmed word-boundary chunks while preserving their source offsets. */
 export function* iterateWordBoundaryChunkSpans(
   text: string,
   chunkSizeChars: number,
   stepChars?: number
 ): Generator<WordBoundaryChunkSpan> {
+  assertPositiveSafeInteger(chunkSizeChars, 'Word-boundary chunk size')
+
   let pos = 0
 
   while (pos < text.length) {
@@ -196,7 +232,7 @@ export function resolveChunkerOptions(options: {
   chunkOverlap?: number
   minCharactersPerChunk?: number
 }): { chunkSize: number; chunkOverlap: number; minCharactersPerChunk: number } {
-  const chunkSize = options.chunkSize ?? 1024
+  const chunkSize = normalizeTokenChunkSize(options.chunkSize ?? 1024, 'Chunk size')
   const maxOverlap = Math.floor(chunkSize * 0.5)
   return {
     chunkSize,

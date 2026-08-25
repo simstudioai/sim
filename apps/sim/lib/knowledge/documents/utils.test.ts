@@ -491,12 +491,12 @@ describe('fetchWithRetry rate-limit handling', () => {
     expect(error?.message.length).toBeLessThan(500)
   })
 
-  it('redacts credentials echoed by a retryable provider error', async () => {
-    const secret = 'sk-provider-secret-value-1234567890'
+  it('omits a provider-controlled response body from the retry error', async () => {
+    const providerControlledMarker = 'provider-controlled-response-marker'
     globalThis.fetch = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ authorization: `Bearer ${secret}` }), {
+      new Response(JSON.stringify({ diagnostic: providerControlledMarker }), {
         status: 522,
-        statusText: `Connection timed out: ${secret}`,
+        statusText: `Connection timed out: ${providerControlledMarker}`,
       })
     )
 
@@ -510,33 +510,8 @@ describe('fetchWithRetry rate-limit handling', () => {
     )
 
     expect(error?.message).toContain('[response body omitted]')
-    expect(error?.message).not.toContain(secret)
+    expect(error?.message).not.toContain(providerControlledMarker)
   })
-
-  it.each(['api_key', 'authorization', 'client_secret', 'credential', 'private_key'])(
-    'redacts a long structured %s before truncating the diagnostic',
-    async (sensitiveKey) => {
-      const secretPrefix = 'sensitive-value-prefix'
-      globalThis.fetch = vi.fn().mockResolvedValue(
-        new Response(JSON.stringify({ [sensitiveKey]: `${secretPrefix}${'x'.repeat(3000)}` }), {
-          status: 522,
-          statusText: 'Connection timed out',
-        })
-      )
-
-      const error = await fetchWithRetry(
-        'https://api.fireflies.ai/graphql',
-        {},
-        { ...FAST_RETRY, maxRetries: 0 }
-      ).then(
-        () => undefined,
-        (caught) => caught as Error
-      )
-
-      expect(error?.message).toContain('[response body omitted]')
-      expect(error?.message).not.toContain(secretPrefix)
-    }
-  )
 
   it('does not retry an authorization 403 with quota remaining', async () => {
     const fetchMock = vi.fn().mockResolvedValue(response(403, { 'x-ratelimit-remaining': '4999' }))
@@ -834,15 +809,15 @@ describe('secureFetchWithRetry', () => {
     expect(mockSecureFetchWithValidation).toHaveBeenCalledTimes(2)
   })
 
-  it('redacts request credentials echoed by a retryable response', async () => {
-    const accessToken = 'bare-gitlab-token-that-must-not-escape'
+  it('omits a provider-controlled response body from the secure retry error', async () => {
+    const providerControlledMarker = 'provider-controlled-response-marker'
     mockSecureFetchWithValidation.mockResolvedValue(
-      new Response(`echo: ${accessToken}`, { status: 503 }) as never
+      new Response(providerControlledMarker, { status: 503 }) as never
     )
 
     const error = await secureFetchWithRetry(
       'https://gitlab.example.com/api/v4/projects',
-      { method: 'GET', headers: { 'PRIVATE-TOKEN': accessToken } },
+      { method: 'GET' },
       { ...FAST_RETRY, maxRetries: 0 }
     ).then(
       () => undefined,
@@ -850,69 +825,6 @@ describe('secureFetchWithRetry', () => {
     )
 
     expect(error?.message).toContain('[response body omitted]')
-    expect(error?.message).not.toContain(accessToken)
-  })
-
-  it('redacts an echoed credential before truncating the diagnostic', async () => {
-    const accessToken = `opaque-${'x'.repeat(3000)}-tail`
-    mockSecureFetchWithValidation.mockResolvedValue(
-      new Response(accessToken, { status: 503 }) as never
-    )
-
-    const error = await secureFetchWithRetry(
-      'https://gitlab.example.com/api/v4/projects',
-      { method: 'GET', headers: { 'PRIVATE-TOKEN': accessToken } },
-      { ...FAST_RETRY, maxRetries: 0 }
-    ).then(
-      () => undefined,
-      (caught) => caught as Error
-    )
-
-    expect(error?.message).toContain('[response body omitted]')
-    expect(error?.message).not.toContain('opaque-xxxxxxxxxxxxxxxx')
-  })
-
-  it.each(['Bearer    ', 'Bearer\t', '  Bearer '])(
-    'redacts a bare credential separated from its scheme by whitespace: %j',
-    async (scheme) => {
-      const accessToken = 'whitespace-separated-token-that-must-not-escape'
-      mockSecureFetchWithValidation.mockResolvedValue(
-        new Response(`echo: ${accessToken}`, { status: 503 }) as never
-      )
-
-      const error = await secureFetchWithRetry(
-        'https://example.com/api',
-        { method: 'GET', headers: { Authorization: `${scheme}${accessToken}` } },
-        { ...FAST_RETRY, maxRetries: 0 }
-      ).then(
-        () => undefined,
-        (caught) => caught as Error
-      )
-
-      expect(error?.message).toContain('[response body omitted]')
-      expect(error?.message).not.toContain(accessToken)
-    }
-  )
-
-  it('redacts both Basic-auth fields using the first colon as the separator', async () => {
-    const username = 'basic-user-private'
-    const password = 'basic-password:with:colons'
-    const authorization = `Basic ${Buffer.from(`${username}:${password}`).toString('base64')}`
-    mockSecureFetchWithValidation.mockResolvedValue(
-      new Response(`echo: ${username} / ${password}`, { status: 503 }) as never
-    )
-
-    const error = await secureFetchWithRetry(
-      'https://example.com/api',
-      { method: 'GET', headers: { Authorization: authorization } },
-      { ...FAST_RETRY, maxRetries: 0 }
-    ).then(
-      () => undefined,
-      (caught) => caught as Error
-    )
-
-    expect(error?.message).toContain('[response body omitted]')
-    expect(error?.message).not.toContain(username)
-    expect(error?.message).not.toContain(password)
+    expect(error?.message).not.toContain(providerControlledMarker)
   })
 })

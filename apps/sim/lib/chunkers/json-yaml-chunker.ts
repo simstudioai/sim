@@ -5,7 +5,8 @@ import type { Chunk, ChunkerOptions } from '@/lib/chunkers/types'
 import {
   estimateTokens,
   iterateLines,
-  iterateWordBoundaryChunkSpans,
+  iterateLosslessWordBoundaryChunkSpans,
+  normalizeTokenChunkSize,
   tokensToChars,
 } from '@/lib/chunkers/utils'
 
@@ -15,6 +16,7 @@ type JsonPrimitive = string | number | boolean | null
 type JsonValue = JsonPrimitive | JsonObject | JsonArray
 type JsonObject = { [key: string]: JsonValue }
 type JsonArray = JsonValue[]
+type BoundedChunkMetadataMode = 'text-offsets' | 'preserve-range'
 
 const MAX_DEPTH = 5
 
@@ -24,7 +26,7 @@ export class JsonYamlChunker {
   private maxChunks?: number
 
   constructor(options: ChunkerOptions = {}) {
-    this.chunkSize = options.chunkSize ?? 1024
+    this.chunkSize = normalizeTokenChunkSize(options.chunkSize ?? 1024, 'JSON/YAML chunk size')
     this.minCharactersPerChunk = options.minCharactersPerChunk ?? 100
     this.maxChunks = options.maxChunks
   }
@@ -126,7 +128,8 @@ export class JsonYamlChunker {
           this.addBoundedChunk(
             chunks,
             budget,
-            this.buildBatchChunk(contextHeader, currentBatch, i - currentBatch.length, i - 1)
+            this.buildBatchChunk(contextHeader, currentBatch, i - currentBatch.length, i - 1),
+            'preserve-range'
           )
           currentBatch = []
           currentTokens = 0
@@ -135,13 +138,24 @@ export class JsonYamlChunker {
         if (depth < MAX_DEPTH && typeof item === 'object' && item !== null) {
           this.chunkStructuredData(item, [...path, `[${i}]`], depth + 1, chunks, budget)
         } else {
-          this.chunkAsText(contextHeader + itemStr, budget, chunks)
+          const text = contextHeader + itemStr
+          this.addBoundedChunk(
+            chunks,
+            budget,
+            {
+              text,
+              tokenCount: estimateTokens(text),
+              metadata: { startIndex: i, endIndex: i },
+            },
+            'preserve-range'
+          )
         }
       } else if (currentTokens + itemTokens > this.chunkSize && currentBatch.length > 0) {
         this.addBoundedChunk(
           chunks,
           budget,
-          this.buildBatchChunk(contextHeader, currentBatch, i - currentBatch.length, i - 1)
+          this.buildBatchChunk(contextHeader, currentBatch, i - currentBatch.length, i - 1),
+          'preserve-range'
         )
         currentBatch = [item]
         currentTokens = itemTokens
@@ -160,7 +174,8 @@ export class JsonYamlChunker {
           currentBatch,
           arr.length - currentBatch.length,
           arr.length - 1
-        )
+        ),
+        'preserve-range'
       )
     }
   }
@@ -255,23 +270,31 @@ export class JsonYamlChunker {
     }
   }
 
-  private addBoundedChunk(chunks: Chunk[], budget: ChunkBudget, chunk: Chunk): void {
+  private addBoundedChunk(
+    chunks: Chunk[],
+    budget: ChunkBudget,
+    chunk: Chunk,
+    metadataMode: BoundedChunkMetadataMode = 'text-offsets'
+  ): void {
     if (chunk.tokenCount <= this.chunkSize) {
       budget.add(chunks, chunk)
       return
     }
 
-    for (const segment of iterateWordBoundaryChunkSpans(
+    for (const segment of iterateLosslessWordBoundaryChunkSpans(
       chunk.text,
       tokensToChars(this.chunkSize)
     )) {
       budget.add(chunks, {
         text: segment.text,
         tokenCount: estimateTokens(segment.text),
-        metadata: {
-          startIndex: chunk.metadata.startIndex + segment.startIndex,
-          endIndex: chunk.metadata.startIndex + segment.endIndex,
-        },
+        metadata:
+          metadataMode === 'preserve-range'
+            ? chunk.metadata
+            : {
+                startIndex: chunk.metadata.startIndex + segment.startIndex,
+                endIndex: chunk.metadata.startIndex + segment.endIndex,
+              },
       })
     }
   }
@@ -296,7 +319,10 @@ export class JsonYamlChunker {
           currentTokens = 0
         }
         const lineStartIndex = startIndex
-        for (const segment of iterateWordBoundaryChunkSpans(line, tokensToChars(this.chunkSize))) {
+        for (const segment of iterateLosslessWordBoundaryChunkSpans(
+          line,
+          tokensToChars(this.chunkSize)
+        )) {
           budget.add(chunks, {
             text: segment.text,
             tokenCount: estimateTokens(segment.text),

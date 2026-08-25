@@ -1,7 +1,11 @@
 import { createLogger } from '@sim/logger'
 import { ChunkBudget } from '@/lib/chunkers/chunk-budget'
 import type { Chunk, StructuredDataOptions } from '@/lib/chunkers/types'
-import { iterateLines, iterateWordBoundaryChunks } from '@/lib/chunkers/utils'
+import {
+  iterateLines,
+  iterateLosslessWordBoundaryChunkSpans,
+  normalizeTokenChunkSize,
+} from '@/lib/chunkers/utils'
 
 /** Structured data is denser in tokens (~3 chars/token vs ~4 for prose) */
 function estimateStructuredTokens(text: string): number {
@@ -23,6 +27,11 @@ export class StructuredDataChunker {
     content: string,
     options: StructuredDataOptions = {}
   ): Promise<Chunk[]> {
+    const targetChunkSize = normalizeTokenChunkSize(
+      options.chunkSize ?? DEFAULT_CONFIG.TARGET_CHUNK_SIZE,
+      'Structured data chunk size'
+    )
+
     const chunks: Chunk[] = []
     const sampleLines: string[] = []
     for (const line of iterateLines(content)) {
@@ -36,8 +45,6 @@ export class StructuredDataChunker {
     }
 
     const budget = new ChunkBudget(options.maxChunks)
-    const targetChunkSize = options.chunkSize ?? DEFAULT_CONFIG.TARGET_CHUNK_SIZE
-
     const headerLine = options.headers?.join('\t') || sampleLines[0]
     const dataStartIndex = options.headers ? 0 : 1
 
@@ -84,22 +91,28 @@ export class StructuredDataChunker {
               ? `${options.sheetName}\n${headerLine}`
               : headerLine
             const headerRow = Math.max(0, dataStartIndex - 1)
-            for (const segment of iterateWordBoundaryChunks(headerContent, targetChunkSize * 3)) {
-              budget.add(chunks, StructuredDataChunker.createChunk(segment, headerRow, headerRow))
+            for (const segment of iterateLosslessWordBoundaryChunkSpans(
+              headerContent,
+              targetChunkSize * 3
+            )) {
+              budget.add(
+                chunks,
+                StructuredDataChunker.createChunk(segment.text, headerRow, headerRow)
+              )
             }
             oversizedHeaderEmitted = true
           }
-          for (const segment of iterateWordBoundaryChunks(row, targetChunkSize * 3)) {
-            budget.add(chunks, StructuredDataChunker.createChunk(segment, i, i))
+          for (const segment of iterateLosslessWordBoundaryChunkSpans(row, targetChunkSize * 3)) {
+            budget.add(chunks, StructuredDataChunker.createChunk(segment.text, i, i))
           }
           chunkStartRow = i + 1
           continue
         }
         const rowSegmentChars = Math.max(1, (targetChunkSize - emptyRowOverhead) * 3)
-        for (const segment of iterateWordBoundaryChunks(row, rowSegmentChars)) {
+        for (const segment of iterateLosslessWordBoundaryChunkSpans(row, rowSegmentChars)) {
           const segmentContent = StructuredDataChunker.formatChunk(
             headerLine,
-            [segment],
+            [segment.text],
             options.sheetName
           )
           budget.add(chunks, StructuredDataChunker.createChunk(segmentContent, i, i))
