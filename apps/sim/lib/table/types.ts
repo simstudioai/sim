@@ -74,6 +74,11 @@ export interface ColumnDefinition {
    * single row. Absent means {@link DEFAULT_CURRENCY_CODE}.
    */
   currencyCode?: string
+  /**
+   * Target table for a `reference` column. Cells store row ID strings from this
+   * table; the IDs are intentionally not checked for existence on write.
+   */
+  referenceTableId?: string
 }
 
 /** The column `type` discriminator, named so callers don't index into the interface. */
@@ -903,6 +908,8 @@ export interface UpdateColumnTypeData {
   multiple?: boolean
   /** Currency to set when changing to the `currency` type. */
   currencyCode?: string
+  /** Target table to set when changing to the `reference` type. */
+  referenceTableId?: string
   /**
    * The `unique` value the same request is about to set. Validated inside the
    * retype against the post-conversion values, because the conversion is what

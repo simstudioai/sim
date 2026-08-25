@@ -85,11 +85,13 @@ export const currencyCodeSchema = z
   .regex(/^[A-Za-z]{3}$/, 'Must be a 3-letter ISO 4217 currency code, e.g. USD')
   .overwrite((code) => code.toUpperCase())
 
+export const referenceTableIdSchema = requiredFieldSchema('Reference table ID is required')
+
 /**
- * Cross-field rule: a `select` column must declare a non-empty option set;
- * other types must not carry options or `multiple`, and only a `currency`
- * column may carry `currencyCode`. Skipped when `type` is absent (a
- * metadata-only update on an existing column).
+ * Cross-field rules for type-owned metadata. A `select` column must declare a
+ * non-empty option set, a `reference` column must declare its target table,
+ * and type-specific fields are rejected on every type that does not own them.
+ * Skipped when `type` is absent (a metadata-only update on an existing column).
  */
 export function refineColumnOptions(
   data: {
@@ -97,6 +99,7 @@ export function refineColumnOptions(
     options?: z.infer<typeof selectOptionsSchema>
     multiple?: boolean
     currencyCode?: string
+    referenceTableId?: string
   },
   ctx: z.RefinementCtx
 ): void {
@@ -108,6 +111,20 @@ export function refineColumnOptions(
       code: 'custom',
       path: ['currencyCode'],
       message: 'currencyCode is only allowed on currency columns',
+    })
+  }
+  if (data.type !== undefined && data.type !== 'reference' && data.referenceTableId !== undefined) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['referenceTableId'],
+      message: 'referenceTableId is only allowed on reference columns',
+    })
+  }
+  if (data.type === 'reference' && data.referenceTableId === undefined) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['referenceTableId'],
+      message: 'A reference column must define a reference table ID',
     })
   }
   if (data.type === 'select') {
@@ -222,6 +239,9 @@ export const tableColumnSchema = z
     currencyCode: currencyCodeSchema
       .optional()
       .describe('ISO 4217 code for a currency column, normalized to uppercase.'),
+    referenceTableId: referenceTableIdSchema
+      .optional()
+      .describe('Target table whose row IDs are stored by a reference column.'),
   })
   .superRefine(refineColumnOptions)
   .describe('A typed column in a table schema.')
@@ -304,6 +324,9 @@ export const createTableColumnBodySchema = z.object({
       options: selectOptionsSchema.optional().describe('Options for a select column.'),
       multiple: z.boolean().optional().describe('Whether a select column accepts multiple values.'),
       currencyCode: currencyCodeSchema.optional().describe('ISO 4217 code for a currency column.'),
+      referenceTableId: referenceTableIdSchema
+        .optional()
+        .describe('Target table for a reference column.'),
     })
     .superRefine(refineColumnOptions)
     .describe('Typed column definition to add.'),
@@ -321,6 +344,9 @@ export const updateTableColumnBodySchema = z.object({
       options: selectOptionsSchema.optional().describe('Replacement select options.'),
       multiple: z.boolean().optional().describe('New multi-select setting.'),
       currencyCode: currencyCodeSchema.optional().describe('New ISO 4217 currency code.'),
+      referenceTableId: referenceTableIdSchema
+        .optional()
+        .describe('New target table for a reference column.'),
     })
     .superRefine(refineColumnOptions)
     .describe('Column fields to update.'),

@@ -511,6 +511,8 @@ export function coerceValue(
         return String(value)
       }
     }
+    case 'reference':
+      return String(value)
     default:
       return String(value)
   }

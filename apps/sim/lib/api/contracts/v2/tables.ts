@@ -17,6 +17,7 @@ import {
   insertTableRowBodyBaseSchema,
   predicateInputSchema,
   predicateSchema,
+  referenceTableIdSchema,
   refineCancelTableRunsScope,
   refineColumnOptions,
   rowAnchorMutexRefine,
@@ -472,6 +473,9 @@ const v2TableColumnInputShape = {
   options: selectOptionsSchema.optional().describe('Select options for select-type columns.'),
   multiple: z.boolean().optional().describe('Whether a select column accepts multiple values.'),
   currencyCode: currencyCodeSchema.optional().describe('ISO 4217 code for currency columns.'),
+  referenceTableId: referenceTableIdSchema
+    .optional()
+    .describe('Target table for reference columns.'),
 }
 
 /**
@@ -770,6 +774,9 @@ export const v2UpdateTableColumnBodySchema = z
         currencyCode: currencyCodeSchema
           .optional()
           .describe('Replacement ISO 4217 code for a currency column.'),
+        referenceTableId: referenceTableIdSchema
+          .optional()
+          .describe('Replacement target table for a reference column.'),
       })
       .strict()
       .superRefine(refineColumnOptions)
