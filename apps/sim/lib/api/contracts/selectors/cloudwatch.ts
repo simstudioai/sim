@@ -64,6 +64,11 @@ export const cloudwatchLogStreamsSelectorContract = definePostSelector(
     .passthrough()
 )
 
+export const cloudwatchSelectorContractsByPath = {
+  '/api/tools/cloudwatch/describe-log-groups': cloudwatchLogGroupsSelectorContract,
+  '/api/tools/cloudwatch/describe-log-streams': cloudwatchLogStreamsSelectorContract,
+} as const
+
 export type CloudwatchLogGroupsSelectorResponse = ContractJsonResponse<
   typeof cloudwatchLogGroupsSelectorContract
 >

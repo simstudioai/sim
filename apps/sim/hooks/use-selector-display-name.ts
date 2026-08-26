@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { generateShortId } from '@sim/utils/id'
 import { summarizeNames } from '@/lib/workflows/subblocks/display'
 import type { SubBlockConfig } from '@/blocks/types'
 import { resolveSelectorForSubBlock } from '@/hooks/selectors/resolution'
@@ -106,7 +107,8 @@ export function useSelectorDisplayName({
   const context = resolution?.context ?? {}
   const enabled = Boolean(key && hasSelection)
   const resolvedKey: SelectorKey = (key ?? 'slack.channels') as SelectorKey
-  const resolvedContext = enabled ? context : {}
+  const selectorCacheScope = useMemo(() => generateShortId(), [resolution])
+  const resolvedContext = enabled ? { ...context, selectorCacheScope } : {}
 
   const { data: options = [], isFetching: listLoading } = useSelectorOptions(resolvedKey, {
     context: resolvedContext,

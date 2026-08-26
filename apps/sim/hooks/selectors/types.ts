@@ -107,6 +107,8 @@ export interface SelectorOption {
 export interface SelectorContext {
   workspaceId?: string
   workflowId?: string
+  /** Browser-only opaque cache partition; never sent over the wire. */
+  selectorCacheScope?: string
   oauthCredential?: string
   serviceId?: string
   domain?: string
@@ -195,6 +197,13 @@ interface SelectorPageArgs extends SelectorQueryArgs {
 export interface SelectorDefinition {
   key: SelectorKey
   contracts?: readonly AnyApiRouteContract[]
+  /**
+   * Context fields whose environment references must remain opaque in the browser.
+   * The matching selector route resolves them only after authorizing the workflow
+   * (and credential, when applicable), so shared-secret plaintext never enters
+   * React state, query keys, or request payloads.
+   */
+  serverResolvedContextFields?: readonly (keyof SelectorContext)[]
   getQueryKey: (args: SelectorQueryArgs) => QueryKey
   /**
    * Loads the full option list in a single call. Required unless `fetchPage` is

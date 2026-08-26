@@ -1,11 +1,15 @@
 'use client'
 
 import { useMemo } from 'react'
+import { generateShortId } from '@sim/utils/id'
 import { useParams } from 'next/navigation'
-import { SELECTOR_CONTEXT_FIELDS } from '@/lib/workflows/subblocks/context'
 import type { SubBlockConfig } from '@/blocks/types'
-import { extractEnvVarName, isEnvVarReference, isReference } from '@/executor/constants'
 import { usePersonalEnvironment } from '@/hooks/queries/environment'
+import {
+  applySelectorDependenciesToContext,
+  resolveSelectorDependencyValues,
+} from '@/hooks/selectors/context-resolution'
+import { getSelectorDefinition } from '@/hooks/selectors/registry'
 import type { SelectorContext, SelectorKey } from '@/hooks/selectors/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useDependsOnGate } from './use-depends-on-gate'
@@ -35,6 +39,15 @@ export function useSelectorSetup(
 
   const { data: envVariables = {} } = usePersonalEnvironment()
 
+  const selectorKey = (subBlock.selectorKey ?? null) as SelectorKey | null
+  const serverResolvedContextFields = useMemo(
+    () =>
+      new Set<keyof SelectorContext>(
+        selectorKey ? (getSelectorDefinition(selectorKey).serverResolvedContextFields ?? []) : []
+      ),
+    [selectorKey]
+  )
+
   const { finalDisabled, dependencyValues, canonicalIndex } = useDependsOnGate(
     blockId,
     subBlock,
@@ -43,42 +56,33 @@ export function useSelectorSetup(
 
   const [impersonateUserEmail] = useSubBlockValue<string | null>(blockId, 'impersonateUserEmail')
 
+  const selectorCacheScope = useMemo(
+    () => generateShortId(),
+    [blockId, subBlock.id, selectorKey, dependencyValues]
+  )
+
   const resolvedDependencyValues = useMemo(() => {
-    const resolved: Record<string, unknown> = {}
-    for (const [key, value] of Object.entries(dependencyValues)) {
-      if (value === null || value === undefined) {
-        resolved[key] = value
-        continue
-      }
-      const str = String(value)
-      if (isEnvVarReference(str)) {
-        const varName = extractEnvVarName(str)
-        resolved[key] = envVariables[varName]?.value || undefined
-      } else {
-        resolved[key] = value
-      }
-    }
-    return resolved
-  }, [dependencyValues, envVariables])
+    return resolveSelectorDependencyValues({
+      dependencyValues,
+      personalEnvironment: envVariables,
+      canonicalIndex,
+      serverResolvedContextFields,
+    })
+  }, [dependencyValues, envVariables, canonicalIndex, serverResolvedContextFields])
 
   const selectorContext = useMemo<SelectorContext>(() => {
     const context: SelectorContext = {
       workflowId,
       workspaceId: workspaceId || undefined,
+      selectorCacheScope,
       mimeType: subBlock.mimeType,
     }
 
-    for (const [depKey, value] of Object.entries(resolvedDependencyValues)) {
-      if (value === null || value === undefined) continue
-      const strValue = String(value)
-      if (!strValue) continue
-      if (isReference(strValue)) continue
-
-      const canonicalParamId = canonicalIndex.canonicalIdBySubBlockId[depKey] ?? depKey
-      if (SELECTOR_CONTEXT_FIELDS.has(canonicalParamId as keyof SelectorContext)) {
-        context[canonicalParamId as keyof SelectorContext] = strValue
-      }
-    }
+    applySelectorDependenciesToContext({
+      context,
+      dependencyValues: resolvedDependencyValues,
+      canonicalIndex,
+    })
 
     if (context.oauthCredential && impersonateUserEmail) {
       context.impersonateUserEmail = impersonateUserEmail
@@ -90,12 +94,13 @@ export function useSelectorSetup(
     canonicalIndex,
     workflowId,
     workspaceId,
+    selectorCacheScope,
     subBlock.mimeType,
     impersonateUserEmail,
   ])
 
   return {
-    selectorKey: (subBlock.selectorKey ?? null) as SelectorKey | null,
+    selectorKey,
     selectorContext,
     allowSearch: subBlock.selectorAllowSearch ?? true,
     disabled: finalDisabled || !subBlock.selectorKey,

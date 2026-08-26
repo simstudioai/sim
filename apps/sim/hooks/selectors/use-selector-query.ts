@@ -5,6 +5,7 @@ import { extractEnvVarName, isEnvVarReference, isReference } from '@/executor/co
 import { usePersonalEnvironment } from '@/hooks/queries/environment'
 import { getSelectorDefinition, mergeOption } from '@/hooks/selectors/registry'
 import type {
+  SelectorDefinition,
   SelectorKey,
   SelectorOption,
   SelectorPage,
@@ -44,6 +45,19 @@ const logger = createLogger('SelectorQuery')
 
 const EMPTY_PAGE: SelectorPage = { items: [], nextCursor: undefined }
 
+/** Partitions authorization-sensitive selector caches without keying on secret values. */
+export function getScopedSelectorQueryKey(definition: SelectorDefinition, args: SelectorQueryArgs) {
+  const baseKey = definition.getQueryKey(args)
+  if (!definition.serverResolvedContextFields?.length) return baseKey
+  return [
+    ...baseKey,
+    'authorized-scope',
+    args.context.workspaceId ?? 'none',
+    args.context.workflowId ?? 'none',
+    args.context.selectorCacheScope ?? 'none',
+  ]
+}
+
 /**
  * Safety bound on the background auto-drain. Real dropdowns settle in a handful
  * of pages; this only trips for pathological result sets and prevents an
@@ -79,7 +93,7 @@ export function useSelectorOptions(
   const supportsPagination = Boolean(definition.fetchPage)
 
   const flatQuery = useQuery<SelectorOption[]>({
-    queryKey: definition.getQueryKey(queryArgs),
+    queryKey: getScopedSelectorQueryKey(definition, queryArgs),
     queryFn: ({ signal }) =>
       definition.fetchList?.({ ...queryArgs, signal }) ?? Promise.resolve([]),
     enabled: !supportsPagination && isEnabled,
@@ -87,7 +101,7 @@ export function useSelectorOptions(
   })
 
   const pagedQuery = useInfiniteQuery<SelectorPage>({
-    queryKey: [...definition.getQueryKey(queryArgs), 'paged'],
+    queryKey: [...getScopedSelectorQueryKey(definition, queryArgs), 'paged'],
     queryFn: ({ pageParam, signal }) => {
       if (!definition.fetchPage) return Promise.resolve(EMPTY_PAGE)
       return definition.fetchPage({
@@ -201,7 +215,11 @@ export function useSelectorOptionDetail(
     canResolveDetail
 
   const query = useQuery<SelectorOption | null>({
-    queryKey: [...definition.getQueryKey(queryArgs), 'detail', resolvedDetailId ?? 'none'],
+    queryKey: [
+      ...getScopedSelectorQueryKey(definition, queryArgs),
+      'detail',
+      resolvedDetailId ?? 'none',
+    ],
     queryFn: ({ signal }) => definition.fetchById!({ ...queryArgs, signal }),
     enabled,
     staleTime: definition.staleTime ?? DEFAULT_SELECTOR_DETAIL_STALE_TIME,
@@ -242,7 +260,7 @@ export function useSelectorOptionDetails(
       const queryArgs: SelectorQueryArgs = { key, context: args.context, detailId }
       const canResolveDetail = definition.fetchById !== undefined
       return {
-        queryKey: [...definition.getQueryKey(queryArgs), 'detail', detailId],
+        queryKey: [...getScopedSelectorQueryKey(definition, queryArgs), 'detail', detailId],
         queryFn: ({ signal }: { signal: AbortSignal }) =>
           definition.fetchById!({ ...queryArgs, signal }),
         enabled:

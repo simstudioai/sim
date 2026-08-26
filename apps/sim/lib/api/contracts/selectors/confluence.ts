@@ -399,6 +399,12 @@ export const confluencePageSelectorContract = definePostSelector(
   z.object({ id: z.string(), title: z.string() }).passthrough()
 )
 
+export const confluenceSelectorContractsByPath = {
+  '/api/tools/confluence/selector-spaces': confluenceSpacesSelectorContract,
+  '/api/tools/confluence/pages': confluencePagesSelectorContract,
+  '/api/tools/confluence/page': confluencePageSelectorContract,
+} as const
+
 export const confluenceUpdatePageContract = defineConfluencePutContract(
   '/api/tools/confluence/page',
   confluenceUpdatePageBodySchema

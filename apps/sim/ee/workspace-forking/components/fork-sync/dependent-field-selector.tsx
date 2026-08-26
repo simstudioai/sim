@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react'
 import { ChipCombobox, type ComboboxOption, Loader } from '@sim/emcn'
+import { generateShortId } from '@sim/utils/id'
 import { dependentFieldNoun } from '@/ee/workspace-forking/components/fork-sync/dependent-field-noun'
 import type { SelectorContext, SelectorKey } from '@/hooks/selectors/types'
 import { useSelectorOptions } from '@/hooks/selectors/use-selector-query'
@@ -31,11 +32,13 @@ export function DependentFieldSelector({
   onChange,
   title,
 }: DependentFieldSelectorProps) {
+  const dependencyIdentity = JSON.stringify(context)
+  const selectorCacheScope = useMemo(() => generateShortId(), [selectorKey, dependencyIdentity])
   const selectorContext = useMemo<SelectorContext>(() => {
-    const ctx: SelectorContext = {}
+    const ctx: SelectorContext = { selectorCacheScope }
     Object.assign(ctx, context)
     return ctx
-  }, [context])
+  }, [context, selectorCacheScope])
 
   const { data: options = [], isLoading } = useSelectorOptions(selectorKey, {
     context: selectorContext,

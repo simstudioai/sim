@@ -3,6 +3,8 @@
 import { useMemo, useState } from 'react'
 import { ChipCombobox, type ComboboxOption } from '@sim/emcn'
 import { Loader } from '@sim/emcn/icons'
+import { generateShortId } from '@sim/utils/id'
+import { useParams } from 'next/navigation'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import { SELECTOR_CONTEXT_FIELDS } from '@/lib/workflows/subblocks/context'
 import { getDependsOnFields } from '@/lib/workflows/subblocks/dependencies'
@@ -41,11 +43,19 @@ export function ConnectorSelectorField({
   canonicalModes,
   disabled,
 }: ConnectorSelectorFieldProps) {
+  const params = useParams<{ workspaceId: string; id: string }>()
   const isMulti = Boolean(field.multi)
   const [searchTerm, setSearchTerm] = useState('')
+  const selectorCacheScope = useMemo(
+    () => generateShortId(),
+    [field.id, field.selectorKey, credentialId, sourceConfig]
+  )
 
   const context = useMemo<SelectorContext>(() => {
-    const ctx: SelectorContext = {}
+    const ctx: SelectorContext = {
+      workspaceId: params.workspaceId,
+      selectorCacheScope,
+    }
     if (credentialId) ctx.oauthCredential = credentialId
     if (field.mimeType) ctx.mimeType = field.mimeType
 
@@ -60,7 +70,16 @@ export function ConnectorSelectorField({
     }
 
     return ctx
-  }, [credentialId, field.mimeType, field.dependsOn, sourceConfig, configFields, canonicalModes])
+  }, [
+    credentialId,
+    field.mimeType,
+    field.dependsOn,
+    sourceConfig,
+    configFields,
+    canonicalModes,
+    params.workspaceId,
+    selectorCacheScope,
+  ])
 
   const depsResolved = useMemo(() => {
     if (!field.dependsOn) return true

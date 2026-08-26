@@ -25,15 +25,8 @@ import {
   clickupSpacesSelectorContract,
   clickupWorkspacesSelectorContract,
 } from '@/lib/api/contracts/selectors/clickup'
-import {
-  cloudwatchLogGroupsSelectorContract,
-  cloudwatchLogStreamsSelectorContract,
-} from '@/lib/api/contracts/selectors/cloudwatch'
-import {
-  confluencePageSelectorContract,
-  confluencePagesSelectorContract,
-  confluenceSpacesSelectorContract,
-} from '@/lib/api/contracts/selectors/confluence'
+import { cloudwatchSelectorContractsByPath } from '@/lib/api/contracts/selectors/cloudwatch'
+import { confluenceSelectorContractsByPath } from '@/lib/api/contracts/selectors/confluence'
 import {
   gmailLabelSelectorContract,
   gmailLabelsSelectorContract,
@@ -168,7 +161,7 @@ export const selectorContractsByPath = {
   '/api/tools/clickup/spaces': clickupSpacesSelectorContract,
   '/api/tools/clickup/folders': clickupFoldersSelectorContract,
   '/api/tools/clickup/lists': clickupListsSelectorContract,
-  '/api/tools/confluence/selector-spaces': confluenceSpacesSelectorContract,
+  ...confluenceSelectorContractsByPath,
   '/api/tools/jsm/selector-servicedesks': jsmServiceDesksSelectorContract,
   '/api/tools/jsm/selector-requesttypes': jsmRequestTypesSelectorContract,
   '/api/tools/google_tasks/task-lists': googleTasksTaskListsSelectorContract,
@@ -215,8 +208,6 @@ export const selectorContractsByPath = {
   '/api/tools/netsuite/objects': netsuiteObjectsSelectorContract,
   '/api/tools/linear/teams': linearTeamsSelectorContract,
   '/api/tools/linear/projects': linearProjectsSelectorContract,
-  '/api/tools/confluence/pages': confluencePagesSelectorContract,
-  '/api/tools/confluence/page': confluencePageSelectorContract,
   '/api/tools/onedrive/files': onedriveFilesSelectorContract,
   '/api/tools/onedrive/folder': onedriveFolderSelectorContract,
   '/api/tools/onedrive/folders': onedriveFoldersSelectorContract,
@@ -231,8 +222,7 @@ export const selectorContractsByPath = {
   '/api/tools/webflow/sites': webflowSitesSelectorContract,
   '/api/tools/webflow/collections': webflowCollectionsSelectorContract,
   '/api/tools/webflow/items': webflowItemsSelectorContract,
-  '/api/tools/cloudwatch/describe-log-groups': cloudwatchLogGroupsSelectorContract,
-  '/api/tools/cloudwatch/describe-log-streams': cloudwatchLogStreamsSelectorContract,
+  ...cloudwatchSelectorContractsByPath,
 } as const
 
 export type SelectorContractPath = keyof typeof selectorContractsByPath
