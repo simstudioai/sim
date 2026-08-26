@@ -62,17 +62,54 @@ function specFiles(): string[] {
     .sort()
 }
 
+/** What the OpenAPI specs say about one operation, beyond its request shape. */
+export interface OperationDoc {
+  /** The spec's one-line summary, used as the command's `--help` description. */
+  summary?: string
+  /**
+   * The operation refuses a workspace API key, per its `description`.
+   *
+   * Carried so `--help` can say so before the request goes out; without it the
+   * caller learns the restriction from a `403` after the fact.
+   */
+  personalKeyOnly?: true
+}
+
 /**
- * `METHOD /api/v2/{id}/…` → the spec's one-line summary.
+ * The description sentences that mark an operation as personal-key-only.
+ *
+ * Read out of `apps/sim/lib/api/contracts/v2/openapi/shared.ts` at generation
+ * time rather than restated here, so rewording the sentence there cannot leave
+ * the marker silently unemitted. The import is lazy because that module
+ * resolves through the `@/` alias, which exists under `bun` but not under the
+ * root `vitest` that imports this file's pure helpers.
+ */
+export async function loadPersonalKeyMarkers(): Promise<readonly string[]> {
+  const shared: Record<string, unknown> = await import(
+    path.join(ROOT, 'apps/sim/lib/api/contracts/v2/openapi/shared.ts')
+  )
+  const markers = [shared.WORKSPACE_API_KEY_DENIED, shared.WORKSPACE_API_KEY_DENIED_AS_NOT_FOUND]
+  for (const marker of markers) {
+    if (typeof marker !== 'string' || !marker.trim()) {
+      throw new Error('openapi/shared.ts no longer exports the workspace-key denial sentences')
+    }
+  }
+  return markers as string[]
+}
+
+/**
+ * `METHOD /api/v2/{id}/…` → what the specs document about that operation.
  *
  * The contracts carry validation, not prose, so `--help` text has to come from
  * somewhere else. The specs already hold a hand-written summary per operation
  * and `check:openapi` guarantees every contract has one, so reading them here
  * reuses documentation that is already written and already verified rather than
- * inventing a second place to describe the same endpoint.
+ * inventing a second place to describe the same endpoint. The longer
+ * `description` is read for the same reason — it is where the workspace-key
+ * denial is already stated.
  */
-function loadSummaries(): Map<string, string> {
-  const summaries = new Map<string, string>()
+export function loadSummaries(personalKeyMarkers: readonly string[]): Map<string, OperationDoc> {
+  const docs = new Map<string, OperationDoc>()
 
   for (const file of specFiles()) {
     let spec: Record<string, any>
@@ -86,15 +123,23 @@ function loadSummaries(): Map<string, string> {
 
     for (const [specPath, methods] of Object.entries(spec.paths ?? {})) {
       for (const [method, operation] of Object.entries(methods as Record<string, any>)) {
-        const summary = operation?.summary
-        if (typeof summary === 'string') {
-          summaries.set(`${method.toUpperCase()} ${specPath}`, summary)
+        const doc: OperationDoc = {}
+        if (typeof operation?.summary === 'string') doc.summary = operation.summary
+        const description = operation?.description
+        if (
+          typeof description === 'string' &&
+          personalKeyMarkers.some((marker) => description.includes(marker))
+        ) {
+          doc.personalKeyOnly = true
+        }
+        if (doc.summary || doc.personalKeyOnly) {
+          docs.set(`${method.toUpperCase()} ${specPath}`, doc)
         }
       }
     }
   }
 
-  return summaries
+  return docs
 }
 
 /**
@@ -470,9 +515,8 @@ export function renderSlotMap(
   return `{\n${lines.join('\n')}\n${indent}}`
 }
 
-function render(operations: Operation[]): string {
+function render(operations: Operation[], docs: Map<string, OperationDoc>): string {
   const out: string[] = []
-  const summaries = loadSummaries()
 
   out.push('/**')
   out.push(' * GENERATED FILE — DO NOT EDIT.')
@@ -526,6 +570,9 @@ function render(operations: Operation[]): string {
   out.push(' *')
   out.push(" * `summary` is the operation's one-line description, lifted from the OpenAPI")
   out.push(' * specs so `--help` reuses prose that is already written and already checked.')
+  out.push(' *')
+  out.push(' * `personalKeyOnly` marks an operation whose spec description says a workspace')
+  out.push(' * API key is rejected, so `--help` can say so before the request is sent.')
   out.push(' */')
   out.push('export const V2_OPERATIONS = {')
   for (const op of operations) {
@@ -544,10 +591,11 @@ function render(operations: Operation[]): string {
     }
     out.push(`    responseMode: '${op.contract.response.mode}',`)
     // OpenAPI writes `{id}` where the contract writes `[id]`.
-    const summary = summaries.get(
+    const doc = docs.get(
       `${op.contract.method} ${op.contract.path.replace(/\[([^\]]+)\]/g, '{$1}')}`
     )
-    if (summary) out.push(`    summary: ${JSON.stringify(summary)},`)
+    if (doc?.summary) out.push(`    summary: ${JSON.stringify(doc.summary)},`)
+    if (doc?.personalKeyOnly) out.push(`    personalKeyOnly: true,`)
     for (const slot of ['query', 'body'] as const) {
       const map = renderSlotMap(op.contract[slot], '    ')
       if (map) out.push(`    ${slot}: ${map},`)
@@ -608,7 +656,7 @@ async function main() {
   const args = new Set(process.argv.slice(2))
   const operations = await collectOperations()
 
-  const generated = format(render(operations))
+  const generated = format(render(operations, loadSummaries(await loadPersonalKeyMarkers())))
 
   if (args.has('--check')) {
     let current = ''

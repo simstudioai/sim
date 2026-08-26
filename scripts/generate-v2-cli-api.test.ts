@@ -1,6 +1,11 @@
+import { readFileSync } from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { CLI_MANAGED_HEADERS, renderSlotMap } from './generate-v2-cli-api'
+import { CLI_MANAGED_HEADERS, loadSummaries, renderSlotMap } from './generate-v2-cli-api'
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 
 describe('a field the contract types as nullable', () => {
   /**
@@ -49,5 +54,62 @@ describe('request headers reaching the CLI as flags', () => {
     )
     expect(map).not.toContain('x-api-key')
     expect(map).toContain('upload-token')
+  })
+})
+
+/**
+ * Reads the denial sentences out of `openapi/shared.ts` as source text.
+ *
+ * The generator itself imports that module, but it resolves through the `@/`
+ * alias, which the root vitest run has no resolver for. Parsing the literal
+ * keeps the test bound to the same single source of truth: reword the sentence
+ * and this recomputes the expected set, so a generator holding a stale copy of
+ * it goes red instead of silently unmarking a family.
+ */
+function personalKeyMarkers(): string[] {
+  const source = readFileSync(
+    path.join(ROOT, 'apps/sim/lib/api/contracts/v2/openapi/shared.ts'),
+    'utf8'
+  )
+  const markers = [...source.matchAll(/export const (WORKSPACE_API_KEY_DENIED\w*) =\s*'([^']+)'/g)]
+    .filter(([, name]) => name.startsWith('WORKSPACE_API_KEY_DENIED'))
+    .map(([, , sentence]) => sentence)
+  expect(markers.length).toBeGreaterThan(0)
+  return markers
+}
+
+function generatedSource(): string {
+  return readFileSync(path.join(ROOT, 'packages/sim-cli/src/generated/v2-api.ts'), 'utf8')
+}
+
+/** The body of one entry in the emitted `V2_OPERATIONS` table. */
+function generatedEntry(source: string, name: string): string {
+  const match = source.match(new RegExp(`\\n  ${name}: \\{([\\s\\S]*?)\\n  \\},`))
+  if (!match) throw new Error(`${name} is not in the generated operation table`)
+  return match[1]
+}
+
+describe('operations that refuse a workspace API key', () => {
+  /**
+   * A count, not just named operations: pinning two of them would let a reword
+   * confined to one contract family silently unmark every other one while the
+   * pinned pair stayed green.
+   */
+  it('emits the marker for every operation the specs say refuses one', () => {
+    const marked = [...loadSummaries(personalKeyMarkers()).values()].filter(
+      (doc) => doc.personalKeyOnly
+    )
+    expect(marked.length).toBeGreaterThan(0)
+    expect(generatedSource().match(/personalKeyOnly: true/g)?.length ?? 0).toBe(marked.length)
+  })
+
+  it('marks restricted operations and leaves workspace-key-capable siblings alone', () => {
+    const source = generatedSource()
+    for (const name of ['listMcpServerTools', 'listSecrets', 'undeployWorkflow']) {
+      expect(generatedEntry(source, name)).toContain('personalKeyOnly: true')
+    }
+    for (const name of ['listMcpServers', 'getMcpServer', 'listWorkflows']) {
+      expect(generatedEntry(source, name)).not.toContain('personalKeyOnly')
+    }
   })
 })

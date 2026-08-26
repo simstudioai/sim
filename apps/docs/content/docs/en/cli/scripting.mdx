@@ -14,7 +14,7 @@ to read stdin.
 
 ```bash
 sim workflows import --workflow @wf.json
-sim tables rows query tbl_123 --filter @filter.json
+sim tables rows query tbl_9f3c1a05d4b7426e8c2f0917ab35de64 --filter @filter.json
 cat wf.json | sim workflows import --workflow @-
 ```
 
@@ -24,9 +24,9 @@ Primitive lists take space-separated values. With `@`, the file supplies one
 value per line:
 
 ```bash
-sim files mv --file-ids file_1 file_2 --to Archive
+sim files mv --file-ids wf_3Qm8ZtLpR2yVnKd7BsXwC wf_5Hn1JvTqW9xUcMb4RzPgL --to Archive
 sim files mv --file-ids @file-ids.txt --to Archive
-printf 'file_1\nfile_2\n' | sim files mv --file-ids @- --to Archive
+printf 'wf_3Qm8ZtLpR2yVnKd7BsXwC\nwf_5Hn1JvTqW9xUcMb4RzPgL\n' | sim files mv --file-ids @- --to Archive
 ```
 
 Arrays of objects stay JSON.
@@ -37,7 +37,7 @@ Arrays of objects stay JSON.
 groups of `{field, op, value}` conditions, nestable.
 
 ```bash
-sim tables rows query tbl_123 \
+sim tables rows query tbl_9f3c1a05d4b7426e8c2f0917ab35de64 \
   --filter '{"all":[{"field":"status","op":"eq","value":"open"},
                     {"field":"score","op":"gt","value":10}]}' \
   --limit 50
@@ -50,7 +50,7 @@ Operators: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`, `in`, `nin`, `contains`,
 `--sort` is also JSON, an ordered list of keys:
 
 ```bash
-sim tables rows query tbl_123 --sort '[{"field":"createdAt","direction":"desc"}]'
+sim tables rows query tbl_9f3c1a05d4b7426e8c2f0917ab35de64 --sort '[{"field":"createdAt","direction":"desc"}]'
 ```
 
 ## Pagination
@@ -68,8 +68,8 @@ Deletions require an explicit selector **and** `--yes`. There is no "delete
 everything" default:
 
 ```bash
-sim tables rows batch-delete tbl_123 --row row_1 row_2 --yes
-sim files delete file_123 --yes
+sim tables rows batch-delete tbl_9f3c1a05d4b7426e8c2f0917ab35de64 --row row_2f81c0a94db54e6f8a13c7e0526bd94a row_6b3e59d0af1c42d7b80e94f3a271c568 --yes
+sim files delete wf_8Kd2NpVrY6zTfQa3XwBmS --yes
 ```
 
 Without `--yes` the command explains what it would have destroyed and stops.
@@ -92,7 +92,7 @@ Errors print one line to stderr, prefixed `Error:`, plus the API's error code an
 validation details when it supplies them. Failures are safe to branch on:
 
 ```bash
-if ! sim workflows run wf_7Yb2 --output json > result.json; then
+if ! sim workflows run 3a9e21d8-5f47-4c0b-b2ea-91d7c6034ef8 --output json > result.json; then
   echo "run failed" >&2
   exit 1
 fi
@@ -121,7 +121,7 @@ esac
 produce are simply omitted:
 
 ```bash
-sim workflows run wf_7Yb2 --select-output agent_1.content --output json
+sim workflows run 3a9e21d8-5f47-4c0b-b2ea-91d7c6034ef8 --select-output agent_1.content --output json
 ```
 
 ## Polling a long run
@@ -129,9 +129,9 @@ sim workflows run wf_7Yb2 --select-output agent_1.content --output json
 Start the run asynchronously, then poll its status:
 
 ```bash
-run_id=$(sim workflows run wf_7Yb2 --async --output json | jq -r '.runId')
+run_id=$(sim workflows run 3a9e21d8-5f47-4c0b-b2ea-91d7c6034ef8 --async --output json | jq -r '.runId')
 
-until sim workflows runs get "$run_id" --workflow wf_7Yb2 --output json \
+until sim workflows runs get "$run_id" --workflow 3a9e21d8-5f47-4c0b-b2ea-91d7c6034ef8 --output json \
   | jq -e '.status | IN("completed","failed","cancelled")' > /dev/null; do
   sleep 5
 done
@@ -169,9 +169,9 @@ export SIM_API_KEY="${SIM_API_KEY:?missing}"
 export SIM_WORKSPACE="${SIM_WORKSPACE:?missing}"
 export SIM_OUTPUT=json
 
-run_id=$(sim workflows run wf_7Yb2 --input '{"source":"nightly"}' | jq -r '.runId')
+run_id=$(sim workflows run 3a9e21d8-5f47-4c0b-b2ea-91d7c6034ef8 --input '{"source":"nightly"}' | jq -r '.runId')
 
-if [ "$(sim workflows runs get "$run_id" --workflow wf_7Yb2 | jq -r '.status')" != "completed" ]; then
+if [ "$(sim workflows runs get "$run_id" --workflow 3a9e21d8-5f47-4c0b-b2ea-91d7c6034ef8 | jq -r '.status')" != "completed" ]; then
   sim logs get "$run_id" >&2
   exit 1
 fi
