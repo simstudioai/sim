@@ -94,6 +94,7 @@ interface FakeSelect {
   order: { type: string; column: unknown }[]
   limit: number | null
   source: FakeSelect | null
+  where: unknown
 }
 
 interface FakeOrderNode {
@@ -112,15 +113,24 @@ interface FakeOrderNode {
  * statement first. A test can therefore observe which rows a bounded, possibly
  * two-stage candidate query actually returns rather than being handed a canned
  * answer.
+ *
+ * `liveServerIds` models the one correlated anti-join the restore issues: a
+ * select whose WHERE carries a `notExists` drops the rows whose `serverId` the
+ * workflow already holds a live registration on, exactly as the subquery would.
+ * A statement that does not ask for the anti-join is filtered by nothing, so a
+ * fixture can tell the two apart.
  */
-function createFakeTx(results: QueuedRead[]) {
+function createFakeTx(results: QueuedRead[], liveServerIds: string[] = []) {
   const writes: RecordedWrite[] = []
   const queue = [...results]
+  const liveServers = new Set(liveServerIds)
   let pending: RecordedWrite | null = null
-  let current: FakeSelect | null = null
+  const selects: FakeSelect[] = []
+
+  const top = (): FakeSelect | null => selects.at(-1) ?? null
 
   const startSelect = (projection: Record<string, unknown>, distinctOn: unknown[]): void => {
-    current = { projection, distinctOn, order: [], limit: null, source: null }
+    selects.push({ projection, distinctOn, order: [], limit: null, source: null, where: undefined })
   }
 
   /** Resolves an order/distinct column token to the row key it was selected as. */
@@ -142,6 +152,12 @@ function createFakeTx(results: QueuedRead[]) {
     } else {
       const next = queue.shift() ?? []
       rows = typeof next === 'function' ? next() : next
+    }
+
+    if (hasMockCondition(select.where, (node) => node.type === 'notExists')) {
+      rows = rows.filter(
+        (row) => !liveServers.has((row as { serverId?: string }).serverId as string)
+      )
     }
 
     if (select.order.length > 0) {
@@ -186,20 +202,22 @@ function createFakeTx(results: QueuedRead[]) {
     },
     from(source: unknown) {
       const handle = (source as Record<symbol, FakeSelect> | null)?.[FAKE_SUBQUERY]
-      if (current && handle) current.source = handle
+      const select = top()
+      if (select && handle) select.source = handle
       return builder
     },
     orderBy(...nodes: FakeOrderNode[]) {
-      if (current) current.order = nodes
+      const select = top()
+      if (select) select.order = nodes
       return builder
     },
     limit(value: number) {
-      if (current) current.limit = value
+      const select = top()
+      if (select) select.limit = value
       return builder
     },
     as() {
-      const select = current
-      current = null
+      const select = selects.pop() ?? null
       return new Proxy(
         {},
         {
@@ -226,14 +244,24 @@ function createFakeTx(results: QueuedRead[]) {
       }
       return builder
     },
+    /**
+     * A correlated subquery is built — and finished by its own `where` — while
+     * its enclosing statement is still open, so a completed select is popped
+     * here to let the outer statement's `where` land on the outer select.
+     */
     where(condition: unknown) {
-      if (pending) pending.where = condition
-      pending = null
+      if (pending) {
+        pending.where = condition
+        pending = null
+        return builder
+      }
+      while (selects.length > 1 && top()?.where !== undefined) selects.pop()
+      const select = top()
+      if (select && select.where === undefined) select.where = condition
       return builder
     },
     then(onFulfilled: (value: unknown) => unknown) {
-      const select = current
-      current = null
+      const select = selects.pop() ?? null
       const rows = select ? evaluate(select) : (queue.shift() ?? [])
       return Promise.resolve(rows).then(onFulfilled)
     },
@@ -526,6 +554,55 @@ describe('workflow MCP tool withdrawal and restore', () => {
     expect(liveServers.length + restoredIds.length).toBeLessThanOrEqual(
       MAX_MCP_SERVERS_PER_WORKFLOW
     )
+  })
+
+  /**
+   * A `(server, workflow)` pair can hold both a live row and archived
+   * generations: `workflow_mcp_tool_server_workflow_unique` is scoped to
+   * unarchived rows, so it constrains only the live one. Such a server was
+   * counted twice — once by the live-server count that shrinks the budget, once
+   * as a candidate — and the slot it consumed was spent on a candidate the
+   * post-lock liveness check could only ever skip, leaving a genuinely
+   * restorable server beyond the bound unfetched. The candidate query must
+   * exclude it so the budget and the candidate set agree.
+   */
+  it('never spends a restore slot on a server the workflow is already live on', async () => {
+    const headroom = 2
+    const sharedServerId = 'srv-shared'
+    const liveServers = [
+      ...liveServerRows(MAX_MCP_SERVERS_PER_WORKFLOW - headroom - 1),
+      { serverId: sharedServerId },
+    ]
+    const candidates = [
+      archivedRow('t-arch-a', 'srv-arch-a', 'orders_a', new Date(2020, 0, 1)),
+      archivedRow('t-arch-b', 'srv-arch-b', 'orders_b', new Date(2020, 0, 2)),
+      archivedRow('t-arch-shared', sharedServerId, 'orders_shared', new Date(2020, 0, 3)),
+    ]
+
+    const { tx, writes } = createFakeTx(
+      [liveServers, candidates, liveServers, [], [], []],
+      [sharedServerId]
+    )
+
+    await syncMcpToolsForWorkflow({
+      workflowId: WORKFLOW_ID,
+      requestId: REQUEST_ID,
+      state: { blocks: {} },
+      tx,
+      notify: false,
+      throwOnError: true,
+    })
+
+    expect(mocks.acquireLock.mock.calls.map((call) => call[1])).toEqual([
+      'srv-arch-a',
+      'srv-arch-b',
+    ])
+
+    const restore = writes.find((write) => write.values?.archivedAt === null)
+    const restoredIds = flattenMockConditions(restore?.where).find(
+      (node) => node.type === 'inArray'
+    )?.values as string[]
+    expect(restoredIds).toEqual(['t-arch-b', 't-arch-a'])
   })
 
   /**

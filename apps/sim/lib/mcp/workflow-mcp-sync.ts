@@ -1,6 +1,7 @@
 import { db, workflowMcpServer, workflowMcpTool } from '@sim/db'
 import { createLogger } from '@sim/logger'
-import { and, asc, desc, eq, gt, inArray, isNotNull, isNull } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, notExists } from 'drizzle-orm'
+import { alias } from 'drizzle-orm/pg-core'
 import type { DbOrTx } from '@/lib/db/types'
 import { MAX_MCP_SERVERS_PER_WORKFLOW, MAX_MCP_TOOLS_PER_SERVER } from '@/lib/mcp/constants'
 import { acquireWorkflowMcpServerLock } from '@/lib/mcp/server-locks'
@@ -230,6 +231,18 @@ async function getRestoreSkipReason(
  * locked, and each accepted candidate spends one unit of it, so the restore can
  * never select more servers than the workflow has room for.
  *
+ * The candidate query also excludes, with a correlated `NOT EXISTS`, every
+ * server the workflow already holds a live row on. Those servers are counted by
+ * {@link countWorkflowLiveMcpServers} and so already shrink the budget, while
+ * `workflow_mcp_tool_server_workflow_unique` — scoped to unarchived rows —
+ * leaves their archived generations unconstrained. Without the exclusion such a
+ * server was counted twice: once against the budget and once as a candidate that
+ * consumed one of the remaining slots only to be skipped under the lock, which
+ * kept a genuinely restorable server beyond the bound from ever being fetched.
+ * The exclusion is a pre-lock optimisation and can go stale, so the
+ * `(server_id, workflow_id)` liveness check in {@link getRestoreSkipReason}
+ * stays authoritative.
+ *
  * Candidates are decided in recency order — the order the bounded query already
  * ranks them in — so when there is headroom for some but not all, the servers
  * the workflow most recently published on are the ones that come back. Lock
@@ -268,6 +281,13 @@ async function restoreArchivedMcpToolsForWorkflow(
     return
   }
 
+  /**
+   * Self-join alias correlating a candidate row with the workflow's live rows
+   * on the same server: `workflow_mcp_tool` appears on both sides of the
+   * candidate query, so the inner reference needs its own name.
+   */
+  const liveWorkflowMcpTool = alias(workflowMcpTool, 'live_workflow_mcp_tool')
+
   const latestPerServer = tx
     .selectDistinctOn([workflowMcpTool.serverId], {
       id: workflowMcpTool.id,
@@ -278,7 +298,24 @@ async function restoreArchivedMcpToolsForWorkflow(
       updatedAt: workflowMcpTool.updatedAt,
     })
     .from(workflowMcpTool)
-    .where(and(eq(workflowMcpTool.workflowId, workflowId), isNotNull(workflowMcpTool.archivedAt)))
+    .where(
+      and(
+        eq(workflowMcpTool.workflowId, workflowId),
+        isNotNull(workflowMcpTool.archivedAt),
+        notExists(
+          tx
+            .select({ id: liveWorkflowMcpTool.id })
+            .from(liveWorkflowMcpTool)
+            .where(
+              and(
+                eq(liveWorkflowMcpTool.workflowId, workflowId),
+                eq(liveWorkflowMcpTool.serverId, workflowMcpTool.serverId),
+                isNull(liveWorkflowMcpTool.archivedAt)
+              )
+            )
+        )
+      )
+    )
     .orderBy(
       asc(workflowMcpTool.serverId),
       desc(workflowMcpTool.updatedAt),
