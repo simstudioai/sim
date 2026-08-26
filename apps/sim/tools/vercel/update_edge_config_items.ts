@@ -61,11 +61,15 @@ export const vercelUpdateEdgeConfigItemsTool: ToolConfig<
     },
   },
 
-  transformResponse: async () => {
+  transformResponse: async (response: Response) => {
+    // Vercel declares the PATCH response as exactly `{ status: string }`.
+    // The executor already threw on a non-2xx, so this reads the real value
+    // rather than reporting a hardcoded 'ok'.
+    const data = await response.json()
     return {
       success: true,
       output: {
-        status: 'ok',
+        status: typeof data?.status === 'string' ? data.status : '',
       },
     }
   },
@@ -73,7 +77,7 @@ export const vercelUpdateEdgeConfigItemsTool: ToolConfig<
   outputs: {
     status: {
       type: 'string',
-      description: 'Operation status',
+      description: 'Operation status reported by Vercel',
     },
   },
 }

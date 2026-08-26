@@ -2,6 +2,7 @@ import type {
   SixtyfourEnrichLeadParams,
   SixtyfourEnrichLeadResponse,
 } from '@/tools/sixtyfour/types'
+import { SIXTYFOUR_ENRICH_TIMEOUT_MS } from '@/tools/sixtyfour/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const sixtyfourEnrichLeadTool: ToolConfig<
@@ -30,16 +31,31 @@ export const sixtyfourEnrichLeadTool: ToolConfig<
     },
     struct: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
       description:
-        'Fields to collect as JSON object. Keys are field names, values are descriptions (e.g. {"email": "The individual\'s email address", "phone": "Phone number"})',
+        'Optional fields to collect as JSON object. Keys are field names, values are descriptions (e.g. {"email": "The individual\'s email address", "phone": "Phone number"}). Omit to let Sixtyfour choose the fields.',
     },
     researchPlan: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description: 'Optional research plan to guide enrichment strategy',
+    },
+    tier: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Research depth and credit spend: micro, low, medium, high, or xhigh. Defaults to low when omitted; micro is cheaper than the default.',
+    },
+    timeout: {
+      type: 'number',
+      required: false,
+      visibility: 'hidden',
+      description:
+        'Outbound request deadline in milliseconds. Defaults to SIXTYFOUR_ENRICH_TIMEOUT_MS because this endpoint is synchronous and long-running.',
+      default: SIXTYFOUR_ENRICH_TIMEOUT_MS,
     },
   },
 
@@ -67,15 +83,18 @@ export const sixtyfourEnrichLeadTool: ToolConfig<
         throw new Error('leadInfo must be valid JSON')
       }
       let struct: unknown
-      try {
-        struct = typeof params.struct === 'string' ? JSON.parse(params.struct) : params.struct
-      } catch {
-        throw new Error('struct must be valid JSON')
+      if (params.struct !== undefined && params.struct !== null && params.struct !== '') {
+        try {
+          struct = typeof params.struct === 'string' ? JSON.parse(params.struct) : params.struct
+        } catch {
+          throw new Error('struct must be valid JSON')
+        }
       }
       return {
         lead_info: leadInfo,
-        struct,
+        ...(struct !== undefined && { struct }),
         ...(params.researchPlan && { research_plan: params.researchPlan }),
+        ...(params.tier && { tier: params.tier }),
       }
     },
   },

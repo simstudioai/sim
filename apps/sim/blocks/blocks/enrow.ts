@@ -138,4 +138,71 @@ export const EnrowBlock: BlockConfig<EnrowResponse> = {
 export const EnrowBlockMeta = {
   tags: ['enrichment', 'sales-engagement'],
   url: 'https://enrow.io',
+  templates: [
+    {
+      icon: EnrowIcon,
+      title: 'Enrow email finder',
+      prompt:
+        'Build a workflow that reads a prospect full name and company domain from a table, finds the verified work email with Enrow, and writes the address and its qualification back to the row.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'research'],
+    },
+    {
+      icon: EnrowIcon,
+      title: 'Enrow list cleaner',
+      prompt:
+        'Create a workflow that runs every address in an email list through Enrow verification and writes only the deliverable ones into a clean sending table.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'automation'],
+    },
+    {
+      icon: EnrowIcon,
+      title: 'Enrow form-signup verifier',
+      prompt:
+        'Build a workflow that verifies each new signup email with Enrow when a form is submitted, and routes undeliverable addresses to a review queue instead of the CRM.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'automation'],
+    },
+    {
+      icon: EnrowIcon,
+      title: 'Enrow CRM gap-filler',
+      prompt:
+        'Create a scheduled workflow that finds HubSpot contacts with no email, looks each one up in Enrow from the name and company domain, and updates the contact record when a valid address is found.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'crm'],
+      alsoIntegrations: ['hubspot'],
+    },
+    {
+      icon: EnrowIcon,
+      title: 'Enrow bounce guard',
+      prompt:
+        "Build a scheduled workflow that re-verifies the contacts queued for this week's outbound send with Enrow and removes any address that no longer qualifies as valid.",
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'automation'],
+    },
+    {
+      icon: EnrowIcon,
+      title: 'Enrow inbound-lead router',
+      prompt:
+        'Create a workflow that on a new inbound lead finds the work email with Enrow, verifies it, and posts the qualified contact to the sales channel in Slack.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'communication'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: EnrowIcon,
+      title: 'Enrow find-and-verify pipeline',
+      prompt:
+        'Build a workflow that takes a list of names and companies, finds each work email with Enrow, verifies the result, and writes a ready-to-contact table with the qualification for every row.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'research', 'enrichment'],
+    },
+  ],
 } as const satisfies BlockMeta

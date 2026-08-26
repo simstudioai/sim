@@ -1,5 +1,6 @@
 import { SixtyfourIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { SIXTYFOUR_ENRICH_TIMEOUT_MS } from '@/tools/sixtyfour/types'
 
 const PHONE_LOOKUP_FIELD = ['name', 'linkedinUrl', 'emailInput'] as const
 const EMAIL_LOOKUP_FIELD = ['name', 'linkedinUrl', 'phoneInput'] as const
@@ -144,8 +145,22 @@ export const SixtyfourBlock: BlockConfig = {
       type: 'long-input',
       placeholder:
         '{"email": "Email address", "phone": "Phone number", "company": "Company name", "title": "Job title"}',
-      required: { field: 'operation', value: 'enrich_lead' },
       condition: { field: 'operation', value: 'enrich_lead' },
+    },
+    {
+      id: 'leadTier',
+      title: 'Research Tier',
+      type: 'dropdown',
+      options: [
+        { label: 'Micro', id: 'micro' },
+        { label: 'Low', id: 'low' },
+        { label: 'Medium', id: 'medium' },
+        { label: 'High', id: 'high' },
+        { label: 'Extra High', id: 'xhigh' },
+      ],
+      placeholder: 'Low (default)',
+      condition: { field: 'operation', value: 'enrich_lead' },
+      mode: 'advanced',
     },
     {
       id: 'leadResearchPlan',
@@ -202,6 +217,20 @@ export const SixtyfourBlock: BlockConfig = {
       mode: 'advanced',
     },
     {
+      id: 'companyTier',
+      title: 'Research Tier',
+      type: 'dropdown',
+      options: [
+        { label: 'Micro', id: 'micro' },
+        { label: 'Low', id: 'low' },
+        { label: 'Medium', id: 'medium' },
+        { label: 'High', id: 'high' },
+      ],
+      placeholder: 'Low (default)',
+      condition: { field: 'operation', value: 'enrich_company' },
+      mode: 'advanced',
+    },
+    {
       id: 'companyResearchPlan',
       title: 'Research Plan',
       type: 'long-input',
@@ -229,11 +258,15 @@ export const SixtyfourBlock: BlockConfig = {
           if (params.phoneInput) result.phone = params.phoneInput
         } else if (params.operation === 'enrich_lead') {
           result.leadInfo = params.leadInfo
-          result.struct = params.leadStruct
+          if (params.leadStruct) result.struct = params.leadStruct
+          if (params.leadTier) result.tier = params.leadTier
           if (params.leadResearchPlan) result.researchPlan = params.leadResearchPlan
+          result.timeout = SIXTYFOUR_ENRICH_TIMEOUT_MS
         } else if (params.operation === 'enrich_company') {
           result.targetCompany = params.targetCompany
           result.struct = params.companyStruct
+          if (params.companyTier) result.tier = params.companyTier
+          result.timeout = SIXTYFOUR_ENRICH_TIMEOUT_MS
           if (params.findPeople !== undefined) result.findPeople = Boolean(params.findPeople)
           if (params.fullOrgChart !== undefined) result.fullOrgChart = Boolean(params.fullOrgChart)
           if (params.peopleFocusPrompt) result.peopleFocusPrompt = params.peopleFocusPrompt
@@ -259,6 +292,7 @@ export const SixtyfourBlock: BlockConfig = {
     mode: { type: 'string', description: 'Email mode (PROFESSIONAL or PERSONAL)' },
     leadInfo: { type: 'string', description: 'Lead information JSON' },
     leadStruct: { type: 'string', description: 'Fields to collect for lead' },
+    leadTier: { type: 'string', description: 'Research tier for lead enrichment' },
     leadResearchPlan: { type: 'string', description: 'Research plan for lead enrichment' },
     targetCompany: { type: 'string', description: 'Company information JSON' },
     companyStruct: { type: 'string', description: 'Fields to collect for company' },
@@ -266,6 +300,7 @@ export const SixtyfourBlock: BlockConfig = {
     fullOrgChart: { type: 'boolean', description: 'Retrieve full org chart' },
     peopleFocusPrompt: { type: 'string', description: 'People focus description' },
     companyLeadStruct: { type: 'string', description: 'Lead schema for company enrichment' },
+    companyTier: { type: 'string', description: 'Research tier for company enrichment' },
     companyResearchPlan: { type: 'string', description: 'Research plan for company enrichment' },
   },
 

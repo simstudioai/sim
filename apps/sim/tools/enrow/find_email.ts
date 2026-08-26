@@ -1,5 +1,5 @@
-import { sleep } from '@sim/utils/helpers'
 import { enrowHosting } from '@/tools/enrow/hosting'
+import { pollEnrowJob } from '@/tools/enrow/poll'
 import type {
   EnrowFindEmailParams,
   EnrowFindEmailResponse,
@@ -11,9 +11,6 @@ import {
   ENROW_QUALIFICATION_OUTPUT,
 } from '@/tools/enrow/types'
 import type { ToolConfig } from '@/tools/types'
-
-const POLL_INTERVAL_MS = 3000
-const MAX_POLL_TIME_MS = 120_000
 
 /**
  * Map a raw Enrow find-email result payload to the typed output shape.
@@ -137,40 +134,16 @@ export const enrowFindEmailTool: ToolConfig<EnrowFindEmailParams, EnrowFindEmail
       throw new Error('Enrow find-email did not return a job id to poll')
     }
 
-    let elapsed = 0
-    while (elapsed < MAX_POLL_TIME_MS) {
-      await sleep(POLL_INTERVAL_MS)
-      elapsed += POLL_INTERVAL_MS
+    const data = await pollEnrowJob(
+      `https://api.enrow.io/email/find/single?id=${encodeURIComponent(jobId)}`,
+      params.apiKey,
+      'find-email'
+    )
 
-      const pollResponse = await fetch(
-        `https://api.enrow.io/email/find/single?id=${encodeURIComponent(jobId)}`,
-        {
-          headers: {
-            'x-api-key': params.apiKey,
-          },
-        }
-      )
-
-      if (pollResponse.status === 202) {
-        // Still in progress — keep polling
-        continue
-      }
-
-      if (!pollResponse.ok) {
-        const errorText = await pollResponse.text()
-        throw new Error(`Enrow find-email poll error: ${pollResponse.status} - ${errorText}`)
-      }
-
-      // HTTP 200 → complete
-      const json = await pollResponse.json()
-      const data = (json as Record<string, unknown>) ?? {}
-      return {
-        success: true,
-        output: mapFindResult(data, jobId),
-      }
+    return {
+      success: true,
+      output: mapFindResult(data, jobId),
     }
-
-    throw new Error('Enrow find-email did not complete within the polling window')
   },
 
   outputs: {

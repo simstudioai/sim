@@ -3,6 +3,16 @@ import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const DAYTONA_API_BASE_URL = 'https://app.daytona.io/api'
 
+/**
+ * Fallback toolbox host.
+ *
+ * Daytona models the toolbox proxy as a required per-sandbox field
+ * (`Sandbox.toolboxProxyUrl`, also served by
+ * `GET /sandbox/{sandboxId}/toolbox-proxy-url`), and both official SDKs rebind
+ * it per sandbox. This constant is only the Cloud default used when no
+ * per-sandbox URL is available to the caller — self-hosted and regional
+ * deployments report a different host on the sandbox itself.
+ */
 export const DAYTONA_TOOLBOX_BASE_URL = 'https://proxy.app.daytona.io/toolbox'
 
 /**
@@ -20,9 +30,17 @@ export function encodeSandboxId(sandboxId: string): string {
 
 /**
  * Builds a toolbox API URL for a sandbox-scoped endpoint.
+ *
+ * `baseUrl` accepts the sandbox's own `toolboxProxyUrl` when the caller has it;
+ * otherwise the Cloud default applies.
  */
-export function daytonaToolboxUrl(sandboxId: string, path: string): string {
-  return `${DAYTONA_TOOLBOX_BASE_URL}/${encodeSandboxId(sandboxId)}${path}`
+export function daytonaToolboxUrl(
+  sandboxId: string,
+  path: string,
+  baseUrl: string = DAYTONA_TOOLBOX_BASE_URL
+): string {
+  const normalizedBase = baseUrl.replace(/\/+$/, '') || DAYTONA_TOOLBOX_BASE_URL
+  return `${normalizedBase}/${encodeSandboxId(sandboxId)}${path}`
 }
 
 /**
@@ -97,6 +115,7 @@ export function mapDaytonaSandbox(sandbox: Record<string, any>): DaytonaSandboxS
     autoStopInterval: sandbox.autoStopInterval ?? null,
     createdAt: sandbox.createdAt ?? null,
     updatedAt: sandbox.updatedAt ?? null,
+    toolboxProxyUrl: sandbox.toolboxProxyUrl ?? null,
   }
 }
 
@@ -127,4 +146,9 @@ export const DAYTONA_SANDBOX_OUTPUT_PROPERTIES = {
   },
   createdAt: { type: 'string', description: 'Creation timestamp', optional: true },
   updatedAt: { type: 'string', description: 'Last update timestamp', optional: true },
+  toolboxProxyUrl: {
+    type: 'string',
+    description: 'Toolbox proxy base URL this sandbox is reachable through',
+    optional: true,
+  },
 } as const

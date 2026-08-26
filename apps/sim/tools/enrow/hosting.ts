@@ -36,8 +36,9 @@ export function enrowHosting<P>(
     },
     rateLimit: {
       mode: 'per_request',
-      // Enrow rate limit is ~50 req/s; cap at 60 req/min to stay conservative
-      // and avoid bursting into the limit during polling.
+      // Enrow limits POST submissions to 10 req/s; GET result reads are not
+      // rate limited, so polling does not consume the quota. 60 req/min stays
+      // well inside the documented submission limit.
       requestsPerMinute: 60,
     },
   }

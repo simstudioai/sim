@@ -2,6 +2,7 @@ import type {
   SixtyfourEnrichCompanyParams,
   SixtyfourEnrichCompanyResponse,
 } from '@/tools/sixtyfour/types'
+import { SIXTYFOUR_ENRICH_TIMEOUT_MS } from '@/tools/sixtyfour/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const sixtyfourEnrichCompanyTool: ToolConfig<
@@ -64,6 +65,21 @@ export const sixtyfourEnrichCompanyTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Custom schema for returned lead data as JSON object',
     },
+    tier: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Research depth and credit spend: micro, low, medium, or high. Defaults to low when omitted; micro is cheaper than the default.',
+    },
+    timeout: {
+      type: 'number',
+      required: false,
+      visibility: 'hidden',
+      description:
+        'Outbound request deadline in milliseconds. Defaults to SIXTYFOUR_ENRICH_TIMEOUT_MS because this endpoint is synchronous and long-running.',
+      default: SIXTYFOUR_ENRICH_TIMEOUT_MS,
+    },
   },
 
   request: {
@@ -116,6 +132,7 @@ export const sixtyfourEnrichCompanyTool: ToolConfig<
         ...(params.researchPlan && { research_plan: params.researchPlan }),
         ...(params.peopleFocusPrompt && { people_focus_prompt: params.peopleFocusPrompt }),
         ...(leadStruct && { lead_struct: leadStruct }),
+        ...(params.tier && { tier: params.tier }),
       }
     },
   },

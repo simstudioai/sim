@@ -16,6 +16,7 @@ export interface DaytonaSandboxSummary {
   autoStopInterval: number | null
   createdAt: string | null
   updatedAt: string | null
+  toolboxProxyUrl: string | null
 }
 
 export interface DaytonaFileInfo {
