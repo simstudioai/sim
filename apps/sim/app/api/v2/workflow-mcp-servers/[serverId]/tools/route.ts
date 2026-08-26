@@ -29,6 +29,11 @@ export const revalidate = 0
  * is bounded by the workspace's deployed workflows, and a caller reconciling it
  * wants all of it. `nextCursor` is therefore always null.
  *
+ * That bound is not unlimited, though, and a set cut short by the ceiling
+ * cannot be paged past — so the response carries `truncated`. Without it a
+ * reconciling caller read a partial inventory as the complete one and would
+ * have unpublished every tool past the cut.
+ *
  * Head-safe: nothing is written and no audit is projected.
  */
 export const GET = defineV2JsonRoute({
@@ -39,9 +44,10 @@ export const GET = defineV2JsonRoute({
   errorPolicy: workflowMcpServerErrorPolicy,
   mapInput: ({ params }) => ({ serverId: params.serverId }),
   useCase: listWorkflowMcpDeploymentTools,
-  present: ({ tools }) => ({
+  present: ({ tools, truncated }) => ({
     data: tools.map(toV2WorkflowMcpToolListItem),
     nextCursor: null,
+    truncated,
   }),
 })
 

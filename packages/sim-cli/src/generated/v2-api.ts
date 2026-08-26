@@ -752,6 +752,8 @@ type CancelTableDispatchResponseRef0 = {
   scope: {
     groupIds: Array<string>
     rowIds?: Array<string>
+    selectAll?: boolean
+    excludeRowIds?: Array<string>
   }
   limit: {
     type: 'rows'
@@ -4266,6 +4268,8 @@ type GetTableDispatchResponseRef0 = {
   scope: {
     groupIds: Array<string>
     rowIds?: Array<string>
+    selectAll?: boolean
+    excludeRowIds?: Array<string>
   }
   limit: {
     type: 'rows'
@@ -5867,6 +5871,8 @@ type ListTableDispatchesResponseRef0 = {
   scope: {
     groupIds: Array<string>
     rowIds?: Array<string>
+    selectAll?: boolean
+    excludeRowIds?: Array<string>
   }
   limit: {
     type: 'rows'
@@ -6161,6 +6167,7 @@ type ListWorkflowMcpServersResponseRef0 = {
 export type ListWorkflowMcpServersResponse = {
   data: Array<ListWorkflowMcpServersResponseRef0>
   nextCursor: string | null
+  toolNamesTruncated: boolean
 }
 
 /** `GET /api/v2/workflow-mcp-servers/[serverId]/tools` */
@@ -6185,6 +6192,7 @@ type ListWorkflowMcpToolsResponseRef0 = {
 export type ListWorkflowMcpToolsResponse = {
   data: Array<ListWorkflowMcpToolsResponseRef0>
   nextCursor: string | null
+  truncated: boolean
 }
 
 /** `GET /api/v2/workflows/[workflowId]/runs` */

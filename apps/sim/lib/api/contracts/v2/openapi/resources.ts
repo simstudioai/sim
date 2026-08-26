@@ -1483,7 +1483,7 @@ const declaredRoutes = [
         'ListWorkflowMcpServersResponse',
         'List workflow MCP servers response',
         'A cursor-paginated page of published MCP servers.',
-        [{ data: [WORKFLOW_MCP_SERVER_LIST_EXAMPLE], nextCursor: null }]
+        [{ data: [WORKFLOW_MCP_SERVER_LIST_EXAMPLE], nextCursor: null, toolNamesTruncated: false }]
       ),
     }
   ),
@@ -1550,6 +1550,7 @@ const declaredRoutes = [
           {
             data: [omitUpdated(WORKFLOW_MCP_TOOL_EXAMPLE)],
             nextCursor: null,
+            truncated: false,
           },
         ]
       ),

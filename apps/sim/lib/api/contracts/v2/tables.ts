@@ -2546,7 +2546,21 @@ export const v2TableRunDispatchSchema = z
         rowIds: z
           .array(z.string())
           .optional()
-          .describe('Explicit rows the dispatch targets; absent means every eligible row.'),
+          .describe(
+            'Explicit rows the dispatch targets. Absent does not mean every eligible row on its own — a select-all dispatch has no row list either, and says so with `selectAll`.'
+          ),
+        selectAll: z
+          .boolean()
+          .optional()
+          .describe(
+            'Present and true when the dispatch targets everything matching the filter its `POST` supplied, minus `excludeRowIds`, rather than a fixed row list. The filter itself is not published: it is stored compiled, in a different grammar from the predicate the request was written in. Absent alongside an absent `rowIds` is what means every eligible row.'
+          ),
+        excludeRowIds: z
+          .array(z.string())
+          .optional()
+          .describe(
+            'Rows deselected from a select-all scope, which the walk skips. Only meaningful alongside `selectAll`.'
+          ),
       })
       .strict()
       .describe('What the dispatch was asked to run.'),

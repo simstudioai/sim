@@ -7390,9 +7390,13 @@
               }
             ],
             "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself."
+          },
+          "toolNamesTruncated": {
+            "type": "boolean",
+            "description": "Whether `toolCount` and `toolNames` under-report. The names are gathered for the whole page under one ceiling, so a page whose servers publish more tools than that ceiling between them reports only part of each server's inventory. Read `GET /api/v2/workflow-mcp-servers/{serverId}/tools` for a server's authoritative set. Unrelated to `nextCursor`, which is how this list says there are further servers."
           }
         },
-        "required": ["data", "nextCursor"],
+        "required": ["data", "nextCursor", "toolNamesTruncated"],
         "additionalProperties": false,
         "title": "List workflow MCP servers response",
         "description": "A cursor-paginated page of published MCP servers.",
@@ -7411,7 +7415,8 @@
                 "toolNames": ["triage_ticket"]
               }
             ],
-            "nextCursor": null
+            "nextCursor": null,
+            "toolNamesTruncated": false
           }
         ]
       },
@@ -7653,9 +7658,13 @@
               }
             ],
             "description": "Always `null` — this list has no `cursor` or `limit` param and returns its whole bounded set in one page. Present so the list can gain pages later without a shape change."
+          },
+          "truncated": {
+            "type": "boolean",
+            "description": "Whether this inventory was cut short by the server-side ceiling on how many tools one response may carry. `nextCursor` is null either way — this list takes no `cursor`, so a truncated set cannot be paged past and this flag is the only way to tell a partial inventory from a complete one. A reconciling caller must not treat a truncated set as the full published inventory."
           }
         },
-        "required": ["data", "nextCursor"],
+        "required": ["data", "nextCursor", "truncated"],
         "additionalProperties": false,
         "title": "List workflow MCP tools response",
         "description": "The tools a published MCP server exposes.",
@@ -7674,7 +7683,8 @@
                 "updatedAt": "2026-06-12T10:30:00.000Z"
               }
             ],
-            "nextCursor": null
+            "nextCursor": null,
+            "truncated": false
           }
         ]
       },

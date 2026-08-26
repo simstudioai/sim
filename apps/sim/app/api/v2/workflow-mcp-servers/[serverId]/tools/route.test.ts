@@ -342,6 +342,23 @@ describe('/api/v2/workflow-mcp-servers/[serverId]/tools', () => {
       const body = await (await get()).json()
 
       expect(body.nextCursor).toBeNull()
+      expect(body.truncated).toBe(false)
+    })
+
+    /**
+     * `nextCursor` is null whether or not the ceiling cut the set, and this list
+     * takes no `cursor`, so a truncated inventory cannot be paged past. Without
+     * this flag a reconciling caller read a partial set as the whole published
+     * inventory — and the use case had been computing it all along.
+     */
+    it('says when the ceiling cut the inventory short', async () => {
+      mocks.getServer.mockResolvedValue(serverRow)
+      mocks.listTools.mockResolvedValue({ tools: [toolRow], truncated: true })
+
+      const body = await (await get()).json()
+
+      expect(body.truncated).toBe(true)
+      expect(body.nextCursor).toBeNull()
     })
 
     it('conceals a server in another workspace as not found', async () => {

@@ -129,7 +129,14 @@ interface BulkMoveTablesExecutionResult extends BulkMoveTablesResult, TableBatch
 }
 interface BulkDeleteTablesExecutionResult
   extends BulkDeleteTablesResult,
-    TableBatchExecutionResult {}
+    TableBatchExecutionResult {
+  /**
+   * Every deletion keyed by canonical id, for the audit projection only. The
+   * published `deleted` is keyed the way the caller addressed the batch, which
+   * on the path-keyed route is a display path.
+   */
+  auditedDeletions: BulkTableItem[]
+}
 
 async function resolveBulkTablesContext(
   input: BulkTablesSelectionInput,
@@ -539,6 +546,18 @@ export const bulkDeleteTables = defineAuthorizedTableUseCase({
       })
       return {
         deleted: deleted.map((item) => projectFolderItem(item, context)),
+        /**
+         * The same deletions still keyed by canonical id.
+         *
+         * `deleted` above is keyed for the caller, and on the path-keyed v2
+         * route `projectFolderItem` replaces a folder's id with its display
+         * path. Auditing from that list wrote the path into
+         * `FOLDER_DELETED.resourceId`, so the same action recorded a path here
+         * and an id from `DELETE /api/folders/[id]` — two spellings of one
+         * resource that no query could join. The projection stays a
+         * presentation concern; the audit reads the canonical ids.
+         */
+        auditedDeletions: deleted.map((item) => ({ ...item })),
         deletedItems,
         ...withUnresolvedFolders(projectBulkOutcome(outcome, context), context),
         ...(terminalError !== undefined && { terminalFailure: { error: terminalError } }),
@@ -555,7 +574,7 @@ export const bulkDeleteTables = defineAuthorizedTableUseCase({
    * thousands of audit rows.
    */
   projectAudit: ({ result }) =>
-    result.deleted.map((item) =>
+    result.auditedDeletions.map((item) =>
       item.kind === 'folder'
         ? {
             action: AuditAction.FOLDER_DELETED,

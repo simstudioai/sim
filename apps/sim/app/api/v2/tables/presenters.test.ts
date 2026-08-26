@@ -188,12 +188,33 @@ describe('presentV2TableDispatch', () => {
     expect(presented).not.toHaveProperty('triggeredByUserId')
   })
 
-  /** The stored scope also carries a compiled filter, which is not public. */
-  it('publishes only the addressable half of the run scope', () => {
-    expect(presentV2TableDispatch(stored).scope).toEqual({
-      groupIds: ['group-1'],
-      rowIds: ['row-1'],
-    })
+  /**
+   * The stored scope also carries a compiled filter, which stays unpublished —
+   * it is held in a different grammar from the predicate the request was
+   * written in.
+   */
+  it('withholds the compiled filter itself', () => {
+    expect(presentV2TableDispatch(stored).scope).not.toHaveProperty('filter')
+  })
+
+  /**
+   * Withholding the filter must not also withhold the fact that there was one.
+   * A select-all dispatch has no `rowIds` either, so without `selectAll` the
+   * response described it exactly like a run over every eligible row.
+   */
+  it('says a filtered scope is a filtered scope', () => {
+    expect(
+      presentV2TableDispatch({
+        ...stored,
+        scope: { groupIds: ['group-1'], filter: { status: 'open' }, excludeRowIds: ['row-9'] },
+      }).scope
+    ).toEqual({ groupIds: ['group-1'], selectAll: true, excludeRowIds: ['row-9'] })
+  })
+
+  /** An unfiltered run is the one shape that really does mean every eligible row. */
+  it('leaves an unfiltered scope unmarked', () => {
+    const scope = presentV2TableDispatch({ ...stored, scope: { groupIds: ['group-1'] } }).scope
+    expect(scope).toEqual({ groupIds: ['group-1'] })
   })
 })
 
