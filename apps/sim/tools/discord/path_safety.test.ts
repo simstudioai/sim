@@ -39,6 +39,19 @@ const NEUTRALIZED = ['%2e%2e', '..%2f..', 'x?foo=attacker'] as const
 /** Values a real caller supplies; every one must survive byte-identical. */
 const LEGITIMATE = ['123456789012345678', 'abc-DEF_123', '..foo', 'foo..'] as const
 
+/**
+ * Legitimate values whose canonical form is percent-encoded, so they cannot be
+ * checked against the raw segment the way {@link LEGITIMATE} is.
+ *
+ * `emoji` is the parameter where encoding is semantically load-bearing:
+ * Discord's reaction routes take the emoji as a path segment, and a custom
+ * emoji is spelled `name:id` while a unicode emoji is multi-byte. Both must
+ * land as exactly ONE segment that decodes back to what the caller typed — an
+ * emoji that leaked its `:` or split across segments would address a different
+ * route entirely.
+ */
+const ENCODED_LEGITIMATE = ['smile:12345', '🎉', '👍🏽', 'a b'] as const
+
 function isDiscordTool(value: unknown): value is AnyTool {
   return (
     typeof value === 'object' &&
@@ -117,9 +130,22 @@ function collectPathSites(): { sites: PathSite[]; unbuildable: string[] } {
 
 const { sites: PATH_SITES, unbuildable: UNBUILDABLE } = collectPathSites()
 
+/**
+ * The exact number of path-zone parameters across the Discord tool set.
+ *
+ * Exact, not a floor: a floor lets sites silently STOP being discovered — a
+ * URL builder that starts throwing, a param retyped away from `string`, a tool
+ * dropped from the barrel — while the suite still reports green. Raise this
+ * deliberately when a tool or a path parameter is added.
+ */
+const EXPECTED_PATH_SITES = 60
+
+/** Multi-path-parameter tools, where the independence block below has teeth. */
+const EXPECTED_MULTI_PARAM_TOOLS = 17
+
 describe('discord path-parameter traversal safety', () => {
   it('covers every Discord tool parameter that reaches the request path', () => {
-    expect(PATH_SITES.length).toBeGreaterThanOrEqual(45)
+    expect(PATH_SITES.length).toBe(EXPECTED_PATH_SITES)
   })
 
   /**
@@ -163,6 +189,20 @@ describe('discord path-parameter traversal safety', () => {
         expect(actual[index]).toBe(segment === marker ? value : segment)
       })
     })
+
+    it.each(ENCODED_LEGITIMATE)('lands %j as one segment that decodes back', (value) => {
+      const actual = segmentsOf(buildUrl(tool, param, value))
+
+      expect(actual).toHaveLength(baseline.length)
+      baseline.forEach((segment, index) => {
+        if (segment !== marker) {
+          expect(actual[index]).toBe(segment)
+          return
+        }
+        expect(actual[index]).not.toContain('/')
+        expect(decodeURIComponent(actual[index])).toBe(value)
+      })
+    })
   })
 })
 
@@ -184,7 +224,7 @@ describe('guards every path param independently', () => {
     .map(([id, sites]) => ({ id, sites }))
 
   it('finds multi-segment templates to check', () => {
-    expect(MULTI.length).toBeGreaterThanOrEqual(15)
+    expect(MULTI.length).toBe(EXPECTED_MULTI_PARAM_TOOLS)
   })
 
   describe.each(MULTI)('$id', ({ sites }) => {
@@ -207,5 +247,77 @@ describe('guards every path param independently', () => {
         })
       }
     )
+  })
+})
+
+/**
+ * `emoji` and `userId` on the reaction routes, asserted concretely rather than
+ * reflectively. Discord's OpenAPI spec declares deleting a reaction as two
+ * separate routes: `.../reactions/{emoji_name}/@me` (`delete_my_message_reaction`,
+ * where `@me` is a LITERAL segment) and `.../reactions/{emoji_name}/{user_id}`
+ * (`delete_user_message_reaction`, where `{user_id}` is a snowflake).
+ */
+describe('discord reaction route shape', () => {
+  const reactionParams = {
+    botToken: 'token',
+    channelId: '111111111111111111',
+    messageId: '222222222222222222',
+    serverId: '333333333333333333',
+  }
+
+  const removeUrl = (overrides: Record<string, unknown>) =>
+    new URL(
+      (discordTools.discordRemoveReactionTool.request.url as (p: any) => string)({
+        ...reactionParams,
+        ...overrides,
+      })
+    )
+
+  it('escapes the colon of a custom emoji so it stays one segment', () => {
+    const url = removeUrl({ emoji: 'smile:12345' })
+    const segments = segmentsOf(url)
+    const emojiIndex = segments.indexOf('reactions') + 1
+
+    expect(segments[emojiIndex]).toBe('smile%3A12345')
+    expect(decodeURIComponent(segments[emojiIndex])).toBe('smile:12345')
+  })
+
+  it('keeps a unicode emoji in a single segment', () => {
+    const segments = segmentsOf(removeUrl({ emoji: '🎉' }))
+    const emojiIndex = segments.indexOf('reactions') + 1
+
+    expect(segments).toHaveLength(emojiIndex + 2)
+    expect(decodeURIComponent(segments[emojiIndex])).toBe('🎉')
+  })
+
+  it.each([undefined, '', '   '])(
+    'targets the literal /@me own-reaction route when userId is %j',
+    (userId) => {
+      expect(segmentsOf(removeUrl({ emoji: '🎉', userId })).at(-1)).toBe('@me')
+    }
+  )
+
+  it('treats a literal "@me" as the own-reaction route rather than encoding it to %40me', () => {
+    expect(segmentsOf(removeUrl({ emoji: '🎉', userId: '@me' })).at(-1)).toBe('@me')
+    expect(segmentsOf(removeUrl({ emoji: '🎉', userId: '  @me  ' })).at(-1)).toBe('@me')
+  })
+
+  it('still routes a real snowflake to the user-reaction route', () => {
+    expect(segmentsOf(removeUrl({ emoji: '🎉', userId: '444444444444444444' })).at(-1)).toBe(
+      '444444444444444444'
+    )
+  })
+
+  it('adds a reaction on the same literal /@me route', () => {
+    const url = new URL(
+      (discordTools.discordAddReactionTool.request.url as (p: any) => string)({
+        ...reactionParams,
+        emoji: 'smile:12345',
+      })
+    )
+    const segments = segmentsOf(url)
+
+    expect(segments.at(-1)).toBe('@me')
+    expect(segments.at(-2)).toBe('smile%3A12345')
   })
 })

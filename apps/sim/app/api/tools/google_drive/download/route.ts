@@ -20,6 +20,7 @@ import {
   GOOGLE_WORKSPACE_MIME_TYPES,
   VALID_EXPORT_FORMATS,
 } from '@/tools/google_drive/utils'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const dynamic = 'force-dynamic'
 
@@ -83,9 +84,22 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       rawExportMimeType && rawExportMimeType !== 'auto' ? rawExportMimeType : null
     const authHeader = `Bearer ${accessToken}`
 
+    let fileIdSegment: string
+    try {
+      fileIdSegment = safeUrlPathSegment(fileId, 'fileId')
+    } catch (error) {
+      logger.warn(`[${requestId}] Rejected unsafe fileId`, {
+        error: getErrorMessage(error, 'Invalid fileId'),
+      })
+      return NextResponse.json(
+        { success: false, error: getErrorMessage(error, 'Invalid fileId') },
+        { status: 400 }
+      )
+    }
+
     logger.info(`[${requestId}] Getting file metadata from Google Drive`, { fileId })
 
-    const metadataUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?fields=${ALL_FILE_FIELDS}&supportsAllDrives=true`
+    const metadataUrl = `https://www.googleapis.com/drive/v3/files/${fileIdSegment}?fields=${ALL_FILE_FIELDS}&supportsAllDrives=true`
     const metadataUrlValidation = await validateUrlWithDNS(metadataUrl, 'metadataUrl')
     if (!metadataUrlValidation.isValid) {
       return NextResponse.json(
@@ -150,7 +164,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         exportFormat,
       })
 
-      const exportUrl = `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=${encodeURIComponent(exportFormat)}&supportsAllDrives=true`
+      const exportUrl = `https://www.googleapis.com/drive/v3/files/${fileIdSegment}/export?mimeType=${encodeURIComponent(exportFormat)}&supportsAllDrives=true`
       const exportUrlValidation = await validateUrlWithDNS(exportUrl, 'exportUrl')
       if (!exportUrlValidation.isValid) {
         return NextResponse.json(
@@ -194,7 +208,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         }
       }
 
-      const downloadUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&supportsAllDrives=true`
+      const downloadUrl = `https://www.googleapis.com/drive/v3/files/${fileIdSegment}?alt=media&supportsAllDrives=true`
       const downloadUrlValidation = await validateUrlWithDNS(downloadUrl, 'downloadUrl')
       if (!downloadUrlValidation.isValid) {
         return NextResponse.json(
@@ -230,7 +244,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const canReadRevisions = metadata.capabilities?.canReadRevisions === true
     if (includeRevisions && canReadRevisions) {
       try {
-        const revisionsUrl = `https://www.googleapis.com/drive/v3/files/${fileId}/revisions?fields=revisions(${ALL_REVISION_FIELDS})&pageSize=100`
+        const revisionsUrl = `https://www.googleapis.com/drive/v3/files/${fileIdSegment}/revisions?fields=revisions(${ALL_REVISION_FIELDS})&pageSize=100`
         const revisionsUrlValidation = await validateUrlWithDNS(revisionsUrl, 'revisionsUrl')
         if (revisionsUrlValidation.isValid) {
           const revisionsResponse = await secureFetchWithPinnedIP(

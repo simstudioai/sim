@@ -36,12 +36,24 @@ const PARAMS = {
   documentId: 'nope',
 }
 
+/**
+ * `secureFetchWithPinnedIP` resolves a Response whose `headers` also exposes a
+ * `toRecord()` accessor, which the executor calls before rebuilding the body.
+ * A bare `Response` therefore is not a sufficient stand-in.
+ */
 function jsonResponse(status: number, statusText: string, body: unknown): Response {
-  return new Response(JSON.stringify(body), {
+  const response = new Response(JSON.stringify(body), {
     status,
     statusText,
     headers: { 'content-type': 'application/json' },
   })
+
+  Object.defineProperty(response.headers, 'toRecord', {
+    value: () => Object.fromEntries(response.headers.entries()),
+    configurable: true,
+  })
+
+  return response
 }
 
 describe('a 404 never reaches transformResponse', () => {

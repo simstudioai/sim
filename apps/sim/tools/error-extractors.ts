@@ -512,7 +512,10 @@ const ERROR_EXTRACTORS: ErrorExtractorConfig[] = [
        * Elasticsearch document response carries — so a `found: false` from some
        * other API cannot be claimed here in the fallback chain.
        */
-      if (typeof data._index === 'string' && (data.found === false || data.result === 'not_found')) {
+      if (
+        typeof data._index === 'string' &&
+        (data.found === false || data.result === 'not_found')
+      ) {
         const id = typeof data._id === 'string' ? data._id : 'the requested id'
         return `Document "${id}" was not found in index "${data._index}"`
       }

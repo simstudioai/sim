@@ -201,13 +201,15 @@ describe('elasticsearch_get_index transformResponse', () => {
 })
 
 describe('unreachable non-ok outcomes are not advertised', () => {
-  it('get_document has no 404 branch — the executor throws before transformResponse runs', () => {
-    expect(getDocumentTool.transformResponse?.toString()).not.toContain('404')
-  })
-
-  it('delete_document has no 404 branch', () => {
-    expect(deleteDocumentTool.transformResponse?.toString()).not.toContain('404')
-  })
+  /**
+   * The "no 404 branch" guarantee is asserted behaviorally in `not-found.test.ts`,
+   * which drives `executeTool` with a mocked transport and pins that
+   * `transformResponse` is never invoked on a 404 (and *is* invoked on a 200, so
+   * the guard is not vacuous). The assertions that used to live here read
+   * `transformResponse.toString()` and checked it did not contain the literal
+   * `'404'` — which passed for any rewrite, including one that reintroduced a
+   * `found: false` branch spelled differently.
+   */
 
   it('get_document does not advertise found: false as a possible output', () => {
     expect(getDocumentTool.outputs?.found?.description).toMatch(/Always true/)

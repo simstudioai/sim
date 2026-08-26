@@ -74,15 +74,27 @@ describe('attio_assert_record matching_attribute query safety', () => {
     expect(url.searchParams.get('matching_attribute')).toBe(value)
   })
 
-  it('does not change the wire bytes for a legitimate slug', () => {
-    const raw = (attioAssertRecordTool.request!.url as (p: any) => string)({
-      accessToken: 'token',
-      objectType: 'people',
-      matchingAttribute: 'email_addresses',
-      values: '{}',
-    })
-    expect(raw).toBe(`${ORIGIN}${PATHNAME}?matching_attribute=email_addresses`)
-  })
+  /**
+   * The realistic slug shapes — word characters, `_`, `-`, `.`, and a UUID —
+   * are all `application/x-www-form-urlencoded`-safe, so `URLSearchParams`
+   * emits exactly the bytes raw interpolation did. A value containing a
+   * literal space or `+` does change on the wire (` ` becomes `+`, `+`
+   * becomes `%2B`), which is the *correct* form-urlencoded spelling and the
+   * only spelling that round-trips: raw interpolation sent `+` literally,
+   * which any form-urlencoded decoder reads back as a space.
+   */
+  it.each(['email_addresses', 'domains', 'custom.attr-1', '97052eb9-e65e-443f-a297-f2d9a4a7f795'])(
+    'emits byte-identical wire bytes for %j',
+    (value) => {
+      const raw = (attioAssertRecordTool.request!.url as (p: any) => string)({
+        accessToken: 'token',
+        objectType: 'people',
+        matchingAttribute: value,
+        values: '{}',
+      })
+      expect(raw).toBe(`${ORIGIN}${PATHNAME}?matching_attribute=${value}`)
+    }
+  )
 
   it('still trims surrounding whitespace', () => {
     expect(buildUrl('  email_addresses  ').searchParams.get('matching_attribute')).toBe(

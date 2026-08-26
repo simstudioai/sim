@@ -59,7 +59,12 @@ const SECURITY_EXCEPTION = {
 const PARSING_EXCEPTION = {
   error: {
     root_cause: [
-      { type: 'parsing_exception', reason: '[match] query malformed, no start_object after query name', line: 1, col: 30 },
+      {
+        type: 'parsing_exception',
+        reason: '[match] query malformed, no start_object after query name',
+        line: 1,
+        col: 30,
+      },
     ],
     type: 'parsing_exception',
     reason: '[match] query malformed, no start_object after query name',
@@ -143,7 +148,10 @@ describe('elasticsearch error extractor', () => {
   it('does not repeat the type when the reason already names it', () => {
     expect(
       extract(400, 'Bad Request', {
-        error: { type: 'illegal_argument_exception', reason: 'illegal_argument_exception occurred' },
+        error: {
+          type: 'illegal_argument_exception',
+          reason: 'illegal_argument_exception occurred',
+        },
       })
     ).toBe('illegal_argument_exception occurred')
   })
@@ -167,31 +175,60 @@ describe('adding the elasticsearch extractor leaves siblings untouched', () => {
   it('resolves each sibling identically through its own id', () => {
     expect(
       extractErrorMessage(
-        { status: 400, data: { type: 'error', error: { message: 'Bad request', detail: 'branch "main" is protected' } } },
+        {
+          status: 400,
+          data: {
+            type: 'error',
+            error: { message: 'Bad request', detail: 'branch "main" is protected' },
+          },
+        },
         ErrorExtractorId.BITBUCKET_ERRORS
       )
     ).toBe('Bad request: branch "main" is protected')
 
     expect(
       extractErrorMessage(
-        { status: 400, data: { error: { code: 400, message: 'Constraint violated', constraintViolations: [{ path: 'metricSelector', message: 'unknown metric' }] } } },
+        {
+          status: 400,
+          data: {
+            error: {
+              code: 400,
+              message: 'Constraint violated',
+              constraintViolations: [{ path: 'metricSelector', message: 'unknown metric' }],
+            },
+          },
+        },
         ErrorExtractorId.DYNATRACE_ERRORS
       )
     ).toBe('Constraint violated (metricSelector: unknown metric)')
 
     expect(
-      extractErrorMessage({ status: 403, data: { message: 'Quota exceeded' } }, ErrorExtractorId.HARMONIC_ERRORS)
+      extractErrorMessage(
+        { status: 403, data: { message: 'Quota exceeded' } },
+        ErrorExtractorId.HARMONIC_ERRORS
+      )
     ).toBe('Quota exceeded')
 
     expect(
       extractErrorMessage(
-        { status: 400, data: { messages: [{ type: 'ERROR', text: 'Search job failed' }, { type: 'INFO', text: 'chatter' }] } },
+        {
+          status: 400,
+          data: {
+            messages: [
+              { type: 'ERROR', text: 'Search job failed' },
+              { type: 'INFO', text: 'chatter' },
+            ],
+          },
+        },
         ErrorExtractorId.SPLUNK_ERRORS
       )
     ).toBe('Search job failed')
 
     expect(
-      extractErrorMessage({ status: 400, data: { detail: 'Invalid cohort', attr: 'cohort_id' } }, ErrorExtractorId.POSTHOG_ERRORS)
+      extractErrorMessage(
+        { status: 400, data: { detail: 'Invalid cohort', attr: 'cohort_id' } },
+        ErrorExtractorId.POSTHOG_ERRORS
+      )
     ).toBe('Invalid cohort (cohort_id)')
   })
 
@@ -205,7 +242,12 @@ describe('adding the elasticsearch extractor leaves siblings untouched', () => {
       extractErrorMessage({
         status: 422,
         statusText: 'Unprocessable Entity',
-        data: { error: { type: 'INVALID_REQUEST_UNKNOWN', message: 'Invalid request: parameter validation failed' } },
+        data: {
+          error: {
+            type: 'INVALID_REQUEST_UNKNOWN',
+            message: 'Invalid request: parameter validation failed',
+          },
+        },
       })
     ).toBe('Invalid request: parameter validation failed')
   })
@@ -223,23 +265,54 @@ describe('adding the elasticsearch extractor leaves siblings untouched', () => {
       extractErrorMessage({
         status: 400,
         statusText: 'Bad Request',
-        data: { type: 'error', error: { message: 'Bad request', detail: 'branch "main" is protected' } },
+        data: {
+          type: 'error',
+          error: { message: 'Bad request', detail: 'branch "main" is protected' },
+        },
       })
     ).toBe('Bad request')
   })
 
   it('leaves a harmonic body resolving through the fallback chain unchanged', () => {
     expect(
-      extractErrorMessage({ status: 403, statusText: 'Forbidden', data: { message: 'Quota exceeded' } })
+      extractErrorMessage({
+        status: 403,
+        statusText: 'Forbidden',
+        data: { message: 'Quota exceeded' },
+      })
     ).toBe('Quota exceeded')
   })
 
   it('leaves a plain-text and a status-text fallback unchanged', () => {
     expect(
-      extractErrorMessage({ status: 500, statusText: 'Internal Server Error', data: 'upstream exploded' })
+      extractErrorMessage({
+        status: 500,
+        statusText: 'Internal Server Error',
+        data: 'upstream exploded',
+      })
     ).toBe('upstream exploded')
     expect(extractErrorMessage({ status: 503, statusText: 'Service Unavailable', data: {} })).toBe(
       'Service Unavailable'
     )
+  })
+})
+
+/**
+ * Every Elasticsearch tool must name the extractor explicitly. A tool that omits
+ * it falls back to the ordered chain, where the generic `nested-error-object`
+ * entry claims any `data.error` object first and stringifies the envelope.
+ */
+describe('every elasticsearch tool names the extractor', () => {
+  it('declares it on all thirteen tools', async () => {
+    const barrel = (await import('@/tools/elasticsearch/index')) as Record<
+      string,
+      { id?: string; errorExtractor?: string }
+    >
+    const tools = Object.values(barrel).filter((tool) => typeof tool?.id === 'string')
+
+    expect(tools).toHaveLength(13)
+    for (const tool of tools) {
+      expect(tool.errorExtractor, `${tool.id} is missing errorExtractor`).toBe(ES_EXTRACTOR)
+    }
   })
 })
