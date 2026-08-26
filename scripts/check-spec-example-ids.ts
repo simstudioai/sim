@@ -16,7 +16,7 @@ import path from 'node:path'
 
 const ROOT = path.resolve(import.meta.dir, '..')
 const SPEC_DIR = path.join(ROOT, 'apps/docs')
-const UUID_PATTERN = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g
+const UUID_PATTERN = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi
 
 /** Ids that are obviously synthetic to a reader but do not match the pandigital texture. */
 const ALLOWED: Record<string, string> = {
@@ -25,12 +25,21 @@ const ALLOWED: Record<string, string> = {
     'pre-existing hand-authored block id shared with the v2 workflow operations tests',
 }
 
-/** All-zero and all-f sentinels read as synthetic on sight. */
+/**
+ * All-zero and all-f sentinels read as synthetic on sight.
+ *
+ * Takes an already-lowercased id: hex is case-insensitive, so counting `A` and `a` as two
+ * digits would inflate the distinct count and misjudge the texture.
+ */
 function isSentinel(uuid: string): boolean {
   return new Set(uuid.replace(/-/g, '')).size <= 2
 }
 
-/** Hand-authored placeholders in this repo use every hex digit, none more than three times. */
+/**
+ * Hand-authored placeholders in this repo use every hex digit, none more than three times.
+ *
+ * Takes an already-lowercased id, for the reason given on {@link isSentinel}.
+ */
 function isHouseStyle(uuid: string): boolean {
   const hex = uuid.replace(/-/g, '')
   const digits = new Set(hex)
@@ -48,7 +57,8 @@ for (const file of specFiles) {
   const contents = await Bun.file(path.join(SPEC_DIR, file)).text()
   const seen = new Set(contents.match(UUID_PATTERN) ?? [])
   for (const uuid of [...seen].sort()) {
-    if (uuid in ALLOWED || isSentinel(uuid) || isHouseStyle(uuid)) continue
+    const normalized = uuid.toLowerCase()
+    if (normalized in ALLOWED || isSentinel(normalized) || isHouseStyle(normalized)) continue
     findings.push(`  - ${file}: ${uuid}`)
   }
 }
