@@ -273,23 +273,58 @@ export async function replaceContentIfUnchanged(
     throw new GraphRequestError('Microsoft Graph did not return an upload URL', 502)
   }
 
-  // The upload URL is preauthenticated and on another host; Graph documents that
-  // sending Authorization here can fail the request with a 401.
-  const uploadResponse = await graphFetch(uploadUrl, 'documentUploadUrl', {
-    method: 'PUT',
-    headers: {
-      'Content-Length': String(content.length),
-      'Content-Range': `bytes 0-${content.length - 1}/${content.length}`,
-    },
-    body: content,
-  })
+  return uploadSessionBytes(uploadUrl, content)
+}
 
-  if (uploadResponse.status === 412 || uploadResponse.status === 409) {
-    throw documentChangedError()
+/**
+ * Byte size of each upload fragment.
+ *
+ * Graph caps a single upload request below 60 MiB, and requires every fragment
+ * of a split upload to be a multiple of 320 KiB — 10 MiB is both (327,680 × 32)
+ * and is inside the 5–10 MiB range Microsoft recommends. Documents are read
+ * under a 100 MB ceiling, so a single request would not always be enough.
+ */
+const UPLOAD_FRAGMENT_BYTES = 10 * 1024 * 1024
+
+/**
+ * Sends the package to a session's upload URL, splitting it into sequential
+ * fragments. Graph answers `202 Accepted` for every fragment but the last, and
+ * returns the finished driveItem with the one that completes the file.
+ *
+ * The URL is preauthenticated and on another host; Graph documents that sending
+ * `Authorization` here can itself fail the request with a 401, so no bearer
+ * token is attached.
+ *
+ * @see https://learn.microsoft.com/en-us/graph/api/driveitem-createuploadsession
+ */
+async function uploadSessionBytes(uploadUrl: string, content: Buffer): Promise<GraphDriveItem> {
+  const total = content.length
+
+  for (let start = 0; start < total; start += UPLOAD_FRAGMENT_BYTES) {
+    const end = Math.min(start + UPLOAD_FRAGMENT_BYTES, total) - 1
+    const fragment = content.subarray(start, end + 1)
+
+    const response = await graphFetch(uploadUrl, 'documentUploadUrl', {
+      method: 'PUT',
+      headers: {
+        'Content-Length': String(fragment.length),
+        'Content-Range': `bytes ${start}-${end}/${total}`,
+      },
+      body: fragment,
+    })
+
+    if (response.status === 412 || response.status === 409) {
+      throw documentChangedError()
+    }
+    if (!response.ok) await raiseGraphError(response)
+
+    // Every fragment but the last is acknowledged with 202 and no item body.
+    if (end === total - 1) {
+      return (await response.json()) as GraphDriveItem
+    }
   }
-  if (!uploadResponse.ok) await raiseGraphError(uploadResponse)
 
-  return (await uploadResponse.json()) as GraphDriveItem
+  throw new GraphRequestError('Microsoft Graph did not complete the document upload', 502)
 }
 
 /**
