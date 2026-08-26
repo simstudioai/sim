@@ -1,7 +1,7 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { type Principal, resolvePrincipalAuditAttribution } from '@sim/auth/principal'
 import { db } from '@sim/db'
-import { workspaceFiles } from '@sim/db/schema'
+import { type WorkspaceFileRow, workspaceFileColumns, workspaceFiles } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
 import { eq, sql } from 'drizzle-orm'
 import type { V2File } from '@/lib/api/contracts/v2/files'
@@ -80,7 +80,7 @@ interface FinalizedMetadataInput {
   size: number
 }
 
-type FileMetadataRecord = typeof workspaceFiles.$inferSelect
+type FileMetadataRecord = WorkspaceFileRow
 
 /**
  * Finalizes the domain resource represented by a verified upload object.
@@ -371,7 +371,7 @@ async function insertOrLoadFileMetadata(
       contentUpdatedAt: now,
     })
     .onConflictDoNothing()
-    .returning()
+    .returning(workspaceFileColumns)
 
   if (inserted) return { file: inserted, created: true }
 
@@ -386,7 +386,7 @@ async function insertOrLoadFileMetadata(
 
 async function findFileMetadataByKey(key: string): Promise<FileMetadataRecord | undefined> {
   const [file] = await db
-    .select()
+    .select(workspaceFileColumns)
     .from(workspaceFiles)
     .where(eq(workspaceFiles.key, key))
     .orderBy(sql`${workspaceFiles.deletedAt} IS NULL DESC`)

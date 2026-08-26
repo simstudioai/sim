@@ -1,7 +1,12 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import type { Principal } from '@sim/auth/principal'
 import { db } from '@sim/db'
-import { folder as folderTable, workflow, workspaceFiles } from '@sim/db/schema'
+import {
+  folder as folderTable,
+  type WorkspaceFileRow,
+  workflow,
+  workspaceFiles,
+} from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import {
   getErrorMessage,
@@ -50,7 +55,7 @@ const logger = createLogger('SaveUpload')
 const MAX_MATERIALIZE_NAME_RETRIES = 8
 const WORKSPACE_FILE_NAME_UNIQUE_INDEX = 'workspace_files_workspace_folder_name_active_unique'
 
-function toFileRecord(row: typeof workspaceFiles.$inferSelect) {
+function toFileRecord(row: WorkspaceFileRow) {
   const pathPrefix = getServePathPrefix()
   return {
     id: row.id,
@@ -58,7 +63,7 @@ function toFileRecord(row: typeof workspaceFiles.$inferSelect) {
     name: row.displayName ?? row.originalName,
     key: row.key,
     path: `${pathPrefix}${encodeURIComponent(row.key)}?context=mothership`,
-    size: row.size,
+    size: getWorkspaceFileSize(row),
     type: row.contentType,
     uploadedBy: row.userId,
     deletedAt: row.deletedAt,

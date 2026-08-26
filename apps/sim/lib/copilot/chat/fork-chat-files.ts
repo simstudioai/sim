@@ -1,8 +1,7 @@
-import { workspaceFiles } from '@sim/db/schema'
+import { type WorkspaceFileRow, workspaceFileColumns, workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
-import { omit } from '@sim/utils/object'
 import { and, eq, isNull } from 'drizzle-orm'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
@@ -29,7 +28,7 @@ export const FORKABLE_CHAT_FILE_CONTEXT: StorageContext = 'mothership'
 /** Max concurrent blob byte-copies during a chat fork. */
 const CHAT_BLOB_COPY_CONCURRENCY = 4
 
-export type ForkableChatFileRow = typeof workspaceFiles.$inferSelect
+export type ForkableChatFileRow = WorkspaceFileRow
 
 /** One blob byte-copy to run after the fork transaction commits. */
 export interface ChatBlobCopyTask {
@@ -62,7 +61,7 @@ export async function listForkableChatFiles(
   chatId: string
 ): Promise<ForkableChatFileRow[]> {
   return db
-    .select()
+    .select(workspaceFileColumns)
     .from(workspaceFiles)
     .where(
       and(
@@ -121,7 +120,7 @@ export async function planChatFileCopies(params: {
     const copyId = `wf_${generateShortId()}`
     const targetKey = generateWorkspaceFileKey(row.workspaceId, row.originalName)
     copyRows.push({
-      ...omit(row, ['size']),
+      ...row,
       id: copyId,
       key: targetKey,
       chatId: newChatId,

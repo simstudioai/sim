@@ -159,7 +159,7 @@ describe('cleanup soft deletes', () => {
         },
       ])
     mockDeleteFiles.mockResolvedValueOnce({ deleted: 2, failed: [] })
-    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'file-deleted', size: 7 }])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'file-deleted', sizeBytes: 7 }])
 
     await runCleanupSoftDeletes(basePayload)
 
