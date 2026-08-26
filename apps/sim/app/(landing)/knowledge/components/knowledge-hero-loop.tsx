@@ -14,7 +14,7 @@ import {
   ZendeskIcon,
 } from '@/components/icons'
 import { HeroLoopShell } from '@/app/(landing)/components/shared/hero-loop-shell'
-import { RESET_FADE_MS } from '@/app/(landing)/hooks/use-design-scale'
+import { PLATFORM_LOOP_RESET_FADE_MS } from '@/app/(landing)/components/shared/platform-loop-constants'
 import { useMotionSafeCycle } from '@/app/(landing)/hooks/use-motion-safe-cycle'
 
 /** Sidebar content for the knowledge hero - a team living in its docs. */
@@ -149,7 +149,7 @@ export function KnowledgeHeroLoop() {
           ),
           setTimeout(() => setSyncPhase('syncing'), syncAt),
           setTimeout(() => setSyncPhase('synced'), syncAt + SYNC_MS),
-          setTimeout(() => setFading(true), totalMs - RESET_FADE_MS),
+          setTimeout(() => setFading(true), totalMs - PLATFORM_LOOP_RESET_FADE_MS),
         ],
         totalMs,
       }

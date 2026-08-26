@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { Checkbox, cn } from '@sim/emcn'
 import { ChevronDown, Table, TypeBoolean, TypeText } from '@sim/emcn/icons'
 import { HeroLoopShell } from '@/app/(landing)/components/shared/hero-loop-shell'
-import { RESET_FADE_MS } from '@/app/(landing)/hooks/use-design-scale'
+import { PLATFORM_LOOP_RESET_FADE_MS } from '@/app/(landing)/components/shared/platform-loop-constants'
 import { useMotionSafeCycle } from '@/app/(landing)/hooks/use-motion-safe-cycle'
 import styles from '@/app/(landing)/tables/components/tables-hero-loop.module.css'
 
@@ -377,7 +377,7 @@ export function TablesHeroLoop() {
           ...Array.from({ length: TOTAL_FILLED_CELLS }, (_, i) =>
             setTimeout(() => setFilledCount(i + 1), sweepAt + i * CELL_STEP_MS)
           ),
-          setTimeout(() => setFading(true), totalMs - RESET_FADE_MS),
+          setTimeout(() => setFading(true), totalMs - PLATFORM_LOOP_RESET_FADE_MS),
         ],
         totalMs,
       }

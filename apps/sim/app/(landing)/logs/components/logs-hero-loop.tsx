@@ -5,7 +5,7 @@ import type { BadgeProps } from '@sim/emcn'
 import { Badge, cn } from '@sim/emcn'
 import { ArrowUpDown, Download, Library, ListFilter, Search, Workflow } from '@sim/emcn/icons'
 import { HeroLoopShell } from '@/app/(landing)/components/shared/hero-loop-shell'
-import { RESET_FADE_MS } from '@/app/(landing)/hooks/use-design-scale'
+import { PLATFORM_LOOP_RESET_FADE_MS } from '@/app/(landing)/components/shared/platform-loop-constants'
 import { useMotionSafeCycle } from '@/app/(landing)/hooks/use-motion-safe-cycle'
 
 /** Sidebar content for the logs hero - a team living in its run history. */
@@ -259,7 +259,7 @@ export function LogsHeroLoop() {
           ),
           setTimeout(() => setLiveState('running'), LIVE_APPEAR_MS),
           setTimeout(() => setLiveState('completed'), LIVE_COMPLETE_MS),
-          setTimeout(() => setFading(true), totalMs - RESET_FADE_MS),
+          setTimeout(() => setFading(true), totalMs - PLATFORM_LOOP_RESET_FADE_MS),
         ],
         totalMs,
       }
