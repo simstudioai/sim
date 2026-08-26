@@ -121,6 +121,44 @@ describe('OverflowSpan code preview', () => {
     expect(document.querySelector('[data-code-hover-card]')).toBeNull()
   })
 
+  it('accents environment and block-output references without treating comparisons as references', () => {
+    const code = [
+      'const secret = {{SECRET_NAME_REF}}',
+      'const result = <blockOutput.field>',
+      'const comparison = count < limit && total > 0',
+    ].join('\n')
+    act(() => {
+      root?.render(
+        <OverflowSpan
+          value='const secret...'
+          className='truncate'
+          codePreview={{ code, language: 'javascript' }}
+        />
+      )
+    })
+
+    const trigger = host?.querySelector<HTMLElement>('span')
+    if (!trigger) throw new Error('Overflow trigger did not render')
+    Object.defineProperties(trigger, {
+      clientWidth: { configurable: true, value: 50 },
+      scrollWidth: { configurable: true, value: 200 },
+    })
+
+    act(() => {
+      trigger.dispatchEvent(new MouseEvent('pointerover', { bubbles: true }))
+      vi.advanceTimersByTime(300)
+    })
+
+    const references = document.querySelectorAll('[data-code-hover-card] [data-code-reference]')
+    expect(Array.from(references, (reference) => reference.textContent)).toEqual([
+      '{{SECRET_NAME_REF}}',
+      '<blockOutput.field>',
+    ])
+    expect(document.querySelector('[data-code-hover-card]')).toHaveTextContent(
+      'count < limit && total > 0'
+    )
+  })
+
   it('opens from the keyboard and keeps the preview available while it is focused', () => {
     act(() => {
       root?.render(
