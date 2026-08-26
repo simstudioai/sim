@@ -4,13 +4,15 @@
 import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { extractInputFieldsFromBlocks, loadDeployedWorkflowState } = vi.hoisted(() => ({
-  extractInputFieldsFromBlocks: vi.fn(),
-  loadDeployedWorkflowState: vi.fn(),
-}))
+const { extractInputFieldsFromBlocks, loadDeployedWorkflowState, isOrganizationFeatureEntitled } =
+  vi.hoisted(() => ({
+    extractInputFieldsFromBlocks: vi.fn(),
+    loadDeployedWorkflowState: vi.fn(),
+    isOrganizationFeatureEntitled: vi.fn(),
+  }))
 
 vi.mock('@/lib/billing/core/subscription', () => ({
-  isOrganizationOnEnterprisePlan: vi.fn(),
+  isOrganizationFeatureEntitled,
 }))
 
 vi.mock('@/lib/workflows/input-format', () => ({
@@ -27,6 +29,7 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
 
 import {
   CustomBlockValidationError,
+  isCustomBlocksEligibleForOrganization,
   listCustomBlocksWithInputs,
   publishCustomBlock,
   updateCustomBlock,
@@ -44,6 +47,15 @@ const publishParams = {
 beforeEach(() => {
   vi.clearAllMocks()
   resetDbChainMock()
+})
+
+describe('custom block entitlement', () => {
+  it('uses the shared organization feature resolver', async () => {
+    isOrganizationFeatureEntitled.mockResolvedValue(true)
+
+    await expect(isCustomBlocksEligibleForOrganization('org-1')).resolves.toBe(true)
+    expect(isOrganizationFeatureEntitled).toHaveBeenCalledWith('org-1', false)
+  })
 })
 
 describe('custom block input hydration', () => {

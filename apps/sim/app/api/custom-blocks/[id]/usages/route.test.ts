@@ -9,6 +9,7 @@ const { mockHasWorkspaceAdminAccess, mockOperations } = vi.hoisted(() => ({
   mockOperations: {
     getCustomBlockManageContext: vi.fn(),
     getCustomBlockUsageCounts: vi.fn(),
+    isCustomBlocksDeploymentEnabled: vi.fn(),
   },
 }))
 
@@ -42,6 +43,7 @@ describe('GET /api/custom-blocks/[id]/usages', () => {
     mockHasWorkspaceAdminAccess.mockResolvedValue(true)
     mockOperations.getCustomBlockManageContext.mockResolvedValue(MANAGE_CONTEXT)
     mockOperations.getCustomBlockUsageCounts.mockResolvedValue(USAGE_COUNTS)
+    mockOperations.isCustomBlocksDeploymentEnabled.mockReturnValue(true)
   })
 
   it('returns 401 without a session', async () => {
@@ -59,6 +61,15 @@ describe('GET /api/custom-blocks/[id]/usages', () => {
   it('returns 403 for a non-admin of the source workspace', async () => {
     mockHasWorkspaceAdminAccess.mockResolvedValue(false)
     const response = await callRoute()
+    expect(response.status).toBe(403)
+    expect(mockOperations.getCustomBlockUsageCounts).not.toHaveBeenCalled()
+  })
+
+  it('returns 403 when Custom Blocks is disabled for the deployment', async () => {
+    mockOperations.isCustomBlocksDeploymentEnabled.mockReturnValue(false)
+
+    const response = await callRoute()
+
     expect(response.status).toBe(403)
     expect(mockOperations.getCustomBlockUsageCounts).not.toHaveBeenCalled()
   })

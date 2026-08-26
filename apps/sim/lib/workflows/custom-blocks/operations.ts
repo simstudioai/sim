@@ -9,7 +9,8 @@ import {
 import { createLogger } from '@sim/logger'
 import { generateId, generateShortId } from '@sim/utils/id'
 import { and, eq, isNull, sql } from 'drizzle-orm'
-import { isOrganizationOnEnterprisePlan } from '@/lib/billing/core/subscription'
+import { isOrganizationFeatureEntitled } from '@/lib/billing/core/subscription'
+import { isBillingEnabled, isCustomBlocksEnabled } from '@/lib/core/config/env-flags'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { extractInputFieldsFromBlocks, type WorkflowInputField } from '@/lib/workflows/input-format'
 import { loadDeployedWorkflowState } from '@/lib/workflows/persistence/utils'
@@ -20,16 +21,28 @@ import { CUSTOM_BLOCK_TYPE_PREFIX, isReservedOutputName } from '@/blocks/custom/
 const logger = createLogger('CustomBlocksOperations')
 const CUSTOM_BLOCK_HYDRATION_CONCURRENCY = 10
 
+/** Whether the deployment permits Custom Blocks surfaces independent of an organization's plan. */
+export function isCustomBlocksDeploymentEnabled(): boolean {
+  return isBillingEnabled || isCustomBlocksEnabled
+}
+
+/** Whether an organization may publish, list, and execute custom blocks. */
+export async function isCustomBlocksEligibleForOrganization(
+  organizationId: string
+): Promise<boolean> {
+  return isOrganizationFeatureEntitled(organizationId, isCustomBlocksEnabled)
+}
+
 /**
  * Resolve a workspace's organization only when it is eligible for custom blocks.
- * Applying the Enterprise-plan check in every org-scoped resolver keeps execution,
- * the Copilot VFS, and workspace context from surfacing blocks the API withholds
- * after an organization loses eligibility. Returns `null` when ineligible.
+ * Applying the shared entitlement in every org-scoped resolver keeps execution,
+ * the Copilot VFS, and workspace context from surfacing blocks the API withholds.
+ * Returns `null` when ineligible.
  */
 async function eligibleOrgForWorkspace(workspaceId: string): Promise<string | null> {
   const ws = await getWorkspaceWithOwner(workspaceId, { includeArchived: true })
   if (!ws?.organizationId) return null
-  if (!(await isOrganizationOnEnterprisePlan(ws.organizationId))) return null
+  if (!(await isCustomBlocksEligibleForOrganization(ws.organizationId))) return null
   return ws.organizationId
 }
 
@@ -320,11 +333,8 @@ export async function getCustomBlockAuthority(
   // key, so without the org filter a `custom_block_*` type smuggled in from another
   // org's serialized workflow could resolve and run that org's block.
   if (!consumerWorkspaceId) return null
-  // Match `getCustomBlockRowsForWorkspace` (which builds the overlay) — include
-  // archived so a workspace that can serialize a custom block can also execute it,
-  // instead of failing mid-run with "no longer available".
-  const consumerWs = await getWorkspaceWithOwner(consumerWorkspaceId, { includeArchived: true })
-  if (!consumerWs?.organizationId) return null
+  const organizationId = await eligibleOrgForWorkspace(consumerWorkspaceId)
+  if (!organizationId) return null
 
   const [row] = await db
     .select({
@@ -338,9 +348,7 @@ export async function getCustomBlockAuthority(
     })
     .from(customBlock)
     .innerJoin(workflow, eq(workflow.id, customBlock.workflowId))
-    .where(
-      and(eq(customBlock.type, type), eq(customBlock.organizationId, consumerWs.organizationId))
-    )
+    .where(and(eq(customBlock.type, type), eq(customBlock.organizationId, organizationId)))
     .limit(1)
 
   if (!row || !row.enabled) return null
