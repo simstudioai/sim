@@ -12,7 +12,7 @@ const LEGACY_PAUSE_SESSION_ID = 'legacy-paused-execution'
 
 function requireLegacyMetadataString(
   metadata: Record<string, unknown>,
-  field: 'workflowId' | 'workspaceId'
+  field: 'userId' | 'workflowId' | 'workspaceId'
 ): string {
   const value = metadata[field]
   if (typeof value !== 'string' || !value.trim()) {
@@ -32,6 +32,13 @@ function parseLegacyPrincipal(metadata: Record<string, unknown>): WorkflowExecut
     return {
       kind: 'session',
       userId: metadata.sessionUserId,
+      sessionId: LEGACY_PAUSE_SESSION_ID,
+    }
+  }
+  if (metadata.enforceCredentialAccess === true) {
+    return {
+      kind: 'session',
+      userId: requireLegacyMetadataString(metadata, 'userId'),
       sessionId: LEGACY_PAUSE_SESSION_ID,
     }
   }

@@ -103,6 +103,25 @@ describe('ExecutionSnapshot', () => {
     })
   })
 
+  it('restores the recorded API-key actor from a legacy pause snapshot', () => {
+    const { principal: _principal, ...legacyMetadata } = metadata
+    const restored = ExecutionSnapshot.fromJSON(
+      JSON.stringify({
+        metadata: { ...legacyMetadata, enforceCredentialAccess: true },
+        workflow: { blocks: [] },
+        input: {},
+        workflowVariables: {},
+        selectedOutputs: [],
+      })
+    )
+
+    expect(restored.metadata.principal).toEqual({
+      kind: 'session',
+      userId: 'user-1',
+      sessionId: 'legacy-paused-execution',
+    })
+  })
+
   it('restores actorless legacy pause snapshots as internal system executions', () => {
     const { principal: _principal, ...legacyMetadata } = metadata
     const restored = ExecutionSnapshot.fromJSON(
