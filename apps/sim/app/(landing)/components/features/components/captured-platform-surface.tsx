@@ -9,7 +9,6 @@ import {
   EnterpriseSidebar,
   type EnterpriseSidebarProps,
 } from '@/app/(landing)/enterprise/components/enterprise-platform-loop/enterprise-sidebar'
-import { DESIGN, useDesignScale } from '@/app/(landing)/hooks/use-design-scale'
 
 interface CapturedPlatformSurfaceProps {
   src: string
@@ -24,20 +23,16 @@ interface CapturedPlatformSurfaceProps {
  * content in the capture beside it.
  */
 export function CapturedPlatformSurface({ src, sizes, activeItem }: CapturedPlatformSurfaceProps) {
-  const { regionRef, scale } = useDesignScale()
-
   return (
-    <div ref={regionRef} className='absolute inset-0 overflow-hidden'>
+    <div className='absolute inset-0 overflow-hidden'>
       <Image src={src} alt='' fill sizes={sizes} className='object-cover' />
-      <div className='pointer-events-none absolute inset-0 overflow-hidden'>
-        <div
-          className='origin-top-left'
-          style={{
-            width: DESIGN.width,
-            height: DESIGN.height,
-            transform: `scale(${scale})`,
-          }}
-        >
+      <svg
+        aria-hidden='true'
+        className='pointer-events-none absolute inset-0 size-full overflow-hidden'
+        viewBox='0 0 1280 735'
+        preserveAspectRatio='xMinYMin meet'
+      >
+        <foreignObject width='1280' height='735'>
           <div className='flex h-full w-[249px] border-[var(--border)] border-r bg-[var(--surface-1)]'>
             <EnterpriseSidebar
               chats={PREVIEW_SIDEBAR_CHATS}
@@ -46,8 +41,8 @@ export function CapturedPlatformSurface({ src, sizes, activeItem }: CapturedPlat
             />
             <div className='min-w-0 flex-1 bg-[var(--surface-1)]' />
           </div>
-        </div>
-      </div>
+        </foreignObject>
+      </svg>
     </div>
   )
 }
