@@ -6,6 +6,7 @@ import type {
   ClerkUser,
 } from '@/tools/clerk/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('ClerkUnlockUser')
 
@@ -31,7 +32,8 @@ export const clerkUnlockUserTool: ToolConfig<ClerkUnlockUserParams, ClerkUnlockU
   },
 
   request: {
-    url: (params) => `https://api.clerk.com/v1/users/${params.userId?.trim()}/unlock`,
+    url: (params) =>
+      `https://api.clerk.com/v1/users/${safeUrlPathSegment(params.userId, 'userId')}/unlock`,
     method: 'POST',
     headers: (params) => {
       if (!params.secretKey) {

@@ -6,6 +6,7 @@ import type {
   ClerkOrganization,
 } from '@/tools/clerk/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('ClerkGetOrganization')
 
@@ -35,7 +36,8 @@ export const clerkGetOrganizationTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.clerk.com/v1/organizations/${params.organizationId?.trim()}`,
+    url: (params) =>
+      `https://api.clerk.com/v1/organizations/${safeUrlPathSegment(params.organizationId, 'organizationId')}`,
     method: 'GET',
     headers: (params) => {
       if (!params.secretKey) {

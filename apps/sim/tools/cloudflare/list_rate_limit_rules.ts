@@ -9,6 +9,7 @@ import {
   mapRuleset,
 } from '@/tools/cloudflare/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const listRateLimitRulesTool: ToolConfig<
   CloudflareListRateLimitRulesParams,
@@ -37,7 +38,7 @@ export const listRateLimitRulesTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.cloudflare.com/client/v4/zones/${params.zoneId.trim()}/rulesets/phases/http_ratelimit/entrypoint`,
+      `https://api.cloudflare.com/client/v4/zones/${safeUrlPathSegment(params.zoneId, 'zoneId')}/rulesets/phases/http_ratelimit/entrypoint`,
     method: 'GET',
     headers: (params) => cloudflareHeaders(params.apiKey),
   },

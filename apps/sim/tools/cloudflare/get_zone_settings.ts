@@ -13,10 +13,11 @@ import {
   requestedZoneSettingIds,
 } from '@/tools/cloudflare/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 /** Builds the per-setting endpoint Cloudflare directs integrations at. */
 function zoneSettingUrl(zoneId: string, settingId: string): string {
-  return `https://api.cloudflare.com/client/v4/zones/${zoneId}/settings/${encodeURIComponent(settingId)}`
+  return `https://api.cloudflare.com/client/v4/zones/${safeUrlPathSegment(zoneId, 'zoneId')}/settings/${safeUrlPathSegment(settingId, 'settingIds')}`
 }
 
 /**
@@ -68,8 +69,7 @@ export const getZoneSettingsTool: ToolConfig<
   },
 
   request: {
-    url: (params) =>
-      zoneSettingUrl(params.zoneId.trim(), requestedZoneSettingIds(params.settingIds)[0]),
+    url: (params) => zoneSettingUrl(params.zoneId, requestedZoneSettingIds(params.settingIds)[0]),
     method: 'GET',
     headers: (params) => cloudflareHeaders(params.apiKey),
   },
@@ -96,7 +96,7 @@ export const getZoneSettingsTool: ToolConfig<
       }
     }
 
-    const zoneId = params.zoneId.trim()
+    const zoneId = params.zoneId
     const headers = cloudflareHeaders(params.apiKey)
 
     const reads = await Promise.all(

@@ -6,6 +6,7 @@ import type {
   ClerkRemoveOrganizationMemberResponse,
 } from '@/tools/clerk/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('ClerkRemoveOrganizationMember')
 
@@ -41,7 +42,7 @@ export const clerkRemoveOrganizationMemberTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.clerk.com/v1/organizations/${params.organizationId?.trim()}/memberships/${params.userId?.trim()}`,
+      `https://api.clerk.com/v1/organizations/${safeUrlPathSegment(params.organizationId, 'organizationId')}/memberships/${safeUrlPathSegment(params.userId, 'userId')}`,
     method: 'DELETE',
     headers: (params) => {
       if (!params.secretKey) {

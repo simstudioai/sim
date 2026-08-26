@@ -6,6 +6,7 @@ import type {
   ClerkJwtTemplate,
 } from '@/tools/clerk/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('ClerkGetJwtTemplate')
 
@@ -34,7 +35,8 @@ export const clerkGetJwtTemplateTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.clerk.com/v1/jwt_templates/${params.templateId?.trim()}`,
+    url: (params) =>
+      `https://api.clerk.com/v1/jwt_templates/${safeUrlPathSegment(params.templateId, 'templateId')}`,
     method: 'GET',
     headers: (params) => {
       if (!params.secretKey) {

@@ -9,6 +9,7 @@ import {
   readCloudflareResponse,
 } from '@/tools/cloudflare/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const listAccessIdentityProvidersTool: ToolConfig<
   CloudflareListAccessIdentityProvidersParams,
@@ -37,7 +38,7 @@ export const listAccessIdentityProvidersTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.cloudflare.com/client/v4/accounts/${params.accountId.trim()}/access/identity_providers`,
+      `https://api.cloudflare.com/client/v4/accounts/${safeUrlPathSegment(params.accountId, 'accountId')}/access/identity_providers`,
     method: 'GET',
     headers: (params) => cloudflareHeaders(params.apiKey),
   },

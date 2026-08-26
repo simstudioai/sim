@@ -4,6 +4,7 @@ import type {
 } from '@/tools/cloudflare/types'
 import { cloudflareErrorMessage, cloudflareHeaders } from '@/tools/cloudflare/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const getTunnelConfigurationTool: ToolConfig<
   CloudflareGetTunnelConfigurationParams,
@@ -38,7 +39,7 @@ export const getTunnelConfigurationTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.cloudflare.com/client/v4/accounts/${params.accountId.trim()}/cfd_tunnel/${params.tunnelId.trim()}/configurations`,
+      `https://api.cloudflare.com/client/v4/accounts/${safeUrlPathSegment(params.accountId, 'accountId')}/cfd_tunnel/${safeUrlPathSegment(params.tunnelId, 'tunnelId')}/configurations`,
     method: 'GET',
     headers: (params) => cloudflareHeaders(params.apiKey),
   },

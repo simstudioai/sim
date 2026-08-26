@@ -3,6 +3,7 @@ import type {
   CloudflarePurgeCacheResponse,
 } from '@/tools/cloudflare/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const purgeCacheTool: ToolConfig<CloudflarePurgeCacheParams, CloudflarePurgeCacheResponse> =
   {
@@ -60,7 +61,7 @@ export const purgeCacheTool: ToolConfig<CloudflarePurgeCacheParams, CloudflarePu
 
     request: {
       url: (params) =>
-        `https://api.cloudflare.com/client/v4/zones/${params.zoneId.trim()}/purge_cache`,
+        `https://api.cloudflare.com/client/v4/zones/${safeUrlPathSegment(params.zoneId, 'zoneId')}/purge_cache`,
       method: 'POST',
       headers: (params) => ({
         Authorization: `Bearer ${params.apiKey}`,

@@ -1,6 +1,7 @@
 import type { CustomerDeleteResponse, DeleteCustomerParams } from '@/tools/stripe/types'
 import { DELETE_OUTPUT_PROPERTIES } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const stripeDeleteCustomerTool: ToolConfig<DeleteCustomerParams, CustomerDeleteResponse> = {
   id: 'stripe_delete_customer',
@@ -24,7 +25,7 @@ export const stripeDeleteCustomerTool: ToolConfig<DeleteCustomerParams, Customer
   },
 
   request: {
-    url: (params) => `https://api.stripe.com/v1/customers/${params.id}`,
+    url: (params) => `https://api.stripe.com/v1/customers/${safeUrlPathSegment(params.id, 'id')}`,
     method: 'DELETE',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

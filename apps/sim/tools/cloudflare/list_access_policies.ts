@@ -9,6 +9,7 @@ import {
   mapAccessPolicy,
 } from '@/tools/cloudflare/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const listAccessPoliciesTool: ToolConfig<
   CloudflareListAccessPoliciesParams,
@@ -56,7 +57,7 @@ export const listAccessPoliciesTool: ToolConfig<
   request: {
     url: (params) => {
       const url = new URL(
-        `https://api.cloudflare.com/client/v4/accounts/${params.accountId.trim()}/access/apps/${params.appId.trim()}/policies`
+        `https://api.cloudflare.com/client/v4/accounts/${safeUrlPathSegment(params.accountId, 'accountId')}/access/apps/${safeUrlPathSegment(params.appId, 'appId')}/policies`
       )
       appendParam(url, 'page', params.page)
       appendParam(url, 'per_page', params.per_page)

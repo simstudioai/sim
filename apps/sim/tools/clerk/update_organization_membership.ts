@@ -6,6 +6,7 @@ import type {
   ClerkUpdateOrganizationMembershipResponse,
 } from '@/tools/clerk/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('ClerkUpdateOrganizationMembership')
 
@@ -47,7 +48,7 @@ export const clerkUpdateOrganizationMembershipTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.clerk.com/v1/organizations/${params.organizationId?.trim()}/memberships/${params.userId?.trim()}`,
+      `https://api.clerk.com/v1/organizations/${safeUrlPathSegment(params.organizationId, 'organizationId')}/memberships/${safeUrlPathSegment(params.userId, 'userId')}`,
     method: 'PATCH',
     headers: (params) => {
       if (!params.secretKey) {

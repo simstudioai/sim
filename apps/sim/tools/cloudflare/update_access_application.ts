@@ -12,6 +12,7 @@ import {
   parseJsonObjectParam,
 } from '@/tools/cloudflare/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const updateAccessApplicationTool: ToolConfig<
   CloudflareUpdateAccessApplicationParams,
@@ -135,7 +136,7 @@ export const updateAccessApplicationTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.cloudflare.com/client/v4/accounts/${params.accountId.trim()}/access/apps/${params.appId.trim()}`,
+      `https://api.cloudflare.com/client/v4/accounts/${safeUrlPathSegment(params.accountId, 'accountId')}/access/apps/${safeUrlPathSegment(params.appId, 'appId')}`,
     method: 'PUT',
     headers: (params) => cloudflareHeaders(params.apiKey),
     body: (params) => {

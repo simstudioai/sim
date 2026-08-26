@@ -6,6 +6,7 @@ import type {
   ClerkOAuthAccessToken,
 } from '@/tools/clerk/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('ClerkGetUserOauthToken')
 
@@ -44,7 +45,7 @@ export const clerkGetUserOauthTokenTool: ToolConfig<
   request: {
     url: (params) => {
       const providerSlug = params.provider?.trim().replace(/^oauth_/, '')
-      return `https://api.clerk.com/v1/users/${params.userId?.trim()}/oauth_access_tokens/oauth_${providerSlug}`
+      return `https://api.clerk.com/v1/users/${safeUrlPathSegment(params.userId, 'userId')}/oauth_access_tokens/oauth_${safeUrlPathSegment(providerSlug, 'provider')}`
     },
     method: 'GET',
     headers: (params) => {

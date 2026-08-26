@@ -9,6 +9,7 @@ import {
   readCloudflareResponse,
 } from '@/tools/cloudflare/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const listManagedRulesetOverridesTool: ToolConfig<
   CloudflareListManagedRulesetOverridesParams,
@@ -37,7 +38,7 @@ export const listManagedRulesetOverridesTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.cloudflare.com/client/v4/zones/${params.zoneId.trim()}/rulesets/phases/http_request_firewall_managed/entrypoint`,
+      `https://api.cloudflare.com/client/v4/zones/${safeUrlPathSegment(params.zoneId, 'zoneId')}/rulesets/phases/http_request_firewall_managed/entrypoint`,
     method: 'GET',
     headers: (params) => cloudflareHeaders(params.apiKey),
   },

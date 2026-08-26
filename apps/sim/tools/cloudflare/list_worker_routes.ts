@@ -9,6 +9,7 @@ import {
   readCloudflareResponse,
 } from '@/tools/cloudflare/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const listWorkerRoutesTool: ToolConfig<
   CloudflareListWorkerRoutesParams,
@@ -38,7 +39,7 @@ export const listWorkerRoutesTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.cloudflare.com/client/v4/zones/${params.zoneId.trim()}/workers/routes`,
+      `https://api.cloudflare.com/client/v4/zones/${safeUrlPathSegment(params.zoneId, 'zoneId')}/workers/routes`,
     method: 'GET',
     headers: (params) => cloudflareHeaders(params.apiKey),
   },

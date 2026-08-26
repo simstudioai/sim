@@ -3,6 +3,7 @@ import type {
   CloudflareCreateDnsRecordResponse,
 } from '@/tools/cloudflare/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const createDnsRecordTool: ToolConfig<
   CloudflareCreateDnsRecordParams,
@@ -79,7 +80,7 @@ export const createDnsRecordTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.cloudflare.com/client/v4/zones/${params.zoneId.trim()}/dns_records`,
+      `https://api.cloudflare.com/client/v4/zones/${safeUrlPathSegment(params.zoneId, 'zoneId')}/dns_records`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

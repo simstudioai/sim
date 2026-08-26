@@ -4,6 +4,7 @@ import type {
 } from '@/tools/cloudflare/types'
 import { cloudflareErrorMessage, cloudflareHeaders } from '@/tools/cloudflare/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const createR2BucketTool: ToolConfig<
   CloudflareCreateR2BucketParams,
@@ -58,7 +59,7 @@ export const createR2BucketTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.cloudflare.com/client/v4/accounts/${params.accountId.trim()}/r2/buckets`,
+      `https://api.cloudflare.com/client/v4/accounts/${safeUrlPathSegment(params.accountId, 'accountId')}/r2/buckets`,
     method: 'POST',
     headers: (params) => {
       const headers = cloudflareHeaders(params.apiKey)

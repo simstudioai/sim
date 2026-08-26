@@ -9,6 +9,7 @@ import {
   mapRuleset,
 } from '@/tools/cloudflare/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const getRulesetTool: ToolConfig<CloudflareGetRulesetParams, CloudflareRulesetResponse> = {
   id: 'cloudflare_get_ruleset',
@@ -40,7 +41,7 @@ export const getRulesetTool: ToolConfig<CloudflareGetRulesetParams, CloudflareRu
 
   request: {
     url: (params) =>
-      `https://api.cloudflare.com/client/v4/zones/${params.zoneId.trim()}/rulesets/${params.rulesetId.trim()}`,
+      `https://api.cloudflare.com/client/v4/zones/${safeUrlPathSegment(params.zoneId, 'zoneId')}/rulesets/${safeUrlPathSegment(params.rulesetId, 'rulesetId')}`,
     method: 'GET',
     headers: (params) => cloudflareHeaders(params.apiKey),
   },

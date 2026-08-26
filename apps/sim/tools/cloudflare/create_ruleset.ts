@@ -10,6 +10,7 @@ import {
   parseJsonArrayParam,
 } from '@/tools/cloudflare/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const createRulesetTool: ToolConfig<
   CloudflareCreateRulesetParams,
@@ -70,7 +71,8 @@ export const createRulesetTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.cloudflare.com/client/v4/zones/${params.zoneId.trim()}/rulesets`,
+    url: (params) =>
+      `https://api.cloudflare.com/client/v4/zones/${safeUrlPathSegment(params.zoneId, 'zoneId')}/rulesets`,
     method: 'POST',
     headers: (params) => cloudflareHeaders(params.apiKey),
     body: (params) => {
