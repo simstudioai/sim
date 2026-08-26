@@ -257,7 +257,7 @@ export const RESOURCE_REGISTRY: Record<MothershipResourceType, ResourceTypeConfi
 export const MENTION_PREVIEW_DEFAULT_LIMIT = 5
 
 /**
- * Baseline top-down order for menus that list resource families, mirroring the
+ * Top-down order for every menu that lists resource families, mirroring the
  * workspace sidebar so a user reads the same sequence in both places. The two
  * desktop-only panels trail the workspace resources, matching where they surface
  * in the app. `folder`/`filefolder` never render as their own entry — they feed
@@ -271,36 +271,13 @@ export const RESOURCE_MENU_ORDER: readonly MothershipResourceType[] = [
   'file',
   'filefolder',
   'knowledgebase',
-  'log',
   'workflow',
+  'log',
   'folder',
   'browser',
   'terminal',
   'generic',
 ]
-
-function moveResourceTypeBefore(
-  order: readonly MothershipResourceType[],
-  type: MothershipResourceType,
-  before: MothershipResourceType
-): readonly MothershipResourceType[] {
-  const typeIndex = order.indexOf(type)
-  const beforeIndex = order.indexOf(before)
-  if (typeIndex === -1 || beforeIndex === -1 || typeIndex < beforeIndex) return order
-
-  const reordered = [...order]
-  const [movedType] = reordered.splice(typeIndex, 1)
-  if (!movedType) return order
-  reordered.splice(beforeIndex, 0, movedType)
-  return reordered
-}
-
-/** Mention-menu order derived from the canonical order, with workflows promoted above logs. */
-export const MENTION_RESOURCE_MENU_ORDER = moveResourceTypeBefore(
-  RESOURCE_MENU_ORDER,
-  'workflow',
-  'log'
-)
 
 /** Sorts anything keyed by resource type into {@link RESOURCE_MENU_ORDER}. */
 export function byResourceMenuOrder<T extends { type: MothershipResourceType }>(
@@ -308,14 +285,6 @@ export function byResourceMenuOrder<T extends { type: MothershipResourceType }>(
   b: T
 ): number {
   return RESOURCE_MENU_ORDER.indexOf(a.type) - RESOURCE_MENU_ORDER.indexOf(b.type)
-}
-
-/** Sorts anything keyed by resource type into {@link MENTION_RESOURCE_MENU_ORDER}. */
-export function byMentionResourceMenuOrder<T extends { type: MothershipResourceType }>(
-  a: T,
-  b: T
-): number {
-  return MENTION_RESOURCE_MENU_ORDER.indexOf(a.type) - MENTION_RESOURCE_MENU_ORDER.indexOf(b.type)
 }
 
 export function getResourceConfig(type: MothershipResourceType): ResourceTypeConfig {

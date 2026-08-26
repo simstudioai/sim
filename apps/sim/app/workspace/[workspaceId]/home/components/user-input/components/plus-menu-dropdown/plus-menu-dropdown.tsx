@@ -17,7 +17,6 @@ import {
   useResourceTreeSections,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown'
 import {
-  byMentionResourceMenuOrder,
   getResourceConfig,
   MENTION_PREVIEW_DEFAULT_LIMIT,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
@@ -127,9 +126,7 @@ export const PlusMenuDropdown = React.memo(
     // after its always-present whole-resource row.
     const visibleResources = useMemo(() => {
       if (isMention) {
-        return withDesktopTabMentions(availableResources, browserTabs, terminalTabs).sort(
-          byMentionResourceMenuOrder
-        )
+        return withDesktopTabMentions(availableResources, browserTabs, terminalTabs)
       }
       const attachable = availableResources.filter(
         ({ type }) => !NON_ATTACHABLE_RESOURCE_TYPES.has(type)
@@ -344,8 +341,8 @@ export const PlusMenuDropdown = React.memo(
                 filteredItems.map(({ type, item }, index) => {
                   const config = getResourceConfig(type)
                   const isActive = index === activeIndex
-                  /* Items arrive grouped by family (one group per type), so a type
-                     change marks a section boundary.
+                  /* Items arrive grouped by family (one group per type, ordered by
+                     RESOURCE_MENU_ORDER), so a type change marks a section boundary.
                      Deriving the heading from the flat list keeps `activeIndex` — and
                      therefore every keyboard path — indexing exactly what it did. */
                   const startsSection = index === 0 || filteredItems[index - 1]?.type !== type
