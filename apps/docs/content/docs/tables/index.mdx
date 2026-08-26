@@ -24,7 +24,7 @@ Every column has a type, which decides how its values are stored and validated.
 | **Currency** | An amount in a currency you pick per column | `$1,234.56` |
 | **Boolean** | `true` or `false` | `true` |
 | **Date** | A date | `2026-03-16` |
-| **TTL** | A row expiration date, stored as Unix epoch seconds | `2026-03-16 2:30 PM` |
+| **TTL** | An absolute row expiration time, stored as Unix epoch seconds (seconds since January 1, 1970 UTC) | `1773671400` |
 | **JSON** | An object or array | `{ "tier": "pro" }` |
 | **Select** | One of a fixed set of options, or several | `Pro` |
 
