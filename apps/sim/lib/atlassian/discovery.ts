@@ -172,7 +172,14 @@ export function fetchAtlassianDiscoveryJson<T>(
         throw error
       }
 
-      return (await response.json()) as T
+      try {
+        return (await response.json()) as T
+      } catch (error) {
+        if (omitResponseBodyFromErrors) {
+          throw new Error(`${failureLabel}: invalid JSON response`)
+        }
+        throw error
+      }
     },
     { ...ATLASSIAN_DISCOVERY_RETRY_OPTIONS, ...effectiveRetryOptions }
   )

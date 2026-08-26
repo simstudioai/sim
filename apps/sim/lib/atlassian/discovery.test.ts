@@ -136,6 +136,27 @@ describe('resolveAtlassianCloudId', () => {
     expect(error.message).not.toContain('provider-body-secret-marker')
   })
 
+  it('omits malformed successful response bodies from selector discovery errors', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers(),
+      json: vi
+        .fn()
+        .mockRejectedValue(new SyntaxError('invalid provider-body-secret-marker JSON payload')),
+    })
+
+    const error = await resolveAtlassianCloudId(
+      options({
+        retryOptions: { ...FAST, omitResponseBodyFromErrors: true },
+      })
+    ).catch((caught) => caught as Error)
+
+    expect(error.message).toBe('Failed to fetch Jira accessible resources: invalid JSON response')
+    expect(error.message).not.toContain('provider-body-secret-marker')
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
   it('does not pin a failure in the cache', async () => {
     fetchMock.mockResolvedValueOnce(failure(403, { message: 'nope' }))
     await expect(resolveAtlassianCloudId(options({ retryOptions: FAST }))).rejects.toThrow()
