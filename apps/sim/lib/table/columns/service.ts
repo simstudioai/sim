@@ -1531,7 +1531,8 @@ export async function updateColumnReference(
       )
       const renamePending = data.newName !== undefined && data.newName !== column.name
       if (
-        constrained === updatedColumn &&
+        constrained.required === column.required &&
+        constrained.unique === column.unique &&
         updatedColumn.referenceTableId === column.referenceTableId &&
         !renamePending
       ) {

@@ -3,6 +3,7 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { MAX_REFERENCE_TABLE_ID_LENGTH } from '@/lib/table/constants'
 import type { TableDefinition } from '@/lib/table/types'
 
 const mocks = vi.hoisted(() => ({
@@ -157,6 +158,61 @@ describe('reference column metadata persistence', () => {
     )
 
     expect(updated).toBe(table)
+    expect(trx.update).not.toHaveBeenCalled()
+  })
+
+  it('does not rewrite the schema when the target and supplied constraints are unchanged', async () => {
+    const table = tableWithReference()
+    table.schema.columns[0] = { ...table.schema.columns[0], required: true, unique: true }
+    const trx = useTable(table)
+
+    const updated = await updateColumnReference(
+      {
+        tableId: 'tbl_people',
+        columnName: 'col_account',
+        referenceTableId: 'tbl_accounts',
+        required: true,
+        unique: true,
+      },
+      'req_1'
+    )
+
+    expect(updated).toBe(table)
+    expect(trx.update).not.toHaveBeenCalled()
+  })
+
+  it('accepts a reference table ID at the standard identifier length', async () => {
+    const maximumId = 't'.repeat(MAX_REFERENCE_TABLE_ID_LENGTH)
+    useTable(tableWithReference())
+
+    const updated = await updateColumnReference(
+      {
+        tableId: 'tbl_people',
+        columnName: 'col_account',
+        referenceTableId: maximumId,
+      },
+      'req_1'
+    )
+
+    expect(updated.schema.columns[0]).toMatchObject({ referenceTableId: maximumId })
+    expect(mocks.set).toHaveBeenCalledOnce()
+  })
+
+  it('rejects a reference table ID longer than the standard identifier length', async () => {
+    const oversizedId = 't'.repeat(MAX_REFERENCE_TABLE_ID_LENGTH + 1)
+    const trx = useTable(tableWithReference())
+
+    await expect(
+      updateColumnReference(
+        {
+          tableId: 'tbl_people',
+          columnName: 'col_account',
+          referenceTableId: oversizedId,
+        },
+        'req_1'
+      )
+    ).rejects.toMatchObject({ code: 'validation' })
+
     expect(trx.update).not.toHaveBeenCalled()
   })
 })

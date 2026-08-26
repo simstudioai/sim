@@ -164,6 +164,26 @@ describe('ColumnConfigSidebar', () => {
     })
   })
 
+  it('keeps Reference creation open until a target table is selected', async () => {
+    await act(async () => {
+      root.render(
+        <ColumnConfigSidebar
+          config={{ mode: 'create', proposedName: 'Related row', type: 'reference' }}
+          onClose={vi.fn()}
+          existingColumn={null}
+          workspaceId='workspace-1'
+          tableId='table-current'
+        />
+      )
+    })
+
+    await act(async () => findButton('Save')?.click())
+
+    expect(container).toHaveTextContent('Select a table')
+    expect(mockAddColumn).not.toHaveBeenCalled()
+    expect(mockUpdateColumn).not.toHaveBeenCalled()
+  })
+
   it('edits Reference configuration without exposing column renaming', async () => {
     await act(async () => {
       root.render(
