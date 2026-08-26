@@ -68,10 +68,16 @@ describe('OverflowSpan code preview', () => {
     const preview = document.querySelector('[data-code-hover-card]')
     expect(preview).toHaveTextContent('line 20')
     expect(preview).toHaveClass('w-fit', 'max-w-[min(16rem,calc(100vw-2rem))]', 'shadow-sm')
-    expect(preview).toHaveStyle({ maxWidth: 'min(256px, calc(100vw - 2rem))' })
-    expect(preview?.querySelector('.overflow-x-auto')).toHaveClass('overflow-y-auto')
-    expect(preview?.querySelector('.tabular-nums')).toBeNull()
-    expect(preview?.querySelector('pre')).toHaveClass('px-2', 'py-1.5', 'text-caption', 'leading-5')
+    expect(preview).toHaveStyle({ maxWidth: 'min(480px, calc(100vw - 2rem))' })
+    expect(preview?.querySelector('.overflow-x-hidden')).toHaveClass('overflow-y-auto')
+    expect(preview?.querySelector('.tabular-nums')).toHaveTextContent('1')
+    expect(preview?.querySelector('.code-editor-theme > div')).toHaveStyle({ paddingLeft: '8px' })
+    expect(preview?.querySelector('pre')).toHaveClass(
+      'whitespace-pre-wrap',
+      'break-words',
+      'text-caption',
+      'leading-5'
+    )
   })
 
   it('stays open while the pointer crosses into the scrollable preview', () => {
