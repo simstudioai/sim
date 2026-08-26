@@ -2,53 +2,9 @@ import type {
   ElasticsearchSearchParams,
   ElasticsearchSearchResponse,
 } from '@/tools/elasticsearch/types'
+import { buildAuthHeaders, buildBaseUrl, optionalNumber } from '@/tools/elasticsearch/utils'
 import type { ToolConfig } from '@/tools/types'
-
-// Helper to build base URL from connection params
-function buildBaseUrl(params: ElasticsearchSearchParams): string {
-  if (params.deploymentType === 'cloud' && params.cloudId) {
-    // Parse Cloud ID: format is "name:base64data"
-    // The base64 data contains: es_host$kibana_host ($ separated)
-    const parts = params.cloudId.split(':')
-    if (parts.length >= 2) {
-      try {
-        const decoded = Buffer.from(parts[1], 'base64').toString('utf-8')
-        const [esHost] = decoded.split('$')
-        if (esHost) {
-          // Cloud endpoints are always HTTPS with port 443
-          return `https://${parts[0]}.${esHost}`
-        }
-      } catch {
-        // If decoding fails, try using cloudId directly as host
-      }
-    }
-    throw new Error('Invalid Cloud ID format')
-  }
-
-  if (!params.host) {
-    throw new Error('Host is required for self-hosted deployments')
-  }
-
-  return params.host.replace(/\/$/, '') // Remove trailing slash
-}
-
-// Helper to build auth headers
-function buildAuthHeaders(params: ElasticsearchSearchParams): Record<string, string> {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  }
-
-  if (params.authMethod === 'api_key' && params.apiKey) {
-    headers.Authorization = `ApiKey ${params.apiKey}`
-  } else if (params.authMethod === 'basic_auth' && params.username && params.password) {
-    const credentials = Buffer.from(`${params.username}:${params.password}`).toString('base64')
-    headers.Authorization = `Basic ${credentials}`
-  } else {
-    throw new Error('Invalid authentication configuration')
-  }
-
-  return headers
-}
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const searchTool: ToolConfig<ElasticsearchSearchParams, ElasticsearchSearchResponse> = {
   id: 'elasticsearch_search',
@@ -150,7 +106,7 @@ export const searchTool: ToolConfig<ElasticsearchSearchParams, ElasticsearchSear
   request: {
     url: (params) => {
       const baseUrl = buildBaseUrl(params)
-      return `${baseUrl}/${encodeURIComponent(params.index)}/_search`
+      return `${baseUrl}/${safeUrlPathSegment(params.index, 'index')}/_search`
     },
     method: 'POST',
     headers: (params) => buildAuthHeaders(params),
@@ -165,8 +121,11 @@ export const searchTool: ToolConfig<ElasticsearchSearchParams, ElasticsearchSear
         }
       }
 
-      if (params.from !== undefined) body.from = params.from
-      if (params.size !== undefined) body.size = params.size
+      const from = optionalNumber(params.from, 'from')
+      if (from !== undefined) body.from = from
+
+      const size = optionalNumber(params.size, 'size')
+      if (size !== undefined) body.size = size
 
       if (params.sort) {
         try {
@@ -199,26 +158,6 @@ export const searchTool: ToolConfig<ElasticsearchSearchParams, ElasticsearchSear
   },
 
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      const errorText = await response.text()
-      let errorMessage = `Elasticsearch error: ${response.status}`
-      try {
-        const errorJson = JSON.parse(errorText)
-        errorMessage = errorJson.error?.reason || errorJson.error?.type || errorMessage
-      } catch {
-        errorMessage = errorText || errorMessage
-      }
-      return {
-        success: false,
-        output: {
-          took: 0,
-          timed_out: false,
-          hits: { total: { value: 0, relation: 'eq' }, max_score: null, hits: [] },
-        },
-        error: errorMessage,
-      }
-    }
-
     const data = await response.json()
 
     return {

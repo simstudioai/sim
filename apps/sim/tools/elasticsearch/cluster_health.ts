@@ -2,48 +2,8 @@ import type {
   ElasticsearchClusterHealthParams,
   ElasticsearchClusterHealthResponse,
 } from '@/tools/elasticsearch/types'
+import { buildAuthHeaders, buildBaseUrl } from '@/tools/elasticsearch/utils'
 import type { ToolConfig } from '@/tools/types'
-
-function buildBaseUrl(params: ElasticsearchClusterHealthParams): string {
-  if (params.deploymentType === 'cloud' && params.cloudId) {
-    const parts = params.cloudId.split(':')
-    if (parts.length >= 2) {
-      try {
-        const decoded = Buffer.from(parts[1], 'base64').toString('utf-8')
-        const [esHost] = decoded.split('$')
-        if (esHost) {
-          return `https://${parts[0]}.${esHost}`
-        }
-      } catch {
-        // Fallback
-      }
-    }
-    throw new Error('Invalid Cloud ID format')
-  }
-
-  if (!params.host) {
-    throw new Error('Host is required for self-hosted deployments')
-  }
-
-  return params.host.replace(/\/$/, '')
-}
-
-function buildAuthHeaders(params: ElasticsearchClusterHealthParams): Record<string, string> {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  }
-
-  if (params.authMethod === 'api_key' && params.apiKey) {
-    headers.Authorization = `ApiKey ${params.apiKey}`
-  } else if (params.authMethod === 'basic_auth' && params.username && params.password) {
-    const credentials = Buffer.from(`${params.username}:${params.password}`).toString('base64')
-    headers.Authorization = `Basic ${credentials}`
-  } else {
-    throw new Error('Invalid authentication configuration')
-  }
-
-  return headers
-}
 
 export const clusterHealthTool: ToolConfig<
   ElasticsearchClusterHealthParams,
@@ -100,10 +60,11 @@ export const clusterHealthTool: ToolConfig<
       required: false,
       description: 'Wait until cluster reaches this status: green, yellow, or red',
     },
-    timeout: {
+    esTimeout: {
       type: 'string',
       required: false,
-      description: 'Timeout for the wait operation (e.g., 30s, 1m)',
+      description:
+        'Elasticsearch wait timeout as a duration string (e.g., 30s, 1m). Named esTimeout because the executor reserves "timeout" for the transport deadline in milliseconds.',
     },
   },
 
@@ -114,10 +75,10 @@ export const clusterHealthTool: ToolConfig<
 
       const queryParams: string[] = []
       if (params.waitForStatus) {
-        queryParams.push(`wait_for_status=${params.waitForStatus}`)
+        queryParams.push(`wait_for_status=${encodeURIComponent(params.waitForStatus)}`)
       }
-      if (params.timeout) {
-        queryParams.push(`timeout=${encodeURIComponent(params.timeout)}`)
+      if (params.esTimeout) {
+        queryParams.push(`timeout=${encodeURIComponent(params.esTimeout)}`)
       }
       if (queryParams.length > 0) {
         url += `?${queryParams.join('&')}`
@@ -130,38 +91,6 @@ export const clusterHealthTool: ToolConfig<
   },
 
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      const errorText = await response.text()
-      let errorMessage = `Elasticsearch error: ${response.status}`
-      try {
-        const errorJson = JSON.parse(errorText)
-        errorMessage = errorJson.error?.reason || errorJson.error?.type || errorMessage
-      } catch {
-        errorMessage = errorText || errorMessage
-      }
-      return {
-        success: false,
-        output: {
-          cluster_name: '',
-          status: 'red' as const,
-          timed_out: true,
-          number_of_nodes: 0,
-          number_of_data_nodes: 0,
-          active_primary_shards: 0,
-          active_shards: 0,
-          relocating_shards: 0,
-          initializing_shards: 0,
-          unassigned_shards: 0,
-          delayed_unassigned_shards: 0,
-          number_of_pending_tasks: 0,
-          number_of_in_flight_fetch: 0,
-          task_max_waiting_in_queue_millis: 0,
-          active_shards_percent_as_number: 0,
-        },
-        error: errorMessage,
-      }
-    }
-
     const data = await response.json()
 
     return {

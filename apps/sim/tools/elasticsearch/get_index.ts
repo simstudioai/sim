@@ -2,48 +2,9 @@ import type {
   ElasticsearchGetIndexParams,
   ElasticsearchIndexInfoResponse,
 } from '@/tools/elasticsearch/types'
+import { buildAuthHeaders, buildBaseUrl } from '@/tools/elasticsearch/utils'
 import type { ToolConfig } from '@/tools/types'
-
-function buildBaseUrl(params: ElasticsearchGetIndexParams): string {
-  if (params.deploymentType === 'cloud' && params.cloudId) {
-    const parts = params.cloudId.split(':')
-    if (parts.length >= 2) {
-      try {
-        const decoded = Buffer.from(parts[1], 'base64').toString('utf-8')
-        const [esHost] = decoded.split('$')
-        if (esHost) {
-          return `https://${parts[0]}.${esHost}`
-        }
-      } catch {
-        // Fallback
-      }
-    }
-    throw new Error('Invalid Cloud ID format')
-  }
-
-  if (!params.host) {
-    throw new Error('Host is required for self-hosted deployments')
-  }
-
-  return params.host.replace(/\/$/, '')
-}
-
-function buildAuthHeaders(params: ElasticsearchGetIndexParams): Record<string, string> {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  }
-
-  if (params.authMethod === 'api_key' && params.apiKey) {
-    headers.Authorization = `ApiKey ${params.apiKey}`
-  } else if (params.authMethod === 'basic_auth' && params.username && params.password) {
-    const credentials = Buffer.from(`${params.username}:${params.password}`).toString('base64')
-    headers.Authorization = `Basic ${credentials}`
-  } else {
-    throw new Error('Invalid authentication configuration')
-  }
-
-  return headers
-}
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const getIndexTool: ToolConfig<ElasticsearchGetIndexParams, ElasticsearchIndexInfoResponse> =
   {
@@ -104,41 +65,52 @@ export const getIndexTool: ToolConfig<ElasticsearchGetIndexParams, Elasticsearch
     request: {
       url: (params) => {
         const baseUrl = buildBaseUrl(params)
-        return `${baseUrl}/${encodeURIComponent(params.index)}`
+        return `${baseUrl}/${safeUrlPathSegment(params.index, 'index')}`
       },
       method: 'GET',
       headers: (params) => buildAuthHeaders(params),
     },
 
     transformResponse: async (response: Response) => {
-      if (!response.ok) {
-        const errorText = await response.text()
-        let errorMessage = `Elasticsearch error: ${response.status}`
-        try {
-          const errorJson = JSON.parse(errorText)
-          errorMessage = errorJson.error?.reason || errorJson.error?.type || errorMessage
-        } catch {
-          errorMessage = errorText || errorMessage
+      const data = (await response.json()) as Record<
+        string,
+        {
+          aliases?: Record<string, unknown>
+          mappings?: Record<string, unknown>
+          settings?: Record<string, unknown>
         }
-        return {
-          success: false,
-          output: {},
-          error: errorMessage,
-        }
-      }
+      >
 
-      const data = await response.json()
+      const [indexName] = Object.keys(data)
+      const info = indexName ? data[indexName] : undefined
 
       return {
         success: true,
-        output: data,
+        output: {
+          index: indexName ?? '',
+          aliases: info?.aliases ?? {},
+          mappings: info?.mappings ?? {},
+          settings: info?.settings ?? {},
+        },
       }
     },
 
     outputs: {
       index: {
+        type: 'string',
+        description: 'Resolved index name the information belongs to',
+      },
+      aliases: {
         type: 'json',
-        description: 'Index information including aliases, mappings, and settings',
+        description: 'Aliases defined on the index',
+      },
+      mappings: {
+        type: 'json',
+        description: 'Field mappings for the index',
+      },
+      settings: {
+        type: 'json',
+        description: 'Index settings',
       },
     },
   }

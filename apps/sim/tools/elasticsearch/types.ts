@@ -2,7 +2,7 @@
 import type { ToolResponse } from '@/tools/types'
 
 // Base params for all Elasticsearch tools
-interface ElasticsearchBaseParams {
+export interface ElasticsearchBaseParams {
   // Connection configuration
   deploymentType: 'self_hosted' | 'cloud'
   host?: string // For self-hosted
@@ -105,7 +105,15 @@ interface ElasticsearchGetMappingParams extends ElasticsearchBaseParams {
 // Cluster Operations
 export interface ElasticsearchClusterHealthParams extends ElasticsearchBaseParams {
   waitForStatus?: 'green' | 'yellow' | 'red'
-  timeout?: string
+  /**
+   * Elasticsearch's `timeout` query parameter, as a duration string ("30s", "1m").
+   *
+   * Deliberately NOT named `timeout`: `tools/request-transport.ts` reads
+   * `params.timeout` as the transport deadline in **milliseconds**, so a tool
+   * param of that name would silently become a request timeout. The block's
+   * subBlock keeps the id `timeout` and maps it here in `tools.config.params`.
+   */
+  esTimeout?: string
 }
 
 export interface ElasticsearchClusterStatsParams extends ElasticsearchBaseParams {}
@@ -128,7 +136,7 @@ export interface ElasticsearchDocumentResponse extends ToolResponse {
     _index: string
     _id: string
     _version?: number
-    result?: 'created' | 'updated' | 'deleted' | 'not_found' | 'noop'
+    result?: 'created' | 'updated' | 'deleted' | 'noop'
     _source?: Record<string, unknown>
     found?: boolean
   }
@@ -186,14 +194,12 @@ export interface ElasticsearchIndexResponse extends ToolResponse {
 }
 
 export interface ElasticsearchIndexInfoResponse extends ToolResponse {
-  output: Record<
-    string,
-    {
-      aliases: Record<string, unknown>
-      mappings: Record<string, unknown>
-      settings: Record<string, unknown>
-    }
-  >
+  output: {
+    index: string
+    aliases: Record<string, unknown>
+    mappings: Record<string, unknown>
+    settings: Record<string, unknown>
+  }
 }
 
 interface ElasticsearchIndexExistsResponse extends ToolResponse {

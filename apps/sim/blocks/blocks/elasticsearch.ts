@@ -2,6 +2,7 @@ import { ElasticsearchIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { ElasticsearchResponse } from '@/tools/elasticsearch/types'
+import { optionalNumber } from '@/tools/elasticsearch/utils'
 
 export const ElasticsearchBlock: BlockConfig<ElasticsearchResponse> = {
   type: 'elasticsearch',
@@ -324,6 +325,7 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
     // Search from (offset)
     {
       id: 'from',
+      mode: 'advanced',
       title: 'Offset',
       type: 'short-input',
       placeholder: '0',
@@ -333,6 +335,7 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
     // Sort
     {
       id: 'sort',
+      mode: 'advanced',
       title: 'Sort',
       type: 'code',
       placeholder: '[{ "field": { "order": "asc" } }]',
@@ -354,6 +357,7 @@ Return ONLY valid JSON array - no explanations, no markdown code blocks.`,
     // Source includes
     {
       id: 'sourceIncludes',
+      mode: 'advanced',
       title: 'Fields to Include',
       type: 'short-input',
       placeholder: 'field1, field2 (comma-separated)',
@@ -366,6 +370,7 @@ Return ONLY valid JSON array - no explanations, no markdown code blocks.`,
     // Source excludes
     {
       id: 'sourceExcludes',
+      mode: 'advanced',
       title: 'Fields to Exclude',
       type: 'short-input',
       placeholder: 'field1, field2 (comma-separated)',
@@ -403,6 +408,7 @@ Return ONLY the NDJSON content - no explanations, no markdown code blocks.`,
     // Index settings
     {
       id: 'settings',
+      mode: 'advanced',
       title: 'Index Settings',
       type: 'code',
       placeholder: '{ "number_of_shards": 1, "number_of_replicas": 1 }',
@@ -449,6 +455,7 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
     // Refresh option
     {
       id: 'refresh',
+      mode: 'advanced',
       title: 'Refresh',
       type: 'dropdown',
       options: [
@@ -471,6 +478,7 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
     // Cluster health wait for status
     {
       id: 'waitForStatus',
+      mode: 'advanced',
       title: 'Wait for Status',
       type: 'dropdown',
       options: [
@@ -486,15 +494,17 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
     // Cluster health timeout
     {
       id: 'timeout',
-      title: 'Timeout (seconds)',
+      mode: 'advanced',
+      title: 'Wait Timeout',
       type: 'short-input',
-      placeholder: '30',
+      placeholder: '30s',
       condition: { field: 'operation', value: 'elasticsearch_cluster_health' },
     },
 
     // Retry on conflict
     {
       id: 'retryOnConflict',
+      mode: 'advanced',
       title: 'Retry on Conflict',
       type: 'short-input',
       placeholder: '3',
@@ -524,13 +534,38 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
         return params.operation || 'elasticsearch_search'
       },
       params: (params) => {
-        const result: Record<string, unknown> = {}
-        if (params.size) result.size = Number(params.size)
-        if (params.from) result.from = Number(params.from)
-        if (params.retryOnConflict) result.retryOnConflict = Number(params.retryOnConflict)
-        if (params.timeout && typeof params.timeout === 'string') {
-          result.timeout = params.timeout.endsWith('s') ? params.timeout : `${params.timeout}s`
+        /**
+         * `result.timeout` is unset unconditionally and on purpose.
+         *
+         * `tools/request-transport.ts` reads `params.timeout` as the transport
+         * deadline in **milliseconds**, while Elasticsearch's `timeout` is a
+         * duration string. `generic-handler.ts` merges `{ ...inputs,
+         * ...transformedParams }`, so a raw `timeout` left on `inputs` would
+         * still reach the transport — a model emitting "30" would buy a
+         * 30-millisecond deadline. The subBlock keeps the id `timeout` so no
+         * saved workflow state is orphaned; the value is forwarded to the tool
+         * under the non-reserved name `esTimeout`.
+         */
+        const result: Record<string, unknown> = { timeout: undefined }
+
+        const size = optionalNumber(params.size, 'size')
+        if (size !== undefined) result.size = size
+
+        const from = optionalNumber(params.from, 'from')
+        if (from !== undefined) result.from = from
+
+        const retryOnConflict = optionalNumber(params.retryOnConflict, 'retryOnConflict')
+        if (retryOnConflict !== undefined) result.retryOnConflict = retryOnConflict
+
+        const rawTimeout = typeof params.timeout === 'string' ? params.timeout.trim() : ''
+        if (rawTimeout) {
+          /**
+           * Only a bare number is given the implied `s` unit. A previous
+           * `endsWith('s')` test rewrote "1m" to "1ms" — one millisecond.
+           */
+          result.esTimeout = /^\d+$/.test(rawTimeout) ? `${rawTimeout}s` : rawTimeout
         }
+
         return result
       },
     },
@@ -559,7 +594,11 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
     mappings: { type: 'string', description: 'Index mappings as JSON' },
     refresh: { type: 'string', description: 'Refresh policy' },
     waitForStatus: { type: 'string', description: 'Wait for cluster status' },
-    timeout: { type: 'string', description: 'Timeout for wait operations' },
+    timeout: {
+      type: 'string',
+      description:
+        'How long cluster health waits for the requested status, as a duration string (30s, 1m). A bare number is read as seconds.',
+    },
     retryOnConflict: { type: 'number', description: 'Retry attempts on conflict' },
   },
 
@@ -574,8 +613,16 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
     _id: { type: 'string', description: 'Document ID' },
     _version: { type: 'number', description: 'Document version' },
     _source: { type: 'json', description: 'Document content' },
-    result: { type: 'string', description: 'Operation result' },
-    found: { type: 'boolean', description: 'Whether document was found' },
+    result: {
+      type: 'string',
+      description:
+        'Operation result (created, updated, deleted, or noop). A missing document fails the call with a 404 error rather than returning "not_found".',
+    },
+    found: {
+      type: 'boolean',
+      description:
+        'Always true. A missing document fails the call with a 404 error rather than returning found: false.',
+    },
     // Bulk outputs
     errors: { type: 'boolean', description: 'Whether any errors occurred' },
     items: { type: 'json', description: 'Bulk operation results' },
@@ -583,6 +630,10 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
     count: { type: 'number', description: 'Document count' },
     // Index outputs
     acknowledged: { type: 'boolean', description: 'Whether operation was acknowledged' },
+    index: { type: 'string', description: 'Index name' },
+    aliases: { type: 'json', description: 'Aliases defined on the index' },
+    mappings: { type: 'json', description: 'Field mappings for the index' },
+    settings: { type: 'json', description: 'Index settings' },
     // Cluster outputs
     cluster_name: { type: 'string', description: 'Cluster name' },
     status: { type: 'string', description: 'Cluster health status' },
