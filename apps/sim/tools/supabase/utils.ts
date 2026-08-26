@@ -1,4 +1,5 @@
 import { validateSupabaseProjectId } from '@/lib/core/security/input-validation'
+import { safeUrlPath, safeUrlPathSegment } from '@/tools/url-path'
 
 /**
  * Returns the validated Supabase REST API base URL for a given project ID.
@@ -14,22 +15,30 @@ export function supabaseBaseUrl(projectId: string): string {
 }
 
 /**
- * URL-encodes a single storage path segment (bucket name), trimming
- * copy-paste whitespace first so the value is safe to interpolate into a URL.
+ * Builds a single storage path segment (a bucket name) for interpolation into
+ * a URL, trimming copy-paste whitespace first.
+ *
+ * Delegates to `safeUrlPathSegment`, so a value that is exactly `.` or `..`,
+ * or that carries a path separator, is rejected rather than encoded — see the
+ * module note in `@/tools/url-path` for why encoding alone cannot neutralize a
+ * dot segment.
  */
-export function encodeStorageSegment(segment: string): string {
-  return encodeURIComponent(segment.trim())
+export function encodeStorageSegment(segment: string, paramName = 'bucket'): string {
+  return safeUrlPathSegment(segment, paramName)
 }
 
 /**
- * URL-encodes a storage object path for use inside a URL, preserving `/`
- * as a path separator while encoding each segment (and trimming
- * copy-paste whitespace) so spaces, `#`, `?`, and other reserved
- * characters in file names don't corrupt the request.
+ * Builds a storage object path for use inside a URL, preserving `/` as a path
+ * separator while encoding each segment (and trimming copy-paste whitespace)
+ * so spaces, `#`, `?`, and other reserved characters in file names don't
+ * corrupt the request.
+ *
+ * Delegates to `safeUrlPath`: encoding each segment *reads* as sanitization
+ * but maps `'../..'` straight through, because `encodeURIComponent('..')` is
+ * `'..'`. Dot segments, empty segments, and backslashes are therefore
+ * rejected. Storage paths are genuinely multi-segment, so the single-segment
+ * helper is not usable here.
  */
-export function encodeStoragePath(path: string): string {
-  return path
-    .split('/')
-    .map((segment) => encodeURIComponent(segment.trim()))
-    .join('/')
+export function encodeStoragePath(path: string, paramName = 'path'): string {
+  return safeUrlPath(path, paramName)
 }
