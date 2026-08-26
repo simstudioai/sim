@@ -368,6 +368,13 @@ describe('POST /api/tools/file/manage content provenance', () => {
   })
 
   it('preserves existing file-path behavior when a filename was resolved from a secret', async () => {
+    mockUploadWorkspaceFile.mockResolvedValue({
+      ...workspaceFile('new-file'),
+      name: 'secret-value.txt',
+      folderId: 'folder-1',
+      folderPath: 'Reports & Plans/2026',
+      url: '/api/files/serve/new-file',
+    })
     const response = await POST(
       createMockRequest(
         'POST',
@@ -397,6 +404,14 @@ describe('POST /api/tools/file/manage content provenance', () => {
     )
 
     expect(response.status).toBe(200)
+    await expect(response.clone().json()).resolves.toMatchObject({
+      success: true,
+      data: {
+        id: 'new-file',
+        name: 'secret-value.txt',
+        vfsPath: 'files/Reports%20%26%20Plans/2026/secret-value.txt',
+      },
+    })
     expect(mockEnsureWorkspaceFileFolderPath).toHaveBeenCalledWith(
       expect.objectContaining({
         principal: expect.objectContaining({ kind: 'delegated', subjectUserId: 'user-1' }),
@@ -441,7 +456,57 @@ describe('POST /api/tools/file/manage content provenance', () => {
         secretProvenance: { status: 'exact', entries: [] },
       }
     )
+    await expect(response.clone().json()).resolves.toMatchObject({
+      success: true,
+      data: { id: 'new-file', name: 'new.txt', vfsPath: 'files/new.txt' },
+    })
   })
+
+  it('returns the actual conflict-resolved nested path', async () => {
+    mockUploadWorkspaceFile.mockResolvedValue({
+      ...workspaceFile('new-file'),
+      name: 'report (1).md',
+      folderId: 'folder-1',
+      folderPath: 'Reports/2026',
+      url: '/api/files/serve/new-file',
+    })
+
+    const response = await POST(
+      createMockRequest('POST', {
+        operation: 'write',
+        workspaceId: 'workspace-1',
+        fileName: 'Reports/2026/report.md',
+        content: 'report',
+      })
+    )
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      success: true,
+      data: {
+        name: 'report (1).md',
+        vfsPath: 'files/Reports/2026/report%20(1).md',
+      },
+    })
+  })
+
+  it.each(['Reports/../report.md', 'Reports\\2026\\report.md'])(
+    'rejects invalid write path %j before creating folders',
+    async (fileName) => {
+      const response = await POST(
+        createMockRequest('POST', {
+          operation: 'write',
+          workspaceId: 'workspace-1',
+          fileName,
+          content: 'report',
+        })
+      )
+
+      expect(response.status).toBe(400)
+      expect(mockEnsureWorkspaceFileFolderPath).not.toHaveBeenCalled()
+      expect(mockUploadWorkspaceFile).not.toHaveBeenCalled()
+    }
+  )
 
   it.each([
     ['Reports & Plans/2026', '/Reports%20%26%20Plans/2026'],

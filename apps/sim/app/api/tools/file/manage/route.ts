@@ -8,7 +8,6 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { fileManageContract } from '@/lib/api/contracts/tools/file'
 import { parseRequest } from '@/lib/api/server'
 import { AuthType, type AuthTypeValue, checkInternalAuth } from '@/lib/auth/hybrid'
-import { splitWorkspaceFilePath } from '@/lib/copilot/tools/server/files/workspace-file'
 import { acquireLock, releaseLock } from '@/lib/core/config/redis'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -67,6 +66,10 @@ import { updateWorkspaceFileShare } from '@/lib/workspace-files/application/shar
 import { updateWorkspaceFileContent } from '@/lib/workspace-files/application/update-workspace-file-content'
 import { ensureWorkspaceFileFolderPathOperation } from '@/lib/workspace-files/application/workspace-file-folders'
 import { MAX_WORKSPACE_FILE_CONTENT_BYTES } from '@/lib/workspace-files/orchestration'
+import {
+  parseRelativeWorkspaceFileCreatePath,
+  workspaceFileVfsPath,
+} from '@/lib/workspace-files/workspace-file-path'
 import { isWorkspaceAccessDeniedError } from '@/lib/workspaces/permissions/utils'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
 import type { UserFile } from '@/executor/types'
@@ -716,7 +719,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
             { status: 400 }
           )
         }
-        const { folderSegments, leafName } = splitWorkspaceFilePath(fileName)
+        const { folderSegments, fileName: leafName } =
+          parseRelativeWorkspaceFileCreatePath(fileName)
         await admitCreateWorkspaceFile(principal, workspaceId)
         const { folderId } = await ensureWorkspaceFileFolderPathOperation.execute({
           principal,
@@ -755,6 +759,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
             name: result.file.name,
             size: fileBuffer.length,
             url: ensureAbsoluteUrl(result.file.url ?? result.file.path),
+            vfsPath: workspaceFileVfsPath(result.file),
           },
         })
       }

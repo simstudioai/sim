@@ -27,7 +27,7 @@ In Sim, the File block allows your agents to read and extract text from workspac
 
 ## Usage Instructions
 
-Read workspace file objects, extract the text content of files, fetch and parse files from URLs with optional headers, write new workspace files, append content to existing files, compress files into a .zip archive, extract a .zip archive into the workspace, or manage the public share link for a file.
+Read workspace file objects, extract the text content of files, fetch and parse files from URLs with optional headers, write new workspace files at relative paths, append content to existing files, compress files into a .zip archive, extract a .zip archive into the workspace, or manage the public share link for a file.
 
 
 
@@ -86,13 +86,13 @@ Fetch and parse a file from a URL with optional custom headers.
 
 ### File Write
 
-Create a new workspace file. If a file with the same name already exists, a numeric suffix is added (e.g., "data (1).csv").
+Create a new workspace file at a relative path. Missing folders are created automatically. If a file with the same name already exists, a numeric suffix is added (e.g., "data (1).csv").
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `fileName` | string | Yes | File name \(e.g., "data.csv"\). If a file with this name exists, a numeric suffix is added automatically. |
+| `fileName` | string | Yes | Relative workspace file path \(e.g., "Reports/2026/report.md"\). Missing folders are created automatically, and name conflicts receive a numeric suffix. |
 | `content` | string | Yes | The text content to write to the file. |
 | `contentType` | string | No | MIME type for new files \(e.g., "text/plain"\). Auto-detected from file extension if omitted. |
 
@@ -102,6 +102,7 @@ Create a new workspace file. If a file with the same name already exists, a nume
 | --------- | ---- | ----------- |
 | `id` | string | File ID |
 | `name` | string | File name |
+| `vfsPath` | string | Canonical workspace path of the created file \(e.g., files/Reports/2026/report.md\) |
 | `size` | number | File size in bytes |
 | `url` | string | URL to access the file |
 

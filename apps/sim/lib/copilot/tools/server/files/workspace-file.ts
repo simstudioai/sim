@@ -30,6 +30,7 @@ import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
 import { readWorkspaceFileMetadata } from '@/lib/workspace-files/application/read-workspace-file-metadata'
 import { renameWorkspaceFile } from '@/lib/workspace-files/application/rename-workspace-file'
+import { parseRelativeWorkspaceFileCreatePath } from '@/lib/workspace-files/workspace-file-path'
 import type { SandboxTaskId } from '@/sandbox-tasks/registry'
 import {
   compileDoc,
@@ -134,21 +135,6 @@ export function validateFlatWorkspaceFileName(fileName: string): string | null {
     return 'File path cannot contain dot segments or backslashes'
   }
   return null
-}
-
-export function splitWorkspaceFilePath(fileName: string): {
-  folderSegments: string[]
-  leafName: string
-} {
-  const segments = fileName
-    .trim()
-    .split('/')
-    .map((segment) => segment.trim())
-    .filter(Boolean)
-  return {
-    folderSegments: segments.slice(0, -1),
-    leafName: segments[segments.length - 1] ?? '',
-  }
 }
 
 export interface DocumentFormatInfo {
@@ -350,12 +336,15 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
             }
           }
 
-          const { folderSegments, leafName } = splitWorkspaceFilePath(target.fileName)
-          const fileName = leafName
+          let parsedPath: ReturnType<typeof parseRelativeWorkspaceFileCreatePath>
+          try {
+            parsedPath = parseRelativeWorkspaceFileCreatePath(target.fileName)
+          } catch (error) {
+            return { success: false, message: getErrorMessage(error, 'Invalid file path') }
+          }
+          const { folderSegments, fileName } = parsedPath
           const content = normalized.content ?? ''
           const explicitType = normalized.contentType
-          const fileNameValidationError = validateFlatWorkspaceFileName(target.fileName)
-          if (fileNameValidationError) return { success: false, message: fileNameValidationError }
 
           try {
             await admitCreateWorkspaceFile(principal, workspaceId)
