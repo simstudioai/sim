@@ -35,7 +35,7 @@ const EXCEL_MIME_TYPE = 'application/vnd.openxmlformats-officedocument.spreadshe
 function createSchemaProbeParams(
   tool: ToolConfig,
   includeOptional: boolean,
-  adversarialStrings = false
+  adversarialPathStrings = false
 ) {
   const params: Record<string, unknown> = {
     _context: PROBE_CONTEXT,
@@ -59,7 +59,7 @@ function createSchemaProbeParams(
     else if (schema.type === 'json') value = includeOptional ? [{ id: 'item-probe' }] : {}
     else if (schema.type === 'number') value = 1
     else if (schema.type === 'boolean') value = includeOptional
-    else if (adversarialStrings) value = '../probe?next=/api'
+    else if (adversarialPathStrings) value = '../probe?next=/api'
     else value = name.toLowerCase().includes('id') ? 'id-probe' : 'probe'
 
     if (value !== undefined) params[name] = value

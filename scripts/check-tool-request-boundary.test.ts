@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest'
 import { auditToolRequestTrust } from './check-tool-request-boundary'
 
 const PARAM_TEMPLATE_EXPRESSION = '$' + '{params.id}'
+const INPUT_TEMPLATE_EXPRESSION = '$' + '{input.id}'
+const DESTRUCTURED_TEMPLATE_EXPRESSION = '$' + '{id}'
+const ENCODED_TEMPLATE_EXPRESSION = '$' + '{encodeURIComponent(params.id)}'
 
 function auditRequest(request: string) {
   return auditToolRequestTrust(`
@@ -76,6 +79,46 @@ describe('tool request trust audit', () => {
   it('accepts an encoded concatenated internal path parameter', () => {
     const audit = auditRequest(
       "internal: true, url: (params) => '/api/tools/' + encodeURIComponent(params.id)"
+    )
+
+    expect(audit.violations).toEqual([])
+  })
+
+  it('rejects an unencoded path parameter with a renamed callback binding', () => {
+    const audit = auditRequest(
+      `internal: true, url: (input) => \`/api/tools/${INPUT_TEMPLATE_EXPRESSION}\``
+    )
+
+    expect(audit.violations[0]?.reason).toBe('unsafe-internal-path-interpolation')
+  })
+
+  it('rejects an unencoded destructured callback binding', () => {
+    const audit = auditRequest(
+      `internal: true, url: ({ id }) => \`/api/tools/${DESTRUCTURED_TEMPLATE_EXPRESSION}\``
+    )
+
+    expect(audit.violations[0]?.reason).toBe('unsafe-internal-path-interpolation')
+  })
+
+  it('rejects an unencoded template nested inside a concatenation', () => {
+    const audit = auditRequest(
+      `internal: true, url: (params) => '/api/tools/' + \`${PARAM_TEMPLATE_EXPRESSION}\``
+    )
+
+    expect(audit.violations[0]?.reason).toBe('unsafe-internal-path-interpolation')
+  })
+
+  it('accepts an encoded template nested inside a concatenation', () => {
+    const audit = auditRequest(
+      `internal: true, url: (params) => '/api/tools/' + \`${ENCODED_TEMPLATE_EXPRESSION}\``
+    )
+
+    expect(audit.violations).toEqual([])
+  })
+
+  it('allows a raw query value after a nested encoded path template', () => {
+    const audit = auditRequest(
+      `internal: true, url: (params) => '/api/tools/' + \`${ENCODED_TEMPLATE_EXPRESSION}?query=\` + params.query`
     )
 
     expect(audit.violations).toEqual([])

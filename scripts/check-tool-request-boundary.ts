@@ -274,10 +274,67 @@ function functionContainsExternalRoute(fn: SyntaxNode): boolean {
   return found
 }
 
-function containsParamsReference(expression: SyntaxNode): boolean {
+function collectBindingIdentifiers(pattern: SyntaxNode, bindings: Set<string>): void {
+  const current = unwrapExpression(pattern)
+  if (current.type === 'Identifier' && typeof current.name === 'string') {
+    bindings.add(current.name)
+    return
+  }
+  if (current.type === 'AssignmentPattern' && isSyntaxNode(current.left)) {
+    collectBindingIdentifiers(current.left, bindings)
+    return
+  }
+  if (current.type === 'RestElement' && isSyntaxNode(current.argument)) {
+    collectBindingIdentifiers(current.argument, bindings)
+    return
+  }
+  if (current.type === 'TSParameterProperty' && isSyntaxNode(current.parameter)) {
+    collectBindingIdentifiers(current.parameter, bindings)
+    return
+  }
+  if (current.type === 'ObjectPattern' && Array.isArray(current.properties)) {
+    for (const property of current.properties) {
+      if (!isSyntaxNode(property)) continue
+      if (property.type === 'RestElement' && isSyntaxNode(property.argument)) {
+        collectBindingIdentifiers(property.argument, bindings)
+      } else if (property.type === 'ObjectProperty' && isSyntaxNode(property.value)) {
+        collectBindingIdentifiers(property.value, bindings)
+      }
+    }
+    return
+  }
+  if (current.type === 'ArrayPattern' && Array.isArray(current.elements)) {
+    for (const element of current.elements) {
+      if (isSyntaxNode(element)) collectBindingIdentifiers(element, bindings)
+    }
+  }
+}
+
+function getFunctionParameterBindings(fn: SyntaxNode): Set<string> {
+  const bindings = new Set<string>()
+  const current = unwrapExpression(fn)
+  if (!Array.isArray(current.params)) return bindings
+  for (const param of current.params) {
+    if (isSyntaxNode(param)) collectBindingIdentifiers(param, bindings)
+  }
+  return bindings
+}
+
+function containsParameterReference(
+  expression: SyntaxNode,
+  parameterBindings: ReadonlySet<string>
+): boolean {
   const current = unwrapExpression(expression)
-  if (current.type === 'Identifier' && current.name === 'params') return true
-  return getChildNodes(current).some((child) => containsParamsReference(child))
+  if (
+    current.type === 'Identifier' &&
+    typeof current.name === 'string' &&
+    parameterBindings.has(current.name)
+  ) {
+    return true
+  }
+  return getChildNodes(current).some((child) =>
+    containsParameterReference(child, parameterBindings)
+  )
 }
 
 function isEncodedPathExpression(expression: SyntaxNode): boolean {
@@ -303,8 +360,48 @@ function getConcatenationParts(expression: SyntaxNode): SyntaxNode[] {
   return [...getConcatenationParts(current.left), ...getConcatenationParts(current.right)]
 }
 
+function templateElementContainsQuery(element: unknown): boolean {
+  if (!isSyntaxNode(element)) return false
+  const value = element.value
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    (('cooked' in value && typeof value.cooked === 'string' && value.cooked.includes('?')) ||
+      ('raw' in value && typeof value.raw === 'string' && value.raw.includes('?')))
+  )
+}
+
+function inspectTemplatePathExpressions(
+  template: SyntaxNode,
+  parameterBindings: ReadonlySet<string>,
+  initialQueryStarted = false
+): { queryStarted: boolean; unsafe: boolean } {
+  if (!Array.isArray(template.quasis) || !Array.isArray(template.expressions)) {
+    return { queryStarted: initialQueryStarted, unsafe: false }
+  }
+
+  let queryStarted = initialQueryStarted
+  for (let index = 0; index < template.expressions.length; index++) {
+    if (templateElementContainsQuery(template.quasis[index])) queryStarted = true
+    const expression = template.expressions[index]
+    if (
+      !queryStarted &&
+      isSyntaxNode(expression) &&
+      containsParameterReference(expression, parameterBindings) &&
+      !isEncodedPathExpression(expression)
+    ) {
+      return { queryStarted, unsafe: true }
+    }
+  }
+  if (templateElementContainsQuery(template.quasis[template.expressions.length])) {
+    queryStarted = true
+  }
+  return { queryStarted, unsafe: false }
+}
+
 function functionContainsUnsafeInternalPathInterpolation(fn: SyntaxNode): boolean {
   const current = unwrapExpression(fn)
+  const parameterBindings = getFunctionParameterBindings(current)
   let found = false
 
   const visit = (node: SyntaxNode) => {
@@ -316,12 +413,25 @@ function functionContainsUnsafeInternalPathInterpolation(fn: SyntaxNode): boolea
     ) {
       let queryStarted = false
       for (const part of getConcatenationParts(node)) {
+        const currentPart = unwrapExpression(part)
+        if (currentPart.type === 'TemplateLiteral') {
+          const inspected = inspectTemplatePathExpressions(
+            currentPart,
+            parameterBindings,
+            queryStarted
+          )
+          if (inspected.unsafe) {
+            found = true
+            return
+          }
+          queryStarted = inspected.queryStarted
+          continue
+        }
         const prefix = getStringPrefix(part)
         if (prefix?.includes('?')) queryStarted = true
         if (
           !queryStarted &&
-          unwrapExpression(part).type !== 'TemplateLiteral' &&
-          containsParamsReference(part) &&
+          containsParameterReference(part, parameterBindings) &&
           !isEncodedPathExpression(part)
         ) {
           found = true
@@ -337,32 +447,9 @@ function functionContainsUnsafeInternalPathInterpolation(fn: SyntaxNode): boolea
       isSyntaxNode(node.quasis[0]) &&
       getStringPrefix(node)?.startsWith('/api/')
     ) {
-      let queryStarted = false
-      for (let index = 0; index < node.expressions.length; index++) {
-        const quasi = node.quasis[index]
-        if (isSyntaxNode(quasi)) {
-          const value = quasi.value
-          if (
-            typeof value === 'object' &&
-            value !== null &&
-            (('cooked' in value &&
-              typeof value.cooked === 'string' &&
-              value.cooked.includes('?')) ||
-              ('raw' in value && typeof value.raw === 'string' && value.raw.includes('?')))
-          ) {
-            queryStarted = true
-          }
-        }
-        const expression = node.expressions[index]
-        if (
-          !queryStarted &&
-          isSyntaxNode(expression) &&
-          containsParamsReference(expression) &&
-          !isEncodedPathExpression(expression)
-        ) {
-          found = true
-          return
-        }
+      if (inspectTemplatePathExpressions(node, parameterBindings).unsafe) {
+        found = true
+        return
       }
     }
     for (const child of getChildNodes(node)) visit(child)
