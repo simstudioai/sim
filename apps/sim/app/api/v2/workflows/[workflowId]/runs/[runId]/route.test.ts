@@ -198,6 +198,32 @@ describe('v2 run detail and cancel adapters', () => {
     )
   })
 
+  /**
+   * The contract has always said `includeFileBase64` requires `includeOutput`,
+   * and the read honours it: files are projected inside the `includeOutput`
+   * branch alone. Nothing enforced it, so the flag parsed, was accepted, and
+   * was then dropped — a `200` carrying no files and no reason why.
+   */
+  it('rejects inlining files without asking for the output they hang off', async () => {
+    const response = await callStatus('?includeFileBase64=true')
+
+    expect(response.status).toBe(400)
+    expect((await response.json()).error.message).toContain('includeOutput')
+    expect(mocks.readRun).not.toHaveBeenCalled()
+  })
+
+  it('rejects a ceiling for an inlining that was never requested', async () => {
+    const response = await callStatus('?base64MaxBytes=4096')
+
+    expect(response.status).toBe(400)
+    expect(mocks.readRun).not.toHaveBeenCalled()
+  })
+
+  /** Explicitly declining the inlining is not a request for it. */
+  it('accepts includeFileBase64=false on its own', async () => {
+    expect((await callStatus('?includeFileBase64=false')).status).toBe(200)
+  })
+
   it('rejects a base64MaxBytes above the inline ceiling', async () => {
     const response = await callStatus(
       `?includeOutput=true&includeFileBase64=true&base64MaxBytes=${64 * 1024 * 1024}`

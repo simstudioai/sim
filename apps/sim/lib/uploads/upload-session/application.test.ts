@@ -11,6 +11,11 @@ const mocks = vi.hoisted(() => ({
   getOwnedSession: vi.fn(),
   getPrincipalSession: vi.fn(),
   reauthorizeWorkspacePurpose: vi.fn(),
+  getWorkspaceFile: vi.fn(),
+}))
+
+vi.mock('@/lib/uploads/contexts/workspace', () => ({
+  getWorkspaceFile: mocks.getWorkspaceFile,
 }))
 
 vi.mock('@/lib/uploads/upload-session/service', () => ({
@@ -91,7 +96,7 @@ describe('upload session application', () => {
    * workspace permission rather than trusting the session lookup alone.
    */
   it('re-authorizes a session read against the read operation', async () => {
-    const session = await readWorkspaceUploadSession(principal, {
+    const { session } = await readWorkspaceUploadSession(principal, {
       uploadId: 'upload-1',
       workspaceId: 'workspace-1',
       uploadToken: 'upload-token',
@@ -103,6 +108,97 @@ describe('upload session application', () => {
       expect.objectContaining({ id: 'upload-1' }),
       expect.objectContaining({ id: 'files.upload.read', minimumRole: 'read' })
     )
+  })
+
+  /**
+   * The resource documents `file` as the registered file after finalization,
+   * and a caller polling a transfer it lost track of is exactly who needs it —
+   * it is the only way to learn the id the upload produced without having held
+   * the `complete` response. The read answered `null` unconditionally, so that
+   * caller could see a session reach `completed` and still never learn what it
+   * had created.
+   */
+  it('returns the registered file once the session has completed', async () => {
+    const completed = { ...workspaceUploadSession(), status: 'completed' as const, completedFileId: 'file-1' }
+    mocks.getOwnedSession.mockResolvedValue(completed)
+    mocks.getPrincipalSession.mockResolvedValue(completed)
+    mocks.getWorkspaceFile.mockResolvedValue({ id: 'file-1', name: 'file.txt' })
+
+    const { file } = await readWorkspaceUploadSession(principal, {
+      uploadId: 'upload-1',
+      workspaceId: 'workspace-1',
+      uploadToken: 'upload-token',
+    })
+
+    expect(file).toEqual({ id: 'file-1', name: 'file.txt' })
+    expect(mocks.getWorkspaceFile).toHaveBeenCalledWith('workspace-1', 'file-1', {
+      throwOnError: true,
+    })
+  })
+
+  it('does not look for a file before finalization completes', async () => {
+    const { file } = await readWorkspaceUploadSession(principal, {
+      uploadId: 'upload-1',
+      workspaceId: 'workspace-1',
+      uploadToken: 'upload-token',
+    })
+
+    expect(file).toBeNull()
+    expect(mocks.getWorkspaceFile).not.toHaveBeenCalled()
+  })
+
+  /**
+   * `getWorkspaceFile` logs and returns null on a read failure unless told
+   * otherwise, which would report a finalized upload as fileless to the one
+   * caller polling to learn what it created — and they would stop, believing
+   * there was nothing. A failed read is not the same answer as no file.
+   */
+  it('surfaces a failed file read instead of reporting the upload fileless', async () => {
+    const completed = { ...workspaceUploadSession(), status: 'completed' as const, completedFileId: 'file-1' }
+    mocks.getOwnedSession.mockResolvedValue(completed)
+    mocks.getPrincipalSession.mockResolvedValue(completed)
+    mocks.getWorkspaceFile.mockRejectedValue(new Error('connection terminated'))
+
+    await expect(
+      readWorkspaceUploadSession(principal, {
+        uploadId: 'upload-1',
+        workspaceId: 'workspace-1',
+        uploadToken: 'upload-token',
+      })
+    ).rejects.toThrow('connection terminated')
+  })
+
+  it('reads the completed file with throwOnError so a fault cannot read as absence', async () => {
+    const completed = { ...workspaceUploadSession(), status: 'completed' as const, completedFileId: 'file-1' }
+    mocks.getOwnedSession.mockResolvedValue(completed)
+    mocks.getPrincipalSession.mockResolvedValue(completed)
+    mocks.getWorkspaceFile.mockResolvedValue({ id: 'file-1', name: 'file.txt' })
+
+    await readWorkspaceUploadSession(principal, {
+      uploadId: 'upload-1',
+      workspaceId: 'workspace-1',
+      uploadToken: 'upload-token',
+    })
+
+    expect(mocks.getWorkspaceFile).toHaveBeenCalledWith('workspace-1', 'file-1', {
+      throwOnError: true,
+    })
+  })
+
+  /** A completed session whose file was since deleted has nothing to address. */
+  it('answers null when the completed file is gone', async () => {
+    const gone = { ...workspaceUploadSession(), status: 'completed' as const, completedFileId: 'file-1' }
+    mocks.getOwnedSession.mockResolvedValue(gone)
+    mocks.getPrincipalSession.mockResolvedValue(gone)
+    mocks.getWorkspaceFile.mockResolvedValue(null)
+
+    const { file } = await readWorkspaceUploadSession(principal, {
+      uploadId: 'upload-1',
+      workspaceId: 'workspace-1',
+      uploadToken: 'upload-token',
+    })
+
+    expect(file).toBeNull()
   })
 
   it('does not return a session whose re-authorization fails', async () => {

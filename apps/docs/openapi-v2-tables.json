@@ -9964,7 +9964,18 @@
                 "description": "Workflow groups the dispatch runs."
               },
               "rowIds": {
-                "description": "Explicit rows the dispatch targets; absent means every eligible row.",
+                "description": "Explicit rows the dispatch targets. Absent means it was given no row list and walks every eligible row, narrowed by `filtered` and `excludeRowIds` when either is present.",
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "filtered": {
+                "description": "Present and true when a stored filter narrows which rows run. The filter itself is not published: it is held compiled, in a different grammar from the predicate the request was written in. Absent means no filter narrows the dispatch — which, with no `rowIds` and no `excludeRowIds`, is what means every eligible row.",
+                "type": "boolean"
+              },
+              "excludeRowIds": {
+                "description": "Rows the walk skips. Independent of `filtered`: a dispatch may exclude rows from a filtered set or from every eligible row. Never present alongside `rowIds`, which the run rejects and the walk would ignore.",
                 "type": "array",
                 "items": {
                   "type": "string"

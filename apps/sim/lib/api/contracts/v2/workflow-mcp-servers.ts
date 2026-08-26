@@ -352,7 +352,13 @@ export const v2ListWorkflowMcpServersContract = defineRouteContract({
   query: v2ListWorkflowMcpServersQuerySchema,
   response: {
     mode: 'json',
-    schema: v2CursorListResponse(v2WorkflowMcpServerListItemSchema),
+    schema: v2CursorListResponse(v2WorkflowMcpServerListItemSchema).extend({
+      toolNamesTruncated: z
+        .boolean()
+        .describe(
+          "Whether `toolCount` and `toolNames` under-report. The names are gathered for the whole page under one ceiling, so a page whose servers publish more tools than that ceiling between them reports only part of each server's inventory. Read `GET /api/v2/workflow-mcp-servers/{serverId}/tools` for one server's inventory and check that response's own `truncated`, which reports the same ceiling applied to a single server — only an untruncated response is the authoritative set. Unrelated to `nextCursor`, which is how this list says there are further servers."
+        ),
+    }),
   },
 })
 
@@ -408,7 +414,13 @@ export const v2ListWorkflowMcpToolsContract = defineRouteContract({
   params: v2WorkflowMcpServerParamsSchema,
   response: {
     mode: 'json',
-    schema: v2CursorListResponse(v2WorkflowMcpToolListItemSchema, { paged: false }),
+    schema: v2CursorListResponse(v2WorkflowMcpToolListItemSchema, { paged: false }).extend({
+      truncated: z
+        .boolean()
+        .describe(
+          'Whether this inventory was cut short by the server-side ceiling on how many tools one response may carry. `nextCursor` is null either way — this list takes no `cursor`, so a truncated set cannot be paged past and this flag is the only way to tell a partial inventory from a complete one. A reconciling caller must not treat a truncated set as the full published inventory.'
+        ),
+    }),
   },
 })
 

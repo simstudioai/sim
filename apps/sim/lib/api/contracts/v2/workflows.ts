@@ -1821,6 +1821,27 @@ export const v2GetWorkflowRunContract = defineRouteContract({
         ),
     })
     .strict()
+    /**
+     * `includeFileBase64` is documented as requiring `includeOutput`, and the
+     * read honours that: file projection happens inside the `includeOutput`
+     * branch alone. Nothing enforced it, so asking for base64 without output
+     * parsed, was accepted, and was then dropped — the response came back `200`
+     * carrying no files and nothing to say why. `base64MaxBytes` rides on the
+     * same projection and was ignored the same way. Rejecting names the missing
+     * flag instead, matching `GET /billing/logs`, which refuses a window bound
+     * its period will not read rather than answering over a different one.
+     */
+    .superRefine((query, ctx) => {
+      if (query.includeOutput) return
+      for (const field of ['includeFileBase64', 'base64MaxBytes'] as const) {
+        if (query[field] === undefined || query[field] === false) continue
+        ctx.addIssue({
+          code: 'custom',
+          message: `${field} is only accepted with includeOutput=true; without it the run's files are never projected`,
+          path: [field],
+        })
+      }
+    })
     .meta({
       id: 'GetWorkflowRunQuery',
       title: 'Get workflow run query',

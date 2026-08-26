@@ -28,6 +28,7 @@ vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
 
 import { NoWorkspaceAccessError } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { ArchiveError } from '@/lib/uploads/archive'
 import { POST } from '@/app/api/v2/files/[fileId]/unzip/route'
 
 const WORKSPACE_ID = '6fc7631d-88cd-46f8-9f0a-d4764daef7f8'
@@ -164,5 +165,38 @@ describe('POST /api/v2/files/[fileId]/unzip', () => {
     const response = await POST(unzipRequest(), context)
 
     expect(response.status).toBe(400)
+  })
+
+  /**
+   * The cases above all raise `OrchestrationError`, which every v2 policy
+   * already renders — but the extraction use case does not: a payload it cannot
+   * parse or that busts a cap raises `ArchiveError`, and with no arm for that
+   * class the route answered `500`. The internal extract route beside it has
+   * mapped these all along, so the two disagreed about whose fault a bad
+   * archive was.
+   */
+  it('renders a malformed archive as 400 rather than a server fault', async () => {
+    mocks.extract.mockRejectedValueOnce(
+      new ArchiveError(
+        'invalid',
+        'Not a valid .zip archive — its central directory could not be parsed.'
+      )
+    )
+
+    const response = await POST(unzipRequest(), context)
+
+    expect(response.status).toBe(400)
+    expect((await response.json()).error.message).toContain('valid .zip archive')
+  })
+
+  it('renders an over-cap archive as 413 rather than a server fault', async () => {
+    mocks.extract.mockRejectedValueOnce(
+      new ArchiveError('too_many_entries', 'Archive has 1001 files; the maximum is 1000.')
+    )
+
+    const response = await POST(unzipRequest(), context)
+
+    expect(response.status).toBe(413)
+    expect((await response.json()).error.message).toContain('maximum is 1000')
   })
 })

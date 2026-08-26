@@ -603,6 +603,43 @@ describe('path-keyed bulk table selections', () => {
   })
 
   /**
+   * The published `deleted` is keyed the way the caller addressed the batch, so
+   * on this route a folder's id is replaced by its display path. The audit must
+   * not inherit that: `FOLDER_DELETED.resourceId` recorded `/Sales` here while
+   * `DELETE /api/folders/[id]` recorded the canonical id for the same action,
+   * leaving two spellings of one resource that no query could join.
+   */
+  it('audits a path-keyed folder deletion by its canonical id', async () => {
+    mocks.bulkDeleteFolders.mockResolvedValue({
+      succeeded: [{ id: 'folder-1', name: 'Sales' }],
+      failed: [],
+      folderCount: 1,
+      resourceCount: 0,
+    })
+    mocks.planFolderSelection.mockResolvedValue({
+      selected: [{ id: 'folder-1', name: 'Sales' }],
+      notFound: [],
+      contained: [],
+      covered: new Set<string>(),
+    })
+
+    const result = await bulkDeleteTables.execute({
+      principal,
+      input: {
+        assertedWorkspaceId: 'workspace-1',
+        folderKeying: 'paths' as const,
+        tableIds: [],
+        folders: ['/Sales'],
+      },
+    })
+
+    expect(result.deleted).toEqual([{ kind: 'folder', id: '/Sales', name: '/Sales' }])
+    expect(result.auditedDeletions).toEqual([
+      expect.objectContaining({ kind: 'folder', id: 'folder-1' }),
+    ])
+  })
+
+  /**
    * One index for the whole batch: `resolveTableFolderPath` takes the folder
    * tree lock per call, so per-path resolution would be a lock acquisition each.
    */

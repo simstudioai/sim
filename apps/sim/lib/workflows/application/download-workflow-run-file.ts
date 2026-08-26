@@ -35,14 +35,32 @@ export interface DownloadWorkflowRunFileResult {
   contentLength: number
 }
 
-async function executeDownloadWorkflowRunFile({
-  context,
-  input,
-}: AuthorizedWorkspaceUseCaseContext<
-  typeof workflowOperations.downloadRunFile,
-  DownloadWorkflowRunFileInput,
-  ActiveWorkflowRunApplicationContext
->): Promise<DownloadWorkflowRunFileResult> {
+interface DownloadWorkflowRunFileContext extends ActiveWorkflowRunApplicationContext {
+  file: UserFile
+}
+
+/**
+ * Resolves the run *and* the file the path addresses.
+ *
+ * The file lookup belongs here rather than in `execute` because `HEAD` runs the
+ * authorization phase alone: with the lookup downstream of it, `HEAD` answered
+ * a success for a file id no `GET` on the same path would ever serve, so the
+ * two disagreed about whether the resource existed. Resolving the addressed
+ * sub-resource while loading canonical context is what `readTableDispatch` does
+ * with its dispatch id, and it makes both verbs answer from one decision.
+ *
+ * Every failure keeps the shared message: an unknown run, an unknown file, a
+ * file belonging to another run, and a concealed cross-tenant denial are all
+ * `File not found`, so ordering this before the authorization phase separates
+ * none of them.
+ */
+async function resolveDownloadWorkflowRunFileContext(
+  input: DownloadWorkflowRunFileInput
+): Promise<DownloadWorkflowRunFileContext> {
+  const context = await resolveActiveWorkflowRunApplicationContext({
+    runId: input.runId,
+    assertedWorkflowId: input.workflowId,
+  })
   const runFiles = await getWorkflowRunFiles({
     workflowId: context.workflowId,
     runId: context.runId,
@@ -67,6 +85,18 @@ async function executeDownloadWorkflowRunFile({
    */
   const file = runFiles.filesById.get(input.fileId)
   if (!file) throw new OrchestrationError('not_found', FILE_NOT_FOUND_MESSAGE)
+
+  return { ...context, file }
+}
+
+async function executeDownloadWorkflowRunFile({
+  context,
+}: AuthorizedWorkspaceUseCaseContext<
+  typeof workflowOperations.downloadRunFile,
+  DownloadWorkflowRunFileInput,
+  DownloadWorkflowRunFileContext
+>): Promise<DownloadWorkflowRunFileResult> {
+  const { file } = context
 
   /**
    * The storage context is inferred from the key rather than read off the
@@ -110,10 +140,7 @@ async function executeDownloadWorkflowRunFile({
 export const downloadWorkflowRunFileStream = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.downloadRunFile,
   resolveContext: ({ input }: { input: DownloadWorkflowRunFileInput }) =>
-    resolveActiveWorkflowRunApplicationContext({
-      runId: input.runId,
-      assertedWorkflowId: input.workflowId,
-    }),
+    resolveDownloadWorkflowRunFileContext(input),
   execute: executeDownloadWorkflowRunFile,
   projectAudit: ({ context, result }) => ({
     action: AuditAction.FILE_DOWNLOADED,

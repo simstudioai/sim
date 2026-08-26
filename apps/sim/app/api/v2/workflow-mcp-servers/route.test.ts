@@ -164,7 +164,44 @@ describe('/api/v2/workflow-mcp-servers', () => {
           },
         ],
         nextCursor: null,
+        toolNamesTruncated: false,
       })
+    })
+
+    /**
+     * `toolNames` and `toolCount` are gathered for the whole page under one
+     * ceiling, so a page that trips it under-reports every server's inventory.
+     * Publishing only the names left a reconciling caller reading a partial set
+     * as the complete one.
+     */
+    it('says when the tool names it published were cut short', async () => {
+      mocks.listToolNames.mockResolvedValue({
+        namesByServerId: new Map([['wfmcp-1', ['triage_ticket']]]),
+        truncated: true,
+      })
+
+      expect((await (await get()).json()).toolNamesTruncated).toBe(true)
+    })
+
+    /**
+     * A further page is what `nextCursor` says. Folding it into the truncation
+     * flag would report an incomplete inventory on every page with a successor,
+     * which is most of them.
+     */
+    it('does not call a paged inventory truncated', async () => {
+      mocks.listServers.mockResolvedValue({
+        data: [serverRow()],
+        nextCursorKeys: [{ key: 'createdAt', value: '2026-06-12T10:30:00.000Z' }],
+      })
+      mocks.listToolNames.mockResolvedValue({
+        namesByServerId: new Map([['wfmcp-1', ['triage_ticket']]]),
+        truncated: false,
+      })
+
+      const body = await (await get()).json()
+
+      expect(body.nextCursor).not.toBeNull()
+      expect(body.toolNamesTruncated).toBe(false)
     })
 
     /**
