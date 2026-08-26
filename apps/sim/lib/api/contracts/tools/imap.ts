@@ -21,12 +21,25 @@ export const imapMailboxesResponseSchema = z.object({
 })
 
 export const imapMailboxesBodySchema = z.object({
+  workflowId: z.string().min(1, 'Workflow ID is required'),
   host: z.string().min(1),
-  port: z.preprocess((value) => value || 993, z.coerce.number().int().positive()),
-  secure: z.preprocess((value) => value ?? true, z.boolean()),
+  port: z.union([z.string(), z.number()]).optional(),
+  secure: z.union([z.string(), z.boolean()]).optional(),
   username: z.string().min(1),
   password: z.string().min(1),
 })
+
+export const resolvedImapMailboxesBodySchema = imapMailboxesBodySchema
+  .omit({ workflowId: true })
+  .extend({
+    port: z.preprocess((value) => value || 993, z.coerce.number().int().positive()),
+    secure: z.preprocess((value) => {
+      if (value === undefined || value === null || value === '') return true
+      if (value === 'true') return true
+      if (value === 'false') return false
+      return value
+    }, z.boolean()),
+  })
 
 export const imapMailboxesContract = defineRouteContract({
   method: 'POST',

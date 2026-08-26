@@ -2,20 +2,25 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { ImapFlow } from 'imapflow'
 import { type NextRequest, NextResponse } from 'next/server'
-import { imapMailboxesContract } from '@/lib/api/contracts/tools/imap'
+import {
+  imapMailboxesContract,
+  resolvedImapMailboxesBodySchema,
+} from '@/lib/api/contracts/tools/imap'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
-import { getSession } from '@/lib/auth'
 import { validateDatabaseHost } from '@/lib/core/security/input-validation.server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import {
+  authenticateSelectorRequest,
+  resolveAuthorizedSelectorContext,
+} from '@/lib/selectors/server/resolve-authorized-context'
 
 const logger = createLogger('ImapMailboxesAPI')
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
-  const session = await getSession()
-  if (!session?.user?.id) {
-    return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 })
+  const authentication = await authenticateSelectorRequest(request)
+  if (!authentication.ok) {
+    return NextResponse.json({ error: authentication.error }, { status: authentication.status })
   }
-
   const parsed = await parseRequest(
     imapMailboxesContract,
     request,
@@ -40,10 +45,29 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
   )
   if (!parsed.success) return parsed.response
-  const { host, port, secure, username, password } = parsed.data.body
+  const { workflowId, ...context } = parsed.data.body
+
+  const resolution = await resolveAuthorizedSelectorContext(authentication.principal, {
+    workflowId,
+    context,
+  })
+  if (!resolution.ok) {
+    return NextResponse.json(
+      { success: false, message: resolution.error },
+      { status: resolution.status }
+    )
+  }
+  const validated = resolvedImapMailboxesBodySchema.safeParse(resolution.context)
+  if (!validated.success) {
+    return NextResponse.json(
+      { success: false, message: 'Invalid IMAP selector configuration' },
+      { status: 400 }
+    )
+  }
+  const { host, port, secure, username, password } = validated.data
 
   try {
-    const hostValidation = await validateDatabaseHost(host, 'host')
+    const hostValidation = await validateDatabaseHost(host, 'host', { logFailureDetails: false })
     if (!hostValidation.isValid) {
       return NextResponse.json({ success: false, message: hostValidation.error }, { status: 400 })
     }
@@ -94,17 +118,18 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       throw error
     }
   } catch (error) {
-    const errorMessage = getErrorMessage(error, 'Unknown error')
-    logger.error('Error fetching IMAP mailboxes:', errorMessage)
-
-    let userMessage = 'Failed to connect to IMAP server. Please check your connection settings.'
-    if (
-      errorMessage.includes('AUTHENTICATIONFAILED') ||
-      errorMessage.includes('Invalid credentials')
-    ) {
-      userMessage = 'Invalid username or password. For Gmail, use an App Password.'
-    }
-
-    return NextResponse.json({ success: false, message: userMessage }, { status: 500 })
+    logger.error('Error fetching IMAP mailboxes')
+    const errorMessage = getErrorMessage(error)
+    const userMessage =
+      errorMessage.includes('AUTHENTICATIONFAILED') || errorMessage.includes('Invalid credentials')
+        ? 'Invalid username or password. For Gmail, use an App Password.'
+        : 'Failed to connect to IMAP server. Please check your connection settings.'
+    return NextResponse.json(
+      {
+        success: false,
+        message: userMessage,
+      },
+      { status: 500 }
+    )
   }
 })

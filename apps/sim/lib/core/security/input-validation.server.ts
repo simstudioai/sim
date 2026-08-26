@@ -194,7 +194,8 @@ export async function validateAndPinProxyUrl(
  */
 export async function validateDatabaseHost(
   host: string | null | undefined,
-  paramName = 'host'
+  paramName = 'host',
+  options: { logFailureDetails?: boolean } = {}
 ): Promise<AsyncValidationResult> {
   if (!host) {
     return { isValid: false, error: `${paramName} is required` }
@@ -217,11 +218,13 @@ export async function validateDatabaseHost(
       : addresses.find((candidate) => isPrivateIp(candidate))
 
     if (blockedAddress !== undefined) {
-      logger.warn('Database host resolves to blocked IP address', {
-        paramName,
-        hostname: host,
-        resolvedIP: blockedAddress,
-      })
+      if (options.logFailureDetails !== false) {
+        logger.warn('Database host resolves to blocked IP address', {
+          paramName,
+          hostname: host,
+          resolvedIP: blockedAddress,
+        })
+      }
       return {
         isValid: false,
         error: `${paramName} resolves to a blocked IP address`,
@@ -234,11 +237,13 @@ export async function validateDatabaseHost(
       originalHostname: host,
     }
   } catch (error) {
-    logger.warn('DNS lookup failed for database host', {
-      paramName,
-      hostname: host,
-      error: toError(error).message,
-    })
+    if (options.logFailureDetails !== false) {
+      logger.warn('DNS lookup failed for database host', {
+        paramName,
+        hostname: host,
+        error: toError(error).message,
+      })
+    }
     return {
       isValid: false,
       error: `${paramName} hostname could not be resolved`,
