@@ -1,6 +1,7 @@
 import { Command } from 'commander'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { V2_OPERATIONS } from '../generated/v2-api'
+import { SimApiError } from '../http/client'
 import { buildProgram } from '../program'
 import { assertNoReservedProgramFlags, buildGeneratedCommands } from './build'
 import { kebab } from './derive'
@@ -19,6 +20,10 @@ import type { OperationSpec } from './types'
  * catch that class of bug.
  */
 
+/** `SimClient.requireWorkspace`'s message, verbatim, for the mocked client. */
+const NO_WORKSPACE_FOR_PROFILE =
+  'No workspace set for profile "default". Pass --workspace, or run: sim configure --profile default --set-workspace <id>'
+
 const { mockRequest, output, profileState } = vi.hoisted(() => ({
   mockRequest: vi.fn(),
   output: { format: 'json' },
@@ -30,7 +35,9 @@ vi.mock('../context', () => ({
     client: {
       request: mockRequest,
       requireWorkspace: () => {
-        if (!profileState.workspaceId) throw new Error('workspace required')
+        // The client's own wording, so a command that skips `requireWorkspace`
+        // is visible here rather than passing on a placeholder.
+        if (!profileState.workspaceId) throw new Error(NO_WORKSPACE_FOR_PROFILE)
         return profileState.workspaceId
       },
     },
@@ -192,6 +199,40 @@ describe('commands parsed through commander', () => {
     expect(program().commands.some((command) => command.name() === 'folders')).toBe(false)
   })
 
+  /**
+   * ~59 v2 operations refuse a workspace API key. The restriction is stated in
+   * the OpenAPI description, and before the generator carried it into the
+   * operation table `--help` advertised them identically to their
+   * workspace-key-capable siblings — the caller met the rule as a `403` only
+   * after the request had gone out.
+   */
+  describe('a command whose operation refuses a workspace API key', () => {
+    it('says so in the help line it falls back to from the spec summary', () => {
+      expect(commandAt('secrets', 'list').helpInformation()).toContain(
+        '(personal API key required)'
+      )
+      expect(commandAt('mcp-servers', 'tools', 'list').description()).toContain(
+        '(personal API key required)'
+      )
+    })
+
+    /**
+     * The suffix goes after the whole `describe ?? summary ?? METHOD path`
+     * chain. Folding it into the summary branch would drop it on every command
+     * carrying a hand-written `describe`, which is most of the restricted ones.
+     */
+    it('says so on a command carrying a hand-written describe', () => {
+      expect(commandAt('workflows', 'undeploy').description()).toBe(
+        'Take a workflow out of deployment (personal API key required)'
+      )
+    })
+
+    it('leaves a workspace-key-capable sibling unsuffixed', () => {
+      expect(commandAt('mcp-servers', 'list').description()).not.toContain('personal API key')
+      expect(commandAt('workflows', 'list').description()).not.toContain('personal API key')
+    })
+  })
+
   it('describes generated resource and sub-resource groups', () => {
     expect(commandAt('tables').description()).toBe('Manage tables')
     expect(commandAt('tables', 'rows').description()).toBe('Manage table rows')
@@ -295,7 +336,7 @@ describe('commands parsed through commander', () => {
     profileState.workspaceId = null
     const [, unconfiguredAccountOptions] = await run(['billing', 'status', '--all-workspaces'])
     expect(unconfiguredAccountOptions.query).toEqual({})
-    await expect(run(['billing', 'status'])).rejects.toThrow('workspace required')
+    await expect(run(['billing', 'status'])).rejects.toThrow(NO_WORKSPACE_FOR_PROFILE)
     profileState.workspaceId = 'ws_local'
     await expect(
       run(['--workspace', 'ws_other', 'billing', 'status', '--all-workspaces'])
@@ -541,10 +582,12 @@ describe('commands parsed through commander', () => {
     })
     expect(workspacePath).toBe('/api/v2/workspaces/ws_local')
 
+    // The workspace arrives as a path parameter here, and used to skip
+    // `requireWorkspace` — so this one precondition had two wordings, and the
+    // one these two commands printed never named the profile.
     profileState.workspaceId = null
-    await expect(run(['workspace', 'get'])).rejects.toThrow(
-      'No workspace set. Pass --workspace, or run: sim configure --set-workspace <id>'
-    )
+    await expect(run(['workspace', 'get'])).rejects.toThrow(NO_WORKSPACE_FOR_PROFILE)
+    await expect(run(['workspace', 'members'])).rejects.toThrow(NO_WORKSPACE_FOR_PROFILE)
     profileState.workspaceId = 'ws_local'
 
     const membersHelp = commandAt('workspaces', 'members').helpInformation()
@@ -553,6 +596,27 @@ describe('commands parsed through commander', () => {
     const [membersPath, membersOptions] = await run(['workspace', 'members'])
     expect(membersPath).toBe('/api/v2/workspaces/ws_local/members')
     expect(membersOptions.query).toEqual({ limit: 100, cursor: null })
+  })
+
+  /**
+   * The server names its own fields — right for an OpenAPI reader, untypeable
+   * here: `drop includeJobRuns` names no flag this CLI has.
+   */
+  it('restates a rejected wire field as the flag the caller typed', async () => {
+    mockRequest.mockReset()
+    mockRequest.mockRejectedValue(
+      new SimApiError(
+        'sortBy: only "startedAt" can order job runs; drop includeJobRuns or sort by "startedAt"',
+        400,
+        'BAD_REQUEST',
+        [{ path: ['sortBy'], message: 'sortBy: drop includeJobRuns' }]
+      )
+    )
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+
+    await expect(
+      program().parseAsync(['node', 'sim', 'logs', 'list', '--include-job-runs'])
+    ).rejects.toThrow(/drop --include-job-runs/)
   })
 
   it('comma-joins a repeated list flag', async () => {
@@ -638,6 +702,9 @@ describe('commands parsed through commander', () => {
     const help = commandAt('files', 'move').helpInformation()
     expect(help).toContain('--file-ids <value...>')
     expect(help).toMatch(/space-separated.*@path.*one\s+value\s+per\s+line/s)
+    // The escape a value that genuinely starts with `@` needs, said where the
+    // caller reads before typing rather than only after the read fails.
+    expect(help).toContain('@@')
   })
 
   it('advertises the file-content encoding choices', () => {
@@ -1125,6 +1192,44 @@ describe('pagination slot', () => {
     expect(stderr.mock.calls.map(([chunk]) => String(chunk)).join('')).toContain('fetched 1')
   })
 
+  /**
+   * `parseInt` truncated the value before it was checked, so a fractional was
+   * silently floored and `-0.5` parsed to `-0` — not less than zero, and then
+   * equal to the `0` that means "everything". Both walked a workspace the
+   * caller had asked to cap.
+   */
+  it('refuses a limit that is not a whole number, before any request', async () => {
+    for (const value of ['-0.5', '-0.9', '3.9', '1.5', '', ' ']) {
+      mockRequest.mockReset()
+      vi.spyOn(console, 'log').mockImplementation(() => {})
+      await expect(
+        program().parseAsync(['node', 'sim', 'files', 'list', '--limit', value])
+      ).rejects.toThrow(/--limit must be a whole number of 0 or more/)
+      expect(mockRequest).not.toHaveBeenCalled()
+    }
+  })
+
+  it('reads a limit the way the caller wrote it', async () => {
+    mockRequest.mockReset()
+    mockRequest.mockResolvedValue({
+      data: Array.from({ length: 20 }, (_row, index) => ({ id: `f_${index}` })),
+      nextCursor: null,
+    })
+    const printed: string[] = []
+    vi.spyOn(console, 'log').mockImplementation((line: string) => {
+      printed.push(line)
+    })
+
+    // `parseInt(…, 10)` stopped at the `x` and read 0, which meant everything.
+    await program().parseAsync(['node', 'sim', 'files', 'list', '--limit', '0x10'])
+    expect(JSON.parse(printed[0])).toHaveLength(16)
+
+    printed.length = 0
+    // And stopped at the `e`, reading a single row where 1000 was asked for.
+    await program().parseAsync(['node', 'sim', 'files', 'list', '--limit', '1e3'])
+    expect(JSON.parse(printed[0])).toHaveLength(20)
+  })
+
   it('uses a valid per-page size for unlimited and large totals', async () => {
     for (const requested of ['0', '250']) {
       mockRequest.mockReset()
@@ -1339,6 +1444,101 @@ describe('bodies and fields the generator cannot flatten', () => {
         ).rejects.toThrow(/--max-rows must be a whole number between 1 and 1,000,000/)
         expect(mockRequest).not.toHaveBeenCalled()
       }
+    })
+  })
+
+  /**
+   * The pager's flag was handed to any field named `limit`, so a bulk mutation
+   * that does not paginate carried commander's `100` default into its body: a
+   * filter matching 250 rows deleted 100, exited 0, and said nothing.
+   */
+  describe('a row cap on a mutation that does not paginate', () => {
+    const FILTER = '{"all":[{"field":"status","op":"eq","value":"active"}]}'
+
+    it('leaves the cap off the wire entirely when it is not typed', async () => {
+      const [, omitted] = await run([
+        'tables',
+        'rows',
+        'batch-delete',
+        'tbl_1',
+        '--filter',
+        FILTER,
+        '--yes',
+      ])
+      expect(omitted.body).not.toHaveProperty('limit')
+
+      const [, updated] = await run([
+        'tables',
+        'rows',
+        'batch-update',
+        'tbl_1',
+        '--filter',
+        FILTER,
+        '--data',
+        '{"status":"done"}',
+        '--yes',
+      ])
+      expect(updated.body).not.toHaveProperty('limit')
+    })
+
+    it('sends the cap the caller typed, unrounded by the pager', async () => {
+      const [, given] = await run([
+        'tables',
+        'rows',
+        'batch-delete',
+        'tbl_1',
+        '--filter',
+        FILTER,
+        '--limit',
+        '3',
+        '--yes',
+      ])
+      expect(given.body).toMatchObject({ limit: 3 })
+    })
+
+    it('documents the cap as the contract states it, without the pager default', () => {
+      for (const command of ['batch-delete', 'batch-update']) {
+        const help = commandAt('tables', 'rows', command).helpInformation()
+        expect(help).toContain('Maximum matching rows to')
+        expect(help).not.toContain('Maximum items to return')
+        expect(help).not.toMatch(/--limit[^\n]*default/)
+        // The help block wraps, so the sentence is matched across the break.
+        expect(help).toMatch(/caps a --filter\s+match only/)
+        expect(help).toMatch(/0\s+is not accepted/)
+      }
+    })
+
+    it('refuses a cap typed alongside the id list that supersedes it', async () => {
+      await expect(
+        run([
+          'tables',
+          'rows',
+          'batch-delete',
+          'tbl_1',
+          '--row',
+          'row_1',
+          'row_2',
+          '--limit',
+          '1',
+          '--yes',
+        ])
+      ).rejects.toThrow(/--limit caps a --filter match .* --row list; pass one, not both/)
+      expect(mockRequest).not.toHaveBeenCalled()
+    })
+
+    it('still deletes an explicit id list, with no cap on the wire', async () => {
+      const [, options] = await run([
+        'tables',
+        'rows',
+        'batch-delete',
+        'tbl_1',
+        '--row',
+        'row_1',
+        'row_2',
+        '--yes',
+      ])
+      expect(options.body).toMatchObject({ rowIds: ['row_1', 'row_2'] })
+      expect(options.body).not.toHaveProperty('limit')
     })
   })
 
@@ -1713,5 +1913,124 @@ describe('the billing ledger a key can see', () => {
 
     expect(lines).toHaveLength(1)
     expect(lines[0].split('\t')[2]).toBe('workflow')
+  })
+})
+
+describe('a list that is not the whole answer', () => {
+  /** Captures stderr for one invocation, in one output format. */
+  async function noteFor(
+    format: 'table' | 'text' | 'json',
+    argv: string[],
+    response: unknown
+  ): Promise<string> {
+    const errors: string[] = []
+    const written = vi
+      .spyOn(process.stderr, 'write')
+      .mockImplementation((chunk: string | Uint8Array) => {
+        errors.push(String(chunk))
+        return true
+      })
+    output.format = format
+    try {
+      await run(argv, response)
+    } finally {
+      output.format = 'json'
+      written.mockRestore()
+    }
+    return errors.join('')
+  }
+
+  /**
+   * `sim tools list` answered 100 rows of 4708 with exit 0 and an empty
+   * stderr, in every format — a clipped inventory that read as the inventory.
+   */
+  it('says so, once, on stderr, in every format', async () => {
+    for (const format of ['table', 'text', 'json'] as const) {
+      const note = await noteFor(format, ['tools', 'list', '--limit', '2'], {
+        data: [{ id: 'a' }, { id: 'b' }],
+        nextCursor: 'c1',
+      })
+
+      expect(note).toContain('more results exist')
+      expect(note).toContain('--limit 0')
+    }
+  })
+
+  it('says nothing when the list is complete', async () => {
+    const note = await noteFor('table', ['tools', 'list', '--limit', '2'], {
+      data: [{ id: 'a' }, { id: 'b' }],
+      nextCursor: null,
+    })
+
+    expect(note).not.toContain('more results exist')
+  })
+
+  /**
+   * The server clips an inventory itself and says so on the envelope, which the
+   * CLI dropped: `--output json` prints `data` alone, so a reconciling caller
+   * could not tell a clipped list from a complete one.
+   */
+  it('carries a truncation the server stated on the envelope', async () => {
+    const paged = await noteFor('json', ['workflow-mcp-servers', 'list'], {
+      data: [{ id: 'srv_1' }],
+      nextCursor: null,
+      toolNamesTruncated: true,
+    })
+    expect(paged).toContain('tool names truncated')
+
+    const unpaged = await noteFor('json', ['workflow-mcp-servers', 'tools', 'list', 'srv_1'], {
+      data: [{ toolName: 't' }],
+      nextCursor: null,
+      truncated: true,
+    })
+    expect(unpaged).toContain('truncated')
+  })
+
+  it('says nothing when the server states the list is whole', async () => {
+    const note = await noteFor('json', ['workflow-mcp-servers', 'list'], {
+      data: [{ id: 'srv_1' }],
+      nextCursor: null,
+      toolNamesTruncated: false,
+    })
+
+    expect(note).not.toContain('truncated')
+  })
+
+  /** A flag raised on a later page is the same fact, and used to be lost. */
+  it('carries a truncation stated on a page after the first', async () => {
+    mockRequest.mockReset()
+    mockRequest
+      .mockResolvedValueOnce({ data: [{ id: 'a' }], nextCursor: 'c1', toolNamesTruncated: false })
+      .mockResolvedValueOnce({ data: [{ id: 'b' }], nextCursor: null, toolNamesTruncated: true })
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+    const errors: string[] = []
+    const written = vi
+      .spyOn(process.stderr, 'write')
+      .mockImplementation((chunk: string | Uint8Array) => {
+        errors.push(String(chunk))
+        return true
+      })
+
+    try {
+      await program().parseAsync(['node', 'sim', 'workflow-mcp-servers', 'list', '--limit', '0'])
+    } finally {
+      written.mockRestore()
+    }
+
+    expect(errors.join('')).toContain('tool names truncated')
+  })
+
+  it('leaves the rows on stdout exactly as they were', async () => {
+    const lines: string[] = []
+    mockRequest.mockReset()
+    mockRequest.mockResolvedValue({ data: [{ id: 'a' }, { id: 'b' }], nextCursor: 'c1' })
+    vi.spyOn(console, 'log').mockImplementation((line: string) => {
+      lines.push(line)
+    })
+    vi.spyOn(process.stderr, 'write').mockReturnValue(true)
+
+    await program().parseAsync(['node', 'sim', 'tools', 'list', '--limit', '2'])
+
+    expect(JSON.parse(lines.join('\n'))).toEqual([{ id: 'a' }, { id: 'b' }])
   })
 })

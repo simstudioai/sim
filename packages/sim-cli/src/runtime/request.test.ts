@@ -114,6 +114,12 @@ describe('buildRequest', () => {
     })
   })
 
+  it('still sends an empty body string, which is how a description is cleared', () => {
+    expect(buildRequest('updateWorkflow', ['wf_1'], { description: '' }, WORKSPACE).body).toEqual({
+      description: '',
+    })
+  })
+
   describe('failures, all before any network call', () => {
     it('rejects a missing path arg', () => {
       expect(() => buildRequest('getTable', [], {}, WORKSPACE)).toThrow('Missing <tableId>')
@@ -122,6 +128,20 @@ describe('buildRequest', () => {
     it('rejects a profile-backed workspace path when no workspace is configured', () => {
       expect(() => buildRequest('getWorkspace', [], {}, null)).toThrow(
         'No workspace set. Pass --workspace, or run: sim configure --set-workspace <id>'
+      )
+    })
+
+    /**
+     * The URL builder skips an empty value, so a blank filter was not sent and
+     * not refused either — `logs list --status ""` came back unfiltered while
+     * `--workflow ""` (a list flag) had always been an error.
+     */
+    it('rejects an empty query filter the way it rejects an empty list entry', () => {
+      expect(() => buildRequest('listLogs', [], { status: '' }, WORKSPACE)).toThrow(
+        '--status cannot be empty'
+      )
+      expect(() => buildRequest('listLogs', [], { workflowName: '' }, WORKSPACE)).toThrow(
+        '--workflow-name cannot be empty'
       )
     })
 
@@ -239,6 +259,17 @@ describe('repeated flags encode per the field kind, not uniformly', () => {
     expect(() => coerce('@urgent', { kind: 'array' }, { list: true }, 'tag')).toThrow(
       /cannot read urgent/
     )
+  })
+
+  /**
+   * `--allowed-emails @example.org` is the natural spelling of a domain
+   * pattern, and the `@` convention reads it as a file. The escape existed; the
+   * failure never mentioned it.
+   */
+  it('points at @@ when an @ list value names no file', () => {
+    expect(() =>
+      coerce(['@example.org'], { kind: 'array' }, { list: true }, 'allowed-emails')
+    ).toThrow(/cannot read example\.org.*write @@example\.org/s)
   })
 
   it('rejects empty lines in a list file', () => {

@@ -47,6 +47,12 @@ function at(row: unknown, path: string): unknown {
  * decode is shown as it arrived rather than dropped — the point is to show the
  * name, and a malformed one is still the truth about what the server holds.
  *
+ * A segment whose decoded name contains the separator is shown in wire form for
+ * the same reason: decoding it would print a root folder named `a/b` as
+ * `/a/b`, byte-identical to a folder `b` nested under `a` — and the printed
+ * path is what people paste back, so `folders delete` addressed the other
+ * folder. Rendering must not manufacture structure that is not there.
+ *
  * Callers must reach this only from a `table` or `text` rendering path — the
  * hand-written `ls` builds its own columns and so decodes through here directly.
  * `json` and `yaml` render from the raw payload so that switching format never
@@ -57,7 +63,8 @@ export function decodeFolderPath(value: string): string {
     .split('/')
     .map((segment) => {
       try {
-        return decodeURIComponent(segment)
+        const decoded = decodeURIComponent(segment)
+        return decoded.includes('/') ? segment : decoded
       } catch {
         return segment
       }
@@ -278,9 +285,12 @@ export function renderPage(
   format: OutputFormat,
   rows: unknown[],
   spec: CommandSpec,
-  envelope?: unknown
+  envelope?: unknown,
+  options: { truncated?: boolean } = {}
 ): void {
   writePageNote(spec, envelope)
+  writeEnvelopeTruncation(envelope)
+  writeCursorTruncation(rows.length, options.truncated === true)
   printList(
     format,
     rows,
@@ -304,14 +314,93 @@ function writePageNote(spec: CommandSpec, envelope: unknown): void {
   process.stderr.write(chalk.dim(`${spec.pageNote.label}: ${String(value)}\n`))
 }
 
+/**
+ * Envelope fields that state the server itself clipped the list.
+ *
+ * Matched by shape rather than listed per command, so a flag added to a route
+ * envelope is surfaced the day it lands: the CLI accumulates the rows and
+ * prints those, so an envelope field reaches no output format on its own.
+ */
+const TRUNCATION_FLAG = /^truncated$|Truncated$/
+
+/** The envelope flags a page raised, in the spelling the wire used. */
+function truncationFlags(envelope: unknown): string[] {
+  if (!envelope || typeof envelope !== 'object' || Array.isArray(envelope)) return []
+  return Object.entries(envelope)
+    .filter(([key, value]) => value === true && TRUNCATION_FLAG.test(key))
+    .map(([key]) => key)
+}
+
+/**
+ * Carries a truncation stated on any page, not only the first.
+ *
+ * The envelope is otherwise the first page's, because a fact about the whole
+ * query (billing's `scope`) is stated once — but `toolNamesTruncated` is
+ * computed per page, so a walk that clipped on page 7 would have said nothing.
+ */
+export function foldPageEnvelope(current: unknown, page: unknown): unknown {
+  if (current === undefined) return page
+  const raised = truncationFlags(page)
+  if (raised.length === 0 || !current || typeof current !== 'object') return current
+  return {
+    ...(current as Record<string, unknown>),
+    ...Object.fromEntries(raised.map((flag) => [flag, true])),
+  }
+}
+
+/** `toolNamesTruncated` as a reader says it. */
+function spellOut(flag: string): string {
+  return flag
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .toLowerCase()
+    .trim()
+}
+
+/**
+ * States a server-side clip once, on stderr, in every format.
+ *
+ * The API answers a clipped inventory with a flag on the envelope, and the CLI
+ * printed only `data` — so `--output json` could not tell a complete list from
+ * one the server cut short. stdout stays byte-for-byte the rows, for the reason
+ * `writePageNote` gives.
+ */
+function writeEnvelopeTruncation(envelope: unknown): void {
+  for (const flag of truncationFlags(envelope)) {
+    process.stderr.write(
+      chalk.dim(`${spellOut(flag)}: the server clipped this list, so it is incomplete\n`)
+    )
+  }
+}
+
+/**
+ * States that the walk stopped at `--limit` while more pages remained.
+ *
+ * `sim tools list` answered 100 of 4708 rows with an exit code of 0 and nothing
+ * on stderr, in every format — indistinguishable from a complete inventory.
+ * Said whenever a cursor survives, including when the caller set a small limit:
+ * the answer is incomplete either way, and the caller who capped it is the one
+ * most likely to reuse the result as if it were whole.
+ */
+function writeCursorTruncation(count: number, truncated: boolean): void {
+  if (!truncated) return
+  process.stderr.write(
+    chalk.dim(`showing the first ${count}; more results exist — re-run with --limit 0 for all\n`)
+  )
+}
+
 /** Renders one non-paginated operation result according to its CLI contract. */
 export function renderResult(
   operation: V2OperationName,
   format: OutputFormat,
   raw: unknown,
   spec: CommandSpec,
-  options: RenderResultOptions = {}
+  options: RenderResultOptions = {},
+  envelope?: unknown
 ): void {
+  // Before any branch: the flag lives on the envelope `execute` unwraps one
+  // line before rendering, and states a fact about the payload below it.
+  writeEnvelopeTruncation(envelope)
+
   if (spec.document) {
     printDocument(format, raw)
     return

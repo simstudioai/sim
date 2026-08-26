@@ -341,6 +341,98 @@ describe('a bulk call that changed nothing', () => {
   })
 })
 
+const BULK_UPDATE_CHUNKS: OperationSpec = {
+  method: 'PATCH',
+  path: '/api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]/chunks',
+  pathParams: ['knowledgeBaseId', 'documentId'],
+  body: {},
+}
+
+const ADD_WORKSPACE_FILES: OperationSpec = {
+  method: 'POST',
+  path: '/api/v2/knowledge/[knowledgeBaseId]/documents/from-workspace-files',
+  pathParams: ['knowledgeBaseId'],
+  body: {},
+}
+
+/**
+ * Two more endpoints that answer `200` having done nothing at all: a chunk
+ * update where no listed id matched, and an indexing call where every file
+ * failed. Both printed their own report of the miss and exited `0`, so
+ * `sim … && next-step` ran on the strength of a no-op.
+ */
+describe('a bulk call that touched nothing', () => {
+  function updateChunks(flags: Record<string, unknown>) {
+    const host = new Command('leaf')
+    return executeOperation('bulkUpdateKnowledgeChunks', {}, BULK_UPDATE_CHUNKS, [
+      'kb_1',
+      'doc_1',
+      flags,
+      host,
+    ])
+  }
+
+  function indexFiles(flags: Record<string, unknown>) {
+    const host = new Command('leaf')
+    return executeOperation('addWorkspaceFilesToKnowledgeBase', {}, ADD_WORKSPACE_FILES, [
+      'kb_1',
+      flags,
+      host,
+    ])
+  }
+
+  const CHUNK_FLAGS = { operation: 'disable', chunk: ['c1', 'c2'] }
+
+  it('fails the process when no listed chunk matched', async () => {
+    request.mockResolvedValue({
+      data: {
+        operation: 'disable',
+        processed: 0,
+        errors: ['No matching chunks found to disable: c1, c2'],
+      },
+    })
+
+    await expect(updateChunks(CHUNK_FLAGS)).rejects.toThrow(
+      /No matching chunks found to disable: c1, c2/
+    )
+  })
+
+  it('succeeds on a partial chunk update', async () => {
+    request.mockResolvedValue({
+      data: { operation: 'disable', processed: 1, errors: ['No matching chunks found: c2'] },
+    })
+
+    await expect(updateChunks(CHUNK_FLAGS)).resolves.toBeUndefined()
+  })
+
+  it('fails the process when every file failed to index', async () => {
+    request.mockResolvedValue({
+      data: { knowledgeBaseId: 'kb_1', added: [], failed: ['wf_1', 'wf_2'] },
+    })
+
+    await expect(indexFiles({ file: ['wf_1', 'wf_2'] })).rejects.toThrow(
+      /Indexed nothing: none of the 2 requested files were added\./
+    )
+  })
+
+  it('succeeds on a partial index', async () => {
+    request.mockResolvedValue({
+      data: { knowledgeBaseId: 'kb_1', added: [{ documentId: 'd_1' }], failed: ['wf_2'] },
+    })
+
+    await expect(indexFiles({ file: ['wf_1', 'wf_2'] })).resolves.toBeUndefined()
+  })
+
+  /** Nothing asked for is nothing missed — an empty answer is still an answer. */
+  it('succeeds when nothing was asked for', async () => {
+    request.mockResolvedValue({ data: { knowledgeBaseId: 'kb_1', added: [], failed: [] } })
+    await expect(indexFiles({ file: ['wf_1'] })).resolves.toBeUndefined()
+
+    request.mockResolvedValue({ data: { operation: 'disable', processed: 0, errors: [] } })
+    await expect(updateChunks({ operation: 'disable', chunk: [] })).resolves.toBeUndefined()
+  })
+})
+
 /**
  * Response shapes that report a bulk outcome in the payload rather than in the
  * status code, and are deliberately left unchecked.
@@ -379,10 +471,17 @@ describe('the bulk-outcome check covers every operation shaped like one', () => 
     const shaped = Object.keys(V2_OPERATIONS).filter((operation) => {
       const declared = responseTypeSource(source, operation)
       if (/^\s+deletedItems\s*:/m.test(declared)) return true
+      // Two more spellings of the same shape, both of which the first pass of
+      // this detector missed: `added`/`failed` (indexing workspace files) and
+      // `processed`/`errors` (a bulk chunk update).
+      if (/^\s+processed\s*:/m.test(declared) && /^\s+errors\s*:/m.test(declared)) return true
+      if (/^\s+added\s*:/m.test(declared) && /^\s+failed\s*:/m.test(declared)) return true
       return /^\s+moved\s*:/m.test(declared) && /^\s+failed\s*:/m.test(declared)
     })
 
-    expect(shaped.length).toBeGreaterThan(0)
+    expect(shaped).toEqual(
+      expect.arrayContaining(['addWorkspaceFilesToKnowledgeBase', 'bulkUpdateKnowledgeChunks'])
+    )
     for (const operation of shaped) {
       if (UNCHECKED_BULK_OUTCOMES.has(operation)) continue
       expect(Object.keys(BULK_OUTCOME_CHECKS)).toContain(operation)

@@ -4,7 +4,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { CLI_CONTRACT } from '../contract/commands'
 import type { CommandSpec } from '../contract/types'
-import { renderPage, renderResult } from './result'
+import { encodeFolderPath } from './request'
+import { decodeFolderPath, renderPage, renderResult } from './result'
 
 let logged: string[]
 
@@ -244,8 +245,66 @@ describe('folder paths are shown by name, but piped in wire form', () => {
     expect(logged).toContain(`web URL\t${webUrl}`)
   })
 
+  /**
+   * `%2F` is the one escape that must survive display: decoding it prints a
+   * root folder named `a/enc` exactly like a folder `enc` nested under `a`, and
+   * the path people paste back then resolves to the other folder.
+   */
+  describe('a folder whose own name contains the separator', () => {
+    const slashNamed = [
+      {
+        path: '/cli-test-a%2Fenc',
+        name: 'cli-test-a/enc',
+        parentPath: '/',
+        updatedAt: '2026-08-17T20:35:38.478Z',
+      },
+    ]
+    const nested = [
+      {
+        path: '/cli-test-a/enc',
+        name: 'enc',
+        parentPath: '/cli-test-a',
+        updatedAt: '2026-08-17T20:35:38.478Z',
+      },
+    ]
+
+    it('keeps it distinguishable from a genuinely nested folder in the table', () => {
+      renderPage('table', slashNamed, spec)
+      const [, slashRow] = tableLines()
+      logged = []
+      renderPage('table', nested, spec)
+      const [, nestedRow] = tableLines()
+
+      expect(slashRow).toContain('%2F')
+      expect(slashRow.split(/\s{2,}/)[0]).not.toBe(nestedRow.split(/\s{2,}/)[0])
+    })
+
+    it('prints the wire form in text, which is what a script pipes back', () => {
+      renderPage('text', slashNamed, spec)
+      expect(logged[0].split('\t')[0]).toBe('/cli-test-a%2Fenc')
+    })
+
+    it('survives a round trip back through the encoder', () => {
+      expect(encodeFolderPath(decodeFolderPath('/cli-test-a%2Fenc'))).toBe('/cli-test-a%2Fenc')
+    })
+  })
+
   it('shows an undecodable path as it arrived rather than dropping it', () => {
     renderPage('text', [{ path: '/100%zz', name: 'x', parentPath: '/', updatedAt: null }], spec)
     expect(logged[0].split('\t')[0]).toBe('/100%zz')
+  })
+})
+
+describe('a truncation note', () => {
+  /** The note is stderr in every format; stdout stays exactly the rows. */
+  it('leaves the machine formats a bare array', () => {
+    const stderr = vi.spyOn(process.stderr, 'write').mockReturnValue(true)
+
+    renderPage('json', [{ id: 'a' }], {}, { truncated: true }, { truncated: true })
+
+    expect(JSON.parse(logged.join('\n'))).toEqual([{ id: 'a' }])
+    expect(stderr.mock.calls.map(([chunk]) => String(chunk)).join('')).toContain(
+      'more results exist'
+    )
   })
 })

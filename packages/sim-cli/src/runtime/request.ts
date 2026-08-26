@@ -4,6 +4,7 @@ import type { CommandSpec, FlagSpec } from '../contract/types'
 import { V2_OPERATIONS, type V2OperationName } from '../generated/v2-api'
 import { type QueryValue, SimApiError } from '../http/client'
 import { camel, kebab } from './derive'
+import type { OperationSpec } from './types'
 
 /** One request field, as the generator describes it. */
 export interface FieldSpec {
@@ -27,6 +28,21 @@ export const PROFILE_INJECTED_FIELD = 'workspaceId'
 /** Whether this path segment comes from the active profile's workspace. */
 export function isProfileWorkspacePath(commandSpec: CommandSpec, param: string): boolean {
   return commandSpec.profileWorkspacePath === true && param === PROFILE_INJECTED_FIELD
+}
+
+/**
+ * The slot a cursor-paginated operation carries its `cursor` field in.
+ *
+ * Pagination, not the name of a field, is what makes `limit` a page size. It
+ * lives here rather than beside its reader in `execute.ts` because `options.ts`
+ * has to ask the same question while it builds the flag, and importing
+ * `execute.ts` from `options.ts` would close a module cycle — `execute.ts`
+ * already reads `DEFAULT_LIMIT` from `options.ts`.
+ */
+export function cursorSlot(operationSpec: OperationSpec): 'query' | 'body' | null {
+  if (operationSpec.query && 'cursor' in operationSpec.query) return 'query'
+  if (operationSpec.body && 'cursor' in operationSpec.body) return 'body'
+  return null
 }
 
 /** Kinds the CLI can only accept as a JSON string. */
@@ -162,6 +178,21 @@ function readStdin(): string {
  * at all, because it can only be read as a request to open a file named
  * `urgent`.
  */
+/**
+ * Points at `@@` when an `@value` names nothing on disk.
+ *
+ * `--allowed-emails @example.org` is the natural spelling of a domain pattern
+ * and reads here as a request to open a file, and "cannot read example.org"
+ * alone gives no clue the value has a literal spelling at all. Gated on ENOENT
+ * so a real file that cannot be read (EACCES, EISDIR) is not answered with
+ * advice about escaping.
+ */
+function literalAtHint(error: unknown, path: string): string {
+  return (error as NodeJS.ErrnoException)?.code === 'ENOENT'
+    ? `. To pass the literal value @${path}, write @@${path}`
+    : ''
+}
+
 export function readArgumentSource(raw: string, flagName: string): { text: string; from: string } {
   if (raw.startsWith('@@')) return { text: raw.slice(1), from: '' }
   if (!raw.startsWith('@')) return { text: raw, from: '' }
@@ -181,7 +212,10 @@ export function readArgumentSource(raw: string, flagName: string): { text: strin
   try {
     return { text: readFileSync(path, 'utf8'), from: ` (read from ${path})` }
   } catch (error) {
-    throw new SimApiError(`--${flagName} cannot read ${path}: ${(error as Error).message}`, 0)
+    throw new SimApiError(
+      `--${flagName} cannot read ${path}: ${(error as Error).message}${literalAtHint(error, path)}`,
+      0
+    )
   }
 }
 
@@ -357,6 +391,16 @@ export function coerce(raw: unknown, field: FieldSpec, flag: FlagSpec, flagName:
   return raw
 }
 
+/**
+ * The workspace precondition as stated when the profile is not at hand.
+ *
+ * `executeOperation` resolves the workspace through `SimClient.requireWorkspace`
+ * first, which names the profile and checks the API key, so this is a defensive
+ * floor rather than the wording a caller sees.
+ */
+const NO_WORKSPACE_FALLBACK =
+  'No workspace set. Pass --workspace, or run: sim configure --set-workspace <id>'
+
 export interface BuiltRequest {
   path: string
   query: Record<string, QueryValue>
@@ -417,10 +461,7 @@ export function buildRequest(
         : positional[positionalIndex++]
     if (value === undefined || value === null) {
       if (profileWorkspacePath) {
-        throw new SimApiError(
-          'No workspace set. Pass --workspace, or run: sim configure --set-workspace <id>',
-          0
-        )
+        throw new SimApiError(NO_WORKSPACE_FALLBACK, 0)
       }
       throw new SimApiError(pathFlag ? `--${flagName} is required` : `Missing <${argumentName}>`, 0)
     }
@@ -462,15 +503,26 @@ export function buildRequest(
       if (value === undefined) {
         if (descriptor.required) {
           throw new SimApiError(
-            field === PROFILE_INJECTED_FIELD
-              ? 'No workspace set. Pass --workspace, or run: sim configure --set-workspace <id>'
-              : `--${flagName} is required`,
+            field === PROFILE_INJECTED_FIELD ? NO_WORKSPACE_FALLBACK : `--${flagName} is required`,
             0
           )
         }
         // Omitted rather than sent as null: the server applies its own default,
         // and sending an explicit undefined would override it with nothing.
         continue
+      }
+
+      /**
+       * A blank filter is a mistake, and every v2 JSON route says so
+       * (`rejectBlankQueryValues`). The CLI never let one reach the wire: the
+       * URL builder skips an empty value, so `logs list --status ""` searched
+       * everything and answered `0`, a wider result set presented as an answer.
+       * Refused here, before the request, the way an empty list entry and an
+       * empty path parameter already are. Scoped to the query, because an empty
+       * body string is meaningful — it clears a description.
+       */
+      if (slot === 'query' && value === '') {
+        throw new SimApiError(`--${flagName} cannot be empty`, 0)
       }
 
       if (slot === 'query') query[field] = asQueryValue(value)
