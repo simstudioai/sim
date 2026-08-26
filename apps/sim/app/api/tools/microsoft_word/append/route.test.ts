@@ -60,6 +60,21 @@ async function docxResponse() {
   }
 }
 
+/** The `createUploadSession` response carrying the preauthenticated upload URL. */
+function uploadSessionResponse(uploadUrl = 'https://sn3302.up.1drv.com/up/session-abc') {
+  const body = { uploadUrl, expirationDateTime: '2026-01-01T00:00:00Z' }
+  return {
+    ok: true,
+    status: 200,
+    statusText: '',
+    headers: new Headers(),
+    body: null,
+    text: async () => JSON.stringify(body),
+    json: async () => body,
+    arrayBuffer: async () => new ArrayBuffer(0),
+  }
+}
+
 function preconditionFailedResponse() {
   return {
     ok: false,
@@ -88,11 +103,11 @@ beforeEach(() => {
 })
 
 describe('POST /api/tools/microsoft_word/append', () => {
-  it('uploads the edit when the document has not changed, guarded by its content tag', async () => {
+  it('writes through a conditional upload session carrying the content tag', async () => {
     mockSecureFetchWithPinnedIP
       .mockResolvedValueOnce(itemResponse('tag-1'))
       .mockResolvedValueOnce(await docxResponse())
-      .mockResolvedValueOnce(itemResponse('tag-1'))
+      .mockResolvedValueOnce(uploadSessionResponse())
       .mockResolvedValueOnce(itemResponse('tag-2'))
 
     const response = await POST(createMockRequest('POST', baseBody))
@@ -105,16 +120,26 @@ describe('POST /api/tools/microsoft_word/append', () => {
     expect(data.success).toBe(true)
     expect(data.output.updatedContent).toBe(true)
 
+    // The precondition rides on the session creation, which Graph documents as
+    // returning 412 on a mismatch.
+    const sessionCall = mockSecureFetchWithPinnedIP.mock.calls.find((call) =>
+      String(call[0]).endsWith('/createUploadSession')
+    )
+    expect(sessionCall?.[2]).toMatchObject({ method: 'POST' })
+    expect(sessionCall?.[2].headers).toMatchObject({ 'if-match': 'tag-1' })
+
+    // Bytes go to the preauthenticated URL, and must not carry the bearer token.
     const uploadCall = mockSecureFetchWithPinnedIP.mock.calls.at(-1)
+    expect(uploadCall?.[0]).toBe('https://sn3302.up.1drv.com/up/session-abc')
     expect(uploadCall?.[2]).toMatchObject({ method: 'PUT' })
-    expect(uploadCall?.[2].headers).toMatchObject({ 'if-match': 'tag-1' })
+    expect(uploadCall?.[2].headers.Authorization).toBeUndefined()
   })
 
-  it('refuses to overwrite a document that changed while the edit was in flight', async () => {
+  it('refuses to overwrite when the service rejects the precondition', async () => {
     mockSecureFetchWithPinnedIP
       .mockResolvedValueOnce(itemResponse('tag-1'))
       .mockResolvedValueOnce(await docxResponse())
-      .mockResolvedValueOnce(itemResponse('tag-2'))
+      .mockResolvedValueOnce(preconditionFailedResponse())
 
     const response = await POST(createMockRequest('POST', baseBody))
 
@@ -123,10 +148,19 @@ describe('POST /api/tools/microsoft_word/append', () => {
     expect(data.success).toBe(false)
     expect(data.error).toMatch(/no other change was overwritten/)
 
-    // The conflict is detected before the PUT, so nothing was written.
+    // The session was refused, so no bytes were ever sent.
     expect(mockSecureFetchWithPinnedIP.mock.calls.some((call) => call[2]?.method === 'PUT')).toBe(
       false
     )
+  })
+
+  it('maps a malformed document ID to a client error, not a server error', async () => {
+    const response = await POST(createMockRequest('POST', { ...baseBody, documentId: 'bad/../id' }))
+
+    expect(response.status).toBe(400)
+    const data = (await response.json()) as { success: boolean; error: string }
+    expect(data.success).toBe(false)
+    expect(mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
   })
 
   it('refuses to write Word bytes over a drive item that is not a .docx', async () => {
@@ -201,41 +235,11 @@ describe('POST /api/tools/microsoft_word/append', () => {
     )
   })
 
-  it('refuses to write when the re-read reports no version', async () => {
-    const untagged = {
-      id: 'doc-abc',
-      name: 'notes.docx',
-      file: {
-        mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      },
-    }
+  it('surfaces a conflict raised when the bytes commit', async () => {
     mockSecureFetchWithPinnedIP
       .mockResolvedValueOnce(itemResponse('tag-1'))
       .mockResolvedValueOnce(await docxResponse())
-      .mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        statusText: '',
-        headers: new Headers(),
-        body: null,
-        text: async () => JSON.stringify(untagged),
-        json: async () => untagged,
-        arrayBuffer: async () => new ArrayBuffer(0),
-      })
-
-    const response = await POST(createMockRequest('POST', baseBody))
-
-    expect(response.status).toBe(409)
-    expect(mockSecureFetchWithPinnedIP.mock.calls.some((call) => call[2]?.method === 'PUT')).toBe(
-      false
-    )
-  })
-
-  it('surfaces a 412 from the upload precondition as the same conflict', async () => {
-    mockSecureFetchWithPinnedIP
-      .mockResolvedValueOnce(itemResponse('tag-1'))
-      .mockResolvedValueOnce(await docxResponse())
-      .mockResolvedValueOnce(itemResponse('tag-1'))
+      .mockResolvedValueOnce(uploadSessionResponse())
       .mockResolvedValueOnce(preconditionFailedResponse())
 
     const response = await POST(createMockRequest('POST', baseBody))

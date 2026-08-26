@@ -3,6 +3,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { NextResponse } from 'next/server'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { GraphRequestError } from '@/lib/microsoft-word/graph.server'
+import { MicrosoftWordInputError } from '@/tools/microsoft_word/errors'
 
 /**
  * Projects an error raised while talking to Microsoft Graph — or while building
@@ -20,7 +21,11 @@ export function microsoftWordErrorResponse(
   logger.error(`[${requestId}] Microsoft Word ${operation} failed`, { error: message })
 
   const status =
-    error instanceof GraphRequestError ? error.status : isPayloadSizeLimitError(error) ? 413 : 500
+    error instanceof GraphRequestError || error instanceof MicrosoftWordInputError
+      ? error.status
+      : isPayloadSizeLimitError(error)
+        ? 413
+        : 500
 
   return NextResponse.json({ success: false, error: message }, { status })
 }

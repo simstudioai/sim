@@ -119,11 +119,18 @@ const MAX_DOCUMENT_CONTENT_LENGTH = 2_000_000
 const MAX_REPLACEMENTS_LENGTH = 200_000
 
 /** Whether a string parses as a JSON object (not an array or scalar). */
-function isJsonObjectString(value: string): boolean {
+function isPlaceholderMap(value: unknown): boolean {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
+  // A blank placeholder would match at every position in the document, so it is
+  // rejected here rather than failing mid-rewrite with an unattributable 500.
+  return Object.keys(value).every((key) => key.trim().length > 0)
+}
+
+/** Whether a string parses as a JSON object whose keys are all usable placeholders. */
+function isPlaceholderMapString(value: string): boolean {
   if (!value.trim()) return true
   try {
-    const parsed: unknown = JSON.parse(value)
-    return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
+    return isPlaceholderMap(JSON.parse(value))
   } catch {
     return false
   }
@@ -140,10 +147,12 @@ const wordReplacementsSchema = z
     z
       .string()
       .refine(
-        isJsonObjectString,
-        'Placeholder values must be a JSON object mapping each placeholder to its value'
+        isPlaceholderMapString,
+        'Placeholder values must be a JSON object mapping each non-empty placeholder to its value'
       ),
-    z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])),
+    z
+      .record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()]))
+      .refine(isPlaceholderMap, 'Every placeholder must be a non-empty string'),
   ])
   .refine(
     (value) =>
