@@ -24,8 +24,7 @@ export const v2ChatBodySchema = z.object({
     .describe('The message to send to Sim.'),
   conversationId: z
     .string()
-    .min(1, 'conversationId cannot be empty')
-    .max(128, 'conversationId cannot exceed 128 characters')
+    .uuid('conversationId must be a valid conversation id')
     .optional()
     .describe('Conversation to continue; a new one starts when omitted.'),
 })
@@ -39,7 +38,7 @@ const v2ChatTokensSchema = z.object({
 export const v2ChatResultSchema = z.object({
   content: z.string(),
   conversationId: z.string(),
-  model: z.string(),
+  model: z.string().describe('Identifier of the agent that produced the reply.'),
   tokens: v2ChatTokensSchema.optional(),
   // untyped-response: cost is a billing passthrough whose shape is owned by the copilot backend, not this contract
   cost: z.unknown().optional(),

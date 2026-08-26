@@ -13,6 +13,7 @@ import {
 } from '@/lib/api/server/routes'
 import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
 import { chatOperations } from '@/lib/copilot/application/operations'
+import { resolveOrCreateChat } from '@/lib/copilot/chat/lifecycle'
 import { buildIntegrationToolSchemas } from '@/lib/copilot/chat/payload'
 import { generateWorkspaceContext } from '@/lib/copilot/chat/workspace-context'
 import { computeWorkspaceEntitlements } from '@/lib/copilot/entitlements'
@@ -48,6 +49,12 @@ const CHAT_STREAM_VALUE = 'ndjson'
 const CHAT_HEARTBEAT_INTERVAL_MS = 15_000
 const ndjsonEncoder = new TextEncoder()
 
+/**
+ * Model recorded on conversations this route creates, matching the model the
+ * web Chat surface stamps on a new mothership conversation.
+ */
+const V2_CHAT_MODEL = 'claude-opus-4-8'
+
 function isAbortError(error: unknown): boolean {
   return error instanceof Error && error.name === 'AbortError'
 }
@@ -80,7 +87,7 @@ function buildChatResultPayload(
 
   return {
     content: result.content ?? '',
-    model: 'mothership',
+    model: 'sim',
     conversationId,
     tokens: result.usage
       ? {
@@ -130,14 +137,35 @@ export const POST = withRouteHandler(
     if (!parsed.success) return parsed.response
     const { workspaceId, message, conversationId } = parsed.data.body
 
-    const chatId = conversationId || generateId()
     const messageId = generateId()
     const requestId = generateId()
-    const reqLogger = logger.withMetadata({ chatId, messageId, requestId })
+    let reqLogger = logger.withMetadata({ messageId, requestId })
 
     try {
       const workspaceAccess = await assertActiveWorkspaceAccess(workspaceId, userId)
       const userPermission = workspaceAccess.permission
+
+      // A caller-supplied conversation id is a claim, not an identity: resolve
+      // it through the same owner- and workspace-scoped loader the web Chat
+      // surface uses, and refuse every id that does not resolve with the same
+      // response so the refusal carries no information about the id. Omitting
+      // the id mints a server-issued conversation instead of trusting one.
+      const resolvedChat = await resolveOrCreateChat({
+        ...(conversationId ? { chatId: conversationId } : {}),
+        userId,
+        workspaceId,
+        model: V2_CHAT_MODEL,
+        type: 'mothership',
+      })
+      if (conversationId && !resolvedChat.chat) {
+        return v2Error('NOT_FOUND', 'Conversation not found')
+      }
+      if (!resolvedChat.chat || !resolvedChat.chatId) {
+        reqLogger.error('Failed to start a chat conversation', { userId, workspaceId })
+        return v2Error('INTERNAL_ERROR', 'Internal server error')
+      }
+      const chatId = resolvedChat.chatId
+      reqLogger = logger.withMetadata({ chatId, messageId, requestId })
       const secretMountPolicy = normalizeSecretMountPolicy(undefined)
 
       let environmentContext: CopilotEnvironmentContext | undefined

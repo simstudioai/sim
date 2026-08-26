@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMockFns, resetDbChainMock, workflowAuthzMockFns } from '@sim/testing'
+import { dbChainMockFns, resetDbChainMock, schemaMock, workflowAuthzMockFns } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -133,6 +133,54 @@ describe('lifecycle copilot chat reads (cutover to copilot_messages)', () => {
     const result = await getAccessibleCopilotChat(CHAT_ID, USER_ID)
 
     expect(result?.messages).toEqual([userMsg])
+  })
+
+  it('scopes the chat lookup to the requesting user, not the chat id alone', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([chatRow])
+    dbChainMockFns.orderBy.mockResolvedValueOnce([])
+
+    await getAccessibleCopilotChatWithMessages(CHAT_ID, USER_ID)
+
+    const predicate = dbChainMockFns.where.mock.calls[0]?.[0] as {
+      type: string
+      conditions: unknown[]
+    }
+    expect(predicate.type).toBe('and')
+    // Three conditions exactly: dropping one silently widens the lookup, so the
+    // count is asserted alongside the membership checks.
+    expect(predicate.conditions).toHaveLength(3)
+    expect(predicate.conditions).toContainEqual({
+      type: 'eq',
+      left: schemaMock.copilotChats.userId,
+      right: USER_ID,
+    })
+    expect(predicate.conditions).toContainEqual({
+      type: 'eq',
+      left: schemaMock.copilotChats.id,
+      right: CHAT_ID,
+    })
+    expect(predicate.conditions).toContainEqual({
+      type: 'isNull',
+      column: schemaMock.copilotChats.deletedAt,
+    })
+  })
+
+  it('resolveOrCreateChat scopes its existing-chat lookup to the requesting user', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([chatRow])
+    dbChainMockFns.orderBy.mockResolvedValueOnce([])
+
+    await resolveOrCreateChat({ chatId: CHAT_ID, userId: USER_ID, model: 'm' })
+
+    const predicate = dbChainMockFns.where.mock.calls[0]?.[0] as {
+      type: string
+      conditions: unknown[]
+    }
+    expect(predicate.conditions).toHaveLength(3)
+    expect(predicate.conditions).toContainEqual({
+      type: 'eq',
+      left: schemaMock.copilotChats.userId,
+      right: USER_ID,
+    })
   })
 
   it('resolveOrCreateChat returns conversationHistory from the table for an existing chat', async () => {

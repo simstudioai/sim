@@ -16,6 +16,7 @@ const {
   mockGenerateId,
   mockRequestExplicitStreamAbort,
   mockResolveBillingAttribution,
+  mockResolveOrCreateChat,
   mockRunHeadlessCopilotLifecycle,
 } = vi.hoisted(() => ({
   MockV2ApiKeyUnauthenticatedError: class MockV2ApiKeyUnauthenticatedError extends Error {},
@@ -35,6 +36,7 @@ const {
   mockCheckPreAuthRate: vi.fn(),
   mockGenerateId: vi.fn(),
   mockResolveBillingAttribution: vi.fn(),
+  mockResolveOrCreateChat: vi.fn(),
   mockRequestExplicitStreamAbort: vi.fn().mockResolvedValue(undefined),
   mockRunHeadlessCopilotLifecycle: vi.fn(),
 }))
@@ -78,6 +80,10 @@ vi.mock('@/lib/copilot/chat/workspace-context', () => ({
   generateWorkspaceContext: vi.fn().mockResolvedValue('workspace context'),
 }))
 
+vi.mock('@/lib/copilot/chat/lifecycle', () => ({
+  resolveOrCreateChat: mockResolveOrCreateChat,
+}))
+
 vi.mock('@/lib/copilot/chat/payload', () => ({
   buildIntegrationToolSchemas: vi.fn().mockResolvedValue([{ name: 'run_workflow' }]),
 }))
@@ -109,6 +115,17 @@ const personalAuth = {
   rateLimitSubjectIds: ['api-key:key-1', 'user:user-1'],
   rateLimitSubscription: null,
   keyType: 'personal',
+}
+
+/**
+ * The route never echoes the caller's string back as the conversation id: it
+ * reports whatever the owner-scoped resolver returns.
+ */
+const SERVER_ISSUED_CHAT_ID = 'chat-server-1'
+const OWNED_CONVERSATION_ID = '11111111-1111-4111-8111-111111111111'
+
+function chatRow(id: string) {
+  return { id, userId: 'user-1', workspaceId: 'workspace-1', workflowId: null, type: 'mothership' }
 }
 
 const successResult = {
@@ -144,6 +161,12 @@ describe('POST /api/v2/chat', () => {
     mockResolveBillingAttribution.mockResolvedValue(billingAttributionSnapshot)
     mockRequestExplicitStreamAbort.mockResolvedValue(undefined)
     mockRunHeadlessCopilotLifecycle.mockResolvedValue(successResult)
+    mockResolveOrCreateChat.mockResolvedValue({
+      chatId: SERVER_ISSUED_CHAT_ID,
+      chat: chatRow(SERVER_ISSUED_CHAT_ID),
+      conversationHistory: [],
+      isNew: true,
+    })
   })
 
   it('rejects a missing or invalid API key', async () => {
@@ -187,15 +210,15 @@ describe('POST /api/v2/chat', () => {
     expect(mockRunHeadlessCopilotLifecycle).not.toHaveBeenCalled()
   })
 
-  it('runs one turn and answers the reply with a generated conversation id', async () => {
+  it('runs one turn and answers the reply with a server-issued conversation id', async () => {
     const response = await callChat({ workspaceId: 'workspace-1', message: 'hi' })
 
     expect(response.status).toBe(200)
     const body = await response.json()
     expect(body.data).toEqual({
       content: 'Hello there',
-      model: 'mothership',
-      conversationId: 'generated-1',
+      model: 'sim',
+      conversationId: SERVER_ISSUED_CHAT_ID,
       tokens: { prompt: 10, completion: 5, total: 15 },
       cost: { total: 0.01 },
       toolCalls: [{ name: 'run_workflow' }],
@@ -206,7 +229,7 @@ describe('POST /api/v2/chat', () => {
       messages: [{ role: 'user', content: 'hi' }],
       userId: 'user-1',
       workspaceId: 'workspace-1',
-      chatId: 'generated-1',
+      chatId: SERVER_ISSUED_CHAT_ID,
       mode: 'agent',
       isHosted: true,
       workspaceContext: 'workspace context',
@@ -216,7 +239,7 @@ describe('POST /api/v2/chat', () => {
     expect(options).toMatchObject({
       userId: 'user-1',
       workspaceId: 'workspace-1',
-      chatId: 'generated-1',
+      chatId: SERVER_ISSUED_CHAT_ID,
       goRoute: '/api/mothership/execute',
       autoExecuteTools: true,
       interactive: false,
@@ -230,17 +253,88 @@ describe('POST /api/v2/chat', () => {
     })
   })
 
-  it('continues the conversation the caller names', async () => {
-    const response = await callChat({
-      workspaceId: 'workspace-1',
-      message: 'and then?',
-      conversationId: 'conv-9',
-    })
+  it('mints a server-issued conversation when the caller names none', async () => {
+    const response = await callChat({ workspaceId: 'workspace-1', message: 'hi' })
 
     expect(response.status).toBe(200)
     const body = await response.json()
-    expect(body.data.conversationId).toBe('conv-9')
-    expect(mockRunHeadlessCopilotLifecycle.mock.calls[0][0]).toMatchObject({ chatId: 'conv-9' })
+    expect(body.data.conversationId).toBe(SERVER_ISSUED_CHAT_ID)
+    const resolverInput = mockResolveOrCreateChat.mock.calls[0][0] as Record<string, unknown>
+    expect(Object.hasOwn(resolverInput, 'chatId')).toBe(false)
+    expect(resolverInput).toMatchObject({
+      userId: 'user-1',
+      workspaceId: 'workspace-1',
+      type: 'mothership',
+    })
+  })
+
+  it('resolves a named conversation against the calling user and workspace before continuing it', async () => {
+    mockResolveOrCreateChat.mockResolvedValue({
+      chatId: OWNED_CONVERSATION_ID,
+      chat: chatRow(OWNED_CONVERSATION_ID),
+      conversationHistory: [],
+      isNew: false,
+    })
+
+    const response = await callChat({
+      workspaceId: 'workspace-1',
+      message: 'and then?',
+      conversationId: OWNED_CONVERSATION_ID,
+    })
+
+    expect(response.status).toBe(200)
+    expect(mockResolveOrCreateChat).toHaveBeenCalledWith(
+      expect.objectContaining({
+        chatId: OWNED_CONVERSATION_ID,
+        userId: 'user-1',
+        workspaceId: 'workspace-1',
+      })
+    )
+    const body = await response.json()
+    expect(body.data.conversationId).toBe(OWNED_CONVERSATION_ID)
+    expect(mockRunHeadlessCopilotLifecycle.mock.calls[0][0]).toMatchObject({
+      chatId: OWNED_CONVERSATION_ID,
+    })
+  })
+
+  it('answers 404 and runs nothing when the resolver refuses the named conversation', async () => {
+    mockResolveOrCreateChat.mockResolvedValue({
+      chatId: OWNED_CONVERSATION_ID,
+      chat: null,
+      conversationHistory: [],
+      isNew: false,
+    })
+
+    const response = await callChat({
+      workspaceId: 'workspace-1',
+      message: 'and then?',
+      conversationId: OWNED_CONVERSATION_ID,
+    })
+
+    expect(response.status).toBe(404)
+    const body = await response.json()
+    expect(body.error.code).toBe('NOT_FOUND')
+    expect(mockResolveOrCreateChat).toHaveBeenCalledWith(
+      expect.objectContaining({
+        chatId: OWNED_CONVERSATION_ID,
+        userId: 'user-1',
+        workspaceId: 'workspace-1',
+      })
+    )
+    // No tokens may be billed against an id the caller could not be given.
+    expect(mockRunHeadlessCopilotLifecycle).not.toHaveBeenCalled()
+  })
+
+  it('rejects a malformed conversation id before resolving anything', async () => {
+    const response = await callChat({
+      workspaceId: 'workspace-1',
+      message: 'and then?',
+      conversationId: 'not-a-conversation-id',
+    })
+
+    expect(response.status).toBe(400)
+    expect(mockResolveOrCreateChat).not.toHaveBeenCalled()
+    expect(mockRunHeadlessCopilotLifecycle).not.toHaveBeenCalled()
   })
 
   it('answers a failed run as a 500 with the run error', async () => {
@@ -282,7 +376,10 @@ describe('POST /api/v2/chat', () => {
     expect(chunks.map((chunk) => chunk.content)).toEqual(['Hello', ' there'])
     const final = events.at(-1) as { type: string; data: Record<string, unknown> }
     expect(final.type).toBe('final')
-    expect(final.data).toMatchObject({ content: 'Hello there', conversationId: 'generated-1' })
+    expect(final.data).toMatchObject({
+      content: 'Hello there',
+      conversationId: SERVER_ISSUED_CHAT_ID,
+    })
   })
 
   it('ends the NDJSON stream with an error event when the run fails', async () => {
