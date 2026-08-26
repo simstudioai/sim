@@ -3,6 +3,7 @@ import type {
   IncidentioIncidentRolesUpdateResponse,
 } from '@/tools/incidentio/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const incidentRolesUpdateTool: ToolConfig<
   IncidentioIncidentRolesUpdateParams,
@@ -53,7 +54,8 @@ export const incidentRolesUpdateTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.incident.io/v2/incident_roles/${params.id.trim()}`,
+    url: (params) =>
+      `https://api.incident.io/v2/incident_roles/${safeUrlPathSegment(params.id, 'id')}`,
     method: 'PUT',
     headers: (params) => ({
       'Content-Type': 'application/json',

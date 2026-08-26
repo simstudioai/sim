@@ -1,5 +1,6 @@
 import type { SendDraftParams, SendDraftResult } from '@/tools/agentmail/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const agentmailSendDraftTool: ToolConfig<SendDraftParams, SendDraftResult> = {
   id: 'agentmail_send_draft',
@@ -30,7 +31,7 @@ export const agentmailSendDraftTool: ToolConfig<SendDraftParams, SendDraftResult
 
   request: {
     url: (params) =>
-      `https://api.agentmail.to/v0/inboxes/${params.inboxId.trim()}/drafts/${params.draftId.trim()}/send`,
+      `https://api.agentmail.to/v0/inboxes/${safeUrlPathSegment(params.inboxId, 'inboxId')}/drafts/${safeUrlPathSegment(params.draftId, 'draftId')}/send`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

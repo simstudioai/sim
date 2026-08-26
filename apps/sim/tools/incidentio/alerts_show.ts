@@ -4,6 +4,7 @@ import {
   type IncidentioAlertsShowResponse,
 } from '@/tools/incidentio/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const alertsShowTool: ToolConfig<IncidentioAlertsShowParams, IncidentioAlertsShowResponse> =
   {
@@ -28,7 +29,7 @@ export const alertsShowTool: ToolConfig<IncidentioAlertsShowParams, IncidentioAl
     },
 
     request: {
-      url: (params) => `https://api.incident.io/v2/alerts/${encodeURIComponent(params.id.trim())}`,
+      url: (params) => `https://api.incident.io/v2/alerts/${safeUrlPathSegment(params.id, 'id')}`,
       method: 'GET',
       headers: (params) => ({
         'Content-Type': 'application/json',

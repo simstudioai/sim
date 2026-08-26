@@ -3,6 +3,7 @@ import type {
   RootlyListActionItemsResponse,
 } from '@/tools/rootly/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const rootlyListActionItemsTool: ToolConfig<
   RootlyListActionItemsParams,
@@ -46,7 +47,7 @@ export const rootlyListActionItemsTool: ToolConfig<
       if (params.pageSize) queryParams.set('page[size]', String(params.pageSize))
       if (params.pageNumber) queryParams.set('page[number]', String(params.pageNumber))
       const qs = queryParams.toString()
-      return `https://api.rootly.com/v1/incidents/${params.incidentId.trim()}/action_items${qs ? `?${qs}` : ''}`
+      return `https://api.rootly.com/v1/incidents/${safeUrlPathSegment(params.incidentId, 'incidentId')}/action_items${qs ? `?${qs}` : ''}`
     },
     method: 'GET',
     headers: (params) => ({

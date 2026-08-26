@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import type { HubSpotDeleteDealParams, HubSpotDeleteDealResponse } from '@/tools/hubspot/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('HubSpotDeleteDeal')
 
@@ -32,7 +33,8 @@ export const hubspotDeleteDealTool: ToolConfig<HubSpotDeleteDealParams, HubSpotD
     },
 
     request: {
-      url: (params) => `https://api.hubapi.com/crm/v3/objects/deals/${params.dealId.trim()}`,
+      url: (params) =>
+        `https://api.hubapi.com/crm/v3/objects/deals/${safeUrlPathSegment(params.dealId, 'dealId')}`,
       method: 'DELETE',
       headers: (params) => {
         if (!params.accessToken) {

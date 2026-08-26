@@ -3,6 +3,7 @@ import type {
   IncidentioEscalationsCancelResponse,
 } from '@/tools/incidentio/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const escalationsCancelTool: ToolConfig<
   IncidentioEscalationsCancelParams,
@@ -31,7 +32,7 @@ export const escalationsCancelTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.incident.io/v2/escalations/${encodeURIComponent(params.id.trim())}/actions/cancel`,
+      `https://api.incident.io/v2/escalations/${safeUrlPathSegment(params.id, 'id')}/actions/cancel`,
     method: 'POST',
     headers: (params) => ({
       'Content-Type': 'application/json',

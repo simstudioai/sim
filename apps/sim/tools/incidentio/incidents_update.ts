@@ -3,6 +3,7 @@ import type {
   IncidentioIncidentsUpdateResponse,
 } from '@/tools/incidentio/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const incidentsUpdateTool: ToolConfig<
   IncidentioIncidentsUpdateParams,
@@ -67,7 +68,8 @@ export const incidentsUpdateTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.incident.io/v2/incidents/${params.id.trim()}/actions/edit`,
+    url: (params) =>
+      `https://api.incident.io/v2/incidents/${safeUrlPathSegment(params.id, 'id')}/actions/edit`,
     method: 'POST',
     headers: (params) => ({
       'Content-Type': 'application/json',

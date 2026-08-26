@@ -3,6 +3,7 @@ import type {
   RootlyRemoveSubscribersParams,
 } from '@/tools/rootly/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const rootlyRemoveSubscribersTool: ToolConfig<
   RootlyRemoveSubscribersParams,
@@ -36,7 +37,7 @@ export const rootlyRemoveSubscribersTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.rootly.com/v1/incidents/${params.incidentId.trim()}/remove_subscribers`,
+      `https://api.rootly.com/v1/incidents/${safeUrlPathSegment(params.incidentId, 'incidentId')}/remove_subscribers`,
     method: 'DELETE',
     headers: (params) => ({
       'Content-Type': 'application/vnd.api+json',

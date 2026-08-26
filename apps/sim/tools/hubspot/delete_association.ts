@@ -4,6 +4,7 @@ import type {
   HubSpotDeleteAssociationResponse,
 } from '@/tools/hubspot/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('HubSpotDeleteAssociation')
 
@@ -56,8 +57,8 @@ export const hubspotDeleteAssociationTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const from = `${encodeURIComponent(params.objectType.trim())}/${encodeURIComponent(params.objectId.trim())}`
-      const to = `${encodeURIComponent(params.toObjectType.trim())}/${encodeURIComponent(params.toObjectId.trim())}`
+      const from = `${safeUrlPathSegment(params.objectType, 'objectType')}/${safeUrlPathSegment(params.objectId, 'objectId')}`
+      const to = `${safeUrlPathSegment(params.toObjectType, 'toObjectType')}/${safeUrlPathSegment(params.toObjectId, 'toObjectId')}`
       return `https://api.hubapi.com/crm/v4/objects/${from}/associations/${to}`
     },
     method: 'DELETE',

@@ -3,6 +3,7 @@ import type {
   RootlyCreateStatusPageEventResponse,
 } from '@/tools/rootly/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const rootlyCreateStatusPageEventTool: ToolConfig<
   RootlyCreateStatusPageEventParams,
@@ -61,7 +62,7 @@ export const rootlyCreateStatusPageEventTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.rootly.com/v1/incidents/${params.incidentId.trim()}/status-page-events`,
+      `https://api.rootly.com/v1/incidents/${safeUrlPathSegment(params.incidentId, 'incidentId')}/status-page-events`,
     method: 'POST',
     headers: (params) => ({
       'Content-Type': 'application/vnd.api+json',

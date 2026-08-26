@@ -1,5 +1,6 @@
 import type { UpdateDraftParams, UpdateDraftResult } from '@/tools/agentmail/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const agentmailUpdateDraftTool: ToolConfig<UpdateDraftParams, UpdateDraftResult> = {
   id: 'agentmail_update_draft',
@@ -72,7 +73,7 @@ export const agentmailUpdateDraftTool: ToolConfig<UpdateDraftParams, UpdateDraft
 
   request: {
     url: (params) =>
-      `https://api.agentmail.to/v0/inboxes/${params.inboxId.trim()}/drafts/${params.draftId.trim()}`,
+      `https://api.agentmail.to/v0/inboxes/${safeUrlPathSegment(params.inboxId, 'inboxId')}/drafts/${safeUrlPathSegment(params.draftId, 'draftId')}`,
     method: 'PATCH',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

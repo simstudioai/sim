@@ -1,5 +1,6 @@
 import type { RootlyAlertActionResponse, RootlySnoozeAlertParams } from '@/tools/rootly/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const rootlySnoozeAlertTool: ToolConfig<RootlySnoozeAlertParams, RootlyAlertActionResponse> =
   {
@@ -30,7 +31,8 @@ export const rootlySnoozeAlertTool: ToolConfig<RootlySnoozeAlertParams, RootlyAl
     },
 
     request: {
-      url: (params) => `https://api.rootly.com/v1/alerts/${params.alertId.trim()}/snooze`,
+      url: (params) =>
+        `https://api.rootly.com/v1/alerts/${safeUrlPathSegment(params.alertId, 'alertId')}/snooze`,
       method: 'POST',
       headers: (params) => ({
         'Content-Type': 'application/vnd.api+json',

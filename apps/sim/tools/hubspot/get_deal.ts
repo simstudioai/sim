@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import type { HubSpotGetDealParams, HubSpotGetDealResponse } from '@/tools/hubspot/types'
 import { DEAL_OBJECT_OUTPUT } from '@/tools/hubspot/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('HubSpotGetDeal')
 
@@ -53,7 +54,7 @@ export const hubspotGetDealTool: ToolConfig<HubSpotGetDealParams, HubSpotGetDeal
 
   request: {
     url: (params) => {
-      const baseUrl = `https://api.hubapi.com/crm/v3/objects/deals/${params.dealId.trim()}`
+      const baseUrl = `https://api.hubapi.com/crm/v3/objects/deals/${safeUrlPathSegment(params.dealId, 'dealId')}`
       const queryParams = new URLSearchParams()
       if (params.idProperty) queryParams.append('idProperty', params.idProperty)
       if (params.properties) queryParams.append('properties', params.properties)

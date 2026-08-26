@@ -1,5 +1,6 @@
 import type { UpdateThreadParams, UpdateThreadResult } from '@/tools/agentmail/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const agentmailUpdateThreadTool: ToolConfig<UpdateThreadParams, UpdateThreadResult> = {
   id: 'agentmail_update_thread',
@@ -42,7 +43,7 @@ export const agentmailUpdateThreadTool: ToolConfig<UpdateThreadParams, UpdateThr
 
   request: {
     url: (params) =>
-      `https://api.agentmail.to/v0/inboxes/${params.inboxId.trim()}/threads/${params.threadId.trim()}`,
+      `https://api.agentmail.to/v0/inboxes/${safeUrlPathSegment(params.inboxId, 'inboxId')}/threads/${safeUrlPathSegment(params.threadId, 'threadId')}`,
     method: 'PATCH',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

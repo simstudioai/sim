@@ -3,6 +3,7 @@ import type {
   RootlyUnassignIncidentRoleParams,
 } from '@/tools/rootly/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const rootlyUnassignIncidentRoleTool: ToolConfig<
   RootlyUnassignIncidentRoleParams,
@@ -42,7 +43,7 @@ export const rootlyUnassignIncidentRoleTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.rootly.com/v1/incidents/${params.incidentId.trim()}/unassign_role_from_user`,
+      `https://api.rootly.com/v1/incidents/${safeUrlPathSegment(params.incidentId, 'incidentId')}/unassign_role_from_user`,
     method: 'DELETE',
     headers: (params) => ({
       'Content-Type': 'application/vnd.api+json',

@@ -3,6 +3,7 @@ import type {
   IncidentioSchedulesShowResponse,
 } from '@/tools/incidentio/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const schedulesShowTool: ToolConfig<
   IncidentioSchedulesShowParams,
@@ -29,7 +30,7 @@ export const schedulesShowTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.incident.io/v2/schedules/${params.id.trim()}`,
+    url: (params) => `https://api.incident.io/v2/schedules/${safeUrlPathSegment(params.id, 'id')}`,
     method: 'GET',
     headers: (params) => ({
       'Content-Type': 'application/json',

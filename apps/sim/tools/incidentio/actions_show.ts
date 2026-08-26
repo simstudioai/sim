@@ -3,6 +3,7 @@ import type {
   IncidentioActionsShowResponse,
 } from '@/tools/incidentio/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const actionsShowTool: ToolConfig<
   IncidentioActionsShowParams,
@@ -29,7 +30,7 @@ export const actionsShowTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.incident.io/v2/actions/${params.id.trim()}`,
+    url: (params) => `https://api.incident.io/v2/actions/${safeUrlPathSegment(params.id, 'id')}`,
     method: 'GET',
     headers: (params) => ({
       'Content-Type': 'application/json',

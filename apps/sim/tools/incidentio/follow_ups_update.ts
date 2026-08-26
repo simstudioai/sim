@@ -4,6 +4,7 @@ import {
   type IncidentioFollowUpsUpdateResponse,
 } from '@/tools/incidentio/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const followUpsUpdateTool: ToolConfig<
   IncidentioFollowUpsUpdateParams,
@@ -80,8 +81,7 @@ export const followUpsUpdateTool: ToolConfig<
   },
 
   request: {
-    url: (params) =>
-      `https://api.incident.io/v2/follow_ups/${encodeURIComponent(params.id.trim())}`,
+    url: (params) => `https://api.incident.io/v2/follow_ups/${safeUrlPathSegment(params.id, 'id')}`,
     method: 'PUT',
     headers: (params) => ({
       'Content-Type': 'application/json',

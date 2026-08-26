@@ -3,6 +3,7 @@ import type {
   IncidentioIncidentRolesShowResponse,
 } from '@/tools/incidentio/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const incidentRolesShowTool: ToolConfig<
   IncidentioIncidentRolesShowParams,
@@ -29,7 +30,8 @@ export const incidentRolesShowTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.incident.io/v2/incident_roles/${params.id.trim()}`,
+    url: (params) =>
+      `https://api.incident.io/v2/incident_roles/${safeUrlPathSegment(params.id, 'id')}`,
     method: 'GET',
     headers: (params) => ({
       'Content-Type': 'application/json',

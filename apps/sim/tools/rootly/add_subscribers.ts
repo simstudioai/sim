@@ -1,5 +1,6 @@
 import type { RootlyAddSubscribersParams, RootlyIncidentActionResponse } from '@/tools/rootly/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const rootlyAddSubscribersTool: ToolConfig<
   RootlyAddSubscribersParams,
@@ -33,7 +34,7 @@ export const rootlyAddSubscribersTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.rootly.com/v1/incidents/${params.incidentId.trim()}/add_subscribers`,
+      `https://api.rootly.com/v1/incidents/${safeUrlPathSegment(params.incidentId, 'incidentId')}/add_subscribers`,
     method: 'POST',
     headers: (params) => ({
       'Content-Type': 'application/vnd.api+json',

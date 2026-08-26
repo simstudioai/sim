@@ -3,6 +3,7 @@ import type {
   IncidentioIncidentTimestampsShowResponse,
 } from '@/tools/incidentio/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const incidentTimestampsShowTool: ToolConfig<
   IncidentioIncidentTimestampsShowParams,
@@ -29,7 +30,8 @@ export const incidentTimestampsShowTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.incident.io/v2/incident_timestamps/${params.id.trim()}`,
+    url: (params) =>
+      `https://api.incident.io/v2/incident_timestamps/${safeUrlPathSegment(params.id, 'id')}`,
     method: 'GET',
     headers: (params) => ({
       'Content-Type': 'application/json',

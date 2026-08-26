@@ -3,6 +3,7 @@ import type {
   RootlyIncidentActionResponse,
 } from '@/tools/rootly/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const rootlyAssignIncidentRoleTool: ToolConfig<
   RootlyAssignIncidentRoleParams,
@@ -42,7 +43,7 @@ export const rootlyAssignIncidentRoleTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.rootly.com/v1/incidents/${params.incidentId.trim()}/assign_role_to_user`,
+      `https://api.rootly.com/v1/incidents/${safeUrlPathSegment(params.incidentId, 'incidentId')}/assign_role_to_user`,
     method: 'POST',
     headers: (params) => ({
       'Content-Type': 'application/vnd.api+json',

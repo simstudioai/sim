@@ -1,5 +1,6 @@
 import type { RootlyGetIncidentParams, RootlyGetIncidentResponse } from '@/tools/rootly/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const rootlyGetIncidentTool: ToolConfig<RootlyGetIncidentParams, RootlyGetIncidentResponse> =
   {
@@ -24,7 +25,8 @@ export const rootlyGetIncidentTool: ToolConfig<RootlyGetIncidentParams, RootlyGe
     },
 
     request: {
-      url: (params) => `https://api.rootly.com/v1/incidents/${params.incidentId.trim()}`,
+      url: (params) =>
+        `https://api.rootly.com/v1/incidents/${safeUrlPathSegment(params.incidentId, 'incidentId')}`,
       method: 'GET',
       headers: (params) => ({
         'Content-Type': 'application/vnd.api+json',

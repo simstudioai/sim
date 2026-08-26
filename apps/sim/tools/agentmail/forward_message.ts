@@ -1,5 +1,6 @@
 import type { ForwardMessageParams, ForwardMessageResult } from '@/tools/agentmail/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const agentmailForwardMessageTool: ToolConfig<ForwardMessageParams, ForwardMessageResult> = {
   id: 'agentmail_forward_message',
@@ -66,7 +67,7 @@ export const agentmailForwardMessageTool: ToolConfig<ForwardMessageParams, Forwa
 
   request: {
     url: (params) =>
-      `https://api.agentmail.to/v0/inboxes/${params.inboxId.trim()}/messages/${params.messageId.trim()}/forward`,
+      `https://api.agentmail.to/v0/inboxes/${safeUrlPathSegment(params.inboxId, 'inboxId')}/messages/${safeUrlPathSegment(params.messageId, 'messageId')}/forward`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

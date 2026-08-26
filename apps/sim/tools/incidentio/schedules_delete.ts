@@ -3,6 +3,7 @@ import type {
   IncidentioSchedulesDeleteResponse,
 } from '@/tools/incidentio/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const schedulesDeleteTool: ToolConfig<
   IncidentioSchedulesDeleteParams,
@@ -29,7 +30,7 @@ export const schedulesDeleteTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.incident.io/v2/schedules/${params.id.trim()}`,
+    url: (params) => `https://api.incident.io/v2/schedules/${safeUrlPathSegment(params.id, 'id')}`,
     method: 'DELETE',
     headers: (params) => ({
       'Content-Type': 'application/json',

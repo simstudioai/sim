@@ -1,5 +1,6 @@
 import type { ListThreadsParams, ListThreadsResult } from '@/tools/agentmail/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const agentmailListThreadsTool: ToolConfig<ListThreadsParams, ListThreadsResult> = {
   id: 'agentmail_list_threads',
@@ -65,7 +66,7 @@ export const agentmailListThreadsTool: ToolConfig<ListThreadsParams, ListThreads
       if (params.before) query.set('before', params.before)
       if (params.after) query.set('after', params.after)
       const qs = query.toString()
-      return `https://api.agentmail.to/v0/inboxes/${params.inboxId.trim()}/threads${qs ? `?${qs}` : ''}`
+      return `https://api.agentmail.to/v0/inboxes/${safeUrlPathSegment(params.inboxId, 'inboxId')}/threads${qs ? `?${qs}` : ''}`
     },
     method: 'GET',
     headers: (params) => ({

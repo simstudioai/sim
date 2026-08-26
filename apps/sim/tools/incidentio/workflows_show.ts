@@ -2,6 +2,7 @@ import type { WorkflowsShowParams, WorkflowsShowResponse } from '@/tools/inciden
 import { INCIDENTIO_WORKFLOW_OUTPUT_PROPERTIES } from '@/tools/incidentio/types'
 import { mapIncidentioWorkflow } from '@/tools/incidentio/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const workflowsShowTool: ToolConfig<WorkflowsShowParams, WorkflowsShowResponse> = {
   id: 'incidentio_workflows_show',
@@ -32,7 +33,9 @@ export const workflowsShowTool: ToolConfig<WorkflowsShowParams, WorkflowsShowRes
 
   request: {
     url: (params) => {
-      const url = new URL(`https://api.incident.io/v2/workflows/${params.id.trim()}`)
+      const url = new URL(
+        `https://api.incident.io/v2/workflows/${safeUrlPathSegment(params.id, 'id')}`
+      )
       if (params.skip_step_upgrades !== undefined) {
         url.searchParams.set('skip_step_upgrades', String(params.skip_step_upgrades))
       }
