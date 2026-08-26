@@ -32,7 +32,7 @@ export const StartTriggerBlock: BlockConfig = {
       mode: 'advanced',
       defaultValue: false,
       description:
-        'Expose trusted, server-injected run metadata under <start.metadata>: userEmail, workspaceId, workflowId, executionId, executionType, executionMode, startTime. Fields describe the invoking run — inside a custom block they identify the calling user and workflow.',
+        'Expose trusted, server-injected run metadata under <start.metadata>: subject, userEmail, workspaceId, workflowId, executionId, executionType, executionMode, startTime. The subject identifies the authenticated Sim user, chat email, or external provider user without exposing credentials.',
     },
   ],
   tools: {

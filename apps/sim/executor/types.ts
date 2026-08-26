@@ -241,6 +241,17 @@ export type ExecutionControlOutputFieldName = (typeof EXECUTION_CONTROL_OUTPUT_F
 /** Start block output key that carries trusted, server-injected run metadata. */
 export const START_BLOCK_METADATA_FIELD = 'metadata'
 
+/** Authenticated human or provider subject safe to expose to workflow authors. */
+export type StartBlockRunSubject =
+  | { kind: 'sim_user'; userId: string; email: string }
+  | { kind: 'authenticated_email'; email: string }
+  | {
+      kind: 'external_user'
+      provider: string
+      tenantId: string
+      subjectId: string
+    }
+
 /**
  * Trusted run metadata surfaced under `<start.metadata.*>` when the Start
  * block's "Add run metadata" toggle is enabled. Built server-side from the
@@ -251,6 +262,7 @@ export const START_BLOCK_METADATA_FIELD = 'metadata'
  * authoring-time-known identity.
  */
 export interface StartBlockRunMetadata {
+  subject?: StartBlockRunSubject | null
   userEmail?: string | null
   workspaceId?: string | null
   workflowId?: string | null

@@ -848,6 +848,11 @@ describe('start-block utilities', () => {
 
   describe('run metadata injection', () => {
     const runMetadata = {
+      subject: {
+        kind: 'sim_user' as const,
+        userId: 'user-1',
+        email: 'real@sim.ai',
+      },
       userEmail: 'real@sim.ai',
       workspaceId: 'ws-1',
       workflowId: 'wf-1',
