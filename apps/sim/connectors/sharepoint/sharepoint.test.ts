@@ -105,6 +105,29 @@ function rootChildren(driveId: string, items: unknown[]) {
   }
 }
 
+/** Builds a Graph pagination chain with an optional continuation beyond the final allowed page. */
+function paginatedRoutes(
+  initialUrl: string,
+  routePrefix: string,
+  pageCount: number,
+  continueAfterLast: boolean
+): Record<string, GraphRoute> {
+  const routes: Record<string, GraphRoute> = {}
+
+  for (let page = 0; page < pageCount; page++) {
+    const url = page === 0 ? initialUrl : `${GRAPH}/${routePrefix}/${page}`
+    const hasNextPage = page < pageCount - 1 || continueAfterLast
+    routes[url] = {
+      body: {
+        value: [],
+        ...(hasNextPage ? { '@odata.nextLink': `${GRAPH}/${routePrefix}/${page + 1}` } : {}),
+      },
+    }
+  }
+
+  return routes
+}
+
 function resolve(folderPath?: string) {
   return resolveFolderTarget('token', SITE_ID, SITE_URL, 'Contoso', folderPath)
 }
@@ -319,6 +342,51 @@ describe('resolveFolderTarget', () => {
 
     await expect(resolve('00 IWW Library')).rejects.toThrow(
       /Failed to open the default document library/
+    )
+  })
+
+  it('surfaces a terminal document-library listing failure', async () => {
+    mockGraph({
+      ...defaultDriveRoute,
+      [`${GRAPH}/sites/${SITE_ID}/drives?$select=id,name,webUrl`]: {
+        status: 503,
+        body: { error: { message: 'Service unavailable' } },
+      },
+    })
+
+    await expect(resolve('Missing')).rejects.toThrow(
+      /Failed to list SharePoint document libraries: 503/
+    )
+  })
+
+  it('rejects a document-library listing that continues beyond its safety limit', async () => {
+    const initialUrl = `${GRAPH}/sites/${SITE_ID}/drives?$select=id,name,webUrl`
+    mockGraph({
+      ...defaultDriveRoute,
+      ...paginatedRoutes(initialUrl, 'drive-pages', 20, true),
+    })
+
+    await expect(resolve('Missing')).rejects.toThrow(
+      /document-library listing exceeded the 20-page safety limit/
+    )
+  })
+
+  it('surfaces a 404 encountered while traversing a folder collection', async () => {
+    mockGraph({ ...defaultDriveRoute, ...sitesDrivesRoute })
+
+    await expect(resolve('Missing')).rejects.toThrow(/Failed to list folder contents: 404/)
+  })
+
+  it('rejects a folder listing that continues beyond its safety limit', async () => {
+    const initialUrl = `${GRAPH}/drives/${DEFAULT_DRIVE_ID}/root/children?$top=200&$select=id,name,folder`
+    mockGraph({
+      ...defaultDriveRoute,
+      ...sitesDrivesRoute,
+      ...paginatedRoutes(initialUrl, 'folder-pages', 50, true),
+    })
+
+    await expect(resolve('Missing')).rejects.toThrow(
+      /folder listing exceeded the 50-page safety limit/
     )
   })
 
