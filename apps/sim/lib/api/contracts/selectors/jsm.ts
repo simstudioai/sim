@@ -56,6 +56,8 @@ export const jsmRequestTypesBodySchema = credentialWorkflowDomainBodySchema.exte
   serviceDeskId: z.string().min(1),
 })
 
+export const jsmServiceDesksSelectorBodySchema = credentialWorkflowDomainBodySchema
+
 export const jsmServiceDesksBodySchema = jsmBaseBodySchema.extend({
   expand: z.string().optional(),
   start: jsmPaginationField,
@@ -291,7 +293,7 @@ export const defineJsmToolContract = <TBody extends z.ZodType>(path: string, bod
 
 export const jsmServiceDesksSelectorContract = definePostSelector(
   '/api/tools/jsm/selector-servicedesks',
-  credentialWorkflowDomainBodySchema,
+  jsmServiceDesksSelectorBodySchema,
   z.object({ serviceDesks: z.array(idNameSchema) })
 )
 

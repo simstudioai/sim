@@ -2,12 +2,20 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { jsmRequestTypesSelectorContract } from '@/lib/api/contracts/selectors/jsm'
 import { parseRequest } from '@/lib/api/server'
-import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { validateAlphanumericId, validateJiraCloudId } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { refreshAccessTokenIfNeeded } from '@/lib/oauth/credential-service'
-import { getJiraCloudId, parseAtlassianErrorMessage } from '@/tools/jira/utils'
+import { resolveAtlassianSelectorCredential } from '@/lib/selectors/application/atlassian-credential'
+import {
+  resolveSelectorProviderValue,
+  SELECTOR_ATLASSIAN_DISCOVERY_OPTIONS,
+  selectorProviderFailure,
+} from '@/lib/selectors/server/provider-errors'
+import {
+  authenticateSelectorRequest,
+  resolveAuthorizedSelectorContext,
+} from '@/lib/selectors/server/resolve-authorized-context'
+import { getJiraCloudId } from '@/tools/jira/utils'
 import { getJsmApiBaseUrl, getJsmHeaders } from '@/tools/jsm/utils'
 
 const logger = createLogger('JsmSelectorRequestTypesAPI')
@@ -83,18 +91,18 @@ async function fetchAllJsmRequestTypes(
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
   try {
+    const authentication = await authenticateSelectorRequest(request)
+    if (!authentication.ok) {
+      return NextResponse.json({ error: authentication.error }, { status: authentication.status })
+    }
     const parsed = await parseRequest(jsmRequestTypesSelectorContract, request, {})
     if (!parsed.success) return parsed.response
 
-    const { credential, workflowId, domain, serviceDeskId } = parsed.data.body
+    const { credential, workflowId, domain: domainReference, serviceDeskId } = parsed.data.body
 
     if (!credential) {
       logger.error('Missing credential in request')
       return NextResponse.json({ error: 'Credential is required' }, { status: 400 })
-    }
-
-    if (!domain) {
-      return NextResponse.json({ error: 'Domain is required' }, { status: 400 })
     }
 
     if (!serviceDeskId) {
@@ -106,31 +114,50 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: serviceDeskIdValidation.error }, { status: 400 })
     }
 
-    const authz = await authorizeCredentialUse(request, {
-      credentialId: credential,
+    const resolution = await resolveAuthorizedSelectorContext(authentication.principal, {
       workflowId,
+      credentialId: credential,
+      context: { domain: domainReference },
     })
-    if (!authz.ok || !authz.credentialOwnerUserId) {
-      return NextResponse.json({ error: authz.error || 'Unauthorized' }, { status: 403 })
+    if (!resolution.ok) {
+      return NextResponse.json({ error: resolution.error }, { status: resolution.status })
     }
-
-    const accessToken = await refreshAccessTokenIfNeeded(
-      credential,
-      authz.credentialOwnerUserId,
-      requestId
-    )
-    if (!accessToken) {
-      logger.error('Failed to get access token', {
-        credentialId: credential,
-        userId: authz.credentialOwnerUserId,
-      })
+    const ownerUserId = resolution.credentialAccess?.credentialOwnerUserId
+    if (!ownerUserId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
+    }
+    const bundle = await resolveAtlassianSelectorCredential({
+      credentialId: credential,
+      credentialOwnerUserId: ownerUserId,
+      requestId,
+      serviceId: 'jira',
+    })
+    if (!bundle) {
+      logger.error('Failed to get JSM selector access token')
       return NextResponse.json(
         { error: 'Could not retrieve access token', authRequired: true },
         { status: 401 }
       )
     }
 
-    const cloudId = await getJiraCloudId(domain, accessToken)
+    const domain = resolution.context.domain as string
+    const accessToken = bundle.accessToken
+    const cloudIdResolution = await resolveSelectorProviderValue(
+      'Jira Service Management',
+      async () =>
+        bundle.cloudId
+          ? bundle.cloudId
+          : getJiraCloudId(domain, accessToken, SELECTOR_ATLASSIAN_DISCOVERY_OPTIONS)
+    )
+    if (!cloudIdResolution.ok) {
+      logger.warn('JSM selector discovery failed', {
+        status: cloudIdResolution.upstreamStatus ?? 'unknown',
+      })
+      return NextResponse.json(cloudIdResolution.failure, {
+        status: cloudIdResolution.failure.status,
+      })
+    }
+    const cloudId = cloudIdResolution.value
 
     const cloudIdValidation = validateJiraCloudId(cloudId, 'cloudId')
     if (!cloudIdValidation.isValid) {
@@ -143,22 +170,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const { values, lastResponse } = await fetchAllJsmRequestTypes(requestTypeUrl, accessToken)
 
     if (!lastResponse.ok) {
-      const errorText = await lastResponse.text()
-      logger.error('JSM API error:', {
-        status: lastResponse.status,
-        statusText: lastResponse.statusText,
-        error: errorText,
-      })
-      return NextResponse.json(
-        {
-          error: parseAtlassianErrorMessage(
-            lastResponse.status,
-            lastResponse.statusText,
-            errorText
-          ),
-        },
-        { status: lastResponse.status }
-      )
+      logger.warn('JSM selector request-type request failed', { status: lastResponse.status })
+      const failure = selectorProviderFailure('Jira Service Management', lastResponse.status)
+      return NextResponse.json(failure, { status: failure.status })
     }
 
     const requestTypes = values.map((rt) => ({
@@ -167,11 +181,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }))
 
     return NextResponse.json({ requestTypes })
-  } catch (error) {
-    logger.error('Error listing JSM request types:', error)
-    return NextResponse.json(
-      { error: (error as Error).message || 'Internal server error' },
-      { status: 500 }
-    )
+  } catch {
+    logger.error('Error listing JSM request types')
+    return NextResponse.json({ error: 'Failed to retrieve JSM request types' }, { status: 500 })
   }
 })

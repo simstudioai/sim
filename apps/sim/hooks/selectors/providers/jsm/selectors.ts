@@ -7,12 +7,12 @@ export const jsmSelectors = {
   'jsm.serviceDesks': {
     key: 'jsm.serviceDesks',
     contracts: [selectorContracts.jsmServiceDesksSelectorContract],
+    serverResolvedContextFields: ['domain'],
     staleTime: SELECTOR_STALE,
     getQueryKey: ({ context }: SelectorQueryArgs) => [
       'selectors',
       'jsm.serviceDesks',
       context.oauthCredential ?? 'none',
-      context.domain ?? 'none',
     ],
     enabled: ({ context }) => Boolean(context.oauthCredential && context.domain),
     fetchList: async ({ context, signal }: SelectorQueryArgs) => {
@@ -21,7 +21,7 @@ export const jsmSelectors = {
       const data = await requestJson(selectorContracts.jsmServiceDesksSelectorContract, {
         body: {
           credential: credentialId,
-          workflowId: context.workflowId,
+          ...(context.workflowId ? { workflowId: context.workflowId } : {}),
           domain,
         },
         signal,
@@ -38,7 +38,7 @@ export const jsmSelectors = {
       const data = await requestJson(selectorContracts.jsmServiceDesksSelectorContract, {
         body: {
           credential: credentialId,
-          workflowId: context.workflowId,
+          ...(context.workflowId ? { workflowId: context.workflowId } : {}),
           domain,
         },
         signal,
@@ -51,12 +51,12 @@ export const jsmSelectors = {
   'jsm.requestTypes': {
     key: 'jsm.requestTypes',
     contracts: [selectorContracts.jsmRequestTypesSelectorContract],
+    serverResolvedContextFields: ['domain'],
     staleTime: SELECTOR_STALE,
     getQueryKey: ({ context }: SelectorQueryArgs) => [
       'selectors',
       'jsm.requestTypes',
       context.oauthCredential ?? 'none',
-      context.domain ?? 'none',
       context.serviceDeskId ?? 'none',
     ],
     enabled: ({ context }) =>
@@ -68,7 +68,7 @@ export const jsmSelectors = {
       const data = await requestJson(selectorContracts.jsmRequestTypesSelectorContract, {
         body: {
           credential: credentialId,
-          workflowId: context.workflowId,
+          ...(context.workflowId ? { workflowId: context.workflowId } : {}),
           domain,
           serviceDeskId: context.serviceDeskId,
         },
@@ -87,7 +87,7 @@ export const jsmSelectors = {
       const data = await requestJson(selectorContracts.jsmRequestTypesSelectorContract, {
         body: {
           credential: credentialId,
-          workflowId: context.workflowId,
+          ...(context.workflowId ? { workflowId: context.workflowId } : {}),
           domain,
           serviceDeskId: context.serviceDeskId,
         },
