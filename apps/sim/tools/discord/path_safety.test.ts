@@ -93,8 +93,9 @@ interface PathSite {
  * assign into a local variable before interpolating, which a grep for
  * `params.x` inside the template would miss.
  */
-function collectPathSites(): PathSite[] {
+function collectPathSites(): { sites: PathSite[]; unbuildable: string[] } {
   const sites: PathSite[] = []
+  const unbuildable: string[] = []
   for (const tool of Object.values(discordTools)) {
     if (!isDiscordTool(tool)) continue
     for (const [param, def] of Object.entries(tool.params ?? {})) {
@@ -103,21 +104,33 @@ function collectPathSites(): PathSite[] {
       let url: URL
       try {
         url = buildUrl(tool, param, probe)
-      } catch {
+      } catch (error) {
+        unbuildable.push(`${tool.id}.${param}: ${(error as Error).message}`)
         continue
       }
       if (!url.pathname.includes(probe)) continue
       sites.push({ name: `${tool.id}.${param}`, tool, param })
     }
   }
-  return sites
+  return { sites, unbuildable }
 }
 
-const PATH_SITES = collectPathSites()
+const { sites: PATH_SITES, unbuildable: UNBUILDABLE } = collectPathSites()
 
 describe('discord path-parameter traversal safety', () => {
   it('covers every Discord tool parameter that reaches the request path', () => {
     expect(PATH_SITES.length).toBeGreaterThanOrEqual(45)
+  })
+
+  /**
+   * Discovery tolerates a URL builder that throws on a legitimate probe value,
+   * because a tool may reject a *different* parameter first. Tolerating it
+   * silently is the hazard: a tool that became entirely unbuildable would drop
+   * out of PATH_SITES and read as covered. Every skip is recorded and this
+   * assertion names it.
+   */
+  it('builds a URL for every declared string parameter', () => {
+    expect(UNBUILDABLE).toEqual([])
   })
 
   describe.each(PATH_SITES)('$name', ({ tool, param }) => {
