@@ -342,25 +342,28 @@ export interface ScrapeResponse extends ToolResponse {
   }
 }
 
+/** One result inside a Firecrawl search source array (`data.web`, `data.news`, ...). */
+export interface SearchResultItem {
+  title: string
+  description: string
+  url: string
+  markdown?: string
+  html?: string
+  rawHtml?: string
+  links?: string[]
+  screenshot?: string
+  metadata: {
+    title?: string
+    description?: string
+    sourceURL: string
+    statusCode?: number
+    error?: string
+  }
+}
+
 export interface SearchResponse extends ToolResponse {
   output: {
-    data: Array<{
-      title: string
-      description: string
-      url: string
-      markdown?: string
-      html?: string
-      rawHtml?: string
-      links?: string[]
-      screenshot?: string
-      metadata: {
-        title?: string
-        description?: string
-        sourceURL: string
-        statusCode?: number
-        error?: string
-      }
-    }>
+    data: SearchResultItem[]
     creditsUsed?: number
   }
 }

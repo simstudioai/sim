@@ -15,7 +15,7 @@ import type {
   LangsmithUpdateRunParams,
 } from '@/tools/langsmith/types'
 import { langsmithUpdateRunTool } from '@/tools/langsmith/update_run'
-import { ERROR_TEXT_MAX_LENGTH } from '@/tools/langsmith/utils'
+import { ERROR_TEXT_MAX_LENGTH, parseLangsmithFeedbackValue } from '@/tools/langsmith/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const resolveUrl = <P>(tool: ToolConfig<P, never>, params: P): string =>
@@ -429,5 +429,79 @@ describe('langsmith batch patch entries', () => {
         patch: [{ name: 'my run', run_type: 'chain', end_time: '2026-01-01T00:00:05Z' }],
       } satisfies LangsmithCreateRunsBatchParams)
     ).toThrow(/patch entries must carry the id of an existing run/i)
+  })
+})
+
+describe('langsmith feedback session id', () => {
+  it('sends session_id when the tracing project is supplied', () => {
+    const body = resolveBody(langsmithCreateFeedbackTool as never, {
+      apiKey: 'test-key',
+      runId: 'run-1',
+      key: 'correctness',
+      sessionId: ' 018e4c7e-a9fb-7ef0-a5b6-6ea3a82e9327 ',
+    } satisfies LangsmithCreateFeedbackParams)
+
+    expect(body.session_id).toBe('018e4c7e-a9fb-7ef0-a5b6-6ea3a82e9327')
+  })
+
+  it('omits session_id entirely when it was left blank', () => {
+    const body = resolveBody(langsmithCreateFeedbackTool as never, {
+      ...createFeedbackParams,
+      sessionId: '   ',
+    } satisfies LangsmithCreateFeedbackParams)
+
+    expect(body).not.toHaveProperty('session_id')
+  })
+
+  it('declares session_id as optional, so already-saved blocks keep working', () => {
+    expect(langsmithCreateFeedbackTool.params.sessionId.required).toBeFalsy()
+  })
+})
+
+describe('langsmith feedback value typing', () => {
+  it('keeps a categorical string as a string', () => {
+    expect(parseLangsmithFeedbackValue('good')).toBe('good')
+  })
+
+  it('sends a numeric value as a number rather than a quoted string', () => {
+    expect(parseLangsmithFeedbackValue('1')).toBe(1)
+    expect(parseLangsmithFeedbackValue('0.5')).toBe(0.5)
+  })
+
+  it('sends a boolean value as a boolean', () => {
+    expect(parseLangsmithFeedbackValue('true')).toBe(true)
+    expect(parseLangsmithFeedbackValue('false')).toBe(false)
+  })
+
+  it('sends an object value as an object', () => {
+    expect(parseLangsmithFeedbackValue('{"label":"good"}')).toEqual({ label: 'good' })
+  })
+
+  it('keeps an array literal as a string, since the schema has no array member', () => {
+    expect(parseLangsmithFeedbackValue('[1,2]')).toBe('[1,2]')
+  })
+
+  it('drops an empty value instead of posting an empty string', () => {
+    expect(parseLangsmithFeedbackValue('')).toBeUndefined()
+    expect(parseLangsmithFeedbackValue('   ')).toBeUndefined()
+    expect(parseLangsmithFeedbackValue(undefined)).toBeUndefined()
+  })
+
+  it('passes an already-typed value through untouched', () => {
+    expect(parseLangsmithFeedbackValue(7)).toBe(7)
+    expect(parseLangsmithFeedbackValue(false)).toBe(false)
+  })
+
+  it('puts a non-string feedback value on the wire unchanged', () => {
+    const body = resolveBody(langsmithCreateFeedbackTool as never, {
+      ...createFeedbackParams,
+      value: 0.5,
+    } satisfies LangsmithCreateFeedbackParams)
+
+    expect(body.value).toBe(0.5)
+  })
+
+  it('does not narrow the feedback value to a string in the model tool schema', () => {
+    expect(langsmithCreateFeedbackTool.params.value.type).not.toBe('string')
   })
 })

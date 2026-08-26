@@ -2,6 +2,7 @@ import { toError } from '@sim/utils/errors'
 import { LangsmithIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
 import type { LangsmithResponse } from '@/tools/langsmith/types'
+import { parseLangsmithFeedbackValue } from '@/tools/langsmith/utils'
 
 export const LangsmithBlock: BlockConfig<LangsmithResponse> = {
   type: 'langsmith',
@@ -178,7 +179,10 @@ export const LangsmithBlock: BlockConfig<LangsmithResponse> = {
       title: 'Session ID',
       type: 'short-input',
       placeholder: 'Session identifier',
-      condition: { field: 'operation', value: 'langsmith_create_run' },
+      condition: {
+        field: 'operation',
+        value: ['langsmith_create_run', 'langsmith_create_feedback'],
+      },
       mode: 'advanced',
     },
     {
@@ -400,8 +404,9 @@ Common patch fields: outputs, end_time, status, error`,
             apiKey: params.apiKey,
             runId: params.runId,
             key: params.key,
+            sessionId: params.session_id,
             score: parseScore(params.score),
-            value: params.value,
+            value: parseLangsmithFeedbackValue(params.value),
             comment: params.comment,
             correction: parseJsonValue(params.correction, 'correction'),
             feedbackSourceType: params.feedbackSourceType || undefined,
@@ -449,7 +454,10 @@ Common patch fields: outputs, end_time, status, error`,
     tags: { type: 'json', description: 'Tags array' },
     parent_run_id: { type: 'string', description: 'Parent run ID' },
     trace_id: { type: 'string', description: 'Trace ID' },
-    session_id: { type: 'string', description: 'Session ID' },
+    session_id: {
+      type: 'string',
+      description: 'Tracing project (session) ID for the run or the feedback',
+    },
     session_name: { type: 'string', description: 'Session name' },
     status: { type: 'string', description: 'Run status' },
     error: { type: 'string', description: 'Error message' },
@@ -459,7 +467,11 @@ Common patch fields: outputs, end_time, status, error`,
     patch: { type: 'json', description: 'Runs to update in batch' },
     key: { type: 'string', description: 'Feedback metric name' },
     score: { type: 'string', description: 'Numeric score for the feedback metric' },
-    value: { type: 'string', description: 'Categorical value for the feedback metric' },
+    value: {
+      type: 'string',
+      description:
+        'Categorical value for the feedback metric. JSON scalars ("1", "true") are sent with their JSON type; anything else is sent as a string.',
+    },
     comment: { type: 'string', description: 'Comment explaining the feedback' },
     correction: { type: 'json', description: 'Corrected output for the run' },
     feedbackSourceType: {
@@ -491,8 +503,9 @@ Common patch fields: outputs, end_time, status, error`,
     key: { type: 'string', description: 'Feedback metric name (create feedback)' },
     score: { type: 'number', description: 'Score recorded for the feedback (create feedback)' },
     value: {
-      type: 'string',
-      description: 'Categorical value recorded for the feedback (create feedback)',
+      type: 'json',
+      description:
+        'Categorical value recorded for the feedback — string, number, boolean, or JSON object (create feedback)',
     },
     comment: { type: 'string', description: 'Comment recorded for the feedback (create feedback)' },
     createdAt: { type: 'string', description: 'When the feedback was created (create feedback)' },

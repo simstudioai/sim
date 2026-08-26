@@ -2,8 +2,45 @@ import { generateId } from '@sim/utils/id'
 import { truncate } from '@sim/utils/string'
 import type { LangsmithRunPayload } from '@/tools/langsmith/types'
 
-/** Versioned LangSmith API base. Only `/api/v1/*` paths are declared in the published OpenAPI spec. */
+/**
+ * Versioned LangSmith API base.
+ *
+ * The published OpenAPI spec (https://api.smith.langchain.com/openapi.json)
+ * declares two surfaces: ~303 `/api/v1/*` paths and ~38 `/api/v2/*` paths
+ * (run/trace/thread query endpoints plus the sandbox API). Every endpoint this
+ * integration calls is still declared under `/api/v1`, so the base stays v1 —
+ * but `/api/v2` exists and is where the deprecated run reads move to. See the
+ * migration note on {@link file://./get_run.ts}.
+ */
 export const LANGSMITH_API_BASE = 'https://api.smith.langchain.com/api/v1'
+
+/** Every JSON type LangSmith's `FeedbackCreateSchema.value` accepts. */
+export type LangsmithFeedbackValue = string | number | boolean | Record<string, unknown> | null
+
+/**
+ * Coerces a feedback `value` typed into a free-text field into the JSON type
+ * LangSmith actually stores.
+ *
+ * `FeedbackCreateSchema.value` accepts `number | integer | boolean | string |
+ * object | null`, but the block surfaces it as a single-line text input, so a
+ * user asking for the numeric value `1` or the boolean `true` would otherwise
+ * post the strings `"1"` / `"true"` and get a differently-typed row back.
+ * Anything that is not valid JSON — the common categorical case, `good` —
+ * stays the string it was typed as.
+ */
+export const parseLangsmithFeedbackValue = (value: unknown): LangsmithFeedbackValue | undefined => {
+  if (value === undefined || value === null) return undefined
+  if (typeof value !== 'string') return value as LangsmithFeedbackValue
+  const trimmed = value.trim()
+  if (trimmed === '') return undefined
+  try {
+    const parsed: unknown = JSON.parse(trimmed)
+    if (Array.isArray(parsed)) return value
+    return parsed as LangsmithFeedbackValue
+  } catch {
+    return value
+  }
+}
 
 /** Ellipsis appended to an upstream error body that had to be cut short. */
 const ERROR_TEXT_SUFFIX = '...'

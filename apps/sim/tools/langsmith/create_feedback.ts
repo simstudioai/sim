@@ -4,6 +4,7 @@ import type {
   LangsmithCreateFeedbackParams,
   LangsmithCreateFeedbackResponse,
 } from '@/tools/langsmith/types'
+import type { LangsmithFeedbackValue } from '@/tools/langsmith/utils'
 import { LANGSMITH_API_BASE, truncateLangsmithErrorText } from '@/tools/langsmith/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -28,6 +29,13 @@ export const langsmithCreateFeedbackTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'ID of the run to attach feedback to',
     },
+    sessionId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'ID of the tracing project (session) the feedback belongs to. Optional today: LangSmith warns when it is omitted and will reject the request from 31 Jan 2027 on cloud (self-hosted: deprecated in v0.16, removed in v0.18).',
+    },
     key: {
       type: 'string',
       required: true,
@@ -41,10 +49,11 @@ export const langsmithCreateFeedbackTool: ToolConfig<
       description: 'Numeric score for the feedback metric',
     },
     value: {
-      type: 'string',
+      type: 'json',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Categorical value for the feedback metric',
+      description:
+        'Categorical value for the feedback metric. Accepts a string ("good"), number, boolean, or JSON object.',
     },
     comment: {
       type: 'string',
@@ -76,6 +85,7 @@ export const langsmithCreateFeedbackTool: ToolConfig<
       const payload: Record<string, unknown> = {
         id: generateId(),
         run_id: params.runId.trim(),
+        session_id: params.sessionId?.trim() || undefined,
         key: params.key,
         score: params.score,
         value: params.value,
@@ -106,7 +116,7 @@ export const langsmithCreateFeedbackTool: ToolConfig<
         key: data.key as string,
         runId: (data.run_id as string) ?? null,
         score: (data.score as number) ?? null,
-        value: (data.value as string | number | boolean) ?? null,
+        value: (data.value as LangsmithFeedbackValue) ?? null,
         comment: (data.comment as string) ?? null,
         createdAt: (data.created_at as string) ?? null,
       },
@@ -122,8 +132,9 @@ export const langsmithCreateFeedbackTool: ToolConfig<
     },
     score: { type: 'number', description: 'Score recorded for the feedback', optional: true },
     value: {
-      type: 'string',
-      description: 'Categorical value recorded for the feedback',
+      type: 'json',
+      description:
+        'Categorical value recorded for the feedback (string, number, boolean, or JSON object)',
       optional: true,
     },
     comment: { type: 'string', description: 'Comment recorded for the feedback', optional: true },

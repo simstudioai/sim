@@ -1,3 +1,4 @@
+import type { LangsmithFeedbackValue } from '@/tools/langsmith/utils'
 import type { ToolResponse } from '@/tools/types'
 
 export type LangsmithRunType =
@@ -109,9 +110,10 @@ export type LangsmithFeedbackSourceType = 'api' | 'app' | 'model'
 export interface LangsmithCreateFeedbackParams {
   apiKey: string
   runId: string
+  sessionId?: string
   key: string
   score?: number
-  value?: string
+  value?: LangsmithFeedbackValue
   comment?: string
   correction?: Record<string, unknown>
   feedbackSourceType?: LangsmithFeedbackSourceType
@@ -123,7 +125,7 @@ export interface LangsmithCreateFeedbackResponse extends ToolResponse {
     key: string
     runId: string | null
     score: number | null
-    value: string | number | boolean | null
+    value: LangsmithFeedbackValue
     comment: string | null
     createdAt: string | null
   }

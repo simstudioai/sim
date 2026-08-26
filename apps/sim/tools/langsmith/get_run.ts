@@ -2,10 +2,39 @@ import type { LangsmithGetRunParams, LangsmithGetRunResponse } from '@/tools/lan
 import { LANGSMITH_API_BASE, truncateLangsmithErrorText } from '@/tools/langsmith/utils'
 import type { ToolConfig } from '@/tools/types'
 
+/**
+ * TODO(2026-12-01): migrate to `GET /api/v2/runs/{run_id}` before LangSmith
+ * removes the v1 read on 31 Jan 2027 (self-hosted: deprecated in v0.16,
+ * removed in v0.18). `GET /api/v1/runs/{run_id}` is `deprecated: true` in the
+ * published OpenAPI spec.
+ *
+ * This is deliberately NOT a URL swap, and doing it early would be the larger
+ * break. The v2 read:
+ * - requires a `project_id` query param, which this tool does not collect and
+ *   the caller of a bare run id usually does not know; and
+ * - returns ONLY `id` unless `selects` is passed, so every field below has to
+ *   be requested explicitly:
+ *   `selects=ID&selects=NAME&selects=RUN_TYPE&selects=STATUS&selects=START_TIME`
+ *   `&selects=END_TIME&selects=INPUTS&selects=OUTPUTS&selects=ERROR&selects=TAGS`
+ *   `&selects=PROJECT_ID&selects=TRACE_ID&selects=PARENT_RUN_IDS`
+ *   `&selects=TOTAL_TOKENS&selects=TOTAL_COST`; and
+ * - re-types the declared outputs, so the mapping below must change with it:
+ *   `session_id` -> `project_id`; `parent_run_id` (uuid) -> `parent_run_ids`
+ *   (array, root-first — take the last entry for the direct parent);
+ *   `total_cost` string -> number (this tool's `totalCost` output must become
+ *   `type: 'number'`); `status` becomes the enum `SUCCESS | ERROR | PENDING`
+ *   rather than lowercase `success`.
+ *
+ * Migrating now would silently change the values existing workflows already
+ * read out of `sessionId`, `parentRunId`, `totalCost`, and `status` ~17 months
+ * before anything breaks, so the v1 read stays until the migration is done as
+ * a deliberate, versioned change.
+ */
 export const langsmithGetRunTool: ToolConfig<LangsmithGetRunParams, LangsmithGetRunResponse> = {
   id: 'langsmith_get_run',
   name: 'LangSmith Get Run',
-  description: 'Retrieve a single LangSmith run by ID.',
+  description:
+    'Retrieve a single LangSmith run by ID. Uses the v1 run read, which LangSmith has deprecated and removes on 31 Jan 2027.',
   version: '1.0.0',
   params: {
     apiKey: {
