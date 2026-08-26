@@ -2,7 +2,7 @@
 
 import type React from 'react'
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { cn, toast, useToast } from '@sim/emcn'
+import { cn, toast, useToast, writeTextToClipboard } from '@sim/emcn'
 import { Loader, TableX } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import type { TableCellSelection } from '@sim/realtime-protocol/table-presence'
@@ -1855,7 +1855,7 @@ export function TableGrid({
   function handleCopyRowId() {
     const rowId = contextMenu.row?.id
     if (!rowId) return
-    void navigator.clipboard.writeText(rowId).catch((error) => {
+    void writeTextToClipboard(rowId).catch((error) => {
       logger.error('Failed to copy row ID', { error })
       toast.error('Failed to copy row ID')
     })
