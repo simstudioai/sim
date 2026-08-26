@@ -363,8 +363,8 @@ interface PopoverContentProps
   disablePortal?: boolean
   /** Maximum height in pixels */
   maxHeight?: number
-  /** Maximum width in pixels. Enables text truncation when set. */
-  maxWidth?: number
+  /** Maximum width in pixels or as a CSS length. Enables text truncation when set. */
+  maxWidth?: number | string
   /** Minimum width in pixels */
   minWidth?: number
   /**
@@ -537,7 +537,9 @@ const PopoverContent = React.forwardRef<
 
     const effectiveMaxWidth =
       maxWidth !== undefined
-        ? `${maxWidth}px`
+        ? typeof maxWidth === 'number'
+          ? `${maxWidth}px`
+          : maxWidth
         : appearance === 'tooltip'
           ? `min(${TOOLTIP_MAX_WIDTH_PX}px, calc(100vw - 2rem))`
           : undefined
