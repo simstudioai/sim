@@ -1,7 +1,8 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { and, inArray, ne } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -145,6 +146,133 @@ describe('replaceWorkflowNormalizedState', () => {
       WorkflowStatePersistenceError
     )
     expect(mocks.extractCustomTools).not.toHaveBeenCalled()
+  })
+
+  /**
+   * `workflow_blocks.id`, `workflow_edges.id`, and `workflow_subflows.id` are
+   * GLOBAL primary keys while the replace deletes only this workflow's rows, so
+   * an id owned elsewhere survives the delete and faults the insert. These pin
+   * the refusal, the message, and — because `dbChainMock` resolves rows without
+   * evaluating predicates — the predicate itself.
+   */
+  describe('ids claimed by another workflow', () => {
+    const LOOP_BLOCK = { ...BLOCK, id: 'loop-1', type: 'loop', name: 'Loop' }
+    const EDGE = { id: 'edge-1', source: 'block-1', target: 'block-1' }
+
+    it('refuses a block id another workflow owns instead of faulting the insert', async () => {
+      queueTableRows(schemaMock.workflowBlocks, [{ id: 'block-1' }])
+
+      await expect(replaceWorkflowNormalizedState(input())).rejects.toMatchObject({
+        code: 'conflict',
+        message: 'Block ids already used by another workflow: block-1',
+      })
+      expect(mocks.save).not.toHaveBeenCalled()
+    })
+
+    /**
+     * The `ne(workflowId)` half is load-bearing: without it every ordinary
+     * round-trip — re-sending ids this workflow already holds — becomes a 409.
+     * Asserted on the composed condition, because the chain mock resolves rows
+     * regardless of what was passed to `where`.
+     */
+    it('scopes the lookup to ids held by a DIFFERENT workflow', async () => {
+      await replaceWorkflowNormalizedState(input())
+
+      expect(inArray).toHaveBeenCalledWith(schemaMock.workflowBlocks.id, ['block-1'])
+      expect(ne).toHaveBeenCalledWith(schemaMock.workflowBlocks.workflowId, 'workflow-1')
+      expect(and).toHaveBeenCalledWith(
+        { type: 'inArray', column: schemaMock.workflowBlocks.id, values: ['block-1'] },
+        { type: 'ne', left: schemaMock.workflowBlocks.workflowId, right: 'workflow-1' }
+      )
+      expect(dbChainMockFns.where).toHaveBeenCalledWith({
+        type: 'and',
+        conditions: [
+          { type: 'inArray', column: schemaMock.workflowBlocks.id, values: ['block-1'] },
+          { type: 'ne', left: schemaMock.workflowBlocks.workflowId, right: 'workflow-1' },
+        ],
+      })
+      expect(mocks.save).toHaveBeenCalled()
+    })
+
+    it('refuses an edge id another workflow owns', async () => {
+      mocks.prepare.mockReturnValue({
+        state: { ...PREPARED, edges: [EDGE] },
+        warnings: [],
+      })
+      queueTableRows(schemaMock.workflowEdges, [{ id: 'edge-1' }])
+
+      await expect(replaceWorkflowNormalizedState(input())).rejects.toMatchObject({
+        code: 'conflict',
+        message: 'Edge ids already used by another workflow: edge-1',
+      })
+      expect(inArray).toHaveBeenCalledWith(schemaMock.workflowEdges.id, ['edge-1'])
+      expect(ne).toHaveBeenCalledWith(schemaMock.workflowEdges.workflowId, 'workflow-1')
+      expect(mocks.save).not.toHaveBeenCalled()
+    })
+
+    /**
+     * `workflow_subflows` has its own global primary key, so a value free as a
+     * block id can still be taken as a subflow id — reported under its own
+     * label rather than folded into the block families.
+     */
+    it('reports a subflow id collision under its own label', async () => {
+      mocks.prepare.mockReturnValue({
+        state: {
+          blocks: { 'block-1': BLOCK, 'loop-1': LOOP_BLOCK },
+          edges: [],
+          loops: { 'loop-1': { id: 'loop-1' } },
+          parallels: {},
+        },
+        warnings: [],
+      })
+      queueTableRows(schemaMock.workflowBlocks, [])
+      queueTableRows(schemaMock.workflowSubflows, [{ id: 'loop-1' }])
+
+      await expect(replaceWorkflowNormalizedState(input())).rejects.toMatchObject({
+        code: 'conflict',
+        message: 'Subflow ids already used by another workflow: loop-1',
+      })
+      expect(inArray).toHaveBeenCalledWith(schemaMock.workflowSubflows.id, ['loop-1'])
+      expect(mocks.save).not.toHaveBeenCalled()
+    })
+
+    /** Ids only — never the workflow or workspace that holds them. */
+    it('names the offending ids and nothing about their owner', async () => {
+      queueTableRows(schemaMock.workflowBlocks, [{ id: 'block-1' }])
+
+      const error = await replaceWorkflowNormalizedState(input()).catch((thrown) => thrown)
+
+      expect(error).toMatchObject({ code: 'conflict' })
+      expect(error.message).toContain('block-1')
+      expect(error.message).not.toMatch(/workspace|workflow-2/)
+    })
+
+    /**
+     * The pre-check is the good-message path, not the correctness boundary: the
+     * `FOR UPDATE` locks the target workflow row, not the workflow that would
+     * claim the id, so two concurrent writes carrying the same fresh id can
+     * both pass it under READ COMMITTED. The catch is what keeps that race a
+     * 409 rather than an unclassified 500.
+     */
+    it('re-classifies a 23505 that races past the pre-check', async () => {
+      mocks.save.mockRejectedValue(
+        Object.assign(new Error('duplicate key value violates unique constraint'), {
+          code: '23505',
+          constraint_name: 'workflow_edges_pkey',
+        })
+      )
+
+      await expect(replaceWorkflowNormalizedState(input())).rejects.toMatchObject({
+        code: 'conflict',
+      })
+    })
+
+    it('leaves an unrelated database fault unclassified', async () => {
+      const failure = Object.assign(new Error('deadlock detected'), { code: '40P01' })
+      mocks.save.mockRejectedValue(failure)
+
+      await expect(replaceWorkflowNormalizedState(input())).rejects.toBe(failure)
+    })
   })
 
   /**

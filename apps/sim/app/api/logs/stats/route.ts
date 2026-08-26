@@ -72,7 +72,10 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       const whereCondition = commonFilters ? and(workspaceFilter, commonFilters) : workspaceFilter
 
       const bounds = await readLogStatsBounds(whereCondition)
-      const window = resolveLogStatsWindow(bounds, params.segmentCount)
+      const window = resolveLogStatsWindow(bounds, params.segmentCount, {
+        requestedStart: params.startDate ? new Date(params.startDate) : undefined,
+        requestedEnd: params.endDate ? new Date(params.endDate) : undefined,
+      })
       const rows = await readLogStatsSegments(
         whereCondition,
         window.startTime.toISOString(),

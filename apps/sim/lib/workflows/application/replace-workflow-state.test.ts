@@ -11,6 +11,9 @@ const mocks = vi.hoisted(() => ({
   resolvePermission: vi.fn(),
   notify: vi.fn(),
   replace: vi.fn(),
+  prepare: vi.fn(),
+  collectGraphIds: vi.fn(),
+  assertIdsUnclaimed: vi.fn(),
   validate: vi.fn(),
   needsRedeployment: vi.fn(),
 }))
@@ -35,8 +38,13 @@ vi.mock('@/lib/workflows/application/context', () => ({
   resolveActiveWorkflowApplicationContext: mocks.resolveContext,
 }))
 vi.mock('@/lib/realtime/notify', () => ({ notifyWorkflowUpdated: mocks.notify }))
+vi.mock('@/lib/workflows/persistence/prepare-state', () => ({
+  prepareWorkflowStateForPersistence: mocks.prepare,
+}))
 vi.mock('@/lib/workflows/persistence/replace-normalized-state', () => ({
   replaceWorkflowNormalizedState: mocks.replace,
+  collectWorkflowGraphIds: mocks.collectGraphIds,
+  assertWorkflowGraphIdsUnclaimed: mocks.assertIdsUnclaimed,
 }))
 vi.mock('@/lib/workflows/sanitization/validation', () => ({
   validateWorkflowState: mocks.validate,
@@ -88,6 +96,12 @@ describe('replaceWorkflowState', () => {
       state: { blocks: { 'block-1': BLOCK }, edges: [], loops: {}, parallels: {} },
     })
     mocks.needsRedeployment.mockResolvedValue(true)
+    mocks.prepare.mockReturnValue({
+      state: { blocks: { 'block-1': BLOCK }, edges: [], loops: {}, parallels: {} },
+      warnings: [],
+    })
+    mocks.collectGraphIds.mockReturnValue({ blockIds: ['block-1'], edgeIds: [], subflowIds: [] })
+    mocks.assertIdsUnclaimed.mockResolvedValue(undefined)
   })
 
   /**
@@ -331,6 +345,77 @@ describe('replaceWorkflowState', () => {
       expect(dry.lint).toEqual(committed.lint)
       expect(dry.blocksCount).toBe(committed.blocksCount)
       expect(dry.edgesCount).toBe(committed.edgesCount)
+    })
+
+    /**
+     * The preview promised in {@link ReplaceWorkflowStateInput.dryRun} is
+     * byte-identical to the committed write of the same body, and preparation
+     * is where a dropped edge or a stripped inline secret is noted. Reporting
+     * only the validation half made the dry run quietly less informative than
+     * the write it previews.
+     */
+    it('merges the preparation warnings a committed write would report', async () => {
+      mocks.validate.mockReturnValue({
+        valid: true,
+        errors: [],
+        warnings: ['Dropped block "block-2"'],
+      })
+      mocks.prepare.mockReturnValue({
+        state: { blocks: { 'block-1': BLOCK }, edges: [], loops: {}, parallels: {} },
+        warnings: ['Dropped edge "edge-9": target block does not exist'],
+      })
+      mocks.replace.mockResolvedValue({
+        warnings: ['Dropped edge "edge-9": target block does not exist'],
+        state: { blocks: { 'block-1': BLOCK }, edges: [], loops: {}, parallels: {} },
+      })
+
+      const dry = await replaceWorkflowState.execute({
+        principal: sessionPrincipal,
+        input: { ...input, dryRun: true },
+      })
+      const committed = await replaceWorkflowState.execute({ principal: sessionPrincipal, input })
+
+      expect(dry.warnings).toEqual([
+        'Dropped block "block-2"',
+        'Dropped edge "edge-9": target block does not exist',
+      ])
+      expect(dry.warnings).toEqual(committed.warnings)
+    })
+
+    /**
+     * A dry run that reports clean for a body that cannot commit is worse than
+     * the fault it hides. It checks the ids the write would actually insert —
+     * the prepared graph's, not the caller's body's.
+     */
+    it('refuses a graph whose ids another workflow already owns', async () => {
+      mocks.assertIdsUnclaimed.mockRejectedValueOnce(
+        new OrchestrationError('conflict', 'Block ids already used by another workflow: block-1')
+      )
+
+      await expect(
+        replaceWorkflowState.execute({
+          principal: sessionPrincipal,
+          input: { ...input, dryRun: true },
+        })
+      ).rejects.toMatchObject({ code: 'conflict' })
+      expect(mocks.replace).not.toHaveBeenCalled()
+    })
+
+    it('checks the ids the prepared graph would insert, not the ids sent', async () => {
+      const prepared = { blocks: { 'block-1': BLOCK }, edges: [], loops: {}, parallels: {} }
+      mocks.prepare.mockReturnValue({ state: prepared, warnings: [] })
+
+      await replaceWorkflowState.execute({
+        principal: sessionPrincipal,
+        input: { ...input, dryRun: true },
+      })
+
+      expect(mocks.collectGraphIds).toHaveBeenCalledWith(prepared)
+      expect(mocks.assertIdsUnclaimed).toHaveBeenCalledWith(expect.anything(), 'workflow-1', {
+        blockIds: ['block-1'],
+        edgeIds: [],
+        subflowIds: [],
+      })
     })
 
     /** A locked workflow refuses the preview too, or the preview would lie. */

@@ -29,7 +29,7 @@ describe('resolveLogStatsWindow', () => {
   const now = new Date('2026-01-15T12:00:00.000Z')
 
   it('falls back to the trailing 24 hours when nothing ran', () => {
-    const resolved = resolveLogStatsWindow({ minTime: null, maxTime: null }, 24, now)
+    const resolved = resolveLogStatsWindow({ minTime: null, maxTime: null }, 24, { now })
 
     expect(resolved.endTime).toEqual(now)
     expect(resolved.startTime).toEqual(new Date('2026-01-14T12:00:00.000Z'))
@@ -39,7 +39,7 @@ describe('resolveLogStatsWindow', () => {
     const resolved = resolveLogStatsWindow(
       { minTime: '2026-01-15T00:00:00.000Z', maxTime: '2026-01-15T06:00:00.000Z' },
       12,
-      now
+      { now }
     )
 
     expect(resolved.endTime).toEqual(now)
@@ -50,16 +50,95 @@ describe('resolveLogStatsWindow', () => {
     const resolved = resolveLogStatsWindow(
       { minTime: '2026-01-15T12:00:00.000Z', maxTime: '2026-01-15T12:00:01.000Z' },
       500,
-      now
+      { now }
     )
 
     expect(resolved.segmentMs).toBe(60_000)
   })
 
   it('divides by segmentCount without producing a zero-width bucket', () => {
-    const resolved = resolveLogStatsWindow({ minTime: null, maxTime: null }, 1, now)
+    const resolved = resolveLogStatsWindow({ minTime: null, maxTime: null }, 1, { now })
 
     expect(resolved.segmentMs).toBe(24 * 60 * 60 * 1000)
+  })
+
+  /**
+   * The `segmentMs` assertion is the load-bearing half: pinning `endTime`
+   * alone would still pass for a fix that relabelled `timeBounds` without
+   * re-deriving the bucket width the series is stamped from.
+   */
+  it('ends the window at the requested end rather than at now', () => {
+    const resolved = resolveLogStatsWindow(
+      { minTime: '2026-01-14T00:00:00.000Z', maxTime: '2026-01-14T06:00:00.000Z' },
+      12,
+      { requestedEnd: new Date('2026-01-14T12:00:00.000Z'), now }
+    )
+
+    expect(resolved.endTime).toEqual(new Date('2026-01-14T12:00:00.000Z'))
+    expect(resolved.segmentMs).toBe(60 * 60 * 1000)
+  })
+
+  it('starts the window at the requested start rather than at the oldest run', () => {
+    const resolved = resolveLogStatsWindow(
+      { minTime: '2026-01-14T06:00:00.000Z', maxTime: '2026-01-14T09:00:00.000Z' },
+      12,
+      {
+        requestedStart: new Date('2026-01-14T00:00:00.000Z'),
+        requestedEnd: new Date('2026-01-14T12:00:00.000Z'),
+        now,
+      }
+    )
+
+    expect(resolved.startTime).toEqual(new Date('2026-01-14T00:00:00.000Z'))
+    expect(resolved.segmentMs).toBe(60 * 60 * 1000)
+  })
+
+  it('reports the requested window when nothing ran inside it', () => {
+    const resolved = resolveLogStatsWindow({ minTime: null, maxTime: null }, 6, {
+      requestedStart: new Date('2026-01-01T00:00:00.000Z'),
+      requestedEnd: new Date('2026-01-07T00:00:00.000Z'),
+      now,
+    })
+
+    expect(resolved.startTime).toEqual(new Date('2026-01-01T00:00:00.000Z'))
+    expect(resolved.endTime).toEqual(new Date('2026-01-07T00:00:00.000Z'))
+    expect(resolved.segmentMs).toBe(24 * 60 * 60 * 1000)
+  })
+
+  /**
+   * The case neither fallback sentence covers on its own: with no rows and only
+   * a right edge, the 24-hour window is measured back from the requested end,
+   * not from the wall clock.
+   */
+  it('measures the empty-result fallback back from a requested end', () => {
+    const resolved = resolveLogStatsWindow({ minTime: null, maxTime: null }, 24, {
+      requestedEnd: new Date('2026-01-10T00:00:00.000Z'),
+      now,
+    })
+
+    expect(resolved.endTime).toEqual(new Date('2026-01-10T00:00:00.000Z'))
+    expect(resolved.startTime).toEqual(new Date('2026-01-09T00:00:00.000Z'))
+  })
+
+  /** The dashboard schema has no `startDate <= endDate` refinement, so a crossed pair reaches here. */
+  it('keeps a crossed requested pair from producing a non-positive bucket width', () => {
+    const resolved = resolveLogStatsWindow({ minTime: null, maxTime: null }, 6, {
+      requestedStart: new Date('2026-01-07T00:00:00.000Z'),
+      requestedEnd: new Date('2026-01-01T00:00:00.000Z'),
+      now,
+    })
+
+    expect(resolved.segmentMs).toBe(60_000)
+  })
+
+  it('ignores an unparseable requested bound instead of stamping Invalid Date', () => {
+    const resolved = resolveLogStatsWindow({ minTime: null, maxTime: null }, 24, {
+      requestedEnd: new Date('not-a-date'),
+      now,
+    })
+
+    expect(resolved.endTime).toEqual(now)
+    expect(resolved.startTime).toEqual(new Date('2026-01-14T12:00:00.000Z'))
   })
 })
 
