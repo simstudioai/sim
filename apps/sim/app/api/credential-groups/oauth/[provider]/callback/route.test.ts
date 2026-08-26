@@ -27,6 +27,7 @@ vi.mock('@/lib/credential-groups/rate-limit', () => ({
   enforcePublicCredentialGroupIpRateLimit: mocks.rateLimit,
 }))
 
+import { CredentialGroupInvitationUnavailableError } from '@/lib/credential-groups/provider-adapter'
 import { GET } from '@/app/api/credential-groups/oauth/[provider]/callback/route'
 
 const principal = {
@@ -121,6 +122,17 @@ describe('credential group OAuth callback', () => {
       '/credential-groups/enroll/invitation-token?oauth=unavailable'
     )
     expect(mocks.completeOAuth).not.toHaveBeenCalled()
+  })
+
+  it('returns an unavailable enrollment redirect when the invitation is revoked during exchange', async () => {
+    mocks.completeOAuth.mockRejectedValueOnce(new CredentialGroupInvitationUnavailableError())
+
+    const response = await GET(request('state=state-1&code=code-1'), context)
+
+    expect(response.status).toBe(307)
+    expect(response.headers.get('location')).toBe(
+      '/credential-groups/enroll/invitation-token?oauth=unavailable'
+    )
   })
 
   it('returns a valid rate-limited callback to the enrollment page without exchanging', async () => {

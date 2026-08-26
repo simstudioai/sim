@@ -6,7 +6,10 @@ import type { CredentialGroupOAuthCallbackQuery } from '@/lib/api/contracts/cred
 import { authenticateCredentialGroupEnrollment } from '@/lib/credential-groups/application/enrollment-auth'
 import { completePublicCredentialGroupOAuth } from '@/lib/credential-groups/application/public-enrollment'
 import { consumeCredentialGroupOAuthAttempt } from '@/lib/credential-groups/oauth-state'
-import { CredentialGroupOAuthError } from '@/lib/credential-groups/provider-adapter'
+import {
+  CredentialGroupInvitationUnavailableError,
+  CredentialGroupOAuthError,
+} from '@/lib/credential-groups/provider-adapter'
 import type { CredentialGroupProvider } from '@/lib/credential-groups/providers'
 import { createCredentialGroupEnrollmentRedirect } from '@/app/api/credential-groups/enrollment-redirect'
 
@@ -80,13 +83,15 @@ export async function handleCredentialGroupOAuthCallback({
       error: getErrorMessage(error),
     })
     const status =
-      error instanceof CredentialGroupOAuthError && error.statusCode === 403
-        ? error.message.startsWith('Sign in with')
-          ? 'account_mismatch'
-          : 'permissions_required'
-        : error instanceof CredentialGroupOAuthError && error.statusCode === 409
-          ? 'configuration_changed'
-          : 'failed'
+      error instanceof CredentialGroupInvitationUnavailableError
+        ? 'unavailable'
+        : error instanceof CredentialGroupOAuthError && error.statusCode === 403
+          ? error.message.startsWith('Sign in with')
+            ? 'account_mismatch'
+            : 'permissions_required'
+          : error instanceof CredentialGroupOAuthError && error.statusCode === 409
+            ? 'configuration_changed'
+            : 'failed'
     return createCredentialGroupEnrollmentRedirect(attempt.invitationToken, { oauth: status })
   }
 }

@@ -33,6 +33,7 @@ vi.mock('@/lib/credentials/managed-oauth', () => ({
 }))
 
 import { completeCredentialGroupOAuth } from '@/lib/credential-groups/oauth'
+import { CredentialGroupInvitationUnavailableError } from '@/lib/credential-groups/provider-adapter'
 
 const POLICY = {
   provider: 'gmail' as const,
@@ -114,7 +115,7 @@ describe('credential group OAuth persistence', () => {
         },
         'authorization-code'
       )
-    ).rejects.toThrow('This account invitation was revoked.')
+    ).rejects.toBeInstanceOf(CredentialGroupInvitationUnavailableError)
 
     expect(dbChainMockFns.execute).toHaveBeenCalledTimes(2)
     expect(dbChainMockFns.update).not.toHaveBeenCalled()

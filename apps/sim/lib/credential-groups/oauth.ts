@@ -15,7 +15,10 @@ import type {
   CredentialGroupProviderPolicy,
   VerifiedCredentialGroupGrant,
 } from '@/lib/credential-groups/provider-adapter'
-import { CredentialGroupOAuthError } from '@/lib/credential-groups/provider-adapter'
+import {
+  CredentialGroupInvitationUnavailableError,
+  CredentialGroupOAuthError,
+} from '@/lib/credential-groups/provider-adapter'
 import { getCredentialGroupProviderAdapter } from '@/lib/credential-groups/provider-registry'
 import {
   getCredentialGroupProviderService,
@@ -124,7 +127,7 @@ async function persistGrant(
       .where(eq(credentialGroupEnrollment.id, context.enrollmentId))
       .limit(1)
     if (!enrollment || enrollment.status === 'revoked') {
-      throw new CredentialGroupOAuthError('This account invitation was revoked.', 409)
+      throw new CredentialGroupInvitationUnavailableError()
     }
 
     const [group] = await tx
@@ -263,7 +266,7 @@ async function persistGrant(
       )
       .returning({ id: credentialGroupEnrollment.id })
     if (!updatedEnrollment) {
-      throw new CredentialGroupOAuthError('This account invitation was revoked.', 409)
+      throw new CredentialGroupInvitationUnavailableError()
     }
   })
 }

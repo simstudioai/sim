@@ -438,5 +438,5 @@ export const sharedCredentialGroupOAuthCallbackContract = defineRouteContract({
   path: '/api/auth/oauth2/callback/[providerId]',
   params: sharedCredentialGroupOAuthCallbackParamsSchema,
   query: credentialGroupOAuthCallbackQuerySchema,
-  response: { mode: 'empty' },
+  response: { mode: 'redirect' },
 })
