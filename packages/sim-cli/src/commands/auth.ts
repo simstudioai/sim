@@ -15,6 +15,7 @@ import {
   deleteProfile,
   listAuthenticationDependents,
   listProfiles,
+  ProfileConfigError,
   type ResolvedProfile,
   readCredentialsProfile,
   resolveAuthenticationProfileName,
@@ -24,6 +25,7 @@ import {
 } from '../config/index'
 import { clientFrom, globalsOf, profileFrom } from '../context'
 import {
+  type GetMetaResponse,
   type GetWorkspaceResponse,
   type ListWorkspacesResponse,
   V2_OPERATIONS,
@@ -231,7 +233,9 @@ export function loginCommand(): Command {
     .option('-y, --yes', 'Overwrite an existing profile without prompting')
     .action(
       async (options: { scope: string; browser: boolean; yes?: boolean }, command: Command) => {
-        const profile = profileFrom(command)
+        // `login --profile x` is how a profile comes into existence, so the name
+        // is allowed to be one resolution would otherwise reject as unknown.
+        const profile = profileFrom(command, { allowUnknownProfile: true })
         const authProfile = resolveAuthenticationProfileName(profile.name)
 
         if (authProfile !== profile.name) {
@@ -377,13 +381,37 @@ interface VerifiedWorkspace {
  * missing workspace needs `sim configure`, and an unreachable endpoint needs
  * neither.
  */
-type Verification =
+type Verification = { keyType: KeyType | null } & (
   | { status: 'verified'; workspace: VerifiedWorkspace; detail: null }
   | {
       status: 'rejected' | 'unreachable' | 'unauthenticated' | 'no-workspace' | 'disabled'
       workspace: null
       detail: string
     }
+)
+
+type KeyType = GetMetaResponse['data']['keyType']
+
+/**
+ * Reads which kind of key is in play, as a diagnostic only.
+ *
+ * `PRINCIPAL_KIND_NOT_PERMITTED` is the failure this answers: a personal key on
+ * a workspace-key operation refuses every call, and the natural move — running
+ * `whoami` — used to show a green check and say nothing about the kind. Failures
+ * are swallowed to `null` because the verdict and the exit code belong to the
+ * workspace read below; a diagnostic must not change either.
+ */
+async function readKeyType(client: Pick<SimClient, 'request'>): Promise<KeyType | null> {
+  const operation = V2_OPERATIONS.getMeta
+  try {
+    const response = await client.request<GetMetaResponse>(operation.path, {
+      method: operation.method,
+    })
+    return response.data.keyType
+  } catch {
+    return null
+  }
+}
 
 /**
  * The only answers that are a verdict on the credentials themselves.
@@ -439,13 +467,21 @@ async function verifyProfile(
     return {
       status: 'unauthenticated',
       workspace: null,
+      keyType: null,
       detail: `no API key — run: sim login --profile ${profile.name}`,
     }
   }
+
+  // Read the kind before the workspace, so it is reported even for a profile
+  // with no workspace to check against — the case where a key that cannot be
+  // used is most likely to look merely unconfigured.
+  const keyType = await readKeyType(client)
+
   if (!profile.workspaceId) {
     return {
       status: 'no-workspace',
       workspace: null,
+      keyType,
       detail: `no workspace to check against — run: sim configure --profile ${profile.name} --set-workspace <id>`,
     }
   }
@@ -459,12 +495,13 @@ async function verifyProfile(
     const { id, name, memberCount } = response.data
     // Projected field by field: the record carries display fields the machine
     // output has no business inventing a contract for.
-    return { status: 'verified', workspace: { id, name, memberCount }, detail: null }
+    return { status: 'verified', workspace: { id, name, memberCount }, keyType, detail: null }
   } catch (error) {
     if (!(error instanceof SimApiError)) throw error
     return {
       status: CREDENTIAL_VERDICT_STATUSES.has(error.status) ? 'rejected' : 'unreachable',
       workspace: null,
+      keyType,
       detail: error.message,
     }
   }
@@ -502,7 +539,12 @@ export function whoamiCommand(): Command {
 
       const verification: Verification = options.verify
         ? await verifyProfile(client, profile)
-        : { status: 'disabled', workspace: null, detail: 'not checked (--no-verify)' }
+        : {
+            status: 'disabled',
+            workspace: null,
+            keyType: null,
+            detail: 'not checked (--no-verify)',
+          }
 
       const annotate = (value: string, source: string) =>
         source === 'unset' ? chalk.dim('not set') : `${value} ${chalk.dim(`(${source})`)}`
@@ -517,6 +559,11 @@ export function whoamiCommand(): Command {
             authentication.authenticated
               ? annotate('configured', authentication.source)
               : chalk.yellow('not logged in'),
+          ],
+          [
+            'Key type',
+            verification.keyType ??
+              chalk.dim(options.verify ? 'unknown' : 'not checked (--no-verify)'),
           ],
           ['Workspace', annotate(profile.workspaceId ?? '', sources.workspaceId)],
           ['Output', annotate(profile.output, sources.output)],
@@ -537,6 +584,7 @@ export function whoamiCommand(): Command {
           verification: {
             status: verification.status,
             workspace: verification.workspace,
+            keyType: verification.keyType,
             detail: verification.detail,
           },
         }
@@ -564,7 +612,19 @@ export function profilesCommand(): Command {
     const active = selectedProfileName(actionCommand)
     for (const name of profiles) {
       const marker = name === active ? chalk.green('*') : ' '
-      const authProfile = resolveAuthenticationProfileName(name)
+
+      // `profiles` is the command someone runs *because* a profile is broken,
+      // so one bad `auth_profile` must mark its own row rather than abort the
+      // listing and leave them with no profiles shown at all.
+      let authProfile: string
+      try {
+        authProfile = resolveAuthenticationProfileName(name)
+      } catch (error) {
+        if (!(error instanceof ProfileConfigError)) throw error
+        console.log(`${marker} ${name}${chalk.red(`  (${safeOneLine(error.message)})`)}`)
+        continue
+      }
+
       const hasKey = Boolean(readCredentialsProfile(authProfile).api_key)
       const authentication = authProfile === name ? '' : chalk.dim(`  (auth: ${authProfile})`)
       console.log(`${marker} ${name}${hasKey ? '' : chalk.dim('  (no key)')}${authentication}`)

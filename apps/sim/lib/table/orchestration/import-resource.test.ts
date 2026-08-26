@@ -254,6 +254,77 @@ describe('findTableImportResource on a job that is not a v2 import resource', ()
       target: TARGET,
     })
   })
+
+  /**
+   * A malformed source file imports fewer rows than it holds. Without this on the
+   * record, `completed` with `rowsProcessed: 1` is indistinguishable from a clean
+   * one-row import, and a script has no way to notice the loss.
+   */
+  it('surfaces the rejection summary the runner merged into the payload', async () => {
+    const sample = { code: 'CSV_QUOTE_NOT_CLOSED', line: 4, message: 'Quote Not Closed' }
+    mockDbLimit.mockResolvedValue([
+      job({
+        status: 'ready',
+        rowsProcessed: 1,
+        payload: {
+          ...PAYLOAD,
+          rowsRejected: 1,
+          cellsRejected: 2,
+          rejectedSamples: [sample],
+        },
+      }),
+    ])
+
+    await expect(findTableImportResource({ importId: IMPORT_ID })).resolves.toMatchObject({
+      rowsProcessed: 1,
+      rowsRejected: 1,
+      cellsRejected: 2,
+      rejectedSamples: [sample],
+    })
+  })
+
+  /**
+   * The samples are read straight out of schemaless jsonb into a `.strict()` response
+   * schema, so an element carrying an extra key, a non-integer line, or no message at all
+   * would turn a read of the import into a 500 rather than a degraded body.
+   */
+  it('drops persisted rejection data the response schema could not accept', async () => {
+    mockDbLimit.mockResolvedValue([
+      job({
+        status: 'ready',
+        rowsProcessed: 1,
+        payload: {
+          ...PAYLOAD,
+          rowsRejected: 1.5,
+          cellsRejected: -2,
+          rejectedSamples: [
+            { code: 'CSV_QUOTE_NOT_CLOSED', line: 4, message: 'Quote Not Closed', extra: 'drift' },
+            { code: 'CSV_RECORD_INCONSISTENT_COLUMNS', line: '9', message: 'Ragged row' },
+            { code: 'CSV_MAX_RECORD_SIZE' },
+            'not-an-object',
+          ],
+        },
+      }),
+    ])
+
+    const resource = await findTableImportResource({ importId: IMPORT_ID })
+
+    expect(resource?.rejectedSamples).toEqual([
+      { code: 'CSV_QUOTE_NOT_CLOSED', line: 4, message: 'Quote Not Closed' },
+      { code: 'CSV_RECORD_INCONSISTENT_COLUMNS', line: null, message: 'Ragged row' },
+    ])
+    expect(resource).toMatchObject({ rowsRejected: 0, cellsRejected: 0 })
+  })
+
+  it('reads a job written before rejection accounting as a clean import', async () => {
+    mockDbLimit.mockResolvedValue([job({ payload: PAYLOAD, status: 'ready', rowsProcessed: 3 })])
+
+    await expect(findTableImportResource({ importId: IMPORT_ID })).resolves.toMatchObject({
+      rowsRejected: 0,
+      cellsRejected: 0,
+      rejectedSamples: [],
+    })
+  })
 })
 
 /**

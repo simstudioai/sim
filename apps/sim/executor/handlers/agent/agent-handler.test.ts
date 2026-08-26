@@ -951,6 +951,55 @@ describe('AgentBlockHandler', () => {
       expect(forceTool.usageControl).toBe('force')
     })
 
+    /**
+     * `schema.function.name` has no uniqueness constraint — only the tool title
+     * does — so two custom tools can declare the same one. The model-facing
+     * function name is the tool's `id` (`custom_<title>`), never that field, so
+     * the declarations stay distinguishable at the agent boundary.
+     */
+    it('keeps two custom tools distinguishable when their schemas declare one name', async () => {
+      const declaration = (name: string) => ({
+        function: {
+          name,
+          description: 'Collides on the declared function name',
+          parameters: { type: 'object', properties: { input: { type: 'string' } } },
+        },
+      })
+      const inputs = {
+        model: 'gpt-4o',
+        userPrompt: 'Use the tools provided.',
+        apiKey: 'test-api-key',
+        tools: [
+          {
+            type: 'custom-tool',
+            title: 'First Tool',
+            code: 'return {}',
+            schema: declaration('collides'),
+            usageControl: 'auto' as const,
+          },
+          {
+            type: 'custom-tool',
+            title: 'Second Tool',
+            code: 'return {}',
+            schema: declaration('collides'),
+            usageControl: 'auto' as const,
+          },
+        ],
+      }
+
+      mockGetProviderFromModel.mockReturnValue('openai')
+
+      await handler.execute(mockContext, mockBlock, inputs)
+
+      const tools = mockExecuteProviderRequest.mock.calls[0][1].tools as Array<{ id: string }>
+      expect(tools.length).toBe(2)
+      expect(new Set(tools.map((tool) => tool.id)).size).toBe(2)
+      expect(tools.map((tool) => tool.id).sort()).toEqual([
+        'custom_First Tool',
+        'custom_Second Tool',
+      ])
+    })
+
     it('should filter out tools with usageControl set to "none"', async () => {
       const inputs = {
         model: 'gpt-4o',

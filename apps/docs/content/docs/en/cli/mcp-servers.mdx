@@ -32,7 +32,7 @@ sim mcp-servers create [options]
 | `--enabled` | No | Whether the server tools are available to workflows. Applied server-side as true when omitted on create. |
 | `--no-enabled` | No | Send --enabled as false. |
 | `--oauth-client-id <value>` | No | Pre-registered OAuth client identifier. Changing it on update revokes the stored OAuth grant and forces reauthorization. |
-| `--oauth-client-secret <value>` | No | Write-only pre-registered OAuth client secret. Sending it on update as null or a new value revokes the stored OAuth grant and forces reauthorization, as does switching away from OAuth authentication. |
+| `--oauth-client-secret <value>` | No | Write-only pre-registered OAuth client secret. Sending it on update as null or a new value revokes the stored OAuth grant and forces reauthorization, as does switching away from OAuth authentication. (--oauth-client-secret null sends the word, not JSON null). |
 
 </CommandTable>
 
@@ -157,6 +157,6 @@ sim mcp-servers update <mcpServerId> [options]
 | `--enabled` | No | Whether the server tools are available to workflows. Applied server-side as true when omitted on create. |
 | `--no-enabled` | No | Send --enabled as false. |
 | `--oauth-client-id <value>` | No | Pre-registered OAuth client identifier. Changing it on update revokes the stored OAuth grant and forces reauthorization. |
-| `--oauth-client-secret <value>` | No | Write-only pre-registered OAuth client secret. Sending it on update as null or a new value revokes the stored OAuth grant and forces reauthorization, as does switching away from OAuth authentication. |
+| `--oauth-client-secret <value>` | No | Write-only pre-registered OAuth client secret. Sending it on update as null or a new value revokes the stored OAuth grant and forces reauthorization, as does switching away from OAuth authentication. (--oauth-client-secret null sends the word, not JSON null). |
 
 </CommandTable>

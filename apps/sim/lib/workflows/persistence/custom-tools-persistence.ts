@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { isStorableCustomToolSchema } from '@/lib/custom-tools/schema'
+import { isValidCustomToolDeclaration } from '@/lib/custom-tools/schema'
 import { upsertCustomTools } from '@/lib/workflows/custom-tools/operations'
 
 const logger = createLogger('CustomToolsPersistence')
@@ -146,7 +146,7 @@ export async function persistCustomToolsToDatabase(
      * unstorable declaration does not cost the rest of the import its tools —
      * the tool itself still runs from the inline definition on the block.
      */
-    if (!isStorableCustomToolSchema(tool.schema)) {
+    if (!isValidCustomToolDeclaration(tool.schema)) {
       logger.warn(`Skipping custom tool with an unstorable schema: ${tool.title}`)
       return false
     }

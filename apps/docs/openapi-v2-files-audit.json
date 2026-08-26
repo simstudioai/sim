@@ -1549,12 +1549,12 @@
           {
             "name": "organizationId",
             "in": "query",
-            "required": true,
-            "description": "Organization whose audit trail should be queried.",
+            "required": false,
+            "description": "Organization whose audit trail should be queried. Defaults to the caller's own organization when omitted. A caller that belongs to no organization, or that names one it is not a member of, is refused with a 403.",
             "schema": {
+              "description": "Organization whose audit trail should be queried. Defaults to the caller's own organization when omitted. A caller that belongs to no organization, or that names one it is not a member of, is refused with a 403.",
               "type": "string",
-              "minLength": 1,
-              "description": "Organization whose audit trail should be queried."
+              "minLength": 1
             }
           },
           {
@@ -1634,12 +1634,12 @@
           {
             "name": "organizationId",
             "in": "query",
-            "required": true,
-            "description": "Organization whose audit-log entry should be returned.",
+            "required": false,
+            "description": "Organization whose audit-log entry should be returned. Defaults to the caller's own organization when omitted. A caller that belongs to no organization, or that names one it is not a member of, is refused with a 403.",
             "schema": {
+              "description": "Organization whose audit-log entry should be returned. Defaults to the caller's own organization when omitted. A caller that belongs to no organization, or that names one it is not a member of, is refused with a 403.",
               "type": "string",
-              "minLength": 1,
-              "description": "Organization whose audit-log entry should be returned."
+              "minLength": 1
             }
           }
         ],

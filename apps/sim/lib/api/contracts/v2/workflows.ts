@@ -1291,7 +1291,7 @@ export const v2ExecuteWorkflowBodySchema = z
       .max(100)
       .optional()
       .describe(
-        'Block output references to include in a streamed response. Rejected when `async` is true.'
+        'Block output references to include in a streamed response, as `blockId`, `blockId.path`, or `BlockName.path` (resolved against the live workflow). Requires `stream: true` — it shapes the streamed envelope only, so it is rejected on a sync request and when `async` is true. To narrow a finished run, pass `selectedOutputs` to the run resource instead.'
       ),
     includeThinking: z
       .boolean()
@@ -1789,10 +1789,11 @@ export const v2GetWorkflowRunContract = defineRouteContract({
        * Block *ids*, unlike the execute request's `selectedOutputs`, which also
        * accepts `BlockName.path` and resolves it against the live workflow. This
        * resource reads a recorded run and never loads the workflow's blocks, so
-       * a name has no id to resolve to and selects nothing.
+       * a name has no id to resolve to and is refused rather than silently
+       * selecting nothing.
        */
       selectedOutputs: workflowExecutionStatusQuerySchema.shape.selectedOutputs.describe(
-        'Comma-separated block output references to include, as `blockId` or `blockId.path`. Block *names* are not resolved here — unlike the execute request, this resource reads a recorded run and matches ids only, so a name selects nothing and yields an empty `blockOutputs`.'
+        'Comma-separated block output references to include, as `blockId` or `blockId.path`. Block *names* are not resolved here — unlike the execute request, this resource reads a recorded run and matches ids only, so a selector that is not headed by a block id answers `400` instead of an empty `blockOutputs`.'
       ),
       /**
        * Allowed here but not on the async execute request, whose rejection is

@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   resolveAccess: vi.fn(),
+  resolveDefaultOrganization: vi.fn(),
   getOrgWorkspaceIds: vi.fn(),
   buildOrgScopeCondition: vi.fn(),
   buildFilterConditions: vi.fn(),
@@ -17,6 +18,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/lib/audit-logs/authorization', () => ({
   resolveEnterpriseAuditAccess: mocks.resolveAccess,
+  resolveDefaultAuditOrganization: mocks.resolveDefaultOrganization,
 }))
 
 vi.mock('@/lib/audit-logs/query', () => ({
@@ -53,6 +55,10 @@ describe('audit-log application use cases', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+    mocks.resolveDefaultOrganization.mockResolvedValue({
+      kind: 'resolved',
+      organizationId: 'organization-1',
+    })
     mocks.resolveAccess.mockResolvedValue({
       success: true,
       context: { organizationId: 'organization-1', orgMemberIds: ['admin-1'] },
@@ -89,6 +95,46 @@ describe('audit-log application use cases', () => {
       includeDeparted: false,
     })
     expect(mocks.recordAudit).not.toHaveBeenCalled()
+  })
+
+  /**
+   * Nothing an API key can reach publishes an organization id, so a required
+   * `organizationId` made the whole resource unreachable from a key. It is
+   * derived from the caller, which `member`'s per-user unique index keeps to a
+   * single candidate.
+   */
+  it('derives the organization when the caller named none', async () => {
+    await expect(
+      listAuditLogs.execute({
+        principal: sessionPrincipal,
+        input: { ...listInput, organizationId: undefined },
+      })
+    ).resolves.toEqual({ data: [], nextCursor: undefined })
+
+    expect(mocks.resolveDefaultOrganization).toHaveBeenCalledWith('admin-1')
+    expect(mocks.resolveAccess).toHaveBeenCalledWith('admin-1', 'organization-1')
+  })
+
+  it('does not derive an organization the caller named itself', async () => {
+    await listAuditLogs.execute({ principal: sessionPrincipal, input: listInput })
+
+    expect(mocks.resolveDefaultOrganization).not.toHaveBeenCalled()
+  })
+
+  it('names the membership refusal for a caller in no organization', async () => {
+    mocks.resolveDefaultOrganization.mockResolvedValueOnce({ kind: 'none' })
+
+    await expect(
+      getAuditLog.execute({
+        principal: sessionPrincipal,
+        input: { id: 'audit-1' },
+      })
+    ).rejects.toMatchObject({
+      code: 'forbidden',
+      detailCode: 'ORGANIZATION_MEMBERSHIP_REQUIRED',
+    })
+
+    expect(mocks.resolveAccess).not.toHaveBeenCalled()
   })
 
   it('rejects a workspace filter outside the authorized organization', async () => {

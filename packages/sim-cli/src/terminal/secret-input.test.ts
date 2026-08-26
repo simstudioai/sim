@@ -1,7 +1,9 @@
 import { EventEmitter } from 'node:events'
 import type { ReadStream } from 'node:tty'
 import { describe, expect, it } from 'vitest'
-import { promptSecret } from './secret-input'
+import { promptSecret, SecretInputCancelledError } from './secret-input'
+
+const ESCAPE = '\u001b'
 
 class FakeInput extends EventEmitter {
   isTTY = true
@@ -84,6 +86,38 @@ describe('promptSecret', () => {
     input.emit('keypress', '\u0003', { ctrl: true, name: 'c' })
 
     await expect(result).rejects.toThrow('Secret input cancelled.')
+    await expect(result).rejects.toBeInstanceOf(SecretInputCancelledError)
     expect(input.rawStates).toEqual([true, false])
+  })
+
+  it('keeps the character following a pasted escape byte', async () => {
+    const input = new FakeInput()
+    const output = new FakeOutput()
+    const result = promptSecret(input as unknown as ReadStream, output)
+
+    input.emit('keypress', undefined, { name: 'a', meta: true, sequence: `${ESCAPE}a` })
+    input.emit('keypress', 'b', { name: 'b' })
+    input.emit('keypress', undefined, { name: 'space', meta: true, sequence: `${ESCAPE} ` })
+    input.emit('keypress', undefined, { meta: true, sequence: `${ESCAPE}!` })
+    input.emit('keypress', undefined, { name: 'a', meta: true, sequence: `${ESCAPE}${ESCAPE}A` })
+    input.emit('keypress', '\r', { name: 'return' })
+
+    await expect(result).resolves.toBe('ab !A')
+    expect(output.value).toBe('Secret value: *****\n')
+  })
+
+  it('still ignores navigation keys and a lone escape', async () => {
+    const input = new FakeInput()
+    const result = promptSecret(input as unknown as ReadStream, new FakeOutput())
+
+    input.emit('keypress', undefined, { name: 'up', sequence: `${ESCAPE}[A` })
+    input.emit('keypress', undefined, { name: 'left', sequence: `${ESCAPE}[D` })
+    input.emit('keypress', undefined, { name: 'up', meta: true, sequence: `${ESCAPE}[1;3A` })
+    input.emit('keypress', undefined, { name: 'escape', meta: true, sequence: ESCAPE })
+    input.emit('keypress', 'x', { name: 'x' })
+    input.emit('keypress', 'y', { name: 'y' })
+    input.emit('keypress', '\r', { name: 'return' })
+
+    await expect(result).resolves.toBe('xy')
   })
 })

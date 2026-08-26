@@ -130,9 +130,9 @@
             "name": "workspaceId",
             "in": "query",
             "required": false,
-            "description": "Restrict results to one workspace whose payer the caller can inspect.",
+            "description": "Narrow the ledger to usage events attributed to one workspace. It does not change whose events are reported — a personal API key always reports the usage of the person holding it, and a workspace API key always reports its own workspace's complete ledger across every member. The response `scope` field says which of the two you received. A workspace API key is pinned to its own workspace: any other id answers `404 Workspace not found`, which is also what an id that does not exist answers.",
             "schema": {
-              "description": "Restrict results to one workspace whose payer the caller can inspect.",
+              "description": "Narrow the ledger to usage events attributed to one workspace. It does not change whose events are reported — a personal API key always reports the usage of the person holding it, and a workspace API key always reports its own workspace's complete ledger across every member. The response `scope` field says which of the two you received. A workspace API key is pinned to its own workspace: any other id answers `404 Workspace not found`, which is also what an id that does not exist answers.",
               "type": "string",
               "minLength": 1,
               "maxLength": 128
@@ -722,9 +722,14 @@
               }
             ],
             "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself."
+          },
+          "scope": {
+            "type": "string",
+            "enum": ["user", "workspace"],
+            "description": "Whose usage this page reports. `user` — the events of the person whose personal API key made the request, narrowed by `workspaceId` when one was given; this omits other members' usage. `workspace` — every member's events for the workspace a workspace API key is pinned to."
           }
         },
-        "required": ["data", "nextCursor"],
+        "required": ["data", "nextCursor", "scope"],
         "additionalProperties": false,
         "title": "Billing log list response",
         "description": "A cursor-paginated page of credit-consuming usage events.",
@@ -741,7 +746,8 @@
                 "creditCost": 12
               }
             ],
-            "nextCursor": null
+            "nextCursor": null,
+            "scope": "workspace"
           }
         ]
       }

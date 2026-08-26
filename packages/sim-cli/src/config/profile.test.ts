@@ -177,6 +177,54 @@ describe('profile resolution', () => {
     expect(resolveProfile({ profile: 'default' }).name).toBe('default')
   })
 
+  it('refuses an unknown profile instead of silently resolving it to production', () => {
+    // A typo used to fall through to the built-in defaults, so `--profile
+    // stagng` talked to https://www.sim.ai and handed it whatever key resolved.
+    writeConfigProfile('staging', { endpoint: 'https://staging.example' })
+    writeCredentialsProfile('staging', 'key_staging')
+
+    expect(() => resolveProfile({ profile: 'stagng' })).toThrow(
+      'Unknown profile "stagng". Did you mean "staging"? Configured profiles: staging.'
+    )
+
+    process.env.SIM_PROFILE = 'ghost'
+    expect(() => resolveProfile()).toThrow('Unknown profile "ghost". Configured profiles: staging.')
+  })
+
+  it('points a first-time typo at login rather than an empty profile list', () => {
+    expect(() => resolveProfile({ profile: 'dev' })).toThrow(
+      'Unknown profile "dev". No profiles are configured yet. Run: sim login --profile dev'
+    )
+  })
+
+  it('keeps the default profile working with no config file at all', () => {
+    // The documented CI path: set SIM_API_KEY and SIM_WORKSPACE, skip `sim
+    // login`, and never touch the filesystem.
+    process.env.SIM_API_KEY = 'ci_key'
+    process.env.SIM_WORKSPACE = 'ws_ci'
+
+    expect(resolveProfile()).toMatchObject({ name: 'default', apiKey: 'ci_key' })
+    expect(resolveProfile({ profile: 'default' })).toMatchObject({ name: 'default' })
+
+    process.env.SIM_PROFILE = 'default'
+    expect(resolveProfile()).toMatchObject({ name: 'default', workspaceId: 'ws_ci' })
+  })
+
+  it('lets the commands that create a profile name one that does not exist yet', () => {
+    expect(resolveProfile({ profile: 'brand-new', allowUnknownProfile: true })).toMatchObject({
+      name: 'brand-new',
+      endpoint: DEFAULT_ENDPOINT,
+    })
+  })
+
+  it('accepts a profile that exists in only one of the two files', () => {
+    writeCredentialsProfile('creds-only', 'key')
+    writeConfigProfile('config-only', { workspace: 'ws_1' })
+
+    expect(resolveProfile({ profile: 'creds-only' }).apiKey).toBe('key')
+    expect(resolveProfile({ profile: 'config-only' }).workspaceId).toBe('ws_1')
+  })
+
   it('defaults to the host that serves the API, not the apex that redirects to it', () => {
     // `sim.ai` answers /api/** with a 301 to `www.sim.ai`, and the client
     // refuses redirects because following one rewrites a POST into a bodyless

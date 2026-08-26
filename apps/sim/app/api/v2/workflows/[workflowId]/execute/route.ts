@@ -256,6 +256,19 @@ export const POST = withRouteHandler(
           'Async execution does not support streaming or output-shaping options'
         )
       }
+      /**
+       * `selectedOutputs` shapes the streamed envelope only — the sync path
+       * returns the workflow's own final output and never reads it. Accepting
+       * it silently answered a full, unselected body to a caller who believed
+       * they had narrowed it, so the option is refused where it does nothing
+       * and the two paths that honour selection are named instead.
+       */
+      if (body.selectedOutputs?.length && !body.stream) {
+        return v2Error(
+          'BAD_REQUEST',
+          'selectedOutputs requires stream: true. For a completed run, request the run resource with ?selectedOutputs= instead.'
+        )
+      }
       const hasAgentStreamOptions = hasAgentStreamPolicy({
         includeThinking: body.includeThinking,
         includeToolCalls: body.includeToolCalls,

@@ -18,6 +18,7 @@ import {
   getLiveWorkflowMcpTool,
   getWorkflowMcpPublishableWorkflow,
   getWorkflowMcpServerById,
+  getWorkflowMcpToolIncludingArchived,
   listLiveWorkflowMcpTools,
   listWorkflowMcpToolNames,
   listWorkspaceWorkflowMcpServers,
@@ -318,7 +319,7 @@ export const deployWorkflowMcpTool = defineAuthorizedWorkspaceUseCase({
     if (!context.workflow.isDeployed) {
       throw new OrchestrationError(
         'validation',
-        'Workflow must be deployed before adding as an MCP tool. Use deploy_as_api first.'
+        'Workflow must be deployed before adding as an MCP tool. Deploy the workflow first.'
       )
     }
     if (
@@ -411,7 +412,7 @@ export const undeployWorkflowMcpTool = defineAuthorizedWorkspaceUseCase({
     resolveWorkflowToolContext(input.serverId, input.workflowId),
   authorizationOptions,
   async execute({ principal, context }) {
-    const tool = await getLiveWorkflowMcpTool(context.server.id, context.workflow.id)
+    const tool = await getWorkflowMcpToolIncludingArchived(context.server.id, context.workflow.id)
     if (!tool) {
       throw new OrchestrationError('not_found', 'Workflow is not deployed to this MCP server')
     }

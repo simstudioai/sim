@@ -70,6 +70,7 @@ describe('GET /api/v2/billing/logs', () => {
         pagination: { hasMore: false },
       },
       creditsByLogId: { 'log-1': 12 },
+      scope: 'user',
     })
   })
 
@@ -93,6 +94,7 @@ describe('GET /api/v2/billing/logs', () => {
         },
       ],
       nextCursor: null,
+      scope: 'user',
     })
     expect(mocks.execute).toHaveBeenCalledWith({
       principal: auth.principal,
@@ -102,6 +104,24 @@ describe('GET /api/v2/billing/logs', () => {
       }),
       request,
     })
+  })
+
+  /**
+   * Two key kinds answer two different questions over the same query, and the
+   * row sets are otherwise indistinguishable — a personal key's page is a strict
+   * subset. `scope` is what lets a caller tell which one it received.
+   */
+  it('publishes the scope the ledger read answered', async () => {
+    mocks.execute.mockResolvedValueOnce({
+      usage: { logs: [], summary: { totalCost: 0, bySource: {} }, pagination: { hasMore: false } },
+      creditsByLogId: {},
+      scope: 'workspace',
+    })
+
+    const response = await GET(new NextRequest('http://localhost:3000/api/v2/billing/logs'))
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ data: [], nextCursor: null, scope: 'workspace' })
   })
 
   it('projects an unresolvable cursor as a 400 rather than an unpositioned first page', async () => {

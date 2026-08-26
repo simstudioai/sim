@@ -31,6 +31,7 @@ const {
   mockBatchUpdateRows,
   mockGetRowSummaryById,
   mockLoadExecutionsForRow,
+  mockLoadEnrichmentDetail,
 } = vi.hoisted(() => ({
   mockReplaceRowsPrimitive: vi.fn(),
   mockDeleteRowsByIds: vi.fn(),
@@ -57,6 +58,7 @@ const {
   mockBatchUpdateRows: vi.fn(),
   mockGetRowSummaryById: vi.fn(),
   mockLoadExecutionsForRow: vi.fn(),
+  mockLoadEnrichmentDetail: vi.fn(),
 }))
 
 vi.mock('@sim/audit', () => ({
@@ -151,7 +153,7 @@ vi.mock('@/lib/table/import', () => ({
 }))
 
 vi.mock('@/lib/table/rows/executions', () => ({
-  loadEnrichmentDetail: vi.fn(),
+  loadEnrichmentDetail: mockLoadEnrichmentDetail,
   loadExecutionsForRow: mockLoadExecutionsForRow,
 }))
 
@@ -169,6 +171,7 @@ import {
   ProjectedWireRowsValidationError,
   queryTableRows,
   readTableRow,
+  readTableRowEnrichmentDetail,
   replaceProjectedWireRows,
   replaceTableRows,
   TableRowsValidationError,
@@ -1597,5 +1600,61 @@ describe('batchUpdateTableRows application use case', () => {
     ).rejects.toBe(failure)
     expect(mockRecordAudit).not.toHaveBeenCalled()
     expect(mockSignalRowsChanged).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * A bogus row or group id used to read back `{ detail: null }` with a 200 — the same
+ * answer as "this cell has no enrichment run yet", so a typo was undetectable.
+ */
+describe('enrichment detail id validation', () => {
+  const ENRICHED_TABLE: TableDefinition = {
+    ...TABLE,
+    schema: {
+      columns: [{ id: 'column-name', name: 'name', type: 'string' }],
+      workflowGroups: [{ id: 'group-1', name: 'Enrich', type: 'enrichment', columnIds: [] }],
+    },
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockResolvePermission.mockResolvedValue('read')
+    mockResolveContext.mockResolvedValue(contextFor(ENRICHED_TABLE))
+    mockLoadEnrichmentDetail.mockResolvedValue(null)
+  })
+
+  it('404s on a row id the table does not have', async () => {
+    mockGetRowSummaryById.mockResolvedValue(null)
+
+    await expect(
+      readTableRowEnrichmentDetail.execute({
+        principal: PRINCIPAL,
+        input: { tableId: ENRICHED_TABLE.id, rowId: 'row-nope', groupId: 'group-1' },
+      })
+    ).rejects.toThrowError(expect.objectContaining({ code: 'not_found' }))
+    expect(mockLoadEnrichmentDetail).not.toHaveBeenCalled()
+  })
+
+  it('404s on a group id the table does not have', async () => {
+    mockGetRowSummaryById.mockResolvedValue({ id: 'row-1', data: {} })
+
+    await expect(
+      readTableRowEnrichmentDetail.execute({
+        principal: PRINCIPAL,
+        input: { tableId: ENRICHED_TABLE.id, rowId: 'row-1', groupId: 'group-nope' },
+      })
+    ).rejects.toThrowError(expect.objectContaining({ code: 'not_found' }))
+    expect(mockLoadEnrichmentDetail).not.toHaveBeenCalled()
+  })
+
+  it('still answers null for a real row and group with no recorded run', async () => {
+    mockGetRowSummaryById.mockResolvedValue({ id: 'row-1', data: {} })
+
+    const result = await readTableRowEnrichmentDetail.execute({
+      principal: PRINCIPAL,
+      input: { tableId: ENRICHED_TABLE.id, rowId: 'row-1', groupId: 'group-1' },
+    })
+
+    expect(result.detail).toBeNull()
   })
 })

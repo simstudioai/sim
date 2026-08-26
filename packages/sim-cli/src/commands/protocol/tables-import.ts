@@ -42,13 +42,61 @@ function jsonFlag(raw: string, flagName: string, kind: FieldSpec['kind']): unkno
   return coerce(raw, { kind }, { json: true }, flagName)
 }
 
+/**
+ * The rejection counters a caller has to see, or `{}` when nothing was dropped.
+ *
+ * An import answers `200` and reports a `completed` status even when it dropped
+ * rows it could not parse, so a run that silently lost half a file looked
+ * exactly like a clean one. Only reported when non-zero: a clean import keeps
+ * the output it always had, and a field that is always `0` teaches people to
+ * stop reading it.
+ *
+ * The samples are flattened to text here rather than passed through as records:
+ * the result printer renders every field with `String(value)`, which turns an
+ * array of objects into `[object Object]`.
+ */
+function rejectionFields(job: TableImport): Record<string, unknown> {
+  const rows = job.rowsRejected ?? 0
+  const cells = job.cellsRejected ?? 0
+  if (rows === 0 && cells === 0) return {}
+  // `line` is nullable: a rejection that applies to the whole file rather than
+  // to one row has none, and `line null:` reads as a parser bug.
+  const samples = (job.rejectedSamples ?? []).map((sample) =>
+    sample.line === null || sample.line === undefined
+      ? `${sample.message} (${sample.code})`
+      : `line ${sample.line}: ${sample.message} (${sample.code})`
+  )
+  return {
+    rowsRejected: rows,
+    cellsRejected: cells,
+    ...(samples.length > 0 ? { rejectedSamples: samples } : {}),
+  }
+}
+
+/**
+ * The progress text for an in-flight import, naming rejections once there are any.
+ *
+ * Cells are counted alongside rows because an import that coerced away values
+ * without dropping a single row reports `rowsRejected: 0`, and a suffix keyed on
+ * rows alone rendered that run as clean while it was losing data.
+ */
+function progressLine(job: TableImport): string {
+  const rows = job.rowsRejected ?? 0
+  const cells = job.cellsRejected ?? 0
+  const parts: string[] = []
+  if (rows > 0) parts.push(`${rows} rows rejected`)
+  if (cells > 0) parts.push(`${cells} cells rejected`)
+  const suffix = parts.length > 0 ? `, ${parts.join(', ')}` : ''
+  return `${job.status}… ${job.rowsProcessed} rows${suffix}`
+}
+
 async function watchImport(
   client: SimClient,
   workspaceId: string,
   job: TableImport
 ): Promise<TableImport> {
   let current = job
-  let reported = -1
+  let reported: string | null = null
 
   while (!IMPORT_SETTLED.has(current.status)) {
     await sleep(IMPORT_POLL_MS)
@@ -57,13 +105,14 @@ async function watchImport(
       { query: { workspaceId } }
     )
     current = next.data
-    if (process.stderr.isTTY && current.rowsProcessed !== reported) {
-      reported = current.rowsProcessed
-      process.stderr.write(`\r${chalk.dim(`${current.status}… ${reported} rows`)}\u001b[K`)
+    const line = progressLine(current)
+    if (process.stderr.isTTY && line !== reported) {
+      reported = line
+      process.stderr.write(`\r${chalk.dim(line)}\u001b[K`)
     }
   }
 
-  if (process.stderr.isTTY && reported >= 0) process.stderr.write('\r\u001b[K')
+  if (process.stderr.isTTY && reported !== null) process.stderr.write('\r\u001b[K')
   return current
 }
 
@@ -96,6 +145,7 @@ export function attachTableImport(tables: Command): void {
   tables
     .command('import')
     .argument('[path]', 'Local CSV file to import; omit when using --file-id')
+    .allowExcessArguments(false)
     .description('Import a CSV, into a new table by default')
     .option(
       '--name <name>',
@@ -189,6 +239,7 @@ export function attachTableImport(tables: Command): void {
           status: job.status,
           tableId: job.tableId,
           rowsProcessed: job.rowsProcessed,
+          ...rejectionFields(job),
         })
         return
       }
@@ -205,6 +256,7 @@ export function attachTableImport(tables: Command): void {
         status: finished.status,
         tableId: finished.tableId,
         rowsProcessed: finished.rowsProcessed,
+        ...rejectionFields(finished),
       })
     })
 }

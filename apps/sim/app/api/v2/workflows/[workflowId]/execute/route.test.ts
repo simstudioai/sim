@@ -590,6 +590,14 @@ describe('POST /api/v2/workflows/[workflowId]/execute', () => {
     expect(mockPreprocessExecution).not.toHaveBeenCalled()
   })
 
+  it('rejects selectedOutputs on a sync request rather than ignoring it', async () => {
+    const res = await callExecute({ selectedOutputs: ['agent_1.content'] })
+
+    expect(res.status).toBe(400)
+    expect((await res.json()).error.message).toContain('selectedOutputs requires stream: true')
+    expect(mockPreprocessExecution).not.toHaveBeenCalled()
+  })
+
   it.each(['includeThinking', 'includeToolCalls'])(
     'rejects %s unless stream is true before checking the protocol header',
     async (option) => {

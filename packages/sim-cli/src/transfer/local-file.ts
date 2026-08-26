@@ -1,4 +1,5 @@
-import { stat } from 'node:fs/promises'
+import { constants } from 'node:fs'
+import { access, stat } from 'node:fs/promises'
 import { basename } from 'node:path'
 import { SimApiError } from '../http/client'
 
@@ -47,6 +48,11 @@ export async function localFile(path: string, override?: string): Promise<LocalF
   try {
     const stats = await stat(path)
     if (!stats.isFile()) throw new SimApiError(`${path} is not a regular file`, 0)
+    // `stat` succeeds on a file the process may not open, so an unreadable file
+    // would otherwise surface much later as a raw `fetch failed` from the blob
+    // the upload streams, rather than as one line here alongside the other
+    // bad-input checks.
+    await access(path, constants.R_OK)
     size = stats.size
   } catch (error) {
     if (error instanceof SimApiError) throw error

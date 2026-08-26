@@ -40,8 +40,11 @@ function parseChatStreamLine(line: string): ChatStreamEvent | undefined {
  * Consumes the chat NDJSON stream to its final payload.
  *
  * `onChunk` receives assistant text as it arrives, already sanitized for the
- * terminal. The stream ends with exactly one `final` or `error` event; a stream
- * that ends with neither is reported rather than treated as an empty reply.
+ * terminal. The stream ends with exactly one `final` or `error` event, and
+ * reading stops there rather than waiting for the body to close — a server or
+ * intermediary that holds the connection open past the turn must not hang the
+ * CLI. A stream that ends with neither event is reported rather than treated as
+ * an empty reply.
  */
 async function readChatStream(
   response: Response,
@@ -56,13 +59,14 @@ async function readChatStream(
   let buffer = ''
   let finalResult: ChatResult | undefined
 
-  const processLine = (line: string): void => {
+  /** Reports whether the line ended the turn, so reading can stop there. */
+  const processLine = (line: string): boolean => {
     const event = parseChatStreamLine(line)
-    if (!event || event.type === 'heartbeat') return
+    if (!event || event.type === 'heartbeat') return false
 
     if (event.type === 'chunk') {
       if (event.content) onChunk(sanitize(event.content))
-      return
+      return false
     }
 
     if (event.type === 'error') {
@@ -71,14 +75,15 @@ async function readChatStream(
 
     if (event.type === 'final') {
       finalResult = event.data
-      return
+      return true
     }
 
     throw new SimApiError('Chat stream returned an unknown event', 0)
   }
 
   try {
-    while (true) {
+    let ended = false
+    while (!ended) {
       const { done, value } = await reader.read()
       if (done) break
 
@@ -86,12 +91,17 @@ async function readChatStream(
       const lines = buffer.split('\n')
       buffer = lines.pop() ?? ''
       for (const line of lines) {
-        processLine(line)
+        if (processLine(line)) {
+          ended = true
+          break
+        }
       }
     }
 
-    buffer += decoder.decode()
-    processLine(buffer)
+    if (!ended) {
+      buffer += decoder.decode()
+      processLine(buffer)
+    }
 
     if (!finalResult) {
       throw new SimApiError('Chat stream ended without a final result', 0)
@@ -99,7 +109,27 @@ async function readChatStream(
 
     return finalResult
   } finally {
-    reader.releaseLock()
+    void reader.cancel().catch(() => undefined)
+  }
+}
+
+/**
+ * Silences the broken pipe a progressively written reply hits when its reader
+ * leaves early — `sim chat … | head`, `| grep -q`, quitting `| less`. Node
+ * surfaces that as an asynchronous `EPIPE` error event on the stream, which
+ * with no listener crashes with a stack trace; a SIGPIPE-aware CLI just stops.
+ * Every other write failure is left to surface as the crash it is.
+ *
+ * Returns a disposer that removes the handling again.
+ */
+function ignoreBrokenPipe(stream: NodeJS.WriteStream): () => void {
+  const onError = (error: NodeJS.ErrnoException): void => {
+    if (error.code !== 'EPIPE') throw error
+    process.exit(0)
+  }
+  stream.on('error', onError)
+  return () => {
+    stream.off('error', onError)
   }
 }
 
@@ -117,6 +147,7 @@ export function attachChat(program: Command): void {
     .command('chat')
     .description('Ask Sim and print the reply')
     .argument('<message>', 'What to ask Sim')
+    .allowExcessArguments(false)
     .option('-c, --conversation <id>', 'Continue the conversation with this ID')
     .addHelpText(
       'after',
@@ -150,30 +181,46 @@ Examples:
       // interleaved with a JSON document is parseable by neither human nor jq.
       const streaming = profile.output === 'table' || profile.output === 'text'
       let streamed = ''
-      const result = await readChatStream(response, (content) => {
-        if (!streaming) return
-        streamed += content
-        process.stdout.write(content)
-      })
 
-      if (!streaming) {
-        printProtocolResult(profile.output, result)
-        return
+      /** Closes off streamed text so nothing is glued onto the line after it. */
+      const endStreamedLine = (): void => {
+        if (streamed.length > 0 && !streamed.endsWith('\n')) {
+          process.stdout.write('\n')
+          streamed += '\n'
+        }
       }
 
-      // A run that produced its reply without incremental chunks — or whose
-      // final content outran the streamed deltas — still has to print in full.
-      // Only the missing suffix is written, so nothing already on the terminal
-      // repeats; a final that diverges from the stream entirely stays unprinted
-      // rather than duplicating the reply.
-      const content = sanitize(result.content ?? '')
-      if (content.startsWith(streamed) && content.length > streamed.length) {
-        process.stdout.write(content.slice(streamed.length))
-        streamed = content
+      const restorePipeHandling = streaming ? ignoreBrokenPipe(process.stdout) : undefined
+
+      try {
+        const result = await readChatStream(response, (content) => {
+          if (!streaming) return
+          streamed += content
+          process.stdout.write(content)
+        })
+
+        if (!streaming) {
+          printProtocolResult(profile.output, result)
+          return
+        }
+
+        // A run that produced its reply without incremental chunks — or whose
+        // final content outran the streamed deltas — still has to print in full.
+        // Only the missing suffix is written, so nothing already on the terminal
+        // repeats; a final that diverges from the stream entirely stays unprinted
+        // rather than duplicating the reply.
+        const content = sanitize(result.content ?? '')
+        if (content.startsWith(streamed) && content.length > streamed.length) {
+          process.stdout.write(content.slice(streamed.length))
+          streamed = content
+        }
+        endStreamedLine()
+        process.stderr.write(`${chalk.dim(`conversation: ${result.conversationId}`)}\n`)
+      } catch (error) {
+        endStreamedLine()
+        throw error
+      } finally {
+        restorePipeHandling?.()
       }
-      if (streamed.length > 0 && !streamed.endsWith('\n')) {
-        process.stdout.write('\n')
-      }
-      process.stderr.write(`${chalk.dim(`conversation: ${result.conversationId}`)}\n`)
     })
 }

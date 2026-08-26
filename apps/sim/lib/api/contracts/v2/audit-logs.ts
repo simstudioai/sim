@@ -19,9 +19,11 @@ import {
 /**
  * v2 audit-logs contracts. These are org-scoped enterprise endpoints. The
  * filters are inherited from v1, with an explicit organization selector added
- * so callers never depend on whichever membership happens to be returned
- * first. The response uses the canonical v2 envelope and drops the v1 `limits`
- * body — usage limits live on their dedicated endpoint.
+ * so a caller that already knows its organization id can name it rather than
+ * rely on the derivation. The selector stays optional so a caller can reach the
+ * resource without an id no API-key surface publishes. The response uses the
+ * canonical v2 envelope and drops the v1 `limits` body — usage limits live on
+ * their dedicated endpoint.
  */
 
 /**
@@ -120,9 +122,22 @@ export const v2ListAuditLogsQuerySchema = v1ListAuditLogsQuerySchema
       .optional()
       .default(false),
     ...v2PaginationFields({ description: 'Maximum audit entries to return per page.' }),
-    organizationId: organizationIdSchema.describe(
-      'Organization whose audit trail should be queried.'
-    ),
+    /**
+     * Optional, because nothing an API key can reach publishes an organization
+     * id: the audit rows themselves carry none, `GET /api/organizations` is
+     * session-gated, and the admin organization list needs an admin key. A
+     * required-and-undiscoverable param made the whole resource unreachable
+     * from a key, so it is derived from the caller the way v1 has always
+     * derived it. An account belongs to at most one organization, so the
+     * derivation has exactly one candidate; a caller in none is refused with a
+     * 403, and one that names an organization it does not belong to is refused
+     * with a 403 as well.
+     */
+    organizationId: organizationIdSchema
+      .optional()
+      .describe(
+        "Organization whose audit trail should be queried. Defaults to the caller's own organization when omitted. A caller that belongs to no organization, or that names one it is not a member of, is refused with a 403."
+      ),
     actorEmail: z.email().optional().describe('Filter by actor email address.'),
   })
   .strict()
@@ -133,9 +148,12 @@ export const v2AuditLogParamsSchema = v1AuditLogParamsSchema.omit({ id: true }).
 
 export const v2GetAuditLogQuerySchema = z
   .object({
-    organizationId: organizationIdSchema.describe(
-      'Organization whose audit-log entry should be returned.'
-    ),
+    /** Derived from the caller when omitted — see {@link v2ListAuditLogsQuerySchema}. */
+    organizationId: organizationIdSchema
+      .optional()
+      .describe(
+        "Organization whose audit-log entry should be returned. Defaults to the caller's own organization when omitted. A caller that belongs to no organization, or that names one it is not a member of, is refused with a 403."
+      ),
   })
   .strict()
 

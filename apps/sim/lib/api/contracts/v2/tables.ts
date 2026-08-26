@@ -2215,6 +2215,28 @@ export const v2TableImportStatusSchema = z.enum([
 ])
 export type V2TableImportStatus = z.output<typeof v2TableImportStatusSchema>
 
+/**
+ * One record the CSV parser dropped. `line` locates it in the source file so the
+ * caller can fix the file rather than diff the imported table against it.
+ */
+const v2TableImportRejectedSampleSchema = z
+  .object({
+    code: z.string().describe('CSV parser error code, e.g. CSV_QUOTE_NOT_CLOSED.'),
+    line: z
+      .number()
+      .int()
+      .nonnegative()
+      .nullable()
+      .describe('1-based source line the parser had reached when it gave up, or null.'),
+    message: z.string().describe('Parser message for the dropped record.'),
+  })
+  .strict()
+  .meta({
+    id: 'V2TableImportRejectedSample',
+    title: 'Rejected import record',
+    description: 'One source record a table import could not read.',
+  })
+
 export const v2TableImportSchema = z
   .object({
     id: z.string().describe('Unique table-import identifier.'),
@@ -2224,6 +2246,23 @@ export const v2TableImportSchema = z
     target: v2TableImportTargetSchema.describe('New or existing table import target.'),
     tableId: z.string().nullable().describe('Resulting or target table identifier.'),
     rowsProcessed: z.number().int().nonnegative().describe('Rows processed so far.'),
+    rowsRejected: z
+      .number()
+      .int()
+      .nonnegative()
+      .describe(
+        'Lower bound on the source records the CSV parser could not read and dropped, counted as one per parser failure. A single failure can discard more than one record — an unterminated quote swallows the rest of the file and is reported once — so the true loss may be larger. Non-zero means the import is partial even when the status is completed; zero is not a guarantee that nothing was dropped.'
+      ),
+    cellsRejected: z
+      .number()
+      .int()
+      .nonnegative()
+      .describe(
+        'Non-empty cell values the target column type could not represent. Their rows were imported with the cell left blank.'
+      ),
+    rejectedSamples: z
+      .array(v2TableImportRejectedSampleSchema)
+      .describe('Bounded sample of the dropped records, for locating them in the source file.'),
     error: z.string().nullable().describe('Terminal failure reason, or null.'),
     createdAt: v2TimestampSchema.describe('ISO 8601 creation timestamp.'),
     updatedAt: v2TimestampSchema.describe('ISO 8601 last-update timestamp.'),

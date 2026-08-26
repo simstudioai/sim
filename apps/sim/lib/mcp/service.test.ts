@@ -120,6 +120,7 @@ vi.mock('@/lib/mcp/storage', () => ({
   getMcpCacheType: () => 'memory',
 }))
 
+import { MAX_MCP_LAST_ERROR_LENGTH } from '@/lib/mcp/constants'
 import { mcpService } from '@/lib/mcp/service'
 import { McpOauthAuthorizationRequiredError } from '@/lib/mcp/types'
 import { MCP_CONSTANTS } from '@/lib/mcp/utils'
@@ -607,6 +608,30 @@ describe('McpService.discoverTools per-server caching', () => {
     )
 
     expectSqlSideFailureIncrement(failureStatusWrite('Connection refused'))
+  })
+
+  /**
+   * A URL that is not an MCP endpoint answers the discovery POST with whatever
+   * it serves, and the transport folds that body verbatim into the error. The
+   * unbounded message used to land in `last_error`, which both `list` and `get`
+   * republish, so one misconfigured URL could persist and re-serve an entire
+   * remote document.
+   */
+  it('bounds the persisted lastError instead of storing a whole remote body', async () => {
+    const remoteBody = `<!doctype html><html><body>${'x'.repeat(20000)}</body></html>`
+    mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A')])
+    mockListTools.mockRejectedValueOnce(new Error(remoteBody))
+
+    await expect(mcpService.discoverServerTools(USER_ID, 'mcp-a', WORKSPACE_ID)).rejects.toThrow()
+
+    const write = dbChainMockFns.set.mock.calls
+      .map(([values]) => values as Record<string, unknown> | undefined)
+      .find((values) => typeof values?.lastError === 'string' && values.lastError !== null)
+    expect(write, 'no status write carried a lastError').toBeDefined()
+    const lastError = write?.lastError as string
+    expect(lastError.length).toBeLessThanOrEqual(MAX_MCP_LAST_ERROR_LENGTH + 3)
+    expect(lastError.endsWith('...')).toBe(true)
+    expect(lastError).toContain('<!doctype html>')
   })
 
   /**

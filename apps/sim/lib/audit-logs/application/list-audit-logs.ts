@@ -11,7 +11,8 @@ import {
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
 export interface ListAuditLogsInput {
-  organizationId: string
+  /** Omitted when the caller belongs to exactly one organization and let it be derived. */
+  organizationId?: string
   includeDeparted: boolean
   filters: AuditLogFilterParams
   limit: number

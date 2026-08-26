@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import { mcpServers, workflow, workflowMcpServer, workflowMcpTool } from '@sim/db/schema'
-import { and, asc, eq, inArray, isNull } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, isNotNull, isNull } from 'drizzle-orm'
 import {
   type CursorKey,
   type KeysetKey,
@@ -275,6 +275,38 @@ export async function getLiveWorkflowMcpTool(
     )
     .limit(1)
   return row ?? null
+}
+
+/**
+ * The registration for a workflow on a server, archived or not.
+ *
+ * Undeploying a workflow archives its registrations rather than destroying them
+ * so a redeploy can restore them. A user withdrawing a registration on purpose
+ * must still be able to do so while the workflow is undeployed — and that hard
+ * delete is exactly what stops the next deploy from resurrecting it — so the
+ * delete path resolves the row through this instead of
+ * {@link getLiveWorkflowMcpTool}.
+ */
+export async function getWorkflowMcpToolIncludingArchived(
+  serverId: string,
+  workflowId: string
+): Promise<WorkflowMcpToolRow | null> {
+  const live = await getLiveWorkflowMcpTool(serverId, workflowId)
+  if (live) return live
+
+  const [archivedRow] = await db
+    .select()
+    .from(workflowMcpTool)
+    .where(
+      and(
+        eq(workflowMcpTool.serverId, serverId),
+        eq(workflowMcpTool.workflowId, workflowId),
+        isNotNull(workflowMcpTool.archivedAt)
+      )
+    )
+    .orderBy(desc(workflowMcpTool.archivedAt))
+    .limit(1)
+  return archivedRow ?? null
 }
 
 export type WorkflowMcpPublishableWorkflow = {
