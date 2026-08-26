@@ -998,6 +998,31 @@ describe('zone settings are read through the endpoints Cloudflare still supports
     expect(out.error).toBe('Invalid zone identifier')
   })
 
+  /**
+   * The zone id is guarded ONCE above the fan-out. Re-guarding it per setting
+   * raised the same error up to 40 times and filled `unreadable` with 40
+   * identical rows before the call failed.
+   */
+  it('reports a bad zone id once, with no requests and no unreadable rows', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+
+    const out = (await tool.directExecution!({
+      zoneId: '..',
+      apiKey,
+      settingIds: Array.from({ length: 40 }, (_, index) => `setting_${index}`).join(','),
+    } as never)) as {
+      success: boolean
+      error?: string
+      output: { settings: unknown[]; unreadable: unknown[] }
+    }
+
+    expect(out.success).toBe(false)
+    expect(out.error).toMatch(/zoneId/)
+    expect(out.output.unreadable).toEqual([])
+    expect(out.output.settings).toEqual([])
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
   it('refuses an unbounded fan-out instead of issuing the requests', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch')
 

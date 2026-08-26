@@ -16,6 +16,29 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('GoogleVaultDownloadExportFileAPI')
 
+/**
+ * Rejects a value that would collapse the URL path segment it occupies.
+ *
+ * This route deliberately keeps `encodeURIComponent` on the object name: a GCS
+ * object name legitimately contains `/`, and the JSON API addresses it as a
+ * single segment with those slashes as `%2F`, so the multi-segment
+ * `safeUrlPath` helper would misaddress the object. But encoding never
+ * neutralizes a dot segment — `.` and `..` are unreserved, so they survive
+ * encoding and the WHATWG parser removes the segment afterwards, turning
+ * `/b/{bucket}/o/..` into the object *list* endpoint with the caller's bearer
+ * token attached. Only rejection closes that, and only the whole value can do
+ * it: an interior `..` is encoded into the same segment and stays inert.
+ *
+ * The check trims before comparing but the caller still sends the untrimmed
+ * value, so no legitimate name is silently rewritten.
+ */
+function assertNotDotSegment(value: string, paramName: string): void {
+  const trimmed = value.trim()
+  if (trimmed === '.' || trimmed === '..') {
+    throw new Error(`${paramName} cannot be "${trimmed}" (path traversal is not allowed)`)
+  }
+}
+
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
@@ -38,6 +61,15 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const validatedData = parsed.data.body
 
     const { accessToken, bucketName, objectName, fileName } = validatedData
+
+    try {
+      assertNotDotSegment(bucketName, 'bucketName')
+      assertNotDotSegment(objectName, 'objectName')
+    } catch (error) {
+      const message = getErrorMessage(error, 'Invalid request')
+      logger.warn(`[${requestId}] Rejected unsafe Vault object path`, { error: message })
+      return NextResponse.json({ success: false, error: message }, { status: 400 })
+    }
 
     const bucket = encodeURIComponent(bucketName)
     const object = encodeURIComponent(objectName)

@@ -26,7 +26,11 @@ import type { ToolConfig } from '@/tools/types'
 
 const ORIGIN = 'https://api.cloudflare.com'
 const ID_PREFIX = 'cloudflare_'
-const MIN_PATH_TOOLS = 46
+/**
+ * Exact, not a floor: a floor lets tools silently STOP being discovered while
+ * the suite still reports green. Raise deliberately when a tool is added.
+ */
+const EXPECTED_PATH_TOOLS = 46
 
 /** Segments that must never move, whatever the caller supplies. */
 const FIXED_SEGMENTS: ReadonlyArray<readonly [number, string]> = [
@@ -99,12 +103,24 @@ interface PathParam {
   sentinel: string
 }
 
+/**
+ * Every tool whose URL could not be built from a legitimate probe.
+ *
+ * Discovery has to tolerate a builder that throws — a tool may reject some
+ * *other* parameter first — but tolerating it SILENTLY is the hazard: a tool
+ * that became entirely unbuildable would drop out of `PATH_TOOLS` and read as
+ * covered, with zero assertions run against it. Every skip is recorded here
+ * and asserted empty below.
+ */
+const UNBUILDABLE: string[] = []
+
 /** Reflectively finds the params whose value lands in the path, not the query. */
 function pathParamsOf(tool: AnyTool): PathParam[] {
   let pathname: string
   try {
     pathname = buildUrl(tool).pathname
-  } catch {
+  } catch (error) {
+    UNBUILDABLE.push(`${tool.id}: ${(error as Error).message}`)
     return []
   }
   const found: PathParam[] = []
@@ -135,7 +151,11 @@ const MULTI_PARAM_TOOLS = PATH_TOOLS.filter((entry) => entry.pathParams.length >
 
 describe('Cloudflare path-parameter traversal safety', () => {
   it('covers every Cloudflare tool that interpolates a param into its path', () => {
-    expect(PATH_TOOLS.length).toBeGreaterThanOrEqual(MIN_PATH_TOOLS)
+    expect(PATH_TOOLS.length).toBe(EXPECTED_PATH_TOOLS)
+  })
+
+  it('builds a URL for every Cloudflare tool from a legitimate probe', () => {
+    expect(UNBUILDABLE).toEqual([])
   })
 
   it('has multi-parameter paths, so the independence block is meaningful', () => {

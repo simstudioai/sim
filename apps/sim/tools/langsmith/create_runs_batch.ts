@@ -116,11 +116,13 @@ export const langsmithCreateRunsBatchTool: ToolConfig<
       output: {
         accepted: true,
         runIds: [
-          ...collectRunIds(asRunArray(params?.post, 'post'), (run) =>
-            normalizeLangsmithRunPayload(run).runId
+          ...collectRunIds(
+            asRunArray(params?.post, 'post'),
+            (run) => normalizeLangsmithRunPayload(run).runId
           ),
-          ...collectRunIds(asRunArray(params?.patch, 'patch'), (run) =>
-            prepareLangsmithPatchPayload(run).runId
+          ...collectRunIds(
+            asRunArray(params?.patch, 'patch'),
+            (run) => prepareLangsmithPatchPayload(run).runId
           ),
         ],
         message: directMessage ?? null,

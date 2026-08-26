@@ -84,6 +84,10 @@ beforeEach(() => {
 
 describe('POST /api/tools/google_drive/export traversal safety', () => {
   it.each(REJECTED)('rejects fileId %j with a clean 400 and no outbound request', async (fileId) => {
+    mockSecureFetchWithPinnedIP
+      .mockResolvedValueOnce(metadataResponse('doc-1'))
+      .mockResolvedValueOnce(exportResponse())
+
     const response = await POST(createMockRequest('POST', bodyFor(fileId)))
 
     expect(response.status).toBe(400)

@@ -15,9 +15,16 @@ import {
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
-/** Builds the per-setting endpoint Cloudflare directs integrations at. */
-function zoneSettingUrl(zoneId: string, settingId: string): string {
-  return `https://api.cloudflare.com/client/v4/zones/${safeUrlPathSegment(zoneId, 'zoneId')}/settings/${safeUrlPathSegment(settingId, 'settingIds')}`
+/**
+ * Builds the per-setting endpoint Cloudflare directs integrations at.
+ *
+ * `zoneId` arrives already guarded — see {@link zoneSettingUrl}'s caller in
+ * `directExecution`, which validates it once above the fan-out. Re-guarding it inside the fan-out
+ * would raise the same error once per requested setting, turning one bad zone id into up to
+ * {@link MAX_ZONE_SETTING_IDS} identical `unreadable` rows before the call failed.
+ */
+function zoneSettingUrl(guardedZoneId: string, settingId: string): string {
+  return `https://api.cloudflare.com/client/v4/zones/${guardedZoneId}/settings/${safeUrlPathSegment(settingId, 'settingIds')}`
 }
 
 /**
@@ -69,7 +76,11 @@ export const getZoneSettingsTool: ToolConfig<
   },
 
   request: {
-    url: (params) => zoneSettingUrl(params.zoneId, requestedZoneSettingIds(params.settingIds)[0]),
+    url: (params) =>
+      zoneSettingUrl(
+        safeUrlPathSegment(params.zoneId, 'zoneId'),
+        requestedZoneSettingIds(params.settingIds)[0]
+      ),
     method: 'GET',
     headers: (params) => cloudflareHeaders(params.apiKey),
   },
@@ -96,7 +107,17 @@ export const getZoneSettingsTool: ToolConfig<
       }
     }
 
-    const zoneId = params.zoneId
+    let zoneId: string
+    try {
+      zoneId = safeUrlPathSegment(params.zoneId, 'zoneId')
+    } catch (error) {
+      return {
+        success: false,
+        output: { settings: [], unreadable: [] },
+        error: getErrorMessage(error, 'Invalid zoneId'),
+      }
+    }
+
     const headers = cloudflareHeaders(params.apiKey)
 
     const reads = await Promise.all(

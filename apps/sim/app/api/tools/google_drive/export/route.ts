@@ -17,6 +17,7 @@ import {
   MAX_EXPORT_BYTES,
   VALID_EXPORT_FORMATS,
 } from '@/tools/google_drive/utils'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const dynamic = 'force-dynamic'
 
@@ -62,9 +63,22 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const { accessToken, fileId, mimeType: exportMimeType, fileName } = parsed.data.body
     const authHeader = `Bearer ${accessToken}`
 
+    let fileIdSegment: string
+    try {
+      fileIdSegment = safeUrlPathSegment(fileId, 'fileId')
+    } catch (error) {
+      logger.warn(`[${requestId}] Rejected unsafe fileId`, {
+        error: getErrorMessage(error, 'Invalid fileId'),
+      })
+      return NextResponse.json(
+        { success: false, error: getErrorMessage(error, 'Invalid fileId') },
+        { status: 400 }
+      )
+    }
+
     logger.info(`[${requestId}] Getting file metadata from Google Drive`, { fileId })
 
-    const metadataUrl = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?fields=${ALL_FILE_FIELDS}&supportsAllDrives=true`
+    const metadataUrl = `https://www.googleapis.com/drive/v3/files/${fileIdSegment}?fields=${ALL_FILE_FIELDS}&supportsAllDrives=true`
     const metadataUrlValidation = await validateUrlWithDNS(metadataUrl, 'metadataUrl')
     if (!metadataUrlValidation.isValid) {
       return NextResponse.json(
@@ -123,7 +137,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       exportFormat: exportMimeType,
     })
 
-    const exportUrl = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/export?mimeType=${encodeURIComponent(exportMimeType)}`
+    const exportUrl = `https://www.googleapis.com/drive/v3/files/${fileIdSegment}/export?mimeType=${encodeURIComponent(exportMimeType)}`
     const exportUrlValidation = await validateUrlWithDNS(exportUrl, 'exportUrl')
     if (!exportUrlValidation.isValid) {
       return NextResponse.json(

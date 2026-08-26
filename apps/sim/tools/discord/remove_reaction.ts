@@ -60,7 +60,7 @@ export const discordRemoveReactionTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        "The user ID whose reaction to remove (omit, or pass \"@me\", to remove the bot's own reaction), e.g., 123456789012345678",
+        'The user ID whose reaction to remove (omit, or pass "@me", to remove the bot\'s own reaction), e.g., 123456789012345678',
     },
     serverId: {
       type: 'string',

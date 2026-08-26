@@ -111,7 +111,7 @@ export const SerperBlock: BlockConfig<SearchResponse> = {
     searchResults: {
       type: 'json',
       description:
-        'Results for the requested vertical: [{title, link, snippet, position, date, imageUrl, thumbnailUrl, source, channel, rating, ratingCount, address, latitude, longitude, category, phoneNumber, website, price, delivery, duration}]. Only title and position are always present; the rest depend on the vertical'
+        'Results for the requested vertical: [{title, link, snippet, position, date, imageUrl, thumbnailUrl, source, channel, rating, ratingCount, address, latitude, longitude, category, phoneNumber, website, price, delivery, duration}]. Only title and position are always present; the rest depend on the vertical',
     },
     knowledgeGraph: {
       type: 'json',
