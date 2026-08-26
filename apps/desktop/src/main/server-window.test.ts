@@ -34,6 +34,7 @@ function makeDeps(overrides: Partial<ServerWindowDeps> = {}): ServerWindowDeps {
     preloadPath: '/tmp/preload.cjs',
     isPackaged: false,
     getParentWindow: () => null,
+    clearDeploymentScopedState: vi.fn(async () => {}),
     relaunch: vi.fn(),
     ...overrides,
   }
@@ -64,8 +65,8 @@ describe('server window', () => {
     expect(createServerWindow(cloud).getConfiguration().isSimCloud).toBe(true)
   })
 
-  it('relaunches after storing a different origin', () => {
-    const result = createServerWindow(deps).setOrigin('https://sim.other.example')
+  it('relaunches after storing a different origin', async () => {
+    const result = await createServerWindow(deps).setOrigin('https://sim.other.example')
 
     expect(result).toEqual({ ok: true, origin: 'https://sim.other.example', unchanged: false })
     expect(deps.config.flush).toHaveBeenCalled()
@@ -75,28 +76,61 @@ describe('server window', () => {
   // The saved route carries the previous deployment's workspace id, and
   // resolveStartRoute only discards a route on a confirmed 403 — a fresh
   // partition answers 401, so a kept route would survive onto the new server.
-  it('drops the saved route when the origin changes', () => {
-    createServerWindow(deps).setOrigin('https://sim.other.example')
+  it('drops the saved route when the origin changes', async () => {
+    await createServerWindow(deps).setOrigin('https://sim.other.example')
 
     expect(deps.config.set).toHaveBeenCalledWith('lastRoute', undefined)
   })
 
-  it('keeps the saved route when the origin is unchanged', () => {
-    createServerWindow(deps).setOrigin(CURRENT)
+  it('keeps the saved route when the origin is unchanged', async () => {
+    await createServerWindow(deps).setOrigin(CURRENT)
 
     expect(deps.config.set).not.toHaveBeenCalled()
   })
 
   // Re-confirming the pre-filled URL is the common case here.
-  it('does not relaunch when the origin is unchanged', () => {
-    const result = createServerWindow(deps).setOrigin(CURRENT)
+  it('does not relaunch when the origin is unchanged', async () => {
+    const result = await createServerWindow(deps).setOrigin(CURRENT)
 
     expect(result).toEqual({ ok: true, origin: CURRENT, unchanged: true })
     expect(deps.relaunch).not.toHaveBeenCalled()
   })
 
-  it('surfaces a rejected origin without relaunching', () => {
-    const result = createServerWindow(deps).setOrigin('ftp://sim.example.com')
+  // Filesystem grants and the agent browser's jar are device-global with no
+  // origin key, so without this the incoming deployment inherits directory
+  // access and live third-party sessions the user granted the outgoing one.
+  it('clears deployment-scoped capabilities before relaunching', async () => {
+    await createServerWindow(deps).setOrigin('https://sim.other.example')
+
+    expect(deps.clearDeploymentScopedState).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(deps.clearDeploymentScopedState).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(deps.relaunch).mock.invocationCallOrder[0]
+    )
+  })
+
+  it('does not clear them when the origin is unchanged', async () => {
+    await createServerWindow(deps).setOrigin(CURRENT)
+
+    expect(deps.clearDeploymentScopedState).not.toHaveBeenCalled()
+  })
+
+  // The origin is already persisted by this point, so a failed clear must not
+  // strand the shell on the old server — but it is logged, not swallowed.
+  it('still relaunches when the teardown fails', async () => {
+    const failing = makeDeps({
+      clearDeploymentScopedState: vi.fn(async () => {
+        throw new Error('keychain unavailable')
+      }),
+    })
+
+    const result = await createServerWindow(failing).setOrigin('https://sim.other.example')
+
+    expect(result).toMatchObject({ ok: true, unchanged: false })
+    expect(failing.relaunch).toHaveBeenCalledTimes(1)
+  })
+
+  it('surfaces a rejected origin without relaunching', async () => {
+    const result = await createServerWindow(deps).setOrigin('ftp://sim.example.com')
 
     expect(result).toEqual({ ok: false, error: 'bad origin' })
     expect(deps.relaunch).not.toHaveBeenCalled()

@@ -306,7 +306,7 @@ export interface IpcDeps {
   server: {
     open: () => void
     getConfiguration: () => DesktopServerConfiguration
-    setOrigin: (origin: string) => DesktopServerChangeResult
+    setOrigin: (origin: string) => Promise<DesktopServerChangeResult>
   }
 }
 

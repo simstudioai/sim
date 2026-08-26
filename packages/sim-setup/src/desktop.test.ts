@@ -1,11 +1,14 @@
 import { describe, expect, it, vi } from 'vitest'
-import { describeProbe, probeDownload, resolveDeploymentUrl } from './desktop'
+import { describeProbe, probeDownload, resolveDeploymentUrl, sanitizeForTerminal } from './desktop'
 import { SetupError } from './errors'
 
 const ASSET = 'https://github.com/simstudioai/sim/releases/download/v1.2.3/Sim-1.2.3-universal.dmg'
 
-function source(appUrl?: string) {
-  return { values: appUrl ? new Map([['NEXT_PUBLIC_APP_URL', appUrl]]) : new Map<string, string>() }
+function source(appUrl?: string, label = 'configuration') {
+  return {
+    label,
+    values: appUrl ? new Map([['NEXT_PUBLIC_APP_URL', appUrl]]) : new Map<string, string>(),
+  }
 }
 
 function respond(status: number, headers: Record<string, string> = {}): typeof fetch {
@@ -37,6 +40,27 @@ describe('resolveDeploymentUrl', () => {
     expect(resolveDeploymentUrl([source()])).toBe('http://localhost:3000')
   })
 
+  // This command prints one URL as the one to trust and offers to open it, so
+  // preferring whichever source happened to enumerate first would quietly send
+  // an operator with a local checkout AND a real deployment to localhost.
+  it('refuses to guess when sources name different deployments', () => {
+    expect(() =>
+      resolveDeploymentUrl([source('http://localhost:3000'), source('https://sim.example.com')])
+    ).toThrow(SetupError)
+  })
+
+  it('accepts agreeing sources and an override that settles the ambiguity', () => {
+    expect(
+      resolveDeploymentUrl([source('https://sim.example.com'), source('https://sim.example.com')])
+    ).toBe('https://sim.example.com')
+    expect(
+      resolveDeploymentUrl(
+        [source('http://localhost:3000'), source('https://sim.example.com')],
+        'https://sim.example.com'
+      )
+    ).toBe('https://sim.example.com')
+  })
+
   it('rejects a value that is not an http(s) URL', () => {
     expect(() => resolveDeploymentUrl([source('sim.example.com')])).toThrow(SetupError)
     expect(() => resolveDeploymentUrl([source('ftp://sim.example.com')])).toThrow(SetupError)
@@ -63,6 +87,24 @@ describe('probeDownload', () => {
         await probeDownload('https://sim.example.com/x', respond(status, { location: ASSET }))
       ).toMatchObject({ status: 'ok' })
     }
+  })
+
+  // The end-to-end path that matters: a deployment can percent-encode ANSI in
+  // the redirect, and decodeURIComponent turns it into real control bytes on
+  // their way to the spinner.
+  it('sanitizes a redirect filename before it reaches the terminal', async () => {
+    const hostile = 'https://example.com/d/v1/Sim%1b%5b2K%1b%5b1Gforged.dmg'
+
+    const result = await probeDownload(
+      'https://sim.example.com/x',
+      respond(302, { location: hostile })
+    )
+
+    expect(result).toEqual({
+      status: 'ok',
+      installerUrl: hostile,
+      installerName: 'Sim[2K[1Gforged.dmg',
+    })
   })
 
   it('distinguishes no-release from a broken release feed', async () => {
@@ -93,6 +135,22 @@ describe('probeDownload', () => {
       'https://sim.example.com/x',
       expect.objectContaining({ redirect: 'manual' })
     )
+  })
+})
+
+describe('sanitizeForTerminal', () => {
+  // The name comes out of a redirect the deployment chose, so it is remote
+  // input on its way to a TTY.
+  it('strips control characters a deployment could smuggle through the redirect', () => {
+    expect(sanitizeForTerminal('Sim\u001b[2K\u001b[1G forged.dmg')).toBe('Sim[2K[1G forged.dmg')
+    expect(sanitizeForTerminal('a\u0000b\u007fc\u009fd')).toBe('abcd')
+    expect(sanitizeForTerminal('Sim-1.2.3-universal.dmg')).toBe('Sim-1.2.3-universal.dmg')
+  })
+
+  it('caps a name that would overrun the spinner line', () => {
+    const capped = sanitizeForTerminal('x'.repeat(500))
+
+    expect(capped).toBe(`${'x'.repeat(120)}...`)
   })
 })
 

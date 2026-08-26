@@ -1,4 +1,5 @@
 import { getErrorMessage } from '@sim/utils/errors'
+import { truncate } from '@sim/utils/string'
 import { openBrowser } from './cli-auth'
 import { discoverConfigurationSources } from './configuration-sources'
 import { SetupError } from './errors'
@@ -23,6 +24,21 @@ const REDIRECT_STATUSES: ReadonlySet<number> = new Set([301, 302, 307, 308])
 /** The env var every deployment sets to its own public origin. */
 const APP_URL_KEY = 'NEXT_PUBLIC_APP_URL'
 
+/** Keeps a rendered artifact name from overrunning the spinner line. */
+const MAX_INSTALLER_NAME = 120
+
+/**
+ * Strips anything that could move the cursor, repaint, or retitle the terminal.
+ *
+ * The artifact name is read out of a redirect the deployment chose, so it is
+ * remote input on its way to a TTY: percent-encoded ANSI or OSC bytes survive
+ * `decodeURIComponent` as real control characters and would let a compromised
+ * deployment forge CLI output. C0 (including ESC), DEL, and C1 all go.
+ */
+export function sanitizeForTerminal(value: string): string {
+  return truncate(value.replace(/[\u0000-\u001f\u007f-\u009f]/g, ''), MAX_INSTALLER_NAME)
+}
+
 export interface DesktopFlags {
   /** Overrides the deployment origin when the CLI runs away from the install. */
   url?: string
@@ -35,12 +51,31 @@ export interface DesktopFlags {
  * Read from every discovered source, not only the one `add` may write: an
  * operator running a Helm release or an external Compose project still needs
  * the URL, and reading it changes nothing.
+ *
+ * Sources that disagree are an error rather than a first-match win. This
+ * command probes a URL, prints it as the one to trust, and offers to open it —
+ * so silently preferring whichever source enumerated first would point an
+ * operator with both a local checkout and a real deployment at localhost and
+ * never say so. `resolveFeatureSetupDestination` refuses ambiguity the same way.
  */
 export function resolveDeploymentUrl(
-  sources: readonly { values?: Map<string, string> | null }[],
+  sources: readonly { label?: string; values?: Map<string, string> | null }[],
   override?: string
 ): string {
-  const raw = override ?? sources.map((source) => source.values?.get(APP_URL_KEY)).find(Boolean)
+  const discovered = sources.filter((source) => source.values?.get(APP_URL_KEY))
+  const distinct = new Set(discovered.map((source) => source.values?.get(APP_URL_KEY)?.trim()))
+  if (!override && distinct.size > 1) {
+    throw new SetupError(
+      `Found ${distinct.size} configurations naming different ${APP_URL_KEY} values.`,
+      [
+        ...discovered.map(
+          (source) => `${source.label ?? 'configuration'}: ${source.values?.get(APP_URL_KEY)}`
+        ),
+        'Re-run with --url <deployment url> to say which one the desktop app should use.',
+      ]
+    )
+  }
+  const raw = override ?? discovered[0]?.values?.get(APP_URL_KEY)
   if (!raw) {
     // A wizard-provisioned local install has the compose interpolation default
     // rather than an explicit value, so an absent key is not a misconfiguration.
@@ -94,7 +129,7 @@ export async function probeDownload(
     } catch {
       // Keep the raw Location; it is still the most useful thing to print.
     }
-    return { status: 'ok', installerUrl: location, installerName: name }
+    return { status: 'ok', installerUrl: location, installerName: sanitizeForTerminal(name) }
   }
   if (response.status === 404) return { status: 'no-release' }
   if (response.status === 502) return { status: 'feed-unavailable' }

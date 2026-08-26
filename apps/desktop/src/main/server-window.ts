@@ -36,17 +36,14 @@ const SERVER_WINDOW_PARTITION = 'server-selection'
  * `/workspace/<old-id>` on the new server. `resolveStartRoute` cannot rescue
  * that: it discards a route only on a confirmed 403, and a fresh partition has
  * no session, so the new server answers 401 and the stale route survives the
- * probe.
- *
- * The agent browser is deliberately untouched — both its cookie jar and the
- * `browserKnownSites` inference metadata that describes it. Sign-out clears the
- * pair because the ACCOUNT changed; pointing the shell at another deployment
- * does not imply that, and signing the operator out of every unrelated site in
- * the built-in browser is not a reasonable side effect of correcting a server
- * URL. They are kept together on purpose: clearing the metadata alone would
- * leave Sim blind to sign-ins that are still live in the profile.
+ * probe. `browserKnownSites` describes the agent-browser profile that
+ * {@link ServerWindowDeps.clearDeploymentScopedState} clears, and is dropped
+ * with it so Sim is never left believing in sign-ins the profile no longer has.
  */
-const ORIGIN_SCOPED_SETTINGS: readonly (keyof DesktopSettings)[] = ['lastRoute']
+const ORIGIN_SCOPED_SETTINGS: readonly (keyof DesktopSettings)[] = [
+  'lastRoute',
+  'browserKnownSites',
+]
 
 export interface ServerWindowDeps {
   config: ConfigStore
@@ -56,6 +53,19 @@ export interface ServerWindowDeps {
   preloadPath: string
   isPackaged: boolean
   getParentWindow: () => BrowserWindow | null
+  /**
+   * Drops the capabilities the OUTGOING deployment was granted, before the new
+   * one can inherit them.
+   *
+   * Local-filesystem grants and the agent browser's cookie jar live in
+   * device-global stores with no origin key, and both are capabilities the user
+   * handed to a specific Sim server: directories its agent may read, and live
+   * third-party sessions its agent may drive. Carrying them across would let
+   * the next deployment act with authority it was never given — which is why
+   * sign-out clears exactly this pair. Awaited before the relaunch, since a
+   * quit racing an async clear could leave either behind.
+   */
+  clearDeploymentScopedState: () => Promise<void>
   /**
    * Relaunches the shell against the newly stored origin. A full restart rather
    * than an in-place swap: the origin decides the cookie partition, the update
@@ -72,7 +82,7 @@ export interface ServerWindowDeps {
 export interface ServerWindowHandle {
   open(): void
   getConfiguration(): DesktopServerConfiguration
-  setOrigin(origin: string): DesktopServerChangeResult
+  setOrigin(origin: string): Promise<DesktopServerChangeResult>
 }
 
 /**
@@ -149,7 +159,7 @@ export function createServerWindow(deps: ServerWindowDeps): ServerWindowHandle {
     })
   }
 
-  const setOrigin = (raw: string): DesktopServerChangeResult => {
+  const setOrigin = async (raw: string): Promise<DesktopServerChangeResult> => {
     const current = deps.config.getOrigin()
     const validated = deps.config.setOrigin(raw)
     if (!validated.ok) {
@@ -164,6 +174,14 @@ export function createServerWindow(deps: ServerWindowDeps): ServerWindowHandle {
     for (const key of ORIGIN_SCOPED_SETTINGS) {
       deps.config.set(key, undefined)
     }
+    // Failing to clear must not strand the shell on the old origin — that is
+    // already persisted — but it must be loud, because what survives is access
+    // the next deployment did not earn.
+    await deps.clearDeploymentScopedState().catch((error) => {
+      logger.error('Could not clear deployment-scoped state before relaunch', {
+        error: getErrorMessage(error),
+      })
+    })
     // setOrigin writes through immediately; the clears above are debounced like
     // every other setting. `before-quit` flushes too, but doing it here keeps
     // the write independent of the Electron quit sequence.

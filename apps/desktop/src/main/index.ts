@@ -482,6 +482,10 @@ function main(): void {
     preloadPath,
     isPackaged: app.isPackaged,
     getParentWindow: getMainWindow,
+    clearDeploymentScopedState: async () => {
+      await localFilesystem.forgetAll()
+      await clearAgentBrowserProfile()
+    },
     relaunch: relaunchApp,
   })
 
