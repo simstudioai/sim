@@ -1,5 +1,6 @@
 import { validatePathSegment } from '@/lib/core/security/input-validation'
 import { GRAPH_ID_PATTERN } from '@/tools/microsoft_excel/utils'
+import { MicrosoftWordInputError } from '@/tools/microsoft_word/errors'
 
 export const GRAPH_BASE_URL = 'https://graph.microsoft.com/v1.0'
 
@@ -17,7 +18,7 @@ export function getDriveBasePath(driveId?: string): string {
     customPattern: GRAPH_ID_PATTERN,
   })
   if (!validation.isValid) {
-    throw new Error(validation.error)
+    throw new MicrosoftWordInputError(validation.error as string)
   }
   return `${GRAPH_BASE_URL}/drives/${trimmed}`
 }
@@ -34,7 +35,7 @@ export function getItemBasePath(
 ): string {
   const trimmed = itemId?.trim()
   if (!trimmed) {
-    throw new Error(`${itemLabel} is required`)
+    throw new MicrosoftWordInputError(`${itemLabel} is required`)
   }
 
   const validation = validatePathSegment(trimmed, {
@@ -42,7 +43,7 @@ export function getItemBasePath(
     customPattern: GRAPH_ID_PATTERN,
   })
   if (!validation.isValid) {
-    throw new Error(validation.error)
+    throw new MicrosoftWordInputError(validation.error as string)
   }
 
   return `${getDriveBasePath(driveId)}/items/${trimmed}`
@@ -66,7 +67,7 @@ export function getFolderBasePath(folderId: string, driveId?: string): string {
 export function ensureDocxExtension(name: string): string {
   const trimmed = name.trim()
   if (!trimmed) {
-    throw new Error('Document name is required')
+    throw new MicrosoftWordInputError('Document name is required')
   }
   return trimmed.toLowerCase().endsWith('.docx') ? trimmed : `${trimmed}.docx`
 }

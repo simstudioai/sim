@@ -5,14 +5,13 @@ import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { DOCX_MIME_TYPE, replaceTextInDocx } from '@/lib/microsoft-word/document.server'
+import { replaceTextInDocx } from '@/lib/microsoft-word/document.server'
 import {
-  assertContentUnchanged,
   downloadDocumentContent,
   fetchDocumentItem,
+  replaceContentIfUnchanged,
   requireContentTag,
   toDocumentMetadata,
-  uploadDocumentContent,
 } from '@/lib/microsoft-word/graph.server'
 import { microsoftWordErrorResponse } from '@/app/api/tools/microsoft_word/utils'
 import { getDocumentBasePath } from '@/tools/microsoft_word/utils'
@@ -66,15 +65,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       })
     }
 
-    await assertContentUnchanged(basePath, accessToken, contentTag)
-
-    const item = await uploadDocumentContent(
-      `${basePath}/content`,
-      accessToken,
-      buffer,
-      DOCX_MIME_TYPE,
-      contentTag
-    )
+    const item = await replaceContentIfUnchanged(basePath, accessToken, buffer, contentTag)
 
     logger.info(`[${requestId}] Replaced text in Word document`, {
       documentId,

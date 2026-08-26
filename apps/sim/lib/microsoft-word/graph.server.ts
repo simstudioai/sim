@@ -219,45 +219,128 @@ export function requireContentTag(item: GraphDriveItem): string {
   return tag
 }
 
+/** A Graph upload session, used for a precondition-checked content write. */
+interface GraphUploadSession {
+  uploadUrl?: string
+}
+
 /**
- * Aborts a read-modify-write when the document's content changed since it was
- * read. Without this, two overlapping edits both succeed and the later upload
- * silently discards the earlier one.
+ * Replaces a document's content only if it still matches `expectedTag`.
  *
- * Every branch fails closed: a changed tag, and equally a re-read that reports
- * no tag at all, both refuse the write rather than fall through to it.
+ * `PUT /items/{id}/content` documents no precondition — its request-headers
+ * table lists only `Authorization` and `Content-Type` — so a conditional write
+ * has to go through an upload session, whose `if-match` header Graph documents
+ * as returning `412 Precondition Failed` on a mismatch. That makes the check
+ * service-enforced rather than a client-side compare that could itself race.
+ *
+ * The residual window is small and stated honestly: the tag is evaluated when
+ * the session is created and the bytes commit on the following request. Closing
+ * it completely would need the deferred-commit form, whose conditional commit
+ * relies on `@microsoft.graph.sourceUrl` — which Microsoft documents as
+ * unsupported on OneDrive for Business and SharePoint Online, where these
+ * documents live.
+ *
+ * @see https://learn.microsoft.com/en-us/graph/api/driveitem-createuploadsession
+ * @see https://learn.microsoft.com/en-us/graph/api/resources/driveitem
  */
-export async function assertContentUnchanged(
+export async function replaceContentIfUnchanged(
   basePath: string,
   accessToken: string,
-  expected: string
-): Promise<void> {
-  const current = requireContentTag(await fetchDocumentItem(basePath, accessToken))
-  if (current !== expected) {
+  content: Buffer,
+  expectedTag: string
+): Promise<GraphDriveItem> {
+  const sessionResponse = await graphFetch(
+    `${basePath}/createUploadSession`,
+    'documentUploadSessionUrl',
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        'if-match': expectedTag,
+      },
+      body: '{}',
+    }
+  )
+
+  if (sessionResponse.status === 412) {
     throw documentChangedError()
   }
+  if (!sessionResponse.ok) await raiseGraphError(sessionResponse)
+
+  const { uploadUrl } = (await sessionResponse.json()) as GraphUploadSession
+  if (!uploadUrl) {
+    throw new GraphRequestError('Microsoft Graph did not return an upload URL', 502)
+  }
+
+  return uploadSessionBytes(uploadUrl, content)
+}
+
+/**
+ * Byte size of each upload fragment.
+ *
+ * Graph caps a single upload request below 60 MiB, and requires every fragment
+ * of a split upload to be a multiple of 320 KiB — 10 MiB is both (327,680 × 32)
+ * and is inside the 5–10 MiB range Microsoft recommends. Documents are read
+ * under a 100 MB ceiling, so a single request would not always be enough.
+ */
+const UPLOAD_FRAGMENT_BYTES = 10 * 1024 * 1024
+
+/**
+ * Sends the package to a session's upload URL, splitting it into sequential
+ * fragments. Graph answers `202 Accepted` for every fragment but the last, and
+ * returns the finished driveItem with the one that completes the file.
+ *
+ * The URL is preauthenticated and on another host; Graph documents that sending
+ * `Authorization` here can itself fail the request with a 401, so no bearer
+ * token is attached.
+ *
+ * @see https://learn.microsoft.com/en-us/graph/api/driveitem-createuploadsession
+ */
+async function uploadSessionBytes(uploadUrl: string, content: Buffer): Promise<GraphDriveItem> {
+  const total = content.length
+
+  for (let start = 0; start < total; start += UPLOAD_FRAGMENT_BYTES) {
+    const end = Math.min(start + UPLOAD_FRAGMENT_BYTES, total) - 1
+    const fragment = content.subarray(start, end + 1)
+
+    const response = await graphFetch(uploadUrl, 'documentUploadUrl', {
+      method: 'PUT',
+      headers: {
+        'Content-Length': String(fragment.length),
+        'Content-Range': `bytes ${start}-${end}/${total}`,
+      },
+      body: fragment,
+    })
+
+    if (response.status === 412 || response.status === 409) {
+      throw documentChangedError()
+    }
+    if (!response.ok) await raiseGraphError(response)
+
+    // Every fragment but the last is acknowledged with 202 and no item body.
+    if (end === total - 1) {
+      return (await response.json()) as GraphDriveItem
+    }
+  }
+
+  throw new GraphRequestError('Microsoft Graph did not complete the document upload', 502)
 }
 
 /**
  * Uploads bytes as a drive item's content and returns the resulting item.
  *
- * `ifMatch` carries the content tag the upload is based on. Graph documents
- * `if-match` (and its `412 Precondition Failed` response) on the metadata
- * update, not on this content endpoint, so it is sent as a second line of
- * defense rather than the guarantee: an `If-Match` a server does not implement
- * is ignored, and the caller's {@link assertContentUnchanged} check is what
- * actually decides whether the write is safe. A `412` is surfaced as the same
- * conflict either way.
+ * Unconditional by design: this backs creating a new document and the
+ * deliberate whole-document overwrite. An edit that must not clobber a
+ * concurrent change uses {@link replaceContentIfUnchanged} instead.
  *
  * @see https://learn.microsoft.com/en-us/graph/api/driveitem-put-content
- * @see https://learn.microsoft.com/en-us/graph/api/driveitem-update
  */
 export async function uploadDocumentContent(
   url: string,
   accessToken: string,
   content: Buffer,
-  mimeType: string,
-  ifMatch?: string
+  mimeType: string
 ): Promise<GraphDriveItem> {
   const response = await graphFetch(url, 'documentUploadUrl', {
     method: 'PUT',
@@ -265,14 +348,10 @@ export async function uploadDocumentContent(
       Authorization: `Bearer ${accessToken}`,
       'Content-Type': mimeType,
       'Content-Length': String(content.length),
-      ...(ifMatch ? { 'if-match': ifMatch } : {}),
     },
     body: content,
   })
 
-  if (response.status === 412) {
-    throw documentChangedError()
-  }
   if (!response.ok) await raiseGraphError(response)
 
   return (await response.json()) as GraphDriveItem
