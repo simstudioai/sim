@@ -58,11 +58,24 @@ async function resolveSkillContext(workspaceId: string, skillId: string): Promis
   return { ...workspace, skill: row }
 }
 
+/**
+ * Resolves the skill an editor MUTATION addresses.
+ *
+ * A built-in skill exists — `getSkillById` materializes it from code — so
+ * reporting it as missing would contradict the read verbs. It has no editor
+ * roster to change, which is the same refusal `resolveEditableSkill` gives for
+ * update and delete.
+ */
 async function resolveSkillEditorContext(
   skillId: string,
   assertedWorkspaceId?: string
 ): Promise<SkillContext> {
-  if (isBuiltinSkillId(skillId)) throw new OrchestrationError('not_found', 'Skill not found')
+  if (isBuiltinSkillId(skillId)) {
+    throw new OrchestrationError(
+      'validation',
+      'Built-in skills are read-only and cannot be modified'
+    )
+  }
 
   const [row] = await db.select().from(skill).where(eq(skill.id, skillId)).limit(1)
   if (!row?.workspaceId || (assertedWorkspaceId && row.workspaceId !== assertedWorkspaceId)) {
@@ -71,6 +84,20 @@ async function resolveSkillEditorContext(
 
   const workspace = await resolveWorkspaceContext(row.workspaceId)
   return { ...workspace, skill: row }
+}
+
+/**
+ * Resolves the skill an editor LIST addresses.
+ *
+ * Listing is a read, so a built-in id is not a malformed request: the skill is
+ * real and `skills get` returns it. It resolves through the workspace the
+ * caller asserted, and the roster it reports is empty.
+ */
+async function resolveSkillEditorListContext(input: ListSkillEditorsInput): Promise<SkillContext> {
+  if (isBuiltinSkillId(input.skillId) && input.workspaceId) {
+    return resolveSkillContext(input.workspaceId, input.skillId)
+  }
+  return resolveSkillEditorContext(input.skillId, input.workspaceId)
 }
 
 const authorizationOptions = { delegation: skillDelegationPolicy }
@@ -368,9 +395,12 @@ export interface ListSkillEditorsInput {
 export const listSkillEditorsUseCase = defineAuthorizedWorkspaceUseCase({
   operation: skillOperations.listEditors,
   resolveContext: ({ input }: { input: ListSkillEditorsInput }) =>
-    resolveSkillEditorContext(input.skillId, input.workspaceId),
+    resolveSkillEditorListContext(input),
   authorizationOptions,
   async execute({ input, context }) {
+    if (isBuiltinSkillId(input.skillId)) {
+      return { editors: [], hasMore: false, offset: input.offset ?? 0, limit: input.limit ?? 0 }
+    }
     const editors = await listSkillEditors({
       id: context.skill.id,
       workspaceId: context.workspaceId,

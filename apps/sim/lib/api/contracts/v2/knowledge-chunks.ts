@@ -202,15 +202,18 @@ export const v2BulkKnowledgeChunksBodySchema = z
         MAX_V2_BULK_KNOWLEDGE_CHUNKS,
         `chunkIds cannot contain more than ${MAX_V2_BULK_KNOWLEDGE_CHUNKS} chunks`
       )
-      .describe('Chunks to operate on, by identifier. Ids outside the document are ignored.'),
+      .describe(
+        'Chunks to operate on, by identifier. An id naming no chunk in the document is reported in errors and does not fail the request.'
+      ),
   })
   .strict()
 export type V2BulkKnowledgeChunksBody = z.input<typeof v2BulkKnowledgeChunksBodySchema>
 
 /**
  * Bulk chunk outcome. Unlike the per-chunk operations this is best-effort: an
- * identifier naming no chunk in the document is skipped rather than failing the
- * request, so `processed` is the authoritative count.
+ * identifier naming no chunk in the document is reported in `errors` rather
+ * than failing the request, and the same rule holds for all three operations.
+ * `processed` counts only the chunks that actually changed.
  */
 export const v2BulkKnowledgeChunksDataSchema = z
   .object({
@@ -223,7 +226,9 @@ export const v2BulkKnowledgeChunksDataSchema = z
       .meta({ examples: [12] }),
     errors: z
       .array(z.string())
-      .describe('Per-chunk failures. A populated array still answers 200.'),
+      .describe(
+        'Per-chunk failures, including any identifier that named no chunk in the document. A populated array still answers 200.'
+      ),
   })
   .strict()
   .meta({

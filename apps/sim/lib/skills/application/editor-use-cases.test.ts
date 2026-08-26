@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   listEditors: vi.fn(),
   listWorkspaceMembers: vi.fn(),
   recordAudit: vi.fn(),
+  getSkillById: vi.fn(),
 }))
 
 vi.mock('@sim/audit', () => ({
@@ -53,7 +54,7 @@ vi.mock('@/lib/skills/orchestration', () => ({
 }))
 
 vi.mock('@/lib/workflows/skills/operations', () => ({
-  getSkillById: vi.fn(),
+  getSkillById: mocks.getSkillById,
   listSkillSummariesPage: vi.fn(),
   listSkillsForUser: vi.fn(),
 }))
@@ -287,5 +288,67 @@ describe('skill editor application use cases', () => {
 
     expect(mocks.loadWorkspace).not.toHaveBeenCalled()
     expect(mocks.resolvePermission).not.toHaveBeenCalled()
+  })
+
+  /**
+   * A built-in skill is materialized from code, so `skills get` and `skills
+   * list` both return it. Reporting it as missing from the editor verbs
+   * contradicted that: the read and the writes disagree about what is possible,
+   * not about what exists.
+   */
+  describe('built-in skills', () => {
+    const BUILTIN_ID = 'builtin-research'
+
+    beforeEach(() => {
+      mocks.getSkillById.mockResolvedValue({ ...skillRow, id: BUILTIN_ID })
+    })
+
+    it('lists an empty editor roster rather than refusing the read', async () => {
+      const result = await listSkillEditorsUseCase.execute({
+        principal,
+        input: {
+          workspaceId: WORKSPACE_ID,
+          skillId: BUILTIN_ID,
+          sortBy: 'email',
+          sortOrder: 'asc',
+        },
+      })
+
+      expect(result).toMatchObject({ editors: [], hasMore: false })
+      expect(mocks.listEditors).not.toHaveBeenCalled()
+      expect(mocks.resolvePermission).toHaveBeenCalled()
+    })
+
+    it('refuses a grant as read-only rather than as missing', async () => {
+      await expect(
+        grantSkillEditorUseCase.execute({
+          principal,
+          input: {
+            workspaceId: WORKSPACE_ID,
+            skillId: BUILTIN_ID,
+            target: { kind: 'email', email: TARGET_EMAIL },
+          },
+        })
+      ).rejects.toMatchObject({
+        code: 'validation',
+        message: 'Built-in skills are read-only and cannot be modified',
+      })
+    })
+
+    it('refuses a revoke as read-only rather than as missing', async () => {
+      await expect(
+        revokeSkillEditorUseCase.execute({
+          principal,
+          input: {
+            workspaceId: WORKSPACE_ID,
+            skillId: BUILTIN_ID,
+            target: { kind: 'email', email: TARGET_EMAIL },
+          },
+        })
+      ).rejects.toMatchObject({
+        code: 'validation',
+        message: 'Built-in skills are read-only and cannot be modified',
+      })
+    })
   })
 })

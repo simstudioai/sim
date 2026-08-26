@@ -295,12 +295,21 @@ describe('/api/v2/chat-deployments', () => {
       expect(response.status).toBe(200)
     })
 
-    it('conceals a workspace the caller cannot reach as 404', async () => {
+    /**
+     * The list addresses a workspace, so the concealed denial must name the
+     * workspace. Naming a chat deployment reported a resource the caller never
+     * asked for. Concealment itself is unchanged: still 404, still no signal
+     * about whether the workspace holds any deployment.
+     */
+    it('conceals a workspace the caller cannot reach as a missing workspace', async () => {
       mocks.resolvePermission.mockResolvedValue(null)
 
       const response = await get()
 
       expect(response.status).toBe(404)
+      const body = await response.json()
+      expect(body.error.code).toBe('NOT_FOUND')
+      expect(body.error.message).toBe('Workspace not found')
       expect(mocks.listDeployments).not.toHaveBeenCalled()
     })
 

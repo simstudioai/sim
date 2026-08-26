@@ -227,13 +227,11 @@ export const v2BlockSummarySchema = z
     toolIds: z
       .array(z.string())
       .describe(
-        'Built-in tools this block can run. Resolve one with `GET /api/v2/tools/{toolId}`.'
+        'Built-in tools this block can run. Read a tool by its id for the full definition.'
       ),
     operationIds: z
       .array(z.string())
-      .describe(
-        'Operations this block exposes. Their fields and tools are on `GET /api/v2/blocks/{blockId}`.'
-      ),
+      .describe('Operations this block exposes. Their fields and tools are on the block read.'),
     preview: z
       .boolean()
       .describe('Whether the block is unreleased and revealed only to this caller.'),

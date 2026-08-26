@@ -72,13 +72,13 @@ export const v2FileSchema = z
       .number()
       .nonnegative()
       .describe(
-        'Size in bytes of the stored file. For a generated document (docx, pptx, pdf, xlsx) this is the generation source, not the rendered document, so it does not predict how many bytes `GET /files/{fileId}` returns.'
+        'Size in bytes of the stored file. For a generated document (docx, pptx, pdf, xlsx) this is the generation source, not the rendered document, so it does not predict how many bytes downloading the file returns.'
       )
       .meta({ examples: [1024] }),
     type: z
       .string()
       .describe(
-        'MIME type of the stored file. For a generated document (docx, pptx, pdf, xlsx) this is the generation source type, not the rendered document type `GET /files/{fileId}` serves.'
+        'MIME type of the stored file. For a generated document (docx, pptx, pdf, xlsx) this is the generation source type, not the rendered document type a download serves.'
       )
       .meta({ examples: ['text/csv'] }),
     key: z
@@ -108,7 +108,7 @@ export const v2FileSchema = z
       .string()
       .nullable()
       .describe(
-        'ISO 8601 timestamp when the file was archived by `DELETE /files/{fileId}`, or null while the file is active. Only `GET /files?scope=archived` returns files with a non-null value.'
+        'ISO 8601 timestamp when the file was archived by deleting it, or null while the file is active. Only an archived-scope file list returns files with a non-null value.'
       )
       .meta({ format: 'date-time', examples: ['2026-01-16T09:00:00Z'] }),
   })
@@ -396,7 +396,7 @@ export const v2GetFileMetadataQuerySchema = z
     scope: v2FileScopeSchema
       .default('active')
       .describe(
-        'Which lifecycle set to read from: `active` (default) resolves live files only and returns `404` for a file a `DELETE` soft-deleted; `archived` also resolves soft-deleted files, so metadata stays readable before `POST /files/{fileId}/restore`. Authorization is identical for both.'
+        'Which lifecycle set to read from: `active` (default) resolves live files only and returns `404` for a file a delete soft-deleted; `archived` also resolves soft-deleted files, so metadata stays readable before the file is restored. Authorization is identical for both.'
       ),
   })
   .strict()
@@ -510,7 +510,7 @@ export const v2ListFileFoldersQuerySchema = v2ListFoldersQuerySchema.extend({
   scope: v2FileScopeSchema
     .default('active')
     .describe(
-      'Which lifecycle set to list: `active` (default) returns live folders only; `archived` returns folders a recursive `DELETE` soft-deleted, which is how a caller finds a path to hand to `POST /api/v2/files/folders/restore`. Authorization is identical for both.'
+      'Which lifecycle set to list: `active` (default) returns live folders only; `archived` returns folders a recursive delete soft-deleted, which is how a caller finds a path to hand to the folder restore. Authorization is identical for both.'
     ),
 })
 export type V2ListFileFoldersQuery = z.output<typeof v2ListFileFoldersQuerySchema>
@@ -526,7 +526,7 @@ export const v2RestoreFileFolderBodySchema = z
   .object({
     workspaceId: workspaceIdSchema.describe('Workspace that owns the archived folder.'),
     path: v2NonRootFolderPathInputSchema.describe(
-      'Path of the archived folder to restore, as reported by `GET /api/v2/files/folders?scope=archived`.'
+      'Path of the archived folder to restore, as reported by an archived-scope folder list.'
     ),
   })
   .strict()

@@ -46,7 +46,7 @@ export async function resolveRenderedWorkspaceArtifact(
       )
     }
     if (isPayloadSizeLimitError(error)) {
-      const limit = formatFileSize(options.maxBytes)
+      const limit = formatFileSize(options.maxBytes, { includeBytes: true })
       throw new OrchestrationError(
         'payload_too_large',
         options.tooLargeMessage?.(limit) ??
