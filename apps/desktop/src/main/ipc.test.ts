@@ -318,7 +318,7 @@ describe('registerIpcHandlers', () => {
       },
       server: {
         open: vi.fn(),
-        getConfiguration: vi.fn(() => ({ origin: APP, defaultOrigin: APP })),
+        getConfiguration: vi.fn(() => ({ origin: APP, defaultOrigin: APP, isSimCloud: true })),
         setOrigin: vi.fn(() => ({ ok: true as const, origin: APP, unchanged: true })),
       },
     }

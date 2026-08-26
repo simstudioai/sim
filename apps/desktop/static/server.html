@@ -17,8 +17,11 @@
         font-weight: 300 800;
         font-display: block;
       }
+      /* The window pre-paints backgroundColorFor(...) before this document
+         renders, so --bg must track the same system preference or a dark-mode
+         operator sees the picker flash from dark to white on open. */
       :root {
-        color-scheme: light;
+        color-scheme: light dark;
         --bg: #fefefe;
         --text-primary: #1a1a1a;
         --text-body: #434343;
@@ -28,6 +31,19 @@
         --border: #e0e0e0;
         --border-strong: #b4b4b4;
         --error: #b42318;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0c0c0c;
+          --text-primary: #fafafa;
+          --text-body: #d4d4d4;
+          --text-muted: #8a8a8a;
+          --text-inverse: #0c0c0c;
+          --surface-hover: #1f1f1f;
+          --border: #2a2a2a;
+          --border-strong: #4a4a4a;
+          --error: #f97066;
+        }
       }
       * {
         box-sizing: border-box;
@@ -181,8 +197,6 @@
       const cancel = document.getElementById('cancel')
       const message = document.getElementById('message')
 
-      let currentOrigin = ''
-
       function setMessage(text, tone) {
         message.textContent = text || ''
         if (tone) message.setAttribute('data-tone', tone)
@@ -229,13 +243,12 @@
 
       bridge
         ?.getConfiguration()
-        .then((configuration) => {
-          currentOrigin = configuration.origin
-          input.value = currentOrigin
+        .then(({ origin, defaultOrigin }) => {
+          input.value = origin
           input.select()
           syncConnectEnabled()
-          if (currentOrigin !== configuration.defaultOrigin) {
-            setMessage(`This build defaults to ${configuration.defaultOrigin}`)
+          if (origin !== defaultOrigin) {
+            setMessage(`This build defaults to ${defaultOrigin}`)
           }
         })
         .catch(() => setMessage('Could not read the current server.', 'error'))

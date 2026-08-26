@@ -30,6 +30,7 @@ function makeDeps(overrides: Partial<ServerWindowDeps> = {}): ServerWindowDeps {
       raw.startsWith('https://') ? { ok: true, origin: raw } : { ok: false, error: 'bad origin' }
     ),
     defaultOrigin: DEFAULT,
+    pagePath: 'static/server.html',
     preloadPath: '/tmp/preload.cjs',
     isPackaged: false,
     getParentWindow: () => null,
@@ -49,7 +50,18 @@ describe('server window', () => {
     expect(createServerWindow(deps).getConfiguration()).toEqual({
       origin: CURRENT,
       defaultOrigin: DEFAULT,
+      isSimCloud: false,
     })
+  })
+
+  // Drives whether the offline page offers Sim's status page, which describes
+  // only Sim's own deployments.
+  it('marks a sim.ai origin as Sim cloud', () => {
+    const cloud = makeDeps({
+      config: makeConfig('https://www.sim.ai', (raw) => ({ ok: true, origin: raw })),
+    })
+
+    expect(createServerWindow(cloud).getConfiguration().isSimCloud).toBe(true)
   })
 
   it('relaunches after storing a different origin', () => {
@@ -60,8 +72,22 @@ describe('server window', () => {
     expect(deps.relaunch).toHaveBeenCalledTimes(1)
   })
 
-  // Re-confirming the URL already in the field is the most likely thing a user
-  // does in this window; restarting the app for it would be pure disruption.
+  // The saved route carries the previous deployment's workspace id, and
+  // resolveStartRoute only discards a route on a confirmed 403 — a fresh
+  // partition answers 401, so a kept route would survive onto the new server.
+  it('drops the saved route when the origin changes', () => {
+    createServerWindow(deps).setOrigin('https://sim.other.example')
+
+    expect(deps.config.set).toHaveBeenCalledWith('lastRoute', undefined)
+  })
+
+  it('keeps the saved route when the origin is unchanged', () => {
+    createServerWindow(deps).setOrigin(CURRENT)
+
+    expect(deps.config.set).not.toHaveBeenCalled()
+  })
+
+  // Re-confirming the pre-filled URL is the common case here.
   it('does not relaunch when the origin is unchanged', () => {
     const result = createServerWindow(deps).setOrigin(CURRENT)
 

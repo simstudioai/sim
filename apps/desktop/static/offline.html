@@ -126,6 +126,12 @@
           stroke 150ms cubic-bezier(0.4, 0, 0.2, 1);
         -webkit-app-region: no-drag;
       }
+      /* `button { display: inline-flex }` is an author rule, so it beats the UA
+         stylesheet's `[hidden] { display: none }` no matter the specificity —
+         without this the hidden status button renders anyway. */
+      button[hidden] {
+        display: none;
+      }
       button .label {
         min-width: 0;
         flex: 1;
@@ -190,7 +196,7 @@
         </p>
         <div class="actions">
           <button class="primary" id="retry"><span class="label">Retry</span></button>
-          <button class="secondary" id="status"><span class="label">Check status</span></button>
+          <button class="secondary" id="status" hidden><span class="label">Check status</span></button>
           <button class="secondary" id="server"><span class="label">Change server</span></button>
         </div>
         <div id="detail" role="status"></div>
@@ -228,14 +234,23 @@
       if (detail) document.getElementById('detail').textContent = detail
 
       const bridge = window.simDesktop
+      const statusButton = document.getElementById('status')
       document.getElementById('retry').addEventListener('click', () => bridge?.offlineRetry())
-      document
-        .getElementById('status')
-        .addEventListener('click', () => bridge?.openExternal('https://status.sim.ai'))
+      statusButton.addEventListener('click', () => bridge?.openExternal('https://status.sim.ai'))
       // The recovery path for a shell pointed at a server it cannot reach —
       // a mistyped self-hosted origin strands the app here with nothing else
       // to click.
       document.getElementById('server').addEventListener('click', () => bridge?.server?.open())
+
+      // Hidden in the markup and only ever revealed, never the reverse: an
+      // older shell with no `server` bridge, or a configuration read that
+      // fails, must not leave a status link a self-hoster cannot use.
+      bridge?.server
+        ?.getConfiguration()
+        .then(({ isSimCloud }) => {
+          if (isSimCloud) statusButton.hidden = false
+        })
+        .catch(() => {})
     </script>
   </body>
 </html>

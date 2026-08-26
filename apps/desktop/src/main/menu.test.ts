@@ -6,11 +6,11 @@ import { BrowserWindow, type MenuItemConstructorOptions } from 'electron'
 import type { ConfigStore } from '@/main/config'
 import { buildMenuTemplate, type MenuDeps } from '@/main/menu'
 
-function makeDeps(): MenuDeps {
+function makeDeps(origin = 'https://sim.ai'): MenuDeps {
   return {
     config: {
       filePath: '/tmp/settings.json',
-      getOrigin: vi.fn(() => 'https://sim.ai'),
+      getOrigin: vi.fn(() => origin),
       setOrigin: vi.fn(),
       get: vi.fn(() => undefined),
       set: vi.fn(),
@@ -105,6 +105,13 @@ describe('buildMenuTemplate', () => {
   it('keeps Help limited to documentation and Sim status', () => {
     const help = submenu(buildMenuTemplate(makeDeps()), 'Help')
     expect(help.map((item) => item.label)).toEqual(['Sim Documentation', 'Sim Status'])
+  })
+
+  // status.sim.ai reports on Sim's deployments only, so it is worse than
+  // useless to an operator whose own server is the one that is down.
+  it('drops Sim status for a self-hosted server', () => {
+    const help = submenu(buildMenuTemplate(makeDeps('https://sim.example.com')), 'Help')
+    expect(help.map((item) => item.label)).toEqual(['Sim Documentation'])
   })
 
   it('never exposes developer tools in the application menu', () => {

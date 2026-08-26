@@ -69,26 +69,43 @@ function oneFlag(args: readonly string[], flag: string): boolean {
   return count === 1
 }
 
-function parseMode(args: readonly string[]): { mode?: WizardMode; remaining: string[] } {
-  let mode: WizardMode | undefined
+/**
+ * Pulls one `--flag value` / `--flag=value` option out of an argument list,
+ * returning it alongside everything the caller still has to account for.
+ * Accepts both spellings, rejects a repeat, and rejects a missing or
+ * flag-shaped value.
+ */
+function parseValueOption(
+  args: readonly string[],
+  flag: string,
+  requirement: string
+): { value?: string; remaining: string[] } {
+  let value: string | undefined
   const remaining: string[] = []
+  const prefix = `${flag}=`
 
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index]
-    if (arg !== '--mode' && !arg.startsWith('--mode=')) {
+    if (arg !== flag && !arg.startsWith(prefix)) {
       remaining.push(arg)
       continue
     }
-    if (mode) fail('--mode may only be provided once')
+    if (value !== undefined) fail(`${flag} may only be provided once`)
 
-    const value = arg === '--mode' ? args[++index] : arg.slice('--mode='.length)
-    if (value !== 'compose' && value !== 'dev' && value !== 'k8s') {
-      fail(`invalid --mode "${value ?? ''}" — expected compose, dev, or k8s`)
-    }
-    mode = value
+    const candidate = arg === flag ? args[++index] : arg.slice(prefix.length)
+    if (!candidate || candidate.startsWith('-')) fail(requirement)
+    value = candidate
   }
 
-  return { mode, remaining }
+  return { value, remaining }
+}
+
+function parseMode(args: readonly string[]): { mode?: WizardMode; remaining: string[] } {
+  const { value, remaining } = parseValueOption(args, '--mode', '--mode requires a value')
+  if (value !== undefined && value !== 'compose' && value !== 'dev' && value !== 'k8s') {
+    fail(`invalid --mode "${value}" — expected compose, dev, or k8s`)
+  }
+  return { mode: value as WizardMode | undefined, remaining }
 }
 
 function expectNoArguments(command: string, args: readonly string[]): void {
@@ -139,20 +156,11 @@ function parseCore(
 
   if (command === 'desktop') {
     const noOpen = oneFlag(commandArgs, '--no-open')
-    let url: string | undefined
-    const remaining: string[] = []
-    for (let index = 0; index < commandArgs.length; index += 1) {
-      const arg = commandArgs[index]
-      if (arg === '--no-open') continue
-      if (arg !== '--url' && !arg.startsWith('--url=')) {
-        remaining.push(arg)
-        continue
-      }
-      if (url) fail('--url may only be provided once')
-      const value = arg === '--url' ? commandArgs[++index] : arg.slice('--url='.length)
-      if (!value || value.startsWith('-')) fail('--url requires a deployment URL')
-      url = value
-    }
+    const { value: url, remaining } = parseValueOption(
+      commandArgs.filter((arg) => arg !== '--no-open'),
+      '--url',
+      '--url requires a deployment URL'
+    )
     if (remaining.length > 0) fail(`Unknown desktop option: ${remaining[0]}`)
     return { kind: 'desktop', noOpen, ...(url ? { url } : {}) }
   }

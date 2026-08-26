@@ -9,6 +9,7 @@ import {
   createConfigStore,
   DEFAULT_ORIGIN,
   isSafeInternalPath,
+  isSimCloudOrigin,
   partitionForOrigin,
   validateOriginInput,
 } from '@/main/config'
@@ -145,6 +146,26 @@ describe('createConfigStore', () => {
     expect(reloaded.getOrigin()).toBe('https://self-hosted.example')
   })
 
+  // setOrigin writes the whole settings file synchronously on the main thread,
+  // and re-confirming the URL already in the field is the common case in the
+  // server picker.
+  it('does not rewrite settings when setOrigin is given the stored origin', () => {
+    const filePath = tempSettingsPath()
+    const store = createConfigStore(filePath, {})
+    store.setOrigin('https://self-hosted.example')
+    // A sentinel only this test could have written. A rewrite serializes the
+    // in-memory settings over it, so its survival proves no write happened —
+    // unlike an mtime comparison, which two writes a fraction of a millisecond
+    // apart can pass by accident.
+    writeFileSync(filePath, `${readFileSync(filePath, 'utf8')}\n// sentinel\n`)
+
+    expect(store.setOrigin('https://self-hosted.example')).toEqual({
+      ok: true,
+      origin: 'https://self-hosted.example',
+    })
+    expect(readFileSync(filePath, 'utf8')).toContain('// sentinel')
+  })
+
   it('canonicalizes the apex production origin on setOrigin, not just on load', () => {
     // Entering https://sim.ai mid-session must not persist the apex: the
     // running session would use the wrong cookie partition and misclassify
@@ -220,6 +241,25 @@ describe('createConfigStore', () => {
       SIM_DESKTOP_ORIGIN: 'http://evil.example',
     })
     expect(store.getOrigin()).toBe(DEFAULT_ORIGIN)
+  })
+})
+
+describe('isSimCloudOrigin', () => {
+  it('recognizes Sim-operated origins and nothing else', () => {
+    for (const origin of ['https://sim.ai', 'https://www.sim.ai', 'https://www.staging.sim.ai']) {
+      expect(isSimCloudOrigin(origin)).toBe(true)
+    }
+    // A lookalike host must not pass — the suffix check is on the parsed
+    // hostname, never a prefix or substring of the raw string.
+    for (const origin of [
+      'https://sim.example.com',
+      'https://sim.ai.evil.example',
+      'https://notsim.ai',
+      'http://localhost:3000',
+      'not a url',
+    ]) {
+      expect(isSimCloudOrigin(origin)).toBe(false)
+    }
   })
 })
 

@@ -1,7 +1,8 @@
-import { spawnSync } from 'node:child_process'
 import { getErrorMessage } from '@sim/utils/errors'
+import { openBrowser } from './cli-auth'
 import { discoverConfigurationSources } from './configuration-sources'
 import { SetupError } from './errors'
+import { httpHealth } from './probes'
 import * as p from './prompter'
 import { glyph, theme } from './theme'
 import { APP_URL } from './urls'
@@ -17,13 +18,14 @@ const FEED_PATH = '/api/desktop/update/latest-mac.yml'
 
 const PROBE_TIMEOUT_MS = 15_000
 
+const REDIRECT_STATUSES: ReadonlySet<number> = new Set([301, 302, 307, 308])
+
 /** The env var every deployment sets to its own public origin. */
 const APP_URL_KEY = 'NEXT_PUBLIC_APP_URL'
 
 export interface DesktopFlags {
   /** Overrides the deployment origin when the CLI runs away from the install. */
   url?: string
-  /** Skips opening the installer in a browser. */
   noOpen: boolean
 }
 
@@ -38,8 +40,7 @@ export function resolveDeploymentUrl(
   sources: readonly { values?: Map<string, string> | null }[],
   override?: string
 ): string {
-  const raw =
-    override ?? sources.find((source) => source.values?.get(APP_URL_KEY))?.values?.get(APP_URL_KEY)
+  const raw = override ?? sources.map((source) => source.values?.get(APP_URL_KEY)).find(Boolean)
   if (!raw) {
     // A wizard-provisioned local install has the compose interpolation default
     // rather than an explicit value, so an absent key is not a misconfiguration.
@@ -68,8 +69,8 @@ export type DesktopProbe =
 
 /**
  * Asks the deployment to resolve its own installer, following no redirects:
- * the 302's Location IS the answer, and downloading the artifact here would
- * pull hundreds of megabytes to check a link.
+ * the redirect's Location IS the answer, and downloading the artifact here
+ * would pull hundreds of megabytes to check a link.
  */
 export async function probeDownload(
   downloadUrl: string,
@@ -84,7 +85,7 @@ export async function probeDownload(
   } catch (error) {
     return { status: 'unreachable', error: getErrorMessage(error, 'request failed') }
   }
-  if (response.status === 302 || response.status === 301 || response.status === 307) {
+  if (REDIRECT_STATUSES.has(response.status)) {
     const location = response.headers.get('location')
     if (!location) return { status: 'unexpected', code: response.status }
     let name = location
@@ -100,58 +101,52 @@ export async function probeDownload(
   return { status: 'unexpected', code: response.status }
 }
 
-/** Whether the update feed the installed app polls resolves on this deployment. */
-export async function probeFeed(
-  feedUrl: string,
-  fetchImpl: typeof fetch = fetch
-): Promise<boolean> {
-  try {
-    const response = await fetchImpl(feedUrl, { signal: AbortSignal.timeout(PROBE_TIMEOUT_MS) })
-    return response.ok
-  } catch {
-    return false
-  }
-}
-
-function describeProbe(probe: DesktopProbe, appUrl: string): string {
+/**
+ * One exhaustive switch for both the headline and its follow-up hints, so a
+ * new {@link DesktopProbe} status cannot compile with its hints silently
+ * missing — which a `default` arm would have allowed.
+ */
+export function describeProbe(
+  probe: DesktopProbe,
+  appUrl: string
+): { headline: string; hints: readonly string[] } {
   switch (probe.status) {
     case 'ok':
-      return `${glyph.pass} Installer resolved: ${probe.installerName}`
+      return { headline: `${glyph.pass} Installer resolved: ${probe.installerName}`, hints: [] }
     case 'no-release':
-      return `${glyph.fail} This deployment reports no desktop release for its channel.`
+      return {
+        headline: `${glyph.fail} This deployment reports no desktop release for its channel.`,
+        hints: [
+          'Stable desktop builds are published on GitHub releases of simstudioai/sim.',
+          'A brand-new fork with no releases of its own will report this.',
+        ],
+      }
     case 'feed-unavailable':
-      return `${glyph.fail} The deployment could not reach the GitHub release feed.`
+      return {
+        headline: `${glyph.fail} The deployment could not reach the GitHub release feed.`,
+        hints: [
+          'The Sim server needs outbound access to api.github.com and github.com.',
+          'Unauthenticated GitHub API calls are capped at 60/hour per IP — set GITHUB_TOKEN on the Sim server to raise it to 5000/hour.',
+        ],
+      }
     case 'unreachable':
-      return `${glyph.fail} Could not reach ${appUrl} — ${probe.error}`
+      return {
+        headline: `${glyph.fail} Could not reach ${appUrl} — ${probe.error}`,
+        hints: [
+          `Check that Sim is running and reachable at ${appUrl} (npx sim-setup status).`,
+          'Pass --url if this machine reaches Sim at a different address.',
+        ],
+      }
     case 'unexpected':
-      return `${glyph.fail} The download endpoint answered ${probe.code}.`
-  }
-}
-
-function probeHints(probe: DesktopProbe, appUrl: string): string[] {
-  switch (probe.status) {
-    case 'no-release':
-      return [
-        'Stable desktop builds are published on GitHub releases of simstudioai/sim.',
-        'A brand-new fork with no releases of its own will report this.',
-      ]
-    case 'feed-unavailable':
-      return [
-        'The Sim server needs outbound access to api.github.com and github.com.',
-        'Unauthenticated GitHub API calls are capped at 60/hour per IP — set GITHUB_TOKEN on the Sim server to raise it to 5000/hour.',
-      ]
-    case 'unreachable':
-      return [
-        `Check that Sim is running and reachable at ${appUrl} (npx sim-setup status).`,
-        `Pass --url if this machine reaches Sim at a different address.`,
-      ]
-    default:
-      return []
+      return { headline: `${glyph.fail} The download endpoint answered ${probe.code}.`, hints: [] }
   }
 }
 
 export async function runDesktop(flags: DesktopFlags): Promise<number> {
-  const appUrl = resolveDeploymentUrl(discoverConfigurationSources(), flags.url)
+  // Discovery shells out to `docker compose ls/config` and `helm list/get
+  // values`, so it is seconds of blocking work — and every bit of it is
+  // discarded when --url already names the deployment.
+  const appUrl = resolveDeploymentUrl(flags.url ? [] : discoverConfigurationSources(), flags.url)
   const downloadUrl = `${appUrl}${DOWNLOAD_PATH}`
 
   p.log.step(`Deployment: ${theme.accent(appUrl)}`)
@@ -160,12 +155,13 @@ export async function runDesktop(flags: DesktopFlags): Promise<number> {
   spin.start('Resolving the desktop installer…')
   const [probe, feedOk] = await Promise.all([
     probeDownload(downloadUrl),
-    probeFeed(`${appUrl}${FEED_PATH}`),
+    httpHealth(`${appUrl}${FEED_PATH}`, PROBE_TIMEOUT_MS),
   ])
-  spin.stop(describeProbe(probe, appUrl))
+  const { headline, hints } = describeProbe(probe, appUrl)
+  spin.stop(headline)
 
   if (probe.status !== 'ok') {
-    for (const hint of probeHints(probe, appUrl)) {
+    for (const hint of hints) {
       p.log.info(hint)
     }
     p.outro(theme.error('The desktop installer could not be resolved.'))
@@ -194,10 +190,9 @@ export async function runDesktop(flags: DesktopFlags): Promise<number> {
     'Connect the desktop app'
   )
 
-  if (!flags.noOpen && process.platform === 'darwin') {
-    const open = await p.confirm({ message: 'Download it now?', initialValue: true })
-    if (open) {
-      spawnSync('open', [downloadUrl], { stdio: 'ignore' })
+  if (!flags.noOpen) {
+    if (await p.confirm({ message: 'Download it now?', initialValue: true })) {
+      openBrowser(downloadUrl)
     }
   }
 

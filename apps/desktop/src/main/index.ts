@@ -79,6 +79,7 @@ function reportHandoffFailure(error: unknown): void {
 }
 
 const OFFLINE_PAGE = 'static/offline.html'
+const SERVER_PAGE = 'static/server.html'
 const DOCK_ICON_FOR_CHANNEL = {
   prod: 'dock-icon.png',
   staging: 'dock-icon-staging.png',
@@ -474,14 +475,10 @@ function main(): void {
     },
   })
 
-  /**
-   * The native server picker. Self-hosted operators install the same signed
-   * build as everyone else and repoint it here — the bundle bakes only a
-   * DEFAULT origin, and every runtime guard reads the configured one.
-   */
   const serverWindow = createServerWindow({
     config,
     defaultOrigin: DEFAULT_ORIGIN,
+    pagePath: SERVER_PAGE,
     preloadPath,
     isPackaged: app.isPackaged,
     getParentWindow: getMainWindow,

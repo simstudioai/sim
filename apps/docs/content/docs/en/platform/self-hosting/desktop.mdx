@@ -4,7 +4,7 @@ description: Point the macOS desktop app at your own Sim deployment
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { Steps, Step } from 'fumadocs-ui/components/steps'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
 
 The Sim desktop app is a native macOS shell around a Sim deployment. It is **not** tied to sim.ai — the build bakes in only a *default* server, and every runtime boundary (navigation, content security policy, cookie storage, the update feed) is derived from the server you point it at.
 
@@ -20,10 +20,10 @@ Every Sim deployment exposes two public endpoints:
 
 | Endpoint | What it does |
 |---|---|
-| `/api/desktop/update/download` | Redirects to the newest stable installer for your deployment's channel |
+| `/api/desktop/update/download` | Redirects to the newest installer for this deployment's release channel — stable, for a self-hosted install |
 | `/api/desktop/update/latest-mac.yml` | The update manifest installed apps poll |
 
-Both resolve against public GitHub release assets. Nothing is built, signed, or hosted by you — your deployment only decides *which* release its clients are offered, and installed apps then update from your server instead of from sim.ai.
+Both resolve against Sim's public GitHub releases, and the installers themselves are downloaded from GitHub. Nothing is built, signed, or hosted by you: your deployment decides *which* release its clients are offered and serves the manifest, so installed apps poll your server instead of sim.ai — but they cannot be served artifacts of your own from this path. To ship your own build, see [Building your own shell](#building-your-own-shell).
 
 The Sim server needs outbound access to `api.github.com` and `github.com` for these to resolve. Unauthenticated GitHub API requests are capped at 60/hour per IP; set `GITHUB_TOKEN` on the Sim server to raise that to 5000/hour.
 
@@ -61,6 +61,8 @@ Launch Sim, then choose **Sim → Server…** in the menu bar. Enter your deploy
 
 The app relaunches against your server and stays there — the setting persists across updates, and every later update is fetched from your deployment's feed.
 
+Each server keeps its own session, so you sign in again on the new one, and the relaunched app opens on the workspace picker rather than whatever workspace the old server had open. Everything else — window size, zoom, notification preferences, and the built-in browser's own profile — is device state and is kept.
+
 </Step>
 
 </Steps>
@@ -71,7 +73,7 @@ The app relaunches against your server and stays there — the setting persists 
 
 ## Requirements for the server URL
 
-- **HTTPS is required**, except for `localhost` and `127.0.0.1`, which may use HTTP for local testing.
+- **HTTPS is required**, except for the loopback hosts `localhost`, `127.0.0.1`, and `::1`, which may use HTTP for local testing.
 - No credentials in the URL.
 - Paths are ignored — only scheme, host, and port are stored.
 
@@ -90,8 +92,8 @@ cd apps/desktop
 SIM_DESKTOP_DEFAULT_ORIGIN=https://sim.example.com bun run package:share
 ```
 
-This bakes your origin in as the default for fresh installs, so users never see the server picker. Artifacts land in `apps/desktop/release/`.
+This bakes your origin in as the default for fresh installs, so users never see the server picker. Artifacts land in `apps/desktop/release/sim/`, named `sim-<version>-<arch>.dmg`.
 
 <Callout type="warn">
-  A build packaged this way is signed with whatever identity is on the build machine and is **not** notarized, so macOS quarantines it on download. Supply `CSC_LINK` and `CSC_KEY_PASSWORD` with your own Developer ID, and notarize it yourself, before distributing it.
+  A build packaged this way is signed with whatever identity is on the build machine, and without App Store Connect credentials it is **not** notarized — so macOS quarantines it on download. Before distributing it, supply your own Developer ID via `CSC_LINK` and `CSC_KEY_PASSWORD`, and notarization credentials via `APPLE_API_KEY`, `APPLE_API_KEY_ID`, `APPLE_API_ISSUER`, and `APPLE_TEAM_ID`.
 </Callout>

@@ -1,6 +1,6 @@
 import type { MenuItemConstructorOptions } from 'electron'
 import { app, BrowserWindow, Menu } from 'electron'
-import type { ConfigStore } from '@/main/config'
+import { type ConfigStore, isSimCloudOrigin } from '@/main/config'
 import { DOCS_URL, STATUS_URL } from '@/main/external-links'
 import { openExternalSafe } from '@/main/navigation'
 import type {
@@ -253,10 +253,16 @@ export function buildMenuTemplate(deps: MenuDeps): MenuItemConstructorOptions[] 
           label: 'Sim Documentation',
           click: () => void openExternalSafe(DOCS_URL, deps.allowHttpLocalhost()),
         },
-        {
-          label: 'Sim Status',
-          click: () => void openExternalSafe(STATUS_URL, deps.allowHttpLocalhost()),
-        },
+        // Omitted for a self-hosted shell, like the offline page's status
+        // button — see isSimCloudOrigin.
+        ...(isSimCloudOrigin(deps.config.getOrigin())
+          ? [
+              {
+                label: 'Sim Status',
+                click: () => void openExternalSafe(STATUS_URL, deps.allowHttpLocalhost()),
+              },
+            ]
+          : []),
       ],
     },
   ]

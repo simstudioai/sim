@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { probeDownload, probeFeed, resolveDeploymentUrl } from './desktop'
+import { describeProbe, probeDownload, resolveDeploymentUrl } from './desktop'
 import { SetupError } from './errors'
 
 const ASSET = 'https://github.com/simstudioai/sim/releases/download/v1.2.3/Sim-1.2.3-universal.dmg'
@@ -57,6 +57,14 @@ describe('probeDownload', () => {
     })
   })
 
+  it('accepts every redirect status the endpoint may answer with', async () => {
+    for (const status of [301, 302, 307, 308]) {
+      expect(
+        await probeDownload('https://sim.example.com/x', respond(status, { location: ASSET }))
+      ).toMatchObject({ status: 'ok' })
+    }
+  })
+
   it('distinguishes no-release from a broken release feed', async () => {
     expect(await probeDownload('https://sim.example.com/x', respond(404))).toEqual({
       status: 'no-release',
@@ -88,9 +96,26 @@ describe('probeDownload', () => {
   })
 })
 
-describe('probeFeed', () => {
-  it('is true only when the manifest resolves', async () => {
-    expect(await probeFeed('https://sim.example.com/f', respond(200))).toBe(true)
-    expect(await probeFeed('https://sim.example.com/f', respond(404))).toBe(false)
+describe('describeProbe', () => {
+  // Failure statuses are the ones an operator has to act on, so each must
+  // arrive with something to try.
+  it('gives every failure status actionable hints', () => {
+    for (const probe of [
+      { status: 'no-release' },
+      { status: 'feed-unavailable' },
+      { status: 'unreachable', error: 'boom' },
+    ] as const) {
+      expect(describeProbe(probe, 'https://sim.example.com').hints.length).toBeGreaterThan(0)
+    }
+  })
+
+  it('names the resolved artifact on success and asks for nothing', () => {
+    const described = describeProbe(
+      { status: 'ok', installerUrl: ASSET, installerName: 'Sim-1.2.3-universal.dmg' },
+      'https://sim.example.com'
+    )
+
+    expect(described.headline).toContain('Sim-1.2.3-universal.dmg')
+    expect(described.hints).toEqual([])
   })
 })

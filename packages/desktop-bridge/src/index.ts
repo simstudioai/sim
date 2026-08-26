@@ -1002,16 +1002,21 @@ export interface SimDesktopWindowStateApi {
 }
 
 /**
- * The Sim deployment an installed shell is pointed at. Self-hosted operators
- * install the same signed build everyone else does and repoint it here — the
- * bundle bakes only a DEFAULT origin, and every runtime guard (navigation,
- * CSP, cookie partition, update feed) is derived from the configured one.
+ * The Sim deployment an installed shell is pointed at. The bundle bakes only a
+ * DEFAULT origin; navigation, CSP, cookie partition, and the update feed are
+ * all derived from the configured one.
  */
 export interface DesktopServerConfiguration {
   /** The origin the shell is currently pointed at. */
   origin: string
   /** The origin this build falls back to when nothing is stored. */
   defaultOrigin: string
+  /**
+   * Whether the configured origin is one of Sim's own deployments. Sim-operated
+   * resources (the public status page) describe only those, so a self-hosted
+   * shell must not be pointed at them.
+   */
+  isSimCloud: boolean
 }
 
 /** Outcome of a server change. On success the shell relaunches immediately. */
