@@ -59,6 +59,7 @@ import { persistChatResources } from '@/lib/copilot/resources/persistence'
 import {
   hasAddressableId,
   isEphemeralResource,
+  PERSISTED_RESOURCE_TYPES,
   sanitizeChatResources,
 } from '@/lib/copilot/resources/types'
 import { prepareExecutionContext } from '@/lib/copilot/tools/handlers/context'
@@ -92,22 +93,7 @@ const FileAttachmentSchema = z.object({
 })
 
 const ResourceAttachmentSchema = z.object({
-  type: z.enum([
-    'workflow',
-    'table',
-    'file',
-    'knowledgebase',
-    'folder',
-    'filefolder',
-    'task',
-    'log',
-    'generic',
-    'browser',
-    // Filtered out client-side rather than sent, but accepted here so a stray
-    // terminal attachment degrades to a no-op instead of rejecting the whole
-    // chat request.
-    'terminal',
-  ]),
+  type: z.enum([...PERSISTED_RESOURCE_TYPES, 'generic']),
   id: z.string().min(1),
   title: z.string().optional(),
   active: z.boolean().optional(),
@@ -134,6 +120,10 @@ const GENERIC_RESOURCE_TITLE: Record<z.infer<typeof ResourceAttachmentSchema>['t
   filefolder: 'File Folder',
   task: 'Task',
   log: 'Log',
+  integration: 'Integration',
+  skill: 'Skill',
+  custom_tool: 'Custom Tool',
+  mcp_server: 'MCP Server',
   generic: 'Resource',
   browser: 'Browser',
   terminal: 'Terminal',

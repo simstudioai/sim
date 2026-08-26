@@ -315,6 +315,36 @@ describe('handleUnifiedChatPost', () => {
     ])
   })
 
+  it('accepts and persists panel-only resource attachments without adding artificial context', async () => {
+    const response = await handleUnifiedChatPost(
+      new NextRequest('http://localhost/api/copilot/chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          message: 'Keep these tabs open',
+          workspaceId: 'ws-1',
+          createNewChat: true,
+          resourceAttachments: [
+            { type: 'skill', id: 'skill-1', title: 'Writing' },
+            { type: 'custom_tool', id: 'tool-1', title: 'Formatter' },
+            { type: 'mcp_server', id: 'mcp-1', title: 'GitHub' },
+          ],
+        }),
+      })
+    )
+
+    expect(response.status).toBe(200)
+    expect(persistChatResources).toHaveBeenCalledWith('chat-1', [
+      { type: 'skill', id: 'skill-1', title: 'Writing' },
+      { type: 'custom_tool', id: 'tool-1', title: 'Formatter' },
+      { type: 'mcp_server', id: 'mcp-1', title: 'GitHub' },
+    ])
+    expect(resolveActiveResourceContext).toHaveBeenCalledTimes(3)
+    expect(buildCopilotRequestPayload).toHaveBeenCalledWith(
+      expect.objectContaining({ contexts: [] }),
+      { selectedModel: '' }
+    )
+  })
+
   it('forwards the desktop local filesystem capability into payload construction', async () => {
     const response = await handleUnifiedChatPost(
       new NextRequest('http://localhost/api/copilot/chat', {

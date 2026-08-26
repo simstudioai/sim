@@ -242,6 +242,27 @@ describe('usePromptEditor context insertion', () => {
     vi.restoreAllMocks()
   })
 
+  it.each(['skill', 'custom_tool', 'mcp_server'] as const)(
+    'does not insert panel-only %s resources into the prompt',
+    (type) => {
+      const onContextAdd = vi.fn()
+      const { result, unmount } = renderPromptEditor({
+        workspaceId: 'ws-1',
+        initialValue: 'Keep this',
+        onContextAdd,
+      })
+
+      act(() => {
+        result().insertResource({ type, id: 'resource-1', title: 'Panel resource' })
+      })
+
+      expect(result().value).toBe('Keep this')
+      expect(result().contexts).toEqual([])
+      expect(onContextAdd).not.toHaveBeenCalled()
+      unmount()
+    }
+  )
+
   it('appends a real mention token and context, then focuses the editor', () => {
     const onContextAdd = vi.fn()
     let focusFrame: FrameRequestCallback | undefined

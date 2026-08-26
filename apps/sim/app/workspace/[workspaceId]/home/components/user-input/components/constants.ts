@@ -107,14 +107,15 @@ export const SPEECH_RECOGNITION_LANG = 'en-US'
  * Maps a {@link MothershipResource} (resource-picker domain) to a
  * {@link ChatContext} (chat-input domain). Keyed by `MothershipResourceType`
  * so adding a new resource type fails compilation here until a conversion is
- * supplied — preventing silent drift between the two taxonomies.
+ * supplied. Panel-only resources explicitly return `null`, so they cannot
+ * become artificial prompt attachments without weakening exhaustive coverage.
  */
 // Browser/terminal resources may name either the singleton panel or one live
 // inner tab. The singleton ids ask the agent to inspect the whole resource;
 // every other id is a precise live-tab pointer.
 const RESOURCE_TO_CONTEXT: Record<
   MothershipResourceType,
-  (resource: MothershipResource) => ChatContext
+  (resource: MothershipResource) => ChatContext | null
 > = {
   browser: (r) => ({ kind: 'browser_tab', tabId: r.id, label: r.title }),
   terminal: (r) => ({ kind: 'terminal_tab', terminalId: r.id, label: r.title }),
@@ -133,8 +134,11 @@ const RESOURCE_TO_CONTEXT: Record<
   log: (r) => ({ kind: 'logs', executionId: r.executionId ?? r.id, label: r.title }),
   integration: (r) => ({ kind: 'integration', blockType: r.id, label: r.title }),
   generic: (r) => ({ kind: 'docs', label: r.title }),
+  skill: () => null,
+  custom_tool: () => null,
+  mcp_server: () => null,
 }
 
-export function mapResourceToContext(resource: MothershipResource): ChatContext {
+export function mapResourceToContext(resource: MothershipResource): ChatContext | null {
   return RESOURCE_TO_CONTEXT[resource.type](resource)
 }

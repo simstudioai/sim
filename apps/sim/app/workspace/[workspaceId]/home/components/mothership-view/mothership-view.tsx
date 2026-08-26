@@ -244,7 +244,7 @@ export const MothershipView = memo(
                 isAgentResponding={isAgentResponding}
                 genericResourceData={active.type === 'generic' ? genericResourceData : undefined}
                 previewContextKey={chatId}
-                onNotFound={(resourceId) => removeResource('log', resourceId)}
+                onNotFound={(resourceId) => removeResource(active.type, resourceId)}
               />
             )}
             {!active && (

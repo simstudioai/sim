@@ -23,6 +23,10 @@ interface MothershipResourcesContextValue {
   reorderResources: (resources: MothershipResource[]) => void
   /** Collapses the resource panel. */
   collapseResource: () => void
+  /** Defers a user transition when the active embedded editor has a dirty draft. */
+  requestResourceTransition: (transition: () => void) => void
+  /** Reports dirty state for an embedded editor mounted in the active tab. */
+  reportResourceDirty: (resourceId: string, dirty: boolean) => void
 }
 
 const MothershipResourcesContext = createContext<MothershipResourcesContextValue | null>(null)
@@ -42,11 +46,29 @@ export function MothershipResourcesProvider({
   removeResource,
   reorderResources,
   collapseResource,
+  requestResourceTransition,
+  reportResourceDirty,
   children,
 }: MothershipResourcesProviderProps) {
   const value = useMemo<MothershipResourcesContextValue>(
-    () => ({ selectResource, addResource, removeResource, reorderResources, collapseResource }),
-    [selectResource, addResource, removeResource, reorderResources, collapseResource]
+    () => ({
+      selectResource,
+      addResource,
+      removeResource,
+      reorderResources,
+      collapseResource,
+      requestResourceTransition,
+      reportResourceDirty,
+    }),
+    [
+      selectResource,
+      addResource,
+      removeResource,
+      reorderResources,
+      collapseResource,
+      requestResourceTransition,
+      reportResourceDirty,
+    ]
   )
 
   return (

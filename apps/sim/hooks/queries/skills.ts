@@ -44,11 +44,11 @@ async function fetchSkills(workspaceId: string, signal?: AbortSignal): Promise<S
 /**
  * Hook to fetch skills for a workspace
  */
-export function useSkills(workspaceId: string) {
+export function useSkills(workspaceId: string, options?: { enabled?: boolean }) {
   return useQuery<SkillDefinition[]>({
     queryKey: skillsKeys.list(workspaceId),
     queryFn: ({ signal }) => fetchSkills(workspaceId, signal),
-    enabled: !!workspaceId,
+    enabled: !!workspaceId && (options?.enabled ?? true),
     staleTime: SKILL_LIST_STALE_TIME,
     placeholderData: keepPreviousData,
   })

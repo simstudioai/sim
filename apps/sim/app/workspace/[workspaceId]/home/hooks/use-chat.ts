@@ -1807,6 +1807,15 @@ export function useChat(
       return false
     }
 
+    // Adding a resource must not change the visible tab through the incidental
+    // "last item" fallback before the explicit resource-focus event runs. Pin
+    // the current fallback first; clean agent events and user actions can then
+    // deliberately select the new resource, while a dirty editor stays put.
+    const visibleResourceId = activeResourceIdRef.current
+    if (visibleResourceId) {
+      setActiveResourceId((current) => current ?? visibleResourceId)
+    }
+
     setResources((prev) => {
       const exists = prev.some((r) => r.type === resource.type && r.id === resource.id)
       if (exists) return prev

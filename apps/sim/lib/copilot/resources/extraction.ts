@@ -9,7 +9,10 @@ import {
   GenerateImage,
   GenerateVideo,
   Knowledge,
+  ManageCustomTool,
   ManageKnowledgeBase,
+  ManageMcpConnection,
+  ManageSkill,
   PrepareFileEdit,
   Rm,
   RunFunction,
@@ -225,6 +228,9 @@ const DELETE_CAPABLE_TOOL_RESOURCE_TYPE: Record<string, ResourceType> = {
   [PrepareFileEdit.id]: 'file',
   [UserTable.id]: 'table',
   [ManageKnowledgeBase.id]: 'knowledgebase',
+  [ManageSkill.id]: 'skill',
+  [ManageCustomTool.id]: 'custom_tool',
+  [ManageMcpConnection.id]: 'mcp_server',
   // rm spans categories, so unlike every other entry its resource type comes
   // from each outcome's kind rather than from this map. The entry exists so
   // hasDeleteCapability(rm) holds; the rm case below ignores this value.
@@ -327,6 +333,26 @@ export function extractDeletedResourcesFromToolResult(
         return [{ type: resourceType, id: kbId, title: (data.name as string) || 'Knowledge Base' }]
       }
       return []
+    }
+
+    case ManageSkill.id: {
+      if (operation !== 'delete') return []
+      const skillId = (result.skillId as string) ?? (params?.skillId as string)
+      return skillId ? [{ type: resourceType, id: skillId, title: 'Skill' }] : []
+    }
+
+    case ManageCustomTool.id: {
+      if (operation !== 'delete') return []
+      const deleted = Array.isArray(result.deleted)
+        ? result.deleted.filter((id): id is string => typeof id === 'string' && id.length > 0)
+        : []
+      return deleted.map((id) => ({ type: resourceType, id, title: 'Custom Tool' }))
+    }
+
+    case ManageMcpConnection.id: {
+      if (operation !== 'delete') return []
+      const serverId = (result.serverId as string) ?? (params?.serverId as string)
+      return serverId ? [{ type: resourceType, id: serverId, title: 'MCP Server' }] : []
     }
 
     default:

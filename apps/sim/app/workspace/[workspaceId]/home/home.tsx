@@ -34,7 +34,9 @@ import {
 } from '@/lib/mothership/events'
 import { captureEvent } from '@/lib/posthog/client'
 import { persistImportedWorkflow } from '@/lib/workflows/operations/import-export'
+import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/credential-detail'
 import { RESOURCE_HEADER_CLASSES } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
+import { useResourceTransitionGuard } from '@/app/workspace/[workspaceId]/home/hooks/use-resource-transition-guard'
 import { resolveWorkspaceResourceRef } from '@/app/workspace/[workspaceId]/home/resolve-resource-ref'
 import { resourceParam, resourceUrlKeys } from '@/app/workspace/[workspaceId]/home/search-params'
 import { useFolders } from '@/hooks/queries/folders'
@@ -67,6 +69,36 @@ import type {
 } from './types'
 
 const logger = createLogger('Home')
+
+function resolveResourceFromContext(
+  context: ChatContext
+): { type: MothershipResourceType; id: string } | null {
+  switch (context.kind) {
+    case 'workflow':
+    case 'current_workflow':
+      return context.workflowId ? { type: 'workflow', id: context.workflowId } : null
+    case 'knowledge':
+      return context.knowledgeId ? { type: 'knowledgebase', id: context.knowledgeId } : null
+    case 'table':
+    case 'table_selection':
+      return context.tableId ? { type: 'table', id: context.tableId } : null
+    case 'file':
+    case 'file_selection':
+      return context.fileId ? { type: 'file', id: context.fileId } : null
+    case 'skill':
+      return context.skillId ? { type: 'skill', id: context.skillId } : null
+    case 'mcp':
+      return context.serverId ? { type: 'mcp_server', id: context.serverId } : null
+    default:
+      return null
+  }
+}
+
+function resourceTitleForContext(context: ChatContext): string {
+  if (context.kind === 'file_selection') return context.fileName
+  if (context.kind === 'table_selection') return context.tableName
+  return context.label
+}
 
 /**
  * The resource preview panel pulls in the file-viewer stack (rich-markdown
@@ -205,11 +237,22 @@ export function Home({ chatId, userName, userId }: HomeProps) {
   const [isResourceCollapsed, setIsResourceCollapsed] = useState(true)
   const [skipResourceTransition, setSkipResourceTransition] = useState(false)
   const [resourceActivityIds, setResourceActivityIds] = useState<Set<string>>(new Set())
+  const {
+    showDiscardConfirmation,
+    reportResourceDirty,
+    requestResourceTransition,
+    routeAutomaticResourceFocus,
+    dismissDiscardConfirmation,
+    confirmDiscard,
+    rebaseHistorySentinel,
+    reset: resetResourceTransitionGuard,
+  } = useResourceTransitionGuard()
   const isResourceCollapsedRef = useRef(isResourceCollapsed)
   isResourceCollapsedRef.current = isResourceCollapsed
   const userOwnsResourceViewRef = useRef(false)
   const activeResourceParamRef = useRef(activeResourceParam)
   activeResourceParamRef.current = activeResourceParam
+  const effectiveActiveResourceIdRef = useRef<string | null>(activeResourceParam)
 
   function handleResourceEvent(resourceId: string, options?: ResourceEventOptions) {
     // Agent work surfaces the resource and switches to it as it is created or
@@ -217,21 +260,31 @@ export function Home({ chatId, userName, userId }: HomeProps) {
     // existing selection (see shouldActivateResourceEvent).
     if (isResourceCollapsedRef.current) setIsResourceCollapsed(false)
 
-    const activeResourceId = activeResourceParamRef.current
-    if (!shouldActivateResourceEvent(activeResourceId, resourceId, options)) {
+    const activeResourceId = effectiveActiveResourceIdRef.current
+    const markAttention = () => {
       setResourceActivityIds((current) => new Set(current).add(resourceId))
+    }
+    if (!shouldActivateResourceEvent(activeResourceId, resourceId, options)) {
+      markAttention()
       return
     }
-    setResourceActivityIds((current) => {
-      if (!current.has(resourceId)) return current
-      const next = new Set(current)
-      next.delete(resourceId)
-      return next
-    })
-    if (activeResourceId !== resourceId) {
-      activeResourceParamRef.current = resourceId
-      setActiveResourceUrl(resourceId)
-    }
+    routeAutomaticResourceFocus(
+      resourceId,
+      () => {
+        setResourceActivityIds((current) => {
+          if (!current.has(resourceId)) return current
+          const next = new Set(current)
+          next.delete(resourceId)
+          return next
+        })
+        if (activeResourceId !== resourceId) {
+          effectiveActiveResourceIdRef.current = resourceId
+          activeResourceParamRef.current = resourceId
+          setActiveResourceUrl(resourceId)
+        }
+      },
+      markAttention
+    )
   }
 
   const {
@@ -277,7 +330,6 @@ export function Home({ chatId, userName, userId }: HomeProps) {
   )
 
   const { mothershipRef, handleResizePointerDown, clearWidth } = useMothershipResize(desktopScopeId)
-  const effectiveActiveResourceIdRef = useRef(activeResourceId)
   effectiveActiveResourceIdRef.current = activeResourceId
   const resourceAttentionChatIdRef = useRef(resolvedChatId)
 
@@ -303,7 +355,7 @@ export function Home({ chatId, userName, userId }: HomeProps) {
     setIsResourceCollapsed(false)
   }
 
-  const selectResourceFromUser = useCallback(
+  const selectResourceImmediately = useCallback(
     (resourceId: string) => {
       userOwnsResourceViewRef.current = true
       clearResourceActivity(resourceId)
@@ -315,14 +367,25 @@ export function Home({ chatId, userName, userId }: HomeProps) {
     [setActiveResourceId, clearResourceActivity]
   )
 
-  const addResourceFromUser = useCallback(
+  const addResourceImmediately = useCallback(
     (resource: MothershipResource) => {
       userOwnsResourceViewRef.current = true
       addResource(resource)
-      selectResourceFromUser(resource.id)
+      selectResourceImmediately(resource.id)
       setIsResourceCollapsed(false)
     },
-    [addResource, selectResourceFromUser]
+    [addResource, selectResourceImmediately]
+  )
+
+  const addResourceFromUser = useCallback(
+    (resource: MothershipResource) => {
+      if (effectiveActiveResourceIdRef.current === resource.id) {
+        addResourceImmediately(resource)
+        return
+      }
+      requestResourceTransition(() => addResourceImmediately(resource))
+    },
+    [addResourceImmediately, requestResourceTransition]
   )
 
   const handleResourceResizePointerDown = useCallback(
@@ -343,6 +406,7 @@ export function Home({ chatId, userName, userId }: HomeProps) {
     wasSendingRef.current = false
     if (resolvedChatId) {
       markRead(resolvedChatId)
+      if (!previousChatId) rebaseHistorySentinel()
     } else {
       clearWidth()
       setIsResourceCollapsed(true)
@@ -350,8 +414,9 @@ export function Home({ chatId, userName, userId }: HomeProps) {
     if (!resolvedChatId || (previousChatId && previousChatId !== resolvedChatId)) {
       userOwnsResourceViewRef.current = false
       setResourceActivityIds(new Set())
+      resetResourceTransitionGuard()
     }
-  }, [resolvedChatId, markRead, clearWidth])
+  }, [resolvedChatId, markRead, clearWidth, rebaseHistorySentinel, resetResourceTransitionGuard])
 
   useEffect(() => {
     if (wasSendingRef.current && !isSending && resolvedChatId) {
@@ -479,39 +544,6 @@ export function Home({ chatId, userName, userId }: HomeProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- see above
   }, [chatId, workspaceId, sendMessage])
 
-  function resolveResourceFromContext(
-    context: ChatContext
-  ): { type: MothershipResourceType; id: string } | null {
-    switch (context.kind) {
-      case 'workflow':
-      case 'current_workflow':
-        return context.workflowId ? { type: 'workflow', id: context.workflowId } : null
-      case 'knowledge':
-        return context.knowledgeId ? { type: 'knowledgebase', id: context.knowledgeId } : null
-      case 'table':
-        return context.tableId ? { type: 'table', id: context.tableId } : null
-      case 'table_selection':
-        return context.tableId ? { type: 'table', id: context.tableId } : null
-      case 'file':
-        return context.fileId ? { type: 'file', id: context.fileId } : null
-      case 'file_selection':
-        return context.fileId ? { type: 'file', id: context.fileId } : null
-      default:
-        return null
-    }
-  }
-
-  /**
-   * Tab title for the resource a chip opens. A selection chip's label describes
-   * the selection (`notes.md:12-40`, `Sales (3 rows)`) but the tab shows the
-   * whole file/table, so title it from the resource name the context carries.
-   */
-  function resourceTitleForContext(context: ChatContext): string {
-    if (context.kind === 'file_selection') return context.fileName
-    if (context.kind === 'table_selection') return context.tableName
-    return context.label
-  }
-
   function handleContextAdd(context: ChatContext) {
     const resolved = resolveResourceFromContext(context)
     if (resolved) {
@@ -531,7 +563,12 @@ export function Home({ chatId, userName, userId }: HomeProps) {
       return otherResolved?.type === resolved.type && otherResolved.id === resolved.id
     })
     if (stillReferenced) return
-    removeResource(resolved.type, resolved.id)
+    const remove = () => removeResource(resolved.type, resolved.id)
+    if (effectiveActiveResourceIdRef.current === resolved.id) {
+      requestResourceTransition(remove)
+    } else {
+      remove()
+    }
   }
 
   function openWorkspaceResource(resource: MothershipResource) {
@@ -687,11 +724,13 @@ export function Home({ chatId, userName, userId }: HomeProps) {
       )}
 
       <MothershipResourcesProvider
-        selectResource={selectResourceFromUser}
-        addResource={addResourceFromUser}
+        selectResource={selectResourceImmediately}
+        addResource={addResourceImmediately}
         removeResource={removeResource}
         reorderResources={reorderResources}
         collapseResource={collapseResource}
+        requestResourceTransition={requestResourceTransition}
+        reportResourceDirty={reportResourceDirty}
       >
         <Suspense fallback={null}>
           <MothershipView
@@ -711,6 +750,14 @@ export function Home({ chatId, userName, userId }: HomeProps) {
           />
         </Suspense>
       </MothershipResourcesProvider>
+
+      <UnsavedChangesModal
+        open={showDiscardConfirmation}
+        onOpenChange={(open) => {
+          if (!open) dismissDiscardConfirmation()
+        }}
+        onDiscard={confirmDiscard}
+      />
 
       <div
         className={cn('z-30', RESOURCE_HEADER_CLASSES.overlay, RESOURCE_HEADER_CLASSES.endPosition)}

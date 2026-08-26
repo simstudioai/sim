@@ -40,6 +40,7 @@ import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { isChatEnabled, isHosted, isStatusNoticePreviewEnabled } from '@/lib/core/config/env-flags'
 import { isMacPlatform } from '@/lib/core/utils/platform'
 import { buildFolderTree, getFolderPathNames } from '@/lib/folders/tree'
+import { requestMothershipNavigation } from '@/lib/mothership/events'
 import { captureEvent } from '@/lib/posthog/client'
 import { CONNECT_MODE } from '@/app/workspace/[workspaceId]/integrations/connect-route'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
@@ -904,10 +905,12 @@ export const Sidebar = memo(function Sidebar({
 
   const navigateToPage = useCallback(
     (path: string) => {
-      if (!isCollapsedRef.current) {
-        setSidebarWidth(SIDEBAR_WIDTH.MIN)
-      }
-      router.push(path)
+      requestMothershipNavigation(() => {
+        if (!isCollapsedRef.current) {
+          setSidebarWidth(SIDEBAR_WIDTH.MIN)
+        }
+        router.push(path)
+      })
     },
     [setSidebarWidth, router]
   )
@@ -921,19 +924,28 @@ export const Sidebar = memo(function Sidebar({
       (id) => currentPath === `/workspace/${workspaceId}/chat/${id}`
     )
 
-    const onDeleteSuccess = () => {
-      useFolderStore.getState().clearChatSelection()
-      if (isViewingDeletedChat) {
-        navigateToPage(`/workspace/${workspaceId}/home`)
+    const deleteChats = () => {
+      const onSuccess = () => useFolderStore.getState().clearChatSelection()
+      if (chatIdsToDelete.length === 1) {
+        deleteChatMutation.mutate(chatIdsToDelete[0], { onSuccess })
+      } else {
+        deleteChatsMutation.mutate(chatIdsToDelete, { onSuccess })
       }
     }
 
-    if (chatIdsToDelete.length === 1) {
-      deleteChatMutation.mutate(chatIdsToDelete[0], { onSuccess: onDeleteSuccess })
-    } else {
-      deleteChatsMutation.mutate(chatIdsToDelete, { onSuccess: onDeleteSuccess })
-    }
     setIsChatDeleteModalOpen(false)
+    if (!isViewingDeletedChat) {
+      deleteChats()
+      return
+    }
+
+    requestMothershipNavigation(() => {
+      if (!isCollapsedRef.current) {
+        setSidebarWidth(SIDEBAR_WIDTH.MIN)
+      }
+      router.push(`/workspace/${workspaceId}/home`)
+      deleteChats()
+    })
   }
 
   const [visibleChatCount, setVisibleChatCount] = useState(5)

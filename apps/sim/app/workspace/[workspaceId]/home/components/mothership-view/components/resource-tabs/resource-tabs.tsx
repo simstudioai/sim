@@ -22,7 +22,6 @@ import {
 import { Columns3, Eye, Pencil } from '@sim/emcn/icons'
 import { sendBrowserPanelAction } from '@/lib/browser-agent/transport'
 import { SIM_RESOURCE_DRAG_TYPE, SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
-import { isEphemeralResource } from '@/lib/copilot/resources/types'
 import { openTerminal } from '@/lib/terminal/transport'
 import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import { useMothershipResources } from '@/app/workspace/[workspaceId]/home/components/mothership-resources-context'
@@ -37,13 +36,11 @@ import type {
   MothershipResource,
   MothershipResourceType,
 } from '@/app/workspace/[workspaceId]/home/types'
+import { useCustomTools } from '@/hooks/queries/custom-tools'
 import { useFolders } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
-import {
-  useAddChatResource,
-  useRemoveChatResource,
-  useReorderChatResources,
-} from '@/hooks/queries/mothership-chats'
+import { useMcpServers } from '@/hooks/queries/mcp'
+import { useSkills } from '@/hooks/queries/skills'
 import { useTablesList } from '@/hooks/queries/tables'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
@@ -142,35 +139,49 @@ const PREVIEW_MODE_LABELS: Record<PreviewMode, string> = {
 }
 
 /**
- * Stable identity for the empty lookup across `enabled` toggles. The tab list
- * memo below takes this map as a dependency, so a fresh empty map each time
- * `enabled` flips would rebuild every tab for no change in what they say.
- */
-const NO_RESOURCE_NAMES = new Map<string, string>()
-
-/**
  * Builds a `type:id` -> current name lookup from live query data so resource
- * tabs always reflect the latest name even after a rename. Skipped entirely
- * when there are no tabs to label — a chat with no open resources must not
- * fetch five workspace-wide lists.
+ * tabs always reflect the latest name even after a rename. Each query is enabled
+ * only when that resource family has an open tab.
  */
-function useResourceNameLookup(workspaceId: string, enabled: boolean): Map<string, string> {
-  const { data: workflows } = useWorkflows(workspaceId, { enabled })
-  const { data: tables } = useTablesList(workspaceId, 'active', { enabled })
-  const { data: files } = useWorkspaceFiles(workspaceId, 'active', { enabled })
-  const { data: knowledgeBases } = useKnowledgeBasesQuery(workspaceId, { enabled })
-  const { data: folders } = useFolders(workspaceId, { enabled })
+function useResourceNameLookup(
+  workspaceId: string,
+  openTypes: ReadonlySet<MothershipResourceType>
+): Map<string, string> {
+  const workflowsEnabled = openTypes.has('workflow')
+  const tablesEnabled = openTypes.has('table')
+  const filesEnabled = openTypes.has('file')
+  const knowledgeBasesEnabled = openTypes.has('knowledgebase')
+  const foldersEnabled = openTypes.has('folder')
+  const skillsEnabled = openTypes.has('skill')
+  const customToolsEnabled = openTypes.has('custom_tool')
+  const mcpServersEnabled = openTypes.has('mcp_server')
+  const { data: workflows } = useWorkflows(workspaceId, { enabled: workflowsEnabled })
+  const { data: tables } = useTablesList(workspaceId, 'active', { enabled: tablesEnabled })
+  const { data: files } = useWorkspaceFiles(workspaceId, 'active', { enabled: filesEnabled })
+  const { data: knowledgeBases } = useKnowledgeBasesQuery(workspaceId, {
+    enabled: knowledgeBasesEnabled,
+  })
+  const { data: folders } = useFolders(workspaceId, { enabled: foldersEnabled })
+  const { data: skills } = useSkills(workspaceId, { enabled: skillsEnabled })
+  const { data: customTools } = useCustomTools(workspaceId, { enabled: customToolsEnabled })
+  const { data: mcpServers } = useMcpServers(workspaceId, { enabled: mcpServersEnabled })
 
   return useMemo(() => {
-    if (!enabled) return NO_RESOURCE_NAMES
     const map = new Map<string, string>()
-    for (const w of workflows ?? []) map.set(`workflow:${w.id}`, w.name)
-    for (const t of tables ?? []) map.set(`table:${t.id}`, t.name)
-    for (const f of files ?? []) map.set(`file:${f.id}`, f.name)
-    for (const kb of knowledgeBases ?? []) map.set(`knowledgebase:${kb.id}`, kb.name)
+    for (const workflow of workflows ?? []) map.set(`workflow:${workflow.id}`, workflow.name)
+    for (const table of tables ?? []) map.set(`table:${table.id}`, table.name)
+    for (const file of files ?? []) map.set(`file:${file.id}`, file.name)
+    for (const knowledgeBase of knowledgeBases ?? []) {
+      map.set(`knowledgebase:${knowledgeBase.id}`, knowledgeBase.name)
+    }
     for (const folder of folders ?? []) map.set(`folder:${folder.id}`, folder.name)
+    for (const skill of skills ?? []) map.set(`skill:${skill.id}`, skill.name)
+    for (const tool of customTools ?? []) map.set(`custom_tool:${tool.id}`, tool.title)
+    for (const server of mcpServers ?? []) {
+      map.set(`mcp_server:${server.id}`, server.name || 'Unnamed server')
+    }
     return map
-  }, [enabled, workflows, tables, files, knowledgeBases, folders])
+  }, [workflows, tables, files, knowledgeBases, folders, skills, customTools, mcpServers])
 }
 
 interface ResourceTabsProps {
@@ -210,17 +221,15 @@ export function ResourceTabs({
   onAddResourceClose,
 }: ResourceTabsProps) {
   const PreviewModeIcon = PREVIEW_MODE_ICONS[previewMode ?? 'split']
-  const nameLookup = useResourceNameLookup(workspaceId, resources.length > 0)
+  const openTypes = useMemo(() => new Set(resources.map((resource) => resource.type)), [resources])
+  const nameLookup = useResourceNameLookup(workspaceId, openTypes)
   const {
     selectResource,
     addResource: onAddResource,
     removeResource: onRemoveResource,
     reorderResources: onReorderResources,
+    requestResourceTransition,
   } = useMothershipResources()
-
-  const addResource = useAddChatResource(chatId)
-  const removeResource = useRemoveChatResource(chatId)
-  const reorderResources = useReorderChatResources(chatId)
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const anchorIdRef = useRef<string | null>(null)
@@ -266,24 +275,18 @@ export function ResourceTabs({
 
   const handleAdd = useCallback(
     (resource: MothershipResource) => {
-      // Opening a resource before the first message is sent is allowed: there
-      // is simply no chat to attach it to yet. `onAddResource` queues it and
-      // persists once the chat exists, so only the server call is conditional.
-      // Synthetic result/preview panels are in-memory only either way.
-      if (chatId && !isEphemeralResource(resource)) {
-        addResource.mutate({ chatId, resource })
-      }
-      onAddResource(resource)
+      requestResourceTransition(() => onAddResource(resource))
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [chatId, onAddResource]
+    [onAddResource, requestResourceTransition]
   )
 
   const handleOpenExisting = useCallback(
     (resource: MothershipResource) => {
-      openExistingResourceTab(resource, desktopScopeId, selectResource)
+      const open = () => openExistingResourceTab(resource, desktopScopeId, selectResource)
+      if (resource.id === activeId) open()
+      else requestResourceTransition(open)
     },
-    [desktopScopeId, selectResource]
+    [activeId, desktopScopeId, requestResourceTransition, selectResource]
   )
 
   const handleSelect = useCallback(
@@ -302,8 +305,12 @@ export function ResourceTabs({
           const end = Math.max(anchorIdx, idx)
           const next = new Set<string>()
           for (let i = start; i <= end; i++) next.add(resources[i].id)
-          setSelectedIds(next)
-          selectResource(resource.id)
+          const select = () => {
+            setSelectedIds(next)
+            selectResource(resource.id)
+          }
+          if (resource.id === activeId) select()
+          else requestResourceTransition(select)
           return
         }
       }
@@ -314,27 +321,39 @@ export function ResourceTabs({
         if (wasSelected) {
           const next = new Set(selectedIds)
           next.delete(resource.id)
-          setSelectedIds(next)
-          // Only switch active if we just deselected the currently-active tab
-          if (activeId === resource.id) {
-            const fallback =
-              findNearestId(resources, idx, next) ?? findNearestId(resources, idx, null)
+          const fallback =
+            activeId === resource.id
+              ? (findNearestId(resources, idx, next) ?? findNearestId(resources, idx, null))
+              : undefined
+          const deselect = () => {
+            setSelectedIds(next)
             if (fallback) selectResource(fallback)
+            if (!anchorIdRef.current) anchorIdRef.current = resource.id
           }
+          if (fallback && fallback !== activeId) requestResourceTransition(deselect)
+          else deselect()
         } else {
-          setSelectedIds((prev) => new Set(prev).add(resource.id))
-          selectResource(resource.id)
+          const select = () => {
+            setSelectedIds((prev) => new Set(prev).add(resource.id))
+            selectResource(resource.id)
+            if (!anchorIdRef.current) anchorIdRef.current = resource.id
+          }
+          if (resource.id === activeId) select()
+          else requestResourceTransition(select)
         }
-        if (!anchorIdRef.current) anchorIdRef.current = resource.id
         return
       }
 
       // Plain click: single-select
-      anchorIdRef.current = resource.id
-      setSelectedIds(new Set([resource.id]))
-      selectResource(resource.id)
+      const select = () => {
+        anchorIdRef.current = resource.id
+        setSelectedIds(new Set([resource.id]))
+        selectResource(resource.id)
+      }
+      if (resource.id === activeId) select()
+      else requestResourceTransition(select)
     },
-    [resources, selectResource, selectedIds, activeId]
+    [resources, selectResource, selectedIds, activeId, requestResourceTransition]
   )
 
   const handleClose = useCallback(
@@ -343,32 +362,26 @@ export function ResourceTabs({
       if (!resource) return
       const isMulti = selectedIds.has(resource.id) && selectedIds.size > 1
       const targets = isMulti ? resources.filter((r) => selectedIds.has(r.id)) : [resource]
-      // Update parent state immediately for all targets
-      for (const r of targets) {
-        onRemoveResource(r.type, r.id)
+      const close = () => {
+        // Update parent state immediately for all targets
+        for (const r of targets) {
+          onRemoveResource(r.type, r.id)
+        }
+        // Clear stale selection and anchor for all removed targets
+        const removedIds = new Set(targets.map((r) => r.id))
+        setSelectedIds((prev) => {
+          const next = new Set(prev)
+          for (const removedId of removedIds) next.delete(removedId)
+          return next
+        })
+        if (anchorIdRef.current && removedIds.has(anchorIdRef.current)) {
+          anchorIdRef.current = null
+        }
       }
-      // Clear stale selection and anchor for all removed targets
-      const removedIds = new Set(targets.map((r) => r.id))
-      setSelectedIds((prev) => {
-        const next = new Set(prev)
-        for (const removedId of removedIds) next.delete(removedId)
-        return next
-      })
-      if (anchorIdRef.current && removedIds.has(anchorIdRef.current)) {
-        anchorIdRef.current = null
-      }
-      // Mirrors `handleAdd`: a resource opened while composing the first prompt
-      // has to be closable before there is a chat to attach it to. Only the
-      // server call is conditional — the local removal above also drops the
-      // queued write, so nothing resurrects it once the chat exists.
-      if (!chatId) return
-      for (const r of targets) {
-        if (isEphemeralResource(r)) continue
-        removeResource.mutate({ chatId, resourceType: r.type, resourceId: r.id })
-      }
+      if (targets.some((target) => target.id === activeId)) requestResourceTransition(close)
+      else close()
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [chatId, onRemoveResource, resources, selectedIds]
+    [activeId, onRemoveResource, requestResourceTransition, resources, selectedIds]
   )
 
   const handleTabDragStart = useCallback(
@@ -415,15 +428,8 @@ export function ResourceTabs({
       const [moved] = reordered.splice(fromIndex, 1)
       reordered.splice(targetIndex, 0, moved)
       onReorderResources(reordered)
-      if (chatId) {
-        const persistable = reordered.filter((r) => !isEphemeralResource(r))
-        if (persistable.length > 0) {
-          reorderResources.mutate({ chatId, resources: persistable })
-        }
-      }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [chatId, resources, onReorderResources]
+    [resources, onReorderResources]
   )
 
   const previewToggle =

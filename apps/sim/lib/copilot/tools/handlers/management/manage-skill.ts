@@ -90,6 +90,7 @@ export async function executeManageSkill(
 
       return {
         success: true,
+        resources: [{ type: 'skill', id: skill.id, title: skill.name }],
         output: {
           success: true,
           operation,
@@ -133,6 +134,7 @@ export async function executeManageSkill(
 
       return {
         success: true,
+        resources: [{ type: 'skill', id: skill.id, title: skill.name }],
         output: {
           success: true,
           operation,

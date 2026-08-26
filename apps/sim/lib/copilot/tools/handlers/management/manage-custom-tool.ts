@@ -117,6 +117,7 @@ export async function executeManageCustomTool(
 
       return {
         success: true,
+        resources: [{ type: 'custom_tool', id: created.id, title: created.title }],
         output: {
           success: true,
           operation,
@@ -170,6 +171,7 @@ export async function executeManageCustomTool(
 
       return {
         success: true,
+        resources: [{ type: 'custom_tool', id: tool.id, title: tool.title }],
         output: {
           success: true,
           operation,

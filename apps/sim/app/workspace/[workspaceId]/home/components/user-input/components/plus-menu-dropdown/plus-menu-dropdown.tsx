@@ -53,6 +53,11 @@ const MENTION_MAX_HEIGHT_CLASS = 'max-h-[min(280px,var(--radix-popper-available-
  */
 const MENTION_ONLY_RESOURCE_TYPES = new Set<MothershipResourceType>(['integration'])
 const NON_ATTACHABLE_RESOURCE_TYPES = new Set<MothershipResourceType>(['browser'])
+const PANEL_ONLY_RESOURCE_TYPES: readonly MothershipResourceType[] = [
+  'skill',
+  'custom_tool',
+  'mcp_server',
+] as const
 const EMPTY_BROWSER_TABS = [] as const
 const EMPTY_TERMINAL_TABS = [] as const
 
@@ -104,6 +109,7 @@ export const PlusMenuDropdown = React.memo(
       isHydrating,
     } = useAvailableResources(workspaceId, {
       enabled: open || !!warm,
+      excludeTypes: PANEL_ONLY_RESOURCE_TYPES,
     })
 
     const doOpen = useCallback(
@@ -121,9 +127,9 @@ export const PlusMenuDropdown = React.memo(
       setOpen(false)
     }, [])
 
-    // The `+` browse menu hides non-attachable and mention-only resource types.
-    // `@` mode exposes the full catalog and adds each live Browser/Terminal tab
-    // after its always-present whole-resource row.
+    // The hook has already excluded panel-only resources. The `+` browse menu
+    // also hides non-attachable and mention-only types; `@` mode adds each live
+    // Browser/Terminal tab after its always-present whole-resource row.
     const visibleResources = useMemo(() => {
       if (isMention) {
         return withDesktopTabMentions(availableResources, browserTabs, terminalTabs)

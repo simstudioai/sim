@@ -172,15 +172,30 @@ function buildEditInitialData(server: McpServer) {
   }
 }
 
-export function MCP() {
+interface MCPProps {
+  /** Explicit values embed one server detail without changing settings search params. */
+  workspaceId?: string
+  serverId?: string
+  onBack?: () => void
+  /** Reports edits in the server form to an embedding navigation guard. */
+  onDirtyChange?: (dirty: boolean) => void
+}
+
+export function MCP({
+  workspaceId: explicitWorkspaceId,
+  serverId,
+  onBack,
+  onDirtyChange,
+}: MCPProps = {}) {
   const params = useParams()
-  const workspaceId = params.workspaceId as string
+  const workspaceId = explicitWorkspaceId ?? (params.workspaceId as string)
   const workspacePermissions = useUserPermissionsContext()
   const canEdit = canMutateWorkspaceSettingsSection('mcp', workspacePermissions)
   const [selectedServerId, setSelectedServerId] = useQueryState(mcpServerIdParam.key, {
     ...mcpServerIdParam.parser,
     ...mcpServerIdUrlKeys,
   })
+  const activeServerId = serverId ?? selectedServerId
   const [searchTerm, setSearchTerm] = useSettingsSearch()
   const [showAddModal, setShowAddModal] = useState(false)
   const [editingServerId, setEditingServerId] = useState<string | null>(null)
@@ -192,11 +207,13 @@ export function MCP() {
   const {
     data: servers = [],
     isLoading: serversLoading,
+    isPending: serversPending,
+    isPlaceholderData: serversPlaceholder,
     error: serversError,
   } = useMcpServers(workspaceId)
   const { data: mcpToolsData = [], toolsStateByServer } = useMcpToolsQuery(workspaceId)
   const { data: storedTools = [], refetch: refetchStoredTools } = useStoredMcpTools(workspaceId, {
-    enabled: selectedServerId !== null,
+    enabled: activeServerId !== null,
   })
   const forceRefreshToolsMutation = useForceRefreshMcpTools()
   const forceRefreshTools = forceRefreshToolsMutation.mutate
@@ -221,7 +238,7 @@ export function MCP() {
 
   const showDeleteDialog = serverToDeleteId !== null
 
-  const initialServerIdRef = useRef(selectedServerId)
+  const initialServerIdRef = useRef(activeServerId)
   const didDeepLinkRefreshRef = useRef(false)
   useEffect(() => {
     if (didDeepLinkRefreshRef.current) return
@@ -247,7 +264,7 @@ export function MCP() {
       await deleteServerMutation.mutateAsync({ workspaceId, serverId })
       // Deleting from the detail view leaves a dead id in the URL — drop it so Back
       // doesn't land on a server that no longer exists.
-      if (selectedServerId === serverId) handleBackToList()
+      if (activeServerId === serverId) handleBackToList()
       logger.info(`Removed MCP server: ${serverId}`)
     } catch (error) {
       logger.error('Failed to remove MCP server:', error)
@@ -285,7 +302,8 @@ export function MCP() {
 
   /** Closing replaces the URL — Back should leave the section, not reopen the detail view. */
   const handleBackToList = () => {
-    setSelectedServerId(null, { history: 'replace' })
+    if (onBack) onBack()
+    else setSelectedServerId(null, { history: 'replace' })
     setExpandedTools(new Set())
   }
 
@@ -346,10 +364,10 @@ export function MCP() {
   const editInitialData = editingServer ? buildEditInitialData(editingServer) : undefined
 
   const selectedServer = (() => {
-    if (!selectedServerId) return null
-    const server = servers.find((s) => s.id === selectedServerId) as McpServer | undefined
+    if (!activeServerId) return null
+    const server = servers.find((s) => s.id === activeServerId) as McpServer | undefined
     if (!server) return null
-    const serverTools = (toolsByServer[selectedServerId] || []) as McpTool[]
+    const serverTools = (toolsByServer[activeServerId] || []) as McpTool[]
     return { server, tools: serverTools }
   })()
 
@@ -424,6 +442,30 @@ export function MCP() {
       confirm={{ label: 'Delete', onClick: confirmDeleteServer }}
     />
   ) : null
+
+  if (serverId && (serversPending || serversPlaceholder)) {
+    return (
+      <SettingsPanel
+        back={{ text: 'MCP tools', icon: ArrowLeft, onSelect: handleBackToList }}
+        title='MCP server'
+      >
+        <SettingsEmptyState variant='inline'>Loading...</SettingsEmptyState>
+      </SettingsPanel>
+    )
+  }
+
+  if (serverId && serversError && !selectedServer) {
+    return (
+      <SettingsPanel
+        back={{ text: 'MCP tools', icon: ArrowLeft, onSelect: handleBackToList }}
+        title='MCP server'
+      >
+        <SettingsEmptyState variant='inline' tone='error'>
+          {getErrorMessage(serversError, 'Failed to load this MCP server')}
+        </SettingsEmptyState>
+      </SettingsPanel>
+    )
+  }
 
   if (selectedServer) {
     const { server, tools } = selectedServer
@@ -630,13 +672,14 @@ export function MCP() {
             onOpenChange={(open) => {
               if (!open) setEditingServerId(null)
             }}
+            onDirtyChange={onDirtyChange}
             mode='edit'
             initialData={editInitialData}
             onSubmit={async (config) => {
-              const currentServer = servers.find((s) => s.id === selectedServerId)
+              const currentServer = servers.find((s) => s.id === activeServerId)
               await updateServerMutation.mutateAsync({
                 workspaceId,
-                serverId: selectedServerId!,
+                serverId: activeServerId!,
                 updates: {
                   ...config,
                   enabled: currentServer?.enabled ?? true,
@@ -651,6 +694,19 @@ export function MCP() {
           />
         )}
         {deleteConfirmModal}
+      </SettingsPanel>
+    )
+  }
+
+  if (serverId) {
+    return (
+      <SettingsPanel
+        back={{ text: 'MCP tools', icon: ArrowLeft, onSelect: handleBackToList }}
+        title='MCP server not found'
+      >
+        <SettingsEmptyState variant='inline'>
+          This MCP server may have been deleted or disconnected.
+        </SettingsEmptyState>
       </SettingsPanel>
     )
   }
