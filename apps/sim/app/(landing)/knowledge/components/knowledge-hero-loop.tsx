@@ -116,8 +116,8 @@ type SyncPhase = 'idle' | 'syncing' | 'synced'
 
 /**
  * The knowledge hero's module loop - the WorkflowsEditorLoop architecture
- * (fixed 1280x735 design-space layer scaled to the window via ResizeObserver
- * + `transform: scale`, a parent-owned clock, reduced-motion showing the
+ * (a fixed 1280x735 HTML design surface fitted to the window via the shared
+ * responsive stage, a parent-owned clock, reduced-motion showing the
  * finished frame) with the workspace pane retelling the Knowledge Base
  * module: the 44px title bar (Database mark, "New base"), the search /
  * Filter / Sort options bar, and the knowledge-bases table in the real

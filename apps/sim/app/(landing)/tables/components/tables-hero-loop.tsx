@@ -340,8 +340,8 @@ function TablesGridPane({ rowCount, filledCount }: TablesGridPaneProps) {
 
 /**
  * The tables hero's editor loop - the grid-pane sibling of the workflows
- * editor loop. Same architecture (fixed 1280x735 design-space layer scaled
- * to the window via ResizeObserver + `transform: scale`, a parent-owned
+ * editor loop. Same architecture (a fixed 1280x735 HTML design surface fitted
+ * to the window via the shared responsive stage, a parent-owned
  * clock driving a presentational pane, reduced-motion showing the finished
  * frame) and the same live {@link EnterpriseSidebar} with its Tables nav
  * row highlighted, but the workspace pane is the Leads table itself: the

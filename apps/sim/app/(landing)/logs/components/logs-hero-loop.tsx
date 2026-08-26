@@ -223,8 +223,8 @@ function LogsTableRow({ row, visible }: LogsTableRowProps) {
 
 /**
  * The logs hero's platform loop - the workflows editor loop's architecture
- * (fixed 1280x735 design-space layer scaled to the window via ResizeObserver
- * + `transform: scale`, a parent-owned clock, reduced-motion showing the
+ * (a fixed 1280x735 HTML design surface fitted to the window via the shared
+ * responsive stage, a parent-owned clock, reduced-motion showing the
  * finished frame) with the workspace pane replaced by a static rendering of
  * the real Logs surface: the 44px title bar (Library icon, "Logs", Export,
  * Logs/Dashboard tabs), the search/Filter/Sort options bar, and the runs

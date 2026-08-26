@@ -2,6 +2,7 @@
 
 import type { ReactNode } from 'react'
 import { PLATFORM_LOOP_DESIGN } from '@/app/(landing)/components/shared/platform-loop-constants'
+import { ResponsiveDesignStage } from '@/app/(landing)/components/shared/responsive-design-stage'
 import {
   EnterpriseSidebar,
   type EnterpriseSidebarProps,
@@ -23,11 +24,11 @@ interface HeroLoopShellProps {
 }
 
 /**
- * The platform heroes' shared scaled stage. An SVG viewBox maps the fixed
- * 1280x735 design space to the rendered window without applying a CSS
- * transform to the whole app. Keeping that scale out of the animated HTML
- * subtree prevents fractional repaint snapping in both the canvas and the
- * otherwise-static {@link EnterpriseSidebar}.
+ * The platform heroes' shared responsive stage. The whole preview remains
+ * ordinary HTML, fitted from its fixed 1280x735 design space by
+ * {@link ResponsiveDesignStage}; SVG is reserved for native workflow paths.
+ * This keeps the sidebar and every animated descendant in one browser-safe
+ * layout coordinate system across Safari, Chromium, and Firefox.
  */
 export function HeroLoopShell({
   workspaceName = 'Brightwave',
@@ -38,24 +39,21 @@ export function HeroLoopShell({
   children,
 }: HeroLoopShellProps) {
   return (
-    <svg
-      aria-hidden='true'
-      className='pointer-events-none absolute inset-0 size-full overflow-hidden'
-      viewBox={`0 0 ${PLATFORM_LOOP_DESIGN.width} ${PLATFORM_LOOP_DESIGN.height}`}
-      preserveAspectRatio='xMinYMin meet'
+    <ResponsiveDesignStage
+      width={PLATFORM_LOOP_DESIGN.width}
+      height={PLATFORM_LOOP_DESIGN.height}
+      align='start'
+      className='pointer-events-none absolute inset-0'
+      contentClassName='flex bg-[var(--surface-1)]'
     >
-      <foreignObject width={PLATFORM_LOOP_DESIGN.width} height={PLATFORM_LOOP_DESIGN.height}>
-        <div className='flex size-full bg-[var(--surface-1)]'>
-          <EnterpriseSidebar
-            workspaceName={workspaceName}
-            profileName={profileName}
-            chats={chats}
-            workflows={workflows}
-            activeItem={activeItem}
-          />
-          <div className='h-full min-w-0 flex-1 py-[7px] pr-[8px]'>{children}</div>
-        </div>
-      </foreignObject>
-    </svg>
+      <EnterpriseSidebar
+        workspaceName={workspaceName}
+        profileName={profileName}
+        chats={chats}
+        workflows={workflows}
+        activeItem={activeItem}
+      />
+      <div className='h-full min-w-0 flex-1 py-[7px] pr-[8px]'>{children}</div>
+    </ResponsiveDesignStage>
   )
 }
