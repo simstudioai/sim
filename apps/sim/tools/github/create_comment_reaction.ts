@@ -1,5 +1,6 @@
 import { REACTION_OUTPUT_PROPERTIES, USER_OUTPUT } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 interface CreateCommentReactionParams {
   owner: string
@@ -67,7 +68,7 @@ export const createCommentReactionTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${params.owner}/${params.repo}/issues/comments/${params.comment_id}/reactions`,
+      `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/issues/comments/${safeUrlPathSegment(String(params.comment_id), 'comment_id')}/reactions`,
     method: 'POST',
     headers: (params) => ({
       Accept: 'application/vnd.github.squirrel-girl-preview+json',

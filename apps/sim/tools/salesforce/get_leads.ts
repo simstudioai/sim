@@ -2,6 +2,7 @@ import type { SalesforceGetLeadsParams, SalesforceGetLeadsResponse } from '@/too
 import { QUERY_PAGING_OUTPUT, RESPONSE_METADATA_OUTPUT } from '@/tools/salesforce/types'
 import { extractErrorMessage, getInstanceUrl, requireId } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const salesforceGetLeadsTool: ToolConfig<
   SalesforceGetLeadsParams,
@@ -55,7 +56,7 @@ export const salesforceGetLeadsTool: ToolConfig<
         const leadId = requireId(params.leadId, 'Lead ID')
         const fields =
           params.fields || 'Id,FirstName,LastName,Company,Email,Phone,Status,LeadSource'
-        return `${instanceUrl}/services/data/v59.0/sobjects/Lead/${leadId}?fields=${encodeURIComponent(fields)}`
+        return `${instanceUrl}/services/data/v59.0/sobjects/Lead/${safeUrlPathSegment(leadId, 'leadId')}?fields=${encodeURIComponent(fields)}`
       }
       const limit = params.limit ? Number.parseInt(params.limit) : 100
       const fields = params.fields || 'Id,FirstName,LastName,Company,Email,Phone,Status,LeadSource'

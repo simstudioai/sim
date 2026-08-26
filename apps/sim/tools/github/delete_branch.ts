@@ -1,6 +1,7 @@
 import type { DeleteBranchParams, DeleteBranchResponse } from '@/tools/github/types'
 import { DELETE_BRANCH_OUTPUT_PROPERTIES } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPath, safeUrlPathSegment } from '@/tools/url-path'
 
 export const deleteBranchTool: ToolConfig<DeleteBranchParams, DeleteBranchResponse> = {
   id: 'github_delete_branch',
@@ -38,7 +39,7 @@ export const deleteBranchTool: ToolConfig<DeleteBranchParams, DeleteBranchRespon
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${params.owner}/${params.repo}/git/refs/heads/${params.branch}`,
+      `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/git/refs/heads/${safeUrlPath(params.branch, 'branch')}`,
     method: 'DELETE',
     headers: (params) => ({
       Accept: 'application/vnd.github+json',

@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 interface StarGistParams {
   gist_id: string
@@ -38,7 +39,8 @@ export const starGistTool: ToolConfig<StarGistParams, StarGistResponse> = {
   },
 
   request: {
-    url: (params) => `https://api.github.com/gists/${params.gist_id?.trim()}/star`,
+    url: (params) =>
+      `https://api.github.com/gists/${safeUrlPathSegment(params.gist_id, 'gist_id')}/star`,
     method: 'PUT',
     headers: (params) => ({
       Accept: 'application/vnd.github.v3+json',

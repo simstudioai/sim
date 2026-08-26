@@ -5,6 +5,7 @@ import type {
 import { SOBJECT_DELETE_OUTPUT_PROPERTIES } from '@/tools/salesforce/types'
 import { extractErrorMessage, getInstanceUrl, requireId } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const salesforceDeleteTaskTool: ToolConfig<
   SalesforceDeleteTaskParams,
@@ -47,7 +48,7 @@ export const salesforceDeleteTaskTool: ToolConfig<
   request: {
     url: (params) => {
       const taskId = requireId(params.taskId, 'Task ID')
-      return `${getInstanceUrl(params.idToken, params.instanceUrl)}/services/data/v59.0/sobjects/Task/${taskId}`
+      return `${getInstanceUrl(params.idToken, params.instanceUrl)}/services/data/v59.0/sobjects/Task/${safeUrlPathSegment(taskId, 'taskId')}`
     },
     method: 'DELETE',
     headers: (params) => ({

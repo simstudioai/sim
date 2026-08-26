@@ -6,6 +6,7 @@ import {
   USER_FULL_OUTPUT_PROPERTIES,
 } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const repoInfoTool: ToolConfig<BaseGitHubParams, RepoInfoResponse> = {
   id: 'github_repo_info',
@@ -36,7 +37,8 @@ export const repoInfoTool: ToolConfig<BaseGitHubParams, RepoInfoResponse> = {
   },
 
   request: {
-    url: (params) => `https://api.github.com/repos/${params.owner}/${params.repo}`,
+    url: (params) =>
+      `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}`,
     method: 'GET',
     headers: (params) => ({
       Accept: 'application/vnd.github+json',

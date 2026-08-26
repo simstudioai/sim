@@ -2,6 +2,7 @@ import { truncate } from '@sim/utils/string'
 import type { CommentsListResponse, ListIssueCommentsParams } from '@/tools/github/types'
 import { COMMENT_OUTPUT_PROPERTIES, USER_OUTPUT } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const listIssueCommentsTool: ToolConfig<ListIssueCommentsParams, CommentsListResponse> = {
   id: 'github_list_issue_comments',
@@ -58,7 +59,7 @@ export const listIssueCommentsTool: ToolConfig<ListIssueCommentsParams, Comments
 
   request: {
     url: (params) => {
-      const baseUrl = `https://api.github.com/repos/${params.owner}/${params.repo}/issues/${params.issue_number}/comments`
+      const baseUrl = `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/issues/${safeUrlPathSegment(String(params.issue_number), 'issue_number')}/comments`
       const queryParams = new URLSearchParams()
 
       if (params.since) queryParams.append('since', params.since)

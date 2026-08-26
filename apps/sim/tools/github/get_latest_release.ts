@@ -5,6 +5,7 @@ import {
   USER_OUTPUT,
 } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const getLatestReleaseTool: ToolConfig<GetLatestReleaseParams, ReleaseResponse> = {
   id: 'github_get_latest_release',
@@ -35,7 +36,8 @@ export const getLatestReleaseTool: ToolConfig<GetLatestReleaseParams, ReleaseRes
   },
 
   request: {
-    url: (params) => `https://api.github.com/repos/${params.owner}/${params.repo}/releases/latest`,
+    url: (params) =>
+      `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/releases/latest`,
     method: 'GET',
     headers: (params) => ({
       Accept: 'application/vnd.github+json',

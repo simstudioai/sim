@@ -5,6 +5,7 @@ import type {
 import { SOBJECT_UPDATE_OUTPUT_PROPERTIES } from '@/tools/salesforce/types'
 import { extractErrorMessage, getInstanceUrl, requireId } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const salesforceUpdateLeadTool: ToolConfig<
   SalesforceUpdateLeadParams,
@@ -84,7 +85,7 @@ export const salesforceUpdateLeadTool: ToolConfig<
   request: {
     url: (params) => {
       const leadId = requireId(params.leadId, 'Lead ID')
-      return `${getInstanceUrl(params.idToken, params.instanceUrl)}/services/data/v59.0/sobjects/Lead/${leadId}`
+      return `${getInstanceUrl(params.idToken, params.instanceUrl)}/services/data/v59.0/sobjects/Lead/${safeUrlPathSegment(leadId, 'leadId')}`
     },
     method: 'PATCH',
     headers: (params) => ({

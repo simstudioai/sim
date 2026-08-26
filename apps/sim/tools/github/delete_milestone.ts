@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 interface DeleteMilestoneParams {
   owner: string
@@ -53,7 +54,7 @@ export const deleteMilestoneTool: ToolConfig<DeleteMilestoneParams, DeleteMilest
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${params.owner}/${params.repo}/milestones/${params.milestone_number}`,
+      `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/milestones/${safeUrlPathSegment(String(params.milestone_number), 'milestone_number')}`,
     method: 'DELETE',
     headers: (params) => ({
       Accept: 'application/vnd.github.v3+json',

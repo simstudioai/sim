@@ -6,6 +6,7 @@ import {
   USER_OUTPUT,
 } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const listIssuesTool: ToolConfig<ListIssuesParams, IssuesListResponse> = {
   id: 'github_list_issues',
@@ -90,7 +91,9 @@ export const listIssuesTool: ToolConfig<ListIssuesParams, IssuesListResponse> = 
 
   request: {
     url: (params) => {
-      const url = new URL(`https://api.github.com/repos/${params.owner}/${params.repo}/issues`)
+      const url = new URL(
+        `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/issues`
+      )
       if (params.state) url.searchParams.append('state', params.state)
       if (params.assignee) url.searchParams.append('assignee', params.assignee)
       if (params.creator) url.searchParams.append('creator', params.creator)

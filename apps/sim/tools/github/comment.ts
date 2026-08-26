@@ -1,6 +1,7 @@
 import type { CreateCommentParams, CreateCommentResponse } from '@/tools/github/types'
 import { COMMENT_OUTPUT_PROPERTIES, USER_OUTPUT } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const commentTool: ToolConfig<CreateCommentParams, CreateCommentResponse> = {
   id: 'github_comment',
@@ -81,9 +82,9 @@ export const commentTool: ToolConfig<CreateCommentParams, CreateCommentResponse>
   request: {
     url: (params) => {
       if (params.path) {
-        return `https://api.github.com/repos/${params.owner}/${params.repo}/pulls/${params.pullNumber}/comments`
+        return `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/pulls/${safeUrlPathSegment(String(params.pullNumber), 'pullNumber')}/comments`
       }
-      return `https://api.github.com/repos/${params.owner}/${params.repo}/pulls/${params.pullNumber}/reviews`
+      return `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/pulls/${safeUrlPathSegment(String(params.pullNumber), 'pullNumber')}/reviews`
     },
     method: 'POST',
     headers: (params) => ({

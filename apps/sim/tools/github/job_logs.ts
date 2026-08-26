@@ -1,5 +1,6 @@
 import type { JobLogsParams, JobLogsResponse } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const DEFAULT_MAX_CHARACTERS = 20_000
 const MAX_CHARACTERS_LIMIT = 200_000
@@ -25,7 +26,7 @@ function jobLogsPath(owner: string, repo: string, jobId: number): string {
   if (!Number.isSafeInteger(jobId) || jobId < 1) {
     throw new Error('job_id must be a positive integer')
   }
-  return `${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/actions/jobs/${jobId}/logs`
+  return `${safeUrlPathSegment(owner, 'owner')}/${safeUrlPathSegment(repo, 'repo')}/actions/jobs/${jobId}/logs`
 }
 
 /** Byte offsets from a `Content-Range: bytes <start>-<end>/<total>` header. */

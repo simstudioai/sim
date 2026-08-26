@@ -1,5 +1,6 @@
 import { MILESTONE_CREATOR_OUTPUT, MILESTONE_V2_OUTPUT_PROPERTIES } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 interface GetMilestoneParams {
   owner: string
@@ -64,7 +65,7 @@ export const getMilestoneTool: ToolConfig<GetMilestoneParams, GetMilestoneRespon
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${params.owner}/${params.repo}/milestones/${params.milestone_number}`,
+      `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/milestones/${safeUrlPathSegment(String(params.milestone_number), 'milestone_number')}`,
     method: 'GET',
     headers: (params) => ({
       Accept: 'application/vnd.github.v3+json',

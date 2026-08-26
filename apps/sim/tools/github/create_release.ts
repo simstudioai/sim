@@ -5,6 +5,7 @@ import {
   USER_OUTPUT,
 } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const createReleaseTool: ToolConfig<CreateReleaseParams, ReleaseResponse> = {
   id: 'github_create_release',
@@ -75,7 +76,8 @@ export const createReleaseTool: ToolConfig<CreateReleaseParams, ReleaseResponse>
   },
 
   request: {
-    url: (params) => `https://api.github.com/repos/${params.owner}/${params.repo}/releases`,
+    url: (params) =>
+      `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/releases`,
     method: 'POST',
     headers: (params) => ({
       Accept: 'application/vnd.github+json',

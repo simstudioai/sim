@@ -7,6 +7,7 @@ import {
   USER_FULL_OUTPUT,
 } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPath, safeUrlPathSegment } from '@/tools/url-path'
 
 interface GetCommitParams {
   owner: string
@@ -74,7 +75,7 @@ export const getCommitTool: ToolConfig<GetCommitParams, GetCommitResponse> = {
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${params.owner}/${params.repo}/commits/${params.ref}`,
+      `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/commits/${safeUrlPath(params.ref, 'ref')}`,
     method: 'GET',
     headers: (params) => ({
       Accept: 'application/vnd.github.v3+json',

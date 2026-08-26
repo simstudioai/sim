@@ -6,6 +6,7 @@ import type {
 import { REFRESH_DASHBOARD_OUTPUT_PROPERTIES } from '@/tools/salesforce/types'
 import { extractErrorMessage, getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('SalesforceDashboards')
 
@@ -45,7 +46,7 @@ export const salesforceRefreshDashboardTool: ToolConfig<
         throw new Error('Dashboard ID is required. Please provide a valid Salesforce Dashboard ID.')
       }
       const instanceUrl = getInstanceUrl(params.idToken, params.instanceUrl)
-      return `${instanceUrl}/services/data/v59.0/analytics/dashboards/${params.dashboardId}`
+      return `${instanceUrl}/services/data/v59.0/analytics/dashboards/${safeUrlPathSegment(params.dashboardId, 'dashboardId')}`
     },
     method: 'PUT',
     headers: (params) => ({

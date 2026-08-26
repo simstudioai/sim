@@ -7,6 +7,7 @@ import type {
 import { RUN_REPORT_OUTPUT_PROPERTIES } from '@/tools/salesforce/types'
 import { extractErrorMessage, getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('SalesforceReports')
 
@@ -61,7 +62,7 @@ export const salesforceRunReportTool: ToolConfig<
       // Default to including detail rows (Salesforce's own API default is false);
       // report runs in a workflow almost always want the underlying rows.
       const includeDetails = params.includeDetails !== 'false'
-      return `${instanceUrl}/services/data/v59.0/analytics/reports/${params.reportId}?includeDetails=${includeDetails}`
+      return `${instanceUrl}/services/data/v59.0/analytics/reports/${safeUrlPathSegment(params.reportId, 'reportId')}?includeDetails=${includeDetails}`
     },
     // Use GET for simple report runs, POST only when filters are provided
     method: (params) => (params.filters ? 'POST' : 'GET'),

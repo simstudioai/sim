@@ -34,16 +34,25 @@ describe('github_job_logs', () => {
     expect(url).toBe('https://api.github.com/repos/octo/demo/actions/jobs/42/logs')
   })
 
-  it('escapes coordinates so they cannot redirect the authenticated request', () => {
-    const url = (jobLogsTool.request.url as (params: JobLogsParams) => string)({
+  it('rejects coordinates that would redirect the authenticated request', () => {
+    const url = jobLogsTool.request.url as (params: JobLogsParams) => string
+
+    // Encoding alone was not enough: a bare `..` is made of unreserved
+    // characters, so it survives `encodeURIComponent` and the URL parser then
+    // removes it as a dot segment. A GitHub login can never contain `/`, so the
+    // value is rejected rather than escaped.
+    expect(() => url({ ...BASE_PARAMS, owner: '../../orgs/secret' })).toThrow(/owner/)
+    expect(() => url({ ...BASE_PARAMS, owner: '..' })).toThrow(/owner/)
+  })
+
+  it('escapes a query-injecting repo name instead of splitting the URL', () => {
+    const built = (jobLogsTool.request.url as (params: JobLogsParams) => string)({
       ...BASE_PARAMS,
-      owner: '../../orgs/secret',
       repo: 'demo?ref=x',
     })
 
-    expect(url).toBe(
-      'https://api.github.com/repos/..%2F..%2Forgs%2Fsecret/demo%3Fref%3Dx/actions/jobs/42/logs'
-    )
+    expect(built).toBe('https://api.github.com/repos/octo/demo%3Fref%3Dx/actions/jobs/42/logs')
+    expect(new URL(built).searchParams.get('ref')).toBeNull()
   })
 
   it('rejects a job id that is not a positive integer', () => {

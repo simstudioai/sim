@@ -5,6 +5,7 @@ import type {
 import { SOBJECT_DELETE_OUTPUT_PROPERTIES } from '@/tools/salesforce/types'
 import { extractErrorMessage, getInstanceUrl, requireId } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const salesforceDeleteAccountTool: ToolConfig<
   SalesforceDeleteAccountParams,
@@ -49,7 +50,7 @@ export const salesforceDeleteAccountTool: ToolConfig<
       const instanceUrl = getInstanceUrl(params.idToken, params.instanceUrl)
       const accountId = requireId(params.accountId, 'Account ID')
 
-      return `${instanceUrl}/services/data/v59.0/sobjects/Account/${accountId}`
+      return `${instanceUrl}/services/data/v59.0/sobjects/Account/${safeUrlPathSegment(accountId, 'accountId')}`
     },
     method: 'DELETE',
     headers: (params) => {

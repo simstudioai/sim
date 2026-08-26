@@ -11,6 +11,7 @@ import {
   requireId,
 } from '@/tools/salesforce/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('SalesforceUpdateCustomField')
 
@@ -136,7 +137,7 @@ export const salesforceUpdateCustomFieldTool: ToolConfig<
   directExecution: async (params): Promise<ToolResponse> => {
     const instanceUrl = getInstanceUrl(params.idToken, params.instanceUrl)
     const fieldId = requireId(params.fieldId, 'Field ID')
-    const url = `${instanceUrl}/services/data/v59.0/tooling/sobjects/CustomField/${fieldId}`
+    const url = `${instanceUrl}/services/data/v59.0/tooling/sobjects/CustomField/${safeUrlPathSegment(fieldId, 'fieldId')}`
     const headers = {
       Authorization: `Bearer ${params.accessToken}`,
       'Content-Type': 'application/json',
@@ -189,7 +190,7 @@ export const salesforceUpdateCustomFieldTool: ToolConfig<
     url: (params) => {
       const instanceUrl = getInstanceUrl(params.idToken, params.instanceUrl)
       const fieldId = requireId(params.fieldId, 'Field ID')
-      return `${instanceUrl}/services/data/v59.0/tooling/sobjects/CustomField/${fieldId}`
+      return `${instanceUrl}/services/data/v59.0/tooling/sobjects/CustomField/${safeUrlPathSegment(fieldId, 'fieldId')}`
     },
     method: 'PATCH',
     headers: (params) => {

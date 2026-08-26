@@ -1,6 +1,7 @@
 import type { GetPRFilesParams, PRFilesListResponse } from '@/tools/github/types'
 import { PR_FILE_OUTPUT_PROPERTIES } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const getPRFilesTool: ToolConfig<GetPRFilesParams, PRFilesListResponse> = {
   id: 'github_get_pr_files',
@@ -52,7 +53,7 @@ export const getPRFilesTool: ToolConfig<GetPRFilesParams, PRFilesListResponse> =
   request: {
     url: (params) => {
       const url = new URL(
-        `https://api.github.com/repos/${params.owner}/${params.repo}/pulls/${params.pullNumber}/files`
+        `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/pulls/${safeUrlPathSegment(String(params.pullNumber), 'pullNumber')}/files`
       )
       if (params.per_page) url.searchParams.append('per_page', Number(params.per_page).toString())
       if (params.page) url.searchParams.append('page', Number(params.page).toString())

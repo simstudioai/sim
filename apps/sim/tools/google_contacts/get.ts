@@ -7,6 +7,7 @@ import {
   transformPerson,
 } from '@/tools/google_contacts/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPath } from '@/tools/url-path'
 
 const logger = createLogger('GoogleContactsGet')
 
@@ -38,7 +39,7 @@ export const getTool: ToolConfig<GoogleContactsGetParams, GoogleContactsGetRespo
 
   request: {
     url: (params: GoogleContactsGetParams) =>
-      `${PEOPLE_API_BASE}/${params.resourceName.trim()}?personFields=${DEFAULT_PERSON_FIELDS}`,
+      `${PEOPLE_API_BASE}/${safeUrlPath(params.resourceName, 'resourceName')}?personFields=${DEFAULT_PERSON_FIELDS}`,
     method: 'GET',
     headers: (params: GoogleContactsGetParams) => ({
       Authorization: `Bearer ${params.accessToken}`,

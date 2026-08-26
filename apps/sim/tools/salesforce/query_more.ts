@@ -6,8 +6,18 @@ import type {
 import { QUERY_MORE_OUTPUT_PROPERTIES } from '@/tools/salesforce/types'
 import { extractErrorMessage, getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPath } from '@/tools/url-path'
 
 const logger = createLogger('SalesforceQuery')
+
+/**
+ * Every REST resource Salesforce returns as a `nextRecordsUrl` — `query`,
+ * `queryAll`, and the Tooling API alike — is rooted here. Asserting the prefix
+ * (rather than only rejecting dot segments) keeps an LLM-supplied cursor from
+ * re-aiming the request at an unrelated resource on the org with the user's
+ * access token attached.
+ */
+const REST_API_ROOT = 'services/data'
 
 /**
  * Retrieve additional query results using the nextRecordsUrl
@@ -48,11 +58,14 @@ export const salesforceQueryMoreTool: ToolConfig<
         )
       }
       const instanceUrl = getInstanceUrl(params.idToken, params.instanceUrl)
-      // nextRecordsUrl is typically a relative path like /services/data/v59.0/query/01g...
-      const nextUrl = params.nextRecordsUrl.startsWith('/')
-        ? params.nextRecordsUrl
-        : `/${params.nextRecordsUrl}`
-      return `${instanceUrl}${nextUrl}`
+      const nextUrl = safeUrlPath(params.nextRecordsUrl.trim().replace(/^\//, ''), 'nextRecordsUrl')
+      if (!nextUrl.startsWith(`${REST_API_ROOT}/`)) {
+        throw new Error(
+          `nextRecordsUrl must be a Salesforce REST resource path beginning with "/${REST_API_ROOT}/". ` +
+            'Pass the nextRecordsUrl value returned by a previous query unchanged.'
+        )
+      }
+      return `${instanceUrl}/${nextUrl}`
     },
     method: 'GET',
     headers: (params) => ({

@@ -6,6 +6,7 @@ import type {
 import { SOBJECT_DELETE_OUTPUT_PROPERTIES } from '@/tools/salesforce/types'
 import { extractErrorMessage, getInstanceUrl, requireId } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('SalesforceContacts')
 
@@ -36,7 +37,7 @@ export const salesforceDeleteContactTool: ToolConfig<
     url: (params) => {
       const instanceUrl = getInstanceUrl(params.idToken, params.instanceUrl)
       const contactId = requireId(params.contactId, 'Contact ID')
-      return `${instanceUrl}/services/data/v59.0/sobjects/Contact/${contactId}`
+      return `${instanceUrl}/services/data/v59.0/sobjects/Contact/${safeUrlPathSegment(contactId, 'contactId')}`
     },
     method: 'DELETE',
     headers: (params) => ({

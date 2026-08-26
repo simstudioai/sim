@@ -6,6 +6,7 @@ import type {
 import { CUSTOM_FIELD_DELETE_OUTPUT_PROPERTIES } from '@/tools/salesforce/types'
 import { extractErrorMessage, getInstanceUrl, requireId } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('SalesforceDeleteCustomField')
 
@@ -46,7 +47,7 @@ export const salesforceDeleteCustomFieldTool: ToolConfig<
     url: (params) => {
       const instanceUrl = getInstanceUrl(params.idToken, params.instanceUrl)
       const fieldId = requireId(params.fieldId, 'Field ID')
-      return `${instanceUrl}/services/data/v59.0/tooling/sobjects/CustomField/${fieldId}`
+      return `${instanceUrl}/services/data/v59.0/tooling/sobjects/CustomField/${safeUrlPathSegment(fieldId, 'fieldId')}`
     },
     method: 'DELETE',
     headers: (params) => ({

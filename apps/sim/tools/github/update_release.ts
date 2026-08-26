@@ -5,6 +5,7 @@ import {
   USER_OUTPUT,
 } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const updateReleaseTool: ToolConfig<UpdateReleaseParams, ReleaseResponse> = {
   id: 'github_update_release',
@@ -78,7 +79,7 @@ export const updateReleaseTool: ToolConfig<UpdateReleaseParams, ReleaseResponse>
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${params.owner}/${params.repo}/releases/${params.release_id}`,
+      `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/releases/${safeUrlPathSegment(String(params.release_id), 'release_id')}`,
     method: 'PATCH',
     headers: (params) => ({
       Accept: 'application/vnd.github+json',

@@ -1,5 +1,6 @@
 import { REPO_FULL_OUTPUT_PROPERTIES, USER_FULL_OUTPUT_PROPERTIES } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 interface ListForksParams {
   owner: string
@@ -81,7 +82,9 @@ export const listForksTool: ToolConfig<ListForksParams, ListForksResponse> = {
 
   request: {
     url: (params) => {
-      const url = new URL(`https://api.github.com/repos/${params.owner}/${params.repo}/forks`)
+      const url = new URL(
+        `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/forks`
+      )
       if (params.sort) url.searchParams.append('sort', params.sort)
       if (params.per_page) url.searchParams.append('per_page', String(params.per_page))
       if (params.page) url.searchParams.append('page', String(params.page))

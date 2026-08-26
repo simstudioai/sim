@@ -1,5 +1,6 @@
 import { GIST_FILES_OUTPUT, GIST_OUTPUT_PROPERTIES, GIST_OWNER_OUTPUT } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 interface GetGistParams {
   gist_id: string
@@ -53,7 +54,8 @@ export const getGistTool: ToolConfig<GetGistParams, GetGistResponse> = {
   },
 
   request: {
-    url: (params) => `https://api.github.com/gists/${params.gist_id?.trim()}`,
+    url: (params) =>
+      `https://api.github.com/gists/${safeUrlPathSegment(params.gist_id, 'gist_id')}`,
     method: 'GET',
     headers: (params) => ({
       Accept: 'application/vnd.github.v3+json',

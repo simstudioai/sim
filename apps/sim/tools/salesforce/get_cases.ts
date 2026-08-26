@@ -2,6 +2,7 @@ import type { SalesforceGetCasesParams, SalesforceGetCasesResponse } from '@/too
 import { QUERY_PAGING_OUTPUT, RESPONSE_METADATA_OUTPUT } from '@/tools/salesforce/types'
 import { extractErrorMessage, getInstanceUrl, requireId } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const salesforceGetCasesTool: ToolConfig<
   SalesforceGetCasesParams,
@@ -55,7 +56,7 @@ export const salesforceGetCasesTool: ToolConfig<
         const caseId = requireId(params.caseId, 'Case ID')
         const fields =
           params.fields || 'Id,CaseNumber,Subject,Status,Priority,Origin,ContactId,AccountId'
-        return `${instanceUrl}/services/data/v59.0/sobjects/Case/${caseId}?fields=${encodeURIComponent(fields)}`
+        return `${instanceUrl}/services/data/v59.0/sobjects/Case/${safeUrlPathSegment(caseId, 'caseId')}?fields=${encodeURIComponent(fields)}`
       }
       const limit = params.limit ? Number.parseInt(params.limit) : 100
       const fields =
