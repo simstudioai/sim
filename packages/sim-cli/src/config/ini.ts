@@ -43,6 +43,9 @@ export interface IniDocument {
 const SECTION_PATTERN = /^\s*\[([^\]]*)\]\s*$/
 const KV_PATTERN = /^\s*([A-Za-z0-9_.-]+)\s*=\s*(.*?)\s*$/
 
+/** The character-class body both forbidden-character patterns are built from. */
+const FORBIDDEN_CLASS = '\\u0000-\\u001f\\u007f-\\u009f\\u2028\\u2029'
+
 /**
  * Characters a stored value may not contain.
  *
@@ -65,10 +68,10 @@ const KV_PATTERN = /^\s*([A-Za-z0-9_.-]+)\s*=\s*(.*?)\s*$/
  * hand-kept copy drifted from this one once already, and the gap let a rejected
  * write land after an accepted one.
  */
-export const FORBIDDEN_IN_VALUE = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/
+export const FORBIDDEN_IN_VALUE = new RegExp(`[${FORBIDDEN_CLASS}]`)
 
 /** As {@link FORBIDDEN_IN_VALUE}, plus the brackets that would close or open a header. */
-const FORBIDDEN_IN_NAME = /[\u0000-\u001f\u007f-\u009f\u2028\u2029[\]]/
+const FORBIDDEN_IN_NAME = new RegExp(`[${FORBIDDEN_CLASS}[\\]]`)
 
 /** Keys have to round-trip through the reader's own key pattern. */
 const WRITABLE_KEY = /^[A-Za-z0-9_.-]+$/
@@ -88,10 +91,12 @@ function assertWritable(text: string, what: string, forbidden: RegExp): void {
       `Refusing to write ${what}: line breaks and control characters cannot be stored in the ~/.sim files, because the format has no way to escape them.`
     )
   }
-  // The reader trims both section names and values, so padded text comes back
-  // as something else: the read reports the setting missing although the write
-  // reported success, and the next write appends a second block or key instead
-  // of updating the one already there.
+  // The reader trims both section names and values, so padded text never comes
+  // back as written. For a section name that also corrupts the file: the block
+  // is written under the padded name but read under the trimmed one, so the
+  // next write finds no match and appends a second block. For a value it is
+  // quieter but no more acceptable — the key reads back trimmed, so a padded
+  // secret is silently stored as a different secret than the caller passed.
   if (text !== text.trim()) {
     throw new ProfileConfigError(
       `Refusing to write ${what}: leading or trailing whitespace is not preserved by the ~/.sim files, so it would not read back as written.`

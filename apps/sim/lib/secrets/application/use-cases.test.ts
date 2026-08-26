@@ -512,6 +512,26 @@ describe('secret application use cases', () => {
     expect(mocks.setWorkspace).not.toHaveBeenCalled()
   })
 
+  it('reports a secret deleted between the metadata write and the response read as not found', async () => {
+    mocks.updateWorkspaceMetadata.mockResolvedValue({
+      created: false,
+      updatedAt: personalUpdatedAt,
+    })
+    mocks.listCredentials.mockResolvedValue({ data: [], nextCursorKeys: null })
+
+    await expect(
+      setSecretUseCase.execute({
+        principal: session,
+        input: {
+          workspaceId: workspace.workspaceId,
+          name: secret.envKey,
+          scope: 'workspace',
+          unredacted: true,
+        },
+      })
+    ).rejects.toMatchObject({ code: 'not_found' })
+  })
+
   it('refuses a workspace write that names none of the three writable fields', async () => {
     await expect(
       setSecretUseCase.execute({

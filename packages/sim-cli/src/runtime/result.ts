@@ -324,13 +324,15 @@ function writePageNote(spec: CommandSpec, envelope: unknown): void {
 const TRUNCATION_FLAG = /^truncated$|^[A-Za-z0-9]+Truncated$/
 
 /**
- * Spellings whose `Truncated` suffix is negated, and so state the opposite.
+ * Negating prefixes whose `Truncated` suffix states the opposite.
  *
  * A bare `Truncated$` match also accepts `notTruncated` and `isNotTruncated`,
- * where `true` means the answer is whole — the one thing this note must never
- * turn into is a warning about a clip that did not happen.
+ * where `true` means the answer is whole, and a note about a clip that did not
+ * happen is the worst thing this can print. These four prefixes are the
+ * spellings worth anticipating rather than a decision procedure for English —
+ * a field negated some other way slips through and has to be added here.
  */
-const NEGATED_TRUNCATION_FLAG = /^(?:not|un)Truncated$|(?:Not|Un)Truncated$/
+const NEGATED_TRUNCATION_FLAG = /^(?:not|un|non|never)Truncated$|(?:Not|Un|Non|Never)Truncated$/
 
 /** The flags one object raised, in the spelling the wire used. */
 function truncationFlags(container: unknown): string[] {

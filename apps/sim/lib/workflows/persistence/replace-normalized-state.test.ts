@@ -216,6 +216,39 @@ describe('replaceWorkflowNormalizedState', () => {
       expect(mocks.save).toHaveBeenCalled()
     })
 
+    /**
+     * A block record's key is a label; `saveWorkflowToNormalizedTables` inserts
+     * `block.id`. Subflow rows are the opposite — their ids come from
+     * `generateLoopBlocks`, which keys every container by its record key. So a
+     * body whose key and id diverge must be checked on `Object.values` for
+     * blocks and on `Object.keys` for subflows, or the pre-check reads ids the
+     * write never inserts and misses the ones it does. `dbChainMock` resolves
+     * rows without evaluating predicates, so this is asserted on the composed
+     * `inArray` rather than on a canned result.
+     */
+    it('checks the ids the write inserts: block values, subflow record keys', async () => {
+      mocks.prepare.mockReturnValue({
+        state: {
+          blocks: {
+            'block-key': { ...BLOCK, id: 'block-value' },
+            'loop-key': { ...LOOP_BLOCK, id: 'loop-value' },
+          },
+          edges: [],
+          loops: { 'loop-key': { id: 'loop-key' } },
+          parallels: {},
+        },
+        warnings: [],
+      })
+
+      await replaceWorkflowNormalizedState(input())
+
+      expect(inArray).toHaveBeenCalledWith(schemaMock.workflowBlocks.id, [
+        'block-value',
+        'loop-value',
+      ])
+      expect(inArray).toHaveBeenCalledWith(schemaMock.workflowSubflows.id, ['loop-key'])
+    })
+
     it('refuses an edge id another workflow owns', async () => {
       mocks.prepare.mockReturnValue({
         state: { ...PREPARED, edges: [EDGE] },
@@ -296,10 +329,18 @@ describe('replaceWorkflowNormalizedState', () => {
       await expect(replaceWorkflowNormalizedState(input())).rejects.toBe(failure)
     })
 
-    it('leaves an unrelated database fault unclassified', async () => {
-      const failure = wrapDriverError(
-        Object.assign(new Error('deadlock detected'), { code: '40P01' })
-      )
+    /**
+     * Not every 23505 carries a constraint name: a violation raised by a bare
+     * unique index, or one whose driver dropped the field, arrives with none.
+     * Exact matching must read that as "not a graph id" — treating an absent
+     * name as a match would relabel unrelated unique violations across the
+     * whole write as a graph-id conflict.
+     */
+    it('leaves a 23505 carrying no constraint name unclassified', async () => {
+      const cause = Object.assign(new Error('duplicate key value violates unique constraint'), {
+        code: '23505',
+      })
+      const failure = wrapDriverError(cause)
       mocks.save.mockRejectedValue(failure)
 
       await expect(replaceWorkflowNormalizedState(input())).rejects.toBe(failure)

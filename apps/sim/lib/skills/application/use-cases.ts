@@ -108,15 +108,22 @@ async function resolveSkillEditorContext(
  *
  * A built-in skill owns no row, so there is no workspace to derive scope from
  * and nothing to authorize the caller against. The read therefore requires the
- * caller to name the workspace rather than guessing one: an inferred workspace
+ * caller to assert the workspace rather than guessing one: an inferred workspace
  * would authorize against a scope the caller never asserted.
+ *
+ * The refusal names the missing scope, not a wire field. This use case is shared
+ * by both editor surfaces and neither can act on a field name: v2 takes a
+ * required `workspaceId` query param, so its contract rejects the omission
+ * before this branch runs, while the internal members route maps no workspace id
+ * and has no slot to send one. Naming the field would tell the only caller that
+ * reaches this message to send something it cannot send.
  */
 async function resolveSkillEditorListContext(input: ListSkillEditorsInput): Promise<SkillContext> {
   if (isBuiltinSkillId(input.skillId)) {
     if (!input.workspaceId) {
       throw new OrchestrationError(
         'validation',
-        'workspaceId is required to list the editors of a built-in skill'
+        'Listing the editors of a built-in skill requires a workspace scope to authorize against'
       )
     }
     return resolveSkillContext(input.workspaceId, input.skillId)
@@ -430,7 +437,7 @@ export const listSkillEditorsUseCase = defineAuthorizedWorkspaceUseCase({
       workspaceId: context.workspaceId,
     })
     const direction = input.sortOrder === 'asc' ? 1 : -1
-    const sorted = editors.sort((left, right) => {
+    const sorted = [...editors].sort((left, right) => {
       const leftValue = input.sortBy === 'email' ? (left.userEmail ?? '') : (left.userName ?? '')
       const rightValue = input.sortBy === 'email' ? (right.userEmail ?? '') : (right.userName ?? '')
       const primary = leftValue.localeCompare(rightValue)

@@ -15,7 +15,12 @@ import {
 import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
 import { chatOperations } from '@/lib/copilot/application/operations'
 import { resolveOrCreateChat } from '@/lib/copilot/chat/lifecycle'
+import { persistCopilotChatTurn } from '@/lib/copilot/chat/messages-store'
 import { buildIntegrationToolSchemas } from '@/lib/copilot/chat/payload'
+import {
+  buildPersistedAssistantMessage,
+  buildPersistedUserMessage,
+} from '@/lib/copilot/chat/persisted-message'
 import { generateWorkspaceContext } from '@/lib/copilot/chat/workspace-context'
 import { MOTHERSHIP_CHAT_DEFAULT_MODEL } from '@/lib/copilot/constants'
 import { computeWorkspaceEntitlements } from '@/lib/copilot/entitlements'
@@ -29,7 +34,7 @@ import {
 } from '@/lib/copilot/generated/mothership-stream-v1'
 import { runHeadlessCopilotLifecycle } from '@/lib/copilot/request/lifecycle/headless'
 import { requestExplicitStreamAbort } from '@/lib/copilot/request/session/explicit-abort'
-import type { StreamEvent } from '@/lib/copilot/request/types'
+import type { OrchestratorResult, StreamEvent } from '@/lib/copilot/request/types'
 import { normalizeSecretMountPolicy } from '@/lib/copilot/secret-mount-policy'
 import { isDocSandboxEnabled } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -91,7 +96,7 @@ function encodeNdjson(value: unknown): Uint8Array {
  * tool calls the run surfaced.
  */
 function buildChatResultPayload(
-  result: Awaited<ReturnType<typeof runHeadlessCopilotLifecycle>>,
+  result: OrchestratorResult,
   conversationId: string,
   integrationTools: Array<{ name: string }>
 ) {
@@ -167,6 +172,9 @@ export const POST = withRouteHandler(
       // surface uses, and refuse every id that does not resolve with the same
       // response so the refusal carries no information about the id. Omitting
       // the id mints a server-issued conversation instead of trusting one.
+      // The resolved transcript is deliberately not forwarded: continuity is
+      // keyed by `chatId` downstream, exactly as the web send path and the Sim
+      // Chat block do, both of which post a single message with a chat id.
       const resolvedChat = await resolveOrCreateChat({
         ...(conversationId ? { chatId: conversationId } : {}),
         userId,
@@ -184,6 +192,31 @@ export const POST = withRouteHandler(
       }
       const chatId = resolvedChat.chatId
       reqLogger = logger.withMetadata({ chatId, messageId, requestId })
+
+      /**
+       * Write this turn's display copy to the conversation the route just
+       * resolved. Without it a `sim chat` turn leaves a titled conversation
+       * that opens to an empty transcript in the web Chat list.
+       *
+       * By the time this runs the turn has completed and been billed, and a
+       * streamed reply has already reached the caller, so a write failure is
+       * logged and the successful response still stands. The write is one
+       * transaction, so that failure leaves the transcript empty rather than
+       * showing the question without the answer.
+       */
+      const persistTurn = async (result: OrchestratorResult): Promise<void> => {
+        try {
+          await persistCopilotChatTurn(chatId, [
+            buildPersistedUserMessage({ id: messageId, content: message }),
+            buildPersistedAssistantMessage(result, requestId),
+          ])
+        } catch (error) {
+          reqLogger.error('Failed to persist chat transcript', {
+            error: getErrorMessage(error, 'Unknown error'),
+          })
+        }
+      }
+
       const secretMountPolicy = normalizeSecretMountPolicy(undefined)
 
       let environmentContext: CopilotEnvironmentContext | undefined
@@ -340,6 +373,8 @@ export const POST = withRouteHandler(
                   return
                 }
 
+                await persistTurn(result)
+
                 send({
                   type: 'final',
                   data: buildChatResultPayload(result, chatId, integrationTools),
@@ -402,6 +437,8 @@ export const POST = withRouteHandler(
           reqLogger.error('Chat request failed', { error: result.error, errors: result.errors })
           return v2Error('INTERNAL_ERROR', result.error || 'Chat request failed')
         }
+
+        await persistTurn(result)
 
         return v2Data(buildChatResultPayload(result, chatId, integrationTools))
       } finally {

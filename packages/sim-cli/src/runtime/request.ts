@@ -39,7 +39,9 @@ export function isProfileWorkspacePath(commandSpec: CommandSpec, param: string):
  * `execute.ts` from `options.ts` would close a module cycle — `execute.ts`
  * already reads `DEFAULT_LIMIT` from `options.ts`.
  */
-export function cursorSlot(operationSpec: OperationSpec): 'query' | 'body' | null {
+export function cursorSlot(
+  operationSpec: Pick<OperationSpec, 'query' | 'body'>
+): 'query' | 'body' | null {
   if (operationSpec.query && 'cursor' in operationSpec.query) return 'query'
   if (operationSpec.body && 'cursor' in operationSpec.body) return 'body'
   return null
@@ -479,6 +481,14 @@ export function buildRequest(
   const body: Record<string, unknown> = {}
   const headers: Record<string, string> = {}
 
+  /**
+   * On a paginating operation `limit` is the walk size rather than a filter,
+   * and the pager reads it from the flags itself — including refusing a blank
+   * one, in wording that says what `0` means there. Left to it, so the caller
+   * gets that message instead of the generic refusal below.
+   */
+  const paginatedLimit = cursorSlot(spec) !== null
+
   for (const slot of ['query', 'body', 'headers'] as const) {
     for (const [field, descriptor] of Object.entries(spec[slot] ?? {})) {
       const flag = flagSpecFor(operation, field)
@@ -498,6 +508,26 @@ export function buildRequest(
       // typing the flag — including typing the server's own default back — still
       // decides. It is validated like any other value, enum choices included.
       const raw = provided ?? flag.requestDefault
+
+      /**
+       * A blank filter is a mistake, and every v2 JSON route says so
+       * (`rejectBlankQueryValues`). The CLI never let one reach the wire: the
+       * URL builder skips an empty value, so `logs list --status ""` searched
+       * everything and answered `0`, a wider result set presented as an answer.
+       * Refused here, before the request, the way an empty list entry and an
+       * empty path parameter already are. Scoped to the query, because an empty
+       * body string is meaningful — it clears a description.
+       *
+       * Read from what the caller typed rather than from the coerced value,
+       * because coercion erases the blank on a numeric field: `Number('')` is
+       * `0`, so `--max-cost ""` reached the wire as a real "costing at most
+       * nothing" filter that a check on the coerced value cannot see. An
+       * explicit `--max-cost 0` is a value the caller chose and is still sent.
+       */
+      if (slot === 'query' && raw === '' && !(field === 'limit' && paginatedLimit)) {
+        throw new SimApiError(`--${flagName} cannot be empty`, 0)
+      }
+
       const value = coerce(raw ?? undefined, descriptor, flag, flagName)
 
       if (value === undefined) {
@@ -510,19 +540,6 @@ export function buildRequest(
         // Omitted rather than sent as null: the server applies its own default,
         // and sending an explicit undefined would override it with nothing.
         continue
-      }
-
-      /**
-       * A blank filter is a mistake, and every v2 JSON route says so
-       * (`rejectBlankQueryValues`). The CLI never let one reach the wire: the
-       * URL builder skips an empty value, so `logs list --status ""` searched
-       * everything and answered `0`, a wider result set presented as an answer.
-       * Refused here, before the request, the way an empty list entry and an
-       * empty path parameter already are. Scoped to the query, because an empty
-       * body string is meaningful — it clears a description.
-       */
-      if (slot === 'query' && value === '') {
-        throw new SimApiError(`--${flagName} cannot be empty`, 0)
       }
 
       if (slot === 'query') query[field] = asQueryValue(value)

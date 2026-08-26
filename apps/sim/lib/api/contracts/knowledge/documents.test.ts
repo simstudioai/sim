@@ -188,10 +188,25 @@ describe('internal document processingOptions', () => {
       expect(result.error?.issues[0]?.path).toEqual(['processingOptions', 'recipe'])
     })
 
-    it('rejects a lang that is not a BCP-47 tag', () => {
+    it('rejects a lang outside the enforced subtag shape', () => {
       const result = parse({ recipe: 'default', lang: 'en_US' })
       expect(result.success).toBe(false)
       expect(result.error?.issues[0]?.path).toEqual(['processingOptions', 'lang'])
+    })
+
+    /**
+     * The shape these reuse is strict, so an option neither boundary implements
+     * is now a 400 rather than a key stripped on the way through — the behaviour
+     * change that reusing the upload shape brought with it.
+     */
+    it('rejects an option key neither boundary implements rather than stripping it', () => {
+      const result = parse({ recipe: 'default', chunkSize: 512 })
+      expect(result.success).toBe(false)
+      expect(result.error?.issues[0]).toMatchObject({
+        code: 'unrecognized_keys',
+        path: ['processingOptions'],
+        keys: ['chunkSize'],
+      })
     })
   })
 })

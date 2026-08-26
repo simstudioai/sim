@@ -14,6 +14,7 @@ const {
   mockCheckOperationRate,
   mockCheckPreAuthRate,
   mockGenerateId,
+  mockPersistCopilotChatTurn,
   mockRequestExplicitStreamAbort,
   mockResolveBillingAttribution,
   mockResolveOrCreateChat,
@@ -35,6 +36,7 @@ const {
   mockCheckOperationRate: vi.fn(),
   mockCheckPreAuthRate: vi.fn(),
   mockGenerateId: vi.fn(),
+  mockPersistCopilotChatTurn: vi.fn(),
   mockResolveBillingAttribution: vi.fn(),
   mockResolveOrCreateChat: vi.fn(),
   mockRequestExplicitStreamAbort: vi.fn().mockResolvedValue(undefined),
@@ -84,6 +86,10 @@ vi.mock('@/lib/copilot/chat/lifecycle', () => ({
   resolveOrCreateChat: mockResolveOrCreateChat,
 }))
 
+vi.mock('@/lib/copilot/chat/messages-store', () => ({
+  persistCopilotChatTurn: mockPersistCopilotChatTurn,
+}))
+
 vi.mock('@/lib/copilot/chat/payload', () => ({
   buildIntegrationToolSchemas: vi.fn().mockResolvedValue([{ name: 'run_workflow' }]),
 }))
@@ -131,6 +137,7 @@ function chatRow(id: string) {
 const successResult = {
   success: true,
   content: 'Hello there',
+  contentBlocks: [],
   toolCalls: [{ name: 'run_workflow' }, { name: 'internal_only' }],
   usage: { prompt: 10, completion: 5 },
   cost: { total: 0.01 },
@@ -160,6 +167,7 @@ describe('POST /api/v2/chat', () => {
     mockAssertActiveWorkspaceAccess.mockResolvedValue({ permission: 'admin' })
     mockResolveBillingAttribution.mockResolvedValue(billingAttributionSnapshot)
     mockRequestExplicitStreamAbort.mockResolvedValue(undefined)
+    mockPersistCopilotChatTurn.mockResolvedValue(undefined)
     mockRunHeadlessCopilotLifecycle.mockResolvedValue(successResult)
     mockResolveOrCreateChat.mockResolvedValue({
       chatId: SERVER_ISSUED_CHAT_ID,
@@ -297,6 +305,33 @@ describe('POST /api/v2/chat', () => {
     })
   })
 
+  it('posts only the current turn on a resumed conversation, never the stored transcript', async () => {
+    mockResolveOrCreateChat.mockResolvedValue({
+      chatId: OWNED_CONVERSATION_ID,
+      chat: chatRow(OWNED_CONVERSATION_ID),
+      conversationHistory: [
+        { role: 'user', content: 'first' },
+        { role: 'assistant', content: 'first reply' },
+      ],
+      isNew: false,
+    })
+
+    const response = await callChat({
+      workspaceId: 'workspace-1',
+      message: 'and then?',
+      conversationId: OWNED_CONVERSATION_ID,
+    })
+
+    expect(response.status).toBe(200)
+    // Continuity is keyed by chatId downstream, exactly as the web send path
+    // and the Sim Chat block do. Replaying the transcript here would duplicate
+    // every prior turn.
+    expect(mockRunHeadlessCopilotLifecycle.mock.calls[0][0]).toMatchObject({
+      messages: [{ role: 'user', content: 'and then?' }],
+      chatId: OWNED_CONVERSATION_ID,
+    })
+  })
+
   it('answers 404 and runs nothing when the resolver refuses the named conversation', async () => {
     mockResolveOrCreateChat.mockResolvedValue({
       chatId: OWNED_CONVERSATION_ID,
@@ -419,7 +454,11 @@ describe('POST /api/v2/chat', () => {
   })
 
   it('ends the NDJSON stream with an error event when the run fails', async () => {
-    mockRunHeadlessCopilotLifecycle.mockResolvedValue({ success: false, error: 'model exploded' })
+    mockRunHeadlessCopilotLifecycle.mockResolvedValue({
+      success: false,
+      error: 'model exploded',
+      contentBlocks: [],
+    })
 
     const response = await callChat(
       { workspaceId: 'workspace-1', message: 'hi' },
@@ -431,5 +470,55 @@ describe('POST /api/v2/chat', () => {
     const last = events.at(-1) as { type: string; error?: string }
     expect(last.type).toBe('error')
     expect(last.error).toBe('model exploded')
+  })
+
+  it('persists both sides of the turn so the conversation is not an empty transcript', async () => {
+    await callChat({ workspaceId: 'workspace-1', message: 'hi' })
+
+    expect(mockPersistCopilotChatTurn).toHaveBeenCalledTimes(1)
+    const [chatId, messages] = mockPersistCopilotChatTurn.mock.calls[0]
+    expect(chatId).toBe(SERVER_ISSUED_CHAT_ID)
+    expect(messages.map((m: { role: string; content: string }) => [m.role, m.content])).toEqual([
+      ['user', 'hi'],
+      ['assistant', 'Hello there'],
+    ])
+  })
+
+  it('persists the turn on the NDJSON path too, before the final event', async () => {
+    const response = await callChat(
+      { workspaceId: 'workspace-1', message: 'hi' },
+      { accept: 'application/x-ndjson' }
+    )
+    const events = await readNdjsonEvents(response)
+
+    expect(mockPersistCopilotChatTurn).toHaveBeenCalledTimes(1)
+    expect(mockPersistCopilotChatTurn.mock.calls[0][1]).toHaveLength(2)
+    expect(events.at(-1)?.type).toBe('final')
+  })
+
+  it('persists nothing when the run fails, so no question is stored without its answer', async () => {
+    mockRunHeadlessCopilotLifecycle.mockResolvedValue({
+      success: false,
+      error: 'model exploded',
+      contentBlocks: [],
+    })
+
+    const response = await callChat({ workspaceId: 'workspace-1', message: 'hi' })
+
+    expect(response.status).toBe(500)
+    expect(mockPersistCopilotChatTurn).not.toHaveBeenCalled()
+  })
+
+  it('still answers the caller when persisting the transcript fails', async () => {
+    mockPersistCopilotChatTurn.mockRejectedValue(new Error('transcript write failed'))
+
+    const response = await callChat({ workspaceId: 'workspace-1', message: 'hi' })
+
+    expect(response.status).toBe(200)
+    const body = await response.json()
+    expect(body.data).toMatchObject({
+      content: 'Hello there',
+      conversationId: SERVER_ISSUED_CHAT_ID,
+    })
   })
 })

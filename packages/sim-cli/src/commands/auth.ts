@@ -133,10 +133,21 @@ function validateNewProfileName(profileName: string): void {
  *
  * It shares {@link FORBIDDEN_IN_VALUE} with the writer rather than copying it:
  * a second spelling drifted once already, and a key this check accepted but the
- * writer rejected stranded the new endpoint beside the previous key.
+ * writer rejected stranded the new endpoint beside the previous key. Surrounding
+ * whitespace is the same failure and is refused here for the same reason — the
+ * writer will not store text it cannot read back unchanged.
+ *
+ * Refused rather than trimmed: a minted key is opaque, so the CLI cannot tell
+ * padding from the credential. Trimming would store a value the server never
+ * issued and turn a loud, explained failure into a 401 on every later command.
  */
 function requireStorableKey(apiKey: unknown): void {
-  if (typeof apiKey !== 'string' || !apiKey.trim() || FORBIDDEN_IN_VALUE.test(apiKey)) {
+  if (
+    typeof apiKey !== 'string' ||
+    !apiKey ||
+    apiKey !== apiKey.trim() ||
+    FORBIDDEN_IN_VALUE.test(apiKey)
+  ) {
     throw new SimApiError(
       'The server returned a malformed API key. Nothing was stored; check the endpoint.',
       0
@@ -237,7 +248,11 @@ function addProfileCommand(): Command {
 
       writeConfigProfile(profileName, {
         auth_profile: authProfile,
-        workspace: workspace.id,
+        // Server-supplied, exactly like the login response's workspace id, so it
+        // is checked the same way: the writer would refuse an unstorable one
+        // anyway, but with a message about the file format rather than the
+        // response that produced it.
+        workspace: normalizeWorkspaceId(workspace.id, 'the workspace response'),
       })
 
       console.log(chalk.green(`✓ Added profile "${profileName}" in ${configPath()}`))
@@ -688,12 +703,15 @@ function profileListingContext(command: Command): { activeName: string; output: 
     const named = globals.profile || process.env.SIM_PROFILE
     if (named && named !== DEFAULT_PROFILE && !listProfiles().includes(named)) throw error
 
+    // A bad format is the caller's own request, not a broken profile: falling
+    // back to a table would hand a script human output with exit 0. Only the
+    // profile's *resolution* is tolerated here, never its arguments.
     const requested = globals.output ?? process.env.SIM_OUTPUT
+    if (requested && !(OUTPUT_FORMATS as readonly string[]).includes(requested)) throw error
+
     return {
       activeName: named || DEFAULT_PROFILE,
-      output: (OUTPUT_FORMATS as readonly string[]).includes(requested as string)
-        ? (requested as OutputFormat)
-        : 'table',
+      output: requested ? (requested as OutputFormat) : 'table',
     }
   }
 }

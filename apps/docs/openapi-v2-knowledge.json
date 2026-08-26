@@ -3481,7 +3481,7 @@
       "patch": {
         "operationId": "bulkUpdateKnowledgeChunks",
         "summary": "Bulk Update Chunks",
-        "description": "Enable, disable, or delete many chunks of one document in a single request. Best-effort: an identifier naming no chunk in the document is skipped rather than failing the request, so `processed` is the authoritative count. Chunks of a connector-synced document are read-only and a write answers `403` with `error.details.code: \"CONNECTOR_MANAGED_RESOURCE_READ_ONLY\"` — change the content at the source and re-sync, or exclude the document from the connector. A workspace API key is rejected with `403`; use a personal API key.",
+        "description": "Enable, disable, or delete many chunks of one document in a single request. Best-effort: an identifier naming no chunk in the document is reported in `errors` rather than failing the request. `processed` counts the chunks the operation matched, not the chunks it changed. Chunks of a connector-synced document are read-only and a write answers `403` with `error.details.code: \"CONNECTOR_MANAGED_RESOURCE_READ_ONLY\"` — change the content at the source and re-sync, or exclude the document from the connector. A workspace API key is rejected with `403`; use a personal API key.",
         "tags": ["Knowledge Bases"],
         "parameters": [
           {

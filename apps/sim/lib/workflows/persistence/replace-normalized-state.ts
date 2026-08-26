@@ -37,13 +37,21 @@ export interface WorkflowGraphIds {
  * by both the dry-run preview and the committed write, so the two cannot
  * disagree about what is about to be claimed.
  *
+ * Each family is read from whichever side `saveWorkflowToNormalizedTables`
+ * inserts, which is not the same side for all three. Blocks are inserted as
+ * `block.id` — the record's own field, taken from `Object.values` — so a body
+ * whose record key differs from the block's `id` is checked on the value that
+ * reaches the table. Subflow rows are the opposite: their ids come from
+ * `generateLoopBlocks`/`generateParallelBlocks`, which key every container by
+ * its record key, so those are collected from `Object.keys`.
+ *
  * Subflow ids are collected separately even though they are container block
  * ids: `workflow_subflows` has its own global primary key, so the same value
  * can be free as a block id and taken as a subflow id.
  */
 export function collectWorkflowGraphIds(state: PreparedWorkflowState): WorkflowGraphIds {
   return {
-    blockIds: Object.keys(state.blocks),
+    blockIds: Object.values(state.blocks).map((block) => block.id),
     edgeIds: state.edges.map((edge) => edge.id),
     subflowIds: [...Object.keys(state.loops), ...Object.keys(state.parallels)],
   }

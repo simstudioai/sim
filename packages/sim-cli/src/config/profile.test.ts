@@ -242,6 +242,20 @@ describe('profile resolution', () => {
     expect(resolveProfile({ endpoint: 'https://sim.ai///' }).endpoint).toBe('https://sim.ai')
   })
 
+  it('trims a padded endpoint instead of storing text the writer would refuse', () => {
+    // `new URL()` tolerates padding and hands the string straight back, but the
+    // config writer refuses it. Untrimmed, `login --endpoint " https://…"` threw
+    // only after the device flow had already minted and discarded a key.
+    expect(resolveProfile({ endpoint: '  https://sim.ai/  ' }).endpoint).toBe('https://sim.ai')
+
+    writeConfigProfile('default', { endpoint: 'https://sim.ai' })
+    expect(() =>
+      writeConfigProfile('default', {
+        endpoint: resolveProfile({ endpoint: ' https://staging.sim.ai ' }).endpoint,
+      })
+    ).not.toThrow()
+  })
+
   it('fails fast on an endpoint Node cannot parse, naming the source', () => {
     expect(() => resolveProfile({ endpoint: 'not-a-url' })).toThrow(
       'Invalid endpoint "not-a-url" from flag. Use an absolute URL, e.g. https://www.sim.ai or http://localhost:3000'
@@ -367,6 +381,21 @@ describe('config file injection', () => {
     expect(() => resolveProfile({ profile: FORGED_SECTION, allowUnknownProfile: true })).toThrow(
       /Invalid profile name/
     )
+  })
+
+  it('redacts control characters out of the rejected name, like its sibling', () => {
+    // The message lands in a terminal, so echoing the rejected name verbatim
+    // would let it carry escape sequences there. `normalizeWorkspaceId` already
+    // redacts through the same pattern.
+    let message = ''
+    try {
+      validateProfileName('evil\u001b[2J\nname')
+    } catch (error) {
+      message = (error as Error).message
+    }
+
+    expect(message).toContain('Invalid profile name "evil [2J name"')
+    expect(message).not.toMatch(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/)
   })
 
   it('still resolves an existing profile whose name predates the rule', () => {

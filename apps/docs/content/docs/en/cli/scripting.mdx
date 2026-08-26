@@ -89,9 +89,11 @@ sim files delete wf_8Kd2NpVrY6zTfQa3XwBmS --yes
 Without `--yes` the command explains what it would have destroyed and stops.
 
 <Callout type="warn">
-`batch-delete` and `batch-update` carry the default `--limit` of `100`, so a
-filter matching more rows than that silently affects only the first 100. Pass
-`--limit 0` to affect every matching row.
+On `batch-delete` and `batch-update`, `--limit` has no default and is not a page
+size — it is a ceiling on how many matching rows the one call may touch. Leave it
+off and the command acts on **every** row the filter matches, however many that
+is. `--limit 0` is not the unbounded form here and is rejected; pass a whole
+number of 1 or more to cap the blast radius, or omit the flag deliberately.
 </Callout>
 
 ## Exit codes

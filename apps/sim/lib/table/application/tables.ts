@@ -41,7 +41,10 @@ export interface ListTablesInput {
    * its third value, `'all'`, would mix archived rows into a page projected by
    * the strict folder-path resolver, which throws on the dangling `folderId` a
    * folder archive leaves behind.
-   * Mirrors `ListWorkflowsInput['scope']`.
+   *
+   * The value set is the one `ListWorkflowsInput['scope']` accepts; the
+   * optionality is not, since that sibling requires a scope where this one
+   * defaults an absent scope through to the query.
    */
   scope?: 'active' | 'archived'
   folderPath?: string

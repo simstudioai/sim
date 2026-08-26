@@ -168,6 +168,39 @@ describe('skill editor application use cases', () => {
     expect(mocks.resolvePermission).toHaveBeenCalled()
   })
 
+  /**
+   * The sort orders a copy, never the array the loader handed back. `listSkillEditors`
+   * builds a fresh array today so nothing else can observe the mutation, but the use
+   * case does not own that array and must not reorder it for whatever reads it next.
+   */
+  it('sorts without reordering the array the loader returned', async () => {
+    queueSkill()
+    const loaded = [
+      targetEditor,
+      {
+        ...targetEditor,
+        id: 'workspace-admin-user-3',
+        userId: 'user-3',
+        userName: 'Grace',
+        userEmail: 'grace@example.com',
+        isWorkspaceAdmin: true,
+      },
+    ]
+    mocks.listEditors.mockResolvedValue(loaded)
+
+    await listSkillEditorsUseCase.execute({
+      principal,
+      input: {
+        workspaceId: WORKSPACE_ID,
+        skillId: SKILL_ID,
+        sortBy: 'name',
+        sortOrder: 'desc',
+      },
+    })
+
+    expect(loaded.map(({ userId }) => userId)).toEqual([targetEditor.userId, 'user-3'])
+  })
+
   it('creates an explicit grant and audits the authoritative result', async () => {
     queueSkill()
     dbChainMockFns.returning.mockResolvedValueOnce([{ id: targetEditor.id }])
@@ -364,11 +397,29 @@ describe('skill editor application use cases', () => {
         })
       ).rejects.toMatchObject({
         code: 'validation',
-        message: 'workspaceId is required to list the editors of a built-in skill',
+        message:
+          'Listing the editors of a built-in skill requires a workspace scope to authorize against',
       })
 
       expect(mocks.loadWorkspace).not.toHaveBeenCalled()
       expect(mocks.listEditors).not.toHaveBeenCalled()
+    })
+
+    /**
+     * The internal members contract has no workspace slot, and the v2 contract
+     * makes `workspaceId` a required query param that is rejected before this
+     * branch runs. So no caller that reaches this refusal can act on the field
+     * name, and the message must not spell one.
+     */
+    it('refuses without naming a wire field the caller cannot send', async () => {
+      const error = await listSkillEditorsUseCase
+        .execute({
+          principal,
+          input: { skillId: BUILTIN_ID, sortBy: 'email', sortOrder: 'asc' },
+        })
+        .catch((caught: Error) => caught)
+
+      expect((error as Error).message).not.toMatch(/workspaceId/)
     })
   })
 })

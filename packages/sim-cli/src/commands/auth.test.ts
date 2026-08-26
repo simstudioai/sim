@@ -296,6 +296,8 @@ describe('login command', () => {
   it.each([
     ['a C0 control character', 'sim-key\u0001rest'],
     ['a Unicode line separator', 'sim-key\u2028rest'],
+    ['leading whitespace', ' sim-key'],
+    ['trailing whitespace', 'sim-key '],
   ])('stores nothing when the minted key carries %s', async (_label, apiKey) => {
     // The pre-write check has to refuse exactly what the writer refuses. When it
     // was the narrower of the two, the settings write landed and the credentials
@@ -531,6 +533,20 @@ describe('profiles command', () => {
     expect(mocks.writeConfigProfile).not.toHaveBeenCalled()
   })
 
+  it('refuses a workspace id the response could not have stored, naming the response', async () => {
+    // The id comes off the wire exactly like the login response's, so it is
+    // checked the same way. Without this the writer still refused it, but with
+    // a message about the file format rather than the side that produced it.
+    mocks.request.mockResolvedValue({
+      data: { id: 'ws_acme\nendpoint = http://elsewhere.invalid', name: 'Acme', memberCount: 3 },
+    })
+
+    await expect(profiles('add', 'acme', '--workspace', 'ws_acme')).rejects.toThrow(
+      'Invalid workspace id "ws_acme endpoint = http://elsewhere.invalid" from the workspace response.'
+    )
+    expect(mocks.writeConfigProfile).not.toHaveBeenCalled()
+  })
+
   it('refuses a new profile name that would forge a config section', async () => {
     await expect(profiles('add', 'evil]\n[default', '--workspace', 'ws_acme')).rejects.toThrow(
       'Invalid profile name'
@@ -639,6 +655,40 @@ describe('profiles command', () => {
     expect(output).toContain('broken')
     expect(output).toContain('default')
     expect(output).toContain('references missing auth_profile "gone"')
+  })
+
+  it('refuses an unknown profile named by the environment, not just the flag', async () => {
+    // The same guard, reached through its other input. `SIM_PROFILE=typo sim
+    // profiles` must fail exactly like `sim profiles --profile typo`.
+    mocks.listProfiles.mockReturnValue(['default'])
+    mocks.profileFrom.mockImplementation(() => {
+      throw new mocks.ProfileConfigError('Unknown profile "bogus".')
+    })
+    process.env.SIM_PROFILE = 'bogus'
+
+    try {
+      await expect(profiles('list')).rejects.toThrow('Unknown profile "bogus".')
+      expect(console.log).not.toHaveBeenCalled()
+    } finally {
+      Reflect.deleteProperty(process.env, 'SIM_PROFILE')
+    }
+  })
+
+  it('refuses an output format it does not know rather than printing a table', async () => {
+    // A script asking for a machine format must not be handed human output with
+    // exit 0. The catch exists to tolerate a broken *profile*, not a bad flag.
+    mocks.listProfiles.mockReturnValue(['default'])
+    mocks.profileFrom.mockImplementation(() => {
+      throw new mocks.ProfileConfigError('Unknown output format "jsonl" from env.')
+    })
+    process.env.SIM_OUTPUT = 'jsonl'
+
+    try {
+      await expect(profiles('list')).rejects.toThrow('Unknown output format "jsonl" from env.')
+      expect(console.log).not.toHaveBeenCalled()
+    } finally {
+      Reflect.deleteProperty(process.env, 'SIM_OUTPUT')
+    }
   })
 
   it('marks a broken profile and still lists the rest', async () => {

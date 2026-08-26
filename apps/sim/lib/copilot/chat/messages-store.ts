@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { copilotMessages } from '@sim/db/schema'
+import { copilotChats, copilotMessages } from '@sim/db/schema'
 import { and, eq, notInArray, sql } from 'drizzle-orm'
 import { type PersistedMessage, stripToolResultOutput } from '@/lib/copilot/chat/persisted-message'
 import type { DbOrTx } from '@/lib/db/types'
@@ -76,6 +76,33 @@ export async function appendCopilotChatMessages(
         updatedAt: sql`now()`,
       },
     })
+}
+
+/**
+ * Persist one completed turn — the user message and the assistant reply — into
+ * a chat's transcript, bumping the chat's `updatedAt` so it sorts by recency.
+ *
+ * Headless callers need this because the orchestrator never writes messages:
+ * the interactive web surface persists them from its own client store, so a
+ * turn run without that surface would leave a chat that opens to nothing.
+ *
+ * Both messages are written in a single transaction, so a failure leaves the
+ * transcript untouched rather than showing a question with no answer. Does
+ * nothing when the chat no longer exists; throws on a write failure.
+ */
+export async function persistCopilotChatTurn(
+  chatId: string,
+  messages: PersistedMessage[]
+): Promise<void> {
+  await db.transaction(async (tx) => {
+    const [updated] = await tx
+      .update(copilotChats)
+      .set({ updatedAt: new Date() })
+      .where(eq(copilotChats.id, chatId))
+      .returning({ model: copilotChats.model })
+    if (!updated) return
+    await appendCopilotChatMessages(chatId, messages, { chatModel: updated.model ?? null }, tx)
+  })
 }
 
 /**

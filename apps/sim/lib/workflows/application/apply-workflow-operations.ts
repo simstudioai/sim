@@ -365,17 +365,27 @@ export const applyWorkflowOperations = defineAuthorizedWorkflowUseCase({
      */
     if (input.dryRun) {
       /**
-       * The id check the committed write runs, on the ids that write would
-       * actually insert — the prepared graph, not the engine's output — so a
-       * dry run cannot report success for a body whose commit is refused with
-       * a conflict.
+       * The same preparation the committed write runs, so a dry run checks the
+       * ids that write would actually insert — the prepared graph, not the
+       * engine's output — and reports the notes that write would raise. Without
+       * it a dry run could report success, and no warnings, for a body whose
+       * commit is refused with a conflict or silently sanitized.
+       *
+       * `prepareWorkflowStateForPersistence` is **not** pure: its sanitization
+       * step rewrites nested sub-block objects in place, and `graph.blocks`
+       * holds the very objects this response returns. That is safe only because
+       * `validateWorkflowState(..., { sanitize: true })` above already ran the
+       * same sanitizer over these blocks, so this second pass writes back the
+       * values that are already there. Keep that call ahead of this one.
        */
+      const prepared = prepareWorkflowStateForPersistence({
+        blocks: graph.blocks,
+        edges: graph.edges,
+      })
       await assertWorkflowGraphIdsUnclaimed(
         db,
         context.workflowId,
-        collectWorkflowGraphIds(
-          prepareWorkflowStateForPersistence({ blocks: graph.blocks, edges: graph.edges }).state
-        )
+        collectWorkflowGraphIds(prepared.state)
       )
 
       logger.info('Evaluated workflow operations without persisting', {
@@ -397,7 +407,7 @@ export const applyWorkflowOperations = defineAuthorizedWorkflowUseCase({
         inputValidationErrors: validationErrors,
         mintedBlockIds,
         lint,
-        warnings: validation.warnings,
+        warnings: [...validation.warnings, ...prepared.warnings],
         needsRedeployment: await checkNeedsRedeployment(context.workflowId),
         dryRun: true,
       }

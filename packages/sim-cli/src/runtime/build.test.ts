@@ -495,15 +495,26 @@ describe('commands parsed through commander', () => {
     expect(tablePath).toBe('/api/v2/tables/tbl_1')
     expect(tableOptions.body).toEqual({ workspaceId: 'ws_local', folderPath: 'Archive' })
 
-    const [workflowPath, workflowOptions] = await run(['workflow', 'mv', 'wf_1', 'Archive'])
-    expect(workflowPath).toBe('/api/v2/workflows/wf_1')
+    const [workflowPath, workflowOptions] = await run([
+      'workflow',
+      'mv',
+      '00000000-0000-4000-8000-00000000000a',
+      'Archive',
+    ])
+    expect(workflowPath).toBe('/api/v2/workflows/00000000-0000-4000-8000-00000000000a')
     expect(workflowOptions.body).toEqual({ folderPath: 'Archive' })
 
     const [knowledgePath, knowledgeOptions] = await run(['kb', 'mv', 'kb_1', 'Archive'])
     expect(knowledgePath).toBe('/api/v2/knowledge/kb_1')
     expect(knowledgeOptions.body).toEqual({ workspaceId: 'ws_local', folderPath: 'Archive' })
 
-    const [, updateOptions] = await run(['workflow', 'update', 'wf_1', '--description', 'Updated'])
+    const [, updateOptions] = await run([
+      'workflow',
+      'update',
+      '00000000-0000-4000-8000-00000000000a',
+      '--description',
+      'Updated',
+    ])
     expect(updateOptions.body).toEqual({ description: 'Updated' })
 
     const moveHelp = commandAt('workflows', 'mv').helpInformation()
@@ -620,8 +631,16 @@ describe('commands parsed through commander', () => {
   })
 
   it('comma-joins a repeated list flag', async () => {
-    const [, options] = await run(['logs', 'list', '--workflow', 'wf_1', 'wf_2'])
-    expect(options.query).toMatchObject({ workflowIds: 'wf_1,wf_2' })
+    const [, options] = await run([
+      'logs',
+      'list',
+      '--workflow',
+      '00000000-0000-4000-8000-00000000000a',
+      '00000000-0000-4000-8000-00000000000b',
+    ])
+    expect(options.query).toMatchObject({
+      workflowIds: '00000000-0000-4000-8000-00000000000a,00000000-0000-4000-8000-00000000000b',
+    })
   })
 
   it('injects the profile workspace without a flag', async () => {
@@ -644,11 +663,21 @@ describe('commands parsed through commander', () => {
     expect(help).toContain('agent_1.content')
     expect(help).not.toContain('--output <value...>')
 
-    const [, withoutInput] = await run(['workflows', 'run', 'wf_1'], { data: { success: true } })
+    const [, withoutInput] = await run(
+      ['workflows', 'run', '00000000-0000-4000-8000-00000000000a'],
+      { data: { success: true } }
+    )
     expect(withoutInput.body).toEqual({})
 
     const [, selected] = await run(
-      ['workflows', 'run', 'wf_1', '--select-output', 'agent.answer', 'save.result'],
+      [
+        'workflows',
+        'run',
+        '00000000-0000-4000-8000-00000000000a',
+        '--select-output',
+        'agent.answer',
+        'save.result',
+      ],
       { data: { success: true } }
     )
     expect(selected.body).toEqual({ selectedOutputs: ['agent.answer', 'save.result'] })
@@ -747,23 +776,38 @@ describe('commands parsed through commander', () => {
       'get',
       'run_1',
       '--workflow',
-      'wf_1',
+      '00000000-0000-4000-8000-00000000000a',
       '--include-output',
       '--select-output',
       'agent.content',
       'writer.text',
     ])
-    expect(path).toBe('/api/v2/workflows/wf_1/runs/run_1')
+    expect(path).toBe('/api/v2/workflows/00000000-0000-4000-8000-00000000000a/runs/run_1')
     expect(options.query).toEqual({
       includeOutput: true,
       selectedOutputs: 'agent.content,writer.text',
     })
 
-    const [listPath] = await run(['workflows', 'runs', 'list', '--workflow', 'wf_1'])
-    expect(listPath).toBe('/api/v2/workflows/wf_1/runs')
+    const [listPath] = await run([
+      'workflows',
+      'runs',
+      'list',
+      '--workflow',
+      '00000000-0000-4000-8000-00000000000a',
+    ])
+    expect(listPath).toBe('/api/v2/workflows/00000000-0000-4000-8000-00000000000a/runs')
 
-    const [cancelPath] = await run(['workflows', 'runs', 'cancel', 'run_1', '--workflow', 'wf_1'])
-    expect(cancelPath).toBe('/api/v2/workflows/wf_1/runs/run_1/cancel')
+    const [cancelPath] = await run([
+      'workflows',
+      'runs',
+      'cancel',
+      'run_1',
+      '--workflow',
+      '00000000-0000-4000-8000-00000000000a',
+    ])
+    expect(cancelPath).toBe(
+      '/api/v2/workflows/00000000-0000-4000-8000-00000000000a/runs/run_1/cancel'
+    )
 
     const resumeHelp = commandAt('workflows', 'runs', 'resume').helpInformation()
     expect(resumeHelp).toContain('<runId>')
@@ -776,13 +820,15 @@ describe('commands parsed through commander', () => {
       'resume',
       'run_1',
       '--workflow',
-      'wf_1',
+      '00000000-0000-4000-8000-00000000000a',
       '--context',
       'ctx_1',
       '--input',
       '{"approved":true}',
     ])
-    expect(resumePath).toBe('/api/v2/workflows/wf_1/runs/run_1/resume')
+    expect(resumePath).toBe(
+      '/api/v2/workflows/00000000-0000-4000-8000-00000000000a/runs/run_1/resume'
+    )
     expect(resumeOptions.body).toEqual({
       contextId: 'ctx_1',
       input: { approved: true },
@@ -890,8 +936,12 @@ describe('single-resource rendering', () => {
     // the record builder kept only scalars, so `workflow` and `state` — the
     // entire export — vanished with no indication anything was missing.
     const printed = await lines(
-      ['workflows', 'get', 'wf_1'],
-      { id: 'wf_1', name: 'Onboarding', inputs: [{ name: 'email', type: 'string' }] },
+      ['workflows', 'get', '00000000-0000-4000-8000-00000000000a'],
+      {
+        id: '00000000-0000-4000-8000-00000000000a',
+        name: 'Onboarding',
+        inputs: [{ name: 'email', type: 'string' }],
+      },
       'text'
     )
 
@@ -900,9 +950,16 @@ describe('single-resource rendering', () => {
   })
 
   it('truncates a nested value in the table, and only there', async () => {
-    const payload = { id: 'wf_1', state: { blocks: 'x'.repeat(5000) } }
+    const payload = {
+      id: '00000000-0000-4000-8000-00000000000a',
+      state: { blocks: 'x'.repeat(5000) },
+    }
 
-    const table = await lines(['workflows', 'get', 'wf_1'], payload, 'table')
+    const table = await lines(
+      ['workflows', 'get', '00000000-0000-4000-8000-00000000000a'],
+      payload,
+      'table'
+    )
     const clamped = table.find((line) => line.startsWith('state')) ?? ''
     expect(clamped.length).toBeLessThan(300)
     expect(clamped).toMatch(/…$/)
@@ -910,7 +967,11 @@ describe('single-resource rendering', () => {
     // `text` is the format built for pipes, so it carries the whole value: the
     // clamp is a legibility cap on the human table, and clamping before the
     // format branch silently truncated commands whose output is one long value.
-    const piped = await lines(['workflows', 'get', 'wf_1'], payload, 'text')
+    const piped = await lines(
+      ['workflows', 'get', '00000000-0000-4000-8000-00000000000a'],
+      payload,
+      'text'
+    )
     const whole = piped.find((line) => line.startsWith('state')) ?? ''
     expect(whole).toContain('x'.repeat(5000))
   })
@@ -919,15 +980,20 @@ describe('single-resource rendering', () => {
     // Redirecting this to a file has to yield something `import` accepts, so
     // `table`/`text` — which flatten and truncate — must not be honoured here.
     const printed = await lines(
-      ['workflows', 'export', 'wf_1'],
-      { version: '1.0', exportedAt: 'now', workflow: { id: 'wf_1' }, state: { blocks: {} } },
+      ['workflows', 'export', '00000000-0000-4000-8000-00000000000a'],
+      {
+        version: '1.0',
+        exportedAt: 'now',
+        workflow: { id: '00000000-0000-4000-8000-00000000000a' },
+        state: { blocks: {} },
+      },
       'text'
     )
 
     expect(JSON.parse(printed.join('\n'))).toEqual({
       version: '1.0',
       exportedAt: 'now',
-      workflow: { id: 'wf_1' },
+      workflow: { id: '00000000-0000-4000-8000-00000000000a' },
       state: { blocks: {} },
     })
   })
@@ -1319,19 +1385,25 @@ describe('a body field the contract clears with null', () => {
    * is as far as the terminal goes, and the word is only ever the word.
    */
   it('sends an empty string as empty and the word null as text, with no companion flag', async () => {
-    const [, empty] = await run(['workflows', 'update', 'wf_1', '--description', ''], {
-      data: { id: 'wf_1' },
-    })
+    const [, empty] = await run(
+      ['workflows', 'update', '00000000-0000-4000-8000-00000000000a', '--description', ''],
+      {
+        data: { id: '00000000-0000-4000-8000-00000000000a' },
+      }
+    )
     expect(empty.body).toMatchObject({ description: '' })
 
-    const [, literal] = await run(['workflows', 'update', 'wf_1', '--description', 'null'], {
-      data: { id: 'wf_1' },
-    })
+    const [, literal] = await run(
+      ['workflows', 'update', '00000000-0000-4000-8000-00000000000a', '--description', 'null'],
+      {
+        data: { id: '00000000-0000-4000-8000-00000000000a' },
+      }
+    )
     expect(literal.body).toMatchObject({ description: 'null' })
 
-    await expect(run(['workflows', 'update', 'wf_1', '--no-description'])).rejects.toThrow(
-      /unknown option/
-    )
+    await expect(
+      run(['workflows', 'update', '00000000-0000-4000-8000-00000000000a', '--no-description'])
+    ).rejects.toThrow(/unknown option/)
   })
 })
 
@@ -1662,7 +1734,7 @@ describe('flags the root program would swallow', () => {
   /**
    * Commander matches the root's own options anywhere in argv, including after a
    * subcommand name, so a leaf declaring one never sees it: `sim workflows
-   * rollback wf_1 --version 1` printed the CLI version and exited 0 without
+   * rollback 00000000-0000-4000-8000-00000000000a --version 1` printed the CLI version and exited 0 without
    * issuing a request — a rollback that silently did nothing, with no output to
    * tell anyone. The generic sweep is the point; the rollback assertion below
    * only records the one case that got through.
@@ -1682,13 +1754,20 @@ describe('flags the root program would swallow', () => {
 
   it('exposes the rollback target version under a name of its own', async () => {
     const [path, init] = await run(
-      ['workflows', 'rollback', 'wf_1', '--to-version', '3', '--yes'],
+      [
+        'workflows',
+        'rollback',
+        '00000000-0000-4000-8000-00000000000a',
+        '--to-version',
+        '3',
+        '--yes',
+      ],
       {
         data: {},
       }
     )
 
-    expect(path).toBe('/api/v2/workflows/wf_1/rollback')
+    expect(path).toBe('/api/v2/workflows/00000000-0000-4000-8000-00000000000a/rollback')
     expect(init.body).toMatchObject({ version: 3 })
   })
 })
@@ -1724,21 +1803,29 @@ describe('headers the route contract declares', () => {
    * operation the assembled tree no longer offers.
    */
   it('sends a declared header when the flag is passed, and omits the slot when it is not', async () => {
-    const [, sent] = await run(['workflows', 'run', 'wf_1', '--run-id', 'run_mine'], {
-      data: { status: 'completed' },
-    })
+    const [, sent] = await run(
+      ['workflows', 'run', '00000000-0000-4000-8000-00000000000a', '--run-id', 'run_mine'],
+      {
+        data: { status: 'completed' },
+      }
+    )
     expect(sent.headers).toEqual({ 'x-run-id': 'run_mine' })
 
-    const [, unset] = await run(['workflows', 'run', 'wf_1'], { data: { status: 'completed' } })
+    const [, unset] = await run(['workflows', 'run', '00000000-0000-4000-8000-00000000000a'], {
+      data: { status: 'completed' },
+    })
     expect(unset.headers).toBeUndefined()
   })
 
   it('sends no headers for an operation whose contract declares none', async () => {
     // Paired with an operation that does declare one, so the absence below means
     // "declares none" rather than "never sends headers".
-    const [, sent] = await run(['workflows', 'run', 'wf_1', '--run-id', 'run_mine'], {
-      data: { status: 'completed' },
-    })
+    const [, sent] = await run(
+      ['workflows', 'run', '00000000-0000-4000-8000-00000000000a', '--run-id', 'run_mine'],
+      {
+        data: { status: 'completed' },
+      }
+    )
     expect(sent.headers).toEqual({ 'x-run-id': 'run_mine' })
 
     const [, options] = await run(['tables', 'list'])
@@ -1751,7 +1838,16 @@ describe('headers the route contract declares', () => {
    */
   it('does not expose the call-chain header Sim writes for itself', async () => {
     await expect(
-      run(['workflows', 'run', 'wf_1', '--x-sim-via', 'wf_0'], { data: { status: 'completed' } })
+      run(
+        [
+          'workflows',
+          'run',
+          '00000000-0000-4000-8000-00000000000a',
+          '--x-sim-via',
+          '00000000-0000-4000-8000-000000000000',
+        ],
+        { data: { status: 'completed' } }
+      )
     ).rejects.toThrow(/unknown option/)
   })
 
@@ -1761,13 +1857,18 @@ describe('headers the route contract declares', () => {
    * spelled as a raw HTTP header.
    */
   it('exposes the run-id header under a domain name, not its wire spelling', async () => {
-    const [, options] = await run(['workflows', 'run', 'wf_1', '--run-id', 'run_mine'], {
-      data: { status: 'completed' },
-    })
+    const [, options] = await run(
+      ['workflows', 'run', '00000000-0000-4000-8000-00000000000a', '--run-id', 'run_mine'],
+      {
+        data: { status: 'completed' },
+      }
+    )
     expect(options.headers).toEqual({ 'x-run-id': 'run_mine' })
 
     await expect(
-      run(['workflows', 'run', 'wf_1', '--x-run-id', 'run_mine'], { data: { status: 'completed' } })
+      run(['workflows', 'run', '00000000-0000-4000-8000-00000000000a', '--x-run-id', 'run_mine'], {
+        data: { status: 'completed' },
+      })
     ).rejects.toThrow(/unknown option/)
   })
 

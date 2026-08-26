@@ -12,9 +12,9 @@ import {
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Writable } from 'node:stream'
-import { setTimeout as sleep } from 'node:timers/promises'
 import { Command } from 'commander'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { sleep } from '../../helpers'
 import { buildGeneratedCommands } from '../../runtime/build'
 import {
   isTerminalSafeContentType,

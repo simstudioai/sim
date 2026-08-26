@@ -18,12 +18,28 @@ describe('knowledgeDocumentUploadMetadataSchema', () => {
     expect(result.error?.issues[0]?.message).toContain('recipe must be one of')
   })
 
-  it('rejects a lang that is not a BCP-47 tag', () => {
+  it('rejects a lang outside the enforced subtag shape', () => {
     const result = knowledgeDocumentUploadMetadataSchema.safeParse({
       processingOptions: { lang: 'zzzz-nonsense!' },
     })
     expect(result.success).toBe(false)
-    expect(result.error?.issues[0]?.message).toContain('BCP-47')
+    expect(result.error?.issues[0]?.message).toContain('hyphen-separated letter and digit subtags')
+  })
+
+  /**
+   * The message promises the shape, not BCP-47 conformance, so a tag the RFC
+   * rejects for a trailing singleton still parses. Pinned so the two cannot
+   * drift back apart into a message that claims more than the regex enforces.
+   */
+  it('does not claim the BCP-47 conformance it cannot enforce', () => {
+    const result = knowledgeDocumentUploadMetadataSchema.safeParse({
+      processingOptions: { lang: 'en-a' },
+    })
+    expect(result.success).toBe(true)
+    expect(
+      knowledgeDocumentUploadMetadataSchema.safeParse({ processingOptions: { lang: 'en_US' } })
+        .error?.issues[0]?.message
+    ).not.toContain('BCP-47')
   })
 
   it('rejects the underscore locale form callers reach for', () => {
@@ -42,7 +58,7 @@ describe('knowledgeDocumentUploadMetadataSchema', () => {
     expect(result.data?.processingOptions).toEqual({ recipe: 'default', lang: 'en' })
   })
 
-  it('accepts a multi-subtag BCP-47 tag', () => {
+  it('accepts a multi-subtag language tag', () => {
     expect(
       knowledgeDocumentUploadMetadataSchema.safeParse({ processingOptions: { lang: 'zh-Hant-TW' } })
         .success
@@ -68,7 +84,7 @@ describe('persistedKnowledgeDocumentUploadMetadataSchema', () => {
     expect(parsed.tag1).toBe('product')
   })
 
-  it('drops a lang persisted before the BCP-47 shape landed instead of throwing', () => {
+  it('drops a lang persisted before the language-tag shape landed instead of throwing', () => {
     const parsed = persistedKnowledgeDocumentUploadMetadataSchema.parse({
       processingOptions: { recipe: 'default', lang: 'en_US' },
     })

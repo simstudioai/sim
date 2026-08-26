@@ -281,6 +281,36 @@ describe('applyWorkflowOperations', () => {
       ).rejects.toBe(conflict)
     })
 
+    /**
+     * A committed apply reports `[...validation.warnings, ...persisted.warnings]`,
+     * the second half raised by the preparation step inside the write. A dry run
+     * that dropped that half would not tell a caller its dangling edge is about
+     * to disappear — the one thing a preview exists to say.
+     */
+    it('reports the preparation warnings the committed apply would', async () => {
+      mocks.applyOperations.mockReturnValue({
+        state: {
+          blocks: { 'block-1': BLOCK },
+          edges: [{ id: 'edge-9', source: 'block-1', target: 'block-missing' }],
+          loops: {},
+          parallels: {},
+        },
+        validationErrors: [],
+        skippedItems: [],
+      })
+      mocks.validate.mockReturnValue({ valid: true, errors: [], warnings: ['validation note'] })
+
+      const dry = await applyWorkflowOperations.execute({
+        principal: sessionPrincipal,
+        input: { workflowId: 'workflow-1', operations, dryRun: true },
+      })
+
+      expect(dry.warnings).toEqual([
+        'validation note',
+        'Dropped edge "edge-9": edge references a missing block',
+      ])
+    })
+
     /** The preview is worthless if it does not carry the findings. */
     it('reports the same lint a committed apply would', async () => {
       const dry = await applyWorkflowOperations.execute({

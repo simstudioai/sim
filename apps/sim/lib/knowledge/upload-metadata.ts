@@ -21,10 +21,17 @@ export const KNOWLEDGE_DOCUMENT_UPLOAD_RECIPES = ['default', ...RECURSIVE_RECIPE
 export type KnowledgeDocumentUploadRecipe = (typeof KNOWLEDGE_DOCUMENT_UPLOAD_RECIPES)[number]
 
 /**
- * BCP-47 language tag: a 2-8 letter primary subtag followed by any number of
- * alphanumeric subtags, e.g. `en`, `en-US`, `zh-Hant-TW`.
+ * The shape a language tag must have: a 2-8 letter primary subtag followed by
+ * any number of alphanumeric subtags, e.g. `en`, `en-US`, `zh-Hant-TW`.
+ *
+ * A shape check, not BCP-47 conformance. It still admits a malformed tag such
+ * as `en-a`, whose trailing singleton RFC 5646 requires to be followed by
+ * extension subtags. `lang` is carried through the processing payload untouched
+ * and read by nothing that chunks or parses the document, so a parser sized to
+ * reject that would cost more than the field is worth — the message below
+ * therefore claims only the shape that is actually enforced.
  */
-const BCP47_LANGUAGE_TAG = /^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*$/
+const LANGUAGE_TAG_SHAPE = /^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*$/
 
 const knowledgeDocumentUploadTagSchema = z
   .string()
@@ -48,7 +55,10 @@ const recipeSchema = z.enum(KNOWLEDGE_DOCUMENT_UPLOAD_RECIPES, {
 const langSchema = z
   .string()
   .max(35, 'lang cannot exceed 35 characters')
-  .regex(BCP47_LANGUAGE_TAG, 'lang must be a BCP-47 language tag, for example "en" or "en-US"')
+  .regex(
+    LANGUAGE_TAG_SHAPE,
+    'lang must be hyphen-separated letter and digit subtags, for example "en" or "en-US"'
+  )
 
 /** Persisted metadata stored with a resumable Knowledge document upload session. */
 export const knowledgeDocumentUploadMetadataSchema = z

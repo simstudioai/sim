@@ -351,6 +351,62 @@ describe('a truncation the response states inside its payload', () => {
     expect(read()).toBe('')
   })
 
+  it.each(['notTruncated', 'unTruncated', 'nonTruncated', 'neverTruncated', 'isNotTruncated'])(
+    'says nothing for the negated spelling %s',
+    (flag) => {
+      const read = captureStderr()
+
+      renderResult('readFileText', 'json', {}, {}, {}, { data: { [flag]: true } })
+
+      expect(read()).toBe('')
+    }
+  )
+
+  /**
+   * The flag pattern, not the negation veto, is what rejects this: `was not
+   * truncated` carries neither the `Not`/`Un` casing the veto looks for nor the
+   * unbroken `<word>Truncated` shape the pattern demands. Asserted separately
+   * so loosening the pattern to a bare `truncated` substring goes red here
+   * rather than silently leaning on the veto to cover it.
+   */
+  it('says nothing for a key that only resembles the flag', () => {
+    const read = captureStderr()
+
+    renderResult('readFileText', 'json', {}, {}, {}, { data: { 'was not truncated': true } })
+
+    expect(read()).toBe('')
+  })
+
+  /**
+   * The bound the scan is built on: `data` is descended only while it is an
+   * object, because a page's `data` is the rows and a row's keys are the
+   * caller's own. A column literally named `truncated` is a value in somebody's
+   * table, not a statement by the API, and reading it as one would warn about a
+   * clip that never happened on every row that ever holds `true`.
+   */
+  it('ignores a row column named like the flag, because rows are not the envelope', () => {
+    const read = captureStderr()
+    const rows = [{ id: 'a', truncated: true }]
+
+    renderPage('json', rows, {}, { data: rows })
+
+    expect(read()).toBe('')
+    expect(JSON.parse(logged.join('\n'))).toEqual(rows)
+  })
+
+  /**
+   * The other half of the same bound: the scan stops at `data`. A flag nested
+   * below it is not read, so a future "scan deeper" change has to face this
+   * test and the row-column case above together.
+   */
+  it('does not descend past data', () => {
+    const read = captureStderr()
+
+    renderResult('readFileText', 'json', {}, {}, {}, { data: { file: { truncated: true } } })
+
+    expect(read()).toBe('')
+  })
+
   it('leaves yaml a bare payload, with the note on stderr', () => {
     const read = captureStderr()
 

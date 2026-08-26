@@ -62,8 +62,11 @@ export const PROFILE_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
  */
 export function validateProfileName(name: string): void {
   if (!PROFILE_NAME_PATTERN.test(name)) {
+    // Redacted the same way as in `normalizeWorkspaceId`: the rejected name is
+    // untrusted text, and echoing its control characters into a terminal is how
+    // an error message becomes an escape-sequence delivery vehicle.
     throw new ProfileConfigError(
-      `Invalid profile name "${name}". Use letters, numbers, dots, underscores, or hyphens, starting with a letter or number.`
+      `Invalid profile name "${name.replace(FORBIDDEN_IN_VALUE_GLOBAL, ' ')}". Use letters, numbers, dots, underscores, or hyphens, starting with a letter or number.`
     )
   }
 }
@@ -305,16 +308,22 @@ export function deleteProfile(profile: string): { config: boolean; credentials: 
  * the user has to edit.
  */
 export function normalizeEndpoint(endpoint: string, source: string): string {
-  // A trailing slash here produces `https://sim.ai//api/v2/...`, which some
-  // proxies 404 rather than normalize.
-  const trimmed = endpoint.replace(/\/+$/, '')
+  // Surrounding whitespace is stripped first, and for the same reason as in
+  // `normalizeWorkspaceId`: `new URL()` tolerates padding and hands the padded
+  // string straight back, but the config writer refuses it. Without this,
+  // `login --endpoint " https://…"` failed *after* the device flow had already
+  // minted a key, discarding it and reporting a file-format problem instead of
+  // naming the flag. It also has to come first so the slash strip sees the real
+  // end of the URL — and that strip is there because a trailing slash produces
+  // `https://sim.ai//api/v2/...`, which some proxies 404 rather than normalize.
+  const trimmed = endpoint.trim().replace(/\/+$/, '')
 
   let parsed: URL
   try {
     parsed = new URL(trimmed)
   } catch {
     throw new ProfileConfigError(
-      `Invalid endpoint "${endpoint}" from ${source}. Use an absolute URL, e.g. ${DEFAULT_ENDPOINT} or http://localhost:3000`
+      `Invalid endpoint "${endpoint.replace(FORBIDDEN_IN_VALUE_GLOBAL, ' ')}" from ${source}. Use an absolute URL, e.g. ${DEFAULT_ENDPOINT} or http://localhost:3000`
     )
   }
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {

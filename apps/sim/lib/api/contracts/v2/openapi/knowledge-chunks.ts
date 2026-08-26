@@ -106,7 +106,7 @@ export const knowledgeChunkOpenApiRoutes = [
     knowledgeOperation({
       operationId: 'bulkUpdateKnowledgeChunks',
       summary: 'Bulk Update Chunks',
-      description: `Enable, disable, or delete many chunks of one document in a single request. Best-effort: an identifier naming no chunk in the document is skipped rather than failing the request, so \`processed\` is the authoritative count. ${CONNECTOR_MANAGED} ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Enable, disable, or delete many chunks of one document in a single request. Best-effort: an identifier naming no chunk in the document is reported in \`errors\` rather than failing the request. \`processed\` counts the chunks the operation matched, not the chunks it changed. ${CONNECTOR_MANAGED} ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_ERRORS,
       success: { description: 'Outcome of the bulk chunk operation.' },
     }),

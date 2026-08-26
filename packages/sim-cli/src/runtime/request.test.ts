@@ -114,6 +114,15 @@ describe('buildRequest', () => {
     })
   })
 
+  it('still sends an explicit zero, which is a value the caller chose', () => {
+    expect(buildRequest('listLogs', [], { minCost: '0' }, WORKSPACE).query).toMatchObject({
+      minCost: 0,
+    })
+    expect(
+      buildRequest('readFileText', ['wf_1'], { maxBytes: '0' }, WORKSPACE).query
+    ).toMatchObject({ maxBytes: 0 })
+  })
+
   it('still sends an empty body string, which is how a description is cleared', () => {
     expect(buildRequest('updateWorkflow', ['wf_1'], { description: '' }, WORKSPACE).body).toEqual({
       description: '',
@@ -143,6 +152,34 @@ describe('buildRequest', () => {
       expect(() => buildRequest('listLogs', [], { workflowName: '' }, WORKSPACE)).toThrow(
         '--workflow-name cannot be empty'
       )
+    })
+
+    /**
+     * `Number('')` is `0`, so a blank numeric filter coerced into a real one:
+     * `--max-cost ""` asked for runs costing at most nothing and answered `0`
+     * rows, the same silent-wrong-result the blank-string refusal exists to
+     * remove.
+     */
+    it('rejects a blank numeric query filter, which coercion would read as 0', () => {
+      expect(() => buildRequest('listLogs', [], { maxCost: '' }, WORKSPACE)).toThrow(
+        '--max-cost cannot be empty'
+      )
+      expect(() => buildRequest('listLogs', [], { minDurationMs: '' }, WORKSPACE)).toThrow(
+        '--min-duration-ms cannot be empty'
+      )
+      expect(() => buildRequest('readFileText', ['wf_1'], { maxBytes: '' }, WORKSPACE)).toThrow(
+        '--max-bytes cannot be empty'
+      )
+    })
+
+    /**
+     * A paginating `limit` is the walk size, not a filter, and the pager reads
+     * it from the flags itself — refusing a blank one in wording that says what
+     * `0` means there. Left to it rather than pre-empted with a generic
+     * refusal.
+     */
+    it('leaves a blank paginating limit to the pager, which words it better', () => {
+      expect(() => buildRequest('listWorkflows', [], { limit: '' }, WORKSPACE)).not.toThrow()
     })
 
     it('rejects a missing required flag', () => {

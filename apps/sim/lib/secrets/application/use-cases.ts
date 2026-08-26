@@ -341,11 +341,19 @@ export const setSecretUseCase = defineAuthorizedWorkspaceUseCase({
           unredacted: input.unredacted,
         })
         if (!metadata) throw new OrchestrationError('not_found', 'Secret not found')
-        const updated = await getWorkspaceSecretMetadata({
+        /**
+         * The response read is a second statement, so a delete committed between
+         * the two leaves nothing to report back. That is the same disappearance
+         * the miss above answers, so it answers the same way rather than raising
+         * the unclassified fault a "must exist" read would.
+         */
+        const updated = await findSecretMetadata({
           workspaceId: context.workspaceId,
           userId,
+          scope: 'workspace',
           name: input.name,
         })
+        if (!updated) throw new OrchestrationError('not_found', 'Secret not found')
         return { secret: updated, userId, created: false }
       }
 
