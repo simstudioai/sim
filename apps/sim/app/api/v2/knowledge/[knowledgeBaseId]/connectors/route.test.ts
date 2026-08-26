@@ -260,6 +260,45 @@ describe('v2 knowledge connector routes', () => {
     expect(mocks.connectorRemoved).toHaveBeenCalledOnce()
   })
 
+  it('serializes skipped-document counts in non-empty sync history', async () => {
+    mocks.read.mockResolvedValueOnce({
+      connector: {
+        ...connector,
+        syncLogs: [
+          {
+            id: 'sync-log-1',
+            connectorId: CONNECTOR_ID,
+            status: 'completed',
+            startedAt: new Date('2026-01-03T00:00:00Z'),
+            completedAt: new Date('2026-01-03T00:01:00Z'),
+            docsAdded: 1,
+            docsUpdated: 2,
+            docsDeleted: 3,
+            docsUnchanged: 4,
+            docsSkipped: 5,
+            docsFailed: 6,
+            errorMessage: null,
+          },
+        ],
+      },
+    })
+
+    const response = await getConnector(
+      request(
+        `/api/v2/knowledge/${KNOWLEDGE_BASE_ID}/connectors/${CONNECTOR_ID}?workspaceId=${WORKSPACE_ID}`
+      ),
+      connectorContext
+    )
+
+    expect(response.status).toBe(200)
+    expect((await response.json()).data.syncLogs[0]).toMatchObject({
+      id: 'sync-log-1',
+      docsSkipped: 5,
+      startedAt: '2026-01-03T00:00:00.000Z',
+      completedAt: '2026-01-03T00:01:00.000Z',
+    })
+  })
+
   it('passes source changes to application billing without an adapter resolver', async () => {
     const response = await updateConnector(
       request(`/api/v2/knowledge/${KNOWLEDGE_BASE_ID}/connectors/${CONNECTOR_ID}`, 'PATCH', {

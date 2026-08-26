@@ -216,6 +216,17 @@ Bob,25`
       expect(chunks.every((chunk) => chunk.tokenCount <= 1024)).toBe(true)
     })
 
+    it('accounts for labels, separators, sheet names, and footers before batching rows', async () => {
+      const content = ['h', ...Array.from({ length: 30 }, () => 'x')].join('\n')
+      const chunks = await StructuredDataChunker.chunkStructuredData(content, {
+        chunkSize: 20,
+        sheetName: 'S',
+      })
+
+      expect(chunks.length).toBeGreaterThan(1)
+      expect(chunks.every((chunk) => chunk.tokenCount <= 20)).toBe(true)
+    })
+
     it.concurrent('should include token count in chunk metadata', async () => {
       const csv = `name,age
 Alice,30

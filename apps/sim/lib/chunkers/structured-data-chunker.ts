@@ -13,6 +13,22 @@ function estimateStructuredTokens(text: string): number {
   return Math.ceil(text.length / 3)
 }
 
+function estimateFormattedChunkTokens(
+  headerLine: string,
+  rowCharacters: number,
+  rowCount: number,
+  sheetName?: string
+): number {
+  let characters = rowCharacters + Math.max(0, rowCount - 1)
+  if (sheetName) characters += 4 + sheetName.length + 6
+  if (DEFAULT_CONFIG.INCLUDE_HEADERS_IN_EACH_CHUNK) {
+    characters += 9 + headerLine.length + 1
+    characters += Math.min(80, headerLine.length) + 1
+  }
+  characters += 3 + String(rowCount).length + 14
+  return Math.ceil(characters / 3)
+}
+
 const logger = createLogger('StructuredDataChunker')
 
 const DEFAULT_CONFIG = {
@@ -57,8 +73,7 @@ export class StructuredDataChunker {
     )
 
     let currentChunkRows: string[] = []
-    let currentTokenEstimate = 0
-    const headerTokens = estimateStructuredTokens(headerLine)
+    let currentRowsCharacters = 0
     let chunkStartRow = dataStartIndex
     let oversizedHeaderEmitted = false
 
@@ -68,7 +83,6 @@ export class StructuredDataChunker {
       const i = lineIndex
       lineIndex++
       if (i < dataStartIndex) continue
-      const rowTokens = estimateStructuredTokens(row)
 
       const standaloneRow = StructuredDataChunker.formatChunk(headerLine, [row], options.sheetName)
       if (estimateStructuredTokens(standaloneRow) > targetChunkSize) {
@@ -80,7 +94,7 @@ export class StructuredDataChunker {
           )
           budget.add(chunks, StructuredDataChunker.createChunk(chunkContent, chunkStartRow, i - 1))
           currentChunkRows = []
-          currentTokenEstimate = 0
+          currentRowsCharacters = 0
         }
         const emptyRowOverhead = estimateStructuredTokens(
           StructuredDataChunker.formatChunk(headerLine, [''], options.sheetName)
@@ -121,10 +135,12 @@ export class StructuredDataChunker {
         continue
       }
 
-      const projectedTokens =
-        currentTokenEstimate +
-        rowTokens +
-        (DEFAULT_CONFIG.INCLUDE_HEADERS_IN_EACH_CHUNK ? headerTokens : 0)
+      const projectedTokens = estimateFormattedChunkTokens(
+        headerLine,
+        currentRowsCharacters + row.length,
+        currentChunkRows.length + 1,
+        options.sheetName
+      )
 
       const shouldCreateChunk =
         (projectedTokens > targetChunkSize && currentChunkRows.length > 0) ||
@@ -139,12 +155,12 @@ export class StructuredDataChunker {
         budget.add(chunks, StructuredDataChunker.createChunk(chunkContent, chunkStartRow, i - 1))
 
         currentChunkRows = []
-        currentTokenEstimate = 0
+        currentRowsCharacters = 0
         chunkStartRow = i
       }
 
       currentChunkRows.push(row)
-      currentTokenEstimate += rowTokens
+      currentRowsCharacters += row.length
     }
 
     if (currentChunkRows.length > 0) {

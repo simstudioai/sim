@@ -287,8 +287,8 @@ export const mistralParserTool: ToolConfig<MistralParserInput, MistralParserOutp
           .filter(Boolean)
           .join('\n\n')
       } else {
-        logger.warn('No pages found in OCR result')
-        content = ''
+        logger.warn('No pages found in OCR result, returning raw response')
+        content = JSON.stringify(mistralData, null, 2)
       }
 
       if (resultType === 'text') {

@@ -1221,9 +1221,9 @@ async function parseDataURI(
   filename: string,
   mimeType: string
 ): Promise<FileParseResult> {
-  const { buffer, mediaType } = decodeDataUriWithinLimit(fileUrl, MAX_FILE_SIZE)
+  const { buffer } = decodeDataUriWithinLimit(fileUrl, MAX_FILE_SIZE)
   const extension = resolveParserExtension(filename, mimeType, 'txt')
-  logger.info('Parsing bounded data URI', { bytes: buffer.length, mediaType, extension })
+  logger.info('Parsing bounded data URI', { bytes: buffer.length, extension })
   return parseBuffer(buffer, extension)
 }
 
