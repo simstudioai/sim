@@ -149,6 +149,15 @@ export async function performUpdateTableColumn(
       'validation'
     )
   }
+  if (
+    (updates.options !== undefined || updates.multiple !== undefined) &&
+    resultingType !== 'select'
+  ) {
+    return fail(
+      `Cannot set select metadata on column "${columnName}" of type "${resultingType}"`,
+      'validation'
+    )
+  }
   // The rename runs last, so a name already taken would fail after the typed
   // write committed. This is the only rename failure a caller can cause;
   // catching it here leaves just the concurrent-collision race.

@@ -195,6 +195,7 @@ describe('useTableUndo – delete-column undo cell restore chunking', () => {
     columnPosition: 0,
     columnUnique: false,
     columnRequired: false,
+    columnTypeMetadata: {},
     cellData: [],
     previousOrder: null,
     previousWidth: null,
@@ -248,8 +249,10 @@ describe('useTableUndo – restoring a deleted select column', () => {
     columnPosition: 0,
     columnUnique: false,
     columnRequired: false,
-    columnOptions: [{ id: 'opt_open', name: 'Open' }],
-    columnMultiple: true,
+    columnTypeMetadata: {
+      options: [{ id: 'opt_open', name: 'Open' }],
+      multiple: true,
+    },
     cellData: [],
     previousOrder: null,
     previousWidth: null,
@@ -270,5 +273,40 @@ describe('useTableUndo – restoring a deleted select column', () => {
     expect(payload.options).toEqual([{ id: 'opt_open', name: 'Open' }])
     expect(payload.multiple).toBe(true)
     expect(payload.id).toBe('col_status')
+  })
+})
+
+describe('useTableUndo – restoring a deleted reference column', () => {
+  it('re-creates the column with its target table', async () => {
+    mockPopUndo.mockReturnValueOnce(
+      makeEntry({
+        type: 'delete-column',
+        columnName: 'owner',
+        columnId: 'col_owner',
+        columnType: 'reference',
+        columnPosition: 0,
+        columnUnique: false,
+        columnRequired: false,
+        columnTypeMetadata: { referenceTableId: 'tbl_people' },
+        cellData: [],
+        previousOrder: null,
+        previousWidth: null,
+        previousPinnedColumns: null,
+      })
+    )
+
+    const { undo } = TestHook()
+    ;(undo as () => void)()
+    await flush()
+
+    expect(mockMutate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'col_owner',
+        name: 'owner',
+        type: 'reference',
+        referenceTableId: 'tbl_people',
+      }),
+      expect.any(Object)
+    )
   })
 })

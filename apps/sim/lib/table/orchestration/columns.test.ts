@@ -77,6 +77,15 @@ function run(updates: Record<string, unknown>, columnName = 'Status') {
   })
 }
 
+function expectNoServiceWrite() {
+  expect(mockRenameColumn).not.toHaveBeenCalled()
+  expect(mockUpdateColumnType).not.toHaveBeenCalled()
+  expect(mockUpdateColumnOptions).not.toHaveBeenCalled()
+  expect(mockUpdateColumnConstraints).not.toHaveBeenCalled()
+  expect(mockUpdateColumnCurrency).not.toHaveBeenCalled()
+  expect(mockUpdateColumnReference).not.toHaveBeenCalled()
+}
+
 describe('performUpdateTableColumn', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -217,6 +226,23 @@ describe('performUpdateTableColumn', () => {
 
     expect(result).toMatchObject({ success: false, errorCode: 'validation' })
     expect(mockUpdateColumnReference).not.toHaveBeenCalled()
+  })
+
+  it('rejects select options when converting a column to reference', async () => {
+    const result = await run(
+      { type: 'reference', referenceTableId: 'tbl_accounts', options: ['Open'] },
+      'Priority'
+    )
+
+    expect(result).toMatchObject({ success: false, errorCode: 'validation' })
+    expectNoServiceWrite()
+  })
+
+  it('rejects select multiple metadata when updating a reference column', async () => {
+    const result = await run({ referenceTableId: 'tbl_companies', multiple: true }, 'Account')
+
+    expect(result).toMatchObject({ success: false, errorCode: 'validation' })
+    expectNoServiceWrite()
   })
 
   it('reports an empty payload as a validation failure', async () => {

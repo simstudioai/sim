@@ -31,6 +31,7 @@ import type {
 import {
   COLUMN_TYPES,
   FILTER_OPS,
+  MAX_REFERENCE_TABLE_ID_LENGTH,
   MAX_RUN_TARGET_ROW_IDS,
   MAX_SELECT_OPTIONS,
   MAX_TABLE_BATCH_ITEMS,
@@ -85,7 +86,10 @@ export const currencyCodeSchema = z
   .regex(/^[A-Za-z]{3}$/, 'Must be a 3-letter ISO 4217 currency code, e.g. USD')
   .overwrite((code) => code.toUpperCase())
 
-export const referenceTableIdSchema = requiredFieldSchema('Reference table ID is required')
+export const referenceTableIdSchema = requiredFieldSchema('Reference table ID is required').max(
+  MAX_REFERENCE_TABLE_ID_LENGTH,
+  `Reference table ID must be ${MAX_REFERENCE_TABLE_ID_LENGTH} characters or less`
+)
 
 /**
  * Cross-field rules for type-owned metadata. A `select` column must declare a
@@ -93,7 +97,7 @@ export const referenceTableIdSchema = requiredFieldSchema('Reference table ID is
  * and type-specific fields are rejected on every type that does not own them.
  * Skipped when `type` is absent (a metadata-only update on an existing column).
  */
-export function refineColumnOptions(
+export function refineColumnTypeMetadata(
   data: {
     type?: (typeof COLUMN_TYPES)[number]
     options?: z.infer<typeof selectOptionsSchema>
@@ -243,7 +247,7 @@ export const tableColumnSchema = z
       .optional()
       .describe('Target table whose row IDs are stored by a reference column.'),
   })
-  .superRefine(refineColumnOptions)
+  .superRefine(refineColumnTypeMetadata)
   .describe('A typed column in a table schema.')
 
 export const createTableBodySchema = z.object({
@@ -328,7 +332,7 @@ export const createTableColumnBodySchema = z.object({
         .optional()
         .describe('Target table for a reference column.'),
     })
-    .superRefine(refineColumnOptions)
+    .superRefine(refineColumnTypeMetadata)
     .describe('Typed column definition to add.'),
 })
 
@@ -348,7 +352,7 @@ export const updateTableColumnBodySchema = z.object({
         .optional()
         .describe('New target table for a reference column.'),
     })
-    .superRefine(refineColumnOptions)
+    .superRefine(refineColumnTypeMetadata)
     .describe('Column fields to update.'),
 })
 

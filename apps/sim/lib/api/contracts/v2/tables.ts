@@ -19,7 +19,7 @@ import {
   predicateSchema,
   referenceTableIdSchema,
   refineCancelTableRunsScope,
-  refineColumnOptions,
+  refineColumnTypeMetadata,
   rowAnchorMutexRefine,
   runColumnBodyBaseSchema,
   runColumnExcludeMutexRefine,
@@ -493,7 +493,7 @@ const v2TableColumnInputShape = {
 export const v2TableColumnInputSchema = z
   .object(v2TableColumnInputShape)
   .strict()
-  .superRefine(refineColumnOptions)
+  .superRefine(refineColumnTypeMetadata)
 
 /**
  * Initial columns take the same shape as every other v2 column input.
@@ -744,7 +744,7 @@ export const v2CreateTableColumnBodySchema = z
           .describe('Zero-based insertion position for the column.'),
       })
       .strict()
-      .superRefine(refineColumnOptions)
+      .superRefine(refineColumnTypeMetadata)
       .describe('Column definition to add.'),
   })
   .strict()
@@ -779,7 +779,7 @@ export const v2UpdateTableColumnBodySchema = z
           .describe('Replacement target table for a reference column.'),
       })
       .strict()
-      .superRefine(refineColumnOptions)
+      .superRefine(refineColumnTypeMetadata)
       .describe('Mutable column fields.'),
   })
   .strict()

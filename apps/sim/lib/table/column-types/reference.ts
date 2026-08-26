@@ -1,5 +1,7 @@
 import { Table as TableIcon } from '@sim/emcn/icons'
+import { stringColumnType } from '@/lib/table/column-types/string'
 import type { ColumnTypeDefinition } from '@/lib/table/column-types/types'
+import { MAX_REFERENCE_TABLE_ID_LENGTH } from '@/lib/table/constants'
 
 export const referenceColumnType: ColumnTypeDefinition = {
   id: 'reference',
@@ -16,13 +18,7 @@ export const referenceColumnType: ColumnTypeDefinition = {
   editor: 'text',
   expandable: false,
 
-  coerce(value) {
-    if (typeof value === 'string') return { ok: true, value }
-    if (typeof value === 'number' || typeof value === 'boolean') {
-      return { ok: true, value: String(value) }
-    }
-    return { ok: false }
-  },
+  coerce: stringColumnType.coerce,
 
   validateCell(value, column) {
     return typeof value === 'string' ? null : `${column.name} must be a row ID string`
@@ -31,6 +27,11 @@ export const referenceColumnType: ColumnTypeDefinition = {
   validateDefinition(column) {
     if (typeof column.referenceTableId !== 'string' || column.referenceTableId.length === 0) {
       return [`Column "${column.name}" must define a reference table ID`]
+    }
+    if (column.referenceTableId.length > MAX_REFERENCE_TABLE_ID_LENGTH) {
+      return [
+        `Column "${column.name}" reference table ID must be ${MAX_REFERENCE_TABLE_ID_LENGTH} characters or less`,
+      ]
     }
     return []
   },
@@ -41,8 +42,5 @@ export const referenceColumnType: ColumnTypeDefinition = {
     return typeof value === 'object' ? JSON.stringify(value) : String(value)
   },
 
-  formatForInput(value) {
-    if (typeof value === 'object') return JSON.stringify(value)
-    return String(value)
-  },
+  formatForInput: stringColumnType.formatForInput,
 }

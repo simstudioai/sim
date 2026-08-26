@@ -19,6 +19,7 @@ const deleteColumn: TableUndoAction = {
   columnPosition: 0,
   columnUnique: false,
   columnRequired: false,
+  columnTypeMetadata: {},
   cellData: [],
   previousOrder: ['a', 'b'],
   previousWidth: null,
