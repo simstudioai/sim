@@ -52,8 +52,8 @@ export function columnTypeOptionsForTable(
   return COLUMN_TYPE_OPTIONS.map((option) => {
     if (option.type === 'workflow') return option
     if (currentColumn?.type === option.type) return option
-    if (!wouldExceedColumnTypeLimit(columns, option.type, 1)) return option
     if (option.maxPerTable === undefined) return option
+    if (!wouldExceedColumnTypeLimit(columns, option.type, 1)) return option
     return {
       ...option,
       disabledReason: columnTypeLimitMessage(option.label, option.maxPerTable),
