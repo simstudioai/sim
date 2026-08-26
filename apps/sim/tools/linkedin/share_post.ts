@@ -120,12 +120,10 @@ export const linkedInSharePostTool: ToolConfig<SharePostParams, SharePostRespons
         }
       }
 
-      const result = await response.json()
-
       return {
         success: true,
         output: {
-          postId: result.id,
+          postId: response.headers.get('x-restli-id') ?? undefined,
         },
       }
     } catch (error) {

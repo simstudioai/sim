@@ -119,7 +119,7 @@ export const countTool: ToolConfig<ElasticsearchCountParams, ElasticsearchCountR
         try {
           return { query: JSON.parse(params.query) }
         } catch {
-          return {}
+          throw new Error('Invalid JSON provided for query')
         }
       }
       return {}

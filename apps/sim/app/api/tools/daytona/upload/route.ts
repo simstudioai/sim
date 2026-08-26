@@ -129,7 +129,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       fileName
     )
 
-    const uploadUrl = `${DAYTONA_TOOLBOX_BASE_URL}/${encodeURIComponent(params.sandboxId.trim())}/files/upload?path=${encodeURIComponent(destinationPath)}`
+    const uploadUrl = `${DAYTONA_TOOLBOX_BASE_URL}/${encodeURIComponent(params.sandboxId.trim())}/files/upload-v2?path=${encodeURIComponent(destinationPath)}`
     const response = await fetch(uploadUrl, {
       method: 'POST',
       headers: {

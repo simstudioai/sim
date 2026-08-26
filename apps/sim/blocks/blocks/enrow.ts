@@ -128,9 +128,10 @@ export const EnrowBlock: BlockConfig<EnrowResponse> = {
     email: { type: 'string', description: 'Email address found or verified' },
     qualification: { type: 'string', description: '"valid" or "invalid"' },
     fullname: { type: 'string', description: 'Full name of the person (find only)' },
+    firstname: { type: 'string', description: 'First name of the person (find only)' },
+    lastname: { type: 'string', description: 'Last name of the person (find only)' },
     company_name: { type: 'string', description: 'Company name (find only)' },
     company_domain: { type: 'string', description: 'Company domain (find only)' },
-    linkedin_url: { type: 'string', description: 'LinkedIn URL of the person (find only)' },
   },
 }
 

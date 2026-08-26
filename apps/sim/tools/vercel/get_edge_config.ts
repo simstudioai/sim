@@ -36,7 +36,8 @@ export const vercelGetEdgeConfigTool: ToolConfig<
       const query = new URLSearchParams()
       if (params.teamId) query.set('teamId', params.teamId.trim())
       const qs = query.toString()
-      return `https://api.vercel.com/v1/edge-config/${params.edgeConfigId.trim()}${qs ? `?${qs}` : ''}`
+      const edgeConfigId = encodeURIComponent(params.edgeConfigId.trim())
+      return `https://api.vercel.com/v1/global-config/${edgeConfigId}${qs ? `?${qs}` : ''}`
     },
     method: 'GET',
     headers: (params: VercelGetEdgeConfigParams) => ({

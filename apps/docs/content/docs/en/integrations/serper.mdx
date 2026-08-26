@@ -45,14 +45,14 @@ A powerful web search tool that provides access to Google search results through
 | `num` | number | No | Number of results to return \(e.g., 10, 20, 50\) |
 | `gl` | string | No | Country code for search results \(e.g., "us", "uk", "de", "fr"\) |
 | `hl` | string | No | Language code for search results \(e.g., "en", "es", "de", "fr"\) |
-| `type` | string | No | Type of search to perform \(e.g., "search", "news", "images", "videos", "places", "shopping"\) |
+| `type` | string | No | Type of search to perform. Must be one of "search", "news", "places", "images", "videos", "shopping", "scholar", "patents" — any other value is rejected. |
 | `apiKey` | string | Yes | Serper API Key |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `searchResults` | array | Search results with titles, links, snippets, and type-specific metadata \(date for news, rating for places, imageUrl for images\) |
+| `searchResults` | array | Search results with titles, links, snippets, and type-specific metadata \(date for news, rating for places, imageUrl for images, duration/source for videos, price/source for shopping\) |
 |   ↳ `title` | string | Result title |
 |   ↳ `link` | string | Result URL |
 |   ↳ `snippet` | string | Result description/snippet |

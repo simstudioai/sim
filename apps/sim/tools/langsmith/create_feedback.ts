@@ -1,9 +1,11 @@
 import { generateId } from '@sim/utils/id'
 import { filterUndefined } from '@sim/utils/object'
+import { truncate } from '@sim/utils/string'
 import type {
   LangsmithCreateFeedbackParams,
   LangsmithCreateFeedbackResponse,
 } from '@/tools/langsmith/types'
+import { ERROR_TEXT_MAX_LENGTH, LANGSMITH_API_BASE } from '@/tools/langsmith/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const langsmithCreateFeedbackTool: ToolConfig<
@@ -65,7 +67,7 @@ export const langsmithCreateFeedbackTool: ToolConfig<
     },
   },
   request: {
-    url: () => 'https://api.smith.langchain.com/feedback',
+    url: () => `${LANGSMITH_API_BASE}/feedback`,
     method: 'POST',
     headers: (params) => ({
       'X-Api-Key': params.apiKey,
@@ -91,7 +93,9 @@ export const langsmithCreateFeedbackTool: ToolConfig<
   transformResponse: async (response) => {
     if (!response.ok) {
       const errorText = await response.text()
-      throw new Error(`LangSmith create feedback failed (${response.status}): ${errorText}`)
+      throw new Error(
+        `LangSmith create feedback failed (${response.status}): ${truncate(errorText, ERROR_TEXT_MAX_LENGTH)}`
+      )
     }
 
     const data = (await response.json()) as Record<string, unknown>

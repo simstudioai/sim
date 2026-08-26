@@ -1,10 +1,15 @@
 import { filterUndefined } from '@sim/utils/object'
+import { truncate } from '@sim/utils/string'
 import type {
   LangsmithCreateRunsBatchParams,
   LangsmithCreateRunsBatchResponse,
   LangsmithRunPayload,
 } from '@/tools/langsmith/types'
-import { normalizeLangsmithRunPayload } from '@/tools/langsmith/utils'
+import {
+  ERROR_TEXT_MAX_LENGTH,
+  LANGSMITH_API_BASE,
+  normalizeLangsmithRunPayload,
+} from '@/tools/langsmith/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const langsmithCreateRunsBatchTool: ToolConfig<
@@ -36,7 +41,7 @@ export const langsmithCreateRunsBatchTool: ToolConfig<
     },
   },
   request: {
-    url: () => 'https://api.smith.langchain.com/runs/batch',
+    url: () => `${LANGSMITH_API_BASE}/runs/batch`,
     method: 'POST',
     headers: (params) => ({
       'X-Api-Key': params.apiKey,
@@ -56,6 +61,13 @@ export const langsmithCreateRunsBatchTool: ToolConfig<
     },
   },
   transformResponse: async (response, params) => {
+    if (!response.ok) {
+      const errorText = await response.text()
+      throw new Error(
+        `LangSmith create runs batch failed (${response.status}): ${truncate(errorText, ERROR_TEXT_MAX_LENGTH)}`
+      )
+    }
+
     const data = (await response.json()) as Record<string, unknown>
     const directMessage =
       typeof (data as { message?: unknown }).message === 'string'

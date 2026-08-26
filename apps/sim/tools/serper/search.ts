@@ -2,6 +2,155 @@ import type { SearchParams, SearchResponse, SearchResult } from '@/tools/serper/
 import { SERPER_SEARCH_RESULT_OUTPUT_PROPERTIES } from '@/tools/serper/types'
 import type { ToolConfig } from '@/tools/types'
 
+/** Every Serper vertical this tool is verified to speak. */
+type SerperSearchType = NonNullable<SearchParams['type']>
+
+interface SerperVertical {
+  /** Key on the Serper JSON payload holding this vertical's result array. */
+  responseKey: string
+  /** Projects one raw Serper item onto the unified {@link SearchResult} shape. */
+  toResult: (item: Record<string, unknown>, index: number) => SearchResult
+}
+
+/**
+ * Keyed dispatch for every supported vertical. Typing this as a `Record` over the
+ * `SearchParams['type']` union makes it a compile-time completeness gate: widening the union
+ * without adding the matching entry fails the build, instead of silently falling through to the
+ * organic branch and returning an empty (but billed) result set.
+ */
+const SERPER_VERTICALS: Record<SerperSearchType, SerperVertical> = {
+  search: {
+    responseKey: 'organic',
+    toResult: (item, index) => ({
+      title: item.title as string,
+      link: item.link as string,
+      snippet: item.snippet as string | undefined,
+      position: index + 1,
+      date: item.date as string | undefined,
+    }),
+  },
+  news: {
+    responseKey: 'news',
+    toResult: (item, index) => ({
+      title: item.title as string,
+      link: item.link as string,
+      snippet: item.snippet as string | undefined,
+      position: index + 1,
+      date: item.date as string | undefined,
+      imageUrl: item.imageUrl as string | undefined,
+    }),
+  },
+  places: {
+    responseKey: 'places',
+    toResult: (item, index) => ({
+      title: item.title as string,
+      link: item.link as string,
+      snippet: item.snippet as string | undefined,
+      position: index + 1,
+      rating: item.rating as number | undefined,
+      reviews: item.reviews as number | undefined,
+      address: item.address as string | undefined,
+    }),
+  },
+  images: {
+    responseKey: 'images',
+    toResult: (item, index) => ({
+      title: item.title as string,
+      link: item.link as string,
+      snippet: item.snippet as string | undefined,
+      position: index + 1,
+      imageUrl: item.imageUrl as string | undefined,
+    }),
+  },
+  videos: {
+    responseKey: 'videos',
+    toResult: (item, index) => ({
+      title: item.title as string,
+      link: item.link as string,
+      snippet: item.snippet as string | undefined,
+      position: index + 1,
+      date: item.date as string | undefined,
+      source: item.source as string | undefined,
+      duration: item.duration as string | undefined,
+    }),
+  },
+  shopping: {
+    responseKey: 'shopping',
+    toResult: (item, index) => ({
+      title: item.title as string,
+      link: item.link as string,
+      snippet: item.snippet as string | undefined,
+      position: index + 1,
+      source: item.source as string | undefined,
+      price: item.price as string | undefined,
+      imageUrl: item.imageUrl as string | undefined,
+    }),
+  },
+  /**
+   * `scholar` and `patents` are real Serper verticals that predate the dispatch table. The previous
+   * if/else chain had no allowlist and fell through to `data.organic` for both, so `organic` is the
+   * key that reproduces their shipped behavior exactly. It is NOT confirmed against official Serper
+   * documentation — no published response schema for either vertical could be verified. They are
+   * listed here so the URL allowlist keeps accepting them (preserving prior behavior) rather than
+   * newly hard-failing requests that used to work; correct the key if Serper documents otherwise.
+   */
+  scholar: {
+    responseKey: 'organic',
+    toResult: (item, index) => ({
+      title: item.title as string,
+      link: item.link as string,
+      snippet: item.snippet as string | undefined,
+      position: index + 1,
+      date: item.date as string | undefined,
+    }),
+  },
+  patents: {
+    responseKey: 'organic',
+    toResult: (item, index) => ({
+      title: item.title as string,
+      link: item.link as string,
+      snippet: item.snippet as string | undefined,
+      position: index + 1,
+      date: item.date as string | undefined,
+    }),
+  },
+}
+
+const SERPER_SEARCH_TYPES = new Set<string>(Object.keys(SERPER_VERTICALS))
+
+const SERPER_SEARCH_TYPE_LIST = Object.keys(SERPER_VERTICALS).join(', ')
+
+/**
+ * Narrows a free-form `type` to a vertical the dispatch table handles. `type` is `user-or-llm`
+ * visible and is interpolated into the request path, so an unhandled value must fail loudly rather
+ * than reach Serper and come back as a shape this tool would flatten to an empty result set.
+ */
+function resolveSearchType(type: string | undefined): SerperSearchType {
+  const candidate = type || 'search'
+  if (!SERPER_SEARCH_TYPES.has(candidate)) {
+    throw new Error(
+      `Unsupported Serper search type "${candidate}". Supported types: ${SERPER_SEARCH_TYPE_LIST}.`
+    )
+  }
+  return candidate as SerperSearchType
+}
+
+/**
+ * Recovers the vertical from a request URL. Only a fallback for callers that invoke
+ * `transformResponse` without `params` — `response.url` is server-influenced, is empty on some
+ * fetch/mock paths, and can carry a query string or a redirect target. Returns `undefined` when it
+ * yields nothing usable so the caller falls back to the default vertical instead of dispatching on
+ * a partial value.
+ */
+function verticalFromUrl(url: string | undefined): string | undefined {
+  if (!url) return undefined
+  try {
+    return new URL(url).pathname.split('/').pop() || undefined
+  } catch {
+    return undefined
+  }
+}
+
 export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
   id: 'serper_search',
   name: 'Web Search',
@@ -39,7 +188,7 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Type of search to perform (e.g., "search", "news", "images", "videos", "places", "shopping")',
+        'Type of search to perform. Must be one of "search", "news", "places", "images", "videos", "shopping", "scholar", "patents" — any other value is rejected.',
     },
     apiKey: {
       type: 'string',
@@ -72,7 +221,7 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
   },
 
   request: {
-    url: (params) => `https://google.serper.dev/${params.type || 'search'}`,
+    url: (params) => `https://google.serper.dev/${resolveSearchType(params.type)}`,
     method: 'POST',
     headers: (params) => ({
       'X-API-KEY': params.apiKey,
@@ -92,54 +241,15 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
     },
   },
 
-  transformResponse: async (response: Response) => {
+  transformResponse: async (response: Response, params?: SearchParams) => {
     const data = await response.json()
 
-    const searchType = response.url.split('/').pop() || 'search'
-    let searchResults: SearchResult[] = []
-
-    if (searchType === 'news') {
-      searchResults =
-        data.news?.map((item: any, index: number) => ({
-          title: item.title,
-          link: item.link,
-          snippet: item.snippet,
-          position: index + 1,
-          date: item.date,
-          imageUrl: item.imageUrl,
-        })) || []
-    } else if (searchType === 'places') {
-      searchResults =
-        data.places?.map((item: any, index: number) => ({
-          title: item.title,
-          link: item.link,
-          snippet: item.snippet,
-          position: index + 1,
-          rating: item.rating,
-          reviews: item.reviews,
-          address: item.address,
-        })) || []
-    } else if (searchType === 'images') {
-      searchResults =
-        data.images?.map((item: any, index: number) => ({
-          title: item.title,
-          link: item.link,
-          snippet: item.snippet,
-          position: index + 1,
-          imageUrl: item.imageUrl,
-        })) || []
-    } else {
-      searchResults =
-        data.organic?.map((item: any, index: number) => ({
-          title: item.title,
-          link: item.link,
-          snippet: item.snippet,
-          position: index + 1,
-          // Google reports a date on many organic results, and the output schema has always declared
-          // it optional — dropping it here was silently discarding it for web searches alone.
-          date: item.date,
-        })) || []
-    }
+    const vertical =
+      SERPER_VERTICALS[resolveSearchType(params?.type ?? verticalFromUrl(response.url))]
+    const items = data[vertical.responseKey]
+    const searchResults: SearchResult[] = Array.isArray(items)
+      ? items.map((item, index) => vertical.toResult(item, index))
+      : []
 
     return {
       success: true,
@@ -153,7 +263,7 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
     searchResults: {
       type: 'array',
       description:
-        'Search results with titles, links, snippets, and type-specific metadata (date for news, rating for places, imageUrl for images)',
+        'Search results with titles, links, snippets, and type-specific metadata (date for news, rating for places, imageUrl for images, duration/source for videos, price/source for shopping)',
       items: {
         type: 'object',
         properties: SERPER_SEARCH_RESULT_OUTPUT_PROPERTIES,

@@ -1,6 +1,16 @@
 import { generateId } from '@sim/utils/id'
 import type { LangsmithRunPayload } from '@/tools/langsmith/types'
 
+/** Versioned LangSmith API base. Only `/api/v1/*` paths are declared in the published OpenAPI spec. */
+export const LANGSMITH_API_BASE = 'https://api.smith.langchain.com/api/v1'
+
+/**
+ * Upper bound on upstream error bodies echoed into a thrown message. An HTML
+ * error page or a large payload echo would otherwise land whole in the error
+ * string, the execution log, and the model's context.
+ */
+export const ERROR_TEXT_MAX_LENGTH = 500
+
 interface NormalizedRunPayload {
   payload: LangsmithRunPayload
   runId: string
