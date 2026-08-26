@@ -262,27 +262,3 @@ List all contacts from your Fireflies.ai meetings
 | `contacts` | array | List of contacts from meetings |
 
 
-
-## Triggers
-
-A **Trigger** is a block that starts a workflow when an event happens in this service.
-
-### Fireflies Transcription Complete
-
-Trigger workflow when a Fireflies meeting transcription is complete
-
-#### Configuration
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `webhookSecret` | string | No | Secret key for HMAC signature verification \(set in Fireflies dashboard\) |
-
-#### Output
-
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `meetingId` | string | The ID of the transcribed meeting |
-| `eventType` | string | The type of event \(e.g. Transcription completed, meeting.transcribed\) |
-| `clientReferenceId` | string | Custom reference ID if set during upload |
-| `timestamp` | number | Unix timestamp in milliseconds when the event was fired \(V2 webhooks\) |
-

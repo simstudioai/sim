@@ -256,11 +256,13 @@ Common patch fields: outputs, end_time, status, error`,
       /**
        * The feedback path's own Session ID field.
        *
-       * `POST /api/v1/feedback` documents `session_id` as required ("it identifies the tracing
-       * project the feedback belongs to"), so it cannot sit behind the block-level advanced
-       * toggle the way the optional `session_id` on the create-run path does. `mode` is static
-       * per subBlock, so the two paths need two fields; the params mapper falls back to the old
-       * shared `session_id` so blocks that already stored a value under it keep working.
+       * Deliberately not `required`. The endpoint's prose calls `session_id` required, but
+       * `FeedbackCreateSchema` lists only `key` in its `required` array and LangSmith's own SDK
+       * posts feedback without a `session_id`, so enforcing it here would reject workflows the
+       * API still accepts. It gets its own field — rather than reusing the create-run path's
+       * `session_id`, which sits behind the advanced toggle — because `mode` is static per
+       * subBlock; the params mapper falls back to the old shared `session_id` so blocks that
+       * already stored a value under it keep working.
        */
       id: 'feedback_session_id',
       title: 'Session ID',
@@ -474,7 +476,7 @@ Common patch fields: outputs, end_time, status, error`,
     feedback_session_id: {
       type: 'string',
       description:
-        'UUID of the tracing project (session) the feedback belongs to. Required by LangSmith when creating feedback',
+        'UUID of the tracing project (session) the feedback belongs to. Optional — LangSmith accepts feedback without it',
     },
     session_name: { type: 'string', description: 'Session name' },
     status: { type: 'string', description: 'Run status' },

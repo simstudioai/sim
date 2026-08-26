@@ -9,8 +9,9 @@ export const DAYTONA_API_BASE_URL = 'https://app.daytona.io/api'
  * Daytona models the toolbox proxy as a required per-sandbox field
  * (`Sandbox.toolboxProxyUrl`, also served by
  * `GET /sandbox/{sandboxId}/toolbox-proxy-url`), and both official SDKs rebind
- * it per sandbox. This constant is only the Cloud default used when no
- * per-sandbox URL is available to the caller — self-hosted and regional
+ * it per sandbox. This constant is the Cloud default, and is currently the host
+ * every Sim toolbox request targets — see {@link daytonaToolboxUrl} for why the
+ * per-sandbox host is not threaded through. Self-hosted and regional
  * deployments report a different host on the sandbox itself.
  */
 export const DAYTONA_TOOLBOX_BASE_URL = 'https://proxy.app.daytona.io/toolbox'
@@ -31,8 +32,21 @@ export function encodeSandboxId(sandboxId: string): string {
 /**
  * Builds a toolbox API URL for a sandbox-scoped endpoint.
  *
- * `baseUrl` accepts the sandbox's own `toolboxProxyUrl` when the caller has it;
- * otherwise the Cloud default applies.
+ * Every production call site omits `baseUrl` and therefore targets
+ * {@link DAYTONA_TOOLBOX_BASE_URL}. That is deliberate, not an oversight:
+ * toolbox requests carry the workspace's Daytona bearer token, so a base URL
+ * taken from tool params — which an LLM or a workflow author can set — would
+ * be a credential-exfiltration primitive, redirecting an authenticated request
+ * to an arbitrary host. `toolboxProxyUrl` is surfaced on the sandbox outputs
+ * for visibility only; it is never fed back in as a request target.
+ *
+ * Routing a regional or self-hosted sandbox to its own proxy therefore requires
+ * a server-side lookup — `GET /sandbox/{sandboxId}/toolbox-proxy-url`, or the
+ * `toolboxProxyUrl` already on the sandbox record — resolved with the same
+ * credential the request will use, never a value supplied by the caller. That
+ * needs an async request path these tools do not have (`request.url` is sync),
+ * so it is unimplemented. The `baseUrl` parameter exists as the seam that
+ * lookup would fill; until then only tests pass it.
  */
 export function daytonaToolboxUrl(
   sandboxId: string,
@@ -148,7 +162,8 @@ export const DAYTONA_SANDBOX_OUTPUT_PROPERTIES = {
   updatedAt: { type: 'string', description: 'Last update timestamp', optional: true },
   toolboxProxyUrl: {
     type: 'string',
-    description: 'Toolbox proxy base URL this sandbox is reachable through',
+    description:
+      'Toolbox proxy base URL this sandbox is reachable through, as reported by Daytona (informational: Sim toolbox requests always target the Cloud proxy)',
     optional: true,
   },
 } as const

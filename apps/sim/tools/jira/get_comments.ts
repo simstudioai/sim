@@ -5,6 +5,48 @@ import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
 /**
+ * The sort orders Jira's REST v3 spec declares for
+ * `GET /rest/api/3/issue/{issueIdOrKey}/comment` — the `orderBy` parameter's
+ * `enum` is exactly these three values.
+ */
+const COMMENT_ORDER_BY = ['created', '-created', '+created'] as const
+
+const DEFAULT_ORDER_BY: (typeof COMMENT_ORDER_BY)[number] = '-created'
+
+/**
+ * Builds the comments URL for both call sites — `request.url` and the
+ * `transformResponse` rebuild — so the two cannot drift.
+ *
+ * `orderBy` is `visibility: 'user-or-llm'` and was interpolated raw, so a value
+ * like `-created&maxResults=5000` appended arbitrary query parameters to a
+ * request carrying the caller's OAuth token. It is **rejected** rather than
+ * encoded: the parameter has a closed, documented enum, and the only legal
+ * value containing a reserved character is `+created`, whose `+` any encoder
+ * rewrites to `%2B`. Jira documents no decoding guarantee for that spelling, so
+ * encoding would risk silently changing the meaning of a legal value — while
+ * rejection leaves all three legal spellings byte-identical to before.
+ *
+ * `startAt` and `maxResults` have no enum, so they are *encoded* instead:
+ * `URLSearchParams` contains a hostile value inside its own parameter without
+ * rejecting any value Jira might accept.
+ */
+function buildCommentsUrl(cloudId: string, params: JiraGetCommentsParams): string {
+  const rawOrderBy = params.orderBy?.trim()
+  const orderBy = rawOrderBy ? rawOrderBy : DEFAULT_ORDER_BY
+
+  if (!(COMMENT_ORDER_BY as readonly string[]).includes(orderBy)) {
+    throw new Error(`orderBy must be one of ${COMMENT_ORDER_BY.join(', ')}`)
+  }
+
+  const query = new URLSearchParams({
+    startAt: String(params.startAt ?? 0),
+    maxResults: String(params.maxResults ?? 50),
+  })
+
+  return `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${safeUrlPathSegment(params.issueKey ?? '', 'issueKey')}/comment?${query.toString()}&orderBy=${orderBy}`
+}
+
+/**
  * Transforms a raw Jira comment object into typed output.
  */
 function transformComment(comment: any) {
@@ -69,7 +111,7 @@ export const jiraGetCommentsTool: ToolConfig<JiraGetCommentsParams, JiraGetComme
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Sort order for comments: "-created" for newest first, "created" for oldest first',
+        'Sort order for comments. Must be exactly "created", "-created" (newest first), or "+created"; any other value is rejected.',
     },
     cloudId: {
       type: 'string',
@@ -83,10 +125,7 @@ export const jiraGetCommentsTool: ToolConfig<JiraGetCommentsParams, JiraGetComme
   request: {
     url: (params: JiraGetCommentsParams) => {
       if (params.cloudId) {
-        const startAt = params.startAt ?? 0
-        const maxResults = params.maxResults ?? 50
-        const orderBy = params.orderBy ?? '-created'
-        return `https://api.atlassian.com/ex/jira/${params.cloudId}/rest/api/3/issue/${safeUrlPathSegment(params.issueKey ?? '', 'issueKey')}/comment?startAt=${startAt}&maxResults=${maxResults}&orderBy=${orderBy}`
+        return buildCommentsUrl(params.cloudId, params)
       }
       return 'https://api.atlassian.com/oauth/token/accessible-resources'
     },
@@ -101,10 +140,7 @@ export const jiraGetCommentsTool: ToolConfig<JiraGetCommentsParams, JiraGetComme
 
   transformResponse: async (response: Response, params?: JiraGetCommentsParams) => {
     const fetchComments = async (cloudId: string) => {
-      const startAt = params?.startAt ?? 0
-      const maxResults = params?.maxResults ?? 50
-      const orderBy = params?.orderBy ?? '-created'
-      const commentsUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${safeUrlPathSegment(params!.issueKey ?? '', 'issueKey')}/comment?startAt=${startAt}&maxResults=${maxResults}&orderBy=${orderBy}`
+      const commentsUrl = buildCommentsUrl(cloudId, params!)
       const commentsResponse = await fetch(commentsUrl, {
         method: 'GET',
         headers: {

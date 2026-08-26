@@ -3,6 +3,7 @@
  */
 import { toError } from '@sim/utils/errors'
 import { describe, expect, it } from 'vitest'
+import { LangsmithBlock } from '@/blocks/blocks/langsmith'
 import { langsmithCreateFeedbackTool } from '@/tools/langsmith/create_feedback'
 import { langsmithCreateRunTool } from '@/tools/langsmith/create_run'
 import { langsmithCreateRunsBatchTool } from '@/tools/langsmith/create_runs_batch'
@@ -545,6 +546,31 @@ describe('langsmith feedback session_id documentation', () => {
   it('tells the model where to obtain the project UUID instead of guessing one', () => {
     expect(description).toMatch(/never guess|do not guess/i)
     expect(description).toContain('/sessions')
+  })
+})
+
+describe('langsmith feedback session_id is not enforced by LangSmith', () => {
+  const toolDescription = langsmithCreateFeedbackTool.params.sessionId.description ?? ''
+  const blockDescription = LangsmithBlock.inputs?.feedback_session_id?.description ?? ''
+  const feedbackSessionSubBlock = LangsmithBlock.subBlocks.find(
+    (subBlock) => subBlock.id === 'feedback_session_id'
+  )
+
+  it('does not tell the model the OpenAPI spec marks session_id as required', () => {
+    expect(toolDescription).not.toMatch(/documents it as required|session_id is required/i)
+  })
+
+  it('states that only key is required by POST /api/v1/feedback', () => {
+    expect(toolDescription).toMatch(/only `?key`? is required/i)
+  })
+
+  it('does not claim in the block inputs that LangSmith requires it', () => {
+    expect(blockDescription).not.toMatch(/required by langsmith/i)
+  })
+
+  it('leaves the feedback Session ID subBlock optional so saved blocks keep validating', () => {
+    expect(feedbackSessionSubBlock).toBeDefined()
+    expect(feedbackSessionSubBlock?.required).toBeUndefined()
   })
 })
 

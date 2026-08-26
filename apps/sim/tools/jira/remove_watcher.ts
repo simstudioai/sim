@@ -4,6 +4,25 @@ import { getJiraCloudId } from '@/tools/jira/utils'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
+/**
+ * Builds the watchers URL for both call sites — `request.url` and the
+ * `transformResponse` rebuild — so the two cannot drift.
+ *
+ * `accountId` is `required: true`, but the previous
+ * `encodeURIComponent(params.accountId?.trim() ?? '')` turned an absent value
+ * into `?accountId=`, sending a DELETE that names no watcher instead of
+ * reporting the missing parameter. It now fails by name, matching the message
+ * shape the path guards in `@/tools/url-path` use.
+ */
+function buildWatcherUrl(cloudId: string, params: JiraRemoveWatcherParams): string {
+  const accountId = params.accountId?.trim()
+  if (!accountId) {
+    throw new Error('accountId is required')
+  }
+
+  return `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${safeUrlPathSegment(params.issueKey ?? '', 'issueKey')}/watchers?accountId=${encodeURIComponent(accountId)}`
+}
+
 export const jiraRemoveWatcherTool: ToolConfig<JiraRemoveWatcherParams, JiraRemoveWatcherResponse> =
   {
     id: 'jira_remove_watcher',
@@ -53,7 +72,7 @@ export const jiraRemoveWatcherTool: ToolConfig<JiraRemoveWatcherParams, JiraRemo
     request: {
       url: (params: JiraRemoveWatcherParams) => {
         if (params.cloudId) {
-          return `https://api.atlassian.com/ex/jira/${params.cloudId}/rest/api/3/issue/${safeUrlPathSegment(params.issueKey ?? '', 'issueKey')}/watchers?accountId=${encodeURIComponent(params.accountId?.trim() ?? '')}`
+          return buildWatcherUrl(params.cloudId, params)
         }
         return 'https://api.atlassian.com/oauth/token/accessible-resources'
       },
@@ -69,7 +88,7 @@ export const jiraRemoveWatcherTool: ToolConfig<JiraRemoveWatcherParams, JiraRemo
     transformResponse: async (response: Response, params?: JiraRemoveWatcherParams) => {
       if (!params?.cloudId) {
         const cloudId = await getJiraCloudId(params!.domain, params!.accessToken)
-        const watcherUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${safeUrlPathSegment(params!.issueKey ?? '', 'issueKey')}/watchers?accountId=${encodeURIComponent(params!.accountId?.trim() ?? '')}`
+        const watcherUrl = buildWatcherUrl(cloudId, params!)
         const watcherResponse = await fetch(watcherUrl, {
           method: 'DELETE',
           headers: {

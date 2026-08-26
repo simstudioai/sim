@@ -17,7 +17,7 @@
  * count and fixed-segment shape rather than a bare `startsWith` prefix (which
  * `/ex/jira/..` would still satisfy).
  */
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import * as serviceTools from '@/tools/jira/index'
 import type { ToolConfig } from '@/tools/types'
 
@@ -61,6 +61,16 @@ function tokenFor(name: string): string {
 }
 
 /**
+ * Params whose provider declares a closed enum. A probe token is not a legal
+ * value for these, so the harness supplies a documented one — otherwise the
+ * builder throws and the tool disappears from the suite instead of being
+ * covered, which is precisely the silent-skip this file now asserts against.
+ */
+const ENUM_PARAM_VALUES: Record<string, string> = {
+  orderBy: '-created',
+}
+
+/**
  * Fills every declared param so whichever one reaches the path is exercised.
  * In-scope (`user-or-llm`) string params get a unique token; everything else
  * gets an inert value.
@@ -74,6 +84,7 @@ function buildParams(tool: AnyTool, overrides: Record<string, string>): Record<s
     else if (type === 'number') params[name] = 1
     else if (type === 'boolean') params[name] = false
     else if (name in overrides) params[name] = overrides[name]
+    else if (name in ENUM_PARAM_VALUES) params[name] = ENUM_PARAM_VALUES[name]
     else if (visibility === 'user-or-llm') params[name] = tokenFor(name)
     else params[name] = 'inert'
   }
@@ -88,12 +99,21 @@ function segmentsOf(url: URL): string[] {
   return url.pathname.split('/')
 }
 
+/**
+ * Tools whose `request.url` IS a builder but could not be resolved from the
+ * probe params. Previously the `catch` below returned `[]`, which silently
+ * dropped the tool from the whole suite; the list is now asserted empty so an
+ * unbuildable tool is visible rather than skipped.
+ */
+const UNBUILDABLE: string[] = []
+
 /** Every `user-or-llm` string param whose token actually lands in the path. */
 function pathParamsOf(tool: AnyTool): string[] {
   let baseline: URL
   try {
     baseline = buildUrl(tool)
   } catch {
+    UNBUILDABLE.push(tool.id)
     return []
   }
   const query = baseline.search
@@ -106,10 +126,59 @@ function pathParamsOf(tool: AnyTool): string[] {
     .filter((name) => baseline.pathname.includes(tokenFor(name)) && !query.includes(tokenFor(name)))
 }
 
+/** Every exported Jira tool, whatever shape its `request.url` takes. */
+const ALL_TOOLS = Object.values(serviceTools).filter(
+  (value): value is AnyTool =>
+    typeof value === 'object' &&
+    value !== null &&
+    typeof (value as AnyTool).id === 'string' &&
+    (value as AnyTool).id.startsWith('jira_')
+)
+
+/**
+ * Tools that POST to an internal Next.js route instead of calling Atlassian
+ * directly. Their provider URL is assembled inside the route, so this suite
+ * structurally cannot see it — the guards live in
+ * the route handlers under `app/api/tools/jira` and are covered by those
+ * routes' own tests.
+ * Pinned so a tool moving into or out of that shape is not a silent gap.
+ */
+const INTERNAL_ROUTE_TOOLS = ALL_TOOLS.filter((tool) => typeof tool.request?.url === 'string')
+  .map((tool) => tool.id)
+  .sort()
+
 const PATH_TOOLS = Object.values(serviceTools)
   .filter(isServiceTool)
   .map((tool) => ({ name: tool.id, tool, pathParams: pathParamsOf(tool) }))
   .filter((entry) => entry.pathParams.length > 0)
+
+/**
+ * The exact set of tools whose `request.url` interpolates an LLM-writable
+ * identifier into a path. Pinned by name, not by a `>=` floor, so a guard that
+ * disappears — or a builder that starts throwing on the probe params — fails
+ * here instead of quietly shrinking the suite.
+ */
+const EXPECTED_PATH_TOOLS = [
+  'jira_add_comment',
+  'jira_add_watcher',
+  'jira_add_worklog',
+  'jira_assign_issue',
+  'jira_delete_attachment',
+  'jira_delete_comment',
+  'jira_delete_issue',
+  'jira_delete_issue_link',
+  'jira_delete_worklog',
+  'jira_get_attachments',
+  'jira_get_comments',
+  'jira_get_project',
+  'jira_get_transitions',
+  'jira_get_worklogs',
+  'jira_remove_watcher',
+  'jira_retrieve',
+  'jira_transition_issue',
+  'jira_update_comment',
+  'jira_update_worklog',
+]
 
 /**
  * Asserts the resolved path has the baseline's segment count and that every
@@ -118,8 +187,13 @@ const PATH_TOOLS = Object.values(serviceTools)
  * suffix). A `startsWith(prefix)` check alone would pass for `prefix/..`.
  */
 function expectSameShape(tool: AnyTool, param: string, actual: URL) {
+  expectSameShapeAgainst(buildUrl(tool), param, actual)
+}
+
+/** {@link expectSameShape} against an explicit baseline URL. */
+function expectSameShapeAgainst(baselineUrl: URL, param: string, actual: URL) {
   const token = tokenFor(param)
-  const baseline = segmentsOf(buildUrl(tool))
+  const baseline = segmentsOf(baselineUrl)
   const actualSegments = segmentsOf(actual)
 
   expect(actual.origin).toBe(ORIGIN)
@@ -143,8 +217,16 @@ function expectSameShape(tool: AnyTool, param: string, actual: URL) {
 }
 
 describe('Jira path traversal safety', () => {
-  it('covers every tool that interpolates an identifier into its path', () => {
-    expect(PATH_TOOLS.length).toBeGreaterThanOrEqual(17)
+  it('covers exactly the tools that interpolate an identifier into their path', () => {
+    expect(PATH_TOOLS.map((entry) => entry.name).sort()).toEqual(EXPECTED_PATH_TOOLS)
+  })
+
+  it('resolves a probe URL for every tool with a URL builder', () => {
+    expect(UNBUILDABLE).toEqual([])
+  })
+
+  it('leaves only the internal-route tools to their route tests', () => {
+    expect(INTERNAL_ROUTE_TOOLS).toEqual(['jira_add_attachment', 'jira_update', 'jira_write'])
   })
 
   describe.each(PATH_TOOLS)('$name', ({ tool, pathParams }) => {

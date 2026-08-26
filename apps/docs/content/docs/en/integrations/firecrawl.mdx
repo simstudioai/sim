@@ -53,6 +53,7 @@ Extract structured content from web pages with comprehensive metadata support. C
 | `url` | string | Yes | The URL to scrape content from \(e.g., "https://example.com/page"\) |
 | `formats` | json | No | Output formats supplied by existing Firecrawl block configurations |
 | `scrapeOptions` | json | No | Options for content scraping |
+| `firecrawlTimeout` | number | No | How long Firecrawl may spend on the scrape, in milliseconds. Sent as `timeout` in the request body; it does not bound Sim's own transport deadline. |
 | `apiKey` | string | Yes | Firecrawl API key |
 
 #### Output
@@ -161,11 +162,11 @@ Search for information on the web using Firecrawl
 | `query` | string | Yes | The search query to use |
 | `limit` | number | No | Maximum number of results to return per source type, not in total \(Firecrawl default: 10, maximum: 100\). Requesting three sources at limit 100 can return up to 300 results. |
 | `sources` | array | No | Result sources to search: "web", "news", and/or "images". Defaults to \["web"\]. Each requested source is returned as its own array under `data` — `data.web`, `data.news`, `data.images` — with its own item fields. |
-| `categories` | array | No | Restrict web results to these categories: "github", "research", or "pdf" |
+| `categories` | array | No | Restrict web results to these categories: "github", "research", "pdf", or "developer". "developer" cannot be combined with any other category. |
 | `tbs` | string | No | Time-based search filter \(e.g. "qdr:d" for the past day, "qdr:w" for the past week\) |
 | `location` | string | No | Location to search from \(e.g. "Germany", "San Francisco, California"\) |
-| `country` | string | No | Two-letter country code to search from \(Firecrawl default: "US"\) |
-| `timeout` | number | No | Request timeout in milliseconds \(Firecrawl default: 60000\) |
+| `country` | string | No | Two-letter country code to search from. Firecrawl falls back to "us" only when `location` is also unset; setting `location` leaves the country unset instead. |
+| `firecrawlTimeout` | number | No | How long Firecrawl may spend on the search, in milliseconds \(Firecrawl default: 60000\). Sent as `timeout` in the request body; it does not bound Sim's own transport deadline. |
 | `ignoreInvalidURLs` | boolean | No | Skip results whose URLs cannot be scraped instead of failing the search |
 | `scrapeOptions` | json | No | Advanced scrape options supplied by existing configurations |
 | `apiKey` | string | Yes | Firecrawl API key |
@@ -286,7 +287,7 @@ Get a complete list of URLs from any website quickly and reliably. Useful for di
 | `includeSubdomains` | boolean | No | Whether to include URLs from subdomains \(default: true\) |
 | `ignoreQueryParameters` | boolean | No | Exclude URLs containing query strings \(default: true\) |
 | `limit` | number | No | Maximum number of links to return \(e.g., 100, 1000, 5000\). Max: 100,000, default: 5,000 |
-| `timeout` | number | No | Request timeout in milliseconds |
+| `firecrawlTimeout` | number | No | How long Firecrawl may spend on the map, in milliseconds. Sent as `timeout` in the request body; it does not bound Sim's own transport deadline. |
 | `location` | json | No | Geographic context for proxying \(country, languages\) |
 | `apiKey` | string | Yes | Firecrawl API key |
 
@@ -295,7 +296,10 @@ Get a complete list of URLs from any website quickly and reliably. Useful for di
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the mapping operation was successful |
-| `links` | array | Array of discovered URLs from the website |
+| `links` | array | Discovered links. Each entry is an object with `url` and optional `title`/`description` — read `&lt;firecrawl.links&gt;\[i\].url` for the address, not the entry itself. |
+|   ↳ `url` | string | The discovered URL |
+|   ↳ `title` | string | Page title, when Firecrawl resolved one |
+|   ↳ `description` | string | Page description, when Firecrawl resolved one |
 
 ### Firecrawl Extract
 
