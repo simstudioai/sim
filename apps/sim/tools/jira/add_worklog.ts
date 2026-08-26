@@ -7,6 +7,7 @@ import {
   transformUser,
 } from '@/tools/jira/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 /**
  * Builds the worklog request body per Jira API v3.
@@ -109,7 +110,7 @@ export const jiraAddWorklogTool: ToolConfig<JiraAddWorklogParams, JiraAddWorklog
   request: {
     url: (params: JiraAddWorklogParams) => {
       if (params.cloudId) {
-        return `https://api.atlassian.com/ex/jira/${params.cloudId}/rest/api/3/issue/${params.issueKey?.trim() ?? ''}/worklog`
+        return `https://api.atlassian.com/ex/jira/${params.cloudId}/rest/api/3/issue/${safeUrlPathSegment(params.issueKey ?? '', 'issueKey')}/worklog`
       }
       return 'https://api.atlassian.com/oauth/token/accessible-resources'
     },
@@ -134,7 +135,7 @@ export const jiraAddWorklogTool: ToolConfig<JiraAddWorklogParams, JiraAddWorklog
     }
 
     const makeRequest = async (cloudId: string) => {
-      const worklogUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params!.issueKey?.trim() ?? ''}/worklog`
+      const worklogUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${safeUrlPathSegment(params!.issueKey ?? '', 'issueKey')}/worklog`
       const worklogResponse = await fetch(worklogUrl, {
         method: 'POST',
         headers: {

@@ -1,6 +1,7 @@
 import type { GoogleDriveFile, GoogleDriveToolParams } from '@/tools/google_drive/types'
 import { ALL_FILE_FIELDS } from '@/tools/google_drive/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 interface GoogleDriveMoveParams extends GoogleDriveToolParams {
   fileId: string
@@ -80,14 +81,15 @@ export const moveTool: ToolConfig<GoogleDriveMoveParams, GoogleDriveMoveResponse
     }
 
     // Build the PATCH URL with addParents
-    const url = new URL(`https://www.googleapis.com/drive/v3/files/${fileId}`)
+    const safeFileId = safeUrlPathSegment(fileId, 'fileId')
+    const url = new URL(`https://www.googleapis.com/drive/v3/files/${safeFileId}`)
     url.searchParams.append('addParents', destinationFolderId)
     url.searchParams.append('fields', ALL_FILE_FIELDS)
     url.searchParams.append('supportsAllDrives', 'true')
 
     if (removeFromCurrent) {
       // Fetch current parents so we can remove them
-      const metadataUrl = new URL(`https://www.googleapis.com/drive/v3/files/${fileId}`)
+      const metadataUrl = new URL(`https://www.googleapis.com/drive/v3/files/${safeFileId}`)
       metadataUrl.searchParams.append('fields', 'parents')
       metadataUrl.searchParams.append('supportsAllDrives', 'true')
 

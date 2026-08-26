@@ -1,6 +1,7 @@
 import type { GoogleDriveFile, GoogleDriveToolParams } from '@/tools/google_drive/types'
 import { ALL_FILE_FIELDS } from '@/tools/google_drive/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 interface GoogleDriveUntrashParams extends GoogleDriveToolParams {
   fileId: string
@@ -40,7 +41,9 @@ export const untrashTool: ToolConfig<GoogleDriveUntrashParams, GoogleDriveUntras
 
   request: {
     url: (params) => {
-      const url = new URL(`https://www.googleapis.com/drive/v3/files/${params.fileId?.trim()}`)
+      const url = new URL(
+        `https://www.googleapis.com/drive/v3/files/${safeUrlPathSegment(params.fileId ?? '', 'fileId')}`
+      )
       url.searchParams.append('fields', ALL_FILE_FIELDS)
       url.searchParams.append('supportsAllDrives', 'true')
       return url.toString()

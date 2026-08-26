@@ -2,6 +2,7 @@ import type { JiraAddCommentParams, JiraAddCommentResponse } from '@/tools/jira/
 import { SUCCESS_OUTPUT, TIMESTAMP_OUTPUT, USER_OUTPUT_PROPERTIES } from '@/tools/jira/types'
 import { extractAdfText, getJiraCloudId, toAdf, transformUser } from '@/tools/jira/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 /**
  * Transforms an add comment API response into typed output.
@@ -74,7 +75,7 @@ export const jiraAddCommentTool: ToolConfig<JiraAddCommentParams, JiraAddComment
   request: {
     url: (params: JiraAddCommentParams) => {
       if (params.cloudId) {
-        return `https://api.atlassian.com/ex/jira/${params.cloudId}/rest/api/3/issue/${params.issueKey?.trim() ?? ''}/comment`
+        return `https://api.atlassian.com/ex/jira/${params.cloudId}/rest/api/3/issue/${safeUrlPathSegment(params.issueKey ?? '', 'issueKey')}/comment`
       }
       return 'https://api.atlassian.com/oauth/token/accessible-resources'
     },
@@ -99,7 +100,7 @@ export const jiraAddCommentTool: ToolConfig<JiraAddCommentParams, JiraAddComment
     if (params?.visibility) payload.visibility = params.visibility
 
     const makeRequest = async (cloudId: string) => {
-      const commentUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params!.issueKey?.trim() ?? ''}/comment`
+      const commentUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${safeUrlPathSegment(params!.issueKey ?? '', 'issueKey')}/comment`
       const commentResponse = await fetch(commentUrl, {
         method: 'POST',
         headers: {

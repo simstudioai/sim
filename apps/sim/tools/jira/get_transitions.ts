@@ -2,9 +2,10 @@ import type { JiraGetTransitionsParams, JiraGetTransitionsResponse } from '@/too
 import { TIMESTAMP_OUTPUT } from '@/tools/jira/types'
 import { getJiraCloudId, parseAtlassianErrorMessage } from '@/tools/jira/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 function buildTransitionsUrl(cloudId: string, issueKey: string): string {
-  return `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${encodeURIComponent(issueKey)}/transitions`
+  return `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${safeUrlPathSegment(issueKey, 'issueKey')}/transitions`
 }
 
 export const jiraGetTransitionsTool: ToolConfig<

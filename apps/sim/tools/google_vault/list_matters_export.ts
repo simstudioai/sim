@@ -1,6 +1,7 @@
 import type { GoogleVaultListMattersExportParams } from '@/tools/google_vault/types'
 import { enhanceGoogleVaultError } from '@/tools/google_vault/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const listMattersExportTool: ToolConfig<GoogleVaultListMattersExportParams> = {
   id: 'google_vault_list_matters_export',
@@ -49,9 +50,11 @@ export const listMattersExportTool: ToolConfig<GoogleVaultListMattersExportParam
   request: {
     url: (params) => {
       if (params.exportId) {
-        return `https://vault.googleapis.com/v1/matters/${params.matterId}/exports/${params.exportId}`
+        return `https://vault.googleapis.com/v1/matters/${safeUrlPathSegment(params.matterId, 'matterId')}/exports/${safeUrlPathSegment(params.exportId, 'exportId')}`
       }
-      const url = new URL(`https://vault.googleapis.com/v1/matters/${params.matterId}/exports`)
+      const url = new URL(
+        `https://vault.googleapis.com/v1/matters/${safeUrlPathSegment(params.matterId, 'matterId')}/exports`
+      )
       if (params.pageSize !== undefined && params.pageSize !== null) {
         const pageSize = Number(params.pageSize)
         if (Number.isFinite(pageSize) && pageSize > 0) {

@@ -2,6 +2,7 @@ import type { JiraDeleteWorklogParams, JiraDeleteWorklogResponse } from '@/tools
 import { SUCCESS_OUTPUT, TIMESTAMP_OUTPUT } from '@/tools/jira/types'
 import { getJiraCloudId } from '@/tools/jira/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const jiraDeleteWorklogTool: ToolConfig<JiraDeleteWorklogParams, JiraDeleteWorklogResponse> =
   {
@@ -52,7 +53,7 @@ export const jiraDeleteWorklogTool: ToolConfig<JiraDeleteWorklogParams, JiraDele
     request: {
       url: (params: JiraDeleteWorklogParams) => {
         if (params.cloudId) {
-          return `https://api.atlassian.com/ex/jira/${params.cloudId}/rest/api/3/issue/${params.issueKey?.trim() ?? ''}/worklog/${params.worklogId?.trim() ?? ''}`
+          return `https://api.atlassian.com/ex/jira/${params.cloudId}/rest/api/3/issue/${safeUrlPathSegment(params.issueKey ?? '', 'issueKey')}/worklog/${safeUrlPathSegment(params.worklogId ?? '', 'worklogId')}`
         }
         return 'https://api.atlassian.com/oauth/token/accessible-resources'
       },
@@ -68,7 +69,7 @@ export const jiraDeleteWorklogTool: ToolConfig<JiraDeleteWorklogParams, JiraDele
     transformResponse: async (response: Response, params?: JiraDeleteWorklogParams) => {
       if (!params?.cloudId) {
         const cloudId = await getJiraCloudId(params!.domain, params!.accessToken)
-        const worklogUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params!.issueKey?.trim() ?? ''}/worklog/${params!.worklogId?.trim() ?? ''}`
+        const worklogUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${safeUrlPathSegment(params!.issueKey ?? '', 'issueKey')}/worklog/${safeUrlPathSegment(params!.worklogId ?? '', 'worklogId')}`
         const worklogResponse = await fetch(worklogUrl, {
           method: 'DELETE',
           headers: {

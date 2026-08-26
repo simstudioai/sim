@@ -1,5 +1,6 @@
 import type { GoogleDriveToolParams } from '@/tools/google_drive/types'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 interface GoogleDriveUnshareParams extends GoogleDriveToolParams {
   fileId: string
@@ -49,7 +50,7 @@ export const unshareTool: ToolConfig<GoogleDriveUnshareParams, GoogleDriveUnshar
   request: {
     url: (params) => {
       const url = new URL(
-        `https://www.googleapis.com/drive/v3/files/${params.fileId?.trim()}/permissions/${params.permissionId?.trim()}`
+        `https://www.googleapis.com/drive/v3/files/${safeUrlPathSegment(params.fileId ?? '', 'fileId')}/permissions/${safeUrlPathSegment(params.permissionId ?? '', 'permissionId')}`
       )
       url.searchParams.append('supportsAllDrives', 'true')
       return url.toString()

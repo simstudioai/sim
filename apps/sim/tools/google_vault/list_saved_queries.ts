@@ -1,6 +1,7 @@
 import type { GoogleVaultListSavedQueriesParams } from '@/tools/google_vault/types'
 import { enhanceGoogleVaultError } from '@/tools/google_vault/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const listSavedQueriesTool: ToolConfig<GoogleVaultListSavedQueriesParams> = {
   id: 'google_vault_list_saved_queries',
@@ -49,10 +50,10 @@ export const listSavedQueriesTool: ToolConfig<GoogleVaultListSavedQueriesParams>
   request: {
     url: (params) => {
       if (params.savedQueryId) {
-        return `https://vault.googleapis.com/v1/matters/${params.matterId.trim()}/savedQueries/${params.savedQueryId.trim()}`
+        return `https://vault.googleapis.com/v1/matters/${safeUrlPathSegment(params.matterId, 'matterId')}/savedQueries/${safeUrlPathSegment(params.savedQueryId, 'savedQueryId')}`
       }
       const url = new URL(
-        `https://vault.googleapis.com/v1/matters/${params.matterId.trim()}/savedQueries`
+        `https://vault.googleapis.com/v1/matters/${safeUrlPathSegment(params.matterId, 'matterId')}/savedQueries`
       )
       if (params.pageSize !== undefined && params.pageSize !== null) {
         const pageSize = Number(params.pageSize)

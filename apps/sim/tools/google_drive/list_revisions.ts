@@ -1,6 +1,7 @@
 import type { GoogleDriveRevision, GoogleDriveToolParams } from '@/tools/google_drive/types'
 import { ALL_REVISION_FIELDS } from '@/tools/google_drive/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 interface GoogleDriveListRevisionsParams extends GoogleDriveToolParams {
   fileId: string
@@ -59,7 +60,7 @@ export const listRevisionsTool: ToolConfig<
   request: {
     url: (params) => {
       const url = new URL(
-        `https://www.googleapis.com/drive/v3/files/${params.fileId?.trim()}/revisions`
+        `https://www.googleapis.com/drive/v3/files/${safeUrlPathSegment(params.fileId ?? '', 'fileId')}/revisions`
       )
       url.searchParams.append('fields', `nextPageToken,revisions(${ALL_REVISION_FIELDS})`)
       if (params.pageSize) {

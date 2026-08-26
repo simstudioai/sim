@@ -1,6 +1,7 @@
 import type { GoogleVaultListMattersHoldsParams } from '@/tools/google_vault/types'
 import { enhanceGoogleVaultError } from '@/tools/google_vault/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const listMattersHoldsTool: ToolConfig<GoogleVaultListMattersHoldsParams> = {
   id: 'google_vault_list_matters_holds',
@@ -49,9 +50,11 @@ export const listMattersHoldsTool: ToolConfig<GoogleVaultListMattersHoldsParams>
   request: {
     url: (params) => {
       if (params.holdId) {
-        return `https://vault.googleapis.com/v1/matters/${params.matterId}/holds/${params.holdId}`
+        return `https://vault.googleapis.com/v1/matters/${safeUrlPathSegment(params.matterId, 'matterId')}/holds/${safeUrlPathSegment(params.holdId, 'holdId')}`
       }
-      const url = new URL(`https://vault.googleapis.com/v1/matters/${params.matterId}/holds`)
+      const url = new URL(
+        `https://vault.googleapis.com/v1/matters/${safeUrlPathSegment(params.matterId, 'matterId')}/holds`
+      )
       if (params.pageSize !== undefined && params.pageSize !== null) {
         const pageSize = Number(params.pageSize)
         if (Number.isFinite(pageSize) && pageSize > 0) {

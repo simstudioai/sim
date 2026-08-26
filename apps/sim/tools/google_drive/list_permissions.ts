@@ -1,5 +1,6 @@
 import type { GoogleDrivePermission, GoogleDriveToolParams } from '@/tools/google_drive/types'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 interface GoogleDriveListPermissionsParams extends GoogleDriveToolParams {
   fileId: string
@@ -51,7 +52,7 @@ export const listPermissionsTool: ToolConfig<
   request: {
     url: (params) => {
       const url = new URL(
-        `https://www.googleapis.com/drive/v3/files/${params.fileId?.trim()}/permissions`
+        `https://www.googleapis.com/drive/v3/files/${safeUrlPathSegment(params.fileId ?? '', 'fileId')}/permissions`
       )
       url.searchParams.append('supportsAllDrives', 'true')
       url.searchParams.append(

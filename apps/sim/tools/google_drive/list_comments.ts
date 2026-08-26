@@ -1,6 +1,7 @@
 import type { GoogleDriveComment, GoogleDriveToolParams } from '@/tools/google_drive/types'
 import { ALL_COMMENT_FIELDS } from '@/tools/google_drive/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 interface GoogleDriveListCommentsParams extends GoogleDriveToolParams {
   fileId: string
@@ -73,7 +74,7 @@ export const listCommentsTool: ToolConfig<
   request: {
     url: (params) => {
       const url = new URL(
-        `https://www.googleapis.com/drive/v3/files/${params.fileId?.trim()}/comments`
+        `https://www.googleapis.com/drive/v3/files/${safeUrlPathSegment(params.fileId ?? '', 'fileId')}/comments`
       )
       url.searchParams.append('fields', `nextPageToken,comments(${ALL_COMMENT_FIELDS})`)
       if (params.includeDeleted !== undefined) {

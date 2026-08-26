@@ -12,6 +12,7 @@ import {
   GOOGLE_WORKSPACE_MIME_TYPES,
 } from '@/tools/google_drive/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('GoogleDriveGetContentTool')
 
@@ -57,7 +58,7 @@ export const getContentTool: ToolConfig<GoogleDriveToolParams, GoogleDriveGetCon
 
   request: {
     url: (params) =>
-      `https://www.googleapis.com/drive/v3/files/${params.fileId?.trim()}?fields=${ALL_FILE_FIELDS}&supportsAllDrives=true`,
+      `https://www.googleapis.com/drive/v3/files/${safeUrlPathSegment(params.fileId ?? '', 'fileId')}?fields=${ALL_FILE_FIELDS}&supportsAllDrives=true`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,

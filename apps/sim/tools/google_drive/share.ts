@@ -1,5 +1,6 @@
 import type { GoogleDrivePermission, GoogleDriveToolParams } from '@/tools/google_drive/types'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 interface GoogleDriveShareParams extends GoogleDriveToolParams {
   fileId: string
@@ -98,7 +99,7 @@ export const shareTool: ToolConfig<GoogleDriveShareParams, GoogleDriveShareRespo
   request: {
     url: (params) => {
       const url = new URL(
-        `https://www.googleapis.com/drive/v3/files/${params.fileId?.trim()}/permissions`
+        `https://www.googleapis.com/drive/v3/files/${safeUrlPathSegment(params.fileId ?? '', 'fileId')}/permissions`
       )
       url.searchParams.append('supportsAllDrives', 'true')
       if (params.transferOwnership) {

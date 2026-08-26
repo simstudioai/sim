@@ -1,6 +1,7 @@
 import type { GoogleVaultCreateMattersExportParams } from '@/tools/google_vault/types'
 import { enhanceGoogleVaultError } from '@/tools/google_vault/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const createMattersExportTool: ToolConfig<GoogleVaultCreateMattersExportParams> = {
   id: 'google_vault_create_matters_export',
@@ -74,7 +75,8 @@ export const createMattersExportTool: ToolConfig<GoogleVaultCreateMattersExportP
   },
 
   request: {
-    url: (params) => `https://vault.googleapis.com/v1/matters/${params.matterId}/exports`,
+    url: (params) =>
+      `https://vault.googleapis.com/v1/matters/${safeUrlPathSegment(params.matterId, 'matterId')}/exports`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
