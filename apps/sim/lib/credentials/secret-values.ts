@@ -143,6 +143,53 @@ export async function setWorkspaceSecret(params: {
   return { created, updatedAt }
 }
 
+/**
+ * Updates one workspace secret's metadata, leaving its stored value untouched.
+ *
+ * Deliberately UPDATE-only: it never encrypts, never rewrites the environment
+ * variables map, and never inserts a credential row, so restoring redaction on a
+ * secret costs nothing and a metadata write can never conjure a secret that does
+ * not exist. A write that matches no row returns `null` and the caller answers
+ * not-found rather than creating one.
+ *
+ * The decrypted-env cache is still invalidated on a match: `unredacted` rides the
+ * environment snapshot into every run's redaction catalog, so a stale entry would
+ * keep printing a value the workspace just re-redacted.
+ */
+export async function updateWorkspaceSecretMetadata(params: {
+  workspaceId: string
+  name: string
+  /** `undefined` leaves any existing description untouched; `null` clears it. */
+  description?: string | null
+  /** `undefined` leaves the current setting. */
+  unredacted?: boolean
+}): Promise<SecretMutationResult | null> {
+  const { workspaceId, name, description, unredacted } = params
+  const updatedAt = new Date()
+
+  const updated = await db
+    .update(credential)
+    .set({
+      updatedAt,
+      ...(description !== undefined ? { description } : {}),
+      ...(unredacted !== undefined ? { unredacted } : {}),
+    })
+    .where(
+      and(
+        eq(credential.workspaceId, workspaceId),
+        eq(credential.type, 'env_workspace'),
+        eq(credential.envKey, name)
+      )
+    )
+    .returning({ id: credential.id })
+
+  if (updated.length === 0) return null
+
+  invalidateEffectiveDecryptedEnvCache({ workspaceId })
+
+  return { created: false, updatedAt }
+}
+
 /** Stores one caller-owned personal secret without decrypting any existing value. */
 export async function setPersonalSecret(params: {
   userId: string
