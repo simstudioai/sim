@@ -5,8 +5,7 @@ import { ensureCredential, SELECTOR_STALE } from '@/hooks/selectors/providers/sh
 import type { SelectorDefinition, SelectorKey, SelectorQueryArgs } from '@/hooks/selectors/types'
 
 function slackCredentialQueryKey(credential: string | undefined): string {
-  if (!credential) return 'none'
-  return credential.startsWith('xoxb-') ? 'direct-bot-token' : credential
+  return credential ? 'credential-present' : 'none'
 }
 
 function slackCredentialHasServerSecret(credential: string | undefined): boolean {

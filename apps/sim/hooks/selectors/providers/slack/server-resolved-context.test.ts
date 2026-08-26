@@ -72,29 +72,30 @@ describe('Slack server-resolved selector context', () => {
     expect(mocks.requestJson.mock.calls[0][1].body).toEqual({ credential: 'credential-1' })
   })
 
-  it('separates direct-token cache entries without putting plaintext in keys', () => {
+  it('separates arbitrary credentials without putting their text in keys', () => {
     const definition = slackSelectors['slack.channels']
-    const firstKey = getScopedSelectorQueryKey(definition, {
-      key: 'slack.channels',
-      context: {
-        workflowId: 'workflow-1',
-        workspaceId: 'workspace-1',
-        oauthCredential: 'xoxb-first-secret',
-        selectorCacheScope: 'revision-1',
-      },
-    })
-    const secondKey = getScopedSelectorQueryKey(definition, {
-      key: 'slack.channels',
-      context: {
-        workflowId: 'workflow-1',
-        workspaceId: 'workspace-1',
-        oauthCredential: 'xoxb-second-secret',
-        selectorCacheScope: 'revision-2',
-      },
-    })
+    const credentials = [
+      'credential-id',
+      'xoxb-clean-secret',
+      ' xoxb-padded-secret',
+      '"xoxb-quoted-secret"',
+      '{{SLACK_SECRET_REFERENCE}}',
+    ]
+    const keys = credentials.map((oauthCredential, index) =>
+      getScopedSelectorQueryKey(definition, {
+        key: 'slack.channels',
+        context: {
+          workflowId: 'workflow-1',
+          workspaceId: 'workspace-1',
+          oauthCredential,
+          selectorCacheScope: `revision-${index}`,
+        },
+      })
+    )
 
-    expect(firstKey).not.toEqual(secondKey)
-    expect(JSON.stringify([firstKey, secondKey])).not.toContain('xoxb-first-secret')
-    expect(JSON.stringify([firstKey, secondKey])).not.toContain('xoxb-second-secret')
+    expect(new Set(keys.map((key) => JSON.stringify(key))).size).toBe(credentials.length)
+    for (const credential of credentials) {
+      expect(JSON.stringify(keys)).not.toContain(credential)
+    }
   })
 })

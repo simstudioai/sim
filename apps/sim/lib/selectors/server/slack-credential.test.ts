@@ -136,40 +136,108 @@ describe('resolveSlackSelectorCredential', () => {
     expect(mocks.refreshToken).not.toHaveBeenCalled()
   })
 
-  it('requires workflow scope for a direct bot token', async () => {
+  it.each(['xoxb-literal-secret', '{{SLACK_CREDENTIAL}}'])(
+    'requires workflow scope before resolving %s',
+    async (credential) => {
+      const result = await resolveSlackSelectorCredential(principal, {
+        credential,
+        requestId: 'request-1',
+      })
+
+      expect(result).toEqual({
+        ok: false,
+        status: 400,
+        error: 'Unable to resolve selector configuration',
+      })
+      expect(mocks.resolveContext).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each([
+    ['OAuth', 'oauth', 'xoxp-oauth-token', false],
+    ['custom bot', 'service_account', 'xoxb-custom-bot-token', true],
+  ])(
+    'authorizes a referenced %s credential after environment resolution',
+    async (_label, credentialType, accessToken, isBotToken) => {
+      mocks.resolveContext
+        .mockResolvedValueOnce({
+          ok: true,
+          context: { credential: 'resolved-credential-id' },
+          requesterUserId: 'viewer-1',
+          workspaceId: 'workspace-1',
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          context: {},
+          requesterUserId: 'viewer-1',
+          workspaceId: 'workspace-1',
+          credentialAccess: {
+            ok: true,
+            workspaceId: 'workspace-1',
+            credentialOwnerUserId: 'owner-1',
+            credentialType,
+          },
+        })
+      mocks.refreshToken.mockResolvedValue(accessToken)
+
+      const result = await resolveSlackSelectorCredential(principal, {
+        credential: '{{SLACK_CREDENTIAL_ID}}',
+        workflowId: 'workflow-1',
+        requestId: 'request-1',
+      })
+
+      expect(mocks.resolveContext).toHaveBeenNthCalledWith(1, principal, {
+        workflowId: 'workflow-1',
+        context: { credential: '{{SLACK_CREDENTIAL_ID}}' },
+      })
+      expect(mocks.resolveContext).toHaveBeenNthCalledWith(2, principal, {
+        workflowId: 'workflow-1',
+        credentialId: 'resolved-credential-id',
+        context: {},
+      })
+      expect(mocks.providerMatches).toHaveBeenCalledWith({
+        credentialId: 'resolved-credential-id',
+        credentialOwnerUserId: 'owner-1',
+        serviceId: 'slack',
+      })
+      expect(mocks.refreshToken).toHaveBeenCalledWith(
+        'resolved-credential-id',
+        'owner-1',
+        'request-1'
+      )
+      expect(result).toMatchObject({ ok: true, accessToken, isBotToken })
+    }
+  )
+
+  it('provider-binds a referenced credential before token refresh', async () => {
+    mocks.resolveContext
+      .mockResolvedValueOnce({
+        ok: true,
+        context: { credential: 'resolved-credential-id' },
+        requesterUserId: 'viewer-1',
+        workspaceId: 'workspace-1',
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        context: {},
+        requesterUserId: 'viewer-1',
+        workspaceId: 'workspace-1',
+        credentialAccess: {
+          ok: true,
+          workspaceId: 'workspace-1',
+          credentialOwnerUserId: 'owner-1',
+          credentialType: 'oauth',
+        },
+      })
+    mocks.providerMatches.mockResolvedValue(false)
+
     const result = await resolveSlackSelectorCredential(principal, {
-      credential: 'xoxb-literal-secret',
-      requestId: 'request-1',
-    })
-
-    expect(result).toEqual({
-      ok: false,
-      status: 400,
-      error: 'Unable to resolve selector configuration',
-    })
-    expect(mocks.resolveContext).not.toHaveBeenCalled()
-  })
-
-  it('does not reinterpret a referenced non-bot value as an OAuth credential id', async () => {
-    mocks.resolveContext.mockResolvedValue({
-      ok: true,
-      context: { credential: 'not-a-bot-token' },
-      requesterUserId: 'viewer-1',
-      workspaceId: 'workspace-1',
-    })
-
-    const result = await resolveSlackSelectorCredential(principal, {
-      credential: '{{SLACK_BOT_TOKEN}}',
+      credential: '{{SLACK_CREDENTIAL_ID}}',
       workflowId: 'workflow-1',
       requestId: 'request-1',
     })
 
-    expect(result).toEqual({
-      ok: false,
-      status: 400,
-      error: 'Unable to resolve selector configuration',
-    })
-    expect(mocks.providerMatches).not.toHaveBeenCalled()
+    expect(result).toEqual({ ok: false, status: 400, error: 'Select a Slack credential.' })
     expect(mocks.refreshToken).not.toHaveBeenCalled()
   })
 
