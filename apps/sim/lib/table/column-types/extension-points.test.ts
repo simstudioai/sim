@@ -69,6 +69,20 @@ describe('column type extension points', () => {
     ).toBe('stored-value')
   })
 
+  it('preserves an intentional null from source normalization', () => {
+    Object.assign(definition, {
+      valueForConversion: () => null,
+    })
+
+    expect(
+      valueForTypeConversion(
+        'stored-value',
+        { name: 'source', type: 'string' },
+        { name: 'target', type: 'number' }
+      )
+    ).toBeNull()
+  })
+
   it('lets a type own CSV import coercion', () => {
     Object.assign(definition, {
       coerceImport: (value: unknown) => `imported:${String(value)}`,

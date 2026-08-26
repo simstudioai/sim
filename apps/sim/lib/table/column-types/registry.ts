@@ -96,7 +96,8 @@ export function valueForTypeConversion(
   source: ColumnDefinition,
   target: ColumnDefinition
 ): JsonValue {
-  return columnTypeOf(source).valueForConversion?.(value, target) ?? value
+  const normalized = columnTypeOf(source).valueForConversion?.(value, target)
+  return normalized === undefined ? value : normalized
 }
 
 /** This type's own metadata errors; types carrying no metadata report none. */

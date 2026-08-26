@@ -777,6 +777,8 @@ export function retypeCellRewrite(
     ? valueForTypeConversion(value as JsonValue, source, target)
     : (value as JsonValue)
 
+  if (effective === null) return { value: null }
+
   if (!isValueCompatibleWithColumn(effective, target)) {
     // Incompatible non-blanks never reach here: the compatibility scan already
     // refused the whole conversion for them.
@@ -919,6 +921,7 @@ export async function updateColumnType(
       const isSelectType = data.newType === 'select'
       const targetOptions = data.options ?? column.options ?? []
       const targetMultiple = data.multiple ?? column.multiple
+      const sourceNormalizesConversion = columnTypeOf(column).valueForConversion !== undefined
       // Leaving `select` behind: stored cells hold option ids, which mean nothing
       // once the column is text/number/etc. Check compatibility against the option
       // NAME — that's what the cell will actually become (migrated below).
@@ -1035,9 +1038,7 @@ export async function updateColumnType(
         resolved: new Map<string, JsonValue>(),
       }
       await migrationFrom(column.type)?.(migrationContext)
-      if (isSelectType) {
-        await migrationTo(data.newType)?.(migrationContext)
-      } else {
+      if (!isSelectType || sourceNormalizesConversion) {
         let rewriteAfterId: string | undefined
         while (true) {
           const rows = await readColumnRetypePage(
@@ -1064,6 +1065,9 @@ export async function updateColumnType(
           rewriteAfterId = rows.at(-1)?.id
           if (rows.length < retypeScanBatchSize) break
         }
+      }
+      if (isSelectType) {
+        await migrationTo(data.newType)?.(migrationContext)
       }
 
       // A `unique` arriving with this retype is validated HERE, against the values
