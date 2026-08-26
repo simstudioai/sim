@@ -1,0 +1,40 @@
+-- Reserved contract slot for the retired usage-column drop (#7134).
+--
+-- #7134 removed these columns' drizzle declarations (and their last readers/
+-- writers), so the app stops emitting them in generated SELECT lists. This
+-- migration intentionally executes nothing: migrations run BEFORE images are
+-- promoted, so dropping the columns in the same deploy would 42703 the
+-- still-serving old task set, whose schema still declares them in full-row
+-- user_stats selects on the billing gate. Keeping the generated file (and its
+-- snapshot) satisfies the schema/migrations parity check without performing
+-- the destructive half.
+--
+-- To execute the contract, once #7134 is part of an already-deployed
+-- production release:
+--   cd packages/db && bunx drizzle-kit generate --custom --name=drop_retired_usage_columns
+-- then paste the statements below uncommented, each annotated
+--   "migration-safe: contract of #7134 — declarations removed there, deployed <date>"
+-- and delete the three contract-pending markers in schema.ts.
+--
+-- ALTER TABLE "organization" DROP COLUMN "departed_member_usage";
+-- ALTER TABLE "user_stats" DROP COLUMN "total_manual_executions";
+-- ALTER TABLE "user_stats" DROP COLUMN "total_api_calls";
+-- ALTER TABLE "user_stats" DROP COLUMN "total_webhook_triggers";
+-- ALTER TABLE "user_stats" DROP COLUMN "total_scheduled_executions";
+-- ALTER TABLE "user_stats" DROP COLUMN "total_chat_executions";
+-- ALTER TABLE "user_stats" DROP COLUMN "total_mcp_executions";
+-- ALTER TABLE "user_stats" DROP COLUMN "total_tokens_used";
+-- ALTER TABLE "user_stats" DROP COLUMN "total_cost";
+-- ALTER TABLE "user_stats" DROP COLUMN "current_period_cost";
+-- ALTER TABLE "user_stats" DROP COLUMN "pro_period_cost_snapshot";
+-- ALTER TABLE "user_stats" DROP COLUMN "pro_period_cost_snapshot_at";
+-- ALTER TABLE "user_stats" DROP COLUMN "total_copilot_cost";
+-- ALTER TABLE "user_stats" DROP COLUMN "current_period_copilot_cost";
+-- ALTER TABLE "user_stats" DROP COLUMN "total_copilot_tokens";
+-- ALTER TABLE "user_stats" DROP COLUMN "total_copilot_calls";
+-- ALTER TABLE "user_stats" DROP COLUMN "total_mcp_copilot_calls";
+-- ALTER TABLE "user_stats" DROP COLUMN "total_mcp_copilot_cost";
+-- ALTER TABLE "user_stats" DROP COLUMN "current_period_mcp_copilot_cost";
+-- ALTER TABLE "user_stats" DROP COLUMN "last_active";
+-- ALTER TABLE "workflow_execution_logs" DROP COLUMN "cost";
+SELECT 1;

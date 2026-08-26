@@ -467,6 +467,7 @@ export const workflowExecutionLogs = pgTable(
     // contract-pending(after #7134 is fully deployed to production): DROP COLUMN
     // cost — cost lives in usage_log + the `cost_total` projection; the jsonb
     // was unread before this change and its declaration is removed here.
+    // The physical DROP is parked, commented out, in migrations/0309.
     // Verified on the prod replica 2026-08-26: 94 of 4.77M rows carry a cost
     // json with no cost_total (71 zero/absent totals from Jul–Aug 2025, 22
     // small non-zero totals from May 2026) — unread history the drop abandons.
@@ -1192,6 +1193,9 @@ export const userStats = pgTable('user_stats', {
   // readers/writers were removed by the ledger cutover (#7078/#7113, shipped in
   // v0.8.12); removing the declarations here takes them out of every generated
   // SELECT list, so once this is the deployed app the DROP is invisible to it.
+  // The physical DROPs are parked, commented out, in migrations/0309 (a
+  // journaled no-op that keeps schema/migrations parity); the follow-up
+  // procedure is documented there.
   currentUsageLimit: decimal('current_usage_limit').default(DEFAULT_FREE_CREDITS.toString()), // Default $5 (1,000 credits) for free plan, null for team/enterprise
   usageLimitUpdatedAt: timestamp('usage_limit_updated_at').defaultNow(),
   /** Previous-period usage; written by the cycle-close sweep from ledger sums. */
@@ -1586,6 +1590,7 @@ export const organization = pgTable('organization', {
   // org's period, so nothing needs capturing. The last readers/writers (v1
   // admin exposure, cycle-close resets) and this declaration were removed in
   // the same change, so once this is the deployed app the DROP is invisible.
+  // The physical DROP is parked, commented out, in migrations/0309.
   /**
    * Organization credit balance tracker.
    *
