@@ -76,8 +76,6 @@ interface ColumnOptionsMenuProps {
   schemaLockedReason?: string
   /** Why deleting is unavailable; disables the destructive column row. */
   deleteLockedReason?: string
-  /** Starts inline renaming for a plain or enrichment column. */
-  onRenameColumn?: (columnName: string) => void
   /** Opens the table targeted by a Reference column. */
   onGoToReferenceTable?: (tableId: string) => void
   onInsertLeft: (columnName: string) => void
@@ -152,7 +150,6 @@ export function ColumnOptionsMenu({
   onOpenConfig,
   schemaLockedReason,
   deleteLockedReason,
-  onRenameColumn,
   onGoToReferenceTable,
   onInsertLeft,
   onInsertRight,
@@ -279,17 +276,6 @@ export function ColumnOptionsMenu({
             Edit column
           </DropdownMenuItem>
         </MenuRow>
-        {onRenameColumn && (
-          <MenuRow reason={schemaLockedReason}>
-            <DropdownMenuItem
-              disabled={Boolean(schemaLockedReason)}
-              onSelect={() => onRenameColumn(column.key)}
-            >
-              <Pencil />
-              Rename column
-            </DropdownMenuItem>
-          </MenuRow>
-        )}
         {onPinToggle && (
           <DropdownMenuItem onSelect={() => onPinToggle(column.key)}>
             {isPinned ? <PinOff /> : <Pin />}

@@ -42,7 +42,6 @@ vi.mock('@sim/emcn/icons', () => ({
   Pin: () => null,
   PinOff: () => null,
   PlayOutline: () => null,
-  Settings: () => null,
   SquareArrowUpRight: () => null,
   Trash: () => null,
   Workflow: () => null,
@@ -84,11 +83,7 @@ afterEach(() => {
   container.remove()
 })
 
-function renderMenu(
-  column: ColumnDefinition,
-  onGoToReferenceTable: (tableId: string) => void,
-  onRenameColumn?: (columnName: string) => void
-) {
+function renderMenu(column: ColumnDefinition, onGoToReferenceTable: (tableId: string) => void) {
   act(() => {
     root.render(
       <ColumnOptionsMenu
@@ -108,7 +103,6 @@ function renderMenu(
         onDeleteColumn={vi.fn()}
         onOpenConfig={vi.fn()}
         onGoToReferenceTable={onGoToReferenceTable}
-        onRenameColumn={onRenameColumn}
       />
     )
   })
@@ -204,12 +198,9 @@ describe('ColumnHeaderMenu read-only Reference navigation', () => {
 })
 
 describe('ColumnOptionsMenu editing', () => {
-  it('starts inline rename from the column menu', () => {
-    const onRenameColumn = vi.fn()
-    renderMenu({ id: 'col-name', name: 'Name', type: 'string' }, vi.fn(), onRenameColumn)
+  it('keeps rename out of the column menu', () => {
+    renderMenu({ id: 'col-name', name: 'Name', type: 'string' }, vi.fn())
 
-    act(() => findButton('Rename column')?.click())
-
-    expect(onRenameColumn).toHaveBeenCalledWith('col-name')
+    expect(findButton('Rename column')).toBeUndefined()
   })
 })

@@ -30,7 +30,7 @@ interface ColumnHeaderMenuProps {
   onColumnSelect: (colIndex: number, shiftKey: boolean) => void
   onInsertLeft: (columnName: string) => void
   onInsertRight: (columnName: string) => void
-  /** Starts inline renaming for a plain or enrichment column. */
+  /** Starts inline renaming when a plain or enrichment header is double-clicked. */
   onRenameColumn?: (columnName: string) => void
   /** Opens the table targeted by a Reference column. */
   onGoToReferenceTable?: (tableId: string) => void
@@ -241,9 +241,11 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
     }
     if (isRenaming) return
     onColumnSelect(colIndex, e.shiftKey)
-    if (!e.shiftKey) {
-      onOpenConfig(column.key)
-    }
+  }
+
+  function handleHeaderDoubleClick() {
+    if (isRenaming || isWorkflowOutput) return
+    onRenameColumn?.(column.key)
   }
 
   function handleChevronClick(e: React.MouseEvent) {
@@ -350,6 +352,7 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
             type='button'
             className='flex min-w-0 flex-1 cursor-pointer items-center px-2 py-[7px] outline-hidden'
             onClick={handleHeaderClick}
+            onDoubleClick={handleHeaderDoubleClick}
             draggable={false}
           >
             <ColumnTypeIcon
@@ -381,7 +384,6 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
             onOpenConfig={onOpenConfig}
             schemaLockedReason={schemaLockedReason}
             deleteLockedReason={deleteLockedReason}
-            onRenameColumn={isWorkflowOutput ? undefined : onRenameColumn}
             onGoToReferenceTable={onGoToReferenceTable}
             onInsertLeft={onInsertLeft}
             onInsertRight={onInsertRight}
