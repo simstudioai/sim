@@ -369,6 +369,63 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
     )
   })
 
+  it.each([
+    {
+      name: 'personal API key manual draft execution',
+      principal: {
+        kind: 'personal_api_key' as const,
+        userId: 'user-1',
+        keyId: 'personal-key-1',
+      },
+      triggerType: 'manual',
+      useDraftState: true,
+      expectedIsDeployedContext: false,
+    },
+    {
+      name: 'deployed schedule background execution',
+      principal: {
+        kind: 'system' as const,
+        serviceId: 'schedule' as const,
+        workspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+      },
+      triggerType: 'schedule',
+      useDraftState: false,
+      expectedIsDeployedContext: true,
+    },
+  ])(
+    'derives deployed context from canonical state for $name',
+    async ({ principal, triggerType, useDraftState, expectedIsDeployedContext }) => {
+      executorExecuteMock.mockResolvedValue({
+        success: true,
+        status: 'completed',
+        output: { done: true },
+        logs: [],
+        metadata: { duration: 123, startTime: 'start', endTime: 'end' },
+      })
+
+      const snapshot = createSnapshot()
+      await executeWorkflowCore({
+        snapshot: {
+          ...snapshot,
+          metadata: {
+            ...snapshot.metadata,
+            principal,
+            triggerType,
+            useDraftState,
+            isClientSession: false,
+          },
+        } as any,
+        callbacks: {},
+        loggingSession: loggingSession as any,
+      })
+
+      expect(executorConstructorMock.mock.calls[0]?.[0]?.contextExtensions?.isDeployedContext).toBe(
+        expectedIsDeployedContext
+      )
+    }
+  )
+
   it('starts logging with the workflow state that will be executed', async () => {
     const executedWorkflowState = {
       blocks: {

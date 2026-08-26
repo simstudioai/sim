@@ -252,6 +252,19 @@ describe('executeWebhookJob fault vs error handling', () => {
     path: '/webhook',
     workspaceId: 'workspace-1',
   }
+  const legacyPayload = {
+    webhookId: payload.webhookId,
+    workflowId: payload.workflowId,
+    userId: payload.userId,
+    billingAttribution: payload.billingAttribution,
+    executionId: payload.executionId,
+    requestId: payload.requestId,
+    provider: payload.provider,
+    body: payload.body,
+    headers: payload.headers,
+    path: payload.path,
+    workspaceId: payload.workspaceId,
+  }
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -298,19 +311,6 @@ describe('executeWebhookJob fault vs error handling', () => {
   })
 
   it('restores a legacy queued webhook as its canonical system principal', async () => {
-    const legacyPayload = {
-      webhookId: payload.webhookId,
-      workflowId: payload.workflowId,
-      userId: payload.userId,
-      billingAttribution: payload.billingAttribution,
-      executionId: payload.executionId,
-      requestId: payload.requestId,
-      provider: payload.provider,
-      body: payload.body,
-      headers: payload.headers,
-      path: payload.path,
-      workspaceId: payload.workspaceId,
-    }
     mockExecuteWorkflowCore.mockResolvedValueOnce({
       success: true,
       status: 'completed',
@@ -344,6 +344,29 @@ describe('executeWebhookJob fault vs error handling', () => {
       expect.any(Object),
       expect.any(Array)
     )
+  })
+
+  it('persists the reconstructed legacy principal on setup retries', async () => {
+    executionPreprocessingMockFns.mockPreprocessExecution.mockResolvedValueOnce({
+      success: false,
+      error: {
+        message: 'Internal error while fetching workflow',
+        statusCode: 500,
+        retryable: true,
+        cause: { code: 'CONNECT_TIMEOUT' },
+      },
+    })
+
+    await expect(executeWebhookJob(legacyPayload)).resolves.toMatchObject({
+      success: false,
+      requeued: true,
+    })
+
+    expect(mockEnqueue).toHaveBeenCalledTimes(1)
+    expect(mockEnqueue.mock.calls[0][1]).toMatchObject({
+      principal: payload.principal,
+      infraRetryCount: 1,
+    })
   })
 
   it('completes the run (does not throw) when the failure was finalized by core', async () => {

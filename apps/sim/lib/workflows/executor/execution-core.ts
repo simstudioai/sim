@@ -946,7 +946,7 @@ async function executeWorkflowCoreImpl(
         ...(executionId ? { executionId } : {}),
         principal: metadata.principal,
       },
-      isDeployedContext: !metadata.isClientSession,
+      isDeployedContext: metadata.useDraftState !== true,
       enforceCredentialAccess: metadata.enforceCredentialAccess ?? false,
       piiBlockOutputRedaction: piiRedaction.blockOutputs,
       onBlockStart: wrappedOnBlockStart,

@@ -1,6 +1,7 @@
 import {
   parsePrincipal,
   type SerializedPrincipalV1,
+  serializePrincipal,
   type WorkflowExecutionPrincipal,
 } from '@sim/auth/principal'
 import { db } from '@sim/db'
@@ -502,15 +503,22 @@ export async function executeWebhookJob(
   const correlation = buildWebhookCorrelation(payload)
   const executionId = correlation.executionId
   const requestId = correlation.requestId
+  let authenticatedPayload: WebhookExecutionPayload
   let payloadBillingAttribution: BillingAttributionSnapshot
   let principal: WorkflowExecutionPrincipal
   try {
     principal = parseWebhookJobPrincipal(payload)
     assertWebhookExecutionPrincipal(principal, payload)
-    payloadBillingAttribution = assertBillingAttributionSnapshot(payload.billingAttribution)
+    authenticatedPayload = {
+      ...payload,
+      principal: payload.principal ?? serializePrincipal(principal),
+    }
+    payloadBillingAttribution = assertBillingAttributionSnapshot(
+      authenticatedPayload.billingAttribution
+    )
     if (
-      payloadBillingAttribution.actorUserId !== payload.userId ||
-      payloadBillingAttribution.workspaceId !== payload.workspaceId
+      payloadBillingAttribution.actorUserId !== authenticatedPayload.userId ||
+      payloadBillingAttribution.workspaceId !== authenticatedPayload.workspaceId
     ) {
       throw new Error('Webhook job billing attribution does not match its actor and workspace')
     }
@@ -521,7 +529,7 @@ export async function executeWebhookJob(
   const timeoutController = createTimeoutAbortController(
     capExecutionTimeoutMs(
       getAsyncExecutionTimeoutForBillingAttribution(payloadBillingAttribution),
-      payload.executionTimeoutMs
+      authenticatedPayload.executionTimeoutMs
     ),
     externalAbortSignal
   )
@@ -537,32 +545,32 @@ export async function executeWebhookJob(
           )
     if (!admissionCompleted) {
       logger.warn('Queued webhook reservation expired; repeating usage admission', {
-        workflowId: payload.workflowId,
+        workflowId: authenticatedPayload.workflowId,
         executionId,
       })
     }
 
     return await runWithRequestContext({ requestId }, async () => {
       logger.info(`[${requestId}] Starting webhook execution`, {
-        webhookId: payload.webhookId,
-        workflowId: payload.workflowId,
-        provider: payload.provider,
-        userId: payload.userId,
+        webhookId: authenticatedPayload.webhookId,
+        workflowId: authenticatedPayload.workflowId,
+        provider: authenticatedPayload.provider,
+        userId: authenticatedPayload.userId,
         executionId,
       })
 
       const idempotencyKey = IdempotencyService.createWebhookIdempotencyKey(
-        payload.webhookId,
-        payload.headers,
-        payload.body,
-        payload.provider
+        authenticatedPayload.webhookId,
+        authenticatedPayload.headers,
+        authenticatedPayload.body,
+        authenticatedPayload.provider
       )
 
       let operationStarted = false
       const runOperation = async () => {
         operationStarted = true
         return await executeWebhookJobInternal(
-          payload,
+          authenticatedPayload,
           principal,
           correlation,
           timeoutController,
@@ -572,7 +580,7 @@ export async function executeWebhookJob(
 
       try {
         const result = await webhookIdempotency.executeWithIdempotency(
-          payload.provider,
+          authenticatedPayload.provider,
           idempotencyKey,
           runOperation,
           undefined,
@@ -598,19 +606,21 @@ export async function executeWebhookJob(
          * the retry-bound attempt suppressed, then fall through to the throw
          * so the run fails loudly rather than dropping the delivery silently.
          */
-        if (isRetryableSetupError(error) && hasRemainingWebhookInfraRetry(payload)) {
-          if (await requeueWebhookExecutionAfterSetupFailure(payload, correlation, error)) {
+        if (isRetryableSetupError(error) && hasRemainingWebhookInfraRetry(authenticatedPayload)) {
+          if (
+            await requeueWebhookExecutionAfterSetupFailure(authenticatedPayload, correlation, error)
+          ) {
             return {
               success: false,
               requeued: true,
-              workflowId: payload.workflowId,
+              workflowId: authenticatedPayload.workflowId,
               executionId,
               output: {},
               executedAt: new Date().toISOString(),
-              provider: payload.provider,
+              provider: authenticatedPayload.provider,
             }
           }
-          await recordSetupFailureWithoutRequeue(payload, correlation, error)
+          await recordSetupFailureWithoutRequeue(authenticatedPayload, correlation, error)
         }
         throw error
       }
@@ -711,7 +721,7 @@ async function handleExecutionResult(
 }
 
 async function executeWebhookJobInternal(
-  payload: WebhookExecutionJobPayload,
+  payload: WebhookExecutionPayload,
   principal: WorkflowExecutionPrincipal,
   correlation: AsyncExecutionCorrelation,
   timeoutController: ReturnType<typeof createTimeoutAbortController>,
