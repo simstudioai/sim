@@ -37,6 +37,74 @@ for available resources and accepted shapes.
 - Every added block must be reachable from the intended entry point and contribute to a terminal
   path. Trace downstream references before editing or deleting an existing producer.
 
+## Configure Agent blocks deliberately
+
+- Use an Agent for generation, summarization, extraction from natural language, diagnosis, or other
+  work requiring judgment. Use a Function for mechanical parsing, formatting, calculation, and
+  reshaping; do not use canned strings or random selection to imitate a language task. When fuzzy
+  classification exists only to choose a branch, prefer a Router over Agent followed by Condition.
+- Prefer an integration inside `inputs.tools` when the Agent should decide whether to call it or
+  choose its arguments. Use a standalone integration block when the action must execute
+  deterministically at that point in the graph. Event sources remain trigger blocks.
+- Inspect the Agent and integration block details before configuring them. Choose a model from the
+  Agent block's current options. For an integration tool, `type` is the catalog block id and
+  `operation` is its catalog operation id, never the underlying executable tool id.
+- Store the complete tool list at `params.inputs.tools`. Supported authoring shapes are:
+
+```json
+[
+  {
+    "type": "<catalog-block-id>",
+    "operation": "<catalog-operation-id>",
+    "usageControl": "auto",
+    "params": { "<author-fixed-input>": "<value>" }
+  },
+  {
+    "type": "custom-tool",
+    "customToolId": "<custom-tool-id>",
+    "usageControl": "auto"
+  },
+  {
+    "type": "mcp",
+    "params": { "serverId": "<mcp-server-id>", "toolName": "<mcp-tool-name>" },
+    "usageControl": "auto"
+  }
+]
+```
+
+- Put only workflow-author-fixed values in a tool's `params`; omit arguments the model should
+  choose. Omit `usageControl` or use `auto` when the model may decide, `force` when every Agent run
+  must call it, and `none` to disable it.
+- Resolve custom-tool ids with `custom-tools list` and `custom-tools get`. Resolve MCP server and
+  tool names with `mcp-servers list` and `mcp-servers tools list <serverId>`. New custom tools should
+  use `customToolId`; preserve an existing legacy inline declaration but do not create another.
+- Skills are separate from tools: store `[{ "skillId": "<skill-id>" }]` in `params.inputs.skills`,
+  never in `inputs.tools`. Both `tools` and `skills` are complete replacement arrays, so read state
+  and retain entries the user did not ask to remove.
+- When downstream blocks need stable typed fields, configure the Agent's catalog-declared
+  structured response format. Structured fields become top-level Agent outputs; inspect the
+  effective output schema before referencing them instead of assuming a `content` path.
+
+## Name blocks and write references exactly
+
+- A block-output reference uses the block's `name`, not its catalog type, operation id, UUID, or
+  request-local `block_id`. Its prefix is the name lowercased with whitespace and dots removed.
+  Nothing is inserted: `AWS Alert` becomes `awsalert`, so use `<awsalert.event.text>`, never
+  `<aws_alert.event.text>`. Existing dashes and underscores remain (`AWS_Alert` becomes
+  `aws_alert`).
+- Prefer plain alphanumeric camelCase names for new blocks, such as `awsAlert`, `parseInput`, and
+  `step1`. This keeps the stored name readable and the reference prefix predictable. Do not use the
+  reserved normalized names `loop`, `parallel`, or `variable`, and do not create names that collide
+  after normalization.
+- The field path after the prefix comes from the upstream block's effective output schema and is
+  case-sensitive. Function block return values are under `result`, so use `<parseinput.result>` or
+  `<parseinput.result.field>` only when the catalog declares that shape.
+- Before applying a batch, enumerate every `<block.field>` reference in its inputs. Verify the
+  normalized prefix against the exact upstream block name in workflow state, verify the field path
+  against the catalog output schema, and verify the source is reachable upstream. A clean workflow
+  operations lint does not prove block-output references resolve; its `unresolvedReferences` report
+  covers resource-like references such as credentials, tools, and skills.
+
 ## Discover before composing
 
 - Search the catalog with `sim --output json blocks list`; inspect a candidate with
@@ -65,7 +133,7 @@ Every operation has one of these envelopes:
   {
     "operation_type": "add",
     "block_id": "local-label",
-    "params": { "type": "<catalog-block-id>", "name": "Display name", "inputs": {} }
+    "params": { "type": "<catalog-block-id>", "name": "referenceSafeName", "inputs": {} }
   },
   {
     "operation_type": "edit",
@@ -79,7 +147,7 @@ Every operation has one of these envelopes:
     "params": {
       "subflowId": "<loop-or-parallel-id>",
       "type": "<catalog-block-id>",
-      "name": "Display name",
+      "name": "referenceSafeName",
       "inputs": {}
     }
   },
@@ -102,7 +170,8 @@ block's outgoing edges. To remove only selected edges, edit with `removeEdges` e
 
 A non-UUID `block_id` on a new block is a request-local label. Same-batch references are remapped
 automatically; later requests must use the UUID returned in `mintedBlockIds`. Never rediscover a new
-block by matching its display name.
+block by matching its name. The request-local label does not become the block's variable-reference
+prefix; `params.name` does.
 
 ## Validate, then commit the same batch
 
@@ -125,7 +194,12 @@ sim --output json workflows operations apply <workflowId> \
 Read the state again and verify the requested blocks, inputs, and edges. Report minted ids and any
 advisory lint that remains. Confirm that changed references resolve, every branch reaches the
 intended destination, nested blocks remain in the correct loop or parallel scope, and no block was
-orphaned by a replaced connection set.
+orphaned by a replaced connection set. Recompute reference prefixes from the persisted block names;
+do not infer them from request-local labels or reformat them as snake_case.
+
+Report the workflow id and its exact `webUrl` from the create or list response, formatting the URL as
+a clickable link. Do not construct a workflow URL from ids or the profile's API origin; a missing
+`webUrl` is a response-contract failure.
 
 When the request includes a working or tested workflow and execution is safe, use the run skill to
 manually test the saved draft with realistic input. Judge the returned values, not only the terminal

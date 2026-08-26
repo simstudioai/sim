@@ -119,6 +119,8 @@ do not hide a deterministic ingestion or filter error by changing query wording 
 
 ## Verify and report
 
-Report the knowledge-base id, ingestion path, document and connector ids, terminal processing
-statuses, and a concise retrieval result. Identify any failed document or degraded reranker status.
+Report the knowledge-base id, its exact `webUrl` from the create or get response as a clickable link,
+ingestion path, document and connector ids, terminal processing statuses, and a concise retrieval
+result. Do not construct a knowledge-base URL from ids or the profile's API origin; a missing
+`webUrl` is a response-contract failure. Identify any failed document or degraded reranker status.
 Never print API keys, OAuth tokens, unrelated document content, or profile credentials.

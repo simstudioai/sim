@@ -124,5 +124,7 @@ inspect dispatch and row run state until terminal.
 
 Read the table again after schema changes. Query a bounded sample after data changes and confirm
 types, unique keys, and expected values. For groups, confirm the group mapping and relevant row run
-state. Report the table id, affected row count, group or dispatch ids, and any terminal error. Never
-print profile credentials, connector keys, or private cell values unrelated to the request.
+state. Report the table id, its exact `webUrl` from the create or get response as a clickable link,
+affected row count, group or dispatch ids, and any terminal error. Do not construct a table URL from
+ids or the profile's API origin; a missing `webUrl` is a response-contract failure. Never print
+profile credentials, connector keys, or private cell values unrelated to the request.
