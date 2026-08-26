@@ -5,9 +5,12 @@ import { describe, expect, it } from 'vitest'
 import type { WorkflowSearchMatch } from '@/lib/workflows/search-replace/types'
 import {
   buildWorkflowSearchMcpToolReplacementOptions,
+  buildWorkflowSearchSelectorScope,
   flattenWorkflowSearchReplacementOptions,
   workflowSearchReplaceKeys,
 } from '@/hooks/queries/workflow-search-replace'
+import { createSelectorCacheScopeRegistry } from '@/hooks/selectors/context-resolution'
+import type { SelectorDefinition, SelectorKey } from '@/hooks/selectors/types'
 
 function createMcpToolMatch(serverId?: string): WorkflowSearchMatch {
   return {
@@ -106,6 +109,59 @@ describe('workflowSearchReplaceKeys', () => {
       'gmail.labels',
       '{"oauthCredential":"credential-1","workspaceId":"workspace-1"}',
     ])
+  })
+
+  it('uses opaque scoped identities for server-resolved selectors', () => {
+    const revisions = ['revision-a', 'revision-b'][Symbol.iterator]()
+    const registry = createSelectorCacheScopeRegistry(() => revisions.next().value ?? 'unexpected')
+    const definition = {
+      key: 'jira.projects' as SelectorKey,
+      serverResolvedContextFields: ['domain'],
+      getQueryKey: () => ['selectors', 'jira.projects', 'credential-1'],
+    } as SelectorDefinition
+
+    const first = buildWorkflowSearchSelectorScope(
+      definition,
+      {
+        workspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+        domain: 'WORKFLOW_SEARCH_PRIVATE_SENTINEL_A',
+      },
+      registry
+    )
+    const changed = buildWorkflowSearchSelectorScope(
+      definition,
+      {
+        workspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+        domain: 'WORKFLOW_SEARCH_PRIVATE_SENTINEL_B',
+      },
+      registry
+    )
+
+    expect(first.identity).not.toEqual(changed.identity)
+    expect(JSON.stringify(first.identity)).not.toContain('WORKFLOW_SEARCH_PRIVATE_SENTINEL')
+    expect(first.context).toMatchObject({
+      domain: 'WORKFLOW_SEARCH_PRIVATE_SENTINEL_A',
+      selectorCacheScope: 'revision-a',
+    })
+  })
+
+  it('retains serialized context identity for legacy selectors', () => {
+    const definition = {
+      key: 'gmail.labels' as SelectorKey,
+      getQueryKey: () => ['selectors', 'gmail.labels'],
+    } as SelectorDefinition
+    const context = { oauthCredential: 'credential-1', workspaceId: 'workspace-1' }
+
+    const scoped = buildWorkflowSearchSelectorScope(
+      definition,
+      context,
+      createSelectorCacheScopeRegistry(() => 'unused')
+    )
+
+    expect(scoped.context).toBe(context)
+    expect(scoped.identity).toBe('{"oauthCredential":"credential-1","workspaceId":"workspace-1"}')
   })
 })
 

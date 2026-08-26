@@ -5,9 +5,11 @@ import { describe, expect, it } from 'vitest'
 import type { CanonicalIndex } from '@/lib/workflows/subblocks/visibility'
 import {
   applySelectorDependenciesToContext,
+  createSelectorCacheScopeRegistry,
   resolveSelectorDependencyValues,
+  scopeServerResolvedSelectorContext,
 } from '@/hooks/selectors/context-resolution'
-import type { SelectorContext } from '@/hooks/selectors/types'
+import type { SelectorContext, SelectorDefinition, SelectorKey } from '@/hooks/selectors/types'
 
 const canonicalIndex: CanonicalIndex = {
   groupsById: {},
@@ -62,5 +64,43 @@ describe('selector dependency context resolution', () => {
     })
 
     expect(context).toEqual({ workflowId: 'workflow-1', domain: '{{SHARED_DOMAIN}}' })
+  })
+
+  it('assigns stable opaque revisions without exposing raw dependency values', () => {
+    const revisions = ['revision-a', 'revision-b'][Symbol.iterator]()
+    const registry = createSelectorCacheScopeRegistry(() => revisions.next().value ?? 'unexpected')
+    const definition = {
+      key: 'jira.projects' as SelectorKey,
+      serverResolvedContextFields: ['domain'],
+    } as SelectorDefinition
+
+    const first = scopeServerResolvedSelectorContext(
+      definition,
+      { domain: 'private-a.example.com' },
+      registry
+    )
+    const repeated = scopeServerResolvedSelectorContext(
+      definition,
+      { domain: 'private-a.example.com' },
+      registry
+    )
+    const changed = scopeServerResolvedSelectorContext(
+      definition,
+      { domain: 'private-b.example.com' },
+      registry
+    )
+
+    expect(first.selectorCacheScope).toBe('revision-a')
+    expect(repeated.selectorCacheScope).toBe('revision-a')
+    expect(changed.selectorCacheScope).toBe('revision-b')
+    expect(first.selectorCacheScope).not.toContain('private-a.example.com')
+  })
+
+  it('leaves legacy selector contexts unchanged', () => {
+    const registry = createSelectorCacheScopeRegistry(() => 'unused')
+    const definition = { key: 'gmail.labels' as SelectorKey } as SelectorDefinition
+    const context = { oauthCredential: 'credential-1' }
+
+    expect(scopeServerResolvedSelectorContext(definition, context, registry)).toBe(context)
   })
 })

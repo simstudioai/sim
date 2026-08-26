@@ -2,8 +2,6 @@
 
 import { createLogger } from '@sim/logger'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
-import { environmentKeys } from '@/hooks/queries/environment'
-import { selectorKeys } from '@/hooks/selectors/query-keys'
 import { useExecutionStore } from '@/stores/execution'
 import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 import { consolePersistence, useTerminalConsoleStore } from '@/stores/terminal'
@@ -33,8 +31,7 @@ export const resetAllStores = () => {
   })
   useWorkflowStore.getState().clear()
   useSubBlockStore.getState().clear()
-  getQueryClient().removeQueries({ queryKey: environmentKeys.all })
-  getQueryClient().removeQueries({ queryKey: selectorKeys.all })
+  getQueryClient().clear()
   useExecutionStore.getState().reset()
   useTerminalConsoleStore.setState({
     workflowEntries: {},

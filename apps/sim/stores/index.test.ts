@@ -8,11 +8,11 @@ const mocks = vi.hoisted(() => ({
   clearWorkflow: vi.fn(),
   consolePersist: vi.fn(),
   executionReset: vi.fn(),
-  queryRemove: vi.fn(),
+  queryClear: vi.fn(),
 }))
 
 vi.mock('@/app/_shell/providers/get-query-client', () => ({
-  getQueryClient: () => ({ removeQueries: mocks.queryRemove }),
+  getQueryClient: () => ({ clear: mocks.queryClear }),
 }))
 vi.mock('@/stores/execution', () => ({
   useExecutionStore: { getState: () => ({ reset: mocks.executionReset }) },
@@ -34,15 +34,14 @@ vi.mock('@/stores/workflows/workflow/store', () => ({
   useWorkflowStore: { getState: () => ({ clear: mocks.clearWorkflow }) },
 }))
 
-import { selectorKeys } from '@/hooks/selectors/query-keys'
 import { resetAllStores } from '@/stores'
 
 describe('resetAllStores', () => {
   beforeEach(() => vi.clearAllMocks())
 
-  it('removes all authorization-sensitive selector queries on user-data reset', () => {
+  it('clears every server-state query on user-data reset', () => {
     resetAllStores()
 
-    expect(mocks.queryRemove).toHaveBeenCalledWith({ queryKey: selectorKeys.all })
+    expect(mocks.queryClear).toHaveBeenCalledOnce()
   })
 })

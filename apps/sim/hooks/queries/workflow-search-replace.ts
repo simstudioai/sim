@@ -35,8 +35,19 @@ import {
   fetchOAuthCredentials,
 } from '@/hooks/queries/oauth/oauth-credentials'
 import { collectDuplicateNames, disambiguateLabelByFolder } from '@/hooks/queries/utils/folder-tree'
+import {
+  createSelectorCacheScopeRegistry,
+  type SelectorCacheScopeRegistry,
+  scopeServerResolvedSelectorContext,
+} from '@/hooks/selectors/context-resolution'
 import { getSelectorDefinition, loadAllSelectorOptions } from '@/hooks/selectors/registry'
-import type { SelectorKey, SelectorOption } from '@/hooks/selectors/types'
+import type {
+  SelectorContext,
+  SelectorDefinition,
+  SelectorKey,
+  SelectorOption,
+} from '@/hooks/selectors/types'
+import { getScopedSelectorQueryKey } from '@/hooks/selectors/use-selector-query'
 import type { WorkflowFolder } from '@/stores/folders/types'
 
 /** Stable identity while a folder list loads, so `select` isn't re-keyed on it. */
@@ -92,19 +103,26 @@ export const workflowSearchReplaceKeys = {
   knowledgeReplacementOptions: (workspaceId?: string) =>
     [...workflowSearchReplaceKeys.replacementOptions(), 'knowledge', workspaceId ?? ''] as const,
   selectorDetails: () => [...workflowSearchReplaceKeys.resourceDetails(), 'selector'] as const,
-  selectorDetail: (selectorKey?: string, contextKey?: string, value?: string) =>
+  selectorDetail: (
+    selectorKey?: string,
+    contextIdentity?: string | readonly unknown[],
+    value?: string
+  ) =>
     [
       ...workflowSearchReplaceKeys.selectorDetails(),
       selectorKey ?? '',
-      contextKey ?? '',
+      contextIdentity ?? '',
       value ?? '',
     ] as const,
-  selectorReplacementOptions: (selectorKey?: string, contextKey?: string) =>
+  selectorReplacementOptions: (
+    selectorKey?: string,
+    contextIdentity?: string | readonly unknown[]
+  ) =>
     [
       ...workflowSearchReplaceKeys.replacementOptions(),
       'selector',
       selectorKey ?? '',
-      contextKey ?? '',
+      contextIdentity ?? '',
     ] as const,
 }
 
@@ -137,6 +155,25 @@ function uniqueMatches(
 
 function selectorContextKey(match: WorkflowSearchMatch): string {
   return stableStringifyWorkflowSearchValue(match.resource?.selectorContext ?? {})
+}
+
+export function buildWorkflowSearchSelectorScope(
+  definition: SelectorDefinition,
+  context: SelectorContext,
+  registry: SelectorCacheScopeRegistry
+): { context: SelectorContext; identity: string | readonly unknown[] } {
+  if (!definition.serverResolvedContextFields?.length) {
+    return { context, identity: stableStringifyWorkflowSearchValue(context) }
+  }
+
+  const scopedContext = scopeServerResolvedSelectorContext(definition, context, registry)
+  return {
+    context: scopedContext,
+    identity: getScopedSelectorQueryKey(definition, {
+      key: definition.key,
+      context: scopedContext,
+    }),
+  }
 }
 
 function uniqueSelectorDetailMatches(matches: WorkflowSearchMatch[]): WorkflowSearchMatch[] {
@@ -378,18 +415,22 @@ export function useWorkflowSearchMcpToolDetails(
 
 export function useWorkflowSearchSelectorDetails(matches: WorkflowSearchMatch[]) {
   const selectorMatches = useMemo(() => uniqueSelectorDetailMatches(matches), [matches])
+  const cacheScopes = useMemo(() => createSelectorCacheScopeRegistry(), [])
 
   return useQueries({
     queries: selectorMatches.map((match) => {
       const selectorKey = match.resource?.selectorKey as SelectorKey
-      const context = match.resource?.selectorContext ?? {}
-      const contextKey = selectorContextKey(match)
       const definition = getSelectorDefinition(selectorKey)
+      const { context, identity } = buildWorkflowSearchSelectorScope(
+        definition,
+        match.resource?.selectorContext ?? {},
+        cacheScopes
+      )
       const queryArgs = { key: selectorKey, context, detailId: match.rawValue }
       const baseEnabled = definition.enabled ? definition.enabled(queryArgs) : true
 
       return {
-        queryKey: workflowSearchReplaceKeys.selectorDetail(selectorKey, contextKey, match.rawValue),
+        queryKey: workflowSearchReplaceKeys.selectorDetail(selectorKey, identity, match.rawValue),
         queryFn: async ({ signal }: { signal: AbortSignal }): Promise<SelectorOption | null> => {
           if (definition.fetchById) {
             return definition.fetchById({ ...queryArgs, signal })
@@ -652,18 +693,22 @@ export function useWorkflowSearchMcpToolReplacementOptions(
 
 export function useWorkflowSearchSelectorReplacementOptions(matches: WorkflowSearchMatch[]) {
   const selectorGroups = useMemo(() => uniqueSelectorOptionGroups(matches), [matches])
+  const cacheScopes = useMemo(() => createSelectorCacheScopeRegistry(), [])
 
   return useQueries({
     queries: selectorGroups.map((match) => {
       const selectorKey = match.resource?.selectorKey as SelectorKey
-      const context = match.resource?.selectorContext ?? {}
-      const contextKey = selectorContextKey(match)
       const definition = getSelectorDefinition(selectorKey)
+      const { context, identity } = buildWorkflowSearchSelectorScope(
+        definition,
+        match.resource?.selectorContext ?? {},
+        cacheScopes
+      )
       const queryArgs = { key: selectorKey, context }
       const baseEnabled = definition.enabled ? definition.enabled(queryArgs) : true
 
       return {
-        queryKey: workflowSearchReplaceKeys.selectorReplacementOptions(selectorKey, contextKey),
+        queryKey: workflowSearchReplaceKeys.selectorReplacementOptions(selectorKey, identity),
         queryFn: ({ signal }: { signal: AbortSignal }) =>
           loadAllSelectorOptions(definition, { ...queryArgs, signal }),
         enabled: Boolean(selectorKey && baseEnabled),

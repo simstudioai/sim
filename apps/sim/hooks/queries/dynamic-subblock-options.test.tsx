@@ -19,7 +19,10 @@ import {
   dynamicSubBlockOptionKeys,
   useDynamicSubBlockOptionDisplayName,
 } from '@/hooks/queries/dynamic-subblock-options'
-import type { SelectorDefinition, SelectorKey } from '@/hooks/selectors/types'
+import type { SelectorDefinition, SelectorKey, SelectorQueryArgs } from '@/hooks/selectors/types'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 /** Any registered key; the hook only uses it to look the definition up. */
 const SELECTOR_KEY = 'workspace.credentialGroups' as SelectorKey
@@ -30,6 +33,7 @@ function mockDefinition(definition: Partial<SelectorDefinition>) {
 
 interface HookHarness<T> {
   result: () => T
+  queryClient: QueryClient
   unmount: () => void
 }
 
@@ -55,6 +59,7 @@ function renderHookWithClient<T>(useHook: () => T): HookHarness<T> {
 
   return {
     result: () => latest,
+    queryClient,
     unmount: () => act(() => root.unmount()),
   }
 }
@@ -70,6 +75,9 @@ describe('useDynamicSubBlockOptionDisplayName', () => {
 
   afterEach(() => {
     mounted.splice(0).forEach((unmount) => unmount())
+    useWorkflowRegistry.setState({ activeWorkflowId: null })
+    useWorkflowStore.setState({ blocks: {} })
+    useSubBlockStore.setState({ workflowValues: {} })
     vi.clearAllMocks()
   })
 
@@ -146,5 +154,87 @@ describe('useDynamicSubBlockOptionDisplayName', () => {
     expect(keyFor(undefined)).not.toEqual(keyFor('group-1'))
     expect(keyFor('group-1')).not.toEqual(keyFor('group-2'))
     expect(keyFor('group-1')).toEqual(keyFor('group-1'))
+  })
+
+  it('scopes server-resolved detail hydration without keying raw dependencies', async () => {
+    const fetchById = vi.fn(async ({ context, detailId }: SelectorQueryArgs) => {
+      if (context.domain === 'DYNAMIC_PRIVATE_SENTINEL_B') {
+        throw new Error('tenant B is unavailable')
+      }
+      return { id: detailId as string, label: 'Tenant A project' }
+    })
+    mockDefinition({
+      key: SELECTOR_KEY,
+      serverResolvedContextFields: ['domain'],
+      getQueryKey: () => ['selectors', SELECTOR_KEY],
+      fetchById,
+    })
+    const subBlock = {
+      id: 'projectId',
+      title: 'Project',
+      type: 'project-selector',
+      selectorKey: SELECTOR_KEY,
+    } satisfies SubBlockConfig
+
+    useWorkflowRegistry.setState({ activeWorkflowId: 'workflow-1' })
+    useWorkflowStore.setState({
+      blocks: {
+        'block-1': {
+          id: 'block-1',
+          type: 'jira',
+          subBlocks: {},
+          data: {},
+        } as never,
+      },
+    })
+    useSubBlockStore.setState({
+      workflowValues: {
+        'workflow-1': {
+          'block-1': {
+            credential: 'credential-1',
+            domain: 'DYNAMIC_PRIVATE_SENTINEL_A',
+          },
+        },
+      },
+    })
+
+    const hook = renderHookWithClient(() =>
+      useDynamicSubBlockOptionDisplayName({
+        workspaceId: 'workspace-1',
+        blockId: 'block-1',
+        subBlock,
+        value: 'project-1',
+      })
+    )
+    mounted.push(hook.unmount)
+
+    await waitForResult(() => expect(hook.result()).toBe('Tenant A project'))
+
+    act(() => {
+      useSubBlockStore.setState({
+        workflowValues: {
+          'workflow-1': {
+            'block-1': {
+              credential: 'credential-1',
+              domain: 'DYNAMIC_PRIVATE_SENTINEL_B',
+            },
+          },
+        },
+      })
+    })
+
+    await waitForResult(() => expect(fetchById).toHaveBeenCalledTimes(2))
+    await waitForResult(() => expect(hook.result()).toBeNull())
+
+    const contexts = fetchById.mock.calls.map(([args]) => args.context)
+    expect(contexts[0].selectorCacheScope).not.toBe(contexts[1].selectorCacheScope)
+    expect(
+      JSON.stringify(
+        hook.queryClient
+          .getQueryCache()
+          .getAll()
+          .map((query) => query.queryKey)
+      )
+    ).not.toContain('DYNAMIC_PRIVATE_SENTINEL')
   })
 })

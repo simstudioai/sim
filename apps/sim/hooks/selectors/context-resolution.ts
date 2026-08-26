@@ -1,10 +1,56 @@
+import { generateShortId } from '@sim/utils/id'
 import { SELECTOR_CONTEXT_FIELDS } from '@/lib/workflows/subblocks/context'
 import type { CanonicalIndex } from '@/lib/workflows/subblocks/visibility'
 import { extractEnvVarName, isEnvVarReference, isReference } from '@/executor/constants'
-import type { SelectorContext } from '@/hooks/selectors/types'
+import type { SelectorContext, SelectorDefinition } from '@/hooks/selectors/types'
 
 interface PersonalEnvironmentValue {
   value?: string
+}
+
+export interface SelectorCacheScopeRegistry {
+  getScope(definition: SelectorDefinition, context: SelectorContext): string | undefined
+}
+
+/**
+ * Keeps raw dependency identity private while assigning stable opaque cache revisions.
+ *
+ * The raw signature exists only inside this component-lifetime registry. It is never returned,
+ * hashed into a key, or exposed to React Query. Repeated contexts reuse a revision; changing any
+ * server-resolved dependency receives a new one.
+ */
+export function createSelectorCacheScopeRegistry(
+  createScope: () => string = generateShortId
+): SelectorCacheScopeRegistry {
+  const scopes = new Map<string, string>()
+
+  return {
+    getScope(definition, context) {
+      const fields = definition.serverResolvedContextFields
+      if (!fields?.length) return undefined
+
+      const privateIdentity = JSON.stringify([
+        definition.key,
+        ...fields.map((field) => [field, context[field] ?? null]),
+      ])
+      const existing = scopes.get(privateIdentity)
+      if (existing) return existing
+
+      const scope = createScope()
+      scopes.set(privateIdentity, scope)
+      return scope
+    },
+  }
+}
+
+/** Adds an opaque revision only to selectors that opt into server-resolved context. */
+export function scopeServerResolvedSelectorContext(
+  definition: SelectorDefinition,
+  context: SelectorContext,
+  registry: SelectorCacheScopeRegistry
+): SelectorContext {
+  const selectorCacheScope = registry.getScope(definition, context)
+  return selectorCacheScope ? { ...context, selectorCacheScope } : context
 }
 
 /** Preserves opted-in environment references and keeps legacy personal resolution elsewhere. */

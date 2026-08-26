@@ -3,8 +3,13 @@ import { useQueries } from '@tanstack/react-query'
 import { buildSelectorContextFromBlock } from '@/lib/workflows/subblocks/context'
 import { summarizeNames } from '@/lib/workflows/subblocks/display'
 import type { SubBlockConfig } from '@/blocks/types'
+import {
+  createSelectorCacheScopeRegistry,
+  scopeServerResolvedSelectorContext,
+} from '@/hooks/selectors/context-resolution'
 import { getSelectorDefinition } from '@/hooks/selectors/registry'
 import type { SelectorContext } from '@/hooks/selectors/types'
+import { getScopedSelectorQueryKey } from '@/hooks/selectors/use-selector-query'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -62,6 +67,7 @@ export function useDynamicSubBlockOptionDisplayName({
   subBlock,
   value,
 }: UseDynamicSubBlockOptionDisplayNameArgs): string | null {
+  const selectorCacheScopes = useMemo(() => createSelectorCacheScopeRegistry(), [])
   const optionIds = useMemo(() => getResolvableOptionIds(value), [value])
   // Label resolution follows the option source: a selector's own `fetchById`. There is no
   // per-block resolver any more, so a selector without one simply renders the raw id.
@@ -93,6 +99,14 @@ export function useDynamicSubBlockOptionDisplayName({
     })
   }, [block, liveValues, activeWorkflowId, workspaceId])
 
+  const scopedResolverContext = useMemo(
+    () =>
+      definition
+        ? scopeServerResolvedSelectorContext(definition, resolverContext, selectorCacheScopes)
+        : resolverContext,
+    [definition, resolverContext, selectorCacheScopes]
+  )
+
   /**
    * The selector's own key for this context. Reusing it means the cache is scoped by exactly
    * what the selector reads — no second list of context fields to keep in step, and it stays
@@ -100,8 +114,13 @@ export function useDynamicSubBlockOptionDisplayName({
    */
   const selectorScope = useMemo(
     () =>
-      definition ? definition.getQueryKey({ key: definition.key, context: resolverContext }) : [],
-    [definition, resolverContext]
+      definition
+        ? getScopedSelectorQueryKey(definition, {
+            key: definition.key,
+            context: scopedResolverContext,
+          })
+        : [],
+    [definition, scopedResolverContext]
   )
   const canResolve = Boolean(blockId && fetchById && optionIds.length > 0)
 
@@ -121,7 +140,7 @@ export function useDynamicSubBlockOptionDisplayName({
             }
             return fetchById({
               key: definition.key,
-              context: resolverContext,
+              context: scopedResolverContext,
               detailId: optionId,
               signal,
             })
