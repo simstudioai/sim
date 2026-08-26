@@ -149,7 +149,7 @@ export const CRAWLED_PAGE_OUTPUT_PROPERTIES = {
  *
  * Based on the `data.web[]` / `data.news[]` items of POST /v2/search.
  */
-const SEARCH_SCRAPED_OUTPUT_PROPERTIES = {
+export const SEARCH_SCRAPED_OUTPUT_PROPERTIES = {
   markdown: {
     type: 'string',
     description: 'Page content in markdown (when scrapeOptions.formats includes "markdown")',
@@ -252,29 +252,32 @@ export const SEARCH_IMAGE_RESULT_OUTPUT_PROPERTIES = {
  * an image `imageUrl` have no equivalent on a web result and would be lost if
  * the sources were merged.
  */
+export const SEARCH_DATA_OUTPUT_PROPERTIES = {
+  web: {
+    type: 'array',
+    description: 'Web results (returned by default, or when "web" is in sources)',
+    optional: true,
+    items: { type: 'object', properties: SEARCH_WEB_RESULT_OUTPUT_PROPERTIES },
+  },
+  news: {
+    type: 'array',
+    description: 'News results (only when "news" is in sources)',
+    optional: true,
+    items: { type: 'object', properties: SEARCH_NEWS_RESULT_OUTPUT_PROPERTIES },
+  },
+  images: {
+    type: 'array',
+    description: 'Image results (only when "images" is in sources)',
+    optional: true,
+    items: { type: 'object', properties: SEARCH_IMAGE_RESULT_OUTPUT_PROPERTIES },
+  },
+} as const satisfies Record<string, OutputProperty>
+
+/** The declared `data` output of POST /v2/search. */
 export const SEARCH_DATA_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Search results, grouped by the sources requested',
-  properties: {
-    web: {
-      type: 'array',
-      description: 'Web results (returned by default, or when "web" is in sources)',
-      optional: true,
-      items: { type: 'object', properties: SEARCH_WEB_RESULT_OUTPUT_PROPERTIES },
-    },
-    news: {
-      type: 'array',
-      description: 'News results (only when "news" is in sources)',
-      optional: true,
-      items: { type: 'object', properties: SEARCH_NEWS_RESULT_OUTPUT_PROPERTIES },
-    },
-    images: {
-      type: 'array',
-      description: 'Image results (only when "images" is in sources)',
-      optional: true,
-      items: { type: 'object', properties: SEARCH_IMAGE_RESULT_OUTPUT_PROPERTIES },
-    },
-  },
+  properties: SEARCH_DATA_OUTPUT_PROPERTIES,
 }
 
 /** Declared shape of one `MapDocument` entry in a map result. */

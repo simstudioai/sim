@@ -176,9 +176,38 @@ Search for information on the web using Firecrawl
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `data` | object | Search results, grouped by the sources requested |
-|   ↳ `title` | string | Title from the search result |
-|   ↳ `description` | string | Description from the search result |
-|   ↳ `url` | string | URL of the search result |
+|   ↳ `web` | array | Web results \(returned by default, or when "web" is in sources\) |
+|     ↳ `markdown` | string | Page content in markdown \(when scrapeOptions.formats includes "markdown"\) |
+|     ↳ `html` | string | Processed HTML content \(when scrapeOptions.formats includes "html"\) |
+|     ↳ `rawHtml` | string | Unprocessed raw HTML \(when scrapeOptions.formats includes "rawHtml"\) |
+|     ↳ `links` | array | Links found on the page \(when scrapeOptions.formats includes "links"\) |
+|     ↳ `screenshot` | string | Screenshot URL \(expires after 24 hours, when scrapeOptions.formats includes "screenshot"\) |
+|     ↳ `audio` | string | Signed URL to the extracted MP3 \(when scrapeOptions.formats includes "audio"\); expires after 1 hour |
+|     ↳ `video` | string | Signed URL to the extracted video \(when scrapeOptions.formats includes "video"\); expires after 1 hour |
+|     ↳ `title` | string | Title from the search result |
+|     ↳ `description` | string | Description from the search result |
+|     ↳ `url` | string | URL of the search result |
+|   ↳ `news` | array | News results \(only when "news" is in sources\) |
+|     ↳ `markdown` | string | Page content in markdown \(when scrapeOptions.formats includes "markdown"\) |
+|     ↳ `html` | string | Processed HTML content \(when scrapeOptions.formats includes "html"\) |
+|     ↳ `rawHtml` | string | Unprocessed raw HTML \(when scrapeOptions.formats includes "rawHtml"\) |
+|     ↳ `links` | array | Links found on the page \(when scrapeOptions.formats includes "links"\) |
+|     ↳ `screenshot` | string | Screenshot URL \(expires after 24 hours, when scrapeOptions.formats includes "screenshot"\) |
+|     ↳ `audio` | string | Signed URL to the extracted MP3 \(when scrapeOptions.formats includes "audio"\); expires after 1 hour |
+|     ↳ `video` | string | Signed URL to the extracted video \(when scrapeOptions.formats includes "video"\); expires after 1 hour |
+|     ↳ `title` | string | Title of the article |
+|     ↳ `snippet` | string | Snippet from the article |
+|     ↳ `url` | string | URL of the article |
+|     ↳ `date` | string | Date of the article |
+|     ↳ `imageUrl` | string | URL of the article's image |
+|     ↳ `position` | number | Rank of the article within the news results \(1-based\) |
+|   ↳ `images` | array | Image results \(only when "images" is in sources\) |
+|     ↳ `title` | string | Title from the search result |
+|     ↳ `imageUrl` | string | URL of the image itself |
+|     ↳ `imageWidth` | number | Width of the image in pixels |
+|     ↳ `imageHeight` | number | Height of the image in pixels |
+|     ↳ `url` | string | URL of the page containing the image |
+|     ↳ `position` | number | Rank of the result within the image results \(1-based\) |
 | `warning` | string | Warning message if any issues occurred during the search |
 | `id` | string | ID of the search job |
 | `creditsUsed` | number | Number of credits the search consumed |
