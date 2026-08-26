@@ -826,6 +826,17 @@ const SWEEP_PAGE_SIZE = 250
 const SWEEP_CLOSE_CONCURRENCY = 10
 
 /**
+ * Entitled statuses inlined as SQL literals rather than bind parameters: the
+ * candidate scan targets the partial index on exactly this predicate, and the
+ * planner can only prove a query implies a partial index's predicate from
+ * literals — a parameterized generic plan would fall back to scanning the
+ * whole table.
+ */
+const ENTITLED_STATUS_LITERALS = sql.raw(
+  ENTITLED_SUBSCRIPTION_STATUSES.map((status) => `'${status}'`).join(', ')
+)
+
+/**
  * Daily catch-all that closes every elapsed billing period. Candidates are
  * entitled subscriptions whose close marker lags their current `periodStart`
  * — i.e. the period advanced (via Stripe sync) since the last close.
@@ -853,7 +864,7 @@ export async function sweepBillingCycleCloses(): Promise<CycleCloseSweepSummary>
       .from(subscriptionTable)
       .where(
         and(
-          inArray(subscriptionTable.status, ENTITLED_SUBSCRIPTION_STATUSES),
+          sql`${subscriptionTable.status} in (${ENTITLED_STATUS_LITERALS})`,
           sql`${subscriptionTable.periodStart} IS NOT NULL`,
           or(
             isNull(subscriptionTable.lastClosedPeriodStart),
