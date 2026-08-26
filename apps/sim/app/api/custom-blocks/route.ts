@@ -9,11 +9,11 @@ import {
 } from '@/lib/api/contracts/custom-blocks'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
-import { isOrganizationOnEnterprisePlan } from '@/lib/billing'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   CustomBlockValidationError,
   type CustomBlockWithInputs,
+  isCustomBlocksEligibleForOrganization,
   listCustomBlocksWithInputs,
   publishCustomBlock,
 } from '@/lib/workflows/custom-blocks/operations'
@@ -63,7 +63,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     return NextResponse.json({ enabled: false, customBlocks: [] })
   }
 
-  const enabled = await isOrganizationOnEnterprisePlan(organizationId)
+  const enabled = await isCustomBlocksEligibleForOrganization(organizationId)
   const blocks = enabled ? await listCustomBlocksWithInputs(organizationId) : []
   return NextResponse.json({ enabled, customBlocks: blocks.map(toWire) })
 })
@@ -102,9 +102,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     )
   }
 
-  if (!(await isOrganizationOnEnterprisePlan(organizationId))) {
+  if (!(await isCustomBlocksEligibleForOrganization(organizationId))) {
     return NextResponse.json(
-      { error: 'Deploy as block requires an enterprise plan' },
+      { error: 'Custom blocks are not enabled for this organization' },
       { status: 403 }
     )
   }

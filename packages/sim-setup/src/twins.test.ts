@@ -8,4 +8,11 @@ describe('setup environment twins', () => {
       client: 'NEXT_PUBLIC_SLACK_EXTENDED_SCOPES',
     })
   })
+
+  it('keeps the Custom Blocks server and browser entitlement values coherent', () => {
+    expect(FLAG_TWINS).toContainEqual({
+      server: 'CUSTOM_BLOCKS_ENABLED',
+      client: 'NEXT_PUBLIC_CUSTOM_BLOCKS_ENABLED',
+    })
+  })
 })

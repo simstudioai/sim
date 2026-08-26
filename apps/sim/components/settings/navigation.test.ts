@@ -37,6 +37,12 @@ afterAll(() => {
 })
 
 describe('settings navigation boundaries', () => {
+  it('keeps Custom Blocks opt-in on self-hosted deployments', () => {
+    expect(
+      buildUnifiedSettingsNavigation().find(({ id }) => id === 'custom-blocks')?.selfHostedOverride
+    ).toBe(false)
+  })
+
   it('preserves the order of all four settings catalogs', () => {
     expect(buildUnifiedSettingsNavigation().map(({ id }) => id)).toEqual([
       'general',

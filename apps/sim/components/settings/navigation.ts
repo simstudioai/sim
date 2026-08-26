@@ -32,6 +32,7 @@ import { getEnv, isTruthy } from '@/lib/core/config/env'
 import {
   isAccessControlEnabled,
   isAuditLogsEnabled,
+  isCustomBlocksEnabled,
   isDataDrainsEnabled,
   isDataRetentionEnabled,
   isHosted,
@@ -212,7 +213,7 @@ export interface SettingsSectionRegistryEntry {
 const SETTINGS_SELF_HOSTED_OVERRIDES = {
   accessControl: isAccessControlEnabled,
   auditLogs: isAuditLogsEnabled,
-  customBlocks: true,
+  customBlocks: isCustomBlocksEnabled,
   dataDrains: isDataDrainsEnabled,
   dataRetention: isDataRetentionEnabled,
   inbox: isInboxEnabled,

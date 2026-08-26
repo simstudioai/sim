@@ -253,6 +253,8 @@ app:
     NEXT_PUBLIC_WHITELABELING_ENABLED: ""                 # Show whitelabeling settings page ("true" to enable)
     AUDIT_LOGS_ENABLED: ""                                # Enable audit logs on self-hosted ("true" to enable)
     NEXT_PUBLIC_AUDIT_LOGS_ENABLED: ""                    # Show audit logs settings page ("true" to enable)
+    CUSTOM_BLOCKS_ENABLED: ""                             # Enable custom blocks on self-hosted ("true" to enable)
+    NEXT_PUBLIC_CUSTOM_BLOCKS_ENABLED: ""                 # Show custom blocks settings page ("true" to enable)
     DATA_DRAINS_ENABLED: ""                               # Enable data drains on self-hosted ("true" to enable)
     NEXT_PUBLIC_DATA_DRAINS_ENABLED: ""                   # Show data drains settings page ("true" to enable)
 

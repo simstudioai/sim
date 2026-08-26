@@ -191,6 +191,9 @@ export function SettingsSidebar({
       ) {
         return false
       }
+      if (item.id === 'custom-blocks' && !hostContext.hostOrganizationId) {
+        return false
+      }
 
       if (item.selfHostedOverride && !isHosted) {
         /**

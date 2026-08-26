@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server'
-import { getCustomBlockManageContext } from '@/lib/workflows/custom-blocks/operations'
+import {
+  getCustomBlockManageContext,
+  isCustomBlocksDeploymentEnabled,
+} from '@/lib/workflows/custom-blocks/operations'
 import { hasWorkspaceAdminAccess } from '@/lib/workspaces/permissions/utils'
 
 export type ManageContext = NonNullable<Awaited<ReturnType<typeof getCustomBlockManageContext>>>
@@ -17,6 +20,16 @@ export async function authorizeManage(
 ): Promise<{ error: NextResponse; ctx: null } | { error: null; ctx: ManageContext }> {
   const ctx = await getCustomBlockManageContext(id)
   if (!ctx) return { error: NextResponse.json({ error: 'Not found' }, { status: 404 }), ctx: null }
+
+  if (!isCustomBlocksDeploymentEnabled()) {
+    return {
+      error: NextResponse.json(
+        { error: 'Custom blocks are not enabled for this organization' },
+        { status: 403 }
+      ),
+      ctx: null,
+    }
+  }
 
   if (!ctx.sourceWorkspaceId || !(await hasWorkspaceAdminAccess(userId, ctx.sourceWorkspaceId))) {
     return {
