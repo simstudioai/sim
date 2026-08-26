@@ -22,12 +22,16 @@ interface ColumnHeaderMenuProps {
   isRenaming: boolean
   isColumnSelected: boolean
   renameValue: string
+  /** Marks a refused inline rename until the user changes or cancels it. */
+  renameError?: boolean
   onRenameValueChange: (value: string) => void
   onRenameSubmit: () => void
   onRenameCancel: () => void
   onColumnSelect: (colIndex: number, shiftKey: boolean) => void
   onInsertLeft: (columnName: string) => void
   onInsertRight: (columnName: string) => void
+  /** Starts inline renaming for a plain or enrichment column. */
+  onRenameColumn?: (columnName: string) => void
   /** Opens the table targeted by a Reference column. */
   onGoToReferenceTable?: (tableId: string) => void
   onDeleteColumn: (columnName: string) => void
@@ -76,12 +80,14 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   isRenaming,
   isColumnSelected,
   renameValue,
+  renameError,
   onRenameValueChange,
   onRenameSubmit,
   onRenameCancel,
   onColumnSelect,
   onInsertLeft,
   onInsertRight,
+  onRenameColumn,
   onGoToReferenceTable,
   onDeleteColumn,
   onResizeStart,
@@ -124,6 +130,7 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
       ? 'Hide column'
       : 'Delete column'
     : undefined
+  const isWorkflowOutput = Boolean(column.workflowGroupId && ownGroup?.type !== 'enrichment')
   useEffect(() => {
     if (isRenaming && renameInputRef.current) {
       renameInputRef.current.focus()
@@ -305,7 +312,11 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
               if (e.key === 'Escape') onRenameCancel()
             }}
             onBlur={onRenameSubmit}
-            className='ml-1.5 min-w-0 flex-1 border-0 bg-transparent p-0 text-[var(--text-primary)] text-small outline-hidden focus:outline-hidden focus:ring-0'
+            aria-invalid={renameError || undefined}
+            className={cn(
+              'ml-1.5 min-w-0 flex-1 border-0 bg-transparent p-0 text-small outline-hidden focus:outline-hidden focus:ring-0',
+              renameError ? 'text-[var(--text-error)]' : 'text-[var(--text-primary)]'
+            )}
           />
         </div>
       ) : readOnly ? (
@@ -370,6 +381,7 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
             onOpenConfig={onOpenConfig}
             schemaLockedReason={schemaLockedReason}
             deleteLockedReason={deleteLockedReason}
+            onRenameColumn={isWorkflowOutput ? undefined : onRenameColumn}
             onGoToReferenceTable={onGoToReferenceTable}
             onInsertLeft={onInsertLeft}
             onInsertRight={onInsertRight}

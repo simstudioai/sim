@@ -76,6 +76,8 @@ interface ColumnOptionsMenuProps {
   schemaLockedReason?: string
   /** Why deleting is unavailable; disables the destructive column row. */
   deleteLockedReason?: string
+  /** Starts inline renaming for a plain or enrichment column. */
+  onRenameColumn?: (columnName: string) => void
   /** Opens the table targeted by a Reference column. */
   onGoToReferenceTable?: (tableId: string) => void
   onInsertLeft: (columnName: string) => void
@@ -137,9 +139,9 @@ function MenuRow({ reason, children }: { reason?: string; children: React.ReactE
 /**
  * Shared column-options dropdown rendered next to the column header chevron
  * AND on right-click of the workflow group meta cell. Anchors to a fixed
- * position passed in (so callers can place it under the chevron, or at the
- * cursor for context-menu use). Rename / change type / unique live in the
- * column sidebar (opened by Edit column).
+ * position passed in so callers can place it under the chevron or at the
+ * cursor. Rename starts in the header; type, uniqueness, and type-specific
+ * configuration live in the sidebar opened by Edit column.
  */
 export function ColumnOptionsMenu({
   open,
@@ -150,6 +152,7 @@ export function ColumnOptionsMenu({
   onOpenConfig,
   schemaLockedReason,
   deleteLockedReason,
+  onRenameColumn,
   onGoToReferenceTable,
   onInsertLeft,
   onInsertRight,
@@ -276,6 +279,17 @@ export function ColumnOptionsMenu({
             Edit column
           </DropdownMenuItem>
         </MenuRow>
+        {onRenameColumn && (
+          <MenuRow reason={schemaLockedReason}>
+            <DropdownMenuItem
+              disabled={Boolean(schemaLockedReason)}
+              onSelect={() => onRenameColumn(column.key)}
+            >
+              <Pencil />
+              Rename column
+            </DropdownMenuItem>
+          </MenuRow>
+        )}
         {onPinToggle && (
           <DropdownMenuItem onSelect={() => onPinToggle(column.key)}>
             {isPinned ? <PinOff /> : <Pin />}
