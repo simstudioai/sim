@@ -71,8 +71,6 @@ interface ColumnOptionsMenuProps {
    *  it leaves the group with siblings). */
   deleteLabel?: string
   onOpenConfig: (columnName: string) => void
-  /** Starts inline renaming for a plain or enrichment column. */
-  onRenameColumn?: (columnName: string) => void
   /** Opens the table targeted by a Reference column. */
   onGoToReferenceTable?: (tableId: string) => void
   onInsertLeft: (columnName: string) => void
@@ -127,7 +125,6 @@ export function ColumnOptionsMenu({
   column,
   deleteLabel,
   onOpenConfig,
-  onRenameColumn,
   onGoToReferenceTable,
   onInsertLeft,
   onInsertRight,
@@ -246,12 +243,6 @@ export function ColumnOptionsMenu({
           <Pencil />
           Edit column
         </DropdownMenuItem>
-        {onRenameColumn && (
-          <DropdownMenuItem onSelect={() => onRenameColumn(column.key)}>
-            <Pencil />
-            Rename column
-          </DropdownMenuItem>
-        )}
         {onPinToggle && (
           <DropdownMenuItem onSelect={() => onPinToggle(column.key)}>
             {isPinned ? <PinOff /> : <Pin />}
