@@ -11,8 +11,9 @@ import type { ToolConfig } from '@/tools/types'
 const logger = createLogger('LinkedInSharePost')
 
 /**
- * LinkedIn's documented permalink prefix for a share URN. LinkedIn describes the resulting URL as
- * viewable by an authorized member, not as a guaranteed public permalink.
+ * LinkedIn's documented permalink prefix for a `urn:li:ugcPost:` URN — the family `/v2/ugcPosts`
+ * returns. LinkedIn describes the resulting URL as viewable by an authorized member, not as a
+ * guaranteed public permalink.
  */
 const LINKEDIN_FEED_UPDATE_BASE = 'https://www.linkedin.com/feed/update/'
 
@@ -158,13 +159,13 @@ export const linkedInSharePostTool: ToolConfig<SharePostParams, SharePostRespons
     postId: {
       type: 'string',
       description:
-        'URN of the created share, read from the `x-restli-id` response header. Absent when LinkedIn omits that header.',
+        'The `urn:li:ugcPost:` URN of the created post, read from the `x-restli-id` response header. Absent when LinkedIn omits that header.',
       optional: true,
     },
     postUrl: {
       type: 'string',
       description:
-        'LinkedIn URL of the created post. Viewable by an authorized LinkedIn member — not a guaranteed public permalink. Absent when no share URN was returned.',
+        'LinkedIn URL of the created post. Viewable by an authorized LinkedIn member — not a guaranteed public permalink. Absent when no ugcPost URN was returned.',
       optional: true,
     },
   },

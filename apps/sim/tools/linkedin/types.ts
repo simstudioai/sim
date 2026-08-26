@@ -35,7 +35,11 @@ export interface SharePostParams {
 
 export interface SharePostResponse extends ToolResponse {
   output: {
-    /** Share URN from the `x-restli-id` response header; absent if LinkedIn omits the header. */
+    /**
+     * The `urn:li:ugcPost:` URN of the created post, from the `x-restli-id` response header;
+     * absent if LinkedIn omits the header. `/v2/ugcPosts` returns a ugcPost URN, never a
+     * `urn:li:share:` URN from the legacy Shares API.
+     */
     postId?: string
     /**
      * LinkedIn's `feed/update/<urn>` permalink for the created post. LinkedIn documents this URL

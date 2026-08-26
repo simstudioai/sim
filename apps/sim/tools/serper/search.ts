@@ -1,4 +1,11 @@
-import type { SearchParams, SearchResponse, SearchResult } from '@/tools/serper/types'
+import type {
+  SearchParams,
+  SearchResponse,
+  SearchResult,
+  SerperKnowledgeGraph,
+  SerperPeopleAlsoAsk,
+  SerperRelatedSearch,
+} from '@/tools/serper/types'
 import { SERPER_SEARCH_RESULT_OUTPUT_PROPERTIES } from '@/tools/serper/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -42,34 +49,46 @@ const SERPER_VERTICALS: Record<SerperSearchType, SerperVertical> = {
     }),
   },
   /**
-   * Places items carry no `link` and no `snippet`: Serper returns `website` (the business site,
-   * which is not a search result URL and must not be presented as one) and `description`. Its
-   * review count is `ratingCount`, and its category is `type`. The full documented item shape is
-   * `position, title, address, latitude, longitude, rating, ratingCount, type, types, website,
-   * phoneNumber, description, cid, placeId`.
+   * Shape of an item from `https://google.serper.dev/places` — NOT from `/maps`. Both endpoints
+   * return a top-level `places` array with different item shapes, and only `/maps` carries the
+   * top-level `ll` field. The `/places` item is
+   * `address, category, cid, latitude, longitude, phoneNumber, position, rating, ratingCount,
+   * title, website`.
+   *
+   * It carries no `link` (Serper returns `website`, the business site, which is not a search
+   * result URL and must not be presented as one) and no snippet analogue at all — `description`
+   * and `type` are Maps-only keys and are absent here. The category is `category`; the review
+   * count is `ratingCount`. `latitude`/`longitude` are surfaced so callers can rank by proximity.
    */
   places: {
     responseKey: 'places',
     toResult: (item, index) => ({
       title: item.title as string,
-      snippet: item.description as string | undefined,
       position: index + 1,
       rating: item.rating as number | undefined,
       ratingCount: item.ratingCount as number | undefined,
       address: item.address as string | undefined,
-      category: item.type as string | undefined,
+      latitude: item.latitude as number | undefined,
+      longitude: item.longitude as number | undefined,
+      category: item.category as string | undefined,
       phoneNumber: item.phoneNumber as string | undefined,
       website: item.website as string | undefined,
     }),
   },
+  /**
+   * `/images` items carry no `snippet`. The published item shape is `domain, googleUrl,
+   * imageHeight, imageUrl, imageWidth, link, position, source, thumbnailHeight, thumbnailUrl,
+   * thumbnailWidth, title`.
+   */
   images: {
     responseKey: 'images',
     toResult: (item, index) => ({
       title: item.title as string,
       link: item.link as string,
-      snippet: item.snippet as string | undefined,
       position: index + 1,
       imageUrl: item.imageUrl as string | undefined,
+      thumbnailUrl: item.thumbnailUrl as string | undefined,
+      source: item.source as string | undefined,
     }),
   },
   videos: {
@@ -81,18 +100,26 @@ const SERPER_VERTICALS: Record<SerperSearchType, SerperVertical> = {
       position: index + 1,
       date: item.date as string | undefined,
       source: item.source as string | undefined,
+      channel: item.channel as string | undefined,
       duration: item.duration as string | undefined,
+      imageUrl: item.imageUrl as string | undefined,
     }),
   },
+  /**
+   * `/shopping` items carry no `snippet`. The published item shape is `delivery, imageUrl, link,
+   * offers, position, price, productId, rating, ratingCount, source, title`.
+   */
   shopping: {
     responseKey: 'shopping',
     toResult: (item, index) => ({
       title: item.title as string,
       link: item.link as string,
-      snippet: item.snippet as string | undefined,
       position: index + 1,
       source: item.source as string | undefined,
       price: item.price as string | undefined,
+      delivery: item.delivery as string | undefined,
+      rating: item.rating as number | undefined,
+      ratingCount: item.ratingCount as number | undefined,
       imageUrl: item.imageUrl as string | undefined,
     }),
   },
@@ -169,7 +196,7 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
   id: 'serper_search',
   name: 'Web Search',
   description:
-    'Search Google through the Serper.dev API. Supports the web, news, places, images, videos, shopping, scholar, and patents verticals, and returns a flat list of results for the requested vertical with its type-specific metadata (date and source for news, rating, review count, address, category, phone, and website for places, image URLs for images, duration for videos, price for shopping).',
+    'Search Google through the Serper.dev API. Supports the web, news, places, images, videos, shopping, scholar, and patents verticals, and returns a flat list of results for the requested vertical with its type-specific metadata (date and source for news, rating, review count, address, coordinates, category, phone, and website for places, image and thumbnail URLs for images, duration and channel for videos, price, delivery, and rating for shopping). The web vertical additionally returns the knowledge graph, "people also ask", and related searches when Google renders them.',
   version: '1.0.0',
 
   params: {
@@ -258,18 +285,38 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
   transformResponse: async (response: Response, params?: SearchParams) => {
     const data = await response.json()
 
-    const vertical =
-      SERPER_VERTICALS[resolveSearchType(params?.type ?? verticalFromUrl(response.url))]
+    const searchType = resolveSearchType(params?.type ?? verticalFromUrl(response.url))
+    const vertical = SERPER_VERTICALS[searchType]
     const items = data[vertical.responseKey]
     const searchResults: SearchResult[] = Array.isArray(items)
       ? items.map((item, index) => vertical.toResult(item, index))
       : []
 
+    const output: SearchResponse['output'] = { searchResults }
+
+    /**
+     * `knowledgeGraph`, `peopleAlsoAsk` and `relatedSearches` are documented only on the `search`
+     * vertical, so they are gated on it rather than read opportunistically — a same-named key on
+     * another vertical's payload would otherwise be passed through under a shape callers cannot
+     * rely on. Each key is also omitted per response, since Google renders these blocks only for
+     * some queries.
+     */
+    if (searchType === 'search') {
+      const knowledgeGraph = data.knowledgeGraph as SerperKnowledgeGraph | undefined
+      if (knowledgeGraph && typeof knowledgeGraph === 'object') {
+        output.knowledgeGraph = knowledgeGraph
+      }
+      if (Array.isArray(data.peopleAlsoAsk)) {
+        output.peopleAlsoAsk = data.peopleAlsoAsk as SerperPeopleAlsoAsk[]
+      }
+      if (Array.isArray(data.relatedSearches)) {
+        output.relatedSearches = data.relatedSearches as SerperRelatedSearch[]
+      }
+    }
+
     return {
       success: true,
-      output: {
-        searchResults,
-      },
+      output,
     }
   },
 
@@ -277,10 +324,65 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
     searchResults: {
       type: 'array',
       description:
-        'Results for the requested vertical, with titles, links, snippets, and type-specific metadata (date/source for news, rating/ratingCount/address/category/phoneNumber/website for places, imageUrl for images, duration/source for videos, price/source for shopping). Places results have no link.',
+        'Results for the requested vertical, with titles, links, snippets, and type-specific metadata (date/source for news, rating/ratingCount/address/latitude/longitude/category/phoneNumber/website for places, imageUrl/thumbnailUrl/source for images, duration/channel/source for videos, price/delivery/rating/ratingCount/source for shopping). Places, images, and shopping results have no snippet; places results have no link.',
       items: {
         type: 'object',
         properties: SERPER_SEARCH_RESULT_OUTPUT_PROPERTIES,
+      },
+    },
+    knowledgeGraph: {
+      type: 'object',
+      description:
+        'Google knowledge panel for the query. Only returned by the web search vertical, and only when Google renders a panel.',
+      optional: true,
+      properties: {
+        title: { type: 'string', description: 'Entity name', optional: true },
+        type: { type: 'string', description: 'Entity type, e.g. "Website"', optional: true },
+        website: { type: 'string', description: 'Entity website URL', optional: true },
+        imageUrl: { type: 'string', description: 'Entity image URL', optional: true },
+        description: { type: 'string', description: 'Entity description', optional: true },
+        descriptionSource: {
+          type: 'string',
+          description: 'Publication the description was taken from, e.g. "Wikipedia"',
+          optional: true,
+        },
+        descriptionLink: {
+          type: 'string',
+          description: 'URL of the description source',
+          optional: true,
+        },
+        attributes: {
+          type: 'object',
+          description: 'Key/value facts Google lists in the panel',
+          optional: true,
+        },
+      },
+    },
+    peopleAlsoAsk: {
+      type: 'array',
+      description:
+        'Google "People also ask" entries. Only returned by the web search vertical, and only when Google renders the block.',
+      optional: true,
+      items: {
+        type: 'object',
+        properties: {
+          question: { type: 'string', description: 'The question asked', optional: true },
+          snippet: { type: 'string', description: 'Answer snippet', optional: true },
+          title: { type: 'string', description: 'Title of the answering page', optional: true },
+          link: { type: 'string', description: 'URL of the answering page', optional: true },
+        },
+      },
+    },
+    relatedSearches: {
+      type: 'array',
+      description:
+        'Google "Related searches" queries. Only returned by the web search vertical, and only when Google renders the block.',
+      optional: true,
+      items: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'The related query text', optional: true },
+        },
       },
     },
   },

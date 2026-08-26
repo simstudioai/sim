@@ -107,6 +107,18 @@ export const SerperBlock: BlockConfig<SearchResponse> = {
   },
   outputs: {
     searchResults: { type: 'json', description: 'Search results data' },
+    knowledgeGraph: {
+      type: 'json',
+      description: 'Google knowledge panel. Web search vertical only, when Google renders one',
+    },
+    peopleAlsoAsk: {
+      type: 'json',
+      description: 'Google "People also ask" entries. Web search vertical only',
+    },
+    relatedSearches: {
+      type: 'json',
+      description: 'Google "Related searches" queries. Web search vertical only',
+    },
   },
 }
 
@@ -208,7 +220,7 @@ export const SerperBlockMeta = {
       description:
         'Use the Serper places operation to find local businesses for a query and area, and rank them.',
       content:
-        '# Find Local Businesses\n\nPull Google Maps style local results for a query in a target area.\n\n## Steps\n1. Run the places operation with a query that includes the business type and location (for example coffee shops in Seattle), setting the country and language to scope results.\n2. Read each place result: name, address, rating, review count, category, and phone or website where present.\n3. Rank or filter the results by rating, review volume, or proximity to the target area.\n\n## Output\nReturn a ranked list of local businesses with name, address, rating, and review count, noting the top candidates for the query.',
+        '# Find Local Businesses\n\nPull Google Maps style local results for a query in a target area.\n\n## Steps\n1. Run the places operation with a query that includes the business type and location (for example coffee shops in Seattle), setting the country and language to scope results.\n2. Read each place result: title (the business name), address, rating, ratingCount (the review count), category, phoneNumber, website, and latitude/longitude where present. Places results carry no link and no snippet.\n3. Rank or filter the results by rating, review volume, or by latitude/longitude distance from the target area.\n\n## Output\nReturn a ranked list of local businesses with name, address, rating, and review count, noting the top candidates for the query.',
     },
   ],
 } as const satisfies BlockMeta

@@ -37,31 +37,33 @@ describe('linkedInSharePostTool.postProcess', () => {
     mockFetch.mockResolvedValue(
       new Response(null, {
         status: 201,
-        headers: { 'x-restli-id': 'urn:li:share:123' },
+        headers: { 'x-restli-id': 'urn:li:ugcPost:7264398217238917120' },
       })
     )
 
     const result = await linkedInSharePostTool.postProcess!(profileResult, params, executeTool)
 
-    expect(result.output.postId).toBe('urn:li:share:123')
+    expect(result.output.postId).toBe('urn:li:ugcPost:7264398217238917120')
     expect(result.success).toBe(true)
     expect(result.error).toBeUndefined()
   })
 
-  it('builds the member-viewable post URL from the returned share URN', async () => {
+  it('builds the member-viewable post URL from the returned ugcPost URN', async () => {
     mockFetch.mockResolvedValue(
       new Response(null, {
         status: 201,
-        headers: { 'x-restli-id': 'urn:li:share:123' },
+        headers: { 'x-restli-id': 'urn:li:ugcPost:7264398217238917120' },
       })
     )
 
     const result = await linkedInSharePostTool.postProcess!(profileResult, params, executeTool)
 
-    expect(result.output.postUrl).toBe('https://www.linkedin.com/feed/update/urn:li:share:123/')
+    expect(result.output.postUrl).toBe(
+      'https://www.linkedin.com/feed/update/urn:li:ugcPost:7264398217238917120/'
+    )
   })
 
-  it('leaves the post URL undefined when there is no share URN to build it from', async () => {
+  it('leaves the post URL undefined when there is no ugcPost URN to build it from', async () => {
     mockFetch.mockResolvedValue(new Response(null, { status: 201 }))
 
     const result = await linkedInSharePostTool.postProcess!(profileResult, params, executeTool)
@@ -96,7 +98,7 @@ describe('linkedInSharePostTool.postProcess', () => {
     mockFetch.mockResolvedValue(
       new Response(null, {
         status: 201,
-        headers: { 'x-restli-id': 'urn:li:share:123' },
+        headers: { 'x-restli-id': 'urn:li:ugcPost:7264398217238917120' },
       })
     )
 
@@ -123,5 +125,17 @@ describe('linkedInSharePostTool.postProcess', () => {
 describe('linkedInSharePostTool.outputs', () => {
   it('declares exactly the keys postProcess returns', () => {
     expect(Object.keys(linkedInSharePostTool.outputs ?? {}).sort()).toEqual(['postId', 'postUrl'])
+  })
+
+  it('names the ugcPost URN family that /v2/ugcPosts actually returns', () => {
+    const descriptions = [
+      linkedInSharePostTool.outputs?.postId?.description ?? '',
+      linkedInSharePostTool.outputs?.postUrl?.description ?? '',
+    ]
+
+    for (const description of descriptions) {
+      expect(description).toContain('ugcPost')
+      expect(description).not.toMatch(/\bshare\b/i)
+    }
   })
 })

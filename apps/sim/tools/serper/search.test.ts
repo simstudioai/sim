@@ -64,6 +64,8 @@ describe('serper searchTool.transformResponse', () => {
           source: 'YouTube',
           duration: '10:30',
           date: '3 weeks ago',
+          channel: 'Sim',
+          imageUrl: 'https://example.com/thumb.jpg',
         },
       ],
     })
@@ -81,20 +83,27 @@ describe('serper searchTool.transformResponse', () => {
         date: '3 weeks ago',
         source: 'YouTube',
         duration: '10:30',
+        channel: 'Sim',
+        imageUrl: 'https://example.com/thumb.jpg',
       },
     ])
   })
 
-  it('maps shopping results instead of falling through to the organic branch', async () => {
+  it('maps shopping results from the keys the shopping endpoint actually returns', async () => {
     const response = serperResponse('https://google.serper.dev/shopping', {
       shopping: [
         {
-          title: 'Mechanical Keyboard',
-          link: 'https://example.com/keyboard',
-          snippet: '87-key hot-swappable',
-          source: 'Example Store',
-          price: '$19.99',
-          imageUrl: 'https://example.com/keyboard.png',
+          title: "Nike Air Max 97 GS 'White Metallic Silver'",
+          source: 'Nike',
+          link: 'https://www.nike.com/t/air-max-97',
+          price: '$104.97',
+          delivery: '$8.00 shipping',
+          imageUrl: 'https://example.com/airmax.png',
+          rating: 4.5,
+          ratingCount: 1,
+          offers: '10+',
+          productId: '4195027484078128635',
+          position: 1,
         },
       ],
     })
@@ -105,15 +114,18 @@ describe('serper searchTool.transformResponse', () => {
     expect(result.output.searchResults).toHaveLength(1)
     expect(result.output.searchResults).toEqual([
       {
-        title: 'Mechanical Keyboard',
-        link: 'https://example.com/keyboard',
-        snippet: '87-key hot-swappable',
+        title: "Nike Air Max 97 GS 'White Metallic Silver'",
+        link: 'https://www.nike.com/t/air-max-97',
         position: 1,
-        source: 'Example Store',
-        price: '$19.99',
-        imageUrl: 'https://example.com/keyboard.png',
+        source: 'Nike',
+        price: '$104.97',
+        delivery: '$8.00 shipping',
+        imageUrl: 'https://example.com/airmax.png',
+        rating: 4.5,
+        ratingCount: 1,
       },
     ])
+    expect(result.output.searchResults[0].snippet).toBeUndefined()
   })
 
   it('keeps the publisher name Serper reports on news results', async () => {
@@ -145,24 +157,21 @@ describe('serper searchTool.transformResponse', () => {
     ])
   })
 
-  it('maps places results from the keys Serper actually returns', async () => {
+  it('maps /places results from the keys the places endpoint actually returns', async () => {
     const response = serperResponse('https://google.serper.dev/places', {
       places: [
         {
           position: 1,
-          title: 'Corner Coffee',
-          address: '1 Main St, Seattle, WA 98101',
-          latitude: 47.6,
-          longitude: -122.33,
-          rating: 4.6,
-          ratingCount: 812,
-          type: 'Coffee shop',
-          types: ['Coffee shop', 'Cafe'],
-          website: 'https://cornercoffee.example',
-          phoneNumber: '+1 206-555-0100',
-          description: 'Espresso bar with pastries',
-          cid: '123456789',
-          placeId: 'ChIJabc',
+          title: 'Whole Foods Market',
+          address: '2001 Market St, San Francisco, CA 94114',
+          latitude: 37.7687616,
+          longitude: -122.42701559999999,
+          rating: 4.2,
+          ratingCount: 1500,
+          category: 'Grocery store',
+          phoneNumber: '(415) 626-1430',
+          website: 'https://www.wholefoodsmarket.com/stores/2001marketstreet',
+          cid: '6353588238324409422',
         },
       ],
     })
@@ -171,17 +180,39 @@ describe('serper searchTool.transformResponse', () => {
 
     expect(result.output.searchResults).toEqual([
       {
-        title: 'Corner Coffee',
-        snippet: 'Espresso bar with pastries',
+        title: 'Whole Foods Market',
         position: 1,
-        rating: 4.6,
-        ratingCount: 812,
-        address: '1 Main St, Seattle, WA 98101',
-        category: 'Coffee shop',
-        phoneNumber: '+1 206-555-0100',
-        website: 'https://cornercoffee.example',
+        rating: 4.2,
+        ratingCount: 1500,
+        address: '2001 Market St, San Francisco, CA 94114',
+        latitude: 37.7687616,
+        longitude: -122.42701559999999,
+        category: 'Grocery store',
+        phoneNumber: '(415) 626-1430',
+        website: 'https://www.wholefoodsmarket.com/stores/2001marketstreet',
       },
     ])
+  })
+
+  it('does not invent a places snippet from the Maps-only description key', async () => {
+    const response = serperResponse('https://google.serper.dev/places', {
+      places: [{ title: 'Corner Coffee', category: 'Coffee shop', description: 'Maps-only key' }],
+    })
+
+    const result = await searchTool.transformResponse!(response, {} as never)
+
+    expect(result.output.searchResults[0].snippet).toBeUndefined()
+    expect(result.output.searchResults[0].category).toBe('Coffee shop')
+  })
+
+  it('does not read the Maps-only type key as the places category', async () => {
+    const response = serperResponse('https://google.serper.dev/places', {
+      places: [{ title: 'Corner Coffee', type: 'Maps-only key' }],
+    })
+
+    const result = await searchTool.transformResponse!(response, {} as never)
+
+    expect(result.output.searchResults[0].category).toBeUndefined()
   })
 
   it('leaves the places link undefined rather than passing off the business website as one', async () => {
@@ -195,14 +226,22 @@ describe('serper searchTool.transformResponse', () => {
     expect(result.output.searchResults[0].website).toBe('https://cornercoffee.example')
   })
 
-  it('maps images results unchanged', async () => {
+  it('maps images results from the keys the images endpoint actually returns', async () => {
     const response = serperResponse('https://google.serper.dev/images', {
       images: [
         {
-          title: 'Sunset',
-          link: 'https://example.com/sunset',
-          snippet: 'Golden hour',
-          imageUrl: 'https://example.com/sunset.png',
+          title: 'Lion - Wikipedia',
+          imageUrl: 'https://example.com/lion.jpg',
+          imageWidth: 1200,
+          imageHeight: 900,
+          thumbnailUrl: 'https://example.com/lion-thumb.jpg',
+          thumbnailWidth: 259,
+          thumbnailHeight: 194,
+          source: 'Wikipedia',
+          domain: 'en.wikipedia.org',
+          link: 'https://en.wikipedia.org/wiki/Lion',
+          googleUrl: 'https://www.google.com/imgres?imgurl=lion',
+          position: 1,
         },
       ],
     })
@@ -211,13 +250,15 @@ describe('serper searchTool.transformResponse', () => {
 
     expect(result.output.searchResults).toEqual([
       {
-        title: 'Sunset',
-        link: 'https://example.com/sunset',
-        snippet: 'Golden hour',
+        title: 'Lion - Wikipedia',
+        link: 'https://en.wikipedia.org/wiki/Lion',
         position: 1,
-        imageUrl: 'https://example.com/sunset.png',
+        imageUrl: 'https://example.com/lion.jpg',
+        thumbnailUrl: 'https://example.com/lion-thumb.jpg',
+        source: 'Wikipedia',
       },
     ])
+    expect(result.output.searchResults[0].snippet).toBeUndefined()
   })
 
   it('numbers every item in a multi-result vertical from 1', async () => {
@@ -365,5 +406,85 @@ describe('serper searchTool.request.url', () => {
 
   it('rejects a path-traversing type instead of interpolating it into the URL', () => {
     expect(() => url('../v1/admin')).toThrow('Unsupported Serper search type')
+  })
+})
+
+describe('serper searchTool /search extras', () => {
+  const searchBody = {
+    knowledgeGraph: {
+      title: 'Google Search',
+      type: 'Website',
+      website: 'https://google.com/',
+      imageUrl: 'https://example.com/kg.png',
+      description: 'Google Search is a search engine provided and operated by Google.',
+      descriptionSource: 'Wikipedia',
+      descriptionLink: 'https://en.wikipedia.org/wiki/Google_Search',
+      attributes: { 'Date launched': '1998' },
+    },
+    organic: [{ title: 'Google', link: 'https://www.google.com/', snippet: 'Search the world' }],
+    peopleAlsoAsk: [
+      {
+        question: 'How do I get Google to search?',
+        snippet: 'Navigate to google.com and type your query.',
+        title: '3 Ways to Search Google - wikiHow',
+        link: 'https://www.wikihow.com/Search-Google',
+      },
+    ],
+    relatedSearches: [{ query: 'Google Search Console' }, { query: 'Google Lens' }],
+  }
+
+  it('surfaces the knowledge graph the search endpoint returns', async () => {
+    const response = serperResponse('https://google.serper.dev/search', searchBody)
+
+    const result = await searchTool.transformResponse!(response, {} as never)
+
+    expect(result.output.knowledgeGraph).toEqual(searchBody.knowledgeGraph)
+  })
+
+  it('surfaces peopleAlsoAsk and relatedSearches instead of discarding them', async () => {
+    const response = serperResponse('https://google.serper.dev/search', searchBody)
+
+    const result = await searchTool.transformResponse!(response, {} as never)
+
+    expect(result.output.peopleAlsoAsk).toEqual(searchBody.peopleAlsoAsk)
+    expect(result.output.relatedSearches).toEqual(searchBody.relatedSearches)
+  })
+
+  it('omits the extras when the search response carries none', async () => {
+    const response = serperResponse('https://google.serper.dev/search', {
+      organic: [{ title: 'Docs', link: 'https://example.com/docs' }],
+    })
+
+    const result = await searchTool.transformResponse!(response, {} as never)
+
+    expect(result.output.knowledgeGraph).toBeUndefined()
+    expect(result.output.peopleAlsoAsk).toBeUndefined()
+    expect(result.output.relatedSearches).toBeUndefined()
+  })
+
+  it('never emits the search-only extras on a non-search vertical', async () => {
+    const response = serperResponse('https://google.serper.dev/news', {
+      ...searchBody,
+      news: [{ title: 'Markets rally', link: 'https://example.com/markets' }],
+    })
+
+    const result = await searchTool.transformResponse!(response, {} as never)
+
+    expect(result.output.searchResults).toHaveLength(1)
+    expect(result.output.knowledgeGraph).toBeUndefined()
+    expect(result.output.peopleAlsoAsk).toBeUndefined()
+    expect(result.output.relatedSearches).toBeUndefined()
+  })
+
+  it('declares every extra it can emit as an optional output', async () => {
+    for (const key of ['knowledgeGraph', 'peopleAlsoAsk', 'relatedSearches'] as const) {
+      expect(searchTool.outputs?.[key]).toBeDefined()
+      expect(searchTool.outputs?.[key]?.optional).toBe(true)
+    }
+  })
+
+  it('keeps answerBox and topStories undeclared while they remain unverified', () => {
+    expect(searchTool.outputs?.answerBox).toBeUndefined()
+    expect(searchTool.outputs?.topStories).toBeUndefined()
   })
 })
