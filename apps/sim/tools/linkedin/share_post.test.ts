@@ -1,9 +1,14 @@
 /**
  * @vitest-environment node
  */
+import { type createMockLogger, loggerMock } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { linkedInSharePostTool } from '@/tools/linkedin/share_post'
 import type { SharePostParams } from '@/tools/linkedin/types'
+
+const toolLogger = loggerMock.createLogger.mock.results.at(-1)?.value as ReturnType<
+  typeof createMockLogger
+>
 
 const params: SharePostParams = {
   accessToken: 'token-123',
@@ -52,6 +57,31 @@ describe('linkedInSharePostTool.postProcess', () => {
     expect(result.error).toBeUndefined()
     expect('postId' in result.output).toBe(true)
     expect(result.output.postId).toBeUndefined()
+  })
+
+  it('warns without leaking post content when 201 carries no x-restli-id header', async () => {
+    mockFetch.mockResolvedValue(new Response(null, { status: 201 }))
+
+    await linkedInSharePostTool.postProcess!(profileResult, params, executeTool)
+
+    expect(toolLogger.warn).toHaveBeenCalledTimes(1)
+    const serialized = JSON.stringify(toolLogger.warn.mock.calls)
+    expect(serialized).toContain('x-restli-id')
+    expect(serialized).not.toContain(params.text)
+    expect(serialized).not.toContain(params.accessToken)
+  })
+
+  it('does not warn when the x-restli-id header is present', async () => {
+    mockFetch.mockResolvedValue(
+      new Response(null, {
+        status: 201,
+        headers: { 'x-restli-id': 'urn:li:share:123' },
+      })
+    )
+
+    await linkedInSharePostTool.postProcess!(profileResult, params, executeTool)
+
+    expect(toolLogger.warn).not.toHaveBeenCalled()
   })
 
   it('surfaces the LinkedIn error body when the response is not ok', async () => {

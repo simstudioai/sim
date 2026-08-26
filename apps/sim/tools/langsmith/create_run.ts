@@ -1,10 +1,9 @@
 import { filterUndefined } from '@sim/utils/object'
-import { truncate } from '@sim/utils/string'
 import type { LangsmithCreateRunParams, LangsmithCreateRunResponse } from '@/tools/langsmith/types'
 import {
-  ERROR_TEXT_MAX_LENGTH,
   LANGSMITH_API_BASE,
   normalizeLangsmithRunPayload,
+  truncateLangsmithErrorText,
 } from '@/tools/langsmith/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -138,13 +137,7 @@ export const langsmithCreateRunTool: ToolConfig<
       const normalizedPayload: Record<string, unknown> = {
         ...payload,
         name: payload.name?.trim(),
-        inputs: params.inputs,
         outputs: params.run_outputs,
-        extra: params.extra,
-        tags: params.tags,
-        status: params.status,
-        error: params.error,
-        events: params.events,
       }
 
       return filterUndefined(normalizedPayload)
@@ -154,7 +147,7 @@ export const langsmithCreateRunTool: ToolConfig<
     if (!response.ok) {
       const errorText = await response.text()
       throw new Error(
-        `LangSmith create run failed (${response.status}): ${truncate(errorText, ERROR_TEXT_MAX_LENGTH)}`
+        `LangSmith create run failed (${response.status}): ${truncateLangsmithErrorText(errorText)}`
       )
     }
 

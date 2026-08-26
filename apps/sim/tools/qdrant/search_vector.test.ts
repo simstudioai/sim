@@ -58,7 +58,15 @@ describe('qdrant_search_vector transformResponse', () => {
     expect(result.output.data).toEqual([])
   })
 
-  it('yields an empty array when result is a bare point array (legacy /points/search shape)', async () => {
+  /**
+   * A bare-array `result` is the documented shape of `/points/search`, an endpoint this tool
+   * never calls — the request hardcodes `/points/query`, whose `QueryResponse` declares `points`
+   * as a required property. A cluster older than Qdrant v1.10 has no `/points/query` at all and
+   * answers HTTP 404, which the executor throws on before `transformResponse` ever runs. So this
+   * input is unreachable in production: the case below pins the mapping's behavior on an
+   * impossible shape, it does not endorse silently dropping points that could actually arrive.
+   */
+  it('is unreachable for /points/query: a bare-array result maps to an empty array', async () => {
     const response = qdrantResponse({
       time: 0.002,
       status: 'ok',

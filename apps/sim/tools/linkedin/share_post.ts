@@ -1,3 +1,4 @@
+import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import type {
   LinkedInProfileOutput,
@@ -6,6 +7,8 @@ import type {
   SharePostResponse,
 } from '@/tools/linkedin/types'
 import type { ToolConfig } from '@/tools/types'
+
+const logger = createLogger('LinkedInSharePost')
 
 // Helper function to extract profile ID from various response formats
 const extractProfileId: ProfileIdExtractor = (output: unknown): string | null => {
@@ -120,11 +123,18 @@ export const linkedInSharePostTool: ToolConfig<SharePostParams, SharePostRespons
         }
       }
 
+      const postId = response.headers.get('x-restli-id') ?? undefined
+
+      if (!postId) {
+        logger.warn(
+          'LinkedIn returned a success status for ugcPosts without the x-restli-id header; the post was created but its id is unavailable',
+          { status: response.status }
+        )
+      }
+
       return {
         success: true,
-        output: {
-          postId: response.headers.get('x-restli-id') ?? undefined,
-        },
+        output: { postId },
       }
     } catch (error) {
       return {

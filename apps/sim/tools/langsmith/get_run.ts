@@ -1,6 +1,5 @@
-import { truncate } from '@sim/utils/string'
 import type { LangsmithGetRunParams, LangsmithGetRunResponse } from '@/tools/langsmith/types'
-import { ERROR_TEXT_MAX_LENGTH, LANGSMITH_API_BASE } from '@/tools/langsmith/utils'
+import { LANGSMITH_API_BASE, truncateLangsmithErrorText } from '@/tools/langsmith/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const langsmithGetRunTool: ToolConfig<LangsmithGetRunParams, LangsmithGetRunResponse> = {
@@ -33,7 +32,7 @@ export const langsmithGetRunTool: ToolConfig<LangsmithGetRunParams, LangsmithGet
     if (!response.ok) {
       const errorText = await response.text()
       throw new Error(
-        `LangSmith get run failed (${response.status}): ${truncate(errorText, ERROR_TEXT_MAX_LENGTH)}`
+        `LangSmith get run failed (${response.status}): ${truncateLangsmithErrorText(errorText)}`
       )
     }
 

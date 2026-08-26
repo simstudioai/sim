@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type {
   VercelDeleteEdgeConfigParams,
   VercelDeleteEdgeConfigResponse,
@@ -39,7 +40,7 @@ export const vercelDeleteEdgeConfigTool: ToolConfig<
       const query = new URLSearchParams()
       if (params.teamId) query.set('teamId', params.teamId.trim())
       const qs = query.toString()
-      const edgeConfigId = encodeURIComponent(params.edgeConfigId.trim())
+      const edgeConfigId = safeUrlPathSegment(params.edgeConfigId, 'edgeConfigId')
       return `https://api.vercel.com/v1/global-config/${edgeConfigId}${qs ? `?${qs}` : ''}`
     },
     method: 'DELETE',

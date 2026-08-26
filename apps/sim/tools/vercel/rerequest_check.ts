@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { VercelRerequestCheckParams, VercelRerequestCheckResponse } from '@/tools/vercel/types'
 
 export const vercelRerequestCheckTool: ToolConfig<
@@ -56,7 +57,7 @@ export const vercelRerequestCheckTool: ToolConfig<
       if (params.slug) query.set('slug', params.slug.trim())
       if (params.autoUpdate !== undefined) query.set('autoUpdate', String(params.autoUpdate))
       const qs = query.toString()
-      return `https://api.vercel.com/v1/deployments/${params.deploymentId.trim()}/checks/${params.checkId.trim()}/rerequest${qs ? `?${qs}` : ''}`
+      return `https://api.vercel.com/v1/deployments/${safeUrlPathSegment(params.deploymentId, 'deploymentId')}/checks/${safeUrlPathSegment(params.checkId, 'checkId')}/rerequest${qs ? `?${qs}` : ''}`
     },
     method: 'POST',
     headers: (params: VercelRerequestCheckParams) => ({

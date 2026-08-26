@@ -1,14 +1,14 @@
 import { filterUndefined } from '@sim/utils/object'
-import { truncate } from '@sim/utils/string'
 import type {
   LangsmithCreateRunsBatchParams,
   LangsmithCreateRunsBatchResponse,
   LangsmithRunPayload,
 } from '@/tools/langsmith/types'
 import {
-  ERROR_TEXT_MAX_LENGTH,
   LANGSMITH_API_BASE,
   normalizeLangsmithRunPayload,
+  prepareLangsmithPatchPayload,
+  truncateLangsmithErrorText,
 } from '@/tools/langsmith/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -53,7 +53,7 @@ export const langsmithCreateRunsBatchTool: ToolConfig<
           ? params.post.map((run) => normalizeLangsmithRunPayload(run).payload)
           : undefined,
         patch: params.patch
-          ? params.patch.map((run) => normalizeLangsmithRunPayload(run).payload)
+          ? params.patch.map((run) => prepareLangsmithPatchPayload(run).payload)
           : undefined,
       }
 
@@ -64,7 +64,7 @@ export const langsmithCreateRunsBatchTool: ToolConfig<
     if (!response.ok) {
       const errorText = await response.text()
       throw new Error(
-        `LangSmith create runs batch failed (${response.status}): ${truncate(errorText, ERROR_TEXT_MAX_LENGTH)}`
+        `LangSmith create runs batch failed (${response.status}): ${truncateLangsmithErrorText(errorText)}`
       )
     }
 
@@ -83,14 +83,19 @@ export const langsmithCreateRunsBatchTool: ToolConfig<
       })
       .filter((value): value is string => Boolean(value))
 
-    const collectRunIds = (runs?: LangsmithRunPayload[]) =>
-      runs?.map((run) => normalizeLangsmithRunPayload(run).runId) ?? []
+    const collectRunIds = (
+      runs: LangsmithRunPayload[] | undefined,
+      resolve: (run: LangsmithRunPayload) => string
+    ) => runs?.map(resolve) ?? []
 
     return {
       success: true,
       output: {
         accepted: true,
-        runIds: [...collectRunIds(params?.post), ...collectRunIds(params?.patch)],
+        runIds: [
+          ...collectRunIds(params?.post, (run) => normalizeLangsmithRunPayload(run).runId),
+          ...collectRunIds(params?.patch, (run) => prepareLangsmithPatchPayload(run).runId),
+        ],
         message: directMessage ?? null,
         messages: messages.length ? messages : undefined,
       },

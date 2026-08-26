@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type {
   VercelUpdateDnsRecordParams,
   VercelUpdateDnsRecordResponse,
@@ -124,7 +125,7 @@ export const vercelUpdateDnsRecordTool: ToolConfig<
       if (params.teamId) query.set('teamId', params.teamId.trim())
       if (params.slug) query.set('slug', params.slug.trim())
       const qs = query.toString()
-      return `https://api.vercel.com/v1/domains/records/${params.recordId.trim()}${qs ? `?${qs}` : ''}`
+      return `https://api.vercel.com/v1/domains/records/${safeUrlPathSegment(params.recordId, 'recordId')}${qs ? `?${qs}` : ''}`
     },
     method: 'PATCH',
     headers: (params: VercelUpdateDnsRecordParams) => ({

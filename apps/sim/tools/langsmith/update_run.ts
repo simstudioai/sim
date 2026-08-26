@@ -1,7 +1,6 @@
 import { filterUndefined } from '@sim/utils/object'
-import { truncate } from '@sim/utils/string'
 import type { LangsmithUpdateRunParams, LangsmithUpdateRunResponse } from '@/tools/langsmith/types'
-import { ERROR_TEXT_MAX_LENGTH, LANGSMITH_API_BASE } from '@/tools/langsmith/utils'
+import { LANGSMITH_API_BASE, truncateLangsmithErrorText } from '@/tools/langsmith/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const langsmithUpdateRunTool: ToolConfig<
@@ -107,7 +106,7 @@ export const langsmithUpdateRunTool: ToolConfig<
     if (!response.ok) {
       const errorText = await response.text()
       throw new Error(
-        `LangSmith update run failed (${response.status}): ${truncate(errorText, ERROR_TEXT_MAX_LENGTH)}`
+        `LangSmith update run failed (${response.status}): ${truncateLangsmithErrorText(errorText)}`
       )
     }
 

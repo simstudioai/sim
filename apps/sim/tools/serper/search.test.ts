@@ -210,18 +210,18 @@ describe('serper searchTool.transformResponse', () => {
     expect(result.output.searchResults.map((item) => item.position)).toEqual([1, 2])
   })
 
-  it('rejects an unhandled vertical instead of returning an empty billed result set', async () => {
-    const response = serperResponse('https://google.serper.dev/maps', {
+  it('rejects a user-supplied vertical the dispatch table cannot handle', async () => {
+    const response = serperResponse('https://google.serper.dev/search', {
       organic: [{ title: 'Place', link: 'https://example.com/place' }],
     })
 
-    await expect(searchTool.transformResponse!(response, {} as never)).rejects.toThrow(
-      'Unsupported Serper search type "maps"'
-    )
+    await expect(
+      searchTool.transformResponse!(response, { query: 'q', apiKey: 'k', type: 'maps' } as never)
+    ).rejects.toThrow('Unsupported Serper search type "maps"')
   })
 
   it.each(['scholar', 'patents'])(
-    'maps %s results through the organic key, as the pre-dispatch-table code did',
+    'maps %s results through the organic key without a fabricated date',
     async (type) => {
       const response = serperResponse(`https://google.serper.dev/${type}`, {
         organic: [
@@ -229,7 +229,8 @@ describe('serper searchTool.transformResponse', () => {
             title: 'A cited work',
             link: 'https://example.com/work',
             snippet: 'Abstract',
-            date: '2019',
+            year: 2019,
+            citedBy: 42,
           },
         ],
       })
@@ -243,9 +244,9 @@ describe('serper searchTool.transformResponse', () => {
           link: 'https://example.com/work',
           snippet: 'Abstract',
           position: 1,
-          date: '2019',
         },
       ])
+      expect(result.output.searchResults[0]).not.toHaveProperty('date')
     }
   )
 })
@@ -292,6 +293,16 @@ describe('serper searchTool.transformResponse vertical dispatch', () => {
 
     expect(result.output.searchResults).toEqual([
       { title: 'Clip', link: 'https://example.com/clip', position: 1 },
+    ])
+  })
+
+  it('falls back to the search vertical when the response URL names an unknown vertical', async () => {
+    const response = serperResponse('https://google.serper.dev/maps', videosBody)
+
+    const result = await searchTool.transformResponse!(response, {} as never)
+
+    expect(result.output.searchResults).toEqual([
+      { title: 'Page', link: 'https://example.com/page', position: 1 },
     ])
   })
 

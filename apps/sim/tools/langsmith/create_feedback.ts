@@ -1,11 +1,10 @@
 import { generateId } from '@sim/utils/id'
 import { filterUndefined } from '@sim/utils/object'
-import { truncate } from '@sim/utils/string'
 import type {
   LangsmithCreateFeedbackParams,
   LangsmithCreateFeedbackResponse,
 } from '@/tools/langsmith/types'
-import { ERROR_TEXT_MAX_LENGTH, LANGSMITH_API_BASE } from '@/tools/langsmith/utils'
+import { LANGSMITH_API_BASE, truncateLangsmithErrorText } from '@/tools/langsmith/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const langsmithCreateFeedbackTool: ToolConfig<
@@ -94,7 +93,7 @@ export const langsmithCreateFeedbackTool: ToolConfig<
     if (!response.ok) {
       const errorText = await response.text()
       throw new Error(
-        `LangSmith create feedback failed (${response.status}): ${truncate(errorText, ERROR_TEXT_MAX_LENGTH)}`
+        `LangSmith create feedback failed (${response.status}): ${truncateLangsmithErrorText(errorText)}`
       )
     }
 

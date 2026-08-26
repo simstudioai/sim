@@ -87,12 +87,14 @@ const SERPER_VERTICALS: Record<SerperSearchType, SerperVertical> = {
     }),
   },
   /**
-   * `scholar` and `patents` are real Serper verticals that predate the dispatch table. The previous
-   * if/else chain had no allowlist and fell through to `data.organic` for both, so `organic` is the
-   * key that reproduces their shipped behavior exactly. It is NOT confirmed against official Serper
-   * documentation — no published response schema for either vertical could be verified. They are
-   * listed here so the URL allowlist keeps accepting them (preserving prior behavior) rather than
-   * newly hard-failing requests that used to work; correct the key if Serper documents otherwise.
+   * `organic` is the confirmed top-level key for both `scholar` and `patents`, verified against the
+   * example responses Serper publishes on the vertical tabs of serper.dev. Those are published
+   * examples rather than a formal schema, so treat them as the best available source.
+   *
+   * Both verticals return richer per-item fields than the unified {@link SearchResult} shape
+   * surfaces today (`scholar`: `publicationInfo`, `year`, `citedBy`; `patents`: `priorityDate`,
+   * `filingDate`, `grantDate`, `publicationDate`, `inventor`, `assignee`, `publicationNumber`,
+   * and others). Neither returns a `date` key.
    */
   scholar: {
     responseKey: 'organic',
@@ -101,7 +103,6 @@ const SERPER_VERTICALS: Record<SerperSearchType, SerperVertical> = {
       link: item.link as string,
       snippet: item.snippet as string | undefined,
       position: index + 1,
-      date: item.date as string | undefined,
     }),
   },
   patents: {
@@ -111,7 +112,6 @@ const SERPER_VERTICALS: Record<SerperSearchType, SerperVertical> = {
       link: item.link as string,
       snippet: item.snippet as string | undefined,
       position: index + 1,
-      date: item.date as string | undefined,
     }),
   },
 }
@@ -139,16 +139,20 @@ function resolveSearchType(type: string | undefined): SerperSearchType {
  * Recovers the vertical from a request URL. Only a fallback for callers that invoke
  * `transformResponse` without `params` — `response.url` is server-influenced, is empty on some
  * fetch/mock paths, and can carry a query string or a redirect target. Returns `undefined` when it
- * yields nothing usable so the caller falls back to the default vertical instead of dispatching on
- * a partial value.
+ * yields nothing usable — empty, unparseable, or a segment that names no known vertical — so the
+ * caller falls back to the default vertical instead of dispatching on a partial value. A
+ * server-controlled URL must never turn a successful response into a thrown error; only a
+ * user-supplied `params.type` hard-fails, via {@link resolveSearchType}.
  */
-function verticalFromUrl(url: string | undefined): string | undefined {
+function verticalFromUrl(url: string | undefined): SerperSearchType | undefined {
   if (!url) return undefined
+  let segment: string | undefined
   try {
-    return new URL(url).pathname.split('/').pop() || undefined
+    segment = new URL(url).pathname.split('/').pop() || undefined
   } catch {
     return undefined
   }
+  return segment && SERPER_SEARCH_TYPES.has(segment) ? (segment as SerperSearchType) : undefined
 }
 
 export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
