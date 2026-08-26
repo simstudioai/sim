@@ -5,36 +5,35 @@ import {
   jiraIssuesSelectorContract,
 } from '@/lib/api/contracts/selectors/jira'
 import { parseRequest } from '@/lib/api/server'
-import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { validateAlphanumericId, validateJiraCloudId } from '@/lib/core/security/input-validation'
+import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { getJiraCloudId, parseAtlassianErrorMessage } from '@/tools/jira/utils'
+import { resolveAtlassianSelectorCredential } from '@/lib/selectors/application/atlassian-credential'
+import {
+  resolveSelectorProviderValue,
+  SELECTOR_ATLASSIAN_DISCOVERY_OPTIONS,
+  selectorProviderFailure,
+} from '@/lib/selectors/server/provider-errors'
+import {
+  authenticateSelectorRequest,
+  resolveAuthorizedSelectorContext,
+} from '@/lib/selectors/server/resolve-authorized-context'
+import { getJiraCloudId } from '@/tools/jira/utils'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('JiraIssuesAPI')
 
-const createErrorResponse = async (response: Response) => {
-  const errorText = await response.text().catch(() => '')
-  return parseAtlassianErrorMessage(response.status, response.statusText, errorText)
-}
-
 export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
-    const auth = await checkSessionOrInternalAuth(request)
-    if (!auth.success || !auth.userId) {
-      return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
+    const authentication = await authenticateSelectorRequest(request)
+    if (!authentication.ok) {
+      return NextResponse.json({ error: authentication.error }, { status: authentication.status })
     }
-
     const parsed = await parseRequest(jiraIssueSelectorContract, request, {})
     if (!parsed.success) return parsed.response
 
-    const { domain, accessToken, issueKeys, cloudId: providedCloudId } = parsed.data.body
-
-    if (issueKeys.length === 0) {
-      logger.info('No issue keys provided, returning empty result')
-      return NextResponse.json({ issues: [] })
-    }
+    const { credential, workflowId, domain: domainReference, issueKeys } = parsed.data.body
 
     const ISSUE_KEY_RE = /^[A-Za-z][A-Za-z0-9_]*-\d+$/
     const sanitizedKeys: string[] = []
@@ -46,11 +45,47 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
       sanitizedKeys.push(trimmed)
     }
+    const resolution = await resolveAuthorizedSelectorContext(authentication.principal, {
+      workflowId,
+      credentialId: credential,
+      context: { domain: domainReference },
+    })
+    if (!resolution.ok) {
+      return NextResponse.json({ error: resolution.error }, { status: resolution.status })
+    }
     if (sanitizedKeys.length === 0) {
+      logger.info('No issue keys provided, returning empty result')
       return NextResponse.json({ issues: [] })
     }
-
-    const cloudId = providedCloudId || (await getJiraCloudId(domain, accessToken))
+    const ownerUserId = resolution.credentialAccess?.credentialOwnerUserId
+    if (!ownerUserId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
+    }
+    const bundle = await resolveAtlassianSelectorCredential({
+      credentialId: credential,
+      credentialOwnerUserId: ownerUserId,
+      requestId: generateRequestId(),
+      serviceId: 'jira',
+    })
+    if (!bundle) {
+      return NextResponse.json({ error: 'Could not retrieve access token' }, { status: 401 })
+    }
+    const domain = resolution.context.domain as string
+    const accessToken = bundle.accessToken
+    const cloudIdResolution = await resolveSelectorProviderValue('Jira', async () =>
+      bundle.cloudId
+        ? bundle.cloudId
+        : getJiraCloudId(domain, accessToken, SELECTOR_ATLASSIAN_DISCOVERY_OPTIONS)
+    )
+    if (!cloudIdResolution.ok) {
+      logger.warn('Jira selector discovery failed', {
+        status: cloudIdResolution.upstreamStatus ?? 'unknown',
+      })
+      return NextResponse.json(cloudIdResolution.failure, {
+        status: cloudIdResolution.failure.status,
+      })
+    }
+    const cloudId = cloudIdResolution.value
 
     const cloudIdValidation = validateJiraCloudId(cloudId, 'cloudId')
     if (!cloudIdValidation.isValid) {
@@ -75,55 +110,37 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     })
 
     if (!response.ok) {
-      logger.error(`Jira API error: ${response.status} ${response.statusText}`)
-      const errorMessage = await createErrorResponse(response)
-      if (response.status === 401 || response.status === 403) {
-        return NextResponse.json(
-          {
-            error: errorMessage,
-            authRequired: true,
-            requiredScopes: ['read:jira-work'],
-          },
-          { status: response.status }
-        )
-      }
-      return NextResponse.json({ error: errorMessage }, { status: response.status })
+      logger.warn('Jira selector issue detail request failed', { status: response.status })
+      const failure = selectorProviderFailure('Jira', response.status)
+      return NextResponse.json(failure, { status: failure.status })
     }
 
     const data = await response.json()
     const issues = (data.issues || []).map((it: any) => ({
       id: it.key,
       name: it.fields?.summary || it.key,
-      mimeType: 'jira/issue',
-      url: `https://${domain}/browse/${it.key}`,
-      modifiedTime: it.fields?.updated,
-      webViewLink: `https://${domain}/browse/${it.key}`,
     }))
 
-    return NextResponse.json({ issues, cloudId })
-  } catch (error) {
-    logger.error('Error fetching Jira issues:', error)
-    return NextResponse.json(
-      { error: (error as Error).message || 'Internal server error' },
-      { status: 500 }
-    )
+    return NextResponse.json({ issues })
+  } catch {
+    logger.error('Error fetching Jira issues')
+    return NextResponse.json({ error: 'Failed to retrieve Jira issues' }, { status: 500 })
   }
 })
 
 export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
-    const auth = await checkSessionOrInternalAuth(request)
-    if (!auth.success || !auth.userId) {
-      return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
+    const authentication = await authenticateSelectorRequest(request)
+    if (!authentication.ok) {
+      return NextResponse.json({ error: authentication.error }, { status: authentication.status })
     }
-
     const parsed = await parseRequest(jiraIssuesSelectorContract, request, {})
     if (!parsed.success) return parsed.response
 
     const {
-      domain,
-      accessToken,
-      cloudId: providedCloudId,
+      credential,
+      workflowId,
+      domain: domainReference,
       query = '',
       projectId = '',
       manualProjectId = '',
@@ -131,7 +148,43 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       limit,
     } = parsed.data.query
 
-    const cloudId = providedCloudId || (await getJiraCloudId(domain, accessToken))
+    const resolution = await resolveAuthorizedSelectorContext(authentication.principal, {
+      workflowId,
+      credentialId: credential,
+      context: { domain: domainReference },
+    })
+    if (!resolution.ok) {
+      return NextResponse.json({ error: resolution.error }, { status: resolution.status })
+    }
+    const ownerUserId = resolution.credentialAccess?.credentialOwnerUserId
+    if (!ownerUserId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
+    }
+    const bundle = await resolveAtlassianSelectorCredential({
+      credentialId: credential,
+      credentialOwnerUserId: ownerUserId,
+      requestId: generateRequestId(),
+      serviceId: 'jira',
+    })
+    if (!bundle) {
+      return NextResponse.json({ error: 'Could not retrieve access token' }, { status: 401 })
+    }
+    const domain = resolution.context.domain as string
+    const accessToken = bundle.accessToken
+    const cloudIdResolution = await resolveSelectorProviderValue('Jira', async () =>
+      bundle.cloudId
+        ? bundle.cloudId
+        : getJiraCloudId(domain, accessToken, SELECTOR_ATLASSIAN_DISCOVERY_OPTIONS)
+    )
+    if (!cloudIdResolution.ok) {
+      logger.warn('Jira selector discovery failed', {
+        status: cloudIdResolution.upstreamStatus ?? 'unknown',
+      })
+      return NextResponse.json(cloudIdResolution.failure, {
+        status: cloudIdResolution.failure.status,
+      })
+    }
+    const cloudId = cloudIdResolution.value
 
     const cloudIdValidation = validateJiraCloudId(cloudId, 'cloudId')
     if (!cloudIdValidation.isValid) {
@@ -196,18 +249,9 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         })
 
         if (!response.ok) {
-          const errorMessage = await createErrorResponse(response)
-          if (response.status === 401 || response.status === 403) {
-            return NextResponse.json(
-              {
-                error: errorMessage,
-                authRequired: true,
-                requiredScopes: ['read:jira-work'],
-              },
-              { status: response.status }
-            )
-          }
-          return NextResponse.json({ error: errorMessage }, { status: response.status })
+          logger.warn('Jira selector issue request failed', { status: response.status })
+          const failure = selectorProviderFailure('Jira', response.status)
+          return NextResponse.json(failure, { status: failure.status })
         }
 
         const page = await response.json()
@@ -221,17 +265,14 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         key: it.key,
         summary: it.fields?.summary || it.key,
       }))
-      data = { sections: [{ issues }], cloudId }
+      data = { sections: [{ issues }] }
     } else {
-      data = { sections: [], cloudId }
+      data = { sections: [] }
     }
 
-    return NextResponse.json({ ...data, cloudId })
-  } catch (error) {
-    logger.error('Error fetching Jira issue suggestions:', error)
-    return NextResponse.json(
-      { error: (error as Error).message || 'Internal server error' },
-      { status: 500 }
-    )
+    return NextResponse.json(data)
+  } catch {
+    logger.error('Error fetching Jira issue suggestions')
+    return NextResponse.json({ error: 'Failed to retrieve Jira issues' }, { status: 500 })
   }
 })

@@ -378,6 +378,17 @@ export const confluenceSpacesSelectorBodySchema = credentialWorkflowDomainBodySc
     .optional(),
 })
 
+export const confluenceSelectorPagesBodySchema = credentialWorkflowDomainBodySchema.extend({
+  title: optionalString,
+  limit: z.number().int().positive().optional().default(50),
+})
+
+export const confluenceSelectorPageBodySchema = credentialWorkflowDomainBodySchema
+  .extend({
+    pageId: z.string().min(1, 'Page ID is required'),
+  })
+  .superRefine(refineConfluencePageId)
+
 export const confluenceSpacesSelectorContract = definePostSelector(
   '/api/tools/confluence/selector-spaces',
   confluenceSpacesSelectorBodySchema,
@@ -385,6 +396,18 @@ export const confluenceSpacesSelectorContract = definePostSelector(
     spaces: z.array(confluenceSpaceSchema),
     nextCursor: optionalString,
   })
+)
+
+export const confluenceSelectorPagesContract = definePostSelector(
+  '/api/tools/confluence/selector-pages',
+  confluenceSelectorPagesBodySchema,
+  z.object({ files: z.array(fileOptionSchema) })
+)
+
+export const confluenceSelectorPageContract = definePostSelector(
+  '/api/tools/confluence/selector-page',
+  confluenceSelectorPageBodySchema,
+  z.object({ id: z.string(), title: z.string() }).passthrough()
 )
 
 export const confluencePagesSelectorContract = definePostSelector(
@@ -401,6 +424,8 @@ export const confluencePageSelectorContract = definePostSelector(
 
 export const confluenceSelectorContractsByPath = {
   '/api/tools/confluence/selector-spaces': confluenceSpacesSelectorContract,
+  '/api/tools/confluence/selector-pages': confluenceSelectorPagesContract,
+  '/api/tools/confluence/selector-page': confluenceSelectorPageContract,
   '/api/tools/confluence/pages': confluencePagesSelectorContract,
   '/api/tools/confluence/page': confluencePageSelectorContract,
 } as const

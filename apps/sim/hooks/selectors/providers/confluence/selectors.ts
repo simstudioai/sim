@@ -1,6 +1,5 @@
 import { requestJson } from '@/lib/api/client/request'
 import * as selectorContracts from '@/lib/api/contracts/selectors'
-import { fetchOAuthToken } from '@/hooks/selectors/helpers'
 import { ensureCredential, ensureDomain, SELECTOR_STALE } from '@/hooks/selectors/providers/shared'
 import type { SelectorDefinition, SelectorKey, SelectorQueryArgs } from '@/hooks/selectors/types'
 
@@ -20,12 +19,12 @@ export const confluenceSelectors = {
   'confluence.spaces': {
     key: 'confluence.spaces',
     contracts: [selectorContracts.confluenceSpacesSelectorContract],
+    serverResolvedContextFields: ['domain'],
     staleTime: SELECTOR_STALE,
     getQueryKey: ({ context }: SelectorQueryArgs) => [
       'selectors',
       'confluence.spaces',
       context.oauthCredential ?? 'none',
-      context.domain ?? 'none',
     ],
     enabled: ({ context }) => Boolean(context.oauthCredential && context.domain),
     /**
@@ -38,7 +37,7 @@ export const confluenceSelectors = {
       const data = await requestJson(selectorContracts.confluenceSpacesSelectorContract, {
         body: {
           credential: credentialId,
-          workflowId: context.workflowId,
+          ...(context.workflowId ? { workflowId: context.workflowId } : {}),
           domain,
           cursor,
         },
@@ -63,7 +62,7 @@ export const confluenceSelectors = {
       const data = await requestJson(selectorContracts.confluenceSpacesSelectorContract, {
         body: {
           credential: credentialId,
-          workflowId: context.workflowId,
+          ...(context.workflowId ? { workflowId: context.workflowId } : {}),
           domain,
           spaceKey: detailId,
         },
@@ -77,15 +76,15 @@ export const confluenceSelectors = {
   'confluence.pages': {
     key: 'confluence.pages',
     contracts: [
-      selectorContracts.confluencePagesSelectorContract,
-      selectorContracts.confluencePageSelectorContract,
+      selectorContracts.confluenceSelectorPagesContract,
+      selectorContracts.confluenceSelectorPageContract,
     ],
+    serverResolvedContextFields: ['domain'],
     staleTime: SELECTOR_STALE,
     getQueryKey: ({ context, search }: SelectorQueryArgs) => [
       'selectors',
       'confluence.pages',
       context.oauthCredential ?? 'none',
-      context.domain ?? 'none',
       search ?? '',
     ],
     enabled: ({ context }) => Boolean(context.oauthCredential && context.domain),
@@ -102,15 +101,11 @@ export const confluenceSelectors = {
     fetchList: async ({ context, search, signal }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'confluence.pages')
       const domain = ensureDomain(context, 'confluence.pages')
-      const bundle = await fetchOAuthToken(credentialId, context.workflowId)
-      if (!bundle) {
-        throw new Error('Missing Confluence access token')
-      }
-      const data = await requestJson(selectorContracts.confluencePagesSelectorContract, {
+      const data = await requestJson(selectorContracts.confluenceSelectorPagesContract, {
         body: {
+          credential: credentialId,
+          ...(context.workflowId ? { workflowId: context.workflowId } : {}),
           domain,
-          accessToken: bundle.accessToken,
-          cloudId: bundle.cloudId,
           title: search,
         },
         signal,
@@ -124,15 +119,11 @@ export const confluenceSelectors = {
       if (!detailId) return null
       const credentialId = ensureCredential(context, 'confluence.pages')
       const domain = ensureDomain(context, 'confluence.pages')
-      const bundle = await fetchOAuthToken(credentialId, context.workflowId)
-      if (!bundle) {
-        throw new Error('Missing Confluence access token')
-      }
-      const data = await requestJson(selectorContracts.confluencePageSelectorContract, {
+      const data = await requestJson(selectorContracts.confluenceSelectorPageContract, {
         body: {
+          credential: credentialId,
+          ...(context.workflowId ? { workflowId: context.workflowId } : {}),
           domain,
-          accessToken: bundle.accessToken,
-          cloudId: bundle.cloudId,
           pageId: detailId,
         },
         signal,

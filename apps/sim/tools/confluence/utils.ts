@@ -1,5 +1,8 @@
-import { normalizeAtlassianSiteUrl, resolveAtlassianCloudId } from '@/lib/atlassian/discovery'
-import type { RetryOptions } from '@/lib/knowledge/documents/utils'
+import {
+  type AtlassianDiscoveryRetryOptions,
+  normalizeAtlassianSiteUrl,
+  resolveAtlassianCloudId,
+} from '@/lib/atlassian/discovery'
 
 const SITE_URL_SCHEME = 'https://'
 
@@ -24,7 +27,7 @@ export function normalizeConfluenceDomainHost(domain: string): string {
 export function getConfluenceCloudId(
   domain: string,
   accessToken: string,
-  retryOptions?: RetryOptions
+  retryOptions?: AtlassianDiscoveryRetryOptions
 ): Promise<string> {
   return resolveAtlassianCloudId({ domain, accessToken, product: 'Confluence', retryOptions })
 }

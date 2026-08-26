@@ -1,6 +1,5 @@
 import { requestJson } from '@/lib/api/client/request'
 import * as selectorContracts from '@/lib/api/contracts/selectors'
-import { fetchOAuthToken } from '@/hooks/selectors/helpers'
 import {
   ensureCredential,
   ensureDomain,
@@ -16,27 +15,23 @@ export const jiraSelectors = {
       selectorContracts.jiraProjectsSelectorContract,
       selectorContracts.jiraProjectSelectorContract,
     ],
+    serverResolvedContextFields: ['domain'],
     staleTime: SELECTOR_STALE,
     getQueryKey: ({ context, search }: SelectorQueryArgs) => [
       'selectors',
       'jira.projects',
       context.oauthCredential ?? 'none',
-      context.domain ?? 'none',
       search ?? '',
     ],
     enabled: ({ context }) => Boolean(context.oauthCredential && context.domain),
     fetchList: async ({ context, search, signal }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'jira.projects')
       const domain = ensureDomain(context, 'jira.projects')
-      const bundle = await fetchOAuthToken(credentialId, context.workflowId)
-      if (!bundle) {
-        throw new Error('Missing Jira access token')
-      }
       const data = await requestJson(selectorContracts.jiraProjectsSelectorContract, {
         query: {
+          credential: credentialId,
+          ...(context.workflowId ? { workflowId: context.workflowId } : {}),
           domain,
-          accessToken: bundle.accessToken,
-          cloudId: bundle.cloudId,
           query: search,
         },
         signal,
@@ -50,15 +45,11 @@ export const jiraSelectors = {
       if (!detailId) return null
       const credentialId = ensureCredential(context, 'jira.projects')
       const domain = ensureDomain(context, 'jira.projects')
-      const bundle = await fetchOAuthToken(credentialId, context.workflowId)
-      if (!bundle) {
-        throw new Error('Missing Jira access token')
-      }
       const data = await requestJson(selectorContracts.jiraProjectSelectorContract, {
         body: {
+          credential: credentialId,
+          ...(context.workflowId ? { workflowId: context.workflowId } : {}),
           domain,
-          accessToken: bundle.accessToken,
-          cloudId: bundle.cloudId,
           projectId: detailId,
         },
         signal,
@@ -76,12 +67,12 @@ export const jiraSelectors = {
       selectorContracts.jiraIssuesSelectorContract,
       selectorContracts.jiraIssueSelectorContract,
     ],
+    serverResolvedContextFields: ['domain'],
     staleTime: SELECTOR_SEARCH_STALE,
     getQueryKey: ({ context, search }: SelectorQueryArgs) => [
       'selectors',
       'jira.issues',
       context.oauthCredential ?? 'none',
-      context.domain ?? 'none',
       context.projectId ?? 'none',
       search ?? '',
     ],
@@ -89,15 +80,11 @@ export const jiraSelectors = {
     fetchList: async ({ context, search, signal }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'jira.issues')
       const domain = ensureDomain(context, 'jira.issues')
-      const bundle = await fetchOAuthToken(credentialId, context.workflowId)
-      if (!bundle) {
-        throw new Error('Missing Jira access token')
-      }
       const data = await requestJson(selectorContracts.jiraIssuesSelectorContract, {
         query: {
+          credential: credentialId,
+          ...(context.workflowId ? { workflowId: context.workflowId } : {}),
           domain,
-          accessToken: bundle.accessToken,
-          cloudId: bundle.cloudId,
           projectId: context.projectId,
           query: search,
         },
@@ -118,15 +105,11 @@ export const jiraSelectors = {
       if (!detailId) return null
       const credentialId = ensureCredential(context, 'jira.issues')
       const domain = ensureDomain(context, 'jira.issues')
-      const bundle = await fetchOAuthToken(credentialId, context.workflowId)
-      if (!bundle) {
-        throw new Error('Missing Jira access token')
-      }
       const data = await requestJson(selectorContracts.jiraIssueSelectorContract, {
         body: {
+          credential: credentialId,
+          ...(context.workflowId ? { workflowId: context.workflowId } : {}),
           domain,
-          accessToken: bundle.accessToken,
-          cloudId: bundle.cloudId,
           issueKeys: [detailId],
         },
         signal,

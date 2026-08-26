@@ -1,5 +1,9 @@
 import { z } from 'zod'
-import { idNameSchema, optionalString } from '@/lib/api/contracts/selectors/shared'
+import {
+  idNameSchema,
+  nullableOptionalString,
+  optionalString,
+} from '@/lib/api/contracts/selectors/shared'
 import type { ContractBody, ContractJsonResponse, ContractQuery } from '@/lib/api/contracts/types'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { RawFileInputArraySchema } from '@/lib/uploads/utils/file-schemas'
@@ -19,16 +23,16 @@ const jiraIssueSectionSchema = z
   .passthrough()
 
 export const jiraProjectsQuerySchema = z.object({
+  credential: z.string().min(1, 'Credential is required'),
+  workflowId: nullableOptionalString,
   domain: z.string().trim().min(1, 'Domain is required'),
-  accessToken: z.string().min(1, 'Access token is required'),
-  cloudId: optionalString,
   query: optionalString,
 })
 
 export const jiraProjectBodySchema = z.object({
+  credential: z.string().min(1, 'Credential is required'),
+  workflowId: nullableOptionalString,
   domain: z.string().min(1, 'Domain is required'),
-  accessToken: z.string().min(1, 'Access token is required'),
-  cloudId: optionalString,
   projectId: z.string().min(1, 'Project ID is required'),
 })
 
@@ -36,9 +40,9 @@ export const jiraProjectBodySchema = z.object({
  * GET `/api/tools/jira/issues` query.
  */
 export const jiraIssuesQuerySchema = z.object({
+  credential: z.string().min(1, 'Credential is required'),
+  workflowId: nullableOptionalString,
   domain: z.string().trim().min(1, 'Domain is required'),
-  accessToken: z.string().min(1, 'Access token is required'),
-  cloudId: optionalString,
   projectId: optionalString,
   manualProjectId: optionalString,
   query: optionalString,
@@ -57,9 +61,9 @@ export const jiraIssuesQuerySchema = z.object({
 })
 
 export const jiraIssuesBodySchema = z.object({
+  credential: z.string().min(1, 'Credential is required'),
+  workflowId: nullableOptionalString,
   domain: z.string().min(1, 'Domain is required'),
-  accessToken: z.string().min(1, 'Access token is required'),
-  cloudId: optionalString,
   issueKeys: z.array(z.string().min(1)).default([]),
 })
 

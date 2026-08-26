@@ -5,10 +5,20 @@ import {
   jiraProjectsSelectorContract,
 } from '@/lib/api/contracts/selectors/jira'
 import { parseRequest } from '@/lib/api/server'
-import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { validateAlphanumericId, validateJiraCloudId } from '@/lib/core/security/input-validation'
+import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { getJiraCloudId, parseAtlassianErrorMessage } from '@/tools/jira/utils'
+import { resolveAtlassianSelectorCredential } from '@/lib/selectors/application/atlassian-credential'
+import {
+  resolveSelectorProviderValue,
+  SELECTOR_ATLASSIAN_DISCOVERY_OPTIONS,
+  selectorProviderFailure,
+} from '@/lib/selectors/server/provider-errors'
+import {
+  authenticateSelectorRequest,
+  resolveAuthorizedSelectorContext,
+} from '@/lib/selectors/server/resolve-authorized-context'
+import { getJiraCloudId } from '@/tools/jira/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -87,25 +97,51 @@ async function fetchAllJiraProjects(
 
 export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
-    const auth = await checkSessionOrInternalAuth(request)
-    if (!auth.success || !auth.userId) {
-      return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
+    const authentication = await authenticateSelectorRequest(request)
+    if (!authentication.ok) {
+      return NextResponse.json({ error: authentication.error }, { status: authentication.status })
     }
-
     const parsed = await parseRequest(jiraProjectsSelectorContract, request, {})
     if (!parsed.success) return parsed.response
 
-    const { domain, accessToken, cloudId: providedCloudId, query = '' } = parsed.data.query
-
-    if (!domain) {
-      return NextResponse.json({ error: 'Domain is required' }, { status: 400 })
+    const { credential, workflowId, domain: domainReference, query = '' } = parsed.data.query
+    const resolution = await resolveAuthorizedSelectorContext(authentication.principal, {
+      workflowId,
+      credentialId: credential,
+      context: { domain: domainReference },
+    })
+    if (!resolution.ok) {
+      return NextResponse.json({ error: resolution.error }, { status: resolution.status })
     }
-
-    if (!accessToken) {
-      return NextResponse.json({ error: 'Access token is required' }, { status: 400 })
+    const ownerUserId = resolution.credentialAccess?.credentialOwnerUserId
+    if (!ownerUserId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
     }
-
-    const cloudId = providedCloudId || (await getJiraCloudId(domain, accessToken))
+    const bundle = await resolveAtlassianSelectorCredential({
+      credentialId: credential,
+      credentialOwnerUserId: ownerUserId,
+      requestId: generateRequestId(),
+      serviceId: 'jira',
+    })
+    if (!bundle) {
+      return NextResponse.json({ error: 'Could not retrieve access token' }, { status: 401 })
+    }
+    const domain = resolution.context.domain as string
+    const accessToken = bundle.accessToken
+    const cloudIdResolution = await resolveSelectorProviderValue('Jira', async () =>
+      bundle.cloudId
+        ? bundle.cloudId
+        : getJiraCloudId(domain, accessToken, SELECTOR_ATLASSIAN_DISCOVERY_OPTIONS)
+    )
+    if (!cloudIdResolution.ok) {
+      logger.warn('Jira selector discovery failed', {
+        status: cloudIdResolution.upstreamStatus ?? 'unknown',
+      })
+      return NextResponse.json(cloudIdResolution.failure, {
+        status: cloudIdResolution.failure.status,
+      })
+    }
+    const cloudId = cloudIdResolution.value
     logger.info(`Using cloud ID: ${cloudId}`)
 
     const cloudIdValidation = validateJiraCloudId(cloudId, 'cloudId')
@@ -125,18 +161,9 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     const { values, lastResponse } = await fetchAllJiraProjects(apiUrl, queryParams, accessToken)
 
     if (!lastResponse.ok) {
-      const errorText = await lastResponse.text()
-      logger.error('Jira API error:', { status: lastResponse.status, error: errorText })
-      return NextResponse.json(
-        {
-          error: parseAtlassianErrorMessage(
-            lastResponse.status,
-            lastResponse.statusText,
-            errorText
-          ),
-        },
-        { status: lastResponse.status }
-      )
+      logger.warn('Jira selector project request failed', { status: lastResponse.status })
+      const failure = selectorProviderFailure('Jira', lastResponse.status)
+      return NextResponse.json(failure, { status: failure.status })
     }
 
     logger.info(`Jira API Response Status: ${lastResponse.status}`)
@@ -145,55 +172,68 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     const projects =
       values.map((project: any) => ({
         id: project.id,
-        key: project.key,
         name: project.name,
-        url: project.self,
-        avatarUrl: project.avatarUrls?.['48x48'],
-        description: project.description,
-        projectTypeKey: project.projectTypeKey,
-        simplified: project.simplified,
-        style: project.style,
-        isPrivate: project.isPrivate,
       })) || []
 
-    return NextResponse.json({
-      projects,
-      cloudId,
-    })
-  } catch (error) {
-    logger.error('Error fetching Jira projects:', error)
-    return NextResponse.json(
-      { error: (error as Error).message || 'Internal server error' },
-      { status: 500 }
-    )
+    return NextResponse.json({ projects })
+  } catch {
+    logger.error('Error fetching Jira projects')
+    return NextResponse.json({ error: 'Failed to retrieve Jira projects' }, { status: 500 })
   }
 })
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
-    const auth = await checkSessionOrInternalAuth(request)
-    if (!auth.success || !auth.userId) {
-      return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
+    const authentication = await authenticateSelectorRequest(request)
+    if (!authentication.ok) {
+      return NextResponse.json({ error: authentication.error }, { status: authentication.status })
     }
-
     const parsed = await parseRequest(jiraProjectSelectorContract, request, {})
     if (!parsed.success) return parsed.response
 
-    const { domain, accessToken, projectId, cloudId: providedCloudId } = parsed.data.body
-
-    if (!domain) {
-      return NextResponse.json({ error: 'Domain is required' }, { status: 400 })
-    }
-
-    if (!accessToken) {
-      return NextResponse.json({ error: 'Access token is required' }, { status: 400 })
-    }
+    const { credential, workflowId, domain: domainReference, projectId } = parsed.data.body
 
     if (!projectId) {
       return NextResponse.json({ error: 'Project ID is required' }, { status: 400 })
     }
 
-    const cloudId = providedCloudId || (await getJiraCloudId(domain, accessToken))
+    const resolution = await resolveAuthorizedSelectorContext(authentication.principal, {
+      workflowId,
+      credentialId: credential,
+      context: { domain: domainReference },
+    })
+    if (!resolution.ok) {
+      return NextResponse.json({ error: resolution.error }, { status: resolution.status })
+    }
+    const ownerUserId = resolution.credentialAccess?.credentialOwnerUserId
+    if (!ownerUserId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
+    }
+    const bundle = await resolveAtlassianSelectorCredential({
+      credentialId: credential,
+      credentialOwnerUserId: ownerUserId,
+      requestId: generateRequestId(),
+      serviceId: 'jira',
+    })
+    if (!bundle) {
+      return NextResponse.json({ error: 'Could not retrieve access token' }, { status: 401 })
+    }
+    const domain = resolution.context.domain as string
+    const accessToken = bundle.accessToken
+    const cloudIdResolution = await resolveSelectorProviderValue('Jira', async () =>
+      bundle.cloudId
+        ? bundle.cloudId
+        : getJiraCloudId(domain, accessToken, SELECTOR_ATLASSIAN_DISCOVERY_OPTIONS)
+    )
+    if (!cloudIdResolution.ok) {
+      logger.warn('Jira selector discovery failed', {
+        status: cloudIdResolution.upstreamStatus ?? 'unknown',
+      })
+      return NextResponse.json(cloudIdResolution.failure, {
+        status: cloudIdResolution.failure.status,
+      })
+    }
+    const cloudId = cloudIdResolution.value
 
     const cloudIdValidation = validateJiraCloudId(cloudId, 'cloudId')
     if (!cloudIdValidation.isValid) {
@@ -216,12 +256,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     })
 
     if (!response.ok) {
-      const errorText = await response.text()
-      logger.error('Jira API error:', { status: response.status, error: errorText })
-      return NextResponse.json(
-        { error: parseAtlassianErrorMessage(response.status, response.statusText, errorText) },
-        { status: response.status }
-      )
+      logger.warn('Jira selector project detail request failed', { status: response.status })
+      const failure = selectorProviderFailure('Jira', response.status)
+      return NextResponse.json(failure, { status: failure.status })
     }
 
     const project = await response.json()
@@ -229,23 +266,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     return NextResponse.json({
       project: {
         id: project.id,
-        key: project.key,
         name: project.name,
-        url: project.self,
-        avatarUrl: project.avatarUrls?.['48x48'],
-        description: project.description,
-        projectTypeKey: project.projectTypeKey,
-        simplified: project.simplified,
-        style: project.style,
-        isPrivate: project.isPrivate,
       },
-      cloudId,
     })
-  } catch (error) {
-    logger.error('Error fetching Jira project:', error)
-    return NextResponse.json(
-      { error: (error as Error).message || 'Internal server error' },
-      { status: 500 }
-    )
+  } catch {
+    logger.error('Error fetching Jira project')
+    return NextResponse.json({ error: 'Failed to retrieve Jira project' }, { status: 500 })
   }
 })

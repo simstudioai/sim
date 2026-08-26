@@ -2,18 +2,20 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { confluenceSpacesSelectorContract } from '@/lib/api/contracts/selectors/confluence'
 import { parseRequest } from '@/lib/api/server'
-import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { validateJiraCloudId } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { resolveAtlassianSelectorCredential } from '@/lib/selectors/application/atlassian-credential'
 import {
-  getAtlassianServiceAccountSecret,
-  refreshAccessTokenIfNeeded,
-  resolveOAuthAccountId,
-} from '@/lib/oauth/credential-service'
-import { ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
+  resolveSelectorProviderValue,
+  SELECTOR_ATLASSIAN_DISCOVERY_OPTIONS,
+  selectorProviderFailure,
+} from '@/lib/selectors/server/provider-errors'
+import {
+  authenticateSelectorRequest,
+  resolveAuthorizedSelectorContext,
+} from '@/lib/selectors/server/resolve-authorized-context'
 import { getConfluenceCloudId } from '@/tools/confluence/utils'
-import { parseAtlassianErrorMessage } from '@/tools/jira/utils'
 
 const logger = createLogger('ConfluenceSelectorSpacesAPI')
 
@@ -63,56 +65,54 @@ function parseCursor(raw: string | undefined): { status: SpaceStatus; inner?: st
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
   try {
+    const authentication = await authenticateSelectorRequest(request)
+    if (!authentication.ok) {
+      return NextResponse.json({ error: authentication.error }, { status: authentication.status })
+    }
     const parsed = await parseRequest(confluenceSpacesSelectorContract, request, {})
     if (!parsed.success) return parsed.response
 
-    const { credential, workflowId, domain, cursor, spaceKey } = parsed.data.body
-
-    if (!credential) {
-      logger.error('Missing credential in request')
-      return NextResponse.json({ error: 'Credential is required' }, { status: 400 })
-    }
-
-    if (!domain) {
-      return NextResponse.json({ error: 'Domain is required' }, { status: 400 })
-    }
-
-    const authz = await authorizeCredentialUse(request, {
-      credentialId: credential,
+    const { credential, workflowId, domain: domainReference, cursor, spaceKey } = parsed.data.body
+    const resolution = await resolveAuthorizedSelectorContext(authentication.principal, {
       workflowId,
+      credentialId: credential,
+      context: { domain: domainReference },
     })
-    if (!authz.ok || !authz.credentialOwnerUserId) {
-      return NextResponse.json({ error: authz.error || 'Unauthorized' }, { status: 403 })
+    if (!resolution.ok) {
+      return NextResponse.json({ error: resolution.error }, { status: resolution.status })
     }
-
-    const resolved = await resolveOAuthAccountId(credential)
-    const isAtlassianServiceAccount =
-      resolved?.providerId === ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID && !!resolved.credentialId
-
-    let accessToken: string | null
-    let cloudId: string
-    if (isAtlassianServiceAccount) {
-      const secret = await getAtlassianServiceAccountSecret(resolved.credentialId!)
-      accessToken = secret.apiToken
-      cloudId = secret.cloudId
-    } else {
-      accessToken = await refreshAccessTokenIfNeeded(
-        credential,
-        authz.credentialOwnerUserId,
-        requestId
+    const credentialOwnerUserId = resolution.credentialAccess?.credentialOwnerUserId
+    if (!credentialOwnerUserId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
+    }
+    const bundle = await resolveAtlassianSelectorCredential({
+      credentialId: credential,
+      credentialOwnerUserId,
+      requestId,
+      serviceId: 'confluence',
+    })
+    if (!bundle) {
+      return NextResponse.json(
+        { error: 'Could not retrieve access token', authRequired: true },
+        { status: 401 }
       )
-      if (!accessToken) {
-        logger.error('Failed to get access token', {
-          credentialId: credential,
-          userId: authz.credentialOwnerUserId,
-        })
-        return NextResponse.json(
-          { error: 'Could not retrieve access token', authRequired: true },
-          { status: 401 }
-        )
-      }
-      cloudId = await getConfluenceCloudId(domain, accessToken)
     }
+    const domain = resolution.context.domain as string
+    const accessToken = bundle.accessToken
+    const cloudIdResolution = await resolveSelectorProviderValue('Confluence', async () =>
+      bundle.cloudId
+        ? bundle.cloudId
+        : getConfluenceCloudId(domain, accessToken, SELECTOR_ATLASSIAN_DISCOVERY_OPTIONS)
+    )
+    if (!cloudIdResolution.ok) {
+      logger.warn('Confluence selector discovery failed', {
+        status: cloudIdResolution.upstreamStatus ?? 'unknown',
+      })
+      return NextResponse.json(cloudIdResolution.failure, {
+        status: cloudIdResolution.failure.status,
+      })
+    }
+    const cloudId = cloudIdResolution.value
 
     const cloudIdValidation = validateJiraCloudId(cloudId, 'cloudId')
     if (!cloudIdValidation.isValid) {
@@ -131,10 +131,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       })
 
       if (!response.ok) {
-        const errorText = await response.text()
-        const message = parseAtlassianErrorMessage(response.status, response.statusText, errorText)
-        logger.error('Confluence API error response', { error: message, status: response.status })
-        return { ok: false, response: NextResponse.json({ error: message }, { status: 502 }) }
+        logger.warn('Confluence selector spaces request failed', { status: response.status })
+        const failure = selectorProviderFailure('Confluence', response.status)
+        return {
+          ok: false,
+          response: NextResponse.json(failure, { status: failure.status }),
+        }
       }
 
       return { ok: true, data: await response.json() }
@@ -205,11 +207,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     return NextResponse.json({ spaces: toSpaces(data.results, status), nextCursor })
-  } catch (error) {
-    logger.error('Error listing Confluence spaces:', error)
-    return NextResponse.json(
-      { error: (error as Error).message || 'Internal server error' },
-      { status: 500 }
-    )
+  } catch {
+    logger.error('Error listing Confluence spaces')
+    return NextResponse.json({ error: 'Failed to retrieve Confluence spaces' }, { status: 500 })
   }
 })
