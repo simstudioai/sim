@@ -105,6 +105,23 @@ describe('OAuth Provider Branding', () => {
   })
 })
 
+describe('Atlassian OAuth connectors', () => {
+  it.each(['confluence', 'jira'] as const)(
+    'sends the required Atlassian audience for %s',
+    (providerId) => {
+      const connector = buildConnectorProviders().find(
+        (candidate) => candidate.providerId === providerId
+      )
+      if (!connector) throw new Error(`${providerId} OAuth connector is not configured`)
+
+      expect(connector.authorizationUrlParams).toEqual({ audience: 'api.atlassian.com' })
+      expect(connector.redirectURI).toBe(
+        `http://localhost:3000/api/auth/oauth2/callback/${providerId}`
+      )
+    }
+  )
+})
+
 function getBitbucketConnector() {
   const connector = buildConnectorProviders().find(
     (candidate) => candidate.providerId === 'bitbucket'
