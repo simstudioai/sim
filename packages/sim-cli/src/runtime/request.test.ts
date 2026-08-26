@@ -9,6 +9,27 @@ import { buildRequest, coerce, type FieldSpec } from './request'
 const WORKSPACE = 'ws_local'
 
 describe('buildRequest', () => {
+  /**
+   * `recursive` is the one string-backed toggle the API turns on by itself —
+   * it defaults to true as soon as a search is set. Its `--no-` twin has to
+   * reach the wire as an explicit false, or searching a single folder without
+   * descending into it is unsayable from the terminal.
+   */
+  it('sends an explicit false for a negated string-backed toggle', () => {
+    const built = buildRequest(
+      'listFiles',
+      [],
+      { folderPath: '/Reports', search: 'q3', recursive: false },
+      WORKSPACE
+    )
+    expect(built.query.recursive).toBe(false)
+  })
+
+  it('sends true when the same toggle is set positively', () => {
+    const built = buildRequest('listFiles', [], { recursive: true }, WORKSPACE)
+    expect(built.query.recursive).toBe(true)
+  })
+
   it('substitutes path params from positional args and injects the workspace', () => {
     expect(buildRequest('upsertTableRow', ['tbl_1'], { data: '{"a":1}' }, WORKSPACE)).toEqual({
       path: '/api/v2/tables/tbl_1/rows/upsert',

@@ -10104,7 +10104,7 @@ export const V2_OPERATIONS = {
     method: 'DELETE',
     path: '/api/v2/credentials/[credentialId]',
     pathParams: ['credentialId'] as const,
-    pathParamDocs: { credentialId: 'Credential to update or disconnect.' },
+    pathParamDocs: { credentialId: 'Credential to disconnect.' },
     responseMode: 'json',
     summary: 'Disconnect Credential',
     query: {
@@ -13411,7 +13411,7 @@ export const V2_OPERATIONS = {
     method: 'PATCH',
     path: '/api/v2/credentials/[credentialId]',
     pathParams: ['credentialId'] as const,
-    pathParamDocs: { credentialId: 'Credential to update or disconnect.' },
+    pathParamDocs: { credentialId: 'Credential to update.' },
     responseMode: 'json',
     summary: 'Update Credential',
     query: {

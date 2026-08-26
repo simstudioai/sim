@@ -51,6 +51,24 @@ function literalNullHint(documented: string, name: string): string {
   return /\bnull\b/i.test(documented) ? ` (--${name} null sends the word, not JSON null)` : ''
 }
 
+/**
+ * The wire's boolean vocabulary, which a bare flag cannot offer.
+ *
+ * A boolean query param documents the spellings an HTTP caller may send
+ * (`true`, `1`, `yes`, `on`, …) and closes by saying the listed ones are the
+ * whole accepted set. That is correct for the API and publishes unchanged in
+ * the OpenAPI specs, but this CLI renders those fields as a bare `--flag` and
+ * its `--no-flag` twin, neither of which takes a value — so the sentence points
+ * at a list the reader is never shown, in `--help` and in the generated
+ * reference alike. Dropping it here keeps the terminal honest without weakening
+ * the prose REST callers actually need.
+ */
+const WIRE_VOCABULARY_SENTENCE = /\s*The listed spellings[^.]*\.\s*/g
+
+function withoutWireVocabulary(documented: string): string {
+  return documented.replace(WIRE_VOCABULARY_SENTENCE, ' ').trim()
+}
+
 function addFieldOption(
   command: Command,
   operation: V2OperationName,
@@ -78,21 +96,24 @@ function addFieldOption(
   const documented = describeField(flag, descriptor, name, field)
 
   if (descriptor.kind === 'boolean' || flag.boolean) {
+    const booleanDoc = withoutWireVocabulary(documented)
     if (descriptor.required) {
       command.addOption(
-        new Option(`${short}--${name} <true|false>`, `${documented} (required)`)
+        new Option(`${short}--${name} <true|false>`, `${booleanDoc} (required)`)
           .choices(['true', 'false'])
           .makeOptionMandatory()
       )
       return
     }
 
-    command.option(`${short}--${name}`, documented)
+    command.option(`${short}--${name}`, booleanDoc)
     // The twin exists to send an explicit `false`. Restating the positive
     // flag's prose here inverts its meaning ("Return only deployed workflows"
     // on the flag that stops doing exactly that), so it names its counterpart
     // instead and lets the reader look up one description, not two.
-    if (!flag.boolean) command.option(`--no-${name}`, `Send --${name} as false`)
+    if (!flag.boolean || flag.negatable) {
+      command.option(`--no-${name}`, `Send --${name} as false`)
+    }
     return
   }
 

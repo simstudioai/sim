@@ -2411,12 +2411,12 @@
             "name": "credentialId",
             "in": "path",
             "required": true,
-            "description": "Credential to update or disconnect.",
+            "description": "Credential to disconnect.",
             "schema": {
               "type": "string",
               "minLength": 1,
               "maxLength": 255,
-              "description": "Credential to update or disconnect."
+              "description": "Credential to disconnect."
             }
           },
           {
@@ -2487,12 +2487,12 @@
             "name": "credentialId",
             "in": "path",
             "required": true,
-            "description": "Credential to update or disconnect.",
+            "description": "Credential to update.",
             "schema": {
               "type": "string",
               "minLength": 1,
               "maxLength": 255,
-              "description": "Credential to update or disconnect."
+              "description": "Credential to update."
             }
           },
           {
