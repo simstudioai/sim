@@ -16,8 +16,8 @@ interface HeroLoopShellProps {
   chats: readonly string[]
   /** Deployed-workflow entries in the sidebar - five fill the design height. */
   workflows: readonly string[]
-  /** Workspace-nav row to highlight; unset keeps New chat active. */
-  activeNav?: EnterpriseSidebarProps['activeNav']
+  /** Sidebar row to highlight; unset keeps New chat active. */
+  activeItem?: EnterpriseSidebarProps['activeItem']
   /** The workspace pane's contents, rendered inside the inset pane gutter. */
   children: ReactNode
 }
@@ -35,7 +35,7 @@ export function HeroLoopShell({
   profileName = 'Morgan',
   chats,
   workflows,
-  activeNav,
+  activeItem,
   children,
 }: HeroLoopShellProps) {
   const { regionRef, scale } = useDesignScale()
@@ -55,7 +55,7 @@ export function HeroLoopShell({
           profileName={profileName}
           chats={chats}
           workflows={workflows}
-          activeNav={activeNav}
+          activeItem={activeItem}
         />
         <div className='h-full min-w-0 flex-1 py-[7px] pr-[8px]'>{children}</div>
       </div>

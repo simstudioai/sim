@@ -31,23 +31,11 @@ import { TrustedBy } from '@/app/(landing)/components/trusted-by'
  * LCP element) behind a white window (a soft three-part shadow stack:
  * `0 0 0 1px rgba(0,0,0,0.08)` ring in place of a CSS border, plus
  * `0 2px 6px rgba(0,0,0,0.05)` contact and `0 4px 42px rgba(0,0,0,0.06)`
- * ambient shadows; no browser toolbar) filled edge to edge by the REAL
- * platform UI - a 2x
- * screenshot (`hero-platform-ui.png`, 2560x1470: a 1280x735 layout shown in
- * the 1080x620 window, so the UI reads at 84.4% - the "mini app" type scale
- * cursor.com's demo window uses) of the chat-everywhere two-pane (seeded
- * Mothership chat left, staged workflow right) captured from the
- * `readme-tour-capture` route via
- * `exports/readme-banner/capture-hero-platform.mjs`. The window is
- * `rounded-[10px]` - matching cursor.com's demo window - and the shot's
- * workspace container renders at the concentric inner radius `4px` (outer
- * 10px - 6px gap; overridden at capture time from the chrome's 8px). Only the
- * SIDEBAR
- * remains visible from the shot: the {@link HeroPlatformLoop} island overlays
- * the container interior (full-width chat that stages the workflow pane in,
- * replaying the conversation with the goo ThinkingLoader), inset a hair INSIDE
- * the shot's own baked outlines so the visible chrome is the real UI's pixels
- * - never re-drawn.
+ * ambient shadows; no browser toolbar) filled edge to edge by the live
+ * {@link HeroPlatformLoop}. The shared landing sidebar and animated Home
+ * workspace render together in a fixed 1280x735 design space, so the homepage
+ * stays aligned with every product and solutions hero without a baked UI
+ * capture drifting behind it.
  * The frame is `1300/720` and the window `1080/620` at `83.08%` width, centered
  * - matching cursor.com's hero media proportions, with backdrop showing on all
  * four sides. Decorative, `aria-hidden`; the `--surface-3` fill remains as the
@@ -109,14 +97,6 @@ export function Hero() {
         />
         <div className='-translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-1/2 flex aspect-[1080/620] w-[83.08%] flex-col overflow-hidden rounded-[10px] bg-[var(--surface-1)] shadow-[0_0_0_1px_rgba(0,0,0,0.08),0_2px_6px_0_rgba(0,0,0,0.05),0_4px_42px_0_rgba(0,0,0,0.06)]'>
           <div className='relative flex-1'>
-            <Image
-              src='/landing/hero-platform-ui.png'
-              alt=''
-              fill
-              priority
-              sizes='(max-width: 1460px) 83vw, 1080px'
-              className='object-cover object-left-top'
-            />
             <HeroPlatformLoop />
           </div>
         </div>

@@ -32,8 +32,8 @@ export interface EditorLoopContent {
   canvas: { width: number; height: number }
   /** The block the "editing" beat selects once the flow is assembled. */
   selectedBlockId: string
-  /** Workspace-nav row to highlight in the sidebar; unset keeps New chat active. */
-  activeNav?: EnterpriseSidebarProps['activeNav']
+  /** Sidebar row to highlight; unset keeps New chat active. */
+  activeItem?: EnterpriseSidebarProps['activeItem']
 }
 
 interface EditorLoopProps {
@@ -96,7 +96,7 @@ export function EditorLoop({ content }: EditorLoopProps) {
     <HeroLoopShell
       chats={content.sidebarChats}
       workflows={content.sidebarWorkflows}
-      activeNav={content.activeNav}
+      activeItem={content.activeItem}
     >
       <div className='h-full w-full overflow-hidden rounded-[6px] border border-[var(--border)] bg-[var(--bg)]'>
         <div
