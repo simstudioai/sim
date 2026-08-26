@@ -83,10 +83,6 @@ export const ttlColumnType: ColumnTypeDefinition = {
     return seconds === null ? { ok: false } : { ok: true, value: seconds }
   },
 
-  coerceImport(value, options) {
-    return parseTtlEpochSeconds(value, options) ?? String(value)
-  },
-
   valueForConversion(value, target: ColumnDefinition) {
     if (target.type !== 'date') return value
     return epochSecondsToIso(value) ?? value

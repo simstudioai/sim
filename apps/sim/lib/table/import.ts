@@ -15,6 +15,7 @@ import type { Options as CsvParseOptions } from 'csv-parse'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { getColumnId } from '@/lib/table/column-keys'
 import type { ColumnType } from '@/lib/table/column-types'
+import { parseTtlEpochSeconds } from '@/lib/table/column-types/ttl'
 import { parseCurrencyInput } from '@/lib/table/currency'
 import { type NormalizeDateCellOptions, normalizeDateCellValue } from '@/lib/table/dates'
 import type { ColumnDefinition, RowData, TableSchema } from '@/lib/table/types'
@@ -501,6 +502,9 @@ export function coerceValue(
     }
     case 'date': {
       return normalizeDateCellValue(String(value), options) ?? String(value)
+    }
+    case 'ttl': {
+      return parseTtlEpochSeconds(value, options) ?? String(value)
     }
     case 'json': {
       if (typeof value === 'object') return value as Record<string, unknown> | unknown[]
