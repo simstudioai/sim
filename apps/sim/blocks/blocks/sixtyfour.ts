@@ -257,14 +257,14 @@ export const SixtyfourBlock: BlockConfig = {
         } else if (params.operation === 'find_email') {
           if (params.phoneInput) result.phone = params.phoneInput
         } else if (params.operation === 'enrich_lead') {
-          result.leadInfo = params.leadInfo
+          if (params.leadInfo) result.leadInfo = params.leadInfo
           if (params.leadStruct) result.struct = params.leadStruct
           if (params.leadTier) result.tier = params.leadTier
           if (params.leadResearchPlan) result.researchPlan = params.leadResearchPlan
           result.timeout = SIXTYFOUR_ENRICH_TIMEOUT_MS
         } else if (params.operation === 'enrich_company') {
-          result.targetCompany = params.targetCompany
-          result.struct = params.companyStruct
+          if (params.targetCompany) result.targetCompany = params.targetCompany
+          if (params.companyStruct) result.struct = params.companyStruct
           if (params.companyTier) result.tier = params.companyTier
           result.timeout = SIXTYFOUR_ENRICH_TIMEOUT_MS
           if (params.findPeople !== undefined) result.findPeople = Boolean(params.findPeople)

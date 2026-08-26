@@ -2231,6 +2231,11 @@ export const VercelBlock: BlockConfig = {
       description: 'Whether the deployment was promoted to production',
       condition: { field: 'operation', value: 'promote_deployment' },
     },
+    status: {
+      type: 'string',
+      description: 'Operation status reported by Vercel',
+      condition: { field: 'operation', value: ['update_edge_config_items'] },
+    },
     count: {
       type: 'number',
       description: 'Number of items returned',

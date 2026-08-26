@@ -107,3 +107,38 @@ describe('sixtyfour research tier', () => {
     )
   })
 })
+
+describe('sixtyfour block param mapping preserves LLM-supplied values', () => {
+  it('does not null an LLM-supplied struct on the company path', () => {
+    const mapped = mapBlockParams({ operation: 'enrich_company' })
+    expect('struct' in mapped).toBe(false)
+  })
+
+  it('does not null an LLM-supplied targetCompany on the company path', () => {
+    const mapped = mapBlockParams({ operation: 'enrich_company' })
+    expect('targetCompany' in mapped).toBe(false)
+  })
+
+  it('does not null an LLM-supplied leadInfo on the lead path', () => {
+    const mapped = mapBlockParams({ operation: 'enrich_lead' })
+    expect('leadInfo' in mapped).toBe(false)
+  })
+
+  it('still maps the company subBlock values when the user supplies them', () => {
+    const mapped = mapBlockParams({
+      operation: 'enrich_company',
+      targetCompany: '{"name":"Acme"}',
+      companyStruct: '{"website":"Company website"}',
+    })
+    expect(mapped.targetCompany).toBe('{"name":"Acme"}')
+    expect(mapped.struct).toBe('{"website":"Company website"}')
+  })
+})
+
+describe('sixtyfour struct descriptions match the documented behavior', () => {
+  it('does not claim Sixtyfour picks fields when struct is omitted', () => {
+    const description = sixtyfourEnrichLeadTool.params.struct.description ?? ''
+    expect(description).not.toMatch(/choose the fields/i)
+    expect(description).toMatch(/structured_data/)
+  })
+})

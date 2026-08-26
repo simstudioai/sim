@@ -64,8 +64,9 @@ export const vercelUpdateEdgeConfigItemsTool: ToolConfig<
   transformResponse: async (response: Response) => {
     // Vercel declares the PATCH response as exactly `{ status: string }`.
     // The executor already threw on a non-2xx, so this reads the real value
-    // rather than reporting a hardcoded 'ok'.
-    const data = await response.json()
+    // rather than reporting a hardcoded 'ok'. `status` is required by the spec,
+    // so the empty-body catch is defensive and never fabricates a status.
+    const data = await response.json().catch(() => null)
     return {
       success: true,
       output: {

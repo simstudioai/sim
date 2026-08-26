@@ -34,7 +34,7 @@ export const sixtyfourEnrichLeadTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Optional fields to collect as JSON object. Keys are field names, values are descriptions (e.g. {"email": "The individual\'s email address", "phone": "Phone number"}). Omit to let Sixtyfour choose the fields.',
+        'Optional fields to collect as JSON object. Keys are field names, values are descriptions (e.g. {"email": "The individual\'s email address", "phone": "Phone number"}). Only the fields listed here are returned in structured_data — there is no default field set, so omitting this returns an empty structured_data and only the research notes, references, and confidence score.',
     },
     researchPlan: {
       type: 'string',
