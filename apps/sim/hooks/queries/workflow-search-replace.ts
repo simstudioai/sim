@@ -35,6 +35,7 @@ import {
   fetchOAuthCredentials,
 } from '@/hooks/queries/oauth/oauth-credentials'
 import { collectDuplicateNames, disambiguateLabelByFolder } from '@/hooks/queries/utils/folder-tree'
+import { environmentDependentSelectorKeys } from '@/hooks/selectors/cache-invalidation'
 import {
   createSelectorCacheScopeRegistry,
   type SelectorCacheScopeRegistry,
@@ -102,7 +103,7 @@ export const workflowSearchReplaceKeys = {
     [...workflowSearchReplaceKeys.replacementOptions(), 'mcp-tool', workspaceId ?? ''] as const,
   knowledgeReplacementOptions: (workspaceId?: string) =>
     [...workflowSearchReplaceKeys.replacementOptions(), 'knowledge', workspaceId ?? ''] as const,
-  selectorDetails: () => [...workflowSearchReplaceKeys.resourceDetails(), 'selector'] as const,
+  selectorDetails: () => environmentDependentSelectorKeys.workflowDetails,
   selectorDetail: (
     selectorKey?: string,
     contextIdentity?: string | readonly unknown[],
@@ -119,8 +120,7 @@ export const workflowSearchReplaceKeys = {
     contextIdentity?: string | readonly unknown[]
   ) =>
     [
-      ...workflowSearchReplaceKeys.replacementOptions(),
-      'selector',
+      ...environmentDependentSelectorKeys.workflowReplacementOptions,
       selectorKey ?? '',
       contextIdentity ?? '',
     ] as const,

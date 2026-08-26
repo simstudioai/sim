@@ -9,6 +9,7 @@ import {
 } from '@/lib/api/contracts'
 import type { WorkspaceEnvironmentData } from '@/lib/environment/api'
 import { fetchPersonalEnvironment, fetchWorkspaceEnvironment } from '@/lib/environment/api'
+import { invalidateEnvironmentDependentSelectorQueries } from '@/hooks/selectors/cache-invalidation'
 
 const logger = createLogger('EnvironmentQueries')
 
@@ -75,11 +76,12 @@ export function useSavePersonalEnvironment() {
 
       logger.info('Saved personal environment variables')
     },
-    onSettled: async () => {
+    onSettled: async (_data, error) => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: environmentKeys.personal() }),
         queryClient.invalidateQueries({ queryKey: environmentKeys.workspaces() }),
       ])
+      if (!error) await invalidateEnvironmentDependentSelectorQueries(queryClient)
     },
   })
 }
@@ -103,10 +105,12 @@ export function useUpsertWorkspaceEnvironment() {
       logger.info(`Upserted workspace environment variables for workspace: ${workspaceId}`)
       return data
     },
-    onSettled: (_data, _error, variables) =>
-      queryClient.invalidateQueries({
+    onSettled: async (_data, error, variables) => {
+      await queryClient.invalidateQueries({
         queryKey: environmentKeys.workspace(variables.workspaceId),
-      }),
+      })
+      if (!error) await invalidateEnvironmentDependentSelectorQueries(queryClient)
+    },
   })
 }
 
@@ -129,9 +133,11 @@ export function useRemoveWorkspaceEnvironment() {
       logger.info(`Removed ${keys.length} workspace environment keys for workspace: ${workspaceId}`)
       return data
     },
-    onSettled: (_data, _error, variables) =>
-      queryClient.invalidateQueries({
+    onSettled: async (_data, error, variables) => {
+      await queryClient.invalidateQueries({
         queryKey: environmentKeys.workspace(variables.workspaceId),
-      }),
+      })
+      if (!error) await invalidateEnvironmentDependentSelectorQueries(queryClient)
+    },
   })
 }

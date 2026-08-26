@@ -14,6 +14,7 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { syncPersonalEnvCredentialsForUser } from '@/lib/credentials/environment'
 import type { EnvironmentVariable } from '@/lib/environment/api'
+import { invalidateEffectiveDecryptedEnvCache } from '@/lib/environment/utils'
 import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('EnvironmentAPI')
@@ -68,6 +69,8 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
           updatedAt: new Date(),
         },
       })
+
+    invalidateEffectiveDecryptedEnvCache({ userId: session.user.id })
 
     await syncPersonalEnvCredentialsForUser({
       userId: session.user.id,

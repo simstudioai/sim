@@ -3,6 +3,7 @@ import { useQueries } from '@tanstack/react-query'
 import { buildSelectorContextFromBlock } from '@/lib/workflows/subblocks/context'
 import { summarizeNames } from '@/lib/workflows/subblocks/display'
 import type { SubBlockConfig } from '@/blocks/types'
+import { environmentDependentSelectorKeys } from '@/hooks/selectors/cache-invalidation'
 import {
   createSelectorCacheScopeRegistry,
   scopeServerResolvedSelectorContext,
@@ -18,7 +19,7 @@ export const DYNAMIC_SUBBLOCK_OPTION_STALE_TIME = 30 * 1000
 
 export const dynamicSubBlockOptionKeys = {
   all: ['dynamic-subblock-options'] as const,
-  details: () => [...dynamicSubBlockOptionKeys.all, 'detail'] as const,
+  details: () => environmentDependentSelectorKeys.dynamicDetails,
   /**
    * `selectorScope` is the selector's OWN query key for this context — every context field its
    * result depends on, named by the selector rather than restated here. Without it a label
