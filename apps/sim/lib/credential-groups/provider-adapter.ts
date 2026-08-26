@@ -84,3 +84,10 @@ export class CredentialGroupOAuthError extends Error {
     this.name = 'CredentialGroupOAuthError'
   }
 }
+
+export class CredentialGroupInvitationUnavailableError extends CredentialGroupOAuthError {
+  constructor() {
+    super('This account invitation was revoked.', 409)
+    this.name = 'CredentialGroupInvitationUnavailableError'
+  }
+}

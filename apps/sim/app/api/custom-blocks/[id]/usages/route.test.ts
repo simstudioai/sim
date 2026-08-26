@@ -4,17 +4,12 @@
 import { authMockFns, createMockRequest } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockIsFeatureEnabled, mockHasWorkspaceAdminAccess, mockOperations } = vi.hoisted(() => ({
-  mockIsFeatureEnabled: vi.fn(),
+const { mockHasWorkspaceAdminAccess, mockOperations } = vi.hoisted(() => ({
   mockHasWorkspaceAdminAccess: vi.fn(),
   mockOperations: {
     getCustomBlockManageContext: vi.fn(),
     getCustomBlockUsageCounts: vi.fn(),
   },
-}))
-
-vi.mock('@/lib/core/config/feature-flags', () => ({
-  isFeatureEnabled: mockIsFeatureEnabled,
 }))
 
 vi.mock('@/lib/workspaces/permissions/utils', () => ({
@@ -44,7 +39,6 @@ describe('GET /api/custom-blocks/[id]/usages', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
-    mockIsFeatureEnabled.mockResolvedValue(true)
     mockHasWorkspaceAdminAccess.mockResolvedValue(true)
     mockOperations.getCustomBlockManageContext.mockResolvedValue(MANAGE_CONTEXT)
     mockOperations.getCustomBlockUsageCounts.mockResolvedValue(USAGE_COUNTS)
@@ -60,12 +54,6 @@ describe('GET /api/custom-blocks/[id]/usages', () => {
     mockOperations.getCustomBlockManageContext.mockResolvedValue(null)
     const response = await callRoute()
     expect(response.status).toBe(404)
-  })
-
-  it('returns 403 when the feature flag is off', async () => {
-    mockIsFeatureEnabled.mockResolvedValue(false)
-    const response = await callRoute()
-    expect(response.status).toBe(403)
   })
 
   it('returns 403 for a non-admin of the source workspace', async () => {

@@ -24,6 +24,37 @@ export type EnterpriseAuditAccessResult =
   | { success: true; context: EnterpriseAuditContext }
   | { success: false; status: 403; code: ForbiddenDetailCode; message: string }
 
+/**
+ * The organization an actor belongs to, when it did not name one.
+ *
+ * `organizationId` is the only input these endpoints cannot be called without,
+ * and no API-key-reachable surface publishes one — the v1 audit-log rows carry
+ * no organization id, `GET /api/organizations` is session-gated, and the admin
+ * organization list needs an admin key. Deriving it from the caller, the way v1
+ * always has, is what makes the resource reachable at all.
+ *
+ * There is no ambiguous case to represent: `member` carries
+ * `uniqueIndex('member_user_id_unique').on(member.userId)`, so an actor holds
+ * at most one membership row and the derivation is either that row or nothing.
+ */
+export type DefaultAuditOrganization =
+  | { kind: 'resolved'; organizationId: string }
+  | { kind: 'none' }
+
+/** Resolves the organization an actor's audit-log read applies to when it named none. */
+export async function resolveDefaultAuditOrganization(
+  userId: string
+): Promise<DefaultAuditOrganization> {
+  const [membership] = await db
+    .select({ organizationId: member.organizationId })
+    .from(member)
+    .where(eq(member.userId, userId))
+    .limit(1)
+
+  if (!membership) return { kind: 'none' }
+  return { kind: 'resolved', organizationId: membership.organizationId }
+}
+
 /** Resolves transport-neutral enterprise audit-log access for an organization administrator. */
 export async function resolveEnterpriseAuditAccess(
   userId: string,

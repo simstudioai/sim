@@ -12,6 +12,8 @@ const CREDENTIAL_GROUP_PROVIDER_ADAPTERS: Record<
 > = {
   gmail: createStandardOAuthCredentialGroupProviderAdapter('gmail'),
   'google-calendar': createStandardOAuthCredentialGroupProviderAdapter('google-calendar'),
+  confluence: createStandardOAuthCredentialGroupProviderAdapter('confluence'),
+  jira: createStandardOAuthCredentialGroupProviderAdapter('jira'),
   slack: slackCredentialGroupProviderAdapter,
 }
 

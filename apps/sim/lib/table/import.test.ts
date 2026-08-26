@@ -12,12 +12,15 @@ import {
   CsvImportValidationError,
   coerceRowsForTable,
   coerceValue,
+  createCsvRejectionCollector,
   csvParseOptions,
   dedupeHeaders,
   detectCsvDelimiter,
   inferColumnType,
   inferSchemaFromCsv,
+  MAX_REJECTED_SAMPLES,
   parseCsvBuffer,
+  parseFileRows,
   sanitizeName,
   validateMapping,
 } from '@/lib/table/import'
@@ -344,6 +347,53 @@ describe('import', () => {
       await expect(parseViaStream(`value\n${oversizedValue}\n`)).rejects.toThrow(
         new RegExp(`maximum number of tolerated bytes of ${CSV_MAX_RECORD_SIZE_BYTES}`)
       )
+    })
+  })
+
+  describe('rejection accounting', () => {
+    /**
+     * The parser drops malformed records silently, so a buffered import used to
+     * finish with a smaller table and nothing to distinguish it from a clean one.
+     */
+    it('reports the records a malformed CSV silently loses', async () => {
+      const { rows, rejections } = await parseCsvBuffer('name\nOk\nBroken,"unterminated\nAnother\n')
+
+      expect(rows).toHaveLength(1)
+      expect(rejections.rowsRejected).toBeGreaterThan(0)
+      expect(rejections.rejectedSamples[0]).toMatchObject({ code: 'CSV_QUOTE_NOT_CLOSED' })
+    })
+
+    it('reports no rejections for a clean CSV', async () => {
+      const { rejections } = await parseCsvBuffer('a,b\n1,2\n')
+      expect(rejections).toEqual({ rowsRejected: 0, rejectedSamples: [] })
+    })
+
+    it('threads the summary through parseFileRows for CSV', async () => {
+      const { rejections } = await parseFileRows(
+        Buffer.from('name\nOk\nBroken,"unterminated\nAnother\n'),
+        'rows.csv'
+      )
+      expect(rejections.rowsRejected).toBeGreaterThan(0)
+    })
+
+    it('reports no rejections for JSON, which throws rather than dropping rows', async () => {
+      const { rejections } = await parseFileRows(Buffer.from('[{"a":1}]'), 'rows.json')
+      expect(rejections).toEqual({ rowsRejected: 0, rejectedSamples: [] })
+    })
+
+    /**
+     * The count is a floor and the samples are capped, so a systematically broken
+     * million-row file cannot accumulate an entry per lost record.
+     */
+    it('counts every rejection but caps the retained samples', () => {
+      const collector = createCsvRejectionCollector()
+      for (let index = 0; index < MAX_REJECTED_SAMPLES + 3; index++) {
+        collector.onSkip({ code: 'CSV_QUOTE_NOT_CLOSED', line: index, message: 'bad' })
+      }
+
+      expect(collector.summary.rowsRejected).toBe(MAX_REJECTED_SAMPLES + 3)
+      expect(collector.summary.rejectedSamples).toHaveLength(MAX_REJECTED_SAMPLES)
+      expect(collector.summary.rejectedSamples[0]).toMatchObject({ line: 0 })
     })
   })
 

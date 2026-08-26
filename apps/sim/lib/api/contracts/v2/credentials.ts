@@ -467,9 +467,24 @@ export const v2CreateServiceAccountCredentialContract = defineRouteContract({
   },
 })
 
-export const v2CredentialParamsSchema = z
+/**
+ * The credential a path addresses, named for what the route does to it.
+ *
+ * `PATCH` and `DELETE` sit on the same path but are not the same operation, and
+ * the OpenAPI document already publishes them as two components
+ * (`UpdateCredentialParams`, `DeleteCredentialParams`). One shared `describe()`
+ * forced both to read "update or disconnect", so the disconnect reference
+ * offered an update the route cannot perform.
+ */
+export const v2UpdateCredentialParamsSchema = z
   .object({
-    credentialId: nonEmptyIdSchema.max(255).describe('Credential to update or disconnect.'),
+    credentialId: nonEmptyIdSchema.max(255).describe('Credential to update.'),
+  })
+  .strict()
+
+export const v2DeleteCredentialParamsSchema = z
+  .object({
+    credentialId: nonEmptyIdSchema.max(255).describe('Credential to disconnect.'),
   })
   .strict()
 
@@ -618,7 +633,7 @@ export type V2UpdateCredentialBody = z.input<typeof v2UpdateCredentialBodySchema
 export const v2UpdateCredentialContract = defineRouteContract({
   method: 'PATCH',
   path: '/api/v2/credentials/[credentialId]',
-  params: v2CredentialParamsSchema,
+  params: v2UpdateCredentialParamsSchema,
   query: v2UpdateCredentialQuerySchema,
   body: v2UpdateCredentialBodySchema,
   response: {
@@ -630,7 +645,7 @@ export const v2UpdateCredentialContract = defineRouteContract({
 export const v2DeleteCredentialContract = defineRouteContract({
   method: 'DELETE',
   path: '/api/v2/credentials/[credentialId]',
-  params: v2CredentialParamsSchema,
+  params: v2DeleteCredentialParamsSchema,
   query: v2DeleteCredentialQuerySchema,
   response: {
     mode: 'json',

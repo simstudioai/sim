@@ -16,37 +16,72 @@ vi.mock('@/lib/core/utils/urls', () => ({
 }))
 
 vi.mock('@/lib/auth/connectors/managed-oauth', () => ({
-  getManagedOAuthConnectorProviderConfig: (providerId: string) =>
-    providerId === 'google-calendar'
-      ? {
-          providerId,
-          clientId: 'client-1',
-          clientSecret: 'secret-1',
-          authorizationUrl: 'https://accounts.example.com/authorize',
-          tokenUrl: 'https://accounts.example.com/token',
-          accessType: 'offline',
-          scopes: ['calendar.read', 'profile'],
-          getToken: mockGetToken,
-          managedOAuth: {
-            additionalScopes: ['openid'],
-            requiresRefreshToken: true,
-            pkce: true,
-            prompt: 'consent select_account',
-            authorizationUrlParams: { include_granted_scopes: 'false' },
-            getAuthorizationAppId: (clientId: string) => `google:${clientId}`,
-            verifyIdentity: mockVerifyIdentity,
-            hasRequiredScopes: (granted: string[], required: string[]) =>
-              required.every((scope) => granted.includes(scope)),
-            isTerminalRefreshError: (errorCode: string | undefined) =>
-              errorCode === 'invalid_grant',
-          },
-        }
-      : undefined,
+  getManagedOAuthConnectorProviderConfig: (providerId: string) => {
+    if (providerId === 'google-calendar') {
+      return {
+        providerId,
+        clientId: 'client-1',
+        clientSecret: 'secret-1',
+        authorizationUrl: 'https://accounts.example.com/authorize',
+        tokenUrl: 'https://accounts.example.com/token',
+        redirectURI: 'https://sim.example.com/api/auth/oauth2/callback/google-calendar',
+        accessType: 'offline',
+        scopes: ['calendar.read', 'profile'],
+        getToken: mockGetToken,
+        managedOAuth: {
+          additionalScopes: ['openid'],
+          requiresRefreshToken: true,
+          pkce: true,
+          nonceVerification: 'id_token',
+          includeLoginHint: true,
+          prompt: 'consent select_account',
+          authorizationUrlParams: { include_granted_scopes: 'false' },
+          getAuthorizationAppId: (clientId: string) => `google:${clientId}`,
+          verifyIdentity: mockVerifyIdentity,
+          hasRequiredScopes: (granted: string[], required: string[]) =>
+            required.every((scope) => granted.includes(scope)),
+          isTerminalRefreshError: (errorCode: string | undefined) => errorCode === 'invalid_grant',
+        },
+      }
+    }
+    if (providerId === 'jira') {
+      return {
+        providerId,
+        clientId: 'jira-client-1',
+        clientSecret: 'jira-secret-1',
+        authorizationUrl: 'https://auth.atlassian.com/authorize',
+        tokenUrl: 'https://auth.atlassian.com/oauth/token',
+        redirectURI: 'https://sim.example.com/api/auth/oauth2/callback/jira',
+        scopes: ['read:me', 'read:jira-work', 'offline_access'],
+        responseType: 'code',
+        authentication: 'basic',
+        prompt: 'consent',
+        authorizationUrlParams: { audience: 'api.atlassian.com' },
+        getToken: mockGetToken,
+        managedOAuth: {
+          additionalScopes: [],
+          requiresRefreshToken: true,
+          pkce: false,
+          nonceVerification: 'state_only',
+          includeLoginHint: false,
+          prompt: 'consent',
+          authorizationUrlParams: { audience: 'api.atlassian.com' },
+          getAuthorizationAppId: (clientId: string) => `jira:${clientId}`,
+          verifyIdentity: mockVerifyIdentity,
+          hasRequiredScopes: (granted: string[], required: string[]) =>
+            required.every((scope) => granted.includes(scope)),
+          isTerminalRefreshError: (errorCode: string | undefined) => errorCode === 'invalid_grant',
+        },
+      }
+    }
+    return undefined
+  },
 }))
 
 import { createStandardOAuthCredentialGroupProviderAdapter } from '@/lib/credential-groups/standard-oauth-provider'
 
 const adapter = createStandardOAuthCredentialGroupProviderAdapter('google-calendar')
+const jiraAdapter = createStandardOAuthCredentialGroupProviderAdapter('jira')
 
 function buildContext(): CredentialGroupOAuthContext {
   return {
@@ -82,7 +117,7 @@ function buildAttempt(scopeVersion: number): CredentialGroupOAuthAttempt {
     authorizationAppId: 'google:client-1',
     scopeVersion,
     requiredScopes: ['calendar.read', 'profile', 'openid'],
-    redirectUri: 'https://sim.example.com/api/credential-groups/oauth/google-calendar/callback',
+    redirectUri: 'https://sim.example.com/api/auth/oauth2/callback/google-calendar',
     codeVerifier: 'verifier-1',
     invitationToken: 'invitation-1',
     createdAt: Date.now(),
@@ -128,6 +163,9 @@ describe('standard OAuth Credential Group provider', () => {
       requiredScopes: ['calendar.read', 'profile', 'openid'],
     })
     expect(prepared.codeVerifier).toHaveLength(86)
+    expect(prepared.redirectUri).toBe(
+      'https://sim.example.com/api/auth/oauth2/callback/google-calendar'
+    )
     expect(authorizationUrl.origin).toBe('https://accounts.example.com')
     expect(authorizationUrl.searchParams.get('client_id')).toBe('client-1')
     expect(authorizationUrl.searchParams.get('state')).toBe('state-1')
@@ -152,7 +190,7 @@ describe('standard OAuth Credential Group provider', () => {
 
     expect(mockGetToken).toHaveBeenCalledWith({
       code: 'code-1',
-      redirectURI: 'https://sim.example.com/api/credential-groups/oauth/google-calendar/callback',
+      redirectURI: 'https://sim.example.com/api/auth/oauth2/callback/google-calendar',
       codeVerifier: 'verifier-1',
     })
     expect(grant).toMatchObject({
@@ -194,5 +232,68 @@ describe('standard OAuth Credential Group provider', () => {
         policy,
       })
     ).rejects.toMatchObject({ statusCode: 403 })
+  })
+
+  it('uses the existing Atlassian callback and state-bound identity verification', async () => {
+    const requiredScopes = ['read:me', 'read:jira-work', 'offline_access']
+    const context: CredentialGroupOAuthContext = {
+      ...buildContext(),
+      option: {
+        ...buildContext().option,
+        provider: 'jira',
+        label: 'Jira',
+        authorizationAppId: 'jira:jira-client-1',
+        requiredScopes,
+      },
+    }
+    const policy = await jiraAdapter.getPolicy(context.option, {
+      workspaceId: context.workspaceId,
+      credentialGroupId: context.credentialGroupId,
+    })
+    const prepared = await jiraAdapter.prepareAuthorization(context, policy)
+    const authorizationUrl = new URL(
+      await prepared.buildAuthorizationUrl({ state: 'cg_state-1', nonce: 'nonce-ignored' })
+    )
+
+    expect(prepared.redirectUri).toBe('https://sim.example.com/api/auth/oauth2/callback/jira')
+    expect(prepared.codeVerifier).toBeUndefined()
+    expect(authorizationUrl.searchParams.get('audience')).toBe('api.atlassian.com')
+    expect(authorizationUrl.searchParams.has('nonce')).toBe(false)
+    expect(authorizationUrl.searchParams.has('login_hint')).toBe(false)
+    expect(authorizationUrl.searchParams.has('code_challenge')).toBe(false)
+
+    mockVerifyIdentity.mockResolvedValueOnce({
+      providerSubjectId: 'atlassian-account-1',
+      providerTenantId: null,
+      email: 'person@example.com',
+      emailVerified: true,
+      grantedScopes: requiredScopes,
+    })
+    const grant = await jiraAdapter.exchangeAndVerify({
+      context,
+      attempt: {
+        state: 'cg_state-1',
+        provider: 'jira',
+        nonceHash: 'unused-for-state-bound-provider',
+        enrollmentId: context.enrollmentId,
+        credentialGroupId: context.credentialGroupId,
+        optionId: context.option.id,
+        authorizationAppId: policy.authorizationAppId,
+        scopeVersion: policy.scopeVersion,
+        requiredScopes,
+        redirectUri: prepared.redirectUri,
+        invitationToken: 'invitation-1',
+        createdAt: Date.now(),
+      },
+      code: 'code-1',
+      policy,
+    })
+
+    expect(grant.providerSubjectId).toBe('atlassian-account-1')
+    expect(mockGetToken).toHaveBeenLastCalledWith({
+      code: 'code-1',
+      redirectURI: 'https://sim.example.com/api/auth/oauth2/callback/jira',
+      codeVerifier: undefined,
+    })
   })
 })

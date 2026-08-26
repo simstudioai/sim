@@ -44,6 +44,7 @@ export const agiloftSavedSearchTool: ToolConfig<
   },
 
   request: {
+    internal: true,
     url: () => '/api/tools/agiloft/saved_search',
     method: 'POST',
     headers: () => ({ 'Content-Type': 'application/json' }),

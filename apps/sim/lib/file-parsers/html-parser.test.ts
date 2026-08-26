@@ -10,6 +10,12 @@ import { HtmlComplexityError, HtmlParser } from '@/lib/file-parsers/html-parser'
 const parser = new HtmlParser()
 
 describe('HtmlParser', () => {
+  it('reports empty input with the typed parser taxonomy', async () => {
+    await expect(parser.parseBuffer(Buffer.alloc(0))).rejects.toMatchObject({
+      code: 'empty_input',
+    })
+  })
+
   describe('resource limits', () => {
     /**
      * Pinned by value: a 64 MB body aborts the process, so raising the cap

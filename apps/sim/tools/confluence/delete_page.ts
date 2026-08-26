@@ -68,6 +68,7 @@ export const confluenceDeletePageTool: ToolConfig<
   },
 
   request: {
+    internal: true,
     url: (params: ConfluenceDeletePageParams) => '/api/tools/confluence/page',
     method: 'DELETE',
     headers: (params: ConfluenceDeletePageParams) => {

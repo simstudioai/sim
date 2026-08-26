@@ -33,6 +33,7 @@ vi.mock('@/lib/credentials/managed-oauth', () => ({
 }))
 
 import { completeCredentialGroupOAuth } from '@/lib/credential-groups/oauth'
+import { CredentialGroupInvitationUnavailableError } from '@/lib/credential-groups/provider-adapter'
 
 const POLICY = {
   provider: 'gmail' as const,
@@ -107,14 +108,14 @@ describe('credential group OAuth persistence', () => {
           authorizationAppId: POLICY.authorizationAppId,
           scopeVersion: POLICY.scopeVersion,
           requiredScopes: POLICY.requiredScopes,
-          redirectUri: 'https://sim.ai/api/credential-groups/oauth/gmail/callback',
+          redirectUri: 'https://sim.ai/api/auth/oauth2/callback/google-email',
           codeVerifier: 'verifier',
           invitationToken: 'invitation-token',
           createdAt: Date.now(),
         },
         'authorization-code'
       )
-    ).rejects.toThrow('This account invitation was revoked.')
+    ).rejects.toBeInstanceOf(CredentialGroupInvitationUnavailableError)
 
     expect(dbChainMockFns.execute).toHaveBeenCalledTimes(2)
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
@@ -148,7 +149,7 @@ describe('credential group OAuth persistence', () => {
         authorizationAppId: POLICY.authorizationAppId,
         scopeVersion: POLICY.scopeVersion,
         requiredScopes: POLICY.requiredScopes,
-        redirectUri: 'https://sim.ai/api/credential-groups/oauth/gmail/callback',
+        redirectUri: 'https://sim.ai/api/auth/oauth2/callback/google-email',
         codeVerifier: 'verifier',
         invitationToken: 'invitation-token',
         createdAt: Date.now(),
@@ -197,7 +198,7 @@ describe('credential group OAuth persistence', () => {
           authorizationAppId: POLICY.authorizationAppId,
           scopeVersion: POLICY.scopeVersion,
           requiredScopes: POLICY.requiredScopes,
-          redirectUri: 'https://sim.ai/api/credential-groups/oauth/gmail/callback',
+          redirectUri: 'https://sim.ai/api/auth/oauth2/callback/google-email',
           codeVerifier: 'verifier',
           invitationToken: 'invitation-token',
           createdAt: Date.now(),

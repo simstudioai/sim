@@ -2787,9 +2787,9 @@
             "name": "selectedOutputs",
             "in": "query",
             "required": false,
-            "description": "Comma-separated block output references to include, as `blockId` or `blockId.path`. Block *names* are not resolved here — unlike the execute request, this resource reads a recorded run and matches ids only, so a name selects nothing and yields an empty `blockOutputs`.",
+            "description": "Comma-separated block output references to include, as `blockId` or `blockId.path`. Block *names* are not resolved here — unlike the execute request, this resource reads a recorded run and matches ids only, so a selector that is not headed by a block id answers `400` instead of an empty `blockOutputs`.",
             "schema": {
-              "description": "Comma-separated block output references to include, as `blockId` or `blockId.path`. Block *names* are not resolved here — unlike the execute request, this resource reads a recorded run and matches ids only, so a name selects nothing and yields an empty `blockOutputs`.",
+              "description": "Comma-separated block output references to include, as `blockId` or `blockId.path`. Block *names* are not resolved here — unlike the execute request, this resource reads a recorded run and matches ids only, so a selector that is not headed by a block id answers `400` instead of an empty `blockOutputs`.",
               "type": "string"
             }
           },
@@ -8962,7 +8962,7 @@
             "type": "boolean"
           },
           "selectedOutputs": {
-            "description": "Block output references to include in a streamed response. Rejected when `async` is true.",
+            "description": "Block output references to include in a streamed response, as `blockId`, `blockId.path`, or `BlockName.path` (resolved against the live workflow). Requires `stream: true` — it shapes the streamed envelope only, so it is rejected on a sync request and when `async` is true. To narrow a finished run, pass `selectedOutputs` to the run resource instead.",
             "maxItems": 100,
             "type": "array",
             "items": {

@@ -581,7 +581,8 @@ export interface ReadTableRowEnrichmentResult extends TableResult {
  * The enrichment cascade breakdown — provider outcomes, cost, timing — for one
  * cell. Deliberately kept off the hot grid read and fetched on demand by the
  * details panel; `null` for a cell with no recorded run, or a run predating the
- * feature.
+ * feature. The row id and group id are validated first so an unknown id 404s
+ * instead of being indistinguishable from "no enrichment run yet".
  *
  * Shares {@link tableOperations.readRow}: this is a projection of the same row,
  * under the same role, so it is not a second semantic operation.
@@ -591,6 +592,14 @@ export const readTableRowEnrichmentDetail = defineAuthorizedTableUseCase({
   resolveContext: ({ input }: { input: ReadTableRowEnrichmentInput }) =>
     resolveActiveTableContext(input),
   async execute({ input, context }): Promise<ReadTableRowEnrichmentResult> {
+    const rowExists = await getRowSummaryById(context.tableId, input.rowId, context.workspaceId)
+    if (!rowExists) throw new OrchestrationError('not_found', 'Row not found')
+    const groupExists = (context.table.schema.workflowGroups ?? []).some(
+      (group) => group.id === input.groupId
+    )
+    if (!groupExists) {
+      throw new OrchestrationError('not_found', 'Workflow group not found')
+    }
     return {
       table: context.table,
       detail: await loadEnrichmentDetail(db, context.tableId, input.rowId, input.groupId),

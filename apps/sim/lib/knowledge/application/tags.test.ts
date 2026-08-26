@@ -53,6 +53,7 @@ vi.mock('@/lib/knowledge/tags/service', () => ({
   updateTagDefinition: mocks.updateTag,
   deleteTagDefinition: mocks.deleteTag,
   getTagUsageStats: mocks.readUsage,
+  normalizeDisplayName: (displayName: string) => displayName.trim().toLowerCase(),
   createOrUpdateTagDefinitionsBulk: mocks.saveTags,
   cleanupUnusedTagDefinitions: mocks.cleanupTags,
   deleteAllTagDefinitions: mocks.deleteAllTags,
@@ -127,6 +128,7 @@ describe('knowledge tag application use cases', () => {
     mocks.resolveDocument.mockResolvedValue(documentContext)
     mocks.saveTags.mockResolvedValue({ created: [], updated: [], errors: [] })
     mocks.listAllTags.mockResolvedValue([])
+    mocks.listTags.mockResolvedValue([])
   })
 
   it.each([
@@ -254,6 +256,39 @@ describe('knowledge tag application use cases', () => {
   })
 
   /**
+   * The unique index on display name is case-sensitive, so it admits names that
+   * differ only in case. Two such tags are indistinguishable in every surface
+   * that filters by name.
+   */
+  it('rejects a create whose display name differs from an existing one only in case', async () => {
+    mocks.listTags.mockResolvedValueOnce([
+      {
+        id: 'tag-1',
+        knowledgeBaseId: 'knowledge-b',
+        tagSlot: 'tag1',
+        displayName: 'clitest-cat',
+        fieldType: 'text',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ])
+
+    await expect(
+      createKnowledgeTag.execute({
+        principal: sessionPrincipal,
+        input: {
+          knowledgeBaseId: 'knowledge-b',
+          displayName: 'CLITEST-CAT',
+          fieldType: 'text',
+        },
+      })
+    ).rejects.toMatchObject({ code: 'conflict' })
+
+    expect(mocks.createTag).not.toHaveBeenCalled()
+    expect(mocks.recordAudit).not.toHaveBeenCalled()
+  })
+
+  /**
    * Neither uniqueness invariant can be checked before the write: the read that
    * would check it and the insert that depends on the answer are separate
    * statements. `tagSlot` is a caller parameter too, so an occupied slot reaches
@@ -336,6 +371,65 @@ describe('knowledge tag application use cases', () => {
         knowledgeBaseId: 'knowledge-b',
         tagDefinitionId: 'tag-1',
         updates: { displayName: 'Region' },
+      },
+    })
+
+    expect(mocks.updateTag).toHaveBeenCalledTimes(1)
+  })
+
+  /**
+   * The display-name index is case-sensitive, so it admits on rename exactly the
+   * pair create rejects.
+   */
+  it('rejects a rename whose display name differs from an existing one only in case', async () => {
+    mocks.listTags.mockResolvedValueOnce([
+      {
+        id: 'tag-other',
+        knowledgeBaseId: 'knowledge-b',
+        tagSlot: 'tag2',
+        displayName: 'clitest-cat',
+        fieldType: 'text',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ])
+
+    await expect(
+      updateKnowledgeTag.execute({
+        principal: sessionPrincipal,
+        input: {
+          knowledgeBaseId: 'knowledge-b',
+          tagDefinitionId: 'tag-b',
+          updates: { displayName: 'CLITEST-CAT' },
+        },
+      })
+    ).rejects.toMatchObject({ code: 'conflict' })
+
+    expect(mocks.updateTag).not.toHaveBeenCalled()
+    expect(mocks.recordAudit).not.toHaveBeenCalled()
+  })
+
+  /** Re-casing a tag's own name is not a collision with itself. */
+  it('allows a tag to be renamed to a different casing of its own name', async () => {
+    mocks.listTags.mockResolvedValueOnce([
+      {
+        id: 'tag-b',
+        knowledgeBaseId: 'knowledge-b',
+        tagSlot: 'tag1',
+        displayName: 'Region',
+        fieldType: 'text',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ])
+    mocks.updateTag.mockResolvedValueOnce({ ...tagContext.tagDefinition, displayName: 'region' })
+
+    await updateKnowledgeTag.execute({
+      principal: sessionPrincipal,
+      input: {
+        knowledgeBaseId: 'knowledge-b',
+        tagDefinitionId: 'tag-b',
+        updates: { displayName: 'region' },
       },
     })
 

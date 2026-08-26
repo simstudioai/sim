@@ -80,6 +80,7 @@ export const confluenceListAttachmentsTool: ToolConfig<
   },
 
   request: {
+    internal: true,
     url: (params: ConfluenceListAttachmentsParams) => {
       const query = new URLSearchParams({
         domain: params.domain,

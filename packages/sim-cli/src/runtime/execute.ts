@@ -3,6 +3,7 @@ import { clientFrom } from '../context'
 import type { CommandSpec } from '../contract/types'
 import type { V2OperationName } from '../generated/v2-api'
 import { pageProgress, SimApiError, type V2Page } from '../http/client'
+import { safeOneLine } from '../output/render'
 import { camel } from './derive'
 import { DEFAULT_LIMIT } from './options'
 import { warnRenamedFlag } from './renamed'
@@ -14,6 +15,127 @@ import {
 } from './request'
 import { renderPage, renderResult } from './result'
 import type { OperationSpec } from './types'
+
+/**
+ * Operations that report the outcome of the work they did in band.
+ *
+ * The execute route answers `200` with `status: 'failed'` and a structured
+ * `error` rather than an HTTP error, so a failed run left the terminal
+ * indistinguishable from a successful one: `sim workflows run` printed the
+ * failure and still exited `0`, and a CI step gated on it stayed green.
+ * `--follow` and `runs wait` already fail the process on the same outcome; this
+ * is the plain run path catching up with them.
+ *
+ * Named per operation on purpose. A `status` field is common across unrelated
+ * v2 payloads — job records, import receipts, connector syncs — and taking any
+ * `status: 'failed'` as the command's own outcome would start failing commands
+ * that merely *report* somebody else's failed record.
+ */
+const RUN_OUTCOME_OPERATIONS = new Set<V2OperationName>(['executeWorkflow'])
+
+/**
+ * Terminal run statuses that are not a success, and how each is explained.
+ *
+ * `paused` is deliberately absent: a run held at a human-in-the-loop pause has
+ * not failed and can still be resumed, and `--follow` reports it the same way it
+ * reports a success.
+ */
+const FAILED_RUN_STATUS_MESSAGES: Readonly<Record<string, string>> = {
+  failed: 'The workflow run failed.',
+  cancelled: 'The workflow run was cancelled.',
+}
+
+/** The one-line explanation of an in-band run failure, or `null` if there is none. */
+function runFailureMessage(operation: V2OperationName, payload: unknown): string | null {
+  if (!RUN_OUTCOME_OPERATIONS.has(operation)) return null
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return null
+
+  const { status, error } = payload as { status?: unknown; error?: unknown }
+  if (typeof status !== 'string') return null
+  const fallback = FAILED_RUN_STATUS_MESSAGES[status]
+  if (!fallback) return null
+
+  const reported = (error as { message?: unknown } | null | undefined)?.message
+  return safeOneLine(typeof reported === 'string' && reported ? reported : fallback)
+}
+
+/**
+ * Bulk operations that answer `200` even when they changed nothing.
+ *
+ * These endpoints are deliberately best-effort: they attempt every item, then
+ * report per-item outcomes in the payload. That is right for a partial
+ * success — some items really were deleted or moved — but a call that touched
+ * nothing at all is a failure the caller has to notice, and exiting `0` left
+ * `sim tables batch-delete --table-ids '["tbl_typo"]'` indistinguishable from a
+ * real deletion in a CI step.
+ *
+ * Only a total miss fails. A partial success still exits `0`: the payload names
+ * every item that did not make it, and failing the process there would break
+ * every caller that legitimately sweeps a list containing already-gone items.
+ */
+/**
+ * Reads a bulk payload, and the request that produced it, for a total miss.
+ *
+ * The request is needed because not every bulk response reports the items it
+ * failed on: `bulkDeleteFiles` answers with a deleted count and nothing else,
+ * so the only place the number of items asked for exists is the body that was
+ * sent.
+ */
+type BulkOutcomeCheck = (
+  payload: Record<string, unknown>,
+  body: Record<string, unknown> | undefined
+) => string | null
+
+export const BULK_OUTCOME_CHECKS: Readonly<Partial<Record<V2OperationName, BulkOutcomeCheck>>> = {
+  bulkDeleteFiles: (payload, body) => {
+    if (countOf((payload.deletedItems as { files?: unknown } | undefined)?.files) > 0) return null
+    const requested = lengthOf(body?.fileIds)
+    if (requested === 0) return null
+    return `Deleted nothing: none of the ${requested} requested ${requested === 1 ? 'file was' : 'files were'} deleted.`
+  },
+  bulkDeleteTables: (payload) => {
+    const items = payload.deletedItems as { tables?: unknown; folders?: unknown } | undefined
+    const deleted = countOf(items?.tables) + countOf(items?.folders)
+    if (deleted > 0) return null
+    const missed = lengthOf(payload.notFound) + lengthOf(payload.failed)
+    if (missed === 0) return null
+    return `Deleted nothing: ${missed} of ${missed} ${missed === 1 ? 'item was' : 'items were'} not found or could not be deleted.`
+  },
+  moveTables: (payload) => {
+    if (lengthOf(payload.moved) > 0) return null
+    const missed = lengthOf(payload.notFound) + lengthOf(payload.failed)
+    if (missed === 0) return null
+    return `Moved nothing: ${missed} of ${missed} ${missed === 1 ? 'item was' : 'items were'} not found or could not be moved.`
+  },
+  moveWorkflows: (payload) => {
+    if (lengthOf(payload.moved) > 0) return null
+    const failed = lengthOf(payload.failed)
+    if (failed === 0) return null
+    return `Moved nothing: ${failed} of ${failed} ${failed === 1 ? 'workflow' : 'workflows'} could not be moved.`
+  },
+}
+
+/** A numeric count field, or `0` when the payload omits it. */
+function countOf(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0
+}
+
+/** The length of an array field, or `0` when the payload omits it. */
+function lengthOf(value: unknown): number {
+  return Array.isArray(value) ? value.length : 0
+}
+
+/** The one-line explanation of a bulk call that changed nothing, or `null`. */
+function bulkFailureMessage(
+  operation: V2OperationName,
+  payload: unknown,
+  body: Record<string, unknown> | undefined
+): string | null {
+  const check = BULK_OUTCOME_CHECKS[operation]
+  if (!check) return null
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return null
+  return check(payload as Record<string, unknown>, body)
+}
 
 function cursorSlot(operationSpec: OperationSpec): 'query' | 'body' | null {
   if (operationSpec.query && 'cursor' in operationSpec.query) return 'query'
@@ -127,6 +249,8 @@ export async function executeOperation(
     const rows: unknown[] = []
     const progress = pageProgress()
     let cursor: string | null = null
+    /** The first page's envelope: where a fact about the whole query is stated. */
+    let envelope: unknown
 
     // `finally`, for the same reason as `requestAllPages`: a page that throws
     // would otherwise leave the progress text on the line the error prints onto.
@@ -134,12 +258,14 @@ export async function executeOperation(
       do {
         const page: V2Page<unknown> = await client.request(request.path, {
           method: operationSpec.method,
+          headers: request.headers,
           query: paging === 'query' ? { ...request.query, ...pageLimit, cursor } : request.query,
           body:
             paging === 'body'
               ? { ...(request.body ?? {}), ...pageLimit, ...(cursor ? { cursor } : {}) }
               : request.body,
         })
+        envelope ??= page
         rows.push(...page.data)
         cursor = page.nextCursor
         if (cursor && rows.length < limit) progress.advance(rows.length)
@@ -147,16 +273,31 @@ export async function executeOperation(
     } finally {
       progress.finish()
     }
-    renderPage(profile.output, Number.isFinite(limit) ? rows.slice(0, limit) : rows, commandSpec)
+    renderPage(
+      profile.output,
+      Number.isFinite(limit) ? rows.slice(0, limit) : rows,
+      commandSpec,
+      envelope
+    )
     return
   }
 
   const result = await client.request<{ data?: unknown }>(request.path, {
     method: operationSpec.method,
+    headers: request.headers,
     query: request.query,
     body: request.body,
   })
-  renderResult(operation, profile.output, result?.data ?? result, commandSpec, {
+  const payload = result?.data ?? result
+  renderResult(operation, profile.output, payload, commandSpec, {
     expandedTrace: requestFlags.trace === true,
   })
+
+  // Printed first, then failed, for the reason `followRun` gives: the envelope
+  // carries the block outputs that explain *why* the run failed, and exiting
+  // before writing it would leave a piped consumer an exit code and nothing to
+  // read.
+  const failure =
+    runFailureMessage(operation, payload) ?? bulkFailureMessage(operation, payload, request.body)
+  if (failure) throw new SimApiError(failure, 0)
 }

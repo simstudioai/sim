@@ -161,10 +161,6 @@ vi.mock('@sim/utils/id', () => ({
   ),
 }))
 
-vi.mock('@/app/api/v2/lib/gate', () => ({
-  v2ApiGateError: vi.fn().mockResolvedValue(null),
-}))
-
 import { executeWorkflowService } from '@/lib/workflows/executor/execute-service'
 import { attachExecutionResult } from '@/executor/utils/errors'
 import { POST } from './route'
@@ -225,7 +221,6 @@ function callPublicExecute(body: Record<string, unknown>, headers: Record<string
 function authenticatePersonalKey() {
   mockAuthenticateV2ApiKey.mockResolvedValue({
     principal: { kind: 'personal_api_key', userId: 'actor-1', keyId: 'key-1' },
-    rolloutUserId: 'actor-1',
     rateLimitSubjectIds: ['api-key:key-1', 'user:actor-1'],
     rateLimitSubscription: null,
     keyType: 'personal',
@@ -254,7 +249,6 @@ describe('POST /api/v2/workflows/[workflowId]/execute', () => {
         workspaceId: 'workspace-1',
         keyId: 'key-1',
       },
-      rolloutUserId: 'actor-1',
       rateLimitSubjectIds: ['api-key:key-1', 'workspace:workspace-1'],
       rateLimitSubscription: null,
       keyType: 'workspace',
@@ -414,18 +408,6 @@ describe('POST /api/v2/workflows/[workflowId]/execute', () => {
     expect(response.headers.get('Retry-After')).toBe('12')
     expect(mockPreprocessExecution).not.toHaveBeenCalled()
     expect(mockClaimExecutionId).not.toHaveBeenCalled()
-  })
-
-  it('404s the whole surface when the v2-api flag is off', async () => {
-    const { v2ApiGateError } = await import('@/app/api/v2/lib/gate')
-    const { v2Error } = await import('@/app/api/v2/lib/response')
-    vi.mocked(v2ApiGateError).mockResolvedValueOnce(v2Error('NOT_FOUND', 'Not found'))
-
-    const res = await callExecute({ input: {} })
-
-    expect(res.status).toBe(404)
-    expect((await res.json()).error.code).toBe('NOT_FOUND')
-    expect(mockPreprocessExecution).not.toHaveBeenCalled()
   })
 
   it('rejects unknown body keys (strict contract)', async () => {
@@ -608,6 +590,14 @@ describe('POST /api/v2/workflows/[workflowId]/execute', () => {
     expect(mockPreprocessExecution).not.toHaveBeenCalled()
   })
 
+  it('rejects selectedOutputs on a sync request rather than ignoring it', async () => {
+    const res = await callExecute({ selectedOutputs: ['agent_1.content'] })
+
+    expect(res.status).toBe(400)
+    expect((await res.json()).error.message).toContain('selectedOutputs requires stream: true')
+    expect(mockPreprocessExecution).not.toHaveBeenCalled()
+  })
+
   it.each(['includeThinking', 'includeToolCalls'])(
     'rejects %s unless stream is true before checking the protocol header',
     async (option) => {
@@ -636,7 +626,6 @@ describe('POST /api/v2/workflows/[workflowId]/execute', () => {
         workspaceId: 'other-workspace',
         keyId: 'key-1',
       },
-      rolloutUserId: 'actor-1',
       rateLimitSubjectIds: ['api-key:key-1', 'workspace:other-workspace'],
       rateLimitSubscription: null,
       keyType: 'workspace',
@@ -651,7 +640,6 @@ describe('POST /api/v2/workflows/[workflowId]/execute', () => {
   it('rejects personal keys when the workspace disallows them', async () => {
     mockAuthenticateV2ApiKey.mockResolvedValue({
       principal: { kind: 'personal_api_key', userId: 'key-user-1', keyId: 'key-1' },
-      rolloutUserId: 'key-user-1',
       rateLimitSubjectIds: ['api-key:key-1', 'user:key-user-1'],
       rateLimitSubscription: null,
       keyType: 'personal',

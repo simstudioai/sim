@@ -4,13 +4,26 @@
 import { createMockRequest, hybridAuthMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockEmbed, mockEmbedOpenRouter, mockGetOpenRouterEmbeddingModelMetadata } = vi.hoisted(
-  () => ({
+const {
+  MockEmbeddingOutputLimitError,
+  mockEmbed,
+  mockEmbedOpenRouter,
+  mockGetOpenRouterEmbeddingModelMetadata,
+} = vi.hoisted(() => {
+  class MockEmbeddingOutputLimitError extends Error {
+    constructor(message: string) {
+      super(message)
+      this.name = 'EmbeddingOutputLimitError'
+    }
+  }
+
+  return {
+    MockEmbeddingOutputLimitError,
     mockEmbed: vi.fn(),
     mockEmbedOpenRouter: vi.fn(),
     mockGetOpenRouterEmbeddingModelMetadata: vi.fn(),
-  })
-)
+  }
+})
 
 vi.mock('@/lib/embeddings/openrouter-model-catalog.server', () => ({
   getOpenRouterEmbeddingModelMetadata: mockGetOpenRouterEmbeddingModelMetadata,
@@ -27,6 +40,7 @@ vi.mock('@/lib/embeddings', async () => {
   return {
     embed: mockEmbed,
     embedOpenRouter: mockEmbedOpenRouter,
+    EmbeddingOutputLimitError: MockEmbeddingOutputLimitError,
     DEFAULT_OPENROUTER_EMBEDDING_MODEL: 'openrouter/openai/text-embedding-3-small',
     findEmbeddingModelInfo: catalog.findEmbeddingModelInfo,
     getModelsForProvider: catalog.getModelsForProvider,
@@ -228,6 +242,15 @@ describe('POST /api/tools/embeddings', () => {
     const response = await post(baseBody)
     expect(response.status).toBe(502)
     expect((await response.json()).error).toContain('429')
+  })
+
+  it('returns 413 when the requested embedding output exceeds the safe aggregate limit', async () => {
+    mockEmbed.mockRejectedValue(
+      new MockEmbeddingOutputLimitError('Embedding output exceeds the safe aggregate limit')
+    )
+    const response = await post(baseBody)
+    expect(response.status).toBe(413)
+    expect((await response.json()).error).toContain('safe aggregate limit')
   })
 
   it('splits a JSON-array input into separate texts', async () => {

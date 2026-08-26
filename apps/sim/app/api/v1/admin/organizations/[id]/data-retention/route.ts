@@ -23,18 +23,13 @@ import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { adminV1UpdateOrganizationDataRetentionContract } from '@/lib/api/contracts/v1/admin'
 import { parseRequest } from '@/lib/api/server'
-import {
-  getForeignWorkspaceTargetsReason,
-  getPiiRedactionDenialReason,
-} from '@/lib/billing/retention'
-import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
+import { getForeignWorkspaceTargetsReason } from '@/lib/billing/retention'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
   adminInvalidJsonResponse,
   adminValidationErrorResponse,
   badRequestResponse,
-  forbiddenResponse,
   internalErrorResponse,
   notFoundResponse,
   singleResponse,
@@ -84,24 +79,6 @@ export const PATCH = withRouteHandler(
       if (body.taskCleanupHours !== undefined) merged.taskCleanupHours = body.taskCleanupHours
 
       if (body.piiRedaction !== undefined) {
-        /**
-         * The same gate the settings UI applies. An admin key authenticates an
-         * operator, not an entitlement — without this check it would be a way
-         * to switch on PII redaction that the product does not offer this
-         * organization.
-         */
-        const [piiRedactionEnabled, piiGranularRedactionEnabled] = await Promise.all([
-          isFeatureEnabled('pii-redaction'),
-          isFeatureEnabled('pii-granular-redaction'),
-        ])
-        const denialReason = getPiiRedactionDenialReason({
-          current: existing.dataRetentionSettings?.piiRedaction,
-          incoming: body.piiRedaction,
-          piiRedactionEnabled,
-          piiGranularRedactionEnabled,
-        })
-        if (denialReason) return forbiddenResponse(denialReason)
-
         merged.piiRedaction = body.piiRedaction
       }
 

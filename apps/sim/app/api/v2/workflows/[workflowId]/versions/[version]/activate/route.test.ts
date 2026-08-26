@@ -6,7 +6,6 @@ import {
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
   v2ApiKeyAuthModuleMock,
-  v2GateModuleMock,
   v2RateLimiterModuleMock,
   v2RouteMocks,
 } from '@sim/testing'
@@ -46,13 +45,11 @@ vi.mock('@/lib/workflows/persistence/utils', () => ({
 }))
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
-vi.mock('@/app/api/v2/lib/gate', () => v2GateModuleMock)
 
 import { POST } from '@/app/api/v2/workflows/[workflowId]/versions/[version]/activate/route'
 
 const personalKeyAuth = {
   principal: { kind: 'personal_api_key' as const, userId: 'user-1', keyId: 'personal-key-1' },
-  rolloutUserId: 'user-1',
   rateLimitSubjectIds: ['api-key:personal-key-1', 'user:user-1'] as const,
   rateLimitSubscription: null,
   keyType: 'personal' as const,
@@ -64,7 +61,6 @@ const workspaceKeyAuth = {
     workspaceId: 'workspace-1',
     keyId: 'workspace-key-1',
   },
-  rolloutUserId: 'user-1',
   rateLimitSubjectIds: ['api-key:workspace-key-1'] as const,
   rateLimitSubscription: null,
   keyType: 'workspace' as const,
@@ -97,7 +93,6 @@ describe('POST /api/v2/workflows/[workflowId]/versions/[version]/activate', () =
   beforeEach(() => {
     vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(personalKeyAuth)
-    v2RouteMocks.gate.mockResolvedValue(null)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
     mocks.resolvePermission.mockResolvedValue('admin')

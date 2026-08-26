@@ -51,6 +51,7 @@ import {
 import { readTableViewUseCase } from '@/lib/table/application/views'
 import { namedRowMapper } from '@/lib/table/cell-format'
 import { isSupportedCurrencyCode } from '@/lib/table/currency'
+import type { TableImportRejectionSummary } from '@/lib/table/jobs/service'
 import { normalizeTablePredicate } from '@/lib/table/query-builder/predicate'
 import { createExactEmptyTableRowSecretProvenance } from '@/lib/table/rows/secret-provenance'
 import { normalizeSelectOptionsInput } from '@/lib/table/select-options'
@@ -77,6 +78,38 @@ type UserTableResult = {
   success: boolean
   message: string
   data?: any
+}
+
+/**
+ * Renders the sentence an import appends when it lost data, mirroring the
+ * `droppedRows` phrasing so the model reads one shape for "the file did not
+ * land whole".
+ *
+ * `rowsRejected` is a FLOOR — one parser failure can discard many source
+ * records and is counted once — so the wording says "at least". Only the first
+ * retained sample is named; the rest ride on `data.rejections` rather than
+ * bloating a model-facing string.
+ *
+ * Returns `''` when nothing was lost, keeping a clean import's message
+ * byte-identical to what it has always been.
+ */
+function rejectionSentence(rejections: TableImportRejectionSummary | undefined): string {
+  if (!rejections) return ''
+  const losses: string[] = []
+  if (rejections.rowsRejected > 0) {
+    losses.push(`at least ${rejections.rowsRejected.toLocaleString()} unreadable row(s)`)
+  }
+  if (rejections.cellsRejected > 0) {
+    losses.push(
+      `${rejections.cellsRejected.toLocaleString()} cell value(s) the column type could not store (kept as null)`
+    )
+  }
+  if (losses.length === 0) return ''
+  const sample = rejections.rejectedSamples[0]
+  const firstFailure = sample
+    ? ` First failure: ${sample.code}${sample.line === null ? '' : ` at line ${sample.line}`}.`
+    : ''
+  return `. Dropped ${losses.join(' and ')} from the file.${firstFailure} See data.rejections for details.`
 }
 
 /**
@@ -797,7 +830,11 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             assertNotAborted,
           })
           if (result.kind === 'empty') {
-            return { success: false, message: 'File contains no data rows' }
+            return {
+              success: false,
+              message:
+                'File yielded no readable data rows — it is either empty or every record failed to parse.',
+            }
           }
           const record = result.sourceFile
           if (result.kind === 'background') {
@@ -814,10 +851,11 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           }
 
           const createdMessage = `Created table "${result.table.name}" with ${result.columns.length} columns and ${result.insertedCount.toLocaleString()} rows from "${record.name}"`
-          const message =
+          const limitMessage =
             result.droppedRows > 0
               ? `${createdMessage}. Dropped ${result.droppedRows.toLocaleString()} row(s) that exceed this plan's limit of ${result.maxRowsPerTable.toLocaleString()} rows per table.`
               : createdMessage
+          const message = `${limitMessage}${rejectionSentence(result.rejections)}`
 
           return {
             success: true,
@@ -831,6 +869,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
               })),
               rowCount: result.insertedCount,
               sourceFile: record.name,
+              ...(result.rejections ? { rejections: result.rejections } : {}),
             },
           }
         }
@@ -882,14 +921,18 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             }
           }
           if (result.kind === 'empty') {
-            return { success: false, message: 'File contains no data rows' }
+            return {
+              success: false,
+              message:
+                'File yielded no readable data rows — it is either empty or every record failed to parse.',
+            }
           }
           if (result.kind !== 'inline')
             throw new Error('Inline table import returned a background job')
           if (result.mode === 'replace') {
             return {
               success: true,
-              message: `Replaced rows in "${result.table.name}" from "${result.sourceFileName}": deleted ${result.deletedCount}, inserted ${result.insertedCount}`,
+              message: `Replaced rows in "${result.table.name}" from "${result.sourceFileName}": deleted ${result.deletedCount}, inserted ${result.insertedCount}${rejectionSentence(result.rejections)}`,
               data: {
                 tableId: result.table.id,
                 tableName: result.table.name,
@@ -899,12 +942,13 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
                 deletedCount: result.deletedCount,
                 insertedCount: result.insertedCount,
                 sourceFile: result.sourceFileName,
+                ...(result.rejections ? { rejections: result.rejections } : {}),
               },
             }
           }
           return {
             success: true,
-            message: `Imported ${result.insertedCount} rows into "${result.table.name}" from "${result.sourceFileName}" (${result.matchedColumns.length} columns matched)`,
+            message: `Imported ${result.insertedCount} rows into "${result.table.name}" from "${result.sourceFileName}" (${result.matchedColumns.length} columns matched)${rejectionSentence(result.rejections)}`,
             data: {
               tableId: result.table.id,
               tableName: result.table.name,
@@ -913,6 +957,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
               skippedColumns: result.skippedColumns,
               rowCount: result.insertedCount,
               sourceFile: result.sourceFileName,
+              ...(result.rejections ? { rejections: result.rejections } : {}),
             },
           }
         }

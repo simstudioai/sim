@@ -175,6 +175,7 @@ export function CodeHoverCard({ preview, className, children }: CodeHoverCardPro
           code={preview.code}
           language={preview.language}
           density='compact'
+          highlightWorkflowReferences
           className='max-h-[min(16rem,calc(100vh-2rem))] min-h-0 rounded-none border-0 bg-[var(--bg)] shadow-none dark:bg-[var(--bg)]'
         />
       </PopoverContent>

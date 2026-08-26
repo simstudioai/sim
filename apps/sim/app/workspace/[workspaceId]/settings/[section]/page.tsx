@@ -12,7 +12,6 @@ import {
 } from '@/components/settings/navigation'
 import { getSession } from '@/lib/auth'
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing'
-import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { isBillingEnabled, isHosted } from '@/lib/core/config/env-flags'
 import { canOpenOrganizationSettingsSection } from '@/lib/organizations/settings-access'
 import { isPlatformAdmin } from '@/lib/permissions/super-user'
@@ -143,9 +142,7 @@ export default async function WorkspaceSettingsSectionPage({
         ? isForkingAvailableForWorkspace(hostContext.hostOrganizationId, session.user.id)
         : Promise.resolve(false),
     ])
-    const customBlocksAvailable = isHosted
-      ? hostContext.ownerBilling.isEnterprise
-      : isTruthy(getEnv('NEXT_PUBLIC_CUSTOM_BLOCKS_ENABLED'))
+    const customBlocksAvailable = !isHosted || hostContext.ownerBilling.isEnterprise
     const navigation = resolveWorkspaceNavigation({
       permission: hostContext.viewer.permission,
       permissionConfig: permissionGroup?.config ?? {},

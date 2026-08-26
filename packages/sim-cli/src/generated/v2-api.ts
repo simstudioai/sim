@@ -823,6 +823,12 @@ type CancelTableImportResponseRef1 = {
 type CancelTableImportResponseRef2 = string
 
 type CancelTableImportResponseRef3 = {
+  code: string
+  line: number | null
+  message: string
+}
+
+type CancelTableImportResponseRef4 = {
   id: string
   workspaceId: string
   status: 'uploading' | 'processing' | 'completed' | 'failed' | 'canceled' | 'expired'
@@ -840,6 +846,9 @@ type CancelTableImportResponseRef3 = {
       }
   tableId: string | null
   rowsProcessed: number
+  rowsRejected: number
+  cellsRejected: number
+  rejectedSamples: Array<CancelTableImportResponseRef3>
   error: string | null
   createdAt: string
   updatedAt: string
@@ -847,7 +856,7 @@ type CancelTableImportResponseRef3 = {
 }
 
 export type CancelTableImportResponse = {
-  data: CancelTableImportResponseRef3
+  data: CancelTableImportResponseRef4
 }
 
 /** `POST /api/v2/tables/[tableId]/cancel-runs` */
@@ -1119,6 +1128,12 @@ type CompleteTableImportResponseRef1 = {
 type CompleteTableImportResponseRef2 = string
 
 type CompleteTableImportResponseRef3 = {
+  code: string
+  line: number | null
+  message: string
+}
+
+type CompleteTableImportResponseRef4 = {
   id: string
   workspaceId: string
   status: 'uploading' | 'processing' | 'completed' | 'failed' | 'canceled' | 'expired'
@@ -1136,6 +1151,9 @@ type CompleteTableImportResponseRef3 = {
       }
   tableId: string | null
   rowsProcessed: number
+  rowsRejected: number
+  cellsRejected: number
+  rejectedSamples: Array<CompleteTableImportResponseRef3>
   error: string | null
   createdAt: string
   updatedAt: string
@@ -1143,7 +1161,7 @@ type CompleteTableImportResponseRef3 = {
 }
 
 export type CompleteTableImportResponse = {
-  data: CompleteTableImportResponseRef3
+  data: CompleteTableImportResponseRef4
 }
 
 /** `POST /api/v2/credentials/connections` */
@@ -2050,6 +2068,12 @@ type CreateTableImportResponseRef0 = {
 type CreateTableImportResponseRef1 = string
 
 type CreateTableImportResponseRef2 = {
+  code: string
+  line: number | null
+  message: string
+}
+
+type CreateTableImportResponseRef3 = {
   id: string
   workspaceId: string
   status: 'uploading' | 'processing' | 'completed' | 'failed' | 'canceled' | 'expired'
@@ -2067,35 +2091,38 @@ type CreateTableImportResponseRef2 = {
       }
   tableId: string | null
   rowsProcessed: number
+  rowsRejected: number
+  cellsRejected: number
+  rejectedSamples: Array<CreateTableImportResponseRef2>
   error: string | null
   createdAt: string
   updatedAt: string
   completedAt: string | null
 }
 
-type CreateTableImportResponseRef3 = {
+type CreateTableImportResponseRef4 = {
   method: 'put'
   url: string
   headers: Record<string, string>
   expiresAt: string
 }
 
-type CreateTableImportResponseRef4 = {
+type CreateTableImportResponseRef5 = {
   method: 'multipart'
   partSize: number
   partCount: number
 }
 
-type CreateTableImportResponseRef5 = {
+type CreateTableImportResponseRef6 = {
   type: 'workspace_file'
   fileId: string
 }
 
-type CreateTableImportResponseRef6 = {
+type CreateTableImportResponseRef7 = {
   id: string
   workspaceId: string
   status: 'uploading' | 'processing' | 'completed' | 'failed' | 'canceled' | 'expired'
-  source: CreateTableImportResponseRef5
+  source: CreateTableImportResponseRef6
   target:
     | {
         type: 'new'
@@ -2109,26 +2136,29 @@ type CreateTableImportResponseRef6 = {
       }
   tableId: string | null
   rowsProcessed: number
+  rowsRejected: number
+  cellsRejected: number
+  rejectedSamples: Array<CreateTableImportResponseRef2>
   error: string | null
   createdAt: string
   updatedAt: string
   completedAt: string | null
 }
 
-type CreateTableImportResponseRef7 =
+type CreateTableImportResponseRef8 =
   | {
-      session: CreateTableImportResponseRef2
+      session: CreateTableImportResponseRef3
       uploadToken: string
-      transfer: CreateTableImportResponseRef3 | CreateTableImportResponseRef4
+      transfer: CreateTableImportResponseRef4 | CreateTableImportResponseRef5
     }
   | {
-      session: CreateTableImportResponseRef6
+      session: CreateTableImportResponseRef7
       uploadToken: null
       transfer: null
     }
 
 export type CreateTableImportResponse = {
-  data: CreateTableImportResponseRef7
+  data: CreateTableImportResponseRef8
 }
 
 /** `POST /api/v2/tables/imports/[importId]/parts` */
@@ -3326,7 +3356,7 @@ export type GetAuditLogParams = {
 }
 
 export type GetAuditLogQuery = {
-  organizationId: string
+  organizationId?: string
 }
 
 type GetAuditLogResponseRef0 = {
@@ -3822,6 +3852,7 @@ type GetKnowledgeConnectorResponseRef0 = {
   docsUpdated: number
   docsDeleted: number
   docsUnchanged: number
+  docsSkipped: number
   docsFailed: number
   errorMessage: string | null
 }
@@ -4306,6 +4337,12 @@ type GetTableImportResponseRef1 = {
 type GetTableImportResponseRef2 = string
 
 type GetTableImportResponseRef3 = {
+  code: string
+  line: number | null
+  message: string
+}
+
+type GetTableImportResponseRef4 = {
   id: string
   workspaceId: string
   status: 'uploading' | 'processing' | 'completed' | 'failed' | 'canceled' | 'expired'
@@ -4323,6 +4360,9 @@ type GetTableImportResponseRef3 = {
       }
   tableId: string | null
   rowsProcessed: number
+  rowsRejected: number
+  cellsRejected: number
+  rejectedSamples: Array<GetTableImportResponseRef3>
   error: string | null
   createdAt: string
   updatedAt: string
@@ -4330,7 +4370,7 @@ type GetTableImportResponseRef3 = {
 }
 
 export type GetTableImportResponse = {
-  data: GetTableImportResponseRef3
+  data: GetTableImportResponseRef4
 }
 
 /** `GET /api/v2/tables/[tableId]/rows/[rowId]` */
@@ -4895,7 +4935,7 @@ export type ListAuditLogsQuery = {
   includeDeparted?: boolean
   limit?: number
   cursor?: string
-  organizationId: string
+  organizationId?: string
   actorEmail?: string
 }
 
@@ -4963,6 +5003,7 @@ type ListBillingLogsResponseRef0 = {
 export type ListBillingLogsResponse = {
   data: Array<ListBillingLogsResponseRef0>
   nextCursor: string | null
+  scope: 'user' | 'workspace'
 }
 
 /** `GET /api/v2/blocks` */
@@ -8829,11 +8870,12 @@ export type UpsertTableRowResponse = {
 /**
  * Every v2 operation, keyed by name.
  *
- * `query` and `body` describe each field well enough for the CLI to build a
- * flag for it and coerce the string argv gives back: its kind, whether it is
- * required, its enum values, and its server-side default. A slot the contract
- * does not declare — or one whose shape is a union with no flat field list —
- * is absent, and the runtime falls back to taking it as JSON.
+ * `query`, `body`, and `headers` describe each field well enough for the CLI
+ * to build a flag for it and coerce the string argv gives back: its kind,
+ * whether it is required, its enum values, and its server-side default. A slot
+ * the contract does not declare — or one whose shape is a union with no flat
+ * field list — is absent, and the runtime falls back to taking it as JSON.
+ * Headers the CLI sets itself, such as the API key, are never listed.
  *
  * `summary` is the operation's one-line description, lifted from the OpenAPI
  * specs so `--help` reuses prose that is already written and already checked.
@@ -8853,6 +8895,13 @@ export const V2_OPERATIONS = {
         describe: 'Workspace that owns the upload session.',
       },
     },
+    headers: {
+      'upload-token': {
+        kind: 'string',
+        required: true,
+        describe: 'Signed upload control token returned when the upload session was created.',
+      },
+    },
   },
   abortKnowledgeDocumentUpload: {
     method: 'DELETE',
@@ -8869,6 +8918,13 @@ export const V2_OPERATIONS = {
         kind: 'string',
         required: true,
         describe: 'Workspace that owns the knowledge base.',
+      },
+    },
+    headers: {
+      'upload-token': {
+        kind: 'string',
+        required: true,
+        describe: 'Signed upload control token returned when the upload session was created.',
       },
     },
   },
@@ -9194,6 +9250,12 @@ export const V2_OPERATIONS = {
         describe: 'Workspace that owns the transfer resource.',
       },
     },
+    headers: {
+      'upload-token': {
+        kind: 'string',
+        describe: 'Signed upload control token returned when an upload-backed import was created.',
+      },
+    },
   },
   cancelTableRuns: {
     method: 'POST',
@@ -9262,6 +9324,13 @@ export const V2_OPERATIONS = {
         describe: 'Workspace that owns the upload session.',
       },
     },
+    headers: {
+      'upload-token': {
+        kind: 'string',
+        required: true,
+        describe: 'Signed upload control token returned when the upload session was created.',
+      },
+    },
   },
   completeKnowledgeDocumentUpload: {
     method: 'POST',
@@ -9280,6 +9349,13 @@ export const V2_OPERATIONS = {
         describe: 'Workspace that owns the knowledge base.',
       },
     },
+    headers: {
+      'upload-token': {
+        kind: 'string',
+        required: true,
+        describe: 'Signed upload control token returned when the upload session was created.',
+      },
+    },
   },
   completeTableImport: {
     method: 'POST',
@@ -9293,6 +9369,13 @@ export const V2_OPERATIONS = {
         kind: 'string',
         required: true,
         describe: 'Workspace that owns the transfer resource.',
+      },
+    },
+    headers: {
+      'upload-token': {
+        kind: 'string',
+        required: true,
+        describe: 'Signed upload control token returned when the upload session was created.',
       },
     },
   },
@@ -9435,6 +9518,13 @@ export const V2_OPERATIONS = {
         kind: 'array',
         required: true,
         describe: 'Multipart part numbers for which signed URLs should be created.',
+      },
+    },
+    headers: {
+      'upload-token': {
+        kind: 'string',
+        required: true,
+        describe: 'Signed upload control token returned when the upload session was created.',
       },
     },
   },
@@ -9580,6 +9670,13 @@ export const V2_OPERATIONS = {
         kind: 'array',
         required: true,
         describe: 'Multipart part numbers for which signed URLs should be created.',
+      },
+    },
+    headers: {
+      'upload-token': {
+        kind: 'string',
+        required: true,
+        describe: 'Signed upload control token returned when the upload session was created.',
       },
     },
   },
@@ -9900,6 +9997,13 @@ export const V2_OPERATIONS = {
         describe: 'Multipart part numbers for which signed URLs should be created.',
       },
     },
+    headers: {
+      'upload-token': {
+        kind: 'string',
+        required: true,
+        describe: 'Signed upload control token returned when the upload session was created.',
+      },
+    },
   },
   createTableRows: {
     method: 'POST',
@@ -10000,7 +10104,7 @@ export const V2_OPERATIONS = {
     method: 'DELETE',
     path: '/api/v2/credentials/[credentialId]',
     pathParams: ['credentialId'] as const,
-    pathParamDocs: { credentialId: 'Credential to update or disconnect.' },
+    pathParamDocs: { credentialId: 'Credential to disconnect.' },
     responseMode: 'json',
     summary: 'Disconnect Credential',
     query: {
@@ -10546,7 +10650,7 @@ export const V2_OPERATIONS = {
       selectedOutputs: {
         kind: 'array',
         describe:
-          'Block output references to include in a streamed response. Rejected when `async` is true.',
+          'Block output references to include in a streamed response, as `blockId`, `blockId.path`, or `BlockName.path` (resolved against the live workflow). Requires `stream: true` — it shapes the streamed envelope only, so it is rejected on a sync request and when `async` is true. To narrow a finished run, pass `selectedOutputs` to the run resource instead.',
       },
       includeThinking: {
         kind: 'boolean',
@@ -10570,6 +10674,18 @@ export const V2_OPERATIONS = {
           'Maximum total bytes of file content to inline as base64, lowering but never raising the server limit of 16 MiB. Rejected when `async` is true.',
       },
     },
+    headers: {
+      'x-run-id': {
+        kind: 'string',
+        describe:
+          'Caller-supplied run identifier, available only to API-key callers. A one-shot uniqueness claim, NOT an idempotency key: reusing a value fails with `409` and `error.details.code: "RUN_ID_CONFLICT"` rather than replaying the original result. To retry safely, send a fresh value per attempt, or omit the header and let the server allocate one.',
+      },
+      'x-sim-via': {
+        kind: 'string',
+        describe:
+          'Comma-separated workflow identifiers naming the workflow-to-workflow call chain that led to this request. Each hop appends its own workflow id, and Sim sets it automatically; supply it yourself only when relaying an existing chain. A chain at the maximum depth is rejected with `409` and `error.details.code: "CALL_CHAIN_DEPTH_EXCEEDED"`.',
+      },
+    },
   },
   exportWorkflow: {
     method: 'GET',
@@ -10589,8 +10705,8 @@ export const V2_OPERATIONS = {
     query: {
       organizationId: {
         kind: 'string',
-        required: true,
-        describe: 'Organization whose audit-log entry should be returned.',
+        describe:
+          "Organization whose audit-log entry should be returned. Defaults to the caller's own organization when omitted. A caller that belongs to no organization, or that names one it is not a member of, is refused with a 403.",
       },
     },
   },
@@ -10683,6 +10799,13 @@ export const V2_OPERATIONS = {
         kind: 'string',
         required: true,
         describe: 'Workspace that owns the upload session.',
+      },
+    },
+    headers: {
+      'upload-token': {
+        kind: 'string',
+        required: true,
+        describe: 'Signed upload control token returned when the upload session was created.',
       },
     },
   },
@@ -10948,6 +11071,12 @@ export const V2_OPERATIONS = {
         describe: 'Workspace that owns the transfer resource.',
       },
     },
+    headers: {
+      'upload-token': {
+        kind: 'string',
+        describe: 'Signed upload control token returned when an upload-backed import was created.',
+      },
+    },
   },
   getTableRow: {
     method: 'GET',
@@ -11045,7 +11174,7 @@ export const V2_OPERATIONS = {
       selectedOutputs: {
         kind: 'string',
         describe:
-          'Comma-separated block output references to include, as `blockId` or `blockId.path`. Block *names* are not resolved here — unlike the execute request, this resource reads a recorded run and matches ids only, so a name selects nothing and yields an empty `blockOutputs`.',
+          'Comma-separated block output references to include, as `blockId` or `blockId.path`. Block *names* are not resolved here — unlike the execute request, this resource reads a recorded run and matches ids only, so a selector that is not headed by a block id answers `400` instead of an empty `blockOutputs`.',
       },
       includeFileBase64: {
         kind: 'boolean',
@@ -11172,8 +11301,8 @@ export const V2_OPERATIONS = {
       },
       organizationId: {
         kind: 'string',
-        required: true,
-        describe: 'Organization whose audit trail should be queried.',
+        describe:
+          "Organization whose audit trail should be queried. Defaults to the caller's own organization when omitted. A caller that belongs to no organization, or that names one it is not a member of, is refused with a 403.",
       },
       actorEmail: { kind: 'string', describe: 'Filter by actor email address.' },
     },
@@ -11202,7 +11331,8 @@ export const V2_OPERATIONS = {
       },
       workspaceId: {
         kind: 'string',
-        describe: 'Restrict results to one workspace whose payer the caller can inspect.',
+        describe:
+          "Narrow the ledger to usage events attributed to one workspace. It does not change whose events are reported — a personal API key always reports the usage of the person holding it, and a workspace API key always reports its own workspace's complete ledger across every member. The response `scope` field says which of the two you received. A workspace API key is pinned to its own workspace: any other id answers `404 Workspace not found`, which is also what an id that does not exist answers.",
       },
       period: {
         kind: 'enum',
@@ -13281,7 +13411,7 @@ export const V2_OPERATIONS = {
     method: 'PATCH',
     path: '/api/v2/credentials/[credentialId]',
     pathParams: ['credentialId'] as const,
-    pathParamDocs: { credentialId: 'Credential to update or disconnect.' },
+    pathParamDocs: { credentialId: 'Credential to update.' },
     responseMode: 'json',
     summary: 'Update Credential',
     query: {

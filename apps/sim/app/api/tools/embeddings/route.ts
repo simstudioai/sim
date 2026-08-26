@@ -12,6 +12,7 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   DEFAULT_MODEL_BY_PROVIDER,
   DEFAULT_OPENROUTER_EMBEDDING_MODEL,
+  EmbeddingOutputLimitError,
   embed,
   embedOpenRouter,
   findEmbeddingModelInfo,
@@ -227,6 +228,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     })
   } catch (error) {
     const message = getErrorMessage(error, 'Embedding generation failed')
+    if (error instanceof EmbeddingOutputLimitError) {
+      logger.warn('Embedding output exceeds safe limit', { error: message })
+      return NextResponse.json({ success: false, error: message }, { status: 413 })
+    }
     logger.error('Embedding generation failed', { error: message })
     return NextResponse.json({ success: false, error: message }, { status: 502 })
   }

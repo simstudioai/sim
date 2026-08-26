@@ -227,7 +227,7 @@ export const updateTableUseCase = defineAuthorizedTableUseCase({
       if (!table || table.workspaceId !== context.workspaceId) {
         throw new OrchestrationError(
           'not_found',
-          'Table not found in this workspace — run glob("tables/*") to list valid tables'
+          'Table not found in this workspace — list the tables in this workspace to see valid table ids'
         )
       }
       const index =
@@ -302,7 +302,7 @@ export const deleteTableUseCase = defineAuthorizedTableUseCase({
     if (!archived)
       throw new OrchestrationError(
         'not_found',
-        'Table not found in this workspace — run glob("tables/*") to list valid tables'
+        'Table not found in this workspace — list the tables in this workspace to see valid table ids'
       )
     return {
       id: context.table.id,

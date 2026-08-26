@@ -17,12 +17,44 @@ import {
   ANONYMOUS_SECRET_TRACE_REPLACEMENT,
   createIncompleteResolvedSecretTraceRegistry,
   createResolvedSecretTraceRegistry,
+  isResolvedSecretProvenanceAbsence,
   isResolvedSecretTraceProvenanceV1,
   RESOLVED_SECRET_TRACE_CHECKPOINT_VERSION,
   ResolvedSecretTraceProvenanceAccumulator,
   type ResolvedSecretTraceProvenanceV1,
   ResolvedSecretTraceRegistry,
 } from '@/executor/utils/resolved-secret-trace-registry'
+
+describe('provenance absence classification', () => {
+  it.each([
+    'value-provenance-absent',
+    'source-provenance-incomplete',
+    'constructed-incomplete',
+    'log-creation-skipped',
+    'durable-provenance-unknown',
+    'inherited-incomplete-source',
+    'inherited-incomplete-input-path',
+  ] as const)('classifies %s as an absence, since no material transited the latch', (reason) => {
+    expect(isResolvedSecretProvenanceAbsence(reason)).toBe(true)
+  })
+
+  /**
+   * Warn-level is not absence: `value-provenance-filter-incomplete` latches after a staged
+   * source registry decrypted real entries it could not narrow to the value, so plaintext was in
+   * flight without ever activating. The absence set must stay narrower than the report split.
+   */
+  it.each([
+    'value-provenance-filter-incomplete',
+    'value-provenance-import-failed',
+    'entry-decrypt-failed',
+    'projection-mismatch',
+    'untrusted-provenance',
+    'restored-provenance-untrusted',
+    'client-tool-seal-failed',
+  ] as const)('keeps %s out of the absence set', (reason) => {
+    expect(isResolvedSecretProvenanceAbsence(reason)).toBe(false)
+  })
+})
 
 describe('ResolvedSecretTraceProvenanceAccumulator', () => {
   const scope = { userId: 'user-1', workspaceId: 'workspace-1' }

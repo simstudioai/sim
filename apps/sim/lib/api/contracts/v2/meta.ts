@@ -15,9 +15,7 @@ export const v2MetaSchema = z
   .object({
     v2Enabled: z
       .boolean()
-      .describe(
-        'Whether this credential is in the v2 rollout cohort. When false, every other v2 endpoint answers 404 for this credential.'
-      ),
+      .describe('Whether this API version is available. This is true when the endpoint is served.'),
     keyType: v2ApiKeyTypeSchema,
     expiresAt: v2TimestampSchema
       .nullable()
@@ -26,7 +24,7 @@ export const v2MetaSchema = z
   .meta({
     id: 'V2Meta',
     title: 'API capabilities',
-    description: 'Rollout and lifecycle facts about the calling API key.',
+    description: 'API availability and lifecycle facts about the calling API key.',
   })
 export type V2Meta = z.output<typeof v2MetaSchema>
 

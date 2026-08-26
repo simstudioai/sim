@@ -19,6 +19,17 @@ import {
   resolveArchivedTableContext,
 } from '@/lib/table/application/context'
 
+/**
+ * Copilot tool invocations as they appear in prose: a `glob(...)`/`grep(...)` call, or a
+ * bare `table_*` / `save_upload` tool name. `save_upload` matches WITHOUT a trailing paren
+ * because the remediation text that had to go named it as a tool, not as a call — requiring
+ * the paren let that exact string back in. Bare `read` is deliberately absent: `read(`
+ * matches ordinary stream code. Still narrow enough that SQL identifiers
+ * (`user_table_rows`) do not trip it.
+ */
+const COPILOT_TOOL_REFERENCE =
+  /\b(?:glob|grep)\(|\bsave_upload\b|\btable_(?:views|rows|columns|metadata)\b(?!\.)/
+
 const WORKSPACE_ONE = {
   workspaceId: 'workspace-1',
   workspaceOrganizationId: 'organization-1',
@@ -275,5 +286,79 @@ describe('resolveArchivedTableContext', () => {
     await expect(
       resolveArchivedTableContext({ tableId: 'ghost', assertedWorkspaceId: 'workspace-1' })
     ).rejects.toMatchObject({ code: 'not_found' })
+  })
+})
+
+/**
+ * Table errors reach a CLI, an HTTP client and Copilot alike, so their remediation
+ * must describe an ACTION every caller can take. Naming a Copilot tool (`glob(...)`,
+ * `table_views`, `save_upload`) turns the advice into noise — or a dead end — for the
+ * other two.
+ */
+describe('surface-neutral remediation text', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    // `clearAllMocks` drops call history but keeps implementations, so without an explicit
+    // reset this block would inherit whichever `mockResolvedValue` the previous describe
+    // happened to leave behind — the state these assertions depend on.
+    getTableById.mockReset()
+    loadWorkspace.mockReset()
+    loadWorkspace.mockImplementation(async (workspaceId: string) =>
+      workspaceId === 'workspace-1' ? WORKSPACE_ONE : WORKSPACE_TWO
+    )
+  })
+
+  it('tells a caller to list tables without naming a Copilot tool', async () => {
+    getTableById.mockResolvedValue(null)
+
+    await expect(
+      resolveActiveTableContext({ tableId: 'missing', assertedWorkspaceId: 'workspace-1' })
+    ).rejects.toMatchObject({
+      code: 'not_found',
+      message: expect.stringContaining('List the tables in this workspace'),
+    })
+
+    const [error] = await resolveActiveTableContext({ tableId: 'missing' }).catch((err) => [err])
+    expect((error as Error).message).not.toMatch(COPILOT_TOOL_REFERENCE)
+  })
+
+  /**
+   * Modules whose only consumer is Copilot, where naming a Copilot tool is the
+   * correct remediation rather than a leak.
+   *
+   * `workspace-file-imports` lives under `lib/table` but is imported solely by
+   * `lib/copilot/application/table-commands`, so every message it raises reaches
+   * an agent that can actually call `save_upload` and `glob(...)`. Rewriting
+   * those into surface-neutral prose removed a working next step from the one
+   * caller able to act on it.
+   */
+  const COPILOT_ONLY_MODULES = new Set(['workspace-file-imports.ts'])
+
+  it('names no Copilot tool anywhere under lib/table', async () => {
+    const { readdir, readFile } = await import('node:fs/promises')
+    const root = new URL('../', import.meta.url).pathname
+    const offenders: string[] = []
+
+    const walk = async (dir: string): Promise<void> => {
+      for (const entry of await readdir(dir, { withFileTypes: true })) {
+        const full = `${dir}${entry.name}${entry.isDirectory() ? '/' : ''}`
+        if (entry.isDirectory()) {
+          await walk(full)
+          continue
+        }
+        if (!entry.name.endsWith('.ts') || entry.name.endsWith('.test.ts')) continue
+        if (COPILOT_ONLY_MODULES.has(entry.name)) continue
+        const source = await readFile(full, 'utf8')
+        for (const line of source.split('\n')) {
+          const trimmed = line.trim()
+          if (trimmed.startsWith('*') || trimmed.startsWith('//')) continue
+          if (!line.includes("'") && !line.includes('`')) continue
+          if (COPILOT_TOOL_REFERENCE.test(line)) offenders.push(`${entry.name}: ${line.trim()}`)
+        }
+      }
+    }
+
+    await walk(root)
+    expect(offenders).toEqual([])
   })
 })

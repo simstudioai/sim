@@ -83,6 +83,7 @@ export const confluenceListSpacePermissionsTool: ToolConfig<
   },
 
   request: {
+    internal: true,
     url: () => '/api/tools/confluence/space-permissions',
     method: 'POST',
     headers: (params: ConfluenceListSpacePermissionsParams) => ({

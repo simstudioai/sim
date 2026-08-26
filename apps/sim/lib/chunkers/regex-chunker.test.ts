@@ -256,6 +256,35 @@ describe('RegexChunker', () => {
   })
 
   describe('strictBoundaries mode', () => {
+    it.concurrent('preserves delimiter-only content as one chunk', async () => {
+      const chunker = new RegexChunker({
+        pattern: '---',
+        chunkSize: 1024,
+        strictBoundaries: true,
+      })
+
+      const chunks = await chunker.chunk('------')
+
+      expect(chunks).toHaveLength(1)
+      expect(chunks[0].text).toBe('------')
+    })
+
+    it.concurrent(
+      'preserves the original text when only one meaningful segment remains',
+      async () => {
+        const chunker = new RegexChunker({
+          pattern: '---',
+          chunkSize: 1024,
+          strictBoundaries: true,
+        })
+
+        const chunks = await chunker.chunk('---alpha---')
+
+        expect(chunks).toHaveLength(1)
+        expect(chunks[0].text).toBe('---alpha---')
+      }
+    )
+
     it.concurrent(
       'should produce one chunk per match without merging small adjacent segments',
       async () => {

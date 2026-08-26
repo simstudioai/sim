@@ -3,6 +3,7 @@
  */
 import { describe, expect, it, vi } from 'vitest'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/types'
+import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
 import { applyOperationsToWorkflowState } from './engine'
 
 vi.mock('@/blocks/registry', () => {
@@ -400,6 +401,95 @@ describe('handleEditOperation dependent inputs', () => {
     expect(state.blocks['agent-1'].subBlocks.tools.value[0].params).toEqual({
       projectId: 'PROJECT-NEW',
     })
+  })
+})
+
+function makeParallelWorkflow() {
+  const workflow = makeLoopWorkflow()
+  workflow.blocks['loop-1'].type = 'parallel'
+  workflow.blocks['loop-1'].data = { parallelType: 'count', count: 5 }
+  return workflow
+}
+
+describe('handleEditOperation container inputs', () => {
+  it('reports an unknown loop input field instead of discarding it silently', () => {
+    const workflow = makeLoopWorkflow()
+
+    const { state, validationErrors } = applyOperationsToWorkflowState(workflow, [
+      { operation_type: 'edit', block_id: 'loop-1', params: { inputs: { count: 3 } } },
+    ])
+
+    expect(validationErrors).toHaveLength(1)
+    expect(validationErrors[0]).toMatchObject({ blockId: 'loop-1', field: 'count' })
+    expect(validationErrors[0].error).toContain('iterations')
+    expect(state.blocks['loop-1'].data.count).toBe(5)
+  })
+
+  it('reports an unknown parallel input field', () => {
+    const workflow = makeParallelWorkflow()
+
+    const { validationErrors } = applyOperationsToWorkflowState(workflow, [
+      { operation_type: 'edit', block_id: 'loop-1', params: { inputs: { maxConcurrency: 3 } } },
+    ])
+
+    expect(validationErrors).toHaveLength(1)
+    expect(validationErrors[0]).toMatchObject({ blockId: 'loop-1', field: 'maxConcurrency' })
+  })
+
+  it('applies `count` on a parallel container, the key the read view exports', () => {
+    const workflow = makeParallelWorkflow()
+
+    const { state, validationErrors } = applyOperationsToWorkflowState(workflow, [
+      { operation_type: 'edit', block_id: 'loop-1', params: { inputs: { count: 3 } } },
+    ])
+
+    expect(validationErrors).toEqual([])
+    expect(state.blocks['loop-1'].data.count).toBe(3)
+  })
+
+  it('reports `iterations` on a parallel container and names `count` instead', () => {
+    const workflow = makeParallelWorkflow()
+
+    const { state, validationErrors } = applyOperationsToWorkflowState(workflow, [
+      { operation_type: 'edit', block_id: 'loop-1', params: { inputs: { iterations: 3 } } },
+    ])
+
+    expect(validationErrors).toHaveLength(1)
+    expect(validationErrors[0]).toMatchObject({ blockId: 'loop-1', field: 'iterations' })
+    expect(validationErrors[0].error).toContain('count')
+    expect(state.blocks['loop-1'].data.count).toBe(5)
+  })
+
+  it.each([
+    ['a count parallel', makeParallelWorkflow, 5],
+    ['a for loop', makeLoopWorkflow, 5],
+  ])("round-trips the read view's container inputs for %s", (_label, makeWorkflow, expected) => {
+    const workflow = makeWorkflow()
+    const readInputs = sanitizeForCopilot(workflow as any).blocks['loop-1'].inputs
+
+    const { state, validationErrors } = applyOperationsToWorkflowState(makeWorkflow(), [
+      { operation_type: 'edit', block_id: 'loop-1', params: { inputs: readInputs } },
+    ])
+
+    expect(validationErrors).toEqual([])
+    expect(state.blocks['loop-1'].data.count).toBe(expected)
+  })
+
+  it('still applies a loop edit that uses the real input keys', () => {
+    const workflow = makeLoopWorkflow()
+
+    const { state, validationErrors, skippedItems } = applyOperationsToWorkflowState(workflow, [
+      {
+        operation_type: 'edit',
+        block_id: 'loop-1',
+        params: { inputs: { loopType: 'for', iterations: 3 } },
+      },
+    ])
+
+    expect(validationErrors).toEqual([])
+    expect(skippedItems).toEqual([])
+    expect(state.blocks['loop-1'].data.count).toBe(3)
+    expect(state.blocks['loop-1'].data.loopType).toBe('for')
   })
 })
 

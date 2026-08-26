@@ -11,7 +11,6 @@ const mocks = vi.hoisted(() => ({
   checkRateLimitDirectOrThrow: vi.fn(),
   complete: vi.fn(),
   create: vi.fn(),
-  gate: vi.fn(),
   parts: vi.fn(),
 }))
 
@@ -52,7 +51,6 @@ vi.mock('@/lib/core/rate-limiter', () => ({
   },
 }))
 
-vi.mock('@/app/api/v2/lib/gate', () => ({ v2ApiGateError: mocks.gate }))
 vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: vi.fn() }))
 
 import {
@@ -152,12 +150,10 @@ describe('v2 knowledge upload resource concealment', () => {
     vi.clearAllMocks()
     mocks.authenticateV2ApiKey.mockResolvedValue({
       principal: { kind: 'personal_api_key' as const, userId: 'user-1', keyId: 'key-1' },
-      rolloutUserId: 'user-1',
       rateLimitSubjectIds: ['api-key:key-1', 'user:user-1'],
       rateLimitSubscription: null,
       keyType: 'personal',
     })
-    mocks.gate.mockResolvedValue(null)
     for (const limiter of [mocks.checkRateLimitDirect, mocks.checkRateLimitDirectOrThrow]) {
       limiter.mockResolvedValue({
         allowed: true,

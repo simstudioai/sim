@@ -118,7 +118,6 @@ export const GET = withRouteHandler(
             createdAt: member.createdAt,
             userName: user.name,
             userEmail: user.email,
-            currentPeriodCost: userStats.currentPeriodCost,
             currentUsageLimit: userStats.currentUsageLimit,
             billingBlocked: userStats.billingBlocked,
           })
@@ -133,12 +132,9 @@ export const GET = withRouteHandler(
 
       const total = countResult[0].count
 
-      const { includeLegacyBaseline, usageByUser } = await getOrganizationMemberUsageSnapshot(
-        organizationId,
-        {
-          userIds: membersData.map((row) => row.userId),
-        }
-      )
+      const { usageByUser } = await getOrganizationMemberUsageSnapshot(organizationId, {
+        userIds: membersData.map((row) => row.userId),
+      })
 
       const data: AdminMemberDetail[] = membersData.map((m) => ({
         id: m.id,
@@ -148,10 +144,7 @@ export const GET = withRouteHandler(
         createdAt: m.createdAt.toISOString(),
         userName: m.userName,
         userEmail: m.userEmail,
-        currentPeriodCost: (
-          (includeLegacyBaseline ? Number(m.currentPeriodCost ?? 0) : 0) +
-          (usageByUser.get(m.userId) ?? 0)
-        ).toString(),
+        currentPeriodCost: (usageByUser.get(m.userId) ?? 0).toString(),
         currentUsageLimit: m.currentUsageLimit,
         billingBlocked: m.billingBlocked ?? false,
       }))

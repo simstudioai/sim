@@ -111,17 +111,21 @@ describe('paid-org join billing lock ordering', () => {
     mockChangeWorkspaceStoragePayersInTx.mockReset()
   })
 
-  it('locks the personal subscription before mutating userStats', async () => {
+  it('locks the personal subscription before pausing it and never mutates userStats', async () => {
     const { tx, ops } = createRecordingTx()
 
     await reapplyPaidOrgJoinBillingForExistingMemberTx(tx as DbOrTx, 'user-1', 'org-1')
 
-    const firstUserStatsUpdate = ops.findIndex((o) => o.op === 'update' && o.table === userStats)
+    const userStatsUpdate = ops.findIndex((o) => o.op === 'update' && o.table === userStats)
     const subscriptionLock = ops.findIndex((o) => o.op === 'lock' && o.table === subscriptionTable)
+    const subscriptionUpdate = ops.findIndex(
+      (o) => o.op === 'update' && o.table === subscriptionTable
+    )
 
-    expect(firstUserStatsUpdate).toBeGreaterThanOrEqual(0)
+    // Ledger entity stamps attribute usage; join billing no longer touches userStats.
+    expect(userStatsUpdate).toBe(-1)
     expect(subscriptionLock).toBeGreaterThanOrEqual(0)
-    expect(subscriptionLock).toBeLessThan(firstUserStatsUpdate)
+    expect(subscriptionUpdate).toBeGreaterThan(subscriptionLock)
   })
 
   it('still locks an already-paused personal Pro so a concurrent restore cannot pass it', async () => {
@@ -276,8 +280,9 @@ describe('workspace payer-change transaction lock ordering', () => {
     )
     const payerTransfer = ops.findIndex((entry) => entry.op === 'payer-transfer')
     expect(workspaceLock).toBeGreaterThanOrEqual(0)
-    expect(userStatsUpdate).toBeGreaterThan(workspaceLock)
-    expect(payerTransfer).toBeGreaterThan(userStatsUpdate)
+    // Ledger entity stamps attribute usage; join billing no longer touches userStats.
+    expect(userStatsUpdate).toBe(-1)
+    expect(payerTransfer).toBeGreaterThan(workspaceLock)
   })
 })
 

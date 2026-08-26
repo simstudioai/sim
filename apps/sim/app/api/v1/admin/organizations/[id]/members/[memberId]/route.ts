@@ -90,7 +90,6 @@ export const GET = withRouteHandler(
           createdAt: member.createdAt,
           userName: user.name,
           userEmail: user.email,
-          currentPeriodCost: userStats.currentPeriodCost,
           currentUsageLimit: userStats.currentUsageLimit,
           billingBlocked: userStats.billingBlocked,
         })
@@ -104,10 +103,9 @@ export const GET = withRouteHandler(
         return notFoundResponse('Member')
       }
 
-      const { includeLegacyBaseline, usageByUser } = await getOrganizationMemberUsageSnapshot(
-        organizationId,
-        { userIds: [memberData.userId] }
-      )
+      const { usageByUser } = await getOrganizationMemberUsageSnapshot(organizationId, {
+        userIds: [memberData.userId],
+      })
 
       const data: AdminMemberDetail = {
         id: memberData.id,
@@ -117,10 +115,7 @@ export const GET = withRouteHandler(
         createdAt: memberData.createdAt.toISOString(),
         userName: memberData.userName,
         userEmail: memberData.userEmail,
-        currentPeriodCost: (
-          (includeLegacyBaseline ? Number(memberData.currentPeriodCost ?? 0) : 0) +
-          (usageByUser.get(memberData.userId) ?? 0)
-        ).toString(),
+        currentPeriodCost: (usageByUser.get(memberData.userId) ?? 0).toString(),
         currentUsageLimit: memberData.currentUsageLimit,
         billingBlocked: memberData.billingBlocked ?? false,
       }

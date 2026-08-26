@@ -12,6 +12,22 @@ import { profileFrom } from '../context'
 import { SimApiError } from '../http/client'
 
 /**
+ * Rejects a `--set-…` flag given an empty value.
+ *
+ * An empty string is falsy, so the setter fell through to the "print current
+ * settings" branch and exited 0 having silently ignored the flag. Removing a
+ * setting is what `--unset` is for, so the message points there.
+ */
+function requireValue(value: string | undefined, flag: string, key: string): void {
+  if (value !== undefined && value.trim() === '') {
+    throw new SimApiError(
+      `${flag} requires a value. To remove it, run: sim configure --unset ${key}`,
+      0
+    )
+  }
+}
+
+/**
  * Non-secret profile settings. Credentials are deliberately not settable here —
  * they arrive through `sim login`, which is the only path that mints a key with
  * a recorded consent behind it.
@@ -33,9 +49,15 @@ export function configureCommand(): Command {
         },
         command: Command
       ) => {
-        const profile = profileFrom(command)
+        // `configure --profile x --set-…` is a documented way to create a
+        // profile, so the name is allowed to be one that does not exist yet.
+        const profile = profileFrom(command, { allowUnknownProfile: true })
         const authProfile = resolveAuthenticationProfileName(profile.name)
         const updates: Record<string, string | null> = {}
+
+        requireValue(options.setEndpoint, '--set-endpoint', 'endpoint')
+        requireValue(options.setWorkspace, '--set-workspace', 'workspace')
+        requireValue(options.setOutput, '--set-output', 'output')
 
         if (options.setEndpoint) {
           if (authProfile !== profile.name) {

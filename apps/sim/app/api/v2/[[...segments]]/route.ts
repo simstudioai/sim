@@ -9,13 +9,8 @@ export const revalidate = 0
  *
  * Without it a mistyped path falls through to the app's global `not-found`
  * page and hands an API client a full HTML document, which is the one v2
- * response a JSON-parsing caller cannot read. Every other v2 failure — including
- * the rollout gate's own 404 — is the `{ error: { code, message } }` envelope.
- *
- * The body is deliberately byte-identical to `v2ApiGateError`'s. The gate
- * answers 404 so an ungated caller cannot distinguish "not in the rollout
- * cohort" from "no such endpoint"; a different body here would reintroduce
- * exactly that distinction.
+ * response a JSON-parsing caller cannot read. This route keeps unknown paths in
+ * the canonical `{ error: { code, message } }` envelope.
  *
  * This is a documented raw-`withRouteHandler` route rather than a contract
  * builder: it has no contract, no operation, and no authentication, because a

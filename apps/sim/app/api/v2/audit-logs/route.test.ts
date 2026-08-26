@@ -5,7 +5,6 @@ import {
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
   v2ApiKeyAuthModuleMock,
-  v2GateModuleMock,
   v2RateLimiterModuleMock,
   v2RouteMocks,
 } from '@sim/testing'
@@ -19,7 +18,6 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
-vi.mock('@/app/api/v2/lib/gate', () => v2GateModuleMock)
 
 vi.mock('@/lib/audit-logs/application/list-audit-logs', () => ({
   listAuditLogs: { operation: { id: 'audit_logs.list' }, execute: mocks.list },
@@ -36,7 +34,6 @@ import { GET as listLogs } from '@/app/api/v2/audit-logs/route'
 
 const auth = {
   principal: { kind: 'personal_api_key' as const, userId: 'admin-1', keyId: 'key-1' },
-  rolloutUserId: 'admin-1',
   rateLimitSubjectIds: ['api-key:key-1', 'user:admin-1'] as const,
   rateLimitSubscription: null,
   keyType: 'personal' as const,
@@ -62,20 +59,38 @@ describe('v2 audit-log routes', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(auth)
-    v2RouteMocks.gate.mockResolvedValue(null)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
     mocks.list.mockResolvedValue({ data: [log], nextCursor: 'next-1' })
     mocks.get.mockResolvedValue({ log })
   })
 
-  it('authenticates and rate-limits before validating organization input', async () => {
-    const response = await listLogs(new NextRequest('http://localhost:3000/api/v2/audit-logs'))
+  it('authenticates and rate-limits before validating query input', async () => {
+    const response = await listLogs(
+      new NextRequest('http://localhost:3000/api/v2/audit-logs?organisationId=org-1')
+    )
 
     expect(response.status).toBe(400)
     expect(v2RouteMocks.authenticate).toHaveBeenCalled()
     expect(v2RouteMocks.operationRate).toHaveBeenCalledTimes(2)
     expect(mocks.list).not.toHaveBeenCalled()
+  })
+
+  /**
+   * No API-key-reachable surface publishes an organization id, so a required
+   * `organizationId` made the resource unreachable from a key. The use case
+   * derives it from the caller, which means the route has to let it through
+   * unset rather than refusing the request itself.
+   */
+  it('admits a request that names no organization', async () => {
+    const response = await listLogs(new NextRequest('http://localhost:3000/api/v2/audit-logs'))
+
+    expect(response.status).toBe(200)
+    expect(mocks.list).toHaveBeenCalledWith({
+      principal: auth.principal,
+      input: expect.objectContaining({ organizationId: undefined }),
+      request: expect.anything(),
+    })
   })
 
   it('maps list filters into the authorized application operation', async () => {
@@ -207,6 +222,42 @@ describe('v2 audit-log routes', () => {
     expect(resumed.status).toBe(200)
     expect(mocks.list).toHaveBeenCalled()
   })
+
+  /**
+   * `organizationId` selects nothing: an account belongs to at most one
+   * organization, so naming it and letting it be derived are two spellings of
+   * one sequence. Binding the cursor to the spelling refused the genuine next
+   * page the moment a caller started supplying the id mid-walk.
+   */
+  it.each([
+    ['derived then named', '', 'organizationId=org-1&'],
+    ['named then derived', 'organizationId=org-1&', ''],
+  ])(
+    'resumes a cursor across both spellings of the organization (%s)',
+    async (_l, minting, replaying) => {
+      const minted = await listLogs(
+        new NextRequest(
+          `http://localhost:3000/api/v2/audit-logs?${minting}actorEmail=ada%40example.com`
+        )
+      )
+      const { nextCursor } = await minted.json()
+      expect(nextCursor).toEqual(expect.any(String))
+
+      mocks.list.mockClear()
+      const resumed = await listLogs(
+        new NextRequest(
+          `http://localhost:3000/api/v2/audit-logs?${replaying}actorEmail=ada%40example.com&cursor=${encodeURIComponent(nextCursor)}`
+        )
+      )
+
+      expect(resumed.status).toBe(200)
+      expect(mocks.list).toHaveBeenCalledWith({
+        principal: auth.principal,
+        input: expect.objectContaining({ cursor: 'next-1' }),
+        request: expect.anything(),
+      })
+    }
+  )
 
   it('still refuses a cursor replayed under a different resourceType set', async () => {
     const minted = await listLogs(

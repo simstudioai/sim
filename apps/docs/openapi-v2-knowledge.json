@@ -1517,7 +1517,7 @@
       "put": {
         "operationId": "bulkSaveKnowledgeTagDefinitions",
         "summary": "Bulk Save Tag Definitions",
-        "description": "Declare, in one request, several of the knowledge base's tag definitions. `POST` on this path defines exactly one tag; this is the same write over a list, and every slot the body names is written to the declaration it carries while slots it does not name are left alone. Updating an existing definition requires naming its current name in `originalDisplayName`; that is the only form that edits one in place. Without it the entry is a create, and a requested `tagSlot` another name already holds is not overwritten — the definition is created in the next free slot of its `fieldType` instead, so read the returned entry for the slot actually assigned. A create whose `displayName` already exists is refused in `errors`. Per-definition failures are reported in `errors` and still answer `200`. This writes the vocabulary, not one document's tag values — set those with `PATCH /api/v2/knowledge/{knowledgeBaseId}/documents/{documentId}`. A workspace API key is rejected with `403`; use a personal API key.",
+        "description": "Declare, in one request, several of the knowledge base's tag definitions. `POST` on this path defines exactly one tag; this is the same write over a list, and every slot the body names is written to the declaration it carries while slots it does not name are left alone. Updating an existing definition requires naming its current name in `originalDisplayName`; that is the only form that edits one in place. Without it the entry is a create, and a requested `tagSlot` another name already holds is refused in `errors` — it is neither overwritten nor relocated to a different slot, so an explicitly requested slot always means that slot or an error. A create whose `displayName` already exists is refused in `errors`. Per-definition failures are reported in `errors` and still answer `200`. This writes the vocabulary, not one document's tag values — set those with `PATCH /api/v2/knowledge/{knowledgeBaseId}/documents/{documentId}`. A workspace API key is rejected with `403`; use a personal API key.",
         "tags": ["Knowledge Bases"],
         "parameters": [
           {
@@ -5278,6 +5278,13 @@
             "maximum": 9007199254740991,
             "description": "Documents unchanged."
           },
+          "docsSkipped": {
+            "default": 0,
+            "description": "Documents intentionally skipped because they could not be indexed safely.",
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
           "docsFailed": {
             "type": "integer",
             "minimum": 0,
@@ -5306,6 +5313,7 @@
           "docsUpdated",
           "docsDeleted",
           "docsUnchanged",
+          "docsSkipped",
           "docsFailed",
           "errorMessage"
         ],

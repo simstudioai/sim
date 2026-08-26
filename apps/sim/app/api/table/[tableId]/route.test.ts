@@ -42,7 +42,6 @@ vi.mock('@/lib/table/service', () => ({
 }))
 vi.mock('@/lib/table/billing', () => ({ getWorkspaceTableLimits: mockGetLimits }))
 vi.mock('@/lib/folders/queries', () => ({ findActiveFolder: mockFindActiveFolder }))
-vi.mock('@/lib/core/config/feature-flags', () => ({ isFeatureEnabled: vi.fn() }))
 vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: vi.fn() }))
 vi.mock('@/lib/workspaces/permissions/utils', () => ({
   getWorkspaceWithOwner: vi.fn(),

@@ -2411,12 +2411,12 @@
             "name": "credentialId",
             "in": "path",
             "required": true,
-            "description": "Credential to update or disconnect.",
+            "description": "Credential to disconnect.",
             "schema": {
               "type": "string",
               "minLength": 1,
               "maxLength": 255,
-              "description": "Credential to update or disconnect."
+              "description": "Credential to disconnect."
             }
           },
           {
@@ -2487,12 +2487,12 @@
             "name": "credentialId",
             "in": "path",
             "required": true,
-            "description": "Credential to update or disconnect.",
+            "description": "Credential to update.",
             "schema": {
               "type": "string",
               "minLength": 1,
               "maxLength": 255,
-              "description": "Credential to update or disconnect."
+              "description": "Credential to update."
             }
           },
           {
@@ -2908,11 +2908,11 @@
       "get": {
         "operationId": "getApiMeta",
         "summary": "Get API Capabilities",
-        "description": "Report facts about the calling API key: whether it is in the v2 rollout cohort, whether it is personal or workspace-scoped, and when it expires. Every other v2 endpoint answers 404 both when the path does not exist and when your credential is not in the rollout cohort; call this endpoint to tell the two apart. It is the one v2 endpoint the rollout gate does not apply to, and it still requires a valid key.",
+        "description": "Report whether v2 is available, whether the calling API key is personal or workspace-scoped, and when it expires. Requires a valid key.",
         "tags": ["Meta"],
         "responses": {
           "200": {
-            "description": "Rollout and lifecycle facts about the calling key.",
+            "description": "Availability and lifecycle facts about the calling key.",
             "headers": {
               "X-RateLimit-Limit": {
                 "$ref": "#/components/headers/X-RateLimit-Limit"
@@ -7252,7 +7252,7 @@
         "properties": {
           "v2Enabled": {
             "type": "boolean",
-            "description": "Whether this credential is in the v2 rollout cohort. When false, every other v2 endpoint answers 404 for this credential."
+            "description": "Whether this API version is available. This is true when the endpoint is served."
           },
           "keyType": {
             "type": "string",
@@ -7276,7 +7276,7 @@
         "required": ["v2Enabled", "keyType", "expiresAt"],
         "additionalProperties": false,
         "title": "API capabilities",
-        "description": "Rollout and lifecycle facts about the calling API key."
+        "description": "API availability and lifecycle facts about the calling API key."
       },
       "GetApiMetaResponse": {
         "type": "object",
@@ -7289,7 +7289,7 @@
         "required": ["data"],
         "additionalProperties": false,
         "title": "API capabilities response",
-        "description": "Rollout cohort, key type, and expiry for the calling key.",
+        "description": "API availability, key type, and expiry for the calling key.",
         "examples": [
           {
             "data": {

@@ -56,6 +56,26 @@ export function findBlockWithDuplicateNormalizedName(
 }
 
 /**
+ * The input keys the edit engine actually writes onto a container block's
+ * `data`.
+ *
+ * `loop` and `parallel` are not registry blocks, so without this they fell
+ * through to the unknown-block-type branch, which returns every supplied key as
+ * valid. The engine then wrote only the keys it recognises and discarded the
+ * rest without a word, so a caller who guessed `count` instead of `iterations`
+ * was told the edit applied while the loop kept its old bound — and `atomic`,
+ * which refuses on exactly these errors, had nothing to refuse on.
+ */
+const CONTAINER_BLOCK_INPUT_FIELDS: Record<'loop' | 'parallel', ReadonlySet<string>> = {
+  loop: new Set(['loopType', 'iterations', 'collection', 'condition']),
+  parallel: new Set(['parallelType', 'count', 'collection']),
+}
+
+function isContainerBlockType(blockType: string): blockType is 'loop' | 'parallel' {
+  return blockType === 'loop' || blockType === 'parallel'
+}
+
+/**
  * Validates and filters inputs against a block's subBlock configuration
  * Returns valid inputs and any validation errors encountered
  */
@@ -91,6 +111,25 @@ export function validateInputsForBlock(
     inputs = omit(inputs, [TRIGGER_ROUTING_FIELD])
   }
 
+  if (isContainerBlockType(blockType)) {
+    const containerFields = CONTAINER_BLOCK_INPUT_FIELDS[blockType]
+    const containerInputs: Record<string, any> = {}
+    for (const [key, value] of Object.entries(inputs)) {
+      if (containerFields.has(key)) {
+        containerInputs[key] = value
+        continue
+      }
+      errors.push({
+        blockId,
+        blockType,
+        field: key,
+        value,
+        error: `Unknown input field "${key}" for block type "${blockType}" (expected one of: ${[...containerFields].join(', ')})`,
+      })
+    }
+    return { validInputs: containerInputs, errors }
+  }
+
   const blockConfig = getBlock(blockType)
 
   if (!blockConfig) {
@@ -115,21 +154,15 @@ export function validateInputsForBlock(
 
     const subBlockConfig = subBlockMap.get(key)
 
-    // If subBlock doesn't exist in config, skip it (unless it's a known dynamic field)
+    // If subBlock doesn't exist in config, report it rather than dropping it
     if (!subBlockConfig) {
-      // Some fields are valid but not in subBlocks (like loop/parallel config)
-      // Allow these through for special block types
-      if (blockType === 'loop' || blockType === 'parallel') {
-        validatedInputs[key] = value
-      } else {
-        errors.push({
-          blockId,
-          blockType,
-          field: key,
-          value,
-          error: `Unknown input field "${key}" for block type "${blockType}"`,
-        })
-      }
+      errors.push({
+        blockId,
+        blockType,
+        field: key,
+        value,
+        error: `Unknown input field "${key}" for block type "${blockType}"`,
+      })
       continue
     }
 

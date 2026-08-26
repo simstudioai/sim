@@ -60,7 +60,6 @@ vi.mock('@/lib/billing/core/usage-log', () => ({
 
 vi.mock('@/lib/billing/credits/daily-refresh', () => ({
   computeDailyRefreshConsumed: vi.fn(),
-  getOrgMemberRefreshBounds: vi.fn(),
 }))
 
 const {

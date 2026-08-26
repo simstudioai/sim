@@ -136,6 +136,7 @@ function makeLog(overrides: Partial<SyncLogData> & Pick<SyncLogData, 'status'>):
     docsUpdated: 0,
     docsDeleted: 0,
     docsUnchanged: 0,
+    docsSkipped: 0,
     docsFailed: 0,
     errorMessage: null,
     ...overrides,
@@ -354,6 +355,30 @@ describe('SyncHistory', () => {
 
     expect(icons(container)).toEqual(['icon-circle-check'])
     expect(container.textContent).toContain('No changes')
+  })
+
+  it('renders a skipped-only completed row as a change', () => {
+    const container = render(makeLog({ status: 'completed', docsSkipped: 4 }))
+
+    expect(icons(container)).toEqual(['icon-circle-check'])
+    expect(container.textContent).toContain('⊘4')
+    expect(container.textContent).not.toContain('No changes')
+  })
+
+  it('renders mixed sync counts as separate ordered markers', () => {
+    const container = render(
+      makeLog({
+        status: 'completed',
+        docsAdded: 2,
+        docsUpdated: 3,
+        docsDeleted: 4,
+        docsFailed: 5,
+        docsSkipped: 6,
+      })
+    )
+
+    expect(container.textContent).toContain('+2 ~3 -4 !5 ⊘6')
+    expect(container.textContent).not.toContain('No changes')
   })
 
   it('renders a "failed" row as an error with its message', () => {

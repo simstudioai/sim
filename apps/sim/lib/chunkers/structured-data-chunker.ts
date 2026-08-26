@@ -1,10 +1,32 @@
 import { createLogger } from '@sim/logger'
+import { ChunkBudget } from '@/lib/chunkers/chunk-budget'
 import type { Chunk, StructuredDataOptions } from '@/lib/chunkers/types'
+import {
+  iterateLines,
+  iterateLosslessWordBoundaryChunkSpans,
+  normalizeTokenChunkSize,
+} from '@/lib/chunkers/utils'
 
 /** Structured data is denser in tokens (~3 chars/token vs ~4 for prose) */
 function estimateStructuredTokens(text: string): number {
   if (!text?.trim()) return 0
   return Math.ceil(text.length / 3)
+}
+
+function estimateFormattedChunkTokens(
+  headerLine: string,
+  rowCharacters: number,
+  rowCount: number,
+  sheetName?: string
+): number {
+  let characters = rowCharacters + Math.max(0, rowCount - 1)
+  if (sheetName) characters += 4 + sheetName.length + 6
+  if (DEFAULT_CONFIG.INCLUDE_HEADERS_IN_EACH_CHUNK) {
+    characters += 9 + headerLine.length + 1
+    characters += Math.min(80, headerLine.length) + 1
+  }
+  characters += 3 + String(rowCount).length + 14
+  return Math.ceil(characters / 3)
 }
 
 const logger = createLogger('StructuredDataChunker')
@@ -21,47 +43,107 @@ export class StructuredDataChunker {
     content: string,
     options: StructuredDataOptions = {}
   ): Promise<Chunk[]> {
-    const chunks: Chunk[] = []
-    const lines = content.split('\n').filter((line) => line.trim())
+    const targetChunkSize = normalizeTokenChunkSize(
+      options.chunkSize ?? DEFAULT_CONFIG.TARGET_CHUNK_SIZE,
+      'Structured data chunk size'
+    )
 
-    if (lines.length === 0) {
+    const chunks: Chunk[] = []
+    const sampleLines: string[] = []
+    for (const line of iterateLines(content)) {
+      if (!line.trim()) continue
+      sampleLines.push(line)
+      if (sampleLines.length === 10) break
+    }
+
+    if (sampleLines.length === 0) {
       return chunks
     }
 
-    const targetChunkSize = options.chunkSize ?? DEFAULT_CONFIG.TARGET_CHUNK_SIZE
-
-    const headerLine = options.headers?.join('\t') || lines[0]
+    const budget = new ChunkBudget(options.maxChunks)
+    const headerLine = options.headers?.join('\t') || sampleLines[0]
     const dataStartIndex = options.headers ? 0 : 1
 
     const estimatedTokensPerRow = StructuredDataChunker.estimateStructuredTokensPerRow(
-      lines.slice(dataStartIndex, Math.min(10, lines.length))
+      sampleLines.slice(dataStartIndex)
     )
     const optimalRowsPerChunk = StructuredDataChunker.calculateOptimalRowsPerChunk(
       estimatedTokensPerRow,
       targetChunkSize
     )
 
-    logger.info(
-      `Structured data chunking: ${lines.length} rows, ~${estimatedTokensPerRow} tokens/row, ${optimalRowsPerChunk} rows/chunk, target: ${targetChunkSize} tokens`
-    )
-
     let currentChunkRows: string[] = []
-    let currentTokenEstimate = 0
-    const headerTokens = estimateStructuredTokens(headerLine)
+    let currentRowsCharacters = 0
     let chunkStartRow = dataStartIndex
+    let oversizedHeaderEmitted = false
 
-    for (let i = dataStartIndex; i < lines.length; i++) {
-      const row = lines[i]
-      const rowTokens = estimateStructuredTokens(row)
+    let lineIndex = 0
+    for (const row of iterateLines(content)) {
+      if (!row.trim()) continue
+      const i = lineIndex
+      lineIndex++
+      if (i < dataStartIndex) continue
 
-      const projectedTokens =
-        currentTokenEstimate +
-        rowTokens +
-        (DEFAULT_CONFIG.INCLUDE_HEADERS_IN_EACH_CHUNK ? headerTokens : 0)
+      const standaloneRow = StructuredDataChunker.formatChunk(headerLine, [row], options.sheetName)
+      if (estimateStructuredTokens(standaloneRow) > targetChunkSize) {
+        if (currentChunkRows.length > 0) {
+          const chunkContent = StructuredDataChunker.formatChunk(
+            headerLine,
+            currentChunkRows,
+            options.sheetName
+          )
+          budget.add(chunks, StructuredDataChunker.createChunk(chunkContent, chunkStartRow, i - 1))
+          currentChunkRows = []
+          currentRowsCharacters = 0
+        }
+        const emptyRowOverhead = estimateStructuredTokens(
+          StructuredDataChunker.formatChunk(headerLine, [''], options.sheetName)
+        )
+        if (emptyRowOverhead >= targetChunkSize) {
+          if (!oversizedHeaderEmitted) {
+            const headerContent = options.sheetName
+              ? `${options.sheetName}\n${headerLine}`
+              : headerLine
+            const headerRow = Math.max(0, dataStartIndex - 1)
+            for (const segment of iterateLosslessWordBoundaryChunkSpans(
+              headerContent,
+              targetChunkSize * 3
+            )) {
+              budget.add(
+                chunks,
+                StructuredDataChunker.createChunk(segment.text, headerRow, headerRow)
+              )
+            }
+            oversizedHeaderEmitted = true
+          }
+          for (const segment of iterateLosslessWordBoundaryChunkSpans(row, targetChunkSize * 3)) {
+            budget.add(chunks, StructuredDataChunker.createChunk(segment.text, i, i))
+          }
+          chunkStartRow = i + 1
+          continue
+        }
+        const rowSegmentChars = Math.max(1, (targetChunkSize - emptyRowOverhead) * 3)
+        for (const segment of iterateLosslessWordBoundaryChunkSpans(row, rowSegmentChars)) {
+          const segmentContent = StructuredDataChunker.formatChunk(
+            headerLine,
+            [segment.text],
+            options.sheetName
+          )
+          budget.add(chunks, StructuredDataChunker.createChunk(segmentContent, i, i))
+        }
+        chunkStartRow = i + 1
+        continue
+      }
+
+      const projectedTokens = estimateFormattedChunkTokens(
+        headerLine,
+        currentRowsCharacters + row.length,
+        currentChunkRows.length + 1,
+        options.sheetName
+      )
 
       const shouldCreateChunk =
-        (projectedTokens > targetChunkSize &&
-          currentChunkRows.length >= DEFAULT_CONFIG.MIN_ROWS_PER_CHUNK) ||
+        (projectedTokens > targetChunkSize && currentChunkRows.length > 0) ||
         currentChunkRows.length >= optimalRowsPerChunk
 
       if (shouldCreateChunk && currentChunkRows.length > 0) {
@@ -70,15 +152,15 @@ export class StructuredDataChunker {
           currentChunkRows,
           options.sheetName
         )
-        chunks.push(StructuredDataChunker.createChunk(chunkContent, chunkStartRow, i - 1))
+        budget.add(chunks, StructuredDataChunker.createChunk(chunkContent, chunkStartRow, i - 1))
 
         currentChunkRows = []
-        currentTokenEstimate = 0
+        currentRowsCharacters = 0
         chunkStartRow = i
       }
 
       currentChunkRows.push(row)
-      currentTokenEstimate += rowTokens
+      currentRowsCharacters += row.length
     }
 
     if (currentChunkRows.length > 0) {
@@ -87,10 +169,15 @@ export class StructuredDataChunker {
         currentChunkRows,
         options.sheetName
       )
-      chunks.push(StructuredDataChunker.createChunk(chunkContent, chunkStartRow, lines.length - 1))
+      budget.add(
+        chunks,
+        StructuredDataChunker.createChunk(chunkContent, chunkStartRow, lineIndex - 1)
+      )
     }
 
-    logger.info(`Created ${chunks.length} chunks from ${lines.length} rows of structured data`)
+    logger.info(
+      `Created ${chunks.length} chunks from ${lineIndex} rows of structured data at ~${estimatedTokensPerRow} tokens/row and ${optimalRowsPerChunk} rows/chunk (target: ${targetChunkSize} tokens)`
+    )
 
     return chunks
   }
@@ -156,7 +243,11 @@ export class StructuredDataChunker {
       }
     }
 
-    const lines = content.split('\n').slice(0, 10)
+    const lines: string[] = []
+    for (const line of iterateLines(content)) {
+      lines.push(line)
+      if (lines.length === 10) break
+    }
     if (lines.length < 2) return false
 
     const delimiters = [',', '\t', '|']

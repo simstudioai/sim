@@ -76,6 +76,7 @@ export const confluenceCreateSpacePropertyTool: ToolConfig<
   },
 
   request: {
+    internal: true,
     url: () => '/api/tools/confluence/space-properties',
     method: 'POST',
     headers: (params: ConfluenceCreateSpacePropertyParams) => ({

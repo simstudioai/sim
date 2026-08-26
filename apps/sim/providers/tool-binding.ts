@@ -21,11 +21,19 @@ export interface ToolResourceBinding {
  * Subblock types whose value identifies WHICH external resource an instance is bound to,
  * and that can be resolved to a name from Sim's own database.
  *
- * A deliberate subset of {@link SELECTOR_TYPES_HYDRATION_REQUIRED}: the selectors omitted here
- * (`file-selector`, `project-selector`, `folder-selector`, `channel-selector`, `sheet-selector`,
- * `document-selector`, `user-selector`) name resources that live in a third-party service, so
- * resolving one costs an OAuth round-trip. `table-selector` is omitted because table tools already
- * name their table through `toolEnrichment` — see `lib/table/llm/enrichment.ts`.
+ * A deliberate subset of `SELECTOR_TYPES_HYDRATION_REQUIRED` (`blocks/types.ts`), which lists the
+ * fourteen subblock types the editor hydrates into display names. The eleven omitted here fall into
+ * three groups:
+ *
+ * - `channel-selector`, `user-selector`, `file-selector`, `sheet-selector`, `folder-selector`,
+ *   `project-selector`, `document-selector` name resources that live in a third-party service, so
+ *   resolving one costs an OAuth round-trip rather than a local read.
+ * - `table-selector` needs no entry because table tools already name their table through
+ *   `toolEnrichment` — see `lib/table/llm/enrichment.ts`.
+ * - `variables-input`, `mcp-server-selector` and `mcp-tool-selector` do not identify a bound
+ *   resource at all here: variable assignments are not a resource, and an MCP tool's id already
+ *   embeds its server (`createMcpToolId`), so two MCP entries only collide when the server and
+ *   tool are identical and there is nothing left to distinguish.
  */
 export const BINDABLE_SUBBLOCK_KINDS: Partial<Record<SubBlockType, BoundResourceKind>> = {
   'oauth-input': 'credential',

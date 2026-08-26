@@ -7,11 +7,16 @@ const { mockFetchWithRetry } = vi.hoisted(() => ({ mockFetchWithRetry: vi.fn() }
 
 vi.mock('@/lib/knowledge/documents/utils', () => ({
   fetchWithRetry: mockFetchWithRetry,
+  readBoundedHttpErrorBody: async (response: Response) => response.text(),
   VALIDATE_RETRY_OPTIONS: {},
 }))
 vi.mock('@/components/icons', () => ({ MicrosoftOneDriveIcon: () => null }))
 
 import { onedriveConnector } from '@/connectors/onedrive/onedrive'
+import {
+  encodeMicrosoftGraphTraversalCursor,
+  MICROSOFT_GRAPH_MAX_PENDING_FOLDERS,
+} from '@/connectors/utils'
 
 const GRAPH = 'https://graph.microsoft.com/v1.0'
 
@@ -52,13 +57,30 @@ function mockGraph(routes: Record<string, GraphRoute>) {
   return requested
 }
 
-const ROOT_URL = `${GRAPH}/me/drive/root/children?$top=200&$select=id,name,webUrl,size,file,folder,lastModifiedDateTime,createdBy,parentReference`
+const ROOT_URL = `${GRAPH}/me/drive/root/children?$top=200&$select=id,name,webUrl,size,file,folder,package,remoteItem,lastModifiedDateTime,createdBy,parentReference`
 const childrenUrl = (id: string) =>
-  `${GRAPH}/me/drive/items/${id}/children?$top=200&$select=id,name,webUrl,size,file,folder,lastModifiedDateTime,createdBy,parentReference`
+  `${GRAPH}/me/drive/items/${id}/children?$top=200&$select=id,name,webUrl,size,file,folder,package,remoteItem,lastModifiedDateTime,createdBy,parentReference`
 
 describe('onedrive listDocuments', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+  })
+
+  it('rejects a malformed successful list envelope', async () => {
+    mockGraph({ [ROOT_URL]: { body: {} } })
+
+    await expect(onedriveConnector.listDocuments('token', {}, undefined, {})).rejects.toThrow(
+      'Microsoft Graph returned malformed OneDrive list metadata'
+    )
+  })
+
+  it.each([
+    { value: [{ id: 'f1', name: 'Missing facet' }] },
+    { value: [], '@odata.nextLink': 'https://evil.example/items' },
+  ])('rejects ambiguous or unsafe list metadata', async (body) => {
+    mockGraph({ [ROOT_URL]: { body } })
+
+    await expect(onedriveConnector.listDocuments('token', {}, undefined, {})).rejects.toThrow()
   })
 
   it('walks nested folders within a single call', async () => {
@@ -161,6 +183,33 @@ describe('onedrive listDocuments', () => {
     expect(syncContext.listingCapped).toBe(true)
   })
 
+  it('does not retain irrelevant folders after maxFiles has stopped traversal', async () => {
+    mockGraph({
+      [ROOT_URL]: { body: { value: [file('f1', 'a.txt'), folder('overflow', 'overflow')] } },
+    })
+    const cursor = encodeMicrosoftGraphTraversalCursor(
+      {
+        folderStack: Array.from(
+          { length: MICROSOFT_GRAPH_MAX_PENDING_FOLDERS },
+          (_, index) => `pending-${index}`
+        ),
+      },
+      'OneDrive'
+    )
+    const syncContext: Record<string, unknown> = {}
+
+    const result = await onedriveConnector.listDocuments(
+      'token',
+      { maxFiles: '1' },
+      cursor,
+      syncContext
+    )
+
+    expect(result.documents.map((document) => document.externalId)).toEqual(['f1'])
+    expect(result.hasMore).toBe(false)
+    expect(syncContext.listingCapped).toBe(true)
+  })
+
   it('resumes from the cursor when the per-call request budget is exhausted', async () => {
     const routes: Record<string, GraphRoute> = {
       [ROOT_URL]: {
@@ -186,7 +235,7 @@ describe('onedrive listDocuments', () => {
   })
 
   it('encodes the configured folder path', async () => {
-    const url = `${GRAPH}/me/drive/root:/My%20Docs/Q1%20%26%20Q2:/children?$top=200&$select=id,name,webUrl,size,file,folder,lastModifiedDateTime,createdBy,parentReference`
+    const url = `${GRAPH}/me/drive/root:/My%20Docs/Q1%20%26%20Q2:/children?$top=200&$select=id,name,webUrl,size,file,folder,package,remoteItem,lastModifiedDateTime,createdBy,parentReference`
     const requested = mockGraph({ [url]: { body: { value: [] } } })
 
     await onedriveConnector.listDocuments(
@@ -197,6 +246,47 @@ describe('onedrive listDocuments', () => {
     )
 
     expect(requested[0]).toBe(url)
+  })
+
+  it.each(['1.5', 'Infinity'])(
+    'rejects invalid maxFiles %s before calling Graph',
+    async (maxFiles) => {
+      const requested = mockGraph({})
+
+      await expect(
+        onedriveConnector.listDocuments('token', { maxFiles }, undefined, {})
+      ).rejects.toThrow(/positive safe integer/)
+      expect(requested).toHaveLength(0)
+    }
+  )
+})
+
+describe('onedrive validateConfig', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it.each(['1.5', 'Infinity'])(
+    'rejects invalid maxFiles %s without calling Graph',
+    async (maxFiles) => {
+      const requested = mockGraph({})
+
+      await expect(onedriveConnector.validateConfig!('token', { maxFiles })).resolves.toEqual({
+        valid: false,
+        error: 'Max files must be a positive safe integer, or 0 for unlimited',
+      })
+      expect(requested).toHaveLength(0)
+    }
+  )
+
+  it('accepts a valid integer maxFiles', async () => {
+    const validateRootUrl = `${GRAPH}/me/drive/root/children?$top=1&$select=id`
+    const requested = mockGraph({ [validateRootUrl]: { body: { value: [] } } })
+
+    await expect(onedriveConnector.validateConfig!('token', { maxFiles: '25' })).resolves.toEqual({
+      valid: true,
+    })
+    expect(requested).toEqual([validateRootUrl])
   })
 })
 
@@ -211,11 +301,56 @@ describe('onedrive getDocument', () => {
     expect(doc).toBeNull()
   })
 
+  it.each([{}, { id: 'f1', name: 'Missing facet' }, file('different', 'a.txt')])(
+    'rejects malformed metadata instead of replacing retained content',
+    async (metadata) => {
+      mockGraph({
+        [`${GRAPH}/me/drive/items/f1?$select=id,name,webUrl,size,file,folder,package,remoteItem,lastModifiedDateTime,createdBy,parentReference`]:
+          {
+            body: metadata,
+          },
+      })
+
+      await expect(onedriveConnector.getDocument!('token', {}, 'f1')).rejects.toThrow(
+        'Microsoft Graph returned malformed OneDrive item metadata'
+      )
+    }
+  )
+
+  it('authoritatively skips a listed file that changed to a folder', async () => {
+    mockGraph({
+      [`${GRAPH}/me/drive/items/f1?$select=id,name,webUrl,size,file,folder,package,remoteItem,lastModifiedDateTime,createdBy,parentReference`]:
+        {
+          body: folder('f1', 'Former document'),
+        },
+    })
+
+    await expect(onedriveConnector.getDocument!('token', {}, 'f1')).resolves.toMatchObject({
+      content: '',
+      skippedReason: 'File is no longer an indexable document',
+      skippedExistingDisposition: 'replace',
+    })
+  })
+
+  it('authoritatively skips a listed file that changed to a package', async () => {
+    mockGraph({
+      [`${GRAPH}/me/drive/items/f1?$select=id,name,webUrl,size,file,folder,package,remoteItem,lastModifiedDateTime,createdBy,parentReference`]:
+        {
+          body: { id: 'f1', name: 'Former document', package: { type: 'oneNote' } },
+        },
+    })
+
+    await expect(onedriveConnector.getDocument!('token', {}, 'f1')).resolves.toMatchObject({
+      skippedExistingDisposition: 'replace',
+      skippedReason: 'File is no longer an indexable document',
+    })
+  })
+
   it('produces the same contentHash as the listing stub', async () => {
     const item = file('f1', 'a.txt')
     mockGraph({
       [ROOT_URL]: { body: { value: [item] } },
-      [`${GRAPH}/me/drive/items/f1?$select=id,name,webUrl,size,file,folder,lastModifiedDateTime,createdBy,parentReference`]:
+      [`${GRAPH}/me/drive/items/f1?$select=id,name,webUrl,size,file,folder,package,remoteItem,lastModifiedDateTime,createdBy,parentReference`]:
         { body: item },
     })
 
@@ -227,6 +362,7 @@ describe('onedrive getDocument', () => {
           ok: true,
           status: 200,
           body: null,
+          headers: new Headers({ 'content-length': '5' }),
           arrayBuffer: async () => new TextEncoder().encode('hello').buffer,
         } as unknown as Response
       }
@@ -243,5 +379,36 @@ describe('onedrive getDocument', () => {
     expect(fetched?.contentHash).toBe(listed.documents[0].contentHash)
     expect(fetched?.contentDeferred).toBe(false)
     expect(fetched?.content).toBe('hello')
+  })
+
+  it('marks an empty file as an authoritative skip', async () => {
+    const item = file('empty', 'empty.txt', 0)
+    mockFetchWithRetry.mockImplementation(async (url: string) => {
+      if (url.endsWith('/content')) {
+        return {
+          ok: true,
+          status: 200,
+          body: null,
+          headers: new Headers({ 'content-length': '0' }),
+          arrayBuffer: async () => new ArrayBuffer(0),
+        } as unknown as Response
+      }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => item,
+        text: async () => '',
+      } as unknown as Response
+    })
+
+    const document = await onedriveConnector.getDocument!('token', {}, 'empty')
+
+    expect(document).toMatchObject({
+      externalId: 'empty',
+      content: '',
+      contentDeferred: false,
+      skippedReason: 'Document contains no extractable text',
+      skippedExistingDisposition: 'replace',
+    })
   })
 })

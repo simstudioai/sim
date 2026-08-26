@@ -20,17 +20,32 @@ import {
   isConnectorRunnableStatus,
   isStuckDocumentSweepEligible,
   mergeHydratedDocument,
+  mergeHydratedSkippedDocument,
   type PreviousListingObservation,
+  selectStuckDocumentSweepCandidates,
+  stuckDocumentSweepAgeAnchor,
 } from '@/lib/knowledge/connectors/sync-engine'
-import type { ExternalDocument } from '@/connectors/types'
+import type { ExternalDocument, SyncResult } from '@/connectors/types'
 
 vi.mock('drizzle-orm', () => drizzleOrmMock)
+const { mockProcessDocumentsWithQueue, mockUploadFile } = vi.hoisted(() => ({
+  mockProcessDocumentsWithQueue: vi.fn(),
+  mockUploadFile: vi.fn(),
+}))
+
 vi.mock('@/lib/knowledge/documents/service', () => ({
   hardDeleteDocuments: vi.fn(),
   isTriggerAvailable: vi.fn(),
   processDocumentAsync: vi.fn(),
+  processDocumentsWithQueue: mockProcessDocumentsWithQueue,
 }))
-vi.mock('@/lib/uploads', () => ({ StorageService: {} }))
+vi.mock('@/lib/uploads', () => ({ StorageService: { uploadFile: mockUploadFile } }))
+const { mockDeleteFile, mockDeleteFileMetadata } = vi.hoisted(() => ({
+  mockDeleteFile: vi.fn(),
+  mockDeleteFileMetadata: vi.fn(),
+}))
+vi.mock('@/lib/uploads/core/storage-service', () => ({ deleteFile: mockDeleteFile }))
+vi.mock('@/lib/uploads/server/metadata', () => ({ deleteFileMetadata: mockDeleteFileMetadata }))
 vi.mock('@/lib/oauth/credential-service', () => authOAuthUtilsMock)
 vi.mock('@/background/knowledge-connector-sync', () => ({
   knowledgeConnectorSync: { trigger: vi.fn() },
@@ -108,6 +123,13 @@ describe('shouldReconcileDeletions', () => {
     expect(
       shouldReconcileDeletions(false, { listingCapped: true, listingTruncated: true }, true)
     ).toBe(false)
+  })
+
+  it('never runs when provider pagination is non-authoritative', async () => {
+    const { shouldReconcileDeletions } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    expect(shouldReconcileDeletions(false, { reconciliationUnsafe: true }, undefined)).toBe(false)
+    expect(shouldReconcileDeletions(false, { reconciliationUnsafe: true }, true)).toBe(false)
   })
 })
 
@@ -465,9 +487,48 @@ describe('classifyExternalDoc', () => {
         {
           id: 'doc-1',
           contentHash: 'old',
+          storageKey: 'kb/indexed-file.txt',
         }
       )
     ).toEqual({ type: 'unchanged' })
+  })
+
+  it('refreshes an existing skipped placeholder without turning it into a source failure', async () => {
+    const { classifyExternalDoc } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    expect(
+      classifyExternalDoc(
+        { ...base, content: '', skippedReason: 'too big' },
+        { id: 'doc-1', contentHash: 'old', storageKey: null }
+      )
+    ).toEqual({ type: 'skip', existingId: 'doc-1' })
+  })
+
+  it('rehydrates a content-less placeholder even when its listing hash is unchanged', async () => {
+    const { classifyExternalDoc } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    expect(
+      classifyExternalDoc(
+        { ...base, content: '', contentDeferred: true },
+        { id: 'doc-1', contentHash: 'h1', storageKey: null }
+      )
+    ).toEqual({ type: 'update', existingId: 'doc-1' })
+  })
+
+  it('replaces stale indexed content for an authoritative skip', async () => {
+    const { classifyExternalDoc } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    expect(
+      classifyExternalDoc(
+        {
+          ...base,
+          content: '',
+          skippedReason: 'no extractable text',
+          skippedExistingDisposition: 'replace',
+        },
+        { id: 'doc-1', contentHash: 'old' }
+      )
+    ).toEqual({ type: 'skip', existingId: 'doc-1' })
   })
 
   it('drops empty non-deferred content', async () => {
@@ -513,6 +574,284 @@ describe('classifyExternalDoc', () => {
   })
 })
 
+describe('connector content replacement processing state', () => {
+  const CONNECTOR = {
+    id: 'connector-1',
+    knowledgeBaseId: 'kb-1',
+    connectorType: 'paged',
+    credentialId: null,
+    encryptedApiKey: null,
+    sourceConfig: {},
+    syncMode: 'full',
+    syncIntervalMinutes: 1440,
+    status: 'active',
+    lastSyncAt: null,
+    lastSyncDocCount: 1,
+    consecutiveFailures: 0,
+    syncLockToken: null,
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    mockUploadFile.mockResolvedValue({
+      key: 'kb/new-document.txt',
+      path: '/api/files/serve/kb/new-document.txt',
+    })
+    mockProcessDocumentsWithQueue.mockResolvedValue({ requested: 1, accepted: 1, failed: 0 })
+  })
+
+  it('resets a near-dead-letter prior version when authoritative content changes', async () => {
+    const { executeSync } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { MAX_PROCESSING_ATTEMPTS } = await import('@/lib/knowledge/documents/types')
+
+    queueTableRows(schemaMock.knowledgeConnector, [CONNECTOR])
+    for (let i = 0; i < 20; i++) {
+      queueTableRows(schemaMock.knowledgeConnector, [
+        {
+          connectorArchivedAt: null,
+          connectorDeletedAt: null,
+          kbDeletedAt: null,
+        },
+      ])
+    }
+    for (let i = 0; i < 10; i++) {
+      queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1', userId: 'u-1', workspaceId: 'ws-1' }])
+    }
+    queueTableRows(schemaMock.document, [])
+    queueTableRows(schemaMock.document, [
+      {
+        id: 'doc-1',
+        externalId: 'external-1',
+        contentHash: 'old-hash',
+        deletedAt: null,
+        userExcluded: false,
+        processingAttempts: MAX_PROCESSING_ATTEMPTS - 1,
+      },
+    ])
+    queueTableRows(schemaMock.document, [])
+    queueTableRows(schemaMock.document, [])
+    queueTableRows(schemaMock.document, [
+      { fileUrl: '/api/files/serve/kb/old-document.txt?context=knowledge-base' },
+    ])
+    queueTableRows(schemaMock.document, [])
+    queueTableRows(schemaMock.document, [{ count: 1 }])
+    dbChainMockFns.returning
+      .mockResolvedValueOnce([CONNECTOR])
+      .mockResolvedValueOnce([{ id: 'doc-1' }])
+
+    mockListDocuments.mockResolvedValue({
+      documents: [
+        {
+          externalId: 'external-1',
+          title: 'Updated document',
+          content: 'authoritative new content',
+          contentHash: 'new-hash',
+          mimeType: 'text/plain',
+          metadata: {},
+        },
+      ],
+      hasMore: false,
+    })
+
+    await executeSync('connector-1', {
+      billingAttribution: { workspaceId: 'ws-1' } as never,
+      fullSync: true,
+    })
+
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        processingStatus: 'pending',
+        processingQueuedAt: null,
+        processingQueueToken: null,
+        processingDeferredUntil: null,
+        processingAttempts: 0,
+      })
+    )
+  })
+})
+
+describe('persistSkippedDocuments', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('persists a new skipped document without dispatching processing', async () => {
+    const { persistSkippedDocuments } = await import('@/lib/knowledge/connectors/sync-engine')
+    queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])
+
+    await expect(
+      persistSkippedDocuments('kb-1', 'connector-1', 'no-tags', [
+        {
+          type: 'skip',
+          extDoc: {
+            externalId: 'external-1',
+            title: 'Empty document',
+            content: '',
+            mimeType: 'text/plain',
+            contentHash: 'empty-hash',
+            skippedReason: 'Document contains no extractable text',
+            skippedExistingDisposition: 'replace',
+          },
+        },
+      ])
+    ).resolves.toBe(1)
+
+    expect(dbChainMockFns.values).toHaveBeenCalledWith([
+      expect.objectContaining({
+        connectorId: 'connector-1',
+        externalId: 'external-1',
+        storageKey: null,
+        processingStatus: 'failed',
+        contentHash: 'empty-hash',
+      }),
+    ])
+    expect(dbChainMockFns.delete).not.toHaveBeenCalled()
+  })
+
+  it('atomically replaces stale indexed content for an authoritative skip', async () => {
+    const { persistSkippedDocuments } = await import('@/lib/knowledge/connectors/sync-engine')
+    const oldFileUrl = '/api/files/serve/kb/old-document.txt?context=knowledge-base'
+    queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])
+    queueTableRows(schemaMock.document, [{ fileUrl: oldFileUrl }])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'doc-1' }])
+
+    await expect(
+      persistSkippedDocuments('kb-1', 'connector-1', 'no-tags', [
+        {
+          type: 'skip',
+          existingId: 'doc-1',
+          extDoc: {
+            externalId: 'external-1',
+            title: 'Empty document',
+            content: '',
+            mimeType: 'text/plain',
+            contentHash: 'new-empty-hash',
+            skippedReason: 'Document contains no extractable text',
+            skippedExistingDisposition: 'replace',
+          },
+        },
+      ])
+    ).resolves.toBe(1)
+
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fileUrl: '',
+        storageKey: null,
+        processingStatus: 'failed',
+        processingError: 'Document contains no extractable text',
+        processingQueuedAt: null,
+        processingQueueToken: null,
+        processingDeferredUntil: null,
+        processingAttempts: 0,
+        chunkCount: 0,
+        contentHash: 'new-empty-hash',
+        deletedAt: null,
+      })
+    )
+    expect(dbChainMockFns.delete).toHaveBeenCalledWith(schemaMock.embedding)
+    expect(mockDeleteFile).toHaveBeenCalledWith({
+      key: 'kb/old-document.txt',
+      context: 'knowledge-base',
+    })
+    expect(mockDeleteFileMetadata).toHaveBeenCalledWith('kb/old-document.txt')
+  })
+
+  it('does not delete old storage when the authoritative replacement fails', async () => {
+    const { persistSkippedDocuments } = await import('@/lib/knowledge/connectors/sync-engine')
+    queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])
+    queueTableRows(schemaMock.document, [])
+
+    await expect(
+      persistSkippedDocuments('kb-1', 'connector-1', 'no-tags', [
+        {
+          type: 'skip',
+          existingId: 'missing-doc',
+          extDoc: {
+            externalId: 'external-1',
+            title: 'Empty document',
+            content: '',
+            mimeType: 'text/plain',
+            contentHash: 'new-empty-hash',
+            skippedReason: 'Document contains no extractable text',
+            skippedExistingDisposition: 'replace',
+          },
+        },
+      ])
+    ).rejects.toThrow('Document missing-doc is no longer active')
+
+    expect(mockDeleteFile).not.toHaveBeenCalled()
+    expect(mockDeleteFileMetadata).not.toHaveBeenCalled()
+  })
+})
+
+describe('persistSkippedRetryHashes', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('updates only the retry hash for a last-known-good connector document', async () => {
+    const { classifyExternalDoc, persistSkippedRetryHashes } = await import(
+      '@/lib/knowledge/connectors/sync-engine'
+    )
+    queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'doc-1' }])
+
+    await expect(
+      persistSkippedRetryHashes('kb-1', 'connector-1', [
+        {
+          existingId: 'doc-1',
+          externalId: 'page-1',
+          contentHash: 'notion:retry:v1:page-1',
+        },
+      ])
+    ).resolves.toEqual([])
+
+    expect(dbChainMockFns.set).toHaveBeenCalledOnce()
+    expect(dbChainMockFns.set).toHaveBeenCalledWith({
+      contentHash: 'notion:retry:v1:page-1',
+    })
+    expect(dbChainMockFns.delete).not.toHaveBeenCalled()
+    expect(
+      classifyExternalDoc(
+        {
+          content: '',
+          contentDeferred: true,
+          contentHash: 'notion:v3:page-1:unchanged',
+        },
+        { id: 'doc-1', contentHash: 'notion:retry:v1:page-1' }
+      )
+    ).toEqual({ type: 'update', existingId: 'doc-1' })
+  })
+
+  it('commits live retry hashes when another document is no longer a connector target', async () => {
+    const { persistSkippedRetryHashes } = await import('@/lib/knowledge/connectors/sync-engine')
+    queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'live-doc' }]).mockResolvedValueOnce([])
+
+    await expect(
+      persistSkippedRetryHashes('kb-1', 'connector-1', [
+        {
+          existingId: 'live-doc',
+          externalId: 'live-page',
+          contentHash: 'notion:retry:v1:live-page',
+        },
+        {
+          existingId: 'detached-doc',
+          externalId: 'detached-page',
+          contentHash: 'notion:retry:v1:detached-page',
+        },
+      ])
+    ).resolves.toEqual(['detached-page'])
+
+    expect(dbChainMockFns.set).toHaveBeenCalledWith({
+      contentHash: 'notion:retry:v1:live-page',
+    })
+  })
+})
+
 describe('chunkOpsByByteBudget', () => {
   const MB = 1024 * 1024
   const addOp = (sizeBytes?: number) => ({
@@ -520,7 +859,8 @@ describe('chunkOpsByByteBudget', () => {
     extDoc: {
       externalId: `e-${generateShortId()}`,
       title: 'f',
-      content: 'x',
+      content: sizeBytes == null ? 'x' : '',
+      contentDeferred: sizeBytes != null,
       contentHash: 'h',
       mimeType: 'text/plain',
       ...(sizeBytes != null ? { metadata: { fileSize: sizeBytes } } : {}),
@@ -571,6 +911,242 @@ describe('chunkOpsByByteBudget', () => {
     )
     expect(chunks).toHaveLength(1)
   })
+})
+
+describe('connector sync working-set bounds', () => {
+  it('reserves one sentinel row beyond the remaining corpus budget', async () => {
+    const {
+      CONNECTOR_SYNC_MAX_CORPUS_DOCUMENTS,
+      sourcePageFitsSyncWorkingSet,
+      syncWorkingSetQueryLimit,
+    } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    expect(syncWorkingSetQueryLimit(0)).toBe(CONNECTOR_SYNC_MAX_CORPUS_DOCUMENTS + 1)
+    expect(syncWorkingSetQueryLimit(CONNECTOR_SYNC_MAX_CORPUS_DOCUMENTS - 25)).toBe(26)
+    expect(syncWorkingSetQueryLimit(CONNECTOR_SYNC_MAX_CORPUS_DOCUMENTS)).toBe(1)
+    expect(sourcePageFitsSyncWorkingSet(CONNECTOR_SYNC_MAX_CORPUS_DOCUMENTS - 1, 1)).toBe(true)
+    expect(sourcePageFitsSyncWorkingSet(CONNECTOR_SYNC_MAX_CORPUS_DOCUMENTS, 1)).toBe(false)
+  })
+
+  it('counts retained source payload in UTF-8 bytes', async () => {
+    const { addSourcePagePayloadBytes, CONNECTOR_SYNC_MAX_SOURCE_PAYLOAD_BYTES } = await import(
+      '@/lib/knowledge/connectors/sync-engine'
+    )
+    const document = {
+      externalId: '',
+      title: '',
+      content: 'é',
+      mimeType: 'text/plain',
+      metadata: {},
+    }
+
+    expect(addSourcePagePayloadBytes(CONNECTOR_SYNC_MAX_SOURCE_PAYLOAD_BYTES - 4, [document])).toBe(
+      CONNECTOR_SYNC_MAX_SOURCE_PAYLOAD_BYTES
+    )
+    expect(() =>
+      addSourcePagePayloadBytes(CONNECTOR_SYNC_MAX_SOURCE_PAYLOAD_BYTES - 3, [document])
+    ).toThrow('retained-payload limit')
+  })
+})
+
+describe('executeSync working-set overflow admission', () => {
+  const CONNECTOR = {
+    id: 'c-1',
+    knowledgeBaseId: 'kb-1',
+    connectorType: 'paged',
+    credentialId: null,
+    encryptedApiKey: null,
+    sourceConfig: {},
+    syncMode: 'full',
+    syncIntervalMinutes: 1440,
+    status: 'active',
+    lastSyncAt: null,
+    lastSyncDocCount: null,
+    consecutiveFailures: 0,
+    syncLockToken: null,
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    queueTableRows(schemaMock.knowledgeConnector, [CONNECTOR])
+    queueTableRows(schemaMock.knowledgeBase, [{ userId: 'u-1', workspaceId: 'ws-1' }])
+    queueTableRows(schemaMock.document, [])
+    dbChainMockFns.returning.mockResolvedValueOnce([CONNECTOR])
+  })
+
+  function trackedSourceDocument(externalId: string) {
+    let contentReads = 0
+    const document: ExternalDocument = {
+      externalId,
+      title: externalId,
+      get content() {
+        contentReads++
+        return 'body'
+      },
+      contentHash: 'hash',
+      mimeType: 'text/plain',
+      metadata: {},
+    }
+    return { document, contentReads: () => contentReads }
+  }
+
+  function expectLockGuardedTerminalFailure(result: SyncResult): void {
+    expect(result).toMatchObject({
+      docsAdded: 0,
+      docsUpdated: 0,
+      docsDeleted: 0,
+      docsUnchanged: 0,
+      docsSkipped: 0,
+      docsFailed: 0,
+      processingDispatch: { requested: 0, accepted: 0, failed: 0 },
+      error: expect.stringContaining('exceeds the safe per-corpus limit'),
+    })
+
+    const startedLog = dbChainMockFns.values.mock.calls.find(
+      ([values]) =>
+        (values as Record<string, unknown>).connectorId === 'c-1' &&
+        (values as Record<string, unknown>).status === 'started'
+    )?.[0] as Record<string, unknown> | undefined
+    expect(startedLog?.id).toEqual(expect.any(String))
+
+    const guardedTerminalWhere = dbChainMockFns.where.mock.calls.find(([condition]) =>
+      hasMockCondition(
+        condition,
+        (node: MockCondition) =>
+          node.type === 'eq' &&
+          node.left === schemaMock.knowledgeConnector.syncLockToken &&
+          node.right === startedLog?.id
+      )
+    )?.[0]
+    expect(guardedTerminalWhere).toBeDefined()
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'error', syncLockToken: null, syncLockLeaseAt: null })
+    )
+    expect(
+      hasMockCondition(
+        guardedTerminalWhere,
+        (node: MockCondition) =>
+          node.type === 'eq' &&
+          node.left === schemaMock.knowledgeConnector.status &&
+          node.right === 'syncing'
+      )
+    ).toBe(true)
+    expect(
+      hasMockCondition(
+        guardedTerminalWhere,
+        (node: MockCondition) =>
+          node.type === 'eq' &&
+          node.left === schemaMock.knowledgeConnector.id &&
+          node.right === 'c-1'
+      )
+    ).toBe(true)
+  }
+
+  async function expectNoDocumentWork(): Promise<void> {
+    const { hardDeleteDocuments } = await import('@/lib/knowledge/documents/service')
+
+    expect(dbChainMockFns.insert).not.toHaveBeenCalledWith(schemaMock.document)
+    expect(dbChainMockFns.update).not.toHaveBeenCalledWith(schemaMock.document)
+    expect(dbChainMockFns.delete).not.toHaveBeenCalledWith(schemaMock.document)
+    expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
+    expect(hardDeleteDocuments).not.toHaveBeenCalled()
+    expect(mockProcessDocumentsWithQueue).not.toHaveBeenCalled()
+  }
+
+  it('rejects overflow on a later source page before classification or document work', async () => {
+    const { CONNECTOR_SYNC_MAX_CORPUS_DOCUMENTS, executeSync } = await import(
+      '@/lib/knowledge/connectors/sync-engine'
+    )
+    const retained = trackedSourceDocument('retained')
+    const overflow = trackedSourceDocument('overflow')
+    mockListDocuments
+      .mockResolvedValueOnce({
+        documents: Array(CONNECTOR_SYNC_MAX_CORPUS_DOCUMENTS).fill(retained.document),
+        hasMore: true,
+        nextCursor: 'page-2',
+      })
+      .mockResolvedValueOnce({ documents: [overflow.document], hasMore: false })
+
+    const result = await executeSync('c-1', {
+      billingAttribution: { workspaceId: 'ws-1' } as never,
+    })
+
+    expect(mockListDocuments).toHaveBeenCalledTimes(2)
+    expect(retained.contentReads()).toBe(CONNECTOR_SYNC_MAX_CORPUS_DOCUMENTS)
+    expect(overflow.contentReads()).toBe(0)
+    expectLockGuardedTerminalFailure(result)
+    await expectNoDocumentWork()
+  })
+
+  it.each([
+    {
+      population: 'active',
+      expectedDocumentReads: 2,
+      populations: (limit: number) => [
+        Array(limit + 1).fill({
+          id: 'active',
+          externalId: 'active',
+          contentHash: 'hash',
+          userExcluded: false,
+        }),
+      ],
+    },
+    {
+      population: 'tombstoned',
+      expectedDocumentReads: 3,
+      populations: (limit: number) => [
+        [{ id: 'active', externalId: 'active', contentHash: 'hash', userExcluded: false }],
+        Array(limit).fill({
+          id: 'tombstoned',
+          externalId: 'tombstoned',
+          contentHash: 'hash',
+          deletedAt: new Date(),
+          userExcluded: false,
+        }),
+      ],
+    },
+    {
+      population: 'excluded',
+      expectedDocumentReads: 4,
+      populations: (limit: number) => [
+        [{ id: 'active', externalId: 'active', contentHash: 'hash', userExcluded: false }],
+        [
+          {
+            id: 'tombstoned',
+            externalId: 'tombstoned',
+            contentHash: 'hash',
+            deletedAt: new Date(),
+            userExcluded: false,
+          },
+        ],
+        Array(limit - 1).fill({ externalId: 'excluded' }),
+      ],
+    },
+  ])(
+    'rejects overflow in the sequential $population population before classification or document work',
+    async ({ expectedDocumentReads, populations }) => {
+      const { CONNECTOR_SYNC_MAX_CORPUS_DOCUMENTS, executeSync } = await import(
+        '@/lib/knowledge/connectors/sync-engine'
+      )
+      const listed = trackedSourceDocument('new-source-document')
+      mockListDocuments.mockResolvedValue({ documents: [listed.document], hasMore: false })
+      for (const population of populations(CONNECTOR_SYNC_MAX_CORPUS_DOCUMENTS)) {
+        queueTableRows(schemaMock.document, population)
+      }
+
+      const result = await executeSync('c-1', {
+        billingAttribution: { workspaceId: 'ws-1' } as never,
+      })
+
+      expect(listed.contentReads()).toBe(1)
+      expect(
+        dbChainMockFns.from.mock.calls.filter(([table]) => table === schemaMock.document)
+      ).toHaveLength(expectedDocumentReads)
+      expectLockGuardedTerminalFailure(result)
+      await expectNoDocumentWork()
+    }
+  )
 })
 
 describe('classifySuspectListing', () => {
@@ -731,6 +1307,107 @@ describe('mergeHydratedDocument', () => {
   })
 })
 
+describe('mergeHydratedSkippedDocument', () => {
+  it('keeps the listing hash when hydration reports a synthetic skip hash', () => {
+    const listed: ExternalDocument = {
+      externalId: 'transcript-1',
+      title: 'Weekly sync',
+      content: '',
+      contentDeferred: true,
+      mimeType: 'text/plain',
+      contentHash: 'fireflies:v2:transcript-1:lifecycle-hash',
+      metadata: { meetingDate: '2026-08-24T00:00:00.000Z' },
+    }
+    const skipped: ExternalDocument = {
+      ...listed,
+      contentDeferred: false,
+      contentHash: 'fireflies:oversized-response:transcript-1',
+      skippedReason: 'Transcript response exceeds the safe hydration limit',
+      metadata: { duration: 45 },
+    }
+
+    expect(mergeHydratedSkippedDocument(listed, skipped)).toMatchObject({
+      content: '',
+      contentDeferred: false,
+      contentHash: listed.contentHash,
+      skippedReason: skipped.skippedReason,
+      metadata: {
+        meetingDate: '2026-08-24T00:00:00.000Z',
+        duration: 45,
+      },
+    })
+  })
+
+  it('persists an explicit connector retry hash for a skipped hydration', () => {
+    const listed: ExternalDocument = {
+      externalId: 'page-1',
+      title: 'Restricted page',
+      content: '',
+      contentDeferred: true,
+      mimeType: 'text/markdown',
+      contentHash: 'notion:v3:page-1:unchanged',
+    }
+    const skipped: ExternalDocument = {
+      ...listed,
+      contentDeferred: false,
+      skippedReason: 'Nested block is inaccessible',
+      skippedRetryContentHash: 'notion:retry:v1:page-1',
+    }
+
+    expect(mergeHydratedSkippedDocument(listed, skipped).contentHash).toBe('notion:retry:v1:page-1')
+  })
+})
+
+describe('requireHydratedListedDocument', () => {
+  it('turns ambiguous null hydration into a sync failure instead of a silent drop', async () => {
+    const { requireHydratedListedDocument } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    expect(() => requireHydratedListedDocument(null, 'listed-1')).toThrow(
+      'Connector returned no content for listed document listed-1'
+    )
+  })
+
+  it('passes through a hydrated document', async () => {
+    const { requireHydratedListedDocument } = await import('@/lib/knowledge/connectors/sync-engine')
+    const hydrated: ExternalDocument = {
+      externalId: 'listed-1',
+      title: 'Listed',
+      content: 'body',
+      mimeType: 'text/plain',
+    }
+
+    expect(requireHydratedListedDocument(hydrated, 'listed-1')).toBe(hydrated)
+  })
+})
+
+describe('recordUnverifiedExistingRefresh', () => {
+  it('keeps last-known-good content while holding the incremental watermark', async () => {
+    const { recordUnverifiedExistingRefresh } = await import(
+      '@/lib/knowledge/connectors/sync-engine'
+    )
+    const result = { docsFailed: 0 }
+    const failedExternalIds = new Set<string>()
+
+    recordUnverifiedExistingRefresh(result, failedExternalIds, 'existing-1')
+
+    expect(result).toEqual({ docsFailed: 1 })
+    expect(failedExternalIds).toEqual(new Set(['existing-1']))
+  })
+
+  it('counts one document once if multiple unusable signals converge', async () => {
+    const { recordUnverifiedExistingRefresh } = await import(
+      '@/lib/knowledge/connectors/sync-engine'
+    )
+    const result = { docsFailed: 0 }
+    const failedExternalIds = new Set<string>()
+
+    recordUnverifiedExistingRefresh(result, failedExternalIds, 'existing-1')
+    recordUnverifiedExistingRefresh(result, failedExternalIds, 'existing-1')
+
+    expect(result).toEqual({ docsFailed: 1 })
+  })
+})
+
 describe('isStuckDocumentSweepEligible', () => {
   const now = new Date('2026-08-20T12:00:00.000Z')
   const minutesBefore = (minutes: number) => new Date(now.getTime() - minutes * 60 * 1000)
@@ -740,6 +1417,7 @@ describe('isStuckDocumentSweepEligible', () => {
     overrides: {
       processingQueuedAt?: Date | null
       processingStartedAt?: Date | null
+      processingDeferredUntil?: Date | null
       processingCompletedAt?: Date | null
       uploadedAt?: Date
     } = {}
@@ -747,6 +1425,7 @@ describe('isStuckDocumentSweepEligible', () => {
     processingStatus,
     processingQueuedAt: overrides.processingQueuedAt ?? null,
     processingStartedAt: overrides.processingStartedAt ?? null,
+    processingDeferredUntil: overrides.processingDeferredUntil ?? null,
     processingCompletedAt: overrides.processingCompletedAt ?? null,
     uploadedAt: overrides.uploadedAt ?? minutesBefore(5),
   })
@@ -804,6 +1483,27 @@ describe('isStuckDocumentSweepEligible', () => {
         now
       )
     ).toBe(false)
+  })
+
+  it('reclaims a quota-deferred document only after its due time is stale', () => {
+    expect(
+      isStuckDocumentSweepEligible(
+        candidate('pending', { processingDeferredUntil: minutesBefore(239) }),
+        now
+      )
+    ).toBe(false)
+    expect(
+      isStuckDocumentSweepEligible(
+        candidate('pending', { processingDeferredUntil: minutesBefore(240) }),
+        now
+      )
+    ).toBe(false)
+    expect(
+      isStuckDocumentSweepEligible(
+        candidate('pending', { processingDeferredUntil: minutesBefore(241) }),
+        now
+      )
+    ).toBe(true)
   })
 
   it('leaves a failed document alone while its Trigger retries may still run', () => {
@@ -913,6 +1613,124 @@ describe('isStuckDocumentSweepEligible', () => {
         now
       )
     ).toBe(false)
+  })
+})
+
+describe('selectStuckDocumentSweepCandidates', () => {
+  const now = new Date('2026-08-20T12:00:00.000Z')
+  const minutesBefore = (minutes: number) => new Date(now.getTime() - minutes * 60 * 1000)
+  const oldCandidate = {
+    processingQueuedAt: minutesBefore(300),
+    processingStartedAt: null,
+    processingDeferredUntil: null,
+    processingCompletedAt: null,
+    uploadedAt: minutesBefore(600),
+  }
+
+  it.each([
+    {
+      name: 'fresh queue generation',
+      stale: { processingStatus: 'pending', ...oldCandidate },
+      fresh: {
+        processingStatus: 'pending',
+        ...oldCandidate,
+        processingQueuedAt: minutesBefore(1),
+      },
+    },
+    {
+      name: 'fresh processing claim',
+      stale: {
+        processingStatus: 'processing',
+        ...oldCandidate,
+        processingStartedAt: minutesBefore(60),
+      },
+      fresh: {
+        processingStatus: 'processing',
+        ...oldCandidate,
+        processingStartedAt: minutesBefore(1),
+      },
+    },
+    {
+      name: 'live quota continuation',
+      stale: {
+        processingStatus: 'pending',
+        ...oldCandidate,
+        processingDeferredUntil: minutesBefore(300),
+      },
+      fresh: {
+        processingStatus: 'pending',
+        ...oldCandidate,
+        processingDeferredUntil: minutesBefore(1),
+      },
+    },
+    {
+      name: 'fresh failed attempt',
+      stale: {
+        processingStatus: 'failed',
+        ...oldCandidate,
+        processingCompletedAt: minutesBefore(300),
+      },
+      fresh: {
+        processingStatus: 'failed',
+        ...oldCandidate,
+        processingCompletedAt: minutesBefore(1),
+      },
+    },
+  ])(
+    'drops a formerly eligible candidate after its locked reread sees a $name',
+    ({ stale, fresh }) => {
+      expect(
+        selectStuckDocumentSweepCandidates([{ id: 'doc-1', ...stale }], now).map((doc) => doc.id)
+      ).toEqual(['doc-1'])
+      expect(selectStuckDocumentSweepCandidates([{ id: 'doc-1', ...fresh }], now)).toEqual([])
+    }
+  )
+
+  it('filters before limiting so old uploads with fresh attempts cannot starve overdue work', () => {
+    const recentlyRetried = Array.from({ length: 250 }, (_, index) => ({
+      id: `recent-${index.toString().padStart(3, '0')}`,
+      processingStatus: 'pending',
+      ...oldCandidate,
+      processingQueuedAt: minutesBefore(1),
+    }))
+    const overdue = {
+      id: 'overdue',
+      processingStatus: 'pending',
+      ...oldCandidate,
+      uploadedAt: minutesBefore(10),
+    }
+
+    expect(selectStuckDocumentSweepCandidates([...recentlyRetried, overdue], now)).toEqual([
+      overdue,
+    ])
+  })
+
+  it('orders by the status-specific age anchor and uses id as a stable tie-breaker', () => {
+    const candidates = [
+      {
+        id: 'pending-newer',
+        processingStatus: 'pending',
+        ...oldCandidate,
+        processingQueuedAt: minutesBefore(260),
+      },
+      {
+        id: 'failed-b',
+        processingStatus: 'failed',
+        ...oldCandidate,
+        processingCompletedAt: minutesBefore(400),
+      },
+      {
+        id: 'failed-a',
+        processingStatus: 'failed',
+        ...oldCandidate,
+        processingCompletedAt: minutesBefore(400),
+      },
+    ]
+
+    expect(
+      selectStuckDocumentSweepCandidates(candidates, now).map((candidate) => candidate.id)
+    ).toEqual(['failed-a', 'failed-b', 'pending-newer'])
+    expect(stuckDocumentSweepAgeAnchor(candidates[0])).toEqual(minutesBefore(260))
   })
 })
 
@@ -1188,6 +2006,35 @@ describe('partitionSyncReconciliation — user-excluded documents', () => {
   })
 })
 
+describe('connectorDocumentSyncTarget', () => {
+  it('cannot refresh a detached, moved, excluded, or archived document', async () => {
+    const { connectorDocumentSyncTarget } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    const condition = connectorDocumentSyncTarget('doc-1', 'kb-1', 'connector-1')
+    for (const [column, value] of [
+      [schemaMock.document.id, 'doc-1'],
+      [schemaMock.document.knowledgeBaseId, 'kb-1'],
+      [schemaMock.document.connectorId, 'connector-1'],
+      [schemaMock.document.userExcluded, false],
+    ] as const) {
+      expect(
+        hasMockCondition(
+          condition,
+          (node: MockCondition) =>
+            node.type === 'eq' && node.left === column && node.right === value
+        )
+      ).toBe(true)
+    }
+    expect(
+      hasMockCondition(
+        condition,
+        (node: MockCondition) =>
+          node.type === 'isNull' && node.column === schemaMock.document.archivedAt
+      )
+    ).toBe(true)
+  })
+})
+
 describe('countNonExcludedListed', () => {
   it('subtracts the excluded documents that appeared in the listing', async () => {
     const { countNonExcludedListed } = await import('@/lib/knowledge/connectors/sync-engine')
@@ -1404,6 +2251,23 @@ describe('buildSyncFailureUpdate', () => {
   })
 })
 
+describe('buildSyncCapacityUpdate', () => {
+  it('requires operator action without consuming the transient-failure breaker', async () => {
+    const { buildSyncCapacityUpdate } = await import('@/lib/knowledge/connectors/sync-engine')
+    const now = new Date('2026-08-20T00:00:00.000Z')
+
+    expect(buildSyncCapacityUpdate(now, 2, 'source is too large')).toEqual({
+      status: 'error',
+      lastSyncError: 'source is too large',
+      nextSyncAt: null,
+      consecutiveFailures: 2,
+      syncLockToken: null,
+      syncLockLeaseAt: null,
+      updatedAt: now,
+    })
+  })
+})
+
 describe('sync lock lease', () => {
   const now = new Date('2026-08-20T00:00:00.000Z')
 
@@ -1463,6 +2327,16 @@ describe('buildSyncSuccessUpdate', () => {
     expect(update.status).toBe('active')
     expect(update.consecutiveFailures).toBe(0)
   })
+
+  it('preserves the incremental watermark when source work failed', async () => {
+    const { buildSyncSuccessUpdate } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    const update = buildSyncSuccessUpdate(now, 42, null, null, false)
+
+    expect(update).not.toHaveProperty('lastSyncAt')
+    expect(update.status).toBe('active')
+    expect(update.nextSyncAt).toBeNull()
+  })
 })
 
 describe('completeSyncLog', () => {
@@ -1479,7 +2353,9 @@ describe('completeSyncLog', () => {
       docsUpdated: 0,
       docsDeleted: 0,
       docsUnchanged: 0,
+      docsSkipped: 0,
       docsFailed: 0,
+      processingDispatch: { requested: 0, accepted: 0, failed: 0 },
     })
 
     const where = dbChainMockFns.where.mock.calls[0][0]
@@ -1505,6 +2381,99 @@ describe('completeSyncLog', () => {
           node.right === 'log-1'
       )
     ).toBe(true)
+  })
+
+  it('persists skipped and failed source outcomes separately', async () => {
+    const { completeSyncLog } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    await completeSyncLog('log-1', 'completed', {
+      docsAdded: 0,
+      docsUpdated: 0,
+      docsDeleted: 0,
+      docsUnchanged: 0,
+      docsSkipped: 3,
+      docsFailed: 2,
+      processingDispatch: { requested: 0, accepted: 0, failed: 0 },
+    })
+
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ docsSkipped: 3, docsFailed: 2 })
+    )
+  })
+})
+
+describe('completeSuccessfulSync', () => {
+  const RESULT = {
+    docsAdded: 1,
+    docsUpdated: 0,
+    docsDeleted: 0,
+    docsUnchanged: 0,
+    docsSkipped: 0,
+    docsFailed: 1,
+    processingDispatch: { requested: 0, accepted: 0, failed: 0 },
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('commits the completed log and connector state in one guarded transaction', async () => {
+    const { completeSuccessfulSync } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])
+    queueTableRows(schemaMock.knowledgeConnector, [{ id: 'c-1' }])
+    queueTableRows(schemaMock.document, [{ count: 4 }])
+    dbChainMockFns.returning
+      .mockResolvedValueOnce([{ id: 'log-1' }])
+      .mockResolvedValueOnce([{ id: 'c-1' }])
+
+    await expect(completeSuccessfulSync('c-1', 'kb-1', 'log-1', 60, RESULT, null)).resolves.toBe(
+      true
+    )
+
+    expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(1)
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'completed', docsFailed: 1 })
+    )
+    const connectorUpdate = dbChainMockFns.set.mock.calls.find(
+      (call) => (call[0] as Record<string, unknown> | undefined)?.status === 'active'
+    )?.[0] as Record<string, unknown> | undefined
+    expect(connectorUpdate).toBeDefined()
+    expect(connectorUpdate).not.toHaveProperty('lastSyncAt')
+  })
+
+  it('publishes neither terminal state when lock ownership is gone', async () => {
+    const { completeSuccessfulSync } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])
+    queueTableRows(schemaMock.knowledgeConnector, [])
+
+    await expect(completeSuccessfulSync('c-1', 'kb-1', 'log-1', 60, RESULT, null)).resolves.toBe(
+      false
+    )
+
+    expect(dbChainMockFns.set).not.toHaveBeenCalled()
+  })
+
+  it('does not publish connector state when the guarded log close is refused', async () => {
+    const { completeSuccessfulSync } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])
+    queueTableRows(schemaMock.knowledgeConnector, [{ id: 'c-1' }])
+    queueTableRows(schemaMock.document, [{ count: 4 }])
+    dbChainMockFns.returning.mockResolvedValueOnce([])
+
+    await expect(completeSuccessfulSync('c-1', 'kb-1', 'log-1', 60, RESULT, null)).resolves.toBe(
+      false
+    )
+
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'completed' })
+    )
+    expect(dbChainMockFns.set).not.toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'active' })
+    )
   })
 })
 
@@ -1640,8 +2609,7 @@ describe('markSyncSuperseded', () => {
       '@/lib/knowledge/connectors/sync-engine'
     )
 
-    // The task wrapper reports `success: !result.error`.
-    expect(markSyncSuperseded(result).error).toBe(SUPERSEDED_SYNC_ERROR)
+    expect(markSyncSuperseded(result).skipReason).toBe(SUPERSEDED_SYNC_ERROR)
   })
 
   it('preserves the document counters of the discarded run', async () => {
@@ -1858,6 +2826,29 @@ describe('heartbeatSyncLock', () => {
     dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'c-1' }])
     expect(await heartbeatSyncLock('c-1', 'run-a')).toBe(true)
   })
+
+  it('can require the connector to remain live before destructive follow-up work', async () => {
+    const { heartbeatLiveSyncLock } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'c-1' }])
+    expect(await heartbeatLiveSyncLock('c-1', 'run-a')).toBe(true)
+
+    const where = dbChainMockFns.where.mock.calls[0][0]
+    expect(
+      hasMockCondition(
+        where,
+        (node: MockCondition) =>
+          node.type === 'isNull' && node.column === schemaMock.knowledgeConnector.archivedAt
+      )
+    ).toBe(true)
+    expect(
+      hasMockCondition(
+        where,
+        (node: MockCondition) =>
+          node.type === 'isNull' && node.column === schemaMock.knowledgeConnector.deletedAt
+      )
+    ).toBe(true)
+  })
 })
 
 describe('executeSync heartbeats during the listing phase', () => {
@@ -1921,7 +2912,7 @@ describe('executeSync heartbeats during the listing phase', () => {
 
     // Aborted on the beat before page 2 rather than paging on under a lost lock.
     expect(mockListDocuments).toHaveBeenCalledTimes(1)
-    expect(result.error).toBe('sync_superseded')
+    expect(result.skipReason).toBe('sync_superseded')
   })
 
   it('does not beat when pages return faster than the interval', async () => {
@@ -2053,10 +3044,15 @@ describe('executeSync hard-delete reconciliation', () => {
     vi.useRealTimers()
   })
 
-  /** Primes every read the reconciliation path makes, in the order it makes them. */
+  /**
+   * Primes every reconciliation read in order, including the unconditional
+   * ownership check inside the destructive transaction.
+   */
   function primeReconciliation() {
     queueTableRows(schemaMock.knowledgeConnector, [CONNECTOR])
+    queueTableRows(schemaMock.knowledgeConnector, [{ id: 'c-1' }])
     queueTableRows(schemaMock.knowledgeBase, [{ userId: 'u-1', workspaceId: 'ws-1' }])
+    queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])
     // hasTombstonedDocs, then existingDocs / tombstonedDocs / excludedDocs.
     queueTableRows(schemaMock.document, [])
     queueTableRows(schemaMock.document, ownedDocs)
@@ -2067,7 +3063,7 @@ describe('executeSync hard-delete reconciliation', () => {
       schemaMock.document,
       missingIds.map((id) => ({ id }))
     )
-    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'c-1' }])
+    dbChainMockFns.returning.mockResolvedValueOnce([CONNECTOR])
 
     mockListDocuments.mockResolvedValue({
       documents: ownedDocs.slice(0, LISTED_DOC_COUNT).map((d) => ({
@@ -2108,6 +3104,30 @@ describe('executeSync hard-delete reconciliation', () => {
       expect((call[0] as string[]).length).toBeLessThanOrEqual(25)
     }
     expect(calls.flatMap((call) => call[0] as string[])).toEqual(missingIds)
+  })
+
+  it('stops deletion between chunks when the sync lock was reclaimed', async () => {
+    const { executeSync } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { SYNC_LOCK_HEARTBEAT_INTERVAL_MS } = await import(
+      '@/lib/knowledge/connectors/sync-limits'
+    )
+    const { hardDeleteDocuments } = await import('@/lib/knowledge/documents/service')
+
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-25T00:00:00.000Z'))
+    primeReconciliation()
+    vi.mocked(hardDeleteDocuments).mockImplementation(async () => {
+      vi.setSystemTime(new Date(Date.now() + SYNC_LOCK_HEARTBEAT_INTERVAL_MS + 1))
+      return 0
+    })
+
+    const result = await executeSync('c-1', {
+      billingAttribution: { workspaceId: 'ws-1' } as never,
+      fullSync: true,
+    })
+
+    expect(hardDeleteDocuments).toHaveBeenCalledTimes(1)
+    expect(result.skipReason).toBe('sync_superseded')
   })
 
   it('bounds and orders the stuck-document sweep instead of draining a backlog at once', async () => {
@@ -2166,7 +3186,7 @@ describe('executeSync hard-delete reconciliation', () => {
      * without releasing the token and lease left a row that was neither locked
      * nor reclaimable — the reaper only looks at `syncing` rows.
      */
-    expect(result.error).toBe('knowledge_base_deleted')
+    expect(result.skipReason).toBe('knowledge_base_deleted')
     expect(dbChainMockFns.set).toHaveBeenCalledWith(
       expect.objectContaining({
         status: 'error',
@@ -2176,24 +3196,11 @@ describe('executeSync hard-delete reconciliation', () => {
     )
   })
 
-  it('lets a heartbeat run between chunks of a long purge', async () => {
+  it('passes a transactional sync-lock guard to every hard-delete chunk', async () => {
     const { executeSync } = await import('@/lib/knowledge/connectors/sync-engine')
     const { hardDeleteDocuments } = await import('@/lib/knowledge/documents/service')
-    const { SYNC_LOCK_HEARTBEAT_INTERVAL_MS } = await import(
-      '@/lib/knowledge/connectors/sync-limits'
-    )
-
-    vi.useFakeTimers()
-    vi.setSystemTime(new Date('2026-08-20T00:00:00.000Z'))
     primeReconciliation()
-
-    // Each chunk takes longer than the heartbeat interval, which is the case
-    // chunking exists for: without a beat between them the reaper reclaims a
-    // connector whose purge is still running.
-    vi.mocked(hardDeleteDocuments).mockImplementation(async () => {
-      vi.setSystemTime(new Date(Date.now() + SYNC_LOCK_HEARTBEAT_INTERVAL_MS + 1_000))
-      return 0
-    })
+    vi.mocked(hardDeleteDocuments).mockResolvedValue(0)
     dbChainMockFns.returning.mockResolvedValue([{ id: 'c-1' }])
 
     await executeSync('c-1', {
@@ -2201,11 +3208,13 @@ describe('executeSync hard-delete reconciliation', () => {
       fullSync: true,
     })
 
-    const beats = dbChainMockFns.set.mock.calls.filter(
-      (call) => (call[0] as Record<string, unknown> | undefined)?.syncLockLeaseAt instanceof Date
-    )
-    // One for the lock acquisition, then at least one more from inside the loop.
-    expect(beats.length).toBeGreaterThan(1)
+    for (const call of vi.mocked(hardDeleteDocuments).mock.calls) {
+      expect(call[4]).toEqual({
+        connectorId: 'c-1',
+        knowledgeBaseId: 'kb-1',
+        syncLockToken: expect.any(String),
+      })
+    }
   })
 })
 
@@ -2215,7 +3224,9 @@ describe('completeSyncLog ownership guard', () => {
     docsUpdated: 0,
     docsDeleted: 0,
     docsUnchanged: 0,
+    docsSkipped: 0,
     docsFailed: 0,
+    processingDispatch: { requested: 0, accepted: 0, failed: 0 },
   }
 
   beforeEach(() => {
@@ -2346,7 +3357,7 @@ describe('executeSync terminal exits under a lost lock', () => {
     dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'c-1' }])
   }
 
-  it('skips the success state write when its guarded log close is refused', async () => {
+  it('skips the success state write when the terminal knowledge-base lock is refused', async () => {
     const { executeSync } = await import('@/lib/knowledge/connectors/sync-engine')
 
     primeLockedRun()
@@ -2360,32 +3371,22 @@ describe('executeSync terminal exits under a lost lock', () => {
     queueTableRows(schemaMock.knowledgeConnector, [
       { connectorArchivedAt: null, connectorDeletedAt: null, kbDeletedAt: null },
     ])
-    // Every later `.returning()` falls through to the empty default, so the
-    // guarded log close matches no row — the run no longer owns its outcome.
     mockListDocuments.mockResolvedValue({ documents: [], hasMore: false })
 
     const result = await executeSync('c-1', {
       billingAttribution: { workspaceId: 'ws-1' } as never,
     })
 
-    expect(result.error).toBe('sync_superseded')
+    expect(result.skipReason).toBe('sync_superseded')
 
     /**
-     * A refused close means the run no longer owns the outcome it was about to
-     * publish, which is exactly what the terminal connector write would have
-     * rejected two statements later. Short-circuiting there keeps the reported
-     * outcome identical while skipping the intervening document count.
+     * Refusing the first terminal lock prevents the completed log and connector
+     * state from becoming visible independently.
      */
     expect(dbChainMockFns.set).not.toHaveBeenCalledWith(
       expect.objectContaining({ status: 'active', consecutiveFailures: 0 })
     )
-
-    // The success call site is the one that must ask for the guard.
-    expect(
-      dbChainMockFns.where.mock.calls.some((call) =>
-        hasMockCondition(call[0], (node: MockCondition) => node.type === 'exists')
-      )
-    ).toBe(true)
+    expect(dbChainMockFns.for).toHaveBeenCalledWith('update')
   })
 
   it('releases the lock on a connector archived out from under the run', async () => {
@@ -2424,7 +3425,7 @@ describe('executeSync terminal exits under a lost lock', () => {
       billingAttribution: { workspaceId: 'ws-1' } as never,
     })
 
-    expect(result.error).toBe('Connector deleted during sync')
+    expect(result.skipReason).toBe('connector_deleted_during_sync')
 
     /**
      * This exit wrote nothing to the connector row, leaving it `syncing` with a
