@@ -3,6 +3,7 @@ import type {
   ElasticsearchIndexDocumentParams,
 } from '@/tools/elasticsearch/types'
 import { buildAuthHeaders, buildBaseUrl, safeIndexPathSegment } from '@/tools/elasticsearch/utils'
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
@@ -14,6 +15,7 @@ export const indexDocumentTool: ToolConfig<
   name: 'Elasticsearch Index Document',
   description: 'Index (create or update) a document in Elasticsearch.',
   version: '1.0.0',
+  errorExtractor: ErrorExtractorId.ELASTICSEARCH_ERRORS,
 
   params: {
     deploymentType: {

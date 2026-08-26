@@ -153,12 +153,14 @@ describe('safeUrlPath', () => {
   })
 
   /**
-   * The whole-value trim is retained for copy-paste hygiene, so whitespace at
-   * the very start or end of the *entire* value is still removed. That is the
-   * one remaining spelling this helper cannot address; whitespace anywhere
-   * inside the value now survives.
+   * By DEFAULT the whole-value trim is retained for copy-paste hygiene across
+   * the ~700 call sites that rely on it, so whitespace at the very start or
+   * end of the *entire* value is removed. Whitespace anywhere inside the value
+   * survives. A caller whose provider treats outer whitespace as part of the
+   * key — Supabase Storage does — opts out with `preserveOuterWhitespace`,
+   * covered in the options describe below.
    */
-  it.concurrent('still trims only at the very edges of the whole value', () => {
+  it.concurrent('still trims only at the very edges of the whole value by default', () => {
     expect(safeUrlPath(' a/b.txt ', 'path')).toBe('a/b.txt')
     expect(safeUrlPath('a/ b .txt', 'path')).toBe('a/%20b%20.txt')
   })
@@ -296,5 +298,89 @@ describe('non-string inputs', () => {
       /id/
     )
     expect(() => safeUrlPath({ toString: () => 'a/../b' } as unknown as string, 'id')).toThrow(/id/)
+  })
+})
+
+/**
+ * The opt-in relaxations exist for exactly one provider fact: Supabase
+ * Storage's server-side key allowlist,
+ * `/^[A-Za-z0-9_/!.*'() &$=@;:+,?-]*$/` (`supabase/storage`
+ * `src/storage/limits.ts`). It permits `/` freely and never collapses runs of
+ * it, and it includes a literal space, so `a//b`, `/leading`, `trailing/`, and
+ * `' report.csv'` are all real, distinct, addressable objects. Both options
+ * default to off, so every other call site is byte-identical.
+ */
+describe('safeUrlPath options', () => {
+  const STORAGE = { allowEmptySegments: true, preserveOuterWhitespace: true } as const
+
+  it.concurrent('defaults to the strict behavior when options are omitted or empty', () => {
+    for (const options of [undefined, {}]) {
+      expect(() => safeUrlPath('a//b', 'path', options)).toThrow(/path/)
+      expect(() => safeUrlPath('/leading', 'path', options)).toThrow(/path/)
+      expect(() => safeUrlPath('trailing/', 'path', options)).toThrow(/path/)
+      expect(safeUrlPath(' a/b.txt ', 'path', options)).toBe('a/b.txt')
+    }
+  })
+
+  it.concurrent.each([
+    ['a//b', 'a//b'],
+    ['/leading', '/leading'],
+    ['trailing/', 'trailing/'],
+    ['a//b//c', 'a//b//c'],
+    ['/', '/'],
+  ] as const)('allowEmptySegments keeps %j as %j', (value, expected) => {
+    expect(safeUrlPath(value, 'path', { allowEmptySegments: true })).toBe(expected)
+  })
+
+  it.concurrent.each([
+    [' report.csv', '%20report.csv'],
+    ['report.csv ', 'report.csv%20'],
+    [' a/b ', '%20a/b%20'],
+    [' ', '%20'],
+  ] as const)('preserveOuterWhitespace keeps %j as %j', (value, expected) => {
+    expect(safeUrlPath(value, 'path', { preserveOuterWhitespace: true })).toBe(expected)
+  })
+
+  it.concurrent('still rejects a genuinely empty value under both options', () => {
+    expect(() => safeUrlPath('', 'path', STORAGE)).toThrow(/path is required/)
+  })
+
+  /**
+   * Neither option touches the dot-segment check, which is an EXACT match on
+   * the segment — the only spelling the WHATWG parser actually removes.
+   */
+  it.concurrent.each(['a//../b', '/..', '../', '..', '.', 'a/../b', '/a/./b', '..//..'] as const)(
+    'still rejects the dot segment in %j under storage options',
+    (value) => {
+      expect(() => safeUrlPath(value, 'path', STORAGE)).toThrow(/path/)
+    }
+  )
+
+  it.concurrent('still rejects a backslash under storage options', () => {
+    expect(() => safeUrlPath('a\\..\\b', 'path', STORAGE)).toThrow(/backslash/)
+  })
+
+  it.concurrent.each(['a//b', '/leading', 'trailing/', ' report.csv', 'a/ b /c'] as const)(
+    'the URL parser preserves %j verbatim under storage options',
+    (value) => {
+      const url = new URL(`${ORIGIN}/storage/v1/object/bkt/${safeUrlPath(value, 'path', STORAGE)}`)
+
+      expect(url.pathname).toBe(
+        `/storage/v1/object/bkt/${value.split('/').map(encodeURIComponent).join('/')}`
+      )
+      expect(url.pathname.startsWith('/storage/v1/object/bkt/')).toBe(true)
+      expect(url.hash).toBe('')
+      expect(url.search).toBe('')
+    }
+  )
+
+  it.concurrent('keeps the null/undefined rejection and number coercion', () => {
+    expect(safeUrlPath(12345, 'path', STORAGE)).toBe('12345')
+    expect(() => safeUrlPath(null as unknown as string, 'path', STORAGE)).toThrow(
+      /path is required/
+    )
+    expect(() => safeUrlPath(undefined as unknown as string, 'path', STORAGE)).toThrow(
+      /path is required/
+    )
   })
 })

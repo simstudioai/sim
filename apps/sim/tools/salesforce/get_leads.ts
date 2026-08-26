@@ -1,8 +1,21 @@
 import type { SalesforceGetLeadsParams, SalesforceGetLeadsResponse } from '@/tools/salesforce/types'
 import { QUERY_PAGING_OUTPUT, RESPONSE_METADATA_OUTPUT } from '@/tools/salesforce/types'
-import { extractErrorMessage, getInstanceUrl, requireId } from '@/tools/salesforce/utils'
+import {
+  extractErrorMessage,
+  getInstanceUrl,
+  requireId,
+  sanitizeSoqlFieldList,
+  sanitizeSoqlLimit,
+  sanitizeSoqlOrderBy,
+} from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
+
+/** Field list used when the caller does not supply `fields`. */
+const DEFAULT_FIELDS = 'Id,FirstName,LastName,Company,Email,Phone,Status,LeadSource'
+
+/** Sort clause used when the caller does not supply `orderBy`. */
+const DEFAULT_ORDER_BY = 'LastName ASC'
 
 export const salesforceGetLeadsTool: ToolConfig<
   SalesforceGetLeadsParams,
@@ -33,7 +46,7 @@ export const salesforceGetLeadsTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum number of results to return (default: 100)',
+      description: 'Maximum number of results to return (default: 100, max: 2000)',
     },
     fields: {
       type: 'string',
@@ -54,13 +67,12 @@ export const salesforceGetLeadsTool: ToolConfig<
       const instanceUrl = getInstanceUrl(params.idToken, params.instanceUrl)
       if (params.leadId) {
         const leadId = requireId(params.leadId, 'Lead ID')
-        const fields =
-          params.fields || 'Id,FirstName,LastName,Company,Email,Phone,Status,LeadSource'
+        const fields = sanitizeSoqlFieldList(params.fields, DEFAULT_FIELDS)
         return `${instanceUrl}/services/data/v59.0/sobjects/Lead/${safeUrlPathSegment(leadId, 'leadId')}?fields=${encodeURIComponent(fields)}`
       }
-      const limit = params.limit ? Number.parseInt(params.limit) : 100
-      const fields = params.fields || 'Id,FirstName,LastName,Company,Email,Phone,Status,LeadSource'
-      const orderBy = params.orderBy || 'LastName ASC'
+      const limit = sanitizeSoqlLimit(params.limit)
+      const fields = sanitizeSoqlFieldList(params.fields, DEFAULT_FIELDS)
+      const orderBy = sanitizeSoqlOrderBy(params.orderBy, DEFAULT_ORDER_BY)
       const query = `SELECT ${fields} FROM Lead ORDER BY ${orderBy} LIMIT ${limit}`
       return `${instanceUrl}/services/data/v59.0/query?q=${encodeURIComponent(query)}`
     },

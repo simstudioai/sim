@@ -30,6 +30,13 @@ export interface LinkedInProfileOutput {
 export interface SharePostParams {
   accessToken: string
   text: string
+  /**
+   * `com.linkedin.ugc.MemberNetworkVisibility`. The UGC Post API reference documents four values —
+   * `PUBLIC`, `CONNECTIONS`, `LOGGED_IN` and `CONTAINER`. `CONTAINER` is deliberately excluded:
+   * it delegates visibility to the owner of a container entity (a LinkedIn Group, for example),
+   * and this tool posts as `urn:li:person:` with no `containerEntity` on the body, so there is
+   * nothing for LinkedIn to delegate to.
+   */
   visibility?: 'PUBLIC' | 'CONNECTIONS' | 'LOGGED_IN'
 }
 

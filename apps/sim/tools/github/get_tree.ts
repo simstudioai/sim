@@ -50,7 +50,7 @@ export const getTreeTool: ToolConfig<GetTreeParams, TreeResponse> = {
       const addressesRoot = rawPath === '' || rawPath === '/'
       const path = addressesRoot ? '' : safeGithubContentsPath(rawPath, 'path')
       const baseUrl = `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/contents/${path}`
-      return params.ref ? `${baseUrl}?ref=${params.ref}` : baseUrl
+      return params.ref ? `${baseUrl}?ref=${encodeURIComponent(params.ref)}` : baseUrl
     },
     method: 'GET',
     headers: (params) => ({

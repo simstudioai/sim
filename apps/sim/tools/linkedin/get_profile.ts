@@ -39,7 +39,8 @@ export const linkedInGetProfileTool: ToolConfig<GetProfileParams, GetProfileResp
         name: { type: 'string', description: 'Full display name', optional: true },
         email: {
           type: 'string',
-          description: 'Primary email address. Present only when the `email` scope was granted',
+          description:
+            'Primary email address. Requires the `email` scope, and LinkedIn documents the claim as optional — it may be absent even when the scope was granted',
           optional: true,
         },
         picture: {

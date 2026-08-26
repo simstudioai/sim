@@ -65,6 +65,24 @@ describe('github_job_logs', () => {
     )
   })
 
+  it('accepts a numeric id an LLM emitted as a string', () => {
+    const url = jobLogsTool.request.url as (params: JobLogsParams) => string
+
+    expect(url({ ...BASE_PARAMS, job_id: '123' as unknown as number })).toBe(
+      'https://api.github.com/repos/octo/demo/actions/jobs/123/logs'
+    )
+  })
+
+  it('still rejects a non-numeric id after coercion', () => {
+    const url = jobLogsTool.request.url as (params: JobLogsParams) => string
+
+    for (const job_id of ['..', '%2e%2e', '', '-1', ' ']) {
+      expect(() => url({ ...BASE_PARAMS, job_id: job_id as unknown as number })).toThrow(
+        /job_id must be a positive integer/
+      )
+    }
+  })
+
   it('returns a short log whole', async () => {
     const result = await jobLogsTool.transformResponse!(logResponse('boom\n'), BASE_PARAMS)
 

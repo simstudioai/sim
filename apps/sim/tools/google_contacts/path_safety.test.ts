@@ -46,10 +46,16 @@ const REJECTED = [
 /** Encoding already neutralizes these; they must pass but never reshape the path. */
 const NEUTRALIZED = ['%2e%2e', '..%2f..', 'x?foo=attacker'] as const
 
+/**
+ * `people.get`, `people.updateContact`, and `people.deleteContact` accept only
+ * `people/*` resource names, so every multi-segment fixture here is one — a
+ * `contactGroups/*` value would exercise the guard while implying a shape the
+ * API rejects.
+ */
 const LEGITIMATE = [
   'people/c123',
   'people/c8384726384726384',
-  'contactGroups/myContacts',
+  'people/c1234567890123456789',
   '..foo',
   'foo..',
 ] as const

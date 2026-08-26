@@ -409,6 +409,29 @@ describe('serper searchTool.request.url', () => {
   })
 })
 
+describe('serper searchTool.request.body', () => {
+  function body(params: Record<string, unknown>): Record<string, unknown> {
+    const build = searchTool.request.body as (p: Record<string, unknown>) => Record<string, unknown>
+    return build({ query: 'q', apiKey: 'k', ...params })
+  }
+
+  it('forwards a numeric num', () => {
+    expect(body({ num: 20 }).num).toBe(20)
+    expect(body({ num: '20' }).num).toBe(20)
+  })
+
+  it('omits num entirely when it is not a finite number', () => {
+    for (const num of ['ten', 'a lot', {}, [1, 2]]) {
+      expect(body({ num })).not.toHaveProperty('num')
+    }
+  })
+
+  it('omits num when it is absent or blank', () => {
+    expect(body({})).not.toHaveProperty('num')
+    expect(body({ num: '' })).not.toHaveProperty('num')
+  })
+})
+
 describe('serper searchTool /search extras', () => {
   const searchBody = {
     knowledgeGraph: {

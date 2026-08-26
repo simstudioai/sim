@@ -3,6 +3,7 @@ import type {
   ElasticsearchClusterHealthResponse,
 } from '@/tools/elasticsearch/types'
 import { buildAuthHeaders, buildBaseUrl, normalizeEsDuration } from '@/tools/elasticsearch/utils'
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { ToolConfig } from '@/tools/types'
 
 export const clusterHealthTool: ToolConfig<
@@ -13,6 +14,7 @@ export const clusterHealthTool: ToolConfig<
   name: 'Elasticsearch Cluster Health',
   description: 'Get the health status of the Elasticsearch cluster.',
   version: '1.0.0',
+  errorExtractor: ErrorExtractorId.ELASTICSEARCH_ERRORS,
 
   params: {
     deploymentType: {

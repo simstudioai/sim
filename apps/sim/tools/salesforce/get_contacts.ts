@@ -4,11 +4,24 @@ import type {
   SalesforceGetContactsResponse,
 } from '@/tools/salesforce/types'
 import { QUERY_PAGING_OUTPUT, RESPONSE_METADATA_OUTPUT } from '@/tools/salesforce/types'
-import { extractErrorMessage, getInstanceUrl, requireId } from '@/tools/salesforce/utils'
+import {
+  extractErrorMessage,
+  getInstanceUrl,
+  requireId,
+  sanitizeSoqlFieldList,
+  sanitizeSoqlLimit,
+  sanitizeSoqlOrderBy,
+} from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('SalesforceContacts')
+
+/** Field list used when the caller does not supply `fields`. */
+const DEFAULT_FIELDS = 'Id,FirstName,LastName,Email,Phone,AccountId,Title,Department'
+
+/** Sort clause used when the caller does not supply `orderBy`. */
+const DEFAULT_ORDER_BY = 'LastName ASC'
 
 export const salesforceGetContactsTool: ToolConfig<
   SalesforceGetContactsParams,
@@ -62,15 +75,14 @@ export const salesforceGetContactsTool: ToolConfig<
       // Single contact by ID
       if (params.contactId) {
         const contactId = requireId(params.contactId, 'Contact ID')
-        const fields =
-          params.fields || 'Id,FirstName,LastName,Email,Phone,AccountId,Title,Department'
+        const fields = sanitizeSoqlFieldList(params.fields, DEFAULT_FIELDS)
         return `${instanceUrl}/services/data/v59.0/sobjects/Contact/${safeUrlPathSegment(contactId, 'contactId')}?fields=${encodeURIComponent(fields)}`
       }
 
       // List contacts with SOQL query
-      const limit = params.limit ? Number.parseInt(params.limit) : 100
-      const fields = params.fields || 'Id,FirstName,LastName,Email,Phone,AccountId,Title,Department'
-      const orderBy = params.orderBy || 'LastName ASC'
+      const limit = sanitizeSoqlLimit(params.limit)
+      const fields = sanitizeSoqlFieldList(params.fields, DEFAULT_FIELDS)
+      const orderBy = sanitizeSoqlOrderBy(params.orderBy, DEFAULT_ORDER_BY)
       const query = `SELECT ${fields} FROM Contact ORDER BY ${orderBy} LIMIT ${limit}`
       const encodedQuery = encodeURIComponent(query)
 

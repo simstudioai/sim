@@ -3,6 +3,7 @@ import type {
   ElasticsearchBulkResponse,
 } from '@/tools/elasticsearch/types'
 import { buildAuthHeaders, buildBaseUrl, safeIndexPathSegment } from '@/tools/elasticsearch/utils'
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { ToolConfig } from '@/tools/types'
 
 export const bulkTool: ToolConfig<ElasticsearchBulkParams, ElasticsearchBulkResponse> = {
@@ -11,6 +12,7 @@ export const bulkTool: ToolConfig<ElasticsearchBulkParams, ElasticsearchBulkResp
   description:
     'Perform multiple index, create, delete, or update operations in a single request for high performance.',
   version: '1.0.0',
+  errorExtractor: ErrorExtractorId.ELASTICSEARCH_ERRORS,
 
   params: {
     deploymentType: {

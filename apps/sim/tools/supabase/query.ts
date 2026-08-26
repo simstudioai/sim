@@ -1,6 +1,6 @@
 import { validateDatabaseIdentifier } from '@/lib/core/security/input-validation'
 import type { SupabaseQueryParams, SupabaseQueryResponse } from '@/tools/supabase/types'
-import { supabaseBaseUrl } from '@/tools/supabase/utils'
+import { safeQueryFragment, supabaseBaseUrl } from '@/tools/supabase/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const queryTool: ToolConfig<SupabaseQueryParams, SupabaseQueryResponse> = {
@@ -76,7 +76,7 @@ export const queryTool: ToolConfig<SupabaseQueryParams, SupabaseQueryResponse> =
 
       // Add filters if provided - using PostgREST syntax
       if (params.filter?.trim()) {
-        url += `&${params.filter.trim()}`
+        url += `&${safeQueryFragment(params.filter)}`
       }
 
       // Add order by if provided
@@ -96,7 +96,7 @@ export const queryTool: ToolConfig<SupabaseQueryParams, SupabaseQueryResponse> =
           orderParam = `${orderParam}.asc`
         }
 
-        url += `&order=${orderParam}`
+        url += `&order=${safeQueryFragment(orderParam, 'orderBy')}`
       }
 
       // Add limit if provided

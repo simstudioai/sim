@@ -83,6 +83,7 @@ export const LinkedInBlock: BlockConfig<LinkedInResponse> = {
       options: [
         { label: 'Public', id: 'PUBLIC' },
         { label: 'Connections Only', id: 'CONNECTIONS' },
+        { label: 'Logged-In Members Only', id: 'LOGGED_IN' },
       ],
       condition: {
         field: 'operation',
@@ -126,7 +127,10 @@ export const LinkedInBlock: BlockConfig<LinkedInResponse> = {
     operation: { type: 'string', description: 'Operation to perform' },
     oauthCredential: { type: 'string', description: 'LinkedIn access token' },
     text: { type: 'string', description: 'Post text content' },
-    visibility: { type: 'string', description: 'Post visibility (PUBLIC or CONNECTIONS)' },
+    visibility: {
+      type: 'string',
+      description: 'Post visibility (PUBLIC, CONNECTIONS, or LOGGED_IN)',
+    },
   },
   outputs: {
     success: { type: 'boolean', description: 'Operation success status' },

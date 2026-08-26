@@ -30,7 +30,11 @@ export const SERPER_SEARCH_RESULT_OUTPUT_PROPERTIES = {
     optional: true,
   },
   position: { type: 'number', description: 'Position in search results' },
-  date: { type: 'string', description: 'Publication date (news/videos)', optional: true },
+  date: {
+    type: 'string',
+    description: 'Publication date (search/news/videos)',
+    optional: true,
+  },
   imageUrl: {
     type: 'string',
     description: 'Image URL (images/news/videos/shopping)',

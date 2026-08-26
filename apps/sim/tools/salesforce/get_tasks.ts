@@ -1,8 +1,21 @@
 import type { SalesforceGetTasksParams, SalesforceGetTasksResponse } from '@/tools/salesforce/types'
 import { QUERY_PAGING_OUTPUT, RESPONSE_METADATA_OUTPUT } from '@/tools/salesforce/types'
-import { extractErrorMessage, getInstanceUrl, requireId } from '@/tools/salesforce/utils'
+import {
+  extractErrorMessage,
+  getInstanceUrl,
+  requireId,
+  sanitizeSoqlFieldList,
+  sanitizeSoqlLimit,
+  sanitizeSoqlOrderBy,
+} from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
+
+/** Field list used when the caller does not supply `fields`. */
+const DEFAULT_FIELDS = 'Id,Subject,Status,Priority,ActivityDate,WhoId,WhatId,OwnerId'
+
+/** Sort clause used when the caller does not supply `orderBy`. */
+const DEFAULT_ORDER_BY = 'ActivityDate DESC'
 
 export const salesforceGetTasksTool: ToolConfig<
   SalesforceGetTasksParams,
@@ -45,7 +58,7 @@ export const salesforceGetTasksTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum number of results to return (default: 100)',
+      description: 'Maximum number of results to return (default: 100, max: 2000)',
     },
     fields: {
       type: 'string',
@@ -66,13 +79,12 @@ export const salesforceGetTasksTool: ToolConfig<
       const instanceUrl = getInstanceUrl(params.idToken, params.instanceUrl)
       if (params.taskId) {
         const taskId = requireId(params.taskId, 'Task ID')
-        const fields =
-          params.fields || 'Id,Subject,Status,Priority,ActivityDate,WhoId,WhatId,OwnerId'
+        const fields = sanitizeSoqlFieldList(params.fields, DEFAULT_FIELDS)
         return `${instanceUrl}/services/data/v59.0/sobjects/Task/${safeUrlPathSegment(taskId, 'taskId')}?fields=${encodeURIComponent(fields)}`
       }
-      const limit = params.limit ? Number.parseInt(params.limit) : 100
-      const fields = params.fields || 'Id,Subject,Status,Priority,ActivityDate,WhoId,WhatId,OwnerId'
-      const orderBy = params.orderBy || 'ActivityDate DESC'
+      const limit = sanitizeSoqlLimit(params.limit)
+      const fields = sanitizeSoqlFieldList(params.fields, DEFAULT_FIELDS)
+      const orderBy = sanitizeSoqlOrderBy(params.orderBy, DEFAULT_ORDER_BY)
       const query = `SELECT ${fields} FROM Task ORDER BY ${orderBy} LIMIT ${limit}`
       return `${instanceUrl}/services/data/v59.0/query?q=${encodeURIComponent(query)}`
     },

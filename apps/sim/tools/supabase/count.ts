@@ -1,6 +1,6 @@
 import { validateDatabaseIdentifier } from '@/lib/core/security/input-validation'
 import type { SupabaseCountParams, SupabaseCountResponse } from '@/tools/supabase/types'
-import { supabaseBaseUrl } from '@/tools/supabase/utils'
+import { safeQueryFragment, supabaseBaseUrl } from '@/tools/supabase/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const countTool: ToolConfig<SupabaseCountParams, SupabaseCountResponse> = {
@@ -56,7 +56,7 @@ export const countTool: ToolConfig<SupabaseCountParams, SupabaseCountResponse> =
       let url = `${supabaseBaseUrl(params.projectId)}/rest/v1/${encodeURIComponent(params.table)}?select=*`
 
       if (params.filter?.trim()) {
-        url += `&${params.filter.trim()}`
+        url += `&${safeQueryFragment(params.filter)}`
       }
 
       return url

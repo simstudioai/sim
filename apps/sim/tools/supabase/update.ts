@@ -1,6 +1,6 @@
 import { validateDatabaseIdentifier } from '@/lib/core/security/input-validation'
 import type { SupabaseUpdateParams, SupabaseUpdateResponse } from '@/tools/supabase/types'
-import { supabaseBaseUrl } from '@/tools/supabase/utils'
+import { safeQueryFragment, supabaseBaseUrl } from '@/tools/supabase/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const updateTool: ToolConfig<SupabaseUpdateParams, SupabaseUpdateResponse> = {
@@ -56,13 +56,13 @@ export const updateTool: ToolConfig<SupabaseUpdateParams, SupabaseUpdateResponse
 
       let url = `${supabaseBaseUrl(params.projectId)}/rest/v1/${encodeURIComponent(params.table)}?select=*`
 
-      if (params.filter?.trim()) {
-        url += `&${params.filter.trim()}`
-      } else {
+      if (!params.filter?.trim()) {
         throw new Error(
-          'Filter is required for update operations to prevent accidental update of all rows'
+          'filter is required for update operations. It must be present and must not contain "#", but it is not checked for selectivity — a broad filter still updates every row it matches.'
         )
       }
+
+      url += `&${safeQueryFragment(params.filter)}`
 
       return url
     },

@@ -1,6 +1,6 @@
 import { validateDatabaseIdentifier } from '@/lib/core/security/input-validation'
 import type { SupabaseGetRowParams, SupabaseGetRowResponse } from '@/tools/supabase/types'
-import { supabaseBaseUrl } from '@/tools/supabase/utils'
+import { safeQueryFragment, supabaseBaseUrl } from '@/tools/supabase/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const getRowTool: ToolConfig<SupabaseGetRowParams, SupabaseGetRowResponse> = {
@@ -57,11 +57,19 @@ export const getRowTool: ToolConfig<SupabaseGetRowParams, SupabaseGetRowResponse
       const selectColumns = params.select?.trim() || '*'
       let url = `${supabaseBaseUrl(params.projectId)}/rest/v1/${encodeURIComponent(params.table)}?select=${encodeURIComponent(selectColumns)}`
 
-      if (params.filter?.trim()) {
-        url += `&${params.filter.trim()}`
-      }
-
+      /**
+       * `limit=1` is appended BEFORE the caller's filter. Appending it last
+       * put it downstream of any `#` the filter carried, so a fragment in the
+       * filter dropped the limit too and the tool returned the entire table
+       * instead of one row. `safeQueryFragment` now rejects that `#`, but the
+       * ordering keeps the row cap out of reach of anything the caller can
+       * put in the filter.
+       */
       url += `&limit=1`
+
+      if (params.filter?.trim()) {
+        url += `&${safeQueryFragment(params.filter)}`
+      }
 
       return url
     },

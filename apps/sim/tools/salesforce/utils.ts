@@ -325,3 +325,185 @@ export function extractErrorMessage(data: any, status: number, defaultMessage: s
       return `${defaultMessage} (HTTP ${status})`
   }
 }
+
+/**
+ * Thrown when a caller-supplied SOQL fragment fails validation.
+ * Named so the failure is attributable in logs rather than surfacing as an
+ * opaque Salesforce 400 (or, worse, as a silently rewritten statement).
+ */
+export class SoqlValidationError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'SoqlValidationError'
+  }
+}
+
+/**
+ * Maximum child-to-parent relationship levels SOQL allows in a field path.
+ * `Contact.Account.Owner.FirstName` is three levels.
+ * @see https://developer.salesforce.com/docs/atlas.en-us.soql_sosl.meta/soql_sosl/sforce_api_calls_soql_relationships_query_limits.htm
+ */
+const MAX_RELATIONSHIP_LEVELS = 5
+
+/**
+ * A single SOQL identifier: an object, relationship, or field API name.
+ * Salesforce API names start with a letter and contain only letters, digits,
+ * and underscores — which is also what makes the `__c` / `__r` suffixes match.
+ */
+const SOQL_IDENTIFIER = /^[A-Za-z][A-Za-z0-9_]*$/
+
+/** Salesforce's documented per-batch ceiling for the REST `query` resource. */
+const SOQL_MAX_LIMIT = 2000
+
+/** Default row count when the caller does not supply `limit`. */
+const SOQL_DEFAULT_LIMIT = 100
+
+const ORDER_DIRECTIONS = new Set(['ASC', 'DESC'])
+const NULLS_POSITIONS = new Set(['FIRST', 'LAST'])
+
+/**
+ * Points a rejected value at the tool that does accept arbitrary SOQL, so the
+ * guard reads as a routing decision rather than an arbitrary restriction.
+ */
+const ESCAPE_HATCH_HINT =
+  'Use the Salesforce Query tool if you need a full SOQL statement (functions, subqueries, WHERE clauses).'
+
+/**
+ * Validates one dotted field path (`Name`, `Account.Name`, `Custom__r.Value__c`).
+ * @param path - The trimmed field path
+ * @param label - Human-readable parameter name used in the error message
+ * @throws SoqlValidationError if the path is not a plain relationship field path
+ */
+function assertFieldPath(path: string, label: string): void {
+  const segments = path.split('.')
+  if (segments.length > MAX_RELATIONSHIP_LEVELS) {
+    throw new SoqlValidationError(
+      `Invalid ${label}: "${path}" spans ${segments.length} relationship levels; SOQL allows at most ${MAX_RELATIONSHIP_LEVELS}.`
+    )
+  }
+  for (const segment of segments) {
+    if (!SOQL_IDENTIFIER.test(segment)) {
+      throw new SoqlValidationError(
+        `Invalid ${label}: "${path}" is not a Salesforce field API name. Expected names like "Name" or "Account.Name". ${ESCAPE_HATCH_HINT}`
+      )
+    }
+  }
+}
+
+/**
+ * Validates a comma-separated SELECT field list before it is interpolated into
+ * a SOQL statement.
+ *
+ * `fields` is `visibility: 'user-or-llm'`, so a prompt-injected agent controls
+ * it. Because each entry must be a bare field API name — no spaces, quotes,
+ * parentheses, or operators — there is no room to append a clause, open a
+ * subquery, or retarget the FROM object. Anything richer belongs in the
+ * separately-permissioned `salesforce_query` tool.
+ * @param value - The raw `fields` param
+ * @param fallback - The tool's default field list, used when `value` is unset
+ * @returns The normalized, comma-separated field list
+ * @throws SoqlValidationError if any entry is not a plain field API name
+ * @see https://developer.salesforce.com/docs/atlas.en-us.soql_sosl.meta/soql_sosl/sforce_api_calls_soql_select.htm
+ */
+export function sanitizeSoqlFieldList(value: string | undefined, fallback: string): string {
+  const raw = value?.trim() ? value : fallback
+  const fields = raw
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0)
+
+  if (fields.length === 0) {
+    throw new SoqlValidationError('Invalid fields: at least one field API name is required.')
+  }
+  for (const field of fields) {
+    assertFieldPath(field, 'fields')
+  }
+  return fields.join(', ')
+}
+
+/**
+ * Validates a comma-separated ORDER BY clause before interpolation.
+ *
+ * Accepts exactly the documented grammar — `fieldOrderByList {ASC|DESC}
+ * [NULLS {FIRST|LAST}]` — one field path per entry with optional direction and
+ * null placement, and nothing else. Keywords are normalized to upper case so
+ * the emitted statement is stable regardless of how the caller wrote them.
+ * @param value - The raw `orderBy` param
+ * @param fallback - The tool's default order clause, used when `value` is unset
+ * @returns The normalized ORDER BY clause
+ * @throws SoqlValidationError if any entry is not a valid order expression
+ * @see https://developer.salesforce.com/docs/atlas.en-us.soql_sosl.meta/soql_sosl/sforce_api_calls_soql_select_orderby.htm
+ */
+export function sanitizeSoqlOrderBy(value: string | undefined, fallback: string): string {
+  const raw = value?.trim() ? value : fallback
+  const clauses = raw
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0)
+
+  if (clauses.length === 0) {
+    throw new SoqlValidationError('Invalid orderBy: at least one field API name is required.')
+  }
+
+  return clauses
+    .map((clause) => {
+      const tokens = clause.split(/\s+/)
+      const [field, ...rest] = tokens
+      assertFieldPath(field, 'orderBy')
+
+      const parts = [field]
+      let index = 0
+
+      if (rest[index] && ORDER_DIRECTIONS.has(rest[index].toUpperCase())) {
+        parts.push(rest[index].toUpperCase())
+        index += 1
+      }
+      if (rest[index]?.toUpperCase() === 'NULLS') {
+        const position = rest[index + 1]?.toUpperCase()
+        if (!position || !NULLS_POSITIONS.has(position)) {
+          throw new SoqlValidationError(
+            `Invalid orderBy: "${clause}" — NULLS must be followed by FIRST or LAST.`
+          )
+        }
+        parts.push('NULLS', position)
+        index += 2
+      }
+      if (index !== rest.length) {
+        throw new SoqlValidationError(
+          `Invalid orderBy: "${clause}" is not a valid sort expression. Expected "Field [ASC|DESC] [NULLS FIRST|LAST]". ${ESCAPE_HATCH_HINT}`
+        )
+      }
+      return parts.join(' ')
+    })
+    .join(', ')
+}
+
+/**
+ * Validates the row limit before interpolation.
+ *
+ * `Number.parseInt` alone yields `NaN` for junk, which previously emitted
+ * `LIMIT NaN` and an opaque Salesforce 400. This rejects non-integers up front
+ * and enforces the REST `query` resource's documented 2,000-row batch ceiling.
+ * @param value - The raw `limit` param (string from block inputs, number from the LLM)
+ * @returns The validated row count, or the default when unset
+ * @throws SoqlValidationError if the value is not an integer in 1..2000
+ * @see https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/resources_query.htm
+ */
+export function sanitizeSoqlLimit(value: string | number | undefined): number {
+  if (value === undefined || value === null || String(value).trim() === '') {
+    return SOQL_DEFAULT_LIMIT
+  }
+  const raw = String(value).trim()
+  if (!/^\d+$/.test(raw)) {
+    throw new SoqlValidationError(
+      `Invalid limit: "${raw}" is not a whole number. Provide an integer between 1 and ${SOQL_MAX_LIMIT}.`
+    )
+  }
+  const parsed = Number(raw)
+  if (parsed < 1 || parsed > SOQL_MAX_LIMIT) {
+    throw new SoqlValidationError(
+      `Invalid limit: ${parsed} is out of range. Salesforce returns at most ${SOQL_MAX_LIMIT} rows per query batch.`
+    )
+  }
+  return parsed
+}

@@ -3,8 +3,20 @@ import type {
   SalesforceGetAccountsResponse,
 } from '@/tools/salesforce/types'
 import { QUERY_PAGING_OUTPUT, RESPONSE_METADATA_OUTPUT } from '@/tools/salesforce/types'
-import { extractErrorMessage, getInstanceUrl } from '@/tools/salesforce/utils'
+import {
+  extractErrorMessage,
+  getInstanceUrl,
+  sanitizeSoqlFieldList,
+  sanitizeSoqlLimit,
+  sanitizeSoqlOrderBy,
+} from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
+
+/** Field list used when the caller does not supply `fields`. */
+const DEFAULT_FIELDS = 'Id,Name,Type,Industry,BillingCity,BillingState,BillingCountry,Phone,Website'
+
+/** Sort clause used when the caller does not supply `orderBy`. */
+const DEFAULT_ORDER_BY = 'Name ASC'
 
 export const salesforceGetAccountsTool: ToolConfig<
   SalesforceGetAccountsParams,
@@ -63,11 +75,9 @@ export const salesforceGetAccountsTool: ToolConfig<
     url: (params) => {
       const instanceUrl = getInstanceUrl(params.idToken, params.instanceUrl)
 
-      const limit = params.limit ? Number.parseInt(params.limit) : 100
-      const fields =
-        params.fields ||
-        'Id,Name,Type,Industry,BillingCity,BillingState,BillingCountry,Phone,Website'
-      const orderBy = params.orderBy || 'Name ASC'
+      const limit = sanitizeSoqlLimit(params.limit)
+      const fields = sanitizeSoqlFieldList(params.fields, DEFAULT_FIELDS)
+      const orderBy = sanitizeSoqlOrderBy(params.orderBy, DEFAULT_ORDER_BY)
 
       // Build SOQL query
       const query = `SELECT ${fields} FROM Account ORDER BY ${orderBy} LIMIT ${limit}`

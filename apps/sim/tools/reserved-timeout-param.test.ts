@@ -17,6 +17,7 @@ import type { BlockConfig } from '@/blocks/types'
 import { apifyRunActorAsyncTool } from '@/tools/apify/run_actor_async'
 import { apifyRunActorSyncTool } from '@/tools/apify/run_actor_sync'
 import { apifyRunTaskTool } from '@/tools/apify/run_task'
+import { APIFY_SYNC_TRANSPORT_TIMEOUT_MS } from '@/tools/apify/types'
 import { daytonaExecuteCommandTool } from '@/tools/daytona/execute_command'
 import { daytonaRunCodeTool } from '@/tools/daytona/run_code'
 import { newRelicNrqlQueryTool } from '@/tools/new_relic/nrql_query'
@@ -43,6 +44,21 @@ function expectTransportTimeoutCleared(result: Record<string, unknown>) {
 function buildBody(tool: ToolConfig<any, any>, params: Record<string, unknown>) {
   if (!tool.request.body) throw new Error(`${tool.id} has no request body builder`)
   return tool.request.body(params as any) as Record<string, unknown>
+}
+
+/**
+ * Some surfaces legitimately want a transport deadline. The invariant is that it is a
+ * deliberate millisecond constant, never the user's seconds value promoted onto the
+ * reserved key.
+ */
+function expectDeliberateTransportTimeout(
+  result: Record<string, unknown>,
+  expectedMs: number,
+  userSeconds: number
+) {
+  expect(result.timeout).toBe(expectedMs)
+  expect(result.timeout).not.toBe(userSeconds)
+  expect(result.timeout).not.toBe(userSeconds * 1000)
 }
 
 function buildUrl(tool: ToolConfig<any, any>, params: Record<string, unknown>): string {
@@ -131,7 +147,7 @@ describe('apify timeout collision', () => {
     )
   })
 
-  it('maps the subBlock to actorTimeout for actor runs and clears the transport deadline', () => {
+  it('maps the subBlock to actorTimeout for actor runs and never onto the transport', () => {
     const result = transform(ApifyBlock, {
       operation: 'apify_run_actor_sync',
       apiKey: 'k',
@@ -140,10 +156,10 @@ describe('apify timeout collision', () => {
     })
     expect(result.actorTimeout).toBe(10)
     expect(result.taskTimeout).toBeUndefined()
-    expectTransportTimeoutCleared(result)
+    expectDeliberateTransportTimeout(result, APIFY_SYNC_TRANSPORT_TIMEOUT_MS, 10)
   })
 
-  it('maps the subBlock to taskTimeout for task runs and clears the transport deadline', () => {
+  it('maps the subBlock to taskTimeout for task runs and never onto the transport', () => {
     const result = transform(ApifyBlock, {
       operation: 'apify_run_task',
       apiKey: 'k',
@@ -152,7 +168,18 @@ describe('apify timeout collision', () => {
     })
     expect(result.taskTimeout).toBe(10)
     expect(result.actorTimeout).toBeUndefined()
-    expectTransportTimeoutCleared(result)
+    expectDeliberateTransportTimeout(result, APIFY_SYNC_TRANSPORT_TIMEOUT_MS, 10)
+  })
+
+  it('clears the transport deadline for the async run, which is not the sync endpoint', () => {
+    expectTransportTimeoutCleared(
+      transform(ApifyBlock, {
+        operation: 'apify_run_actor_async',
+        apiKey: 'k',
+        actorId: 'me/actor',
+        timeout: '10',
+      })
+    )
   })
 
   it('clears the transport deadline when the subBlock is untouched', () => {

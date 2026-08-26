@@ -8,6 +8,7 @@ import {
   optionalNumber,
   safeIndexPathSegment,
 } from '@/tools/elasticsearch/utils'
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
@@ -19,6 +20,7 @@ export const updateDocumentTool: ToolConfig<
   name: 'Elasticsearch Update Document',
   description: 'Partially update a document in Elasticsearch using doc merge.',
   version: '1.0.0',
+  errorExtractor: ErrorExtractorId.ELASTICSEARCH_ERRORS,
 
   params: {
     deploymentType: {

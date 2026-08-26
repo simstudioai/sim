@@ -1,3 +1,4 @@
+import { safeGithubCompareRef } from '@/tools/github/compare_ref'
 import {
   COMMIT_DATA_OUTPUT,
   COMMIT_FILE_OUTPUT_PROPERTIES,
@@ -103,14 +104,8 @@ export const compareCommitsTool: ToolConfig<CompareCommitsParams, CompareCommits
 
   request: {
     url: (params) => {
-      // `base` and `head` are deliberately interpolated raw. Git refs may contain
-      // `/`, and GitHub additionally documents a cross-fork `USERNAME:BASE...
-      // USERNAME:HEAD` form whose `:` `encodeURIComponent` would mangle into
-      // `%3A`. The docs do not settle the encoding question either way, so a
-      // guard here would risk silently breaking branch comparison; `owner` and
-      // `repo` still pin the request to one repository.
       const url = new URL(
-        `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/compare/${params.base}...${params.head}`
+        `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/compare/${safeGithubCompareRef(params.base, 'base')}...${safeGithubCompareRef(params.head, 'head')}`
       )
       if (params.per_page) url.searchParams.append('per_page', String(params.per_page))
       if (params.page) url.searchParams.append('page', String(params.page))

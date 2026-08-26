@@ -3,6 +3,7 @@ import type {
   ElasticsearchDocumentResponse,
 } from '@/tools/elasticsearch/types'
 import { buildAuthHeaders, buildBaseUrl, safeIndexPathSegment } from '@/tools/elasticsearch/utils'
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
@@ -14,6 +15,7 @@ export const deleteDocumentTool: ToolConfig<
   name: 'Elasticsearch Delete Document',
   description: 'Delete a document from Elasticsearch by ID.',
   version: '1.0.0',
+  errorExtractor: ErrorExtractorId.ELASTICSEARCH_ERRORS,
 
   params: {
     deploymentType: {

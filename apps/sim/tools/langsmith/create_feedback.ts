@@ -38,7 +38,7 @@ export const langsmithCreateFeedbackTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'UUID of the tracing project (session) the feedback belongs to. LangSmith documents this as required: "POST /api/v1/feedback now requires a session_id field in the request body. It was previously optional." Never guess it — supply the sessionId reported by a preceding langsmith_get_run for the same run, or look the project up with GET /api/v1/sessions. A wrong UUID is not validated against the run and mis-files the feedback silently.',
+        'UUID of the tracing project (session) the feedback belongs to. LangSmith\'s OpenAPI spec documents it as required: "session_id is required: it identifies the tracing project the feedback belongs to." Never guess it — supply the sessionId reported by a preceding langsmith_get_run for the same run, or look the project up with GET /api/v1/sessions.',
     },
     key: {
       type: 'string',

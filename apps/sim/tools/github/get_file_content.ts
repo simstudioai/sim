@@ -47,7 +47,7 @@ export const getFileContentTool: ToolConfig<GetFileContentParams, FileContentRes
   request: {
     url: (params) => {
       const baseUrl = `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/contents/${safeGithubContentsPath(params.path, 'path')}`
-      return params.ref ? `${baseUrl}?ref=${params.ref}` : baseUrl
+      return params.ref ? `${baseUrl}?ref=${encodeURIComponent(params.ref)}` : baseUrl
     },
     method: 'GET',
     headers: (params) => ({

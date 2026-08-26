@@ -40,9 +40,11 @@ export type LangsmithFeedbackValue = string | number | boolean | Record<string, 
  *   from feedback whose value was never set. No text field can express "store
  *   JSON null" separately from "left blank", so the blank reading wins.
  * - A number that does not survive `JSON.parse` → `JSON.stringify` unchanged
- *   stays a string. `"1.0"` would become `1` and `"007"` would become `7`,
- *   losing the exact label the user typed, and an id longer than 2^53 (say a
- *   20-digit ticket number) would silently lose its low-order digits.
+ *   stays a string. `"1.0"` would become `1`, losing the exact label the user
+ *   typed, and an id longer than 2^53 (say a 20-digit ticket number) would
+ *   silently lose its low-order digits. A leading-zero label like `"007"` is
+ *   caught one step earlier — leading zeros are invalid JSON, so `JSON.parse`
+ *   throws and the `catch` returns the original string.
  * - An array literal stays a string, since the schema has no array member.
  *
  * Idempotent: a value already coerced by the block layer is returned unchanged.

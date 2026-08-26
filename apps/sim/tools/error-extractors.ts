@@ -496,6 +496,44 @@ const ERROR_EXTRACTORS: ErrorExtractorConfig[] = [
     },
   },
   {
+    id: 'elasticsearch-errors',
+    description:
+      'Elasticsearch error envelope: {error:{type, reason, root_cause[]}}. Elasticsearch names the cause `reason`, not `message`, so the generic nested-error-object extractor finds nothing and stringifies the whole envelope — including the WWW-Authenticate challenge a 401 carries in `error.header`. Also names the 404 bodies that carry no `error` key at all (`found:false`, `result:"not_found"`), which otherwise surfaced as a bare "Not Found"',
+    examples: ['Elasticsearch', 'Elastic Cloud', 'OpenSearch'],
+    extract: (errorInfo) => {
+      const data = errorInfo?.data
+      if (!data || typeof data !== 'object' || Array.isArray(data)) return undefined
+
+      /**
+       * Runs first because a missing-document 404 carries no `error` key at all.
+       * The ordering is deliberately internal to this extractor rather than a
+       * property of where the entry sits in ERROR_EXTRACTORS, so it cannot be
+       * broken by an unrelated reordering. Gated on `_index` — the marker every
+       * Elasticsearch document response carries — so a `found: false` from some
+       * other API cannot be claimed here in the fallback chain.
+       */
+      if (typeof data._index === 'string' && (data.found === false || data.result === 'not_found')) {
+        const id = typeof data._id === 'string' ? data._id : 'the requested id'
+        return `Document "${id}" was not found in index "${data._index}"`
+      }
+
+      const error = data.error
+      if (typeof error === 'string') return error.trim() || undefined
+      if (!error || typeof error !== 'object' || Array.isArray(error)) return undefined
+
+      /**
+       * A `reason` is required before this claims the body. Returning `error.type`
+       * on its own would let this intercept Airtable and Google errors in the
+       * fallback chain, whose `error.type` is a code rather than a message.
+       */
+      const reason = typeof error.reason === 'string' ? error.reason.trim() : ''
+      if (!reason) return undefined
+
+      const type = typeof error.type === 'string' ? error.type.trim() : ''
+      return type && !reason.includes(type) ? `${type}: ${reason}` : reason
+    },
+  },
+  {
     id: 'plain-text-data',
     description: 'Plain text error response',
     examples: ['APIs returning plain text errors like Apollo'],
@@ -596,6 +634,7 @@ export const ErrorExtractorId = {
   CRUNCHBASE_ERRORS: 'crunchbase-errors',
   PITCHBOOK_ERRORS: 'pitchbook-errors',
   SPLUNK_ERRORS: 'splunk-errors',
+  ELASTICSEARCH_ERRORS: 'elasticsearch-errors',
   PLAIN_TEXT_DATA: 'plain-text-data',
   HTTP_STATUS_TEXT: 'http-status-text',
 } as const

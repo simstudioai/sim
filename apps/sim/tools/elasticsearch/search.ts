@@ -8,6 +8,7 @@ import {
   optionalNumber,
   safeIndexPathSegment,
 } from '@/tools/elasticsearch/utils'
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { ToolConfig } from '@/tools/types'
 
 export const searchTool: ToolConfig<ElasticsearchSearchParams, ElasticsearchSearchResponse> = {
@@ -16,6 +17,7 @@ export const searchTool: ToolConfig<ElasticsearchSearchParams, ElasticsearchSear
   description:
     'Search documents in Elasticsearch using Query DSL. Returns matching documents with scores and metadata.',
   version: '1.0.0',
+  errorExtractor: ErrorExtractorId.ELASTICSEARCH_ERRORS,
 
   params: {
     deploymentType: {

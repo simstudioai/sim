@@ -118,7 +118,7 @@ for (const tool of Object.values(salesforceTools).filter(isSalesforceTool)) {
 
 describe('salesforce path-parameter traversal safety', () => {
   it('covers every Salesforce tool parameter that reaches the request path', () => {
-    expect(SITES.length).toBeGreaterThanOrEqual(15)
+    expect(SITES.length).toBe(25)
   })
 
   it('covers the multi-segment pagination cursor', () => {

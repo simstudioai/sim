@@ -274,7 +274,12 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
       }
 
       // Only include optional parameters if they are explicitly set
-      if (params.num) body.num = Number(params.num)
+      /**
+       * `num` is `user-or-llm`, so it can arrive as a non-numeric string. `Number()` alone would
+       * put a JSON `null` on the wire for those; only forward a finite number.
+       */
+      const num = Number(params.num)
+      if (params.num && Number.isFinite(num)) body.num = num
       if (params.gl) body.gl = params.gl
       if (params.hl) body.hl = params.hl
 

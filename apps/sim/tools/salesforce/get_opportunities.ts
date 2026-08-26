@@ -4,11 +4,24 @@ import type {
   SalesforceGetOpportunitiesResponse,
 } from '@/tools/salesforce/types'
 import { QUERY_PAGING_OUTPUT, RESPONSE_METADATA_OUTPUT } from '@/tools/salesforce/types'
-import { extractErrorMessage, getInstanceUrl, requireId } from '@/tools/salesforce/utils'
+import {
+  extractErrorMessage,
+  getInstanceUrl,
+  requireId,
+  sanitizeSoqlFieldList,
+  sanitizeSoqlLimit,
+  sanitizeSoqlOrderBy,
+} from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('SalesforceGetOpportunities')
+
+/** Field list used when the caller does not supply `fields`. */
+const DEFAULT_FIELDS = 'Id,Name,AccountId,Amount,StageName,CloseDate,Probability'
+
+/** Sort clause used when the caller does not supply `orderBy`. */
+const DEFAULT_ORDER_BY = 'CloseDate DESC'
 
 export const salesforceGetOpportunitiesTool: ToolConfig<
   SalesforceGetOpportunitiesParams,
@@ -39,7 +52,7 @@ export const salesforceGetOpportunitiesTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum number of results to return (default: 100)',
+      description: 'Maximum number of results to return (default: 100, max: 2000)',
     },
     fields: {
       type: 'string',
@@ -60,12 +73,12 @@ export const salesforceGetOpportunitiesTool: ToolConfig<
       const instanceUrl = getInstanceUrl(params.idToken, params.instanceUrl)
       if (params.opportunityId) {
         const opportunityId = requireId(params.opportunityId, 'Opportunity ID')
-        const fields = params.fields || 'Id,Name,AccountId,Amount,StageName,CloseDate,Probability'
+        const fields = sanitizeSoqlFieldList(params.fields, DEFAULT_FIELDS)
         return `${instanceUrl}/services/data/v59.0/sobjects/Opportunity/${safeUrlPathSegment(opportunityId, 'opportunityId')}?fields=${encodeURIComponent(fields)}`
       }
-      const limit = params.limit ? Number.parseInt(params.limit) : 100
-      const fields = params.fields || 'Id,Name,AccountId,Amount,StageName,CloseDate,Probability'
-      const orderBy = params.orderBy || 'CloseDate DESC'
+      const limit = sanitizeSoqlLimit(params.limit)
+      const fields = sanitizeSoqlFieldList(params.fields, DEFAULT_FIELDS)
+      const orderBy = sanitizeSoqlOrderBy(params.orderBy, DEFAULT_ORDER_BY)
       const query = `SELECT ${fields} FROM Opportunity ORDER BY ${orderBy} LIMIT ${limit}`
       return `${instanceUrl}/services/data/v59.0/query?q=${encodeURIComponent(query)}`
     },

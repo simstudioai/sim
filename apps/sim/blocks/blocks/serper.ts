@@ -37,12 +37,14 @@ export const SerperBlock: BlockConfig<SearchResponse> = {
       title: 'Search Type',
       type: 'dropdown',
       options: [
-        { label: 'search', id: 'search' },
-        { label: 'news', id: 'news' },
-        { label: 'places', id: 'places' },
-        { label: 'images', id: 'images' },
-        { label: 'videos', id: 'videos' },
-        { label: 'shopping', id: 'shopping' },
+        { label: 'Search', id: 'search' },
+        { label: 'News', id: 'news' },
+        { label: 'Places', id: 'places' },
+        { label: 'Images', id: 'images' },
+        { label: 'Videos', id: 'videos' },
+        { label: 'Shopping', id: 'shopping' },
+        { label: 'Scholar', id: 'scholar' },
+        { label: 'Patents', id: 'patents' },
       ],
       value: () => 'search',
     },
@@ -106,7 +108,11 @@ export const SerperBlock: BlockConfig<SearchResponse> = {
     type: { type: 'string', description: 'Search type' },
   },
   outputs: {
-    searchResults: { type: 'json', description: 'Search results data' },
+    searchResults: {
+      type: 'json',
+      description:
+        'Results for the requested vertical: [{title, link, snippet, position, date, imageUrl, thumbnailUrl, source, channel, rating, ratingCount, address, latitude, longitude, category, phoneNumber, website, price, delivery, duration}]. Only title and position are always present; the rest depend on the vertical'
+    },
     knowledgeGraph: {
       type: 'json',
       description: 'Google knowledge panel. Web search vertical only, when Google renders one',

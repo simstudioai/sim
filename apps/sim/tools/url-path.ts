@@ -25,7 +25,10 @@
  */
 
 /**
- * Normalizes an incoming parameter to a trimmed string before it is guarded.
+ * Normalizes an incoming parameter to a string before it is guarded.
+ *
+ * Trimming is left to the caller, because whether surrounding whitespace is
+ * copy-paste noise or part of the value is a per-helper decision.
  *
  * Tool params are declared `type: 'string'`, but the value arrives from an LLM
  * tool call or user input and a numeric-looking id (an X `woeid`, a Discord
@@ -48,7 +51,7 @@ function toGuardedString(value: unknown, paramName: string): string {
     throw new Error(`${paramName} is required`)
   }
 
-  return String(value).trim()
+  return String(value)
 }
 
 /**
@@ -70,7 +73,7 @@ function toGuardedString(value: unknown, paramName: string): string {
  * @throws If the value is empty, a dot segment, or contains a path separator.
  */
 export function safeUrlPathSegment(value: string | number, paramName: string): string {
-  const trimmed = toGuardedString(value, paramName)
+  const trimmed = toGuardedString(value, paramName).trim()
 
   if (!trimmed) {
     throw new Error(`${paramName} is required`)
@@ -88,15 +91,54 @@ export function safeUrlPathSegment(value: string | number, paramName: string): s
 }
 
 /**
+ * Opt-in relaxations for {@link safeUrlPath}.
+ *
+ * Both default to `false`, so every existing call site keeps byte-identical
+ * behavior. They exist because one provider — Supabase Storage — documents an
+ * object-key charset that is genuinely wider than a conventional file path,
+ * and encoding a key the provider considers legal into a *different* key is
+ * silent misaddressing. Only that call site opts in; a repository file path or
+ * an API resource path still gets the strict form.
+ */
+export interface SafeUrlPathOptions {
+  /**
+   * Permit structurally empty segments — a leading `/`, a trailing `/`, and a
+   * repeated `//`.
+   *
+   * Supabase Storage's server-side key allowlist
+   * (`/^[A-Za-z0-9_/!.*'() &$=@;:+,?-]*$/`, `supabase/storage`
+   * `src/storage/limits.ts`) permits `/` freely and never collapses runs of
+   * it, so `a//b`, `/leading`, and `trailing/` are all real, addressable
+   * objects. The WHATWG URL parser preserves each of them verbatim — it only
+   * removes a segment that is *exactly* `.` or `..` — so allowing them does
+   * not re-open traversal.
+   */
+  allowEmptySegments?: boolean
+
+  /**
+   * Skip the whole-value trim, so leading and trailing whitespace is treated
+   * as part of the value rather than as copy-paste noise.
+   *
+   * A literal space is inside Supabase's key charset and its server never
+   * trims, which makes `' report.csv'` a different object from
+   * `'report.csv'`. Trimming addressed the wrong object with no error. The
+   * default trim is retained for every other caller, where a value pasted with
+   * a stray space is far more likely to be noise than a name.
+   */
+  preserveOuterWhitespace?: boolean
+}
+
+/**
  * Builds a traversal-safe, multi-segment URL path from a parameter that
  * legitimately carries `/` separators — a storage object path
  * (`folder/file.jpg`) or a repository file path (`src/lib/foo.ts`).
  *
- * The value is trimmed **as a whole**, split on `/`, and each segment is
- * checked and `encodeURIComponent`-ed before being rejoined with a literal
- * `/`. Slashes therefore survive as separators and are never encoded to
- * `%2F`. See the module note above for why dot segments are rejected rather
- * than encoded.
+ * The value is trimmed **as a whole** (unless
+ * {@link SafeUrlPathOptions.preserveOuterWhitespace} is set), split on `/`,
+ * and each segment is checked and `encodeURIComponent`-ed before being
+ * rejoined with a literal `/`. Slashes therefore survive as separators and are
+ * never encoded to `%2F`. See the module note above for why dot segments are
+ * rejected rather than encoded.
  *
  * Individual segments are deliberately **not** trimmed. Supabase Storage
  * documents whitespace as a legal object-key character — its server-side
@@ -110,45 +152,57 @@ export function safeUrlPathSegment(value: string | number, paramName: string): s
  * removes a segment that is *exactly* `.` or `..`, and a padded one survives
  * as inert text (`encodeURIComponent(' .. ')` is `'%20..%20'`, which
  * `new URL()` leaves in place). The exact-match check on the untrimmed
- * segment is therefore sufficient, and the whole-value trim still collapses
- * `'  ..  '` to the rejected `'..'`.
+ * segment is therefore sufficient.
  *
  * A segment that is only whitespace (`a/ /b`) is **allowed** — Supabase's
  * charset permits a folder literally named `" "`, it encodes to `%20`, and it
- * is structurally non-empty. Only a genuinely empty segment is rejected, which
- * is what blocks `//`, a leading `/`, and a trailing `/`. Those are rejected
- * rather than stripped because an empty segment means the caller's value was
- * malformed, and guessing which object they meant would make the request ours
- * rather than theirs. (Prefix *listing* is not the reason: `storage_list`
- * sends its prefix in the JSON body, so every caller of this helper addresses
- * a single object.) A caller whose provider normalizes a trailing slash away
- * — GitHub's contents API answers `contents/dir/` with a 302 to `contents/dir`
- * — should strip it at the callsite, where that provider fact is known.
+ * is structurally non-empty. By default a genuinely *empty* segment is
+ * rejected, which is what blocks `//`, a leading `/`, and a trailing `/`:
+ * for most providers an empty segment means the caller's value was malformed,
+ * and guessing which resource they meant would make the request ours rather
+ * than theirs. A provider whose key charset genuinely admits those spellings
+ * opts in via {@link SafeUrlPathOptions.allowEmptySegments}. (Prefix *listing*
+ * is not the reason: `storage_list` sends its prefix in the JSON body, so
+ * every caller of this helper addresses a single object.) A caller whose
+ * provider normalizes a trailing slash away — GitHub's contents API answers
+ * `contents/dir/` with a 302 to `contents/dir` — should strip it at the
+ * callsite, where that provider fact is known.
  *
  * @param value - The raw path, typically LLM- or user-supplied. A number is
  *   stringified, since an LLM can emit a numeric-looking id as a JSON number.
  * @param paramName - The parameter name, used to name the offender in errors.
+ * @param options - Opt-in relaxations; see {@link SafeUrlPathOptions}. Omitted
+ *   or `{}` yields the strict default every non-storage caller relies on.
  * @returns The encoded path, with `/` preserved between segments.
- * @throws If the value is empty, contains a `\`, an empty segment, or a dot segment.
+ * @throws If the value is empty, contains a `\`, a dot segment, or (by
+ *   default) an empty segment.
  */
-export function safeUrlPath(value: string | number, paramName: string): string {
-  const trimmed = toGuardedString(value, paramName)
+export function safeUrlPath(
+  value: string | number,
+  paramName: string,
+  options: SafeUrlPathOptions = {}
+): string {
+  const raw = toGuardedString(value, paramName)
+  const normalized = options.preserveOuterWhitespace ? raw : raw.trim()
 
-  if (!trimmed) {
+  if (!normalized) {
     throw new Error(`${paramName} is required`)
   }
 
-  if (trimmed.includes('\\')) {
+  if (normalized.includes('\\')) {
     throw new Error(`${paramName} cannot contain a backslash`)
   }
 
-  return trimmed
+  return normalized
     .split('/')
     .map((segment) => {
       if (!segment) {
-        throw new Error(
-          `${paramName} cannot contain an empty path segment (no leading, trailing, or repeated "/")`
-        )
+        if (!options.allowEmptySegments) {
+          throw new Error(
+            `${paramName} cannot contain an empty path segment (no leading, trailing, or repeated "/")`
+          )
+        }
+        return segment
       }
 
       if (segment === '.' || segment === '..') {

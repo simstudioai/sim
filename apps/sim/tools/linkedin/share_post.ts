@@ -17,6 +17,14 @@ const logger = createLogger('LinkedInSharePost')
  */
 const LINKEDIN_FEED_UPDATE_BASE = 'https://www.linkedin.com/feed/update/'
 
+/**
+ * A LinkedIn URN — `urn:li:<entityType>:<id>`. `x-restli-id` is a response header, so its value is
+ * server-controlled: interpolating it unchecked would turn anything LinkedIn ever puts there into
+ * a `feed/update/<junk>/` link that looks canonical but resolves nowhere. `postUrl` is only built
+ * when the header actually carries a URN; `postId` still reports the raw header value.
+ */
+const LINKEDIN_URN_PATTERN = /^urn:li:[A-Za-z][A-Za-z0-9]*:[^\s/]+$/
+
 // Helper function to extract profile ID from various response formats
 const extractProfileId: ProfileIdExtractor = (output: unknown): string | null => {
   if (typeof output === 'object' && output !== null) {
@@ -54,7 +62,8 @@ export const linkedInSharePostTool: ToolConfig<SharePostParams, SharePostRespons
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Who can see this post: "PUBLIC" or "CONNECTIONS" (default: "PUBLIC")',
+      description:
+        'Who can see this post: "PUBLIC" (anyone on LinkedIn), "CONNECTIONS" (1st-degree connections only), or "LOGGED_IN" (signed-in LinkedIn members only). Default: "PUBLIC"',
     },
   },
 
@@ -131,6 +140,14 @@ export const linkedInSharePostTool: ToolConfig<SharePostParams, SharePostRespons
       }
 
       const postId = response.headers.get('x-restli-id') ?? undefined
+      const postUrn = postId && LINKEDIN_URN_PATTERN.test(postId) ? postId : undefined
+
+      if (postId && !postUrn) {
+        logger.warn(
+          'LinkedIn returned an x-restli-id that is not a urn:li: URN; reporting the raw id without a post URL',
+          { status: response.status }
+        )
+      }
 
       if (!postId) {
         logger.warn(
@@ -143,7 +160,7 @@ export const linkedInSharePostTool: ToolConfig<SharePostParams, SharePostRespons
         success: true,
         output: {
           postId,
-          postUrl: postId ? `${LINKEDIN_FEED_UPDATE_BASE}${postId}/` : undefined,
+          postUrl: postUrn ? `${LINKEDIN_FEED_UPDATE_BASE}${postUrn}/` : undefined,
         },
       }
     } catch (error) {
@@ -165,7 +182,7 @@ export const linkedInSharePostTool: ToolConfig<SharePostParams, SharePostRespons
     postUrl: {
       type: 'string',
       description:
-        'LinkedIn URL of the created post. Viewable by an authorized LinkedIn member — not a guaranteed public permalink. Absent when no ugcPost URN was returned.',
+        'LinkedIn URL of the created post. Viewable by an authorized LinkedIn member — not a guaranteed public permalink. Absent when the `x-restli-id` header was missing or did not carry a `urn:li:` URN of the ugcPost family.',
       optional: true,
     },
   },

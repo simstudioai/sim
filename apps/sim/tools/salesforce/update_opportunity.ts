@@ -1,14 +1,11 @@
-import { createLogger } from '@sim/logger'
 import type {
   SalesforceUpdateOpportunityParams,
   SalesforceUpdateOpportunityResponse,
 } from '@/tools/salesforce/types'
 import { SOBJECT_UPDATE_OUTPUT_PROPERTIES } from '@/tools/salesforce/types'
-import { extractErrorMessage, getInstanceUrl, requireId } from '@/tools/salesforce/utils'
+import { getInstanceUrl, requireId } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
-
-const logger = createLogger('SalesforceUpdateOpportunity')
 
 export const salesforceUpdateOpportunityTool: ToolConfig<
   SalesforceUpdateOpportunityParams,
@@ -101,12 +98,14 @@ export const salesforceUpdateOpportunityTool: ToolConfig<
     },
   },
 
-  transformResponse: async (response, params?) => {
-    if (!response.ok) {
-      const data = await response.json()
-      logger.error('Failed to update opportunity', { data, status: response.status })
-      throw new Error(extractErrorMessage(data, response.status, 'Failed to update opportunity'))
-    }
+  /**
+   * Non-2xx responses never reach here: the tool executor inspects
+   * `response.ok` and throws before `transformResponse` runs (see
+   * `tools/index.ts` `isErrorResponse`, and `tools/utils.server.ts`), so this
+   * only ever observes a successful PATCH. Salesforce returns 204 with an empty
+   * body on success, hence the echoed id rather than a parsed record.
+   */
+  transformResponse: async (_response, params?) => {
     return {
       success: true,
       output: {

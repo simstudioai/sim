@@ -71,6 +71,23 @@ describe('linkedInSharePostTool.postProcess', () => {
     expect(result.output.postUrl).toBeUndefined()
   })
 
+  it.each([
+    ['7264398217238917120', 'a bare numeric id with no urn prefix'],
+    ['not-a-urn', 'arbitrary text'],
+    ['urn:li:ugcPost:7264 398217238917120', 'a value containing whitespace'],
+    ['https://evil.example/x', 'a value carrying its own path separators'],
+  ])('leaves the post URL undefined when x-restli-id is %s (%s)', async (headerValue) => {
+    mockFetch.mockResolvedValue(
+      new Response(null, { status: 201, headers: { 'x-restli-id': headerValue } })
+    )
+
+    const result = await linkedInSharePostTool.postProcess!(profileResult, params, executeTool)
+
+    expect(result.output.postUrl).toBeUndefined()
+    expect(result.output.postId).toBe(headerValue)
+    expect(result.success).toBe(true)
+  })
+
   it('still reports success with an undefined postId when 201 carries no x-restli-id header', async () => {
     mockFetch.mockResolvedValue(new Response(null, { status: 201 }))
 

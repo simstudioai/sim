@@ -5,6 +5,20 @@ import { AuthMode, IntegrationType } from '@/blocks/types'
 import { SERVICE_ACCOUNT_SUBBLOCKS } from '@/blocks/utils'
 import type { GoogleContactsResponse } from '@/tools/google_contacts/types'
 
+/**
+ * Per-operation `pageSize` ceilings. `people.connections.list` accepts 1–1000
+ * (default 100), while `people:searchContacts` silently caps anything above 30
+ * to 30 (default 10). One shared subBlock feeds both, so the value is clamped
+ * to the ceiling of whichever operation is selected rather than sending a
+ * number the target operation would quietly reduce.
+ * @see https://developers.google.com/people/api/rest/v1/people.connections/list
+ * @see https://developers.google.com/people/api/rest/v1/people/searchContacts
+ */
+const PAGE_SIZE_MAX_BY_OPERATION: Record<string, number> = {
+  list: 1000,
+  search: 30,
+}
+
 export const GoogleContactsBlock: BlockConfig<GoogleContactsResponse> = {
   type: 'google_contacts',
   name: 'Google Contacts',
@@ -193,7 +207,8 @@ export const GoogleContactsBlock: BlockConfig<GoogleContactsResponse> = {
       id: 'pageSize',
       title: 'Page Size',
       type: 'short-input',
-      placeholder: '100',
+      placeholder: 'Number of results',
+      tooltip: 'List accepts 1–1000 (default 100). Search accepts 1–30 (default 10).',
       condition: { field: 'operation', value: ['list', 'search'] },
       mode: 'advanced',
     },
@@ -253,9 +268,12 @@ export const GoogleContactsBlock: BlockConfig<GoogleContactsResponse> = {
 
         const processedParams: Record<string, any> = { ...rest }
 
-        // Convert pageSize to number if provided
-        if (processedParams.pageSize && typeof processedParams.pageSize === 'string') {
-          processedParams.pageSize = Number.parseInt(processedParams.pageSize, 10)
+        const pageSizeMax = PAGE_SIZE_MAX_BY_OPERATION[operation]
+        if (pageSizeMax !== undefined && processedParams.pageSize !== undefined) {
+          const parsed = Number.parseInt(String(processedParams.pageSize), 10)
+          processedParams.pageSize = Number.isNaN(parsed)
+            ? undefined
+            : Math.min(Math.max(parsed, 1), pageSizeMax)
         }
 
         return {

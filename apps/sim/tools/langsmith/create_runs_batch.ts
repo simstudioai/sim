@@ -12,6 +12,31 @@ import {
 } from '@/tools/langsmith/utils'
 import type { ToolConfig } from '@/tools/types'
 
+/**
+ * Narrows `post`/`patch` to the array the batch body requires.
+ *
+ * Both are declared `type: 'json'`, which `buildParameterSchema` collapses to `{"type":"object"}`
+ * in the model-facing schema — so an LLM that follows that schema faithfully sends an object, and
+ * the `.map()` below would throw a bare `params.post.map is not a function`. Fail with a message
+ * that names the field and the expected shape instead.
+ *
+ * `tags` and `events` carry the same `type: 'json'` ambiguity but are never iterated here: they
+ * are forwarded verbatim inside each run payload and validated by LangSmith, which answers a
+ * wrong shape with a 422 the tool already surfaces. Nothing local to guard.
+ */
+const asRunArray = (
+  value: LangsmithRunPayload[] | undefined,
+  field: 'post' | 'patch'
+): LangsmithRunPayload[] | undefined => {
+  if (value === undefined || value === null) return undefined
+  if (!Array.isArray(value)) {
+    throw new Error(
+      `LangSmith batch \`${field}\` must be an array of run objects, received ${typeof value}. Wrap a single run as \`[{ ... }]\`.`
+    )
+  }
+  return value
+}
+
 export const langsmithCreateRunsBatchTool: ToolConfig<
   LangsmithCreateRunsBatchParams,
   LangsmithCreateRunsBatchResponse
@@ -48,13 +73,11 @@ export const langsmithCreateRunsBatchTool: ToolConfig<
       'Content-Type': 'application/json',
     }),
     body: (params) => {
+      const post = asRunArray(params.post, 'post')
+      const patch = asRunArray(params.patch, 'patch')
       const payload: Record<string, unknown> = {
-        post: params.post
-          ? params.post.map((run) => normalizeLangsmithRunPayload(run).payload)
-          : undefined,
-        patch: params.patch
-          ? params.patch.map((run) => prepareLangsmithPatchPayload(run).payload)
-          : undefined,
+        post: post ? post.map((run) => normalizeLangsmithRunPayload(run).payload) : undefined,
+        patch: patch ? patch.map((run) => prepareLangsmithPatchPayload(run).payload) : undefined,
       }
 
       return filterUndefined(payload)
@@ -93,8 +116,12 @@ export const langsmithCreateRunsBatchTool: ToolConfig<
       output: {
         accepted: true,
         runIds: [
-          ...collectRunIds(params?.post, (run) => normalizeLangsmithRunPayload(run).runId),
-          ...collectRunIds(params?.patch, (run) => prepareLangsmithPatchPayload(run).runId),
+          ...collectRunIds(asRunArray(params?.post, 'post'), (run) =>
+            normalizeLangsmithRunPayload(run).runId
+          ),
+          ...collectRunIds(asRunArray(params?.patch, 'patch'), (run) =>
+            prepareLangsmithPatchPayload(run).runId
+          ),
         ],
         message: directMessage ?? null,
         messages: messages.length ? messages : undefined,

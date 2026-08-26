@@ -3,6 +3,7 @@ import type {
   ElasticsearchCountResponse,
 } from '@/tools/elasticsearch/types'
 import { buildAuthHeaders, buildBaseUrl, safeIndexPathSegment } from '@/tools/elasticsearch/utils'
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { ToolConfig } from '@/tools/types'
 
 export const countTool: ToolConfig<ElasticsearchCountParams, ElasticsearchCountResponse> = {
@@ -10,6 +11,7 @@ export const countTool: ToolConfig<ElasticsearchCountParams, ElasticsearchCountR
   name: 'Elasticsearch Count',
   description: 'Count documents matching a query in Elasticsearch.',
   version: '1.0.0',
+  errorExtractor: ErrorExtractorId.ELASTICSEARCH_ERRORS,
 
   params: {
     deploymentType: {

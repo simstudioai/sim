@@ -21,12 +21,23 @@ function resolveMaxCharacters(value: number | undefined): number {
  * instead of being parsed into a fixed shape, so a coordinate carrying URL syntax
  * would turn a bearer-authenticated request into a general read of whatever
  * endpoint it reached. Siblings that parse a typed response fail closed instead.
+ *
+ * The id is coerced with `Number(...)` before the range check. `job_id` is
+ * declared `type: 'number'`, but nothing coerces it on the way in —
+ * `validateRequiredParametersAfterMerge` only checks presence, and the GitHub
+ * block declares no `tools.config.params` — so an LLM emitting `"job_id":
+ * "123"` reached `Number.isSafeInteger('123')`, which is `false`, and a
+ * perfectly valid id was rejected as *"job_id must be a positive integer"*.
+ * Coercion cannot widen the guard: `Number` yields `NaN` for every traversal
+ * vector (`'..'`, `'9/../..'`, `'%2e%2e'`), and `NaN` still fails the range
+ * check.
  */
 function jobLogsPath(owner: string, repo: string, jobId: number): string {
-  if (!Number.isSafeInteger(jobId) || jobId < 1) {
+  const id = Number(jobId)
+  if (!Number.isSafeInteger(id) || id < 1) {
     throw new Error('job_id must be a positive integer')
   }
-  return `${safeUrlPathSegment(owner, 'owner')}/${safeUrlPathSegment(repo, 'repo')}/actions/jobs/${jobId}/logs`
+  return `${safeUrlPathSegment(owner, 'owner')}/${safeUrlPathSegment(repo, 'repo')}/actions/jobs/${id}/logs`
 }
 
 /** Byte offsets from a `Content-Range: bytes <start>-<end>/<total>` header. */

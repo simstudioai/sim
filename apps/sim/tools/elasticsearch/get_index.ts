@@ -4,6 +4,7 @@ import type {
   ElasticsearchIndexInfoResponse,
 } from '@/tools/elasticsearch/types'
 import { buildAuthHeaders, buildBaseUrl, safeIndexPathSegment } from '@/tools/elasticsearch/utils'
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { ToolConfig } from '@/tools/types'
 
 export const getIndexTool: ToolConfig<ElasticsearchGetIndexParams, ElasticsearchIndexInfoResponse> =
@@ -13,6 +14,7 @@ export const getIndexTool: ToolConfig<ElasticsearchGetIndexParams, Elasticsearch
     description:
       'Retrieve index information including settings, mappings, and aliases. Accepts a comma-separated list of indices, data streams, and aliases, and supports wildcards.',
     version: '1.0.0',
+    errorExtractor: ErrorExtractorId.ELASTICSEARCH_ERRORS,
 
     params: {
       deploymentType: {

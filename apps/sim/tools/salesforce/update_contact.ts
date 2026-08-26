@@ -1,14 +1,11 @@
-import { createLogger } from '@sim/logger'
 import type {
   SalesforceUpdateContactParams,
   SalesforceUpdateContactResponse,
 } from '@/tools/salesforce/types'
 import { SOBJECT_UPDATE_OUTPUT_PROPERTIES } from '@/tools/salesforce/types'
-import { extractErrorMessage, getInstanceUrl, requireId } from '@/tools/salesforce/utils'
+import { getInstanceUrl, requireId } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
-
-const logger = createLogger('SalesforceContacts')
 
 export const salesforceUpdateContactTool: ToolConfig<
   SalesforceUpdateContactParams,
@@ -138,15 +135,14 @@ export const salesforceUpdateContactTool: ToolConfig<
     },
   },
 
-  transformResponse: async (response: Response, params?) => {
-    if (!response.ok) {
-      const data = await response.json()
-      logger.error('Salesforce API request failed', { data, status: response.status })
-      throw new Error(
-        extractErrorMessage(data, response.status, 'Failed to update contact in Salesforce')
-      )
-    }
-
+  /**
+   * Non-2xx responses never reach here: the tool executor inspects
+   * `response.ok` and throws before `transformResponse` runs (see
+   * `tools/index.ts` `isErrorResponse`, and `tools/utils.server.ts`), so this
+   * only ever observes a successful PATCH. Salesforce returns 204 with an empty
+   * body on success, hence the echoed id rather than a parsed record.
+   */
+  transformResponse: async (_response: Response, params?) => {
     return {
       success: true,
       output: {

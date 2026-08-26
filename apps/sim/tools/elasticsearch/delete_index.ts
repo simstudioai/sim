@@ -3,6 +3,7 @@ import type {
   ElasticsearchIndexResponse,
 } from '@/tools/elasticsearch/types'
 import { buildAuthHeaders, buildBaseUrl, safeIndexPathSegment } from '@/tools/elasticsearch/utils'
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { ToolConfig } from '@/tools/types'
 
 export const deleteIndexTool: ToolConfig<
@@ -13,6 +14,7 @@ export const deleteIndexTool: ToolConfig<
   name: 'Elasticsearch Delete Index',
   description: 'Delete an index and all its documents. This operation is irreversible.',
   version: '1.0.0',
+  errorExtractor: ErrorExtractorId.ELASTICSEARCH_ERRORS,
 
   params: {
     deploymentType: {
