@@ -1,5 +1,8 @@
+import { createLogger } from '@sim/logger'
 import type { Sql } from 'postgres'
 import type { ScriptMigration } from './types'
+
+const logger = createLogger('WorkspaceFileSizeBytesBackfill')
 
 export const WORKSPACE_FILE_SIZE_BYTES_BATCH_SIZE = 1000
 
@@ -78,6 +81,6 @@ export const backfillWorkspaceFileSizeBytesMigration: ScriptMigration = {
     const backfilled = await backfillWorkspaceFileSizeBytes(
       createPostgresWorkspaceFileSizeBytesBackfillStore(sql)
     )
-    console.log(`Workspace file size_bytes backfill complete: ${backfilled} file(s) updated.`)
+    logger.info(`Workspace file size_bytes backfill complete: ${backfilled} file(s) updated.`)
   },
 }

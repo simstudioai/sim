@@ -2105,7 +2105,7 @@ export const workspaceFiles = pgTable(
      */
     displayName: text('display_name'),
     contentType: text('content_type').notNull(),
-    // contract-pending(after #7112 is fully deployed): drop size and workspace_files_sync_size_columns — the compatibility trigger is then the only remaining consumer
+    /** contract-pending(after #7112 is fully deployed): drop size, workspace_files_sync_size_columns, and the temporary dev cutover runner */
     size: integer('size').notNull().default(0),
     /** Exact byte size. The deploy migration backfills existing rows before this release serves traffic. */
     sizeBytes: bigint('size_bytes', { mode: 'number' }),
