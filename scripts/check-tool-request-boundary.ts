@@ -31,6 +31,7 @@ export interface RequestTrustViolation {
   toolId?: string
   reason:
     | 'missing-internal-policy'
+    | 'invalid-internal-policy'
     | 'internal-policy-without-internal-route'
     | 'mixed-route-requires-conditional-policy'
     | 'unsafe-internal-path-interpolation'
@@ -196,7 +197,7 @@ function isExternalUrlExpression(expression: SyntaxNode): boolean {
   return false
 }
 
-function isInternalUrlConstruction(node: SyntaxNode): boolean {
+function getUrlConstructionPrefix(node: SyntaxNode): string | undefined {
   const current = unwrapExpression(node)
   if (
     current.type !== 'NewExpression' ||
@@ -207,9 +208,18 @@ function isInternalUrlConstruction(node: SyntaxNode): boolean {
     current.arguments.length === 0 ||
     !isSyntaxNode(current.arguments[0])
   ) {
-    return false
+    return undefined
   }
-  return getStringPrefix(current.arguments[0])?.startsWith('/api/') === true
+  return getStringPrefix(current.arguments[0])
+}
+
+function isInternalUrlConstruction(node: SyntaxNode): boolean {
+  return getUrlConstructionPrefix(node)?.startsWith('/api/') === true
+}
+
+function isExternalUrlConstruction(node: SyntaxNode): boolean {
+  const prefix = getUrlConstructionPrefix(node)
+  return prefix !== undefined && /^https?:\/\//.test(prefix)
 }
 
 function functionContainsInternalRoute(fn: SyntaxNode): boolean {
@@ -265,6 +275,10 @@ function functionContainsExternalRoute(fn: SyntaxNode): boolean {
       isSyntaxNode(node.argument) &&
       isExternalUrlExpression(node.argument)
     ) {
+      found = true
+      return
+    }
+    if (isExternalUrlConstruction(node)) {
       found = true
       return
     }
@@ -498,35 +512,47 @@ export function auditToolRequestTrust(source: string, file = 'source.ts'): Reque
           const hasExternalRoute = functionContainsExternalRoute(url)
           const hasInternalPolicy = internalProperty !== undefined
           const internalPolicyValue = internalProperty?.value
-          const hasConditionalInternalPolicy =
+          const internalPolicyType = isSyntaxNode(internalPolicyValue)
+            ? unwrapExpression(internalPolicyValue).type
+            : undefined
+          const hasStaticInternalPolicy =
+            internalPolicyType === 'BooleanLiteral' &&
             isSyntaxNode(internalPolicyValue) &&
-            !(
-              unwrapExpression(internalPolicyValue).type === 'BooleanLiteral' &&
-              unwrapExpression(internalPolicyValue).value === true
-            )
+            unwrapExpression(internalPolicyValue).value === true
+          const hasConditionalInternalPolicy =
+            internalPolicyType === 'ArrowFunctionExpression' ||
+            internalPolicyType === 'FunctionExpression' ||
+            internalPolicyType === 'Identifier'
+          const hasValidInternalPolicy = hasStaticInternalPolicy || hasConditionalInternalPolicy
           const hasUnsafeInternalPathInterpolation =
             functionContainsUnsafeInternalPathInterpolation(url)
           if (hasInternalRoute) dynamicInternalRoutes += 1
           if (hasInternalPolicy) dynamicInternalPolicies += 1
-          if (
-            (hasInternalRoute && !hasInternalPolicy) ||
-            (hasInternalPolicy &&
-              hasExternalRoute &&
-              !hasInternalRoute &&
-              !hasConditionalInternalPolicy)
-          ) {
+          if (hasInternalPolicy && !hasValidInternalPolicy) {
+            violations.push({
+              file,
+              line: internalProperty?.loc?.start.line ?? requestProperty.loc?.start.line ?? 1,
+              toolId: getToolId(node),
+              reason: 'invalid-internal-policy',
+            })
+          } else if (hasInternalRoute && !hasInternalPolicy) {
+            violations.push({
+              file,
+              line: urlProperty?.loc?.start.line ?? requestProperty.loc?.start.line ?? 1,
+              toolId: getToolId(node),
+              reason: 'missing-internal-policy',
+            })
+          } else if (hasStaticInternalPolicy && hasExternalRoute && !hasInternalRoute) {
             const location = (hasInternalPolicy ? internalProperty : urlProperty)?.loc?.start.line
             violations.push({
               file,
               line: location ?? requestProperty.loc?.start.line ?? 1,
               toolId: getToolId(node),
-              reason: hasInternalRoute
-                ? 'missing-internal-policy'
-                : 'internal-policy-without-internal-route',
+              reason: 'internal-policy-without-internal-route',
             })
           }
           if (
-            hasInternalPolicy &&
+            hasValidInternalPolicy &&
             hasInternalRoute &&
             hasExternalRoute &&
             !hasConditionalInternalPolicy
@@ -740,11 +766,13 @@ function main(): void {
       const description =
         violation.reason === 'missing-internal-policy'
           ? 'dynamic /api route is missing request.internal'
-          : violation.reason === 'internal-policy-without-internal-route'
-            ? 'request.internal is declared but the URL builder has no /api route'
-            : violation.reason === 'mixed-route-requires-conditional-policy'
-              ? 'mixed internal/external URL builder requires a predicate request.internal policy'
-              : 'dynamic /api path parameter must use encodeURIComponent'
+          : violation.reason === 'invalid-internal-policy'
+            ? 'request.internal must be true or a predicate function'
+            : violation.reason === 'internal-policy-without-internal-route'
+              ? 'request.internal is declared but the URL builder has no /api route'
+              : violation.reason === 'mixed-route-requires-conditional-policy'
+                ? 'mixed internal/external URL builder requires a predicate request.internal policy'
+                : 'dynamic /api path parameter must use encodeURIComponent'
       console.error(
         `  ${relative(ROOT, violation.file)}:${violation.line}  ${violation.toolId ?? 'unknown tool'}: ${description}`
       )

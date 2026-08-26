@@ -135,6 +135,15 @@ describe('tool request trust audit', () => {
     expect(audit.violations).toEqual([])
   })
 
+  it('accepts a named predicate for conditional internal and external branches', () => {
+    const audit = auditRequest(`
+      internal: usesInternalRoute,
+      url: (params) => params.internal ? '/api/tools/test' : 'https://example.com/test'
+    `)
+
+    expect(audit.violations).toEqual([])
+  })
+
   it('rejects static trust for a mixed internal and external URL builder', () => {
     const audit = auditRequest(`
       internal: true,
@@ -145,6 +154,32 @@ describe('tool request trust audit', () => {
       expect.objectContaining({
         toolId: 'test_tool',
         reason: 'mixed-route-requires-conditional-policy',
+      }),
+    ])
+  })
+
+  it('detects an external URL constructor in a mixed URL builder', () => {
+    const audit = auditRequest(`
+      internal: true,
+      url: (params) =>
+        params.internal
+          ? '/api/tools/test'
+          : new URL('https://example.com/test').toString()
+    `)
+
+    expect(audit.violations[0]?.reason).toBe('mixed-route-requires-conditional-policy')
+  })
+
+  it('rejects false as an internal route policy', () => {
+    const audit = auditRequest(`
+      internal: false,
+      url: (params) => params.internal ? '/api/tools/test' : 'https://example.com/test'
+    `)
+
+    expect(audit.violations).toEqual([
+      expect.objectContaining({
+        toolId: 'test_tool',
+        reason: 'invalid-internal-policy',
       }),
     ])
   })
