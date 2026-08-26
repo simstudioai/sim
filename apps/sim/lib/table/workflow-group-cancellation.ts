@@ -5,6 +5,7 @@ import { toError } from '@sim/utils/errors'
 import { and, eq, inArray } from 'drizzle-orm'
 import { cancelledExecutionLogFields } from '@/lib/logs/execution/cancellation'
 import { appendTableEvent } from '@/lib/table/events'
+import { normalizeBlockErrors } from '@/lib/table/rows/run-state'
 
 const logger = createLogger('WorkflowGroupCancellation')
 const ACTIVE_WORKFLOW_GROUP_STATUSES = ['queued', 'running', 'pending'] as const
@@ -64,16 +65,6 @@ interface WorkflowGroupExecutionTarget {
   groupId: string
   status: string
   blockErrors: unknown
-}
-
-function normalizeBlockErrors(value: unknown): Record<string, string> | undefined {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
-
-  const blockErrors: Record<string, string> = {}
-  for (const [blockId, error] of Object.entries(value)) {
-    if (typeof error === 'string') blockErrors[blockId] = error
-  }
-  return Object.keys(blockErrors).length > 0 ? blockErrors : undefined
 }
 
 function getExecutionCorrelationSource(value: unknown): string | null {

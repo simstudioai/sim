@@ -9,6 +9,8 @@ export interface OperationSpec {
   pathParamDocs?: Record<string, string>
   query?: Record<string, FieldSpec>
   body?: Record<string, FieldSpec>
+  /** Contract-declared request headers, minus any the CLI sets itself. */
+  headers?: Record<string, FieldSpec>
   opaqueBody?: boolean
   summary?: string
   responseMode?: 'json' | 'binary' | 'stream'

@@ -32,14 +32,14 @@ sim mcp-servers create [options]
 | `--enabled` | No | Whether the server tools are available to workflows. Applied server-side as true when omitted on create. |
 | `--no-enabled` | No | Send --enabled as false. |
 | `--oauth-client-id <value>` | No | Pre-registered OAuth client identifier. Changing it on update revokes the stored OAuth grant and forces reauthorization. |
-| `--oauth-client-secret <value>` | No | Write-only pre-registered OAuth client secret. Sending it on update as null or a new value revokes the stored OAuth grant and forces reauthorization, as does switching away from OAuth authentication. |
+| `--oauth-client-secret <value>` | No | Write-only pre-registered OAuth client secret. Sending it on update as null or a new value revokes the stored OAuth grant and forces reauthorization, as does switching away from OAuth authentication. (--oauth-client-secret null sends the word, not JSON null). |
 
 </CommandTable>
 
 ## Delete MCP server
 
 ```bash
-sim mcp-servers delete <id> [options]
+sim mcp-servers delete <mcpServerId> [options]
 ```
 
 **Arguments**
@@ -48,7 +48,7 @@ sim mcp-servers delete <id> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `id` | Yes | Unique MCP server identifier. |
+| `mcpServerId` | Yes | Unique MCP server identifier. |
 
 </CommandTable>
 
@@ -65,7 +65,7 @@ sim mcp-servers delete <id> [options]
 ## Get MCP server
 
 ```bash
-sim mcp-servers get <id>
+sim mcp-servers get <mcpServerId>
 ```
 
 **Arguments**
@@ -74,7 +74,7 @@ sim mcp-servers get <id>
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `id` | Yes | Unique MCP server identifier. |
+| `mcpServerId` | Yes | Unique MCP server identifier. |
 
 </CommandTable>
 
@@ -100,7 +100,7 @@ sim mcp-servers list [options]
 ## List MCP server tools
 
 ```bash
-sim mcp-servers tools list <id> [options]
+sim mcp-servers tools list <mcpServerId> [options]
 ```
 
 **Arguments**
@@ -109,7 +109,7 @@ sim mcp-servers tools list <id> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `id` | Yes | Unique MCP server identifier. |
+| `mcpServerId` | Yes | Unique MCP server identifier. |
 
 </CommandTable>
 
@@ -127,7 +127,7 @@ sim mcp-servers tools list <id> [options]
 ## Update MCP server
 
 ```bash
-sim mcp-servers update <id> [options]
+sim mcp-servers update <mcpServerId> [options]
 ```
 
 **Arguments**
@@ -136,7 +136,7 @@ sim mcp-servers update <id> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `id` | Yes | Unique MCP server identifier. |
+| `mcpServerId` | Yes | Unique MCP server identifier. |
 
 </CommandTable>
 
@@ -157,6 +157,6 @@ sim mcp-servers update <id> [options]
 | `--enabled` | No | Whether the server tools are available to workflows. Applied server-side as true when omitted on create. |
 | `--no-enabled` | No | Send --enabled as false. |
 | `--oauth-client-id <value>` | No | Pre-registered OAuth client identifier. Changing it on update revokes the stored OAuth grant and forces reauthorization. |
-| `--oauth-client-secret <value>` | No | Write-only pre-registered OAuth client secret. Sending it on update as null or a new value revokes the stored OAuth grant and forces reauthorization, as does switching away from OAuth authentication. |
+| `--oauth-client-secret <value>` | No | Write-only pre-registered OAuth client secret. Sending it on update as null or a new value revokes the stored OAuth grant and forces reauthorization, as does switching away from OAuth authentication. (--oauth-client-secret null sends the word, not JSON null). |
 
 </CommandTable>

@@ -520,6 +520,7 @@ export const schemaMock = {
     trialStart: 'subscription.trialStart',
     trialEnd: 'subscription.trialEnd',
     metadata: 'subscription.metadata',
+    lastClosedPeriodStart: 'subscription.lastClosedPeriodStart',
   },
   rateLimitBucket: {
     key: 'rateLimitBucket.key',
@@ -762,7 +763,9 @@ export const schemaMock = {
     processingStatus: 'document.processingStatus',
     processingAttempts: 'document.processingAttempts',
     processingQueuedAt: 'document.processingQueuedAt',
+    processingQueueToken: 'document.processingQueueToken',
     processingStartedAt: 'document.processingStartedAt',
+    processingDeferredUntil: 'document.processingDeferredUntil',
     processingCompletedAt: 'document.processingCompletedAt',
     processingError: 'document.processingError',
     enabled: 'document.enabled',

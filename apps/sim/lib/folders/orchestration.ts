@@ -886,7 +886,8 @@ async function deleteFolderWithoutTreeLock(
  * an archived folder, so a taken name would otherwise make it permanently unrestorable.
  */
 async function restoreFolderWithoutTreeLock(
-  params: RestoreFolderParams
+  params: RestoreFolderParams,
+  options: { projectAudit: boolean }
 ): Promise<RestoreFolderResult> {
   const { resourceType, folderId, workspaceId, userId, folderName } = params
   const config = folderResourceConfig(resourceType)
@@ -1019,31 +1020,43 @@ async function restoreFolderWithoutTreeLock(
 
   logger.info('Restored folder and all contents', { folderId, resourceType, counts })
 
-  recordAudit({
-    workspaceId,
-    actorId: userId,
-    action: AuditAction.FOLDER_RESTORED,
-    resourceType: AuditResourceType.FOLDER,
-    resourceId: folderId,
-    resourceName: folderName ?? folder.name,
-    description: `Restored ${config.label} folder "${folderName ?? folder.name}"`,
-    metadata: {
-      folderResourceType: resourceType,
-      affected: {
-        [config.countKey]: counts.children,
-        subfolders: Math.max(counts.folders - 1, 0),
+  if (options.projectAudit) {
+    recordAudit({
+      workspaceId,
+      actorId: userId,
+      action: AuditAction.FOLDER_RESTORED,
+      resourceType: AuditResourceType.FOLDER,
+      resourceId: folderId,
+      resourceName: folderName ?? folder.name,
+      description: `Restored ${config.label} folder "${folderName ?? folder.name}"`,
+      metadata: {
+        folderResourceType: resourceType,
+        affected: {
+          [config.countKey]: counts.children,
+          subfolders: Math.max(counts.folders - 1, 0),
+        },
       },
-    },
-  })
+    })
+  }
 
   // Live resource list (e.g. tables): a restore brings the folder and its contents back.
   await notifyFolderResourceChanged(resourceType, workspaceId)
   return { success: true, restoredItems: toCascadeCounts(config, counts) }
 }
 
-/** Restores a folder while serializing against every writer for the resource tree. */
-export async function restoreFolder(params: RestoreFolderParams): Promise<RestoreFolderResult> {
+/**
+ * Restores a folder while serializing against every writer for the resource tree.
+ *
+ * `projectAudit: false` for a caller that projects `FOLDER_RESTORED` itself — an application
+ * use case attributes the entry to the acting `Principal`, which the `actorId: userId` entry
+ * inside cannot express for a non-human principal. Omitted, the orchestration keeps recording
+ * its own entry, so every existing caller is unchanged. Mirrors {@link deleteFolder}.
+ */
+export async function restoreFolder(
+  params: RestoreFolderParams,
+  options?: { projectAudit?: boolean }
+): Promise<RestoreFolderResult> {
   return withFolderTreeLock(params.workspaceId, params.resourceType, () =>
-    restoreFolderWithoutTreeLock(params)
+    restoreFolderWithoutTreeLock(params, { projectAudit: options?.projectAudit ?? true })
   )
 }

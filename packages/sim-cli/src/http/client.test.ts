@@ -931,6 +931,154 @@ describe('destructive operations are gated', () => {
     'cancelTableExport',
   ])
 
+  /**
+   * Destructive operations whose verb is not `DELETE`. A bulk form is a `POST`
+   * because it carries a body, which put every one of them outside the sweep
+   * below — `tables bulk-delete` destroyed many tables ungated while deleting
+   * one required `--yes`. Enumerated by hand because no wire property
+   * distinguishes them; the sweep after this one is what keeps the list honest.
+   */
+  /**
+   * Destructive operations whose method is not `DELETE`.
+   *
+   * Hand-enumerated because destructiveness is not derivable: the generated
+   * spec types an operations array as opaque, so nothing in the schema says a
+   * batch carries a `delete` arm or that a state replace discards the draft.
+   * The companion sweep below forces every non-`GET` operation into this set or
+   * into {@link NON_DESTRUCTIVE}, so a new one cannot inherit the gate-free
+   * default by being named something the old regex did not match.
+   */
+  const DESTRUCTIVE_NON_DELETE = new Set<V2OperationName>([
+    'applyWorkflowOperations',
+    'applyWorkflowVariables',
+    'bulkDeleteFiles',
+    'bulkDeleteTables',
+    'bulkUpdateKnowledgeChunks',
+    'replaceWorkflowChatDeployment',
+    'replaceWorkflowState',
+    'revertWorkflowVersion',
+    'updateRowsByFilter',
+  ])
+
+  /**
+   * Mutating operations that create, amend or move a resource without
+   * discarding one. Listed rather than inferred so the sweep below can force a
+   * decision on anything new.
+   */
+  const NON_DESTRUCTIVE = new Set<V2OperationName>([
+    'activateWorkflowVersion',
+    'addTableColumn',
+    'addWorkflowGroup',
+    'addWorkspaceFilesToKnowledgeBase',
+    'bulkUpdateTableRows',
+    'bulkUpdateKnowledgeDocuments',
+    'cancelTableRuns',
+    'cancelWorkflowRun',
+    'chat',
+    'completeFileUpload',
+    'completeKnowledgeDocumentUpload',
+    'completeTableImport',
+    'createCredentialConnection',
+    'createCustomTool',
+    'createFile',
+    'createFileFolder',
+    'createFileUpload',
+    'createFileUploadPartUrls',
+    'createKnowledgeBase',
+    'createKnowledgeChunk',
+    'createKnowledgeConnector',
+    'createKnowledgeDocumentUpload',
+    'createKnowledgeDocumentUploadPartUrls',
+    'createKnowledgeFolder',
+    'createKnowledgeTag',
+    'createMcpServer',
+    'createServiceAccountCredential',
+    'createSkill',
+    'createTable',
+    'createTableExport',
+    'createTableFolder',
+    'createTableImport',
+    'createTableImportPartUrls',
+    'createTableRows',
+    'createTableView',
+    'createWorkflow',
+    'createWorkflowFolder',
+    'createWorkflowMcpServer',
+    'deployWorkflow',
+    'deployWorkflowMcpTool',
+    'duplicateWorkflow',
+    'executeWorkflow',
+    'unzipFile',
+    'searchTableRows',
+    'grantSkillEditor',
+    'importWorkflow',
+    'moveFileItems',
+    'moveTables',
+    'moveWorkflows',
+    'queryRows',
+    'queryRowsCount',
+    'relocateFileFolder',
+    'relocateKnowledgeFolder',
+    'relocateTableFolder',
+    'relocateWorkflowFolder',
+    'renameFile',
+    'restoreFile',
+    'restoreFileFolder',
+    'restoreKnowledgeBase',
+    'restoreTable',
+    'restoreTableFolder',
+    'restoreWorkflow',
+    'resumeWorkflow',
+    'rollbackWorkflow',
+    'runRowEnrichment',
+    'createTableDispatch',
+    'bulkSaveKnowledgeTagDefinitions',
+    'searchKnowledge',
+    'setSecret',
+    'syncKnowledgeConnector',
+    'updateCredential',
+    'updateCustomTool',
+    'updateFileContent',
+    'updateKnowledgeBase',
+    'updateKnowledgeChunk',
+    'updateKnowledgeConnector',
+    'updateKnowledgeConnectorDocuments',
+    'updateKnowledgeDocument',
+    'updateKnowledgeTag',
+    'updateMcpServer',
+    'updateSkill',
+    'updateTable',
+    'updateTableColumn',
+    'updateTableRow',
+    'updateTableView',
+    'updateWorkflow',
+    'updateWorkflowGroup',
+    'updateWorkflowMcpServer',
+    'updateWorkflowPublicApi',
+    'updateWorkflowVersion',
+    'uploadKnowledgeDocument',
+    'upsertFileShare',
+    'upsertTableRow',
+  ])
+
+  it('every destructive non-DELETE operation carries a confirmation message', () => {
+    const ungated = [...DESTRUCTIVE_NON_DELETE].filter((name) => !CLI_CONTRACT[name]?.confirm)
+    expect(ungated).toEqual([])
+  })
+
+  it('forces every non-GET operation into a destructiveness classification', () => {
+    // The old form regex-matched names for `delete|purge|…`, which is exactly
+    // the set already enumerated — so it could never fail. Triage by exhaustion
+    // instead: a new mutating operation fails until someone decides which list
+    // it belongs in.
+    const unclassified = (Object.keys(V2_OPERATIONS) as V2OperationName[]).filter((name) => {
+      const { method } = V2_OPERATIONS[name]
+      if (method === 'GET' || method === 'DELETE') return false
+      return !DESTRUCTIVE_NON_DELETE.has(name) && !NON_DESTRUCTIVE.has(name)
+    })
+    expect(unclassified).toEqual([])
+  })
+
   it('every DELETE carries a confirmation message', () => {
     // Without this, a new v2 domain arrives through generation with working
     // delete commands and no gate — which is exactly what happened when the

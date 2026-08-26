@@ -264,6 +264,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -330,6 +333,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -343,6 +349,92 @@
       }
     },
     "/api/v2/files/uploads/{uploadId}": {
+      "get": {
+        "operationId": "getFileUpload",
+        "summary": "Get File Upload",
+        "description": "Read an upload session's current state — whether it is still accepting bytes, has finalized into a file, or has failed. Use it to decide whether an interrupted transfer can be resumed or should be abandoned. Like every other upload control leg it requires the signed upload token, and is re-authorized against the workspace on each call.",
+        "tags": ["Files"],
+        "parameters": [
+          {
+            "name": "uploadId",
+            "in": "path",
+            "required": true,
+            "description": "Upload session identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Upload session identifier."
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace that owns the upload session.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "Workspace that owns the upload session."
+            }
+          },
+          {
+            "name": "upload-token",
+            "in": "header",
+            "required": true,
+            "description": "Signed upload control token returned when the upload session was created.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Signed upload control token returned when the upload session was created."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current upload-session state.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileUploadResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
       "delete": {
         "operationId": "abortFileUpload",
         "summary": "Abort File Upload",
@@ -526,6 +618,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -616,6 +711,286 @@
           },
           "409": {
             "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/files/{fileId}/text": {
+      "get": {
+        "operationId": "readFileText",
+        "summary": "Read File Text",
+        "description": "Return a file's text content, parsed out of the stored bytes. This reads the file; it writes nothing — `POST /api/v2/files/{fileId}/unzip` is the endpoint that unzips an archive into the workspace. Answers `400` for a type no parser supports, naming the raw-bytes download as the escape hatch, and `413` for a file above the extraction ceiling. A generated document is extracted from its compiled artifact rather than its generation source, so one still compiling answers `409` and is worth retrying. **`degraded: true` means text extraction did not fully succeed and the returned text may be incomplete or synthesized from the file's raw bytes. Do not treat it as authoritative content.** The legacy `.doc` and `.ppt` parsers deliberately return best-effort content rather than failing, so this flag — not an error status — is how a partial extraction is reported. `truncated` separately reports that a parser limit stopped extraction early.",
+        "tags": ["Files"],
+        "parameters": [
+          {
+            "name": "fileId",
+            "in": "path",
+            "required": true,
+            "description": "File identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "description": "File identifier."
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace that owns the file.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "Workspace that owns the file."
+            }
+          },
+          {
+            "name": "maxBytes",
+            "in": "query",
+            "required": false,
+            "description": "Optional ceiling on the source bytes fed to the parser, lowering but never raising the server limit.",
+            "schema": {
+              "description": "Optional ceiling on the source bytes fed to the parser, lowering but never raising the server limit.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 26214400
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The extracted text and its extraction-quality flags.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileTextResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/files/bulk-download": {
+      "get": {
+        "operationId": "bulkDownloadFiles",
+        "summary": "Bulk Download Files",
+        "description": "Stream a selection of workspace files as one zip. Select files by id and folders by path, each as one comma-separated parameter; a folder expands to all its descendants, and a path matching no folder is rejected rather than ignored. Each parameter accepts at most 100 entries — the same ceiling the resolved selection is held to — and the resolved file count and total bytes are checked again, so an over-broad selection answers `400` rather than streaming indefinitely. Downloading records an audit event, so it is not a safe read. A `HEAD` skips the effect but is authorized exactly as the `GET` is, so it answers `400`, `401`, `403`, or `404` wherever the `GET` would and an empty `200` otherwise. Skipping the effect means skipping the read that produces the payload, so that `200` carries none of the response headers documented below — it answers whether the `GET` would be allowed, not what the `GET` would return. In particular a `HEAD` does not report `Content-Length`, so it cannot be used to size a download in advance; read the size from the file resource instead.",
+        "tags": ["Files"],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace containing the selection.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "Workspace containing the selection."
+            }
+          },
+          {
+            "name": "fileIds",
+            "in": "query",
+            "required": false,
+            "description": "File identifiers to include, comma-separated. At most 100 entries.",
+            "schema": {
+              "description": "File identifiers to include, comma-separated. At most 100 entries.",
+              "type": "string"
+            }
+          },
+          {
+            "name": "folderPaths",
+            "in": "query",
+            "required": false,
+            "description": "Folder paths to include with all their descendants, comma-separated. At most 100 entries, and the files they resolve to count against the same 100-file download ceiling. A path that matches no folder is rejected rather than ignored.",
+            "schema": {
+              "description": "Folder paths to include with all their descendants, comma-separated. At most 100 entries, and the files they resolve to count against the same 100-file download ceiling. A path that matches no folder is rejected rather than ignored.",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The selected files as a zip archive.",
+            "headers": {
+              "Content-Type": {
+                "$ref": "#/components/headers/Content-Type"
+              },
+              "Content-Disposition": {
+                "$ref": "#/components/headers/Content-Disposition"
+              },
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/zip": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/files/{fileId}/unzip": {
+      "post": {
+        "operationId": "unzipFile",
+        "summary": "Unzip File",
+        "description": "Unzip a `.zip` archive into a new folder beside it and answer counts plus the destination path. This writes new workspace files; it does not read anything out of the archive into the response — `GET /api/v2/files/{fileId}/text` is the endpoint that returns a file's text. The unpacked files are deliberately not returned — a large archive would materialize thousands of objects into one response — so page `GET /api/v2/files?folderPath=...` for the contents. Unzipping is slow: an archive near the size ceiling can run for minutes. Only one unzip of a given archive runs at a time; a concurrent attempt answers `409`. Archives past the size ceiling, and runs that outrun their time budget, answer `413`.",
+        "tags": ["Files"],
+        "parameters": [
+          {
+            "name": "fileId",
+            "in": "path",
+            "required": true,
+            "description": "File identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "description": "File identifier."
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Workspace scope for the archive.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UnzipFileBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Counts and destination folder for the unpacked archive.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileUnzipResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -871,6 +1246,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -954,6 +1332,9 @@
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -1168,12 +1549,12 @@
           {
             "name": "organizationId",
             "in": "query",
-            "required": true,
-            "description": "Organization whose audit trail should be queried.",
+            "required": false,
+            "description": "Organization whose audit trail should be queried. Defaults to the caller's own organization when omitted. A caller that belongs to no organization, or that names one it is not a member of, is refused with a 403.",
             "schema": {
+              "description": "Organization whose audit trail should be queried. Defaults to the caller's own organization when omitted. A caller that belongs to no organization, or that names one it is not a member of, is refused with a 403.",
               "type": "string",
-              "minLength": 1,
-              "description": "Organization whose audit trail should be queried."
+              "minLength": 1
             }
           },
           {
@@ -1232,7 +1613,7 @@
         }
       }
     },
-    "/api/v2/audit-logs/{id}": {
+    "/api/v2/audit-logs/{auditLogId}": {
       "get": {
         "operationId": "getAuditLog",
         "summary": "Get Audit Log",
@@ -1240,7 +1621,7 @@
         "tags": ["Audit Logs"],
         "parameters": [
           {
-            "name": "id",
+            "name": "auditLogId",
             "in": "path",
             "required": true,
             "description": "Audit-log entry identifier.",
@@ -1253,12 +1634,12 @@
           {
             "name": "organizationId",
             "in": "query",
-            "required": true,
-            "description": "Organization whose audit-log entry should be returned.",
+            "required": false,
+            "description": "Organization whose audit-log entry should be returned. Defaults to the caller's own organization when omitted. A caller that belongs to no organization, or that names one it is not a member of, is refused with a 403.",
             "schema": {
+              "description": "Organization whose audit-log entry should be returned. Defaults to the caller's own organization when omitted. A caller that belongs to no organization, or that names one it is not a member of, is refused with a 403.",
               "type": "string",
-              "minLength": 1,
-              "description": "Organization whose audit-log entry should be returned."
+              "minLength": 1
             }
           }
         ],
@@ -1364,6 +1745,9 @@
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -1523,6 +1907,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -1604,6 +1991,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -1620,7 +2010,7 @@
       "post": {
         "operationId": "bulkDeleteFiles",
         "summary": "Delete Files",
-        "description": "Delete up to 1,000 workspace files in one operation.",
+        "description": "Delete up to 1,000 workspace files in one operation. This is the same soft delete as `DELETE /api/v2/files/{fileId}`: files are archived, not erased, and `POST /api/v2/files/{fileId}/restore` reverses each one.",
         "tags": ["Files"],
         "requestBody": {
           "required": true,
@@ -1667,11 +2057,11 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
-          "409": {
-            "$ref": "#/components/responses/Conflict"
-          },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -1689,7 +2079,7 @@
       "get": {
         "operationId": "listFilesFolders",
         "summary": "List Folders",
-        "description": "List workspace file folders with optional parent-path filtering and sorting. The bounded set is returned in one page; `nextCursor` is always null.",
+        "description": "List workspace file folders with optional parent-path filtering and sorting. Pass `scope=archived` to list folders a recursive `DELETE` soft-deleted, which is how a caller finds a path to hand to `POST /api/v2/files/folders/restore`. The bounded set is returned in one page; `nextCursor` is always null.",
         "tags": ["Files"],
         "parameters": [
           {
@@ -1748,6 +2138,18 @@
               "description": "Sort direction.",
               "type": "string",
               "enum": ["asc", "desc"]
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": false,
+            "description": "Which lifecycle set to list: `active` (default) returns live folders only; `archived` returns folders a recursive `DELETE` soft-deleted, which is how a caller finds a path to hand to `POST /api/v2/files/folders/restore`. Authorization is identical for both.",
+            "schema": {
+              "default": "active",
+              "description": "Which lifecycle set to list: `active` (default) returns live folders only; `archived` returns folders a recursive `DELETE` soft-deleted, which is how a caller finds a path to hand to `POST /api/v2/files/folders/restore`. Authorization is identical for both.",
+              "type": "string",
+              "enum": ["active", "archived"]
             }
           }
         ],
@@ -1852,6 +2254,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -1918,6 +2323,9 @@
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -2020,6 +2428,78 @@
           },
           "409": {
             "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/files/folders/restore": {
+      "post": {
+        "operationId": "restoreFilesFolder",
+        "summary": "Restore Folder",
+        "description": "Restore a soft-deleted folder and everything archived with it. `DELETE /api/v2/files/folders` archives recursively, so this is what makes a recursive delete recoverable: without it the archived files stay visible through `GET /api/v2/files?scope=archived` but the folder structure cannot be rebuilt. Address the folder by the path reported by `GET /api/v2/files/folders?scope=archived`; a path that is not archived answers `404`.",
+        "tags": ["Files"],
+        "requestBody": {
+          "required": true,
+          "description": "Workspace scope and archived folder path.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RestoreFileFolderRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The restored folder and what it brought back.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileFolderRestoreResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -2219,6 +2699,22 @@
           }
         }
       },
+      "UnsupportedMediaType": {
+        "description": "The request uses an unsupported media type.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "UNSUPPORTED_MEDIA_TYPE",
+                "message": "Request body must be sent as application/json"
+              }
+            }
+          }
+        }
+      },
       "RateLimited": {
         "description": "The caller exceeded the request rate limit.",
         "headers": {
@@ -2297,7 +2793,7 @@
                 "description": "Human-readable explanation of the error."
               },
               "details": {
-                "description": "Structured error details. On a `403` whose cause a caller can act on, this carries a `code` from a closed set:\n- `INSUFFICIENT_WORKSPACE_ROLE` — The caller has access to the workspace but its role is below the one this operation requires.\n- `PERSONAL_API_KEYS_DISABLED` — The workspace's organization does not allow personal API keys. Use a workspace API key.\n- `WORKSPACE_KEY_OPERATION_NOT_PERMITTED` — This operation is not available to a workspace-scoped API key. Use a personal API key.\n- `PRINCIPAL_KIND_NOT_PERMITTED` — This operation does not accept the caller’s kind of API key.\n- `ORGANIZATION_MEMBERSHIP_REQUIRED` — The caller is not a member of the organization it named.\n- `ORGANIZATION_ADMIN_REQUIRED` — The caller is a member of the organization but not an admin or owner.\n- `ENTERPRISE_PLAN_REQUIRED` — The organization has no active enterprise subscription.\n- `ORGANIZATION_PLAN_REQUIRED` — The organization has no active organization subscription (Pro for Teams, Max for Teams, or Enterprise).\n- `AUDIT_LOGS_DISABLED` — Audit logging is not enabled for this deployment.\n- `SKILL_EDITOR_ACCESS_REQUIRED` — The caller can write in the workspace but is not an editor of this skill.\n- `SECRET_ADMIN_ACCESS_REQUIRED` — The caller can write in the workspace but is not an admin of this secret. Ask a workspace admin, or someone holding admin on the secret, to grant access or set the value.\n- `WORKSPACE_RESOURCE_LIMIT_REACHED` — The workspace already holds the maximum number of resources of this kind. Delete one, or contact Sim to raise the limit; the message names the ceiling.\n- `PUBLIC_SHARING_NOT_ALLOWED` — The workspace's organization does not permit sharing this resource publicly. An organization admin controls the policy.\n- `CREDENTIAL_ADMIN_ACCESS_REQUIRED` — The caller can reach the workspace but cannot administer this credential.\n- `MCP_SERVER_URL_NOT_ALLOWED` — The supplied MCP server URL is outside the allowed domains or resolves to an internal address."
+                "description": "Structured error details. On a `403` whose cause a caller can act on, this carries a `code` from a closed set:\n- `INSUFFICIENT_WORKSPACE_ROLE` — The caller has access to the workspace but its role is below the one this operation requires.\n- `PERSONAL_API_KEYS_DISABLED` — The workspace's organization does not allow personal API keys. Use a workspace API key.\n- `WORKSPACE_KEY_OPERATION_NOT_PERMITTED` — This operation is not available to a workspace-scoped API key. Use a personal API key.\n- `PRINCIPAL_KIND_NOT_PERMITTED` — This operation does not accept the caller’s kind of API key.\n- `ORGANIZATION_MEMBERSHIP_REQUIRED` — The caller is not a member of the organization it named.\n- `ORGANIZATION_ADMIN_REQUIRED` — The caller is a member of the organization but not an admin or owner.\n- `ENTERPRISE_PLAN_REQUIRED` — The organization has no active enterprise subscription.\n- `ORGANIZATION_PLAN_REQUIRED` — The organization has no active organization subscription (Pro for Teams, Max for Teams, or Enterprise).\n- `AUDIT_LOGS_DISABLED` — Audit logging is not enabled for this deployment.\n- `SKILL_EDITOR_ACCESS_REQUIRED` — The caller can write in the workspace but is not an editor of this skill.\n- `SECRET_ADMIN_ACCESS_REQUIRED` — The caller can write in the workspace but is not an admin of this secret. Ask a workspace admin, or someone holding admin on the secret, to grant access or set the value.\n- `WORKSPACE_RESOURCE_LIMIT_REACHED` — The workspace already holds the maximum number of resources of this kind. Delete one, or contact Sim to raise the limit; the message names the ceiling.\n- `PUBLIC_SHARING_NOT_ALLOWED` — The workspace's organization does not permit sharing this resource publicly. An organization admin controls the policy.\n- `CREDENTIAL_ADMIN_ACCESS_REQUIRED` — The caller can reach the workspace but cannot administer this credential.\n- `MCP_SERVER_URL_NOT_ALLOWED` — The supplied MCP server URL is outside the allowed domains or resolves to an internal address.\n- `WORKSPACE_PLAN_CAPABILITY_REQUIRED` — The workspace's plan does not include a capability this request depends on. The message names the capability; upgrading the workspace's plan is the remedy.\n- `CHAT_AUTH_MODE_NOT_PERMITTED` — The workspace's permission group does not allow the chat authentication mode the request selected. A mode already saved on the deployment may still be re-saved; changing to a disallowed one cannot.\n- `CONNECTOR_MANAGED_RESOURCE_READ_ONLY` — This resource is managed by a knowledge base connector and cannot be edited directly. Change it at the source and re-sync, or exclude the document from the connector."
               }
             },
             "required": ["code", "message"],
@@ -2331,6 +2827,11 @@
             "type": "string",
             "description": "Unique file identifier.",
             "examples": ["wf_V1StGXR8z5jdHi6BmyT91"]
+          },
+          "webUrl": {
+            "type": "string",
+            "format": "uri",
+            "description": "Canonical absolute URL for opening this resource in the Sim web application."
           },
           "name": {
             "type": "string",
@@ -2394,6 +2895,7 @@
         },
         "required": [
           "id",
+          "webUrl",
           "name",
           "size",
           "type",
@@ -2439,6 +2941,7 @@
             "data": [
               {
                 "id": "wf_V1StGXR8z5jdHi6BmyT91",
+                "webUrl": "https://www.sim.ai/workspace/a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64/files/wf_V1StGXR8z5jdHi6BmyT91",
                 "name": "data.csv",
                 "size": 1024,
                 "type": "text/csv",
@@ -2470,6 +2973,7 @@
           {
             "data": {
               "id": "wf_V1StGXR8z5jdHi6BmyT91",
+              "webUrl": "https://www.sim.ai/workspace/a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64/files/wf_V1StGXR8z5jdHi6BmyT91",
               "name": "data.csv",
               "size": 1024,
               "type": "text/csv",
@@ -2606,7 +3110,7 @@
           "url": {
             "type": "string",
             "format": "uri",
-            "description": "Signed URL to which the file bytes are uploaded. Send the bytes with `PUT` to this URL, including exactly the headers in `headers` and nothing that alters the body. Success is `204` with an empty body. A failure is the same `{ \"error\": { \"code\", \"message\" } }` envelope as every other v2 response: `400` when the body does not match the size or content type the session was created for, `403` when the token is invalid, expired, or belongs to another session, and `409` when the session is no longer accepting bytes. The URL is signed and self-describing — construct it from this field only, never by hand."
+            "description": "Signed URL to which the file bytes are uploaded. Send the bytes with `PUT` to this URL, including exactly the headers in `headers` and nothing that alters the body. The URL is signed and self-describing — construct it from this field only, never by hand.\n\n**Where this URL points depends on the deployment, and so does what answers you.** When Sim stores objects itself the URL is Sim's own data plane: success is `204` with an empty body, and a failure is the same `{ \"error\": { \"code\", \"message\" } }` envelope as every other v2 response — `400` when the body does not match the size or content type the session was created for, `403` when the token is invalid, expired, or belongs to another session, and `409` when the session is no longer accepting bytes. When object storage is configured — S3, Google Cloud Storage, or Azure Blob — the URL is that provider's own presigned URL, and the provider answers directly: treat **any `2xx` as success** (S3 and GCS answer `200`, Azure `201`), and on failure expect the provider's error document, typically XML, not the v2 envelope. Do not branch on `204` and do not parse a failure as JSON."
           },
           "headers": {
             "type": "object",
@@ -2760,7 +3264,7 @@
           "url": {
             "type": "string",
             "format": "uri",
-            "description": "Signed URL for this upload part. Send the bytes with `PUT` to this URL, including exactly the headers in `headers` and nothing that alters the body. Success is `204` with an empty body. A failure is the same `{ \"error\": { \"code\", \"message\" } }` envelope as every other v2 response: `400` when the body does not match the size or content type the session was created for, `403` when the token is invalid, expired, or belongs to another session, and `409` when the session is no longer accepting bytes. The URL is signed and self-describing — construct it from this field only, never by hand."
+            "description": "Signed URL for this upload part. Send the bytes with `PUT` to this URL, including exactly the headers in `headers` and nothing that alters the body. The URL is signed and self-describing — construct it from this field only, never by hand.\n\n**Where this URL points depends on the deployment, and so does what answers you.** When Sim stores objects itself the URL is Sim's own data plane: success is `204` with an empty body, and a failure is the same `{ \"error\": { \"code\", \"message\" } }` envelope as every other v2 response — `400` when the body does not match the size or content type the session was created for, `403` when the token is invalid, expired, or belongs to another session, and `409` when the session is no longer accepting bytes. When object storage is configured — S3, Google Cloud Storage, or Azure Blob — the URL is that provider's own presigned URL, and the provider answers directly: treat **any `2xx` as success** (S3 and GCS answer `200`, Azure `201`), and on failure expect the provider's error document, typically XML, not the v2 envelope. Do not branch on `204` and do not parse a failure as JSON.\n\nYou do not need to retain the `ETag` each part upload returns. Unlike a raw S3 multipart flow, completion takes no request body: Sim lists the uploaded parts from the provider itself and reads their entity tags there, so `POST .../complete` only has to happen after every part has been sent."
           },
           "headers": {
             "type": "object",
@@ -2839,6 +3343,143 @@
           }
         ]
       },
+      "V2FileText": {
+        "type": "object",
+        "properties": {
+          "fileId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "description": "File the text was extracted from."
+          },
+          "name": {
+            "type": "string",
+            "description": "File name, including its extension."
+          },
+          "type": {
+            "type": "string",
+            "description": "Stored MIME type of the source file."
+          },
+          "text": {
+            "type": "string",
+            "description": "Extracted text."
+          },
+          "truncated": {
+            "type": "boolean",
+            "description": "True when a parser limit stopped extraction before the input was exhausted."
+          },
+          "degraded": {
+            "type": "boolean",
+            "description": "True when text extraction did not fully succeed and `text` may be incomplete or synthesized from the raw bytes rather than read from the document. Never treat degraded text as authoritative content."
+          },
+          "degradedReason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why extraction degraded, or null when it did not."
+          },
+          "charCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Length of `text` in characters."
+          },
+          "byteCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Source bytes read from storage before extraction."
+          }
+        },
+        "required": [
+          "fileId",
+          "name",
+          "type",
+          "text",
+          "truncated",
+          "degraded",
+          "degradedReason",
+          "charCount",
+          "byteCount"
+        ],
+        "additionalProperties": false,
+        "title": "Extracted file text",
+        "description": "Text extracted from a workspace file, with extraction-quality flags."
+      },
+      "FileTextResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2FileText"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "File text response",
+        "description": "Text extracted from a workspace file."
+      },
+      "V2FileUnzipResult": {
+        "type": "object",
+        "properties": {
+          "folderPath": {
+            "type": "string",
+            "title": "Folder path",
+            "description": "Canonical path of the folder the archive was unpacked into. May differ from the archive name when a sibling folder already claimed it.",
+            "maxLength": 4096
+          },
+          "extractedFileCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Number of files written into the destination folder."
+          },
+          "skippedFileCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Number of archive entries skipped as unsafe, empty, or noise."
+          }
+        },
+        "required": ["folderPath", "extractedFileCount", "skippedFileCount"],
+        "additionalProperties": false,
+        "title": "Unzip result",
+        "description": "Outcome of unzipping a workspace archive into a folder."
+      },
+      "FileUnzipResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2FileUnzipResult"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Unzip file response",
+        "description": "Counts and destination folder for the unpacked archive."
+      },
+      "UnzipFileBody": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Workspace that owns the archive."
+          }
+        },
+        "required": ["workspaceId"],
+        "additionalProperties": false,
+        "title": "Unzip file body",
+        "description": "Workspace scope for the archive."
+      },
       "V2DeleteFileResult": {
         "type": "object",
         "properties": {
@@ -2913,6 +3554,7 @@
           {
             "data": {
               "id": "wf_V1StGXR8z5jdHi6BmyT91",
+              "webUrl": "https://www.sim.ai/workspace/a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64/files/wf_V1StGXR8z5jdHi6BmyT91",
               "name": "data_restored.csv",
               "size": 1024,
               "type": "text/csv",
@@ -3018,6 +3660,11 @@
             "description": "Unique file identifier.",
             "examples": ["wf_V1StGXR8z5jdHi6BmyT91"]
           },
+          "webUrl": {
+            "type": "string",
+            "format": "uri",
+            "description": "Canonical absolute URL for opening this resource in the Sim web application."
+          },
           "name": {
             "type": "string",
             "description": "Original file name.",
@@ -3091,6 +3738,7 @@
         },
         "required": [
           "id",
+          "webUrl",
           "name",
           "size",
           "type",
@@ -3122,6 +3770,7 @@
           {
             "data": {
               "id": "wf_V1StGXR8z5jdHi6BmyT91",
+              "webUrl": "https://www.sim.ai/workspace/a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64/files/wf_V1StGXR8z5jdHi6BmyT91",
               "name": "data.csv",
               "size": 1024,
               "type": "text/csv",
@@ -3137,6 +3786,7 @@
           {
             "data": {
               "id": "wf_V1StGXR8z5jdHi6BmyT91",
+              "webUrl": "https://www.sim.ai/workspace/a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64/files/wf_V1StGXR8z5jdHi6BmyT91",
               "name": "data.csv",
               "size": 1024,
               "type": "text/csv",
@@ -3223,7 +3873,7 @@
                 "type": "null"
               }
             ],
-            "description": "Identifier of the affected resource."
+            "description": "Identifier of the affected resource. Always null when `resourceType` is `folder`: folders are addressed by canonical path on this API, so their internal identifiers are withheld rather than published as an id no other endpoint accepts."
           },
           "resourceName": {
             "anyOf": [
@@ -3248,7 +3898,7 @@
             "description": "Human-readable description of the action."
           },
           "metadata": {
-            "description": "Arbitrary per-action JSON metadata."
+            "description": "Arbitrary per-action JSON metadata. Internal folder identifiers are stripped at every nesting level, for the same reason `resourceId` is null on a folder entry."
           },
           "createdAt": {
             "type": "string",
@@ -3718,6 +4368,77 @@
         "title": "File folder list response",
         "description": "Workspace file folders in the current page."
       },
+      "V2FileFolderRestore": {
+        "type": "object",
+        "properties": {
+          "folder": {
+            "description": "The restored folder.",
+            "$ref": "#/components/schemas/V2Folder"
+          },
+          "restoredItems": {
+            "type": "object",
+            "properties": {
+              "files": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "description": "Files restored inside the folder tree."
+              },
+              "folders": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "description": "Folders restored, including the one addressed."
+              }
+            },
+            "required": ["files", "folders"],
+            "additionalProperties": false,
+            "description": "What the restore brought back."
+          }
+        },
+        "required": ["folder", "restoredItems"],
+        "additionalProperties": false,
+        "title": "Folder restore result",
+        "description": "The restored folder and the counts of items it brought back."
+      },
+      "FileFolderRestoreResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2FileFolderRestore"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Folder restore response",
+        "description": "The restored folder and the counts of items it brought back."
+      },
+      "NonRootFolderPathInput": {
+        "title": "Non-root folder path input",
+        "description": "Non-root folder path. A missing leading slash is normalized before validation. Segments are percent-encoded, so a folder shown as \"New folder\" is `/New%20folder`: everything outside `A-Z a-z 0-9 - _ . ~` is escaped as uppercase hex, and only that exact encoding is accepted. A trailing slash, an empty segment, and a literal `.` or `..` segment are rejected. At most 64 segments and 4096 encoded bytes.",
+        "maxLength": 4096,
+        "type": "string"
+      },
+      "RestoreFileFolderRequest": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Workspace that owns the archived folder."
+          },
+          "path": {
+            "description": "Path of the archived folder to restore, as reported by `GET /api/v2/files/folders?scope=archived`.",
+            "$ref": "#/components/schemas/NonRootFolderPathInput"
+          }
+        },
+        "required": ["workspaceId", "path"],
+        "additionalProperties": false,
+        "title": "Restore file folder request",
+        "description": "Workspace scope and archived folder path."
+      },
       "FileFolderResponse": {
         "type": "object",
         "properties": {
@@ -3730,12 +4451,6 @@
         "additionalProperties": false,
         "title": "File folder response",
         "description": "A single workspace file folder."
-      },
-      "NonRootFolderPathInput": {
-        "title": "Non-root folder path input",
-        "description": "Non-root folder path. A missing leading slash is normalized before validation. Segments are percent-encoded, so a folder shown as \"New folder\" is `/New%20folder`: everything outside `A-Z a-z 0-9 - _ . ~` is escaped as uppercase hex, and only that exact encoding is accepted. A trailing slash, an empty segment, and a literal `.` or `..` segment are rejected. At most 64 segments and 4096 encoded bytes.",
-        "maxLength": 4096,
-        "type": "string"
       },
       "CreateFileFolderRequest": {
         "type": "object",

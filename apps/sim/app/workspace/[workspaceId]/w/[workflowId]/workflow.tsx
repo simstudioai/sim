@@ -574,7 +574,7 @@ const WorkflowContent = React.memo(
       embedded,
     })
 
-    const isWorkflowEmpty = useMemo(() => Object.keys(blocks).length === 0, [blocks])
+    const isWorkflowEmpty = !hasBlocks
 
     /** Handles OAuth connect events dispatched by Copilot tools. */
     useEffect(() => {

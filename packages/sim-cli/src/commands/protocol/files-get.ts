@@ -183,6 +183,7 @@ export function attachFileGet(files: Command): void {
   files
     .command('get')
     .argument('<fileId>', 'File whose content to read')
+    .allowExcessArguments(false)
     .description('Get a file’s content')
     .option('-o, --output-file <path>', 'Write content to a file instead of stdout')
     .option('--force', 'Overwrite --output-file if it already exists')

@@ -18,6 +18,14 @@ export interface DocumentProcessingPayloadBase {
     lang?: string
   }
   requestId: string
+  /** Opaque queue generation. Absent only on payloads created before token rollout. */
+  processingQueueToken?: string
+  /** Whether this payload's admission incremented the durable attempt budget. */
+  chargedAtDispatch?: boolean
+  /** Exact queue-generation stamp this task is allowed to claim. */
+  processingQueuedAt?: string
+  /** Number of durable quota continuations already scheduled for this indexing pass. */
+  quotaRetryCount?: number
 }
 
 export interface WorkspaceDocumentProcessingBillingContext {
@@ -139,6 +147,34 @@ export function assertDocumentProcessingPayload(value: unknown): DocumentProcess
   ) {
     throw new Error('Document processing payload is missing an identifier')
   }
+  if (
+    value.processingQueueToken !== undefined &&
+    (!isNonEmptyString(value.processingQueueToken) ||
+      value.processingQueueToken !== value.requestId)
+  ) {
+    throw new Error('Document processing queue token is invalid')
+  }
+  if (value.processingQueueToken !== undefined && !isNonEmptyString(value.processingQueuedAt)) {
+    throw new Error('Document processing payload is missing its queue stamp')
+  }
+  if (value.chargedAtDispatch !== undefined && typeof value.chargedAtDispatch !== 'boolean') {
+    throw new Error('Document processing dispatch charge marker is invalid')
+  }
+  if (value.chargedAtDispatch !== undefined && value.processingQueueToken === undefined) {
+    throw new Error('Document processing dispatch charge marker requires a queue token')
+  }
+  if (value.processingQueuedAt !== undefined) {
+    if (!isNonEmptyString(value.processingQueuedAt)) {
+      throw new Error('Document processing queue stamp is invalid')
+    }
+    const processingQueuedAt = new Date(value.processingQueuedAt)
+    if (
+      Number.isNaN(processingQueuedAt.getTime()) ||
+      processingQueuedAt.toISOString() !== value.processingQueuedAt
+    ) {
+      throw new Error('Document processing queue stamp is invalid')
+    }
+  }
   if (!isRecordLike(value.docData)) {
     throw new Error('Document processing payload is missing document data')
   }
@@ -155,6 +191,14 @@ export function assertDocumentProcessingPayload(value: unknown): DocumentProcess
   }
   if (!isRecordLike(value.processingOptions)) {
     throw new Error('Document processing payload is missing processing options')
+  }
+  if (
+    value.quotaRetryCount !== undefined &&
+    (typeof value.quotaRetryCount !== 'number' ||
+      !Number.isSafeInteger(value.quotaRetryCount) ||
+      value.quotaRetryCount < 0)
+  ) {
+    throw new Error('Document processing quota retry count is invalid')
   }
   const processingOptions = value.processingOptions
   if (
@@ -179,6 +223,16 @@ export function assertDocumentProcessingPayload(value: unknown): DocumentProcess
       ...(processingOptions.lang !== undefined ? { lang: processingOptions.lang } : {}),
     },
     requestId: value.requestId,
+    ...(value.processingQueueToken !== undefined
+      ? { processingQueueToken: value.processingQueueToken }
+      : {}),
+    ...(value.chargedAtDispatch !== undefined
+      ? { chargedAtDispatch: value.chargedAtDispatch }
+      : {}),
+    ...(value.processingQueuedAt !== undefined
+      ? { processingQueuedAt: value.processingQueuedAt }
+      : {}),
+    ...(value.quotaRetryCount !== undefined ? { quotaRetryCount: value.quotaRetryCount } : {}),
     ...billingContext,
   }
 }

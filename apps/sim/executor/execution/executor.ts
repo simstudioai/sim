@@ -490,6 +490,8 @@ export class DAGExecutor {
       completedLoops: snapshotState?.completedLoops
         ? new Set(snapshotState.completedLoops)
         : new Set(),
+      // Deliberately not restored from a snapshot: it is a cache, so a resumed run re-resolves.
+      toolBindingLabelCache: new Map(),
       loopExecutions: snapshotState?.loopExecutions
         ? new Map(
             Object.entries(snapshotState.loopExecutions).map(([loopId, scope]) => [
@@ -664,6 +666,7 @@ export class DAGExecutor {
       resolution: startResolution,
       workflowInput: this.workflowInput,
       runMetadata: this.contextExtensions.startRunMetadata,
+      workspaceId: this.contextExtensions.workspaceId,
     })
 
     state.setBlockState(startResolution.block.id, {

@@ -157,6 +157,23 @@ describe('differential: split parity with the built-in engine', () => {
   )
 })
 
+describe('differential: lazy split parity with eager split', () => {
+  it.each(SPLIT_PATTERNS.filter((pattern) => !isKnownDivergence(pattern)))(
+    'iterates %s identically to the eager linear split across every document',
+    (pattern) => {
+      const compiled = compile(pattern)
+      if (!compiled) return
+
+      for (const doc of DOCUMENTS) {
+        expect(
+          normalize(Array.from(compiled.iterateSplits(doc))),
+          `pattern ${pattern} on ${JSON.stringify(doc)}`
+        ).toEqual(normalize(compiled.split(doc)))
+      }
+    }
+  )
+})
+
 describe('differential: test/find parity with the built-in engine', () => {
   /** Grep-style patterns, where `test` and the match index are what matter. */
   const MATCH_PATTERNS = [

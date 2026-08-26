@@ -135,7 +135,12 @@ describe('extractWorkspaceFile', () => {
         principal,
         input: { fileId: 'file-1', assertedWorkspaceId: 'workspace-1' },
       })
-    ).resolves.toEqual({ folderName: 'bundle', extractedCount: 2, skippedCount: 1 })
+    ).resolves.toEqual({
+      folderName: 'bundle',
+      folderDisplayPath: 'Projects/Imports/bundle',
+      extractedCount: 2,
+      skippedCount: 1,
+    })
 
     expect(mocks.createFolder).toHaveBeenCalledWith({
       workspaceId: 'workspace-1',
@@ -258,7 +263,12 @@ describe('extractWorkspaceFile', () => {
         principal,
         input: { fileId: 'file-1', assertedWorkspaceId: 'workspace-1' },
       })
-    ).resolves.toEqual({ folderName: 'bundle (3)', extractedCount: 2, skippedCount: 1 })
+    ).resolves.toEqual({
+      folderName: 'bundle (3)',
+      folderDisplayPath: 'Projects/Imports/bundle (3)',
+      extractedCount: 2,
+      skippedCount: 1,
+    })
 
     expect(mocks.createFolder).toHaveBeenCalledWith(
       expect.objectContaining({ name: 'bundle', exactName: false })
@@ -358,10 +368,41 @@ describe('extractWorkspaceFile', () => {
     expect(mocks.notify).toHaveBeenCalledOnce()
   })
 
-  it('rejects non-session principals before loading the file', async () => {
+  /**
+   * The widening: API-key principals reach extraction because it grants nothing
+   * `files.create` and `files.upload.create` do not already grant them at the
+   * same `write` role. It only collapses many calls into one.
+   */
+  it.each([
+    { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
+    { kind: 'workspace_api_key', workspaceId: 'workspace-1', keyId: 'key-1' },
+  ] as const)('allows $kind to extract', async (apiKeyPrincipal) => {
     await expect(
       extractWorkspaceFile.execute({
-        principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
+        principal: apiKeyPrincipal,
+        input: { fileId: 'file-1', assertedWorkspaceId: 'workspace-1' },
+      })
+    ).resolves.toMatchObject({ extractedCount: 2 })
+  })
+
+  /**
+   * Delegated services stay out. No copilot or executor caller exists today and
+   * admitting one is a separate decision, so the widening must not quietly
+   * include them.
+   */
+  it('still rejects a delegated principal before loading the file', async () => {
+    await expect(
+      extractWorkspaceFile.execute({
+        principal: {
+          kind: 'delegated',
+          serviceId: 'copilot',
+          subjectUserId: 'user-1',
+          workspaceId: 'workspace-1',
+          delegationId: 'delegation-1',
+          audience: 'sim:workspace-files',
+          issuedAt: new Date('2026-01-01T00:00:00Z'),
+          expiresAt: new Date('2999-01-01T00:00:00Z'),
+        },
         input: { fileId: 'file-1', assertedWorkspaceId: 'workspace-1' },
       })
     ).rejects.toMatchObject({ code: 'forbidden' })

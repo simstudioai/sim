@@ -1,0 +1,177 @@
+import { createLogger } from '@sim/logger'
+import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
+
+/** Selector subblock types that can be validated */
+export const SELECTOR_TYPES = new Set([
+  'oauth-input',
+  'knowledge-base-selector',
+  'document-selector',
+  'file-selector',
+  'project-selector',
+  'channel-selector',
+  'folder-selector',
+  'mcp-server-selector',
+  'mcp-tool-selector',
+  'workflow-selector',
+])
+
+const validationLogger = createLogger('EditWorkflowValidation')
+
+/**
+ * Validation error for a specific field
+ */
+export interface ValidationError {
+  blockId: string
+  blockType: string
+  field: string
+  value: any
+  error: string
+}
+
+/**
+ * Every reason the engine can decline one operation.
+ *
+ * An array rather than a bare union so the public contract can publish the set
+ * with `z.enum(...)` and a new reason cannot reach the wire undocumented.
+ */
+export const WORKFLOW_SKIPPED_ITEM_TYPES = [
+  'block_not_found',
+  'invalid_block_type',
+  'block_not_allowed',
+  'model_not_allowed',
+  'block_locked',
+  'tool_not_allowed',
+  'invalid_edge_target',
+  'invalid_edge_source',
+  'invalid_edge_scope',
+  'invalid_source_handle',
+  'invalid_target_handle',
+  'invalid_subblock_field',
+  'missing_required_params',
+  'invalid_subflow_parent',
+  'nested_subflow_not_allowed',
+  'duplicate_block_name',
+  'reserved_block_name',
+  'retry_not_supported',
+  'duplicate_trigger',
+  'duplicate_single_instance_block',
+  /**
+   * A block was left disabled because a container above it is disabled. The
+   * engine will not enable a block its container would keep from running; the
+   * caller has to enable the container first.
+   */
+  'disabled_ancestor',
+] as const
+
+/**
+ * Types of items that can be skipped during operation application
+ */
+export type SkippedItemType = (typeof WORKFLOW_SKIPPED_ITEM_TYPES)[number]
+
+/**
+ * Represents an item that was skipped during operation application
+ */
+export interface SkippedItem {
+  type: SkippedItemType
+  operationType: string
+  blockId: string
+  reason: string
+  details?: Record<string, any>
+}
+
+/**
+ * Skipped-item types that represent benign, SELF-HEALING deferrals rather than
+ * failures. A deferred forward-reference edge (`invalid_edge_target`) is
+ * recorded as a pending connection and wired automatically once its target
+ * block exists -- possibly on a later edit_workflow call. It must be surfaced to
+ * the model as informational, NOT through the "skipped/failed operation"
+ * channel; otherwise a literal model re-issues the self-healing operation in a
+ * loop. See `createValidatedEdge` (builders.ts) and `resolvePendingConnections`
+ * (engine.ts).
+ */
+export const DEFERRED_SKIPPED_ITEM_TYPES: ReadonlySet<SkippedItemType> = new Set([
+  'invalid_edge_target',
+])
+
+/** Whether a skipped item is a benign deferral (see DEFERRED_SKIPPED_ITEM_TYPES). */
+export function isDeferredSkippedItem(item: SkippedItem): boolean {
+  return DEFERRED_SKIPPED_ITEM_TYPES.has(item.type)
+}
+
+/**
+ * Logs and records a skipped item
+ */
+export function logSkippedItem(skippedItems: SkippedItem[], item: SkippedItem): void {
+  validationLogger.warn(`Skipped ${item.operationType} operation: ${item.reason}`, {
+    type: item.type,
+    operationType: item.operationType,
+    blockId: item.blockId,
+    ...(item.details && { details: item.details }),
+  })
+  skippedItems.push(item)
+}
+
+/**
+ * Result of input validation
+ */
+export interface ValidationResult {
+  validInputs: Record<string, any>
+  errors: ValidationError[]
+}
+
+/**
+ * Result of validating a single value
+ */
+export interface ValueValidationResult {
+  valid: boolean
+  value?: any
+  error?: ValidationError
+}
+
+export interface EditWorkflowOperation {
+  operation_type: 'add' | 'edit' | 'delete' | 'insert_into_subflow' | 'extract_from_subflow'
+  block_id: string
+  params?: Record<string, any>
+}
+
+export interface EditWorkflowParams {
+  operations: EditWorkflowOperation[]
+  workflowId: string
+  currentUserWorkflow?: string
+}
+
+export interface EdgeHandleValidationResult {
+  valid: boolean
+  error?: string
+  /** The normalized handle to use (e.g., simple 'if' normalized to 'condition-{uuid}') */
+  normalizedHandle?: string
+}
+
+/**
+ * Result of applying operations to workflow state
+ */
+export interface ApplyOperationsResult {
+  state: any
+  validationErrors: ValidationError[]
+  skippedItems: SkippedItem[]
+  /**
+   * Requested `block_id` -> the id the block was actually given, for every
+   * `add`/`insert_into_subflow` whose requested id was not already a UUID.
+   *
+   * The engine mints a UUID for those so the graph holds one id shape, and
+   * without handing the mapping back a caller cannot reference what it just
+   * created except by re-reading the graph and matching on name.
+   */
+  mintedBlockIds: Record<string, string>
+}
+
+export interface OperationContext {
+  modifiedState: any
+  skippedItems: SkippedItem[]
+  validationErrors: ValidationError[]
+  permissionConfig: PermissionGroupConfig | null
+  deferredConnections: Array<{
+    blockId: string
+    connections: Record<string, any>
+  }>
+}

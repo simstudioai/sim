@@ -433,12 +433,11 @@ pii:
 
 When enabled, the chart deploys it as a standalone `<release>-pii` Deployment + Service and **auto-wires** `PII_URL` on the app to the in-cluster service. The service bundles five large spaCy models (en/es/it/pl/fi, ~2.2GB), so the first start takes ~3 minutes while models load — the `startupProbe` allows for this. Size the `pii.resources` for at least ~4Gi memory.
 
-This alone powers the **Guardrails PII block** and on-demand masking. To additionally turn on **automatic log redaction** (the org/workspace data-retention scrub), you must:
+This powers the **Guardrails PII block**, on-demand masking, and PII policies configured under **Settings → Enterprise → Data Retention**. Automatic redaction also requires the app to reach its own masking endpoint:
 
 ```yaml
 app:
   env:
-    PII_REDACTION: "true"
     # The log-redaction path calls the app's own /api/guardrails/mask-batch,
     # which must be reachable from inside the cluster. Set this to the in-cluster
     # app Service URL (NOT the public ingress, which usually isn't hairpin-reachable).

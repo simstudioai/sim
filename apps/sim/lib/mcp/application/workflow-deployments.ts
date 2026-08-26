@@ -1,7 +1,6 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { resolvePrincipalAttribution } from '@sim/auth/principal'
-import { db, workflow, workflowMcpServer, workflowMcpTool } from '@sim/db'
-import { and, asc, eq, inArray, isNull } from 'drizzle-orm'
+import type { CursorKey } from '@/lib/api/list-query'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { mcpServerDelegationPolicy } from '@/lib/mcp/application/authorization'
@@ -15,6 +14,16 @@ import {
   performUpdateWorkflowMcpTool,
 } from '@/lib/mcp/orchestration'
 import { mcpPubSub } from '@/lib/mcp/pubsub'
+import {
+  getLiveWorkflowMcpTool,
+  getWorkflowMcpPublishableWorkflow,
+  getWorkflowMcpServerById,
+  getWorkflowMcpToolIncludingArchived,
+  listLiveWorkflowMcpTools,
+  listWorkflowMcpToolNames,
+  listWorkspaceWorkflowMcpServers,
+  type WorkflowMcpServerSortBy,
+} from '@/lib/mcp/queries'
 import { getDeployedWorkflowInputFormat } from '@/lib/mcp/workflow-mcp-sync'
 import {
   applyDescriptionOverrides,
@@ -35,11 +44,7 @@ async function resolveWorkspaceContext(workspaceId: string) {
 }
 
 async function resolveServerContext(serverId: string) {
-  const [server] = await db
-    .select()
-    .from(workflowMcpServer)
-    .where(and(eq(workflowMcpServer.id, serverId), isNull(workflowMcpServer.deletedAt)))
-    .limit(1)
+  const server = await getWorkflowMcpServerById(serverId)
   if (!server) throw new OrchestrationError('not_found', 'MCP server not found')
   const workspace = await resolveWorkspaceContext(server.workspaceId)
   return { ...workspace, server }
@@ -47,17 +52,7 @@ async function resolveServerContext(serverId: string) {
 
 async function resolveWorkflowToolContext(serverId: string, workflowId: string) {
   const context = await resolveServerContext(serverId)
-  const [workflowRecord] = await db
-    .select()
-    .from(workflow)
-    .where(
-      and(
-        eq(workflow.id, workflowId),
-        eq(workflow.workspaceId, context.workspaceId),
-        isNull(workflow.archivedAt)
-      )
-    )
-    .limit(1)
+  const workflowRecord = await getWorkflowMcpPublishableWorkflow(context.workspaceId, workflowId)
   if (!workflowRecord) throw new OrchestrationError('not_found', 'Workflow not found')
   return { ...context, workflow: workflowRecord }
 }
@@ -84,58 +79,101 @@ function attribution(
 
 export interface ListWorkflowMcpDeploymentsInput {
   workspaceId: string
+  sortBy?: WorkflowMcpServerSortBy
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  cursorKeys?: CursorKey[]
 }
 
+/**
+ * Workflow-MCP servers in a workspace, each with the tool names it publishes.
+ *
+ * Keyset-paged, because nothing caps how many servers a workspace publishes —
+ * the same reasoning that made the external server list paged. An absent
+ * `limit` still applies {@link MAX_LISTED_WORKFLOW_MCP_SERVERS}, so the copilot
+ * adapter reads exactly the page it always read; it now learns the set was cut
+ * from `nextCursorKeys` rather than from a row count it did the arithmetic on
+ * itself.
+ *
+ * The tool-name aggregation stays a second bounded read rather than a join: a
+ * join would multiply server rows by their tools and break the keyset page
+ * boundary, and the names are decoration on the server summary, not the page's
+ * unit.
+ */
 export const listWorkflowMcpDeployments = defineAuthorizedWorkspaceUseCase({
   operation: mcpServerOperations.listWorkflowDeployments,
   resolveContext: ({ input }: { input: ListWorkflowMcpDeploymentsInput }) =>
     resolveWorkspaceContext(input.workspaceId),
   authorizationOptions,
-  async execute({ context }) {
-    const rows = await db
-      .select({
-        id: workflowMcpServer.id,
-        name: workflowMcpServer.name,
-        description: workflowMcpServer.description,
-      })
-      .from(workflowMcpServer)
-      .where(
-        and(
-          eq(workflowMcpServer.workspaceId, context.workspaceId),
-          isNull(workflowMcpServer.deletedAt)
-        )
-      )
-      .orderBy(asc(workflowMcpServer.id))
-      .limit(MAX_LISTED_WORKFLOW_MCP_SERVERS + 1)
-    const truncated = rows.length > MAX_LISTED_WORKFLOW_MCP_SERVERS
-    const servers = rows.slice(0, MAX_LISTED_WORKFLOW_MCP_SERVERS)
-    const serverIds = servers.map((server) => server.id)
-    const tools =
-      serverIds.length === 0
-        ? []
-        : await db
-            .select({ serverId: workflowMcpTool.serverId, toolName: workflowMcpTool.toolName })
-            .from(workflowMcpTool)
-            .where(
-              and(inArray(workflowMcpTool.serverId, serverIds), isNull(workflowMcpTool.archivedAt))
-            )
-            .orderBy(asc(workflowMcpTool.serverId), asc(workflowMcpTool.toolName))
-            .limit(MAX_LISTED_WORKFLOW_MCP_TOOLS + 1)
-    const toolsTruncated = tools.length > MAX_LISTED_WORKFLOW_MCP_TOOLS
-    const names = new Map<string, string[]>()
-    for (const tool of tools.slice(0, MAX_LISTED_WORKFLOW_MCP_TOOLS)) {
-      const existing = names.get(tool.serverId) ?? []
-      existing.push(tool.toolName)
-      names.set(tool.serverId, existing)
-    }
+  async execute({ input, context }) {
+    const page = await listWorkspaceWorkflowMcpServers({
+      workspaceId: context.workspaceId,
+      sortBy: input.sortBy,
+      sortOrder: input.sortOrder,
+      limit: input.limit ?? MAX_LISTED_WORKFLOW_MCP_SERVERS,
+      cursorKeys: input.cursorKeys,
+    })
+    const servers = page.data
+    const { namesByServerId, truncated } = await listWorkflowMcpToolNames(
+      servers.map((server) => server.id),
+      MAX_LISTED_WORKFLOW_MCP_TOOLS
+    )
     return {
       servers: servers.map((server) => ({
         ...server,
-        toolCount: names.get(server.id)?.length ?? 0,
-        toolNames: names.get(server.id) ?? [],
+        toolCount: namesByServerId.get(server.id)?.length ?? 0,
+        toolNames: namesByServerId.get(server.id) ?? [],
       })),
-      truncated: truncated || toolsTruncated,
+      nextCursorKeys: page.nextCursorKeys,
+      truncated: page.nextCursorKeys !== null || truncated,
     }
+  },
+})
+
+export interface ReadWorkflowMcpDeploymentServerInput {
+  serverId: string
+}
+
+/**
+ * One published server.
+ *
+ * The list carries `toolCount`/`toolNames` as decoration on a page; this read
+ * answers for a single server, so the inventory is left to
+ * {@link listWorkflowMcpDeploymentTools} rather than duplicated here in a
+ * second shape.
+ */
+export const readWorkflowMcpDeploymentServer = defineAuthorizedWorkspaceUseCase({
+  operation: mcpServerOperations.readWorkflowDeploymentServer,
+  resolveContext: ({ input }: { input: ReadWorkflowMcpDeploymentServerInput }) =>
+    resolveServerContext(input.serverId),
+  authorizationOptions,
+  async execute({ context }) {
+    return { server: context.server }
+  },
+})
+
+export interface ListWorkflowMcpDeploymentToolsInput {
+  serverId: string
+}
+
+/**
+ * Every tool a server publishes.
+ *
+ * Without this a caller could publish and unpublish tools but never enumerate
+ * them: the server list reports tool *names* only, so nothing returned the
+ * `workflowId` that addresses a tool for deletion.
+ */
+export const listWorkflowMcpDeploymentTools = defineAuthorizedWorkspaceUseCase({
+  operation: mcpServerOperations.listWorkflowDeploymentTools,
+  resolveContext: ({ input }: { input: ListWorkflowMcpDeploymentToolsInput }) =>
+    resolveServerContext(input.serverId),
+  authorizationOptions,
+  async execute({ context }) {
+    const { tools, truncated } = await listLiveWorkflowMcpTools(
+      context.server.id,
+      MAX_LISTED_WORKFLOW_MCP_TOOLS
+    )
+    return { tools, truncated }
   },
 })
 
@@ -281,7 +319,7 @@ export const deployWorkflowMcpTool = defineAuthorizedWorkspaceUseCase({
     if (!context.workflow.isDeployed) {
       throw new OrchestrationError(
         'validation',
-        'Workflow must be deployed before adding as an MCP tool. Use deploy_as_api first.'
+        'Workflow must be deployed before adding as an MCP tool. Deploy the workflow first.'
       )
     }
     if (
@@ -293,17 +331,7 @@ export const deployWorkflowMcpTool = defineAuthorizedWorkspaceUseCase({
         `MCP tools cannot override more than ${MAX_MCP_PARAMETER_DESCRIPTION_OVERRIDES} parameter descriptions`
       )
     }
-    const [existing] = await db
-      .select()
-      .from(workflowMcpTool)
-      .where(
-        and(
-          eq(workflowMcpTool.serverId, context.server.id),
-          eq(workflowMcpTool.workflowId, context.workflow.id),
-          isNull(workflowMcpTool.archivedAt)
-        )
-      )
-      .limit(1)
+    const existing = await getLiveWorkflowMcpTool(context.server.id, context.workflow.id)
     const toolName = sanitizeToolName(
       input.toolName || context.workflow.name || `workflow_${context.workflow.id}`
     )
@@ -384,17 +412,7 @@ export const undeployWorkflowMcpTool = defineAuthorizedWorkspaceUseCase({
     resolveWorkflowToolContext(input.serverId, input.workflowId),
   authorizationOptions,
   async execute({ principal, context }) {
-    const [tool] = await db
-      .select()
-      .from(workflowMcpTool)
-      .where(
-        and(
-          eq(workflowMcpTool.serverId, context.server.id),
-          eq(workflowMcpTool.workflowId, context.workflow.id),
-          isNull(workflowMcpTool.archivedAt)
-        )
-      )
-      .limit(1)
+    const tool = await getWorkflowMcpToolIncludingArchived(context.server.id, context.workflow.id)
     if (!tool) {
       throw new OrchestrationError('not_found', 'Workflow is not deployed to this MCP server')
     }

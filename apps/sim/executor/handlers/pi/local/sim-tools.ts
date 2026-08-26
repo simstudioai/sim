@@ -16,6 +16,9 @@ import type { PiToolResult, PiToolSpec } from '@/executor/handlers/pi/core/backe
 import type { ExecutionContext } from '@/executor/types'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import { annotateDuplicateToolBindings } from '@/executor/utils/tool-binding-labels'
+import { assignProviderToolIdentities } from '@/providers/tool-identity'
+import type { ProviderToolConfig } from '@/providers/types'
 import { transformBlockTool } from '@/providers/utils'
 import { executeTool } from '@/tools'
 import { mergeToolParameters } from '@/tools/merge-params'
@@ -96,6 +99,96 @@ function projectToolResult(
   }
 }
 
+function buildSimToolSpec(
+  ctx: ExecutionContext,
+  inputTools: ToolInput[],
+  provider: ProviderToolConfig,
+  toolIndex: number
+): PiToolSpec {
+  const toolId = provider.canonicalId ?? provider.id
+  const preseededParams = provider.params || {}
+
+  return {
+    name: provider.id,
+    description: provider.description || '',
+    parameters: (provider.parameters as Record<string, unknown>) || {
+      type: 'object',
+      properties: {},
+    },
+    execute: async (args) => {
+      const params = mergeToolParameters(preseededParams, args as Record<string, unknown>)
+      const registry = ctx.resolvedSecretTraceRegistry
+      const sourcePath = ['tools', String(toolIndex), 'params'] as const
+      const toolCallRegistry = registry?.forkForInputPaths([sourcePath], {
+        propagated: true,
+      })
+      if (toolCallRegistry && !toolCallRegistry.isComplete()) {
+        return unavailableToolResult()
+      }
+
+      if (toolCallRegistry) {
+        const inputProjection = toolCallRegistry.projectResolvedInputSelection({
+          tools: inputTools,
+        })
+        const projectedTool = inputProjection.complete
+          ? (inputProjection.value.tools as ToolInput[] | undefined)?.[toolIndex]
+          : undefined
+        if (!inputProjection.complete || !projectedTool) {
+          return unavailableToolResult()
+        }
+        const projectedParams = mergeToolParameters(
+          projectedTool.params || {},
+          args as Record<string, unknown>
+        )
+        toolCallRegistry.recordTransformedInputProjection(params, projectedParams)
+        if (!toolCallRegistry.isComplete()) return unavailableToolResult()
+      }
+
+      try {
+        const result = await executeTool(
+          toolId,
+          {
+            // User-preseeded values win over model arguments, and inputMapping is deep-merged.
+            ...params,
+            // Trusted execution context is written last so model arguments cannot override it.
+            _context: {
+              workflowId: ctx.workflowId,
+              workspaceId: ctx.workspaceId,
+              executionId: ctx.executionId,
+              userId: ctx.userId,
+              isDeployedContext: ctx.isDeployedContext,
+              enforceCredentialAccess: ctx.enforceCredentialAccess,
+              callChain: ctx.callChain,
+            },
+          },
+          {
+            executionContext: ctx,
+            resolvedSecretTraceRegistry: toolCallRegistry,
+          }
+        )
+        const projection = projectToolResult(result, toolCallRegistry?.forkForPropagatedEntries())
+        if (projection.safe && registry && toolCallRegistry?.isComplete()) {
+          registry.mergeToolCallRegistry(toolCallRegistry)
+        }
+        return projection.result
+      } catch (error) {
+        const projection = projectToolResult(
+          {
+            success: false,
+            output: {},
+            error: getErrorMessage(error, 'Tool execution failed'),
+          },
+          toolCallRegistry?.forkForPropagatedEntries()
+        )
+        if (projection.safe && registry && toolCallRegistry?.isComplete()) {
+          registry.mergeToolCallRegistry(toolCallRegistry)
+        }
+        return projection.result
+      }
+    },
+  }
+}
+
 /**
  * Builds the Sim tool specs exposed to Pi for a local run. Only tools the user
  * added to the block are included, and `usageControl: 'none'` tools are dropped.
@@ -106,7 +199,7 @@ export async function buildSimToolSpecs(
 ): Promise<PiToolSpec[]> {
   if (!Array.isArray(inputTools)) return []
 
-  const specs: PiToolSpec[] = []
+  const configuredTools: Array<{ provider: ProviderToolConfig; toolIndex: number }> = []
 
   for (const [toolIndex, tool] of (inputTools as ToolInput[]).entries()) {
     if ((tool.usageControl || 'auto') === 'none') continue
@@ -129,98 +222,7 @@ export async function buildSimToolSpecs(
       })
 
       if (!provider?.id) continue
-
-      const toolId = provider.id
-      const preseededParams = provider.params || {}
-
-      specs.push({
-        name: toolId,
-        description: provider.description || '',
-        parameters: (provider.parameters as Record<string, unknown>) || {
-          type: 'object',
-          properties: {},
-        },
-        execute: async (args) => {
-          const params = mergeToolParameters(preseededParams, args as Record<string, unknown>)
-          const registry = ctx.resolvedSecretTraceRegistry
-          const sourcePath = ['tools', String(toolIndex), 'params'] as const
-          const toolCallRegistry = registry?.forkForInputPaths([sourcePath], {
-            propagated: true,
-          })
-          if (toolCallRegistry && !toolCallRegistry.isComplete()) {
-            return unavailableToolResult()
-          }
-
-          if (toolCallRegistry) {
-            const inputProjection = toolCallRegistry.projectResolvedInputSelection({
-              tools: inputTools,
-            })
-            const projectedTool = inputProjection.complete
-              ? (inputProjection.value.tools as ToolInput[] | undefined)?.[toolIndex]
-              : undefined
-            if (!inputProjection.complete || !projectedTool) {
-              return unavailableToolResult()
-            }
-            const projectedParams = mergeToolParameters(
-              projectedTool.params || {},
-              args as Record<string, unknown>
-            )
-            toolCallRegistry.recordTransformedInputProjection(params, projectedParams)
-            if (!toolCallRegistry.isComplete()) return unavailableToolResult()
-          }
-
-          try {
-            const result = await executeTool(
-              toolId,
-              {
-                // Same merge the Agent block's tool calls use: user-preseeded values
-                // win over LLM args, and `inputMapping` is deep-merged rather than
-                // replaced — a partial mapping from the model must not drop the
-                // user-filled fields baked onto the block.
-                ...params,
-                // Trusted execution context, spread last so an LLM-supplied
-                // `_context` arg can't override it. executeTool reads this directly
-                // for OAuth-credential resolution and internal-route identity, the
-                // same way the Agent block's tool calls do.
-                _context: {
-                  workflowId: ctx.workflowId,
-                  workspaceId: ctx.workspaceId,
-                  executionId: ctx.executionId,
-                  userId: ctx.userId,
-                  isDeployedContext: ctx.isDeployedContext,
-                  enforceCredentialAccess: ctx.enforceCredentialAccess,
-                  callChain: ctx.callChain,
-                },
-              },
-              {
-                executionContext: ctx,
-                resolvedSecretTraceRegistry: toolCallRegistry,
-              }
-            )
-            const projection = projectToolResult(
-              result,
-              toolCallRegistry?.forkForPropagatedEntries()
-            )
-            if (projection.safe && registry && toolCallRegistry?.isComplete()) {
-              registry.mergeToolCallRegistry(toolCallRegistry)
-            }
-            return projection.result
-          } catch (error) {
-            const projection = projectToolResult(
-              {
-                success: false,
-                output: {},
-                error: getErrorMessage(error, 'Tool execution failed'),
-              },
-              toolCallRegistry?.forkForPropagatedEntries()
-            )
-            if (projection.safe && registry && toolCallRegistry?.isComplete()) {
-              registry.mergeToolCallRegistry(toolCallRegistry)
-            }
-            return projection.result
-          }
-        },
-      })
+      configuredTools.push({ provider, toolIndex })
     } catch (error) {
       if (error instanceof ToolSchemaEnrichmentError) throw error
       logger.warn('Failed to adapt Sim tool for Pi', {
@@ -230,5 +232,10 @@ export async function buildSimToolSpecs(
     }
   }
 
-  return specs
+  const providers = configuredTools.map(({ provider }) => provider)
+  await annotateDuplicateToolBindings(ctx, providers)
+  assignProviderToolIdentities(providers)
+  return configuredTools.map(({ provider, toolIndex }) =>
+    buildSimToolSpec(ctx, inputTools, provider, toolIndex)
+  )
 }

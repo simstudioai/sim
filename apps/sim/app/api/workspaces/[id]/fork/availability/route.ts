@@ -7,10 +7,9 @@ import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 import { isForkingAvailableForWorkspace } from '@/ee/workspace-forking/lib/lineage/authz'
 
 /**
- * Whether forking is available for this workspace: the server-evaluated verdict of the
- * same gate every fork route enforces (env/plan + the `workspace-forking` AppConfig
- * rollout flag). Member-readable — it only reveals feature on/off, and the client uses
- * it to show/hide the Forks settings tab and context-menu entries.
+ * Whether forking is available for this workspace based on deployment configuration
+ * and plan. Member-readable because it only reveals availability; the client uses it
+ * to show or hide Forks settings and context-menu entries.
  */
 export const GET = withRouteHandler(
   async (req: NextRequest, context: { params: Promise<{ id: string }> }) => {

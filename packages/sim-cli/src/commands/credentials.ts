@@ -1,4 +1,4 @@
-import type { Command } from 'commander'
+import { type Command, Option } from 'commander'
 import { clientFrom } from '../context'
 import type { CommandSpec } from '../contract/types'
 import {
@@ -156,10 +156,38 @@ async function createConnectionLink(command: Command, body: ConnectionBody): Pro
   renderResult('createCredentialConnection', profile.output, response.data, CONNECTION_RESULT)
 }
 
+/**
+ * Teaches the generated `credentials update` command the `--name` spelling.
+ *
+ * `credentials create` names a credential with `--name` while its sibling
+ * spells the same field `--display-name`, so the obvious `update --name` was
+ * rejected outright. Both are accepted here rather than one being renamed:
+ * `--display-name` is published, and removing a flag breaks existing scripts.
+ * Supplying both is refused, because they are one field and no reading of which
+ * value wins is more likely to be the intended one.
+ */
+function acceptNameOnUpdate(credentials: Command): void {
+  const update = credentials.commands.find((command) => command.name() === 'update')
+  if (!update) throw new Error('The generated credentials update command is missing')
+
+  update
+    .addOption(new Option('--name <displayName>', 'Alias for --display-name'))
+    .hook('preAction', (_parent, action) => {
+      const options = action.opts()
+      if (options.name === undefined) return
+      if (options.displayName !== undefined) {
+        throw new SimApiError('--name and --display-name are the same field; pass one, not both', 0)
+      }
+      options.displayName = options.name
+    })
+}
+
 /** Adds the human-facing OAuth connection commands backed by the v2 credentials API. */
 export function attachCredentialCommands(program: Command): void {
   const credentials = program.commands.find((command) => command.name() === 'credentials')
   if (!credentials) throw new Error('The generated credentials command group is missing')
+
+  acceptNameOnUpdate(credentials)
 
   credentials
     .command('create')

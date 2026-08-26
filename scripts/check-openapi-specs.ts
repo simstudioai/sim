@@ -81,15 +81,15 @@ const UNDOCUMENTED_V2_ROUTES: Readonly<Record<string, string>> = {
  * capability.
  */
 const LEGACY_CORE_REPLACEMENTS = {
-  executeWorkflow: 'POST /api/v2/workflows/{id}/execute',
-  getWorkflowExecution: 'GET /api/v2/workflows/{id}/runs/{runId}',
-  cancelExecution: 'POST /api/v2/workflows/{id}/runs/{runId}/cancel',
-  getJobStatus: 'GET /api/v2/workflows/{id}/runs/{runId}',
-  listPausedExecutions: 'GET /api/v2/workflows/{id}/runs',
-  getPausedExecution: 'GET /api/v2/workflows/{id}/runs/{runId}',
-  getPausedExecutionByResumePath: 'GET /api/v2/workflows/{id}/runs/{runId}',
-  getPauseContext: 'GET /api/v2/workflows/{id}/runs/{runId}',
-  resumeExecution: 'POST /api/v2/workflows/{id}/runs/{runId}/resume',
+  executeWorkflow: 'POST /api/v2/workflows/{workflowId}/execute',
+  getWorkflowExecution: 'GET /api/v2/workflows/{workflowId}/runs/{runId}',
+  cancelExecution: 'POST /api/v2/workflows/{workflowId}/runs/{runId}/cancel',
+  getJobStatus: 'GET /api/v2/workflows/{workflowId}/runs/{runId}',
+  listPausedExecutions: 'GET /api/v2/workflows/{workflowId}/runs',
+  getPausedExecution: 'GET /api/v2/workflows/{workflowId}/runs/{runId}',
+  getPausedExecutionByResumePath: 'GET /api/v2/workflows/{workflowId}/runs/{runId}',
+  getPauseContext: 'GET /api/v2/workflows/{workflowId}/runs/{runId}',
+  resumeExecution: 'POST /api/v2/workflows/{workflowId}/runs/{runId}/resume',
   getUsageLimits: 'GET /api/v2/billing/status',
 } as const
 

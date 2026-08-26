@@ -9,6 +9,83 @@ import { CommandTable } from '@/components/ui/command-table'
 
 Every command below also accepts the [global options](/cli/commands#global-options).
 
+## Activate workflow version
+
+```bash
+sim workflows activate create <workflowId> <version>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `workflowId` | Yes | Unique workflow identifier. |
+| `version` | Yes | Numeric deployment version. |
+
+</CommandTable>
+
+## Apply workflow operations
+
+```bash
+sim workflows operations apply <workflowId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `workflowId` | Yes | Unique workflow identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--dry-run` | No | Validate and lint without persisting. The response is identical to the committed write of the same body, so a caller can inspect `lint` and then re-send the request for real. Nothing is written, no audit entry is recorded, and collaborators are not notified. |
+| `--no-dry-run` | No | Send --dry-run as false. |
+| `--operations <json\|@file>` | Yes | Edits to apply, in a single batch, keyed by operation_type: [&#123;"operation_type":"add","block_id":"my-fn","params":&#123;"type":"function","name":"My Fn","inputs":&#123;"code":"return &#123;ok:true&#125;"&#125;&#125;&#125;,&#123;"operation_type":"edit","block_id":"&lt;uuid&gt;","params":&#123;"name":"Renamed","connections":&#123;"success":"my-fn"&#125;&#125;&#125;,&#123;"operation_type":"delete","block_id":"&lt;uuid&gt;"&#125;]. Also insert_into_subflow and extract_from_subflow, whose params carry &#123;"subflowId":"&lt;loop-id&gt;"&#125; (JSON, or @path / @- to read a file or stdin). |
+| `--atomic` | No | Fail the whole batch when any operation is declined or any block input would be dropped. The default applies what it can and reports the rest in `skipped` and `inputValidationErrors`; `true` writes nothing and answers `409` instead. |
+| `--no-atomic` | No | Send --atomic as false. |
+| `--layout <value>` | No | Whether to reposition blocks the batch touched. `targeted` (default) nudges only the affected subgraph; `none` leaves every position exactly as supplied. Accepted values: `targeted`, `none`. |
+| `--set-block-enabled <json\|@file>` | No | Blocks to enable or disable, applied after --operations: [&#123;"block_id":"&lt;uuid&gt;","enabled":false&#125;]. Disabling a loop or parallel cascades to its unlocked descendants; enabling a block whose container is disabled is declined (JSON, or @path / @- to read a file or stdin). |
+| `-y, --yes` | No | Confirm this destructive operation (required unless --dry-run). |
+
+</CommandTable>
+
+## Update workflow variables
+
+```bash
+sim workflows variables update <workflowId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `workflowId` | Yes | Unique workflow identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--operations <json\|@file>` | Yes | Variable changes to apply in order, keyed by operation: [&#123;"operation":"add","name":"my_var","type":"string","value":"hello"&#125;,&#123;"operation":"edit","name":"my_var","value":"updated"&#125;,&#123;"operation":"delete","name":"my_var"&#125;] (JSON, or @path / @- to read a file or stdin). |
+| `-y, --yes` | Yes | Confirm this destructive operation. |
+
+</CommandTable>
+
 ## Cancel a running workflow run
 
 ```bash
@@ -62,6 +139,9 @@ Show run status (requested outputs are included in JSON or YAML output)
 | `--workflow <workflowId>` | Yes | Workflow ID. |
 | `--include-output` | No | Include the final output in JSON or YAML output. |
 | `--select-output <value...>` | No | Include blockName.field values in JSON or YAML output (e.g. agent_1.content) (space-separated, or @path / @- with one value per line). |
+| `--include-file-base64` | No | Inline each produced file's bytes as base64. Requires `includeOutput`. A file above the inline ceiling answers `413` naming its download path; fetch large files from `downloadPath` instead. |
+| `--no-include-file-base64` | No | Send --include-file-base64 as false. |
+| `--base64-max-bytes <value>` | No | Per-file inline ceiling, lowering but never raising the server limit of 16 MiB. |
 
 </CommandTable>
 
@@ -248,7 +328,7 @@ Also available as `sim workflows folders mv`.
 ## Delete workflow
 
 ```bash
-sim workflows delete <id> [options]
+sim workflows delete <workflowId> [options]
 ```
 
 **Arguments**
@@ -257,7 +337,7 @@ sim workflows delete <id> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `id` | Yes | Unique workflow identifier. |
+| `workflowId` | Yes | Unique workflow identifier. |
 
 </CommandTable>
 
@@ -271,10 +351,10 @@ sim workflows delete <id> [options]
 
 </CommandTable>
 
-## Deploy workflow
+## Take a workflow’s chat deployment offline
 
 ```bash
-sim workflows deploy <id> [options]
+sim workflows chat unpublish <workflowId> [options]
 ```
 
 **Arguments**
@@ -283,7 +363,87 @@ sim workflows deploy <id> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `id` | Yes | Unique workflow identifier. |
+| `workflowId` | Yes | Unique workflow identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-y, --yes` | Yes | Confirm this destructive operation. |
+
+</CommandTable>
+
+## Show a workflow’s chat deployment
+
+```bash
+sim workflows chat status <workflowId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `workflowId` | Yes | Unique workflow identifier. |
+
+</CommandTable>
+
+## Publish or replace a workflow’s chat deployment
+
+```bash
+sim workflows chat publish <workflowId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `workflowId` | Yes | Unique workflow identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--identifier <value>` | Yes | URL slug the deployed chat answers on. Must be free across live deployments. |
+| `--title <value>` | Yes | Title shown to visitors. |
+| `--description <value>` | No | Description shown to visitors. Omitted clears it. |
+| `--customizations <json\|@file>` | No | Presentation overrides. Omitted fields take platform defaults. (JSON, or @path / @- to read a file or stdin). |
+| `--auth-type <value>` | No | How visitors are gated. `public` leaves the chat open to anyone holding the URL. Accepted values: `public`, `password`, `email`, `sso`. |
+| `--password <value>` | No | Write-only password. Required whenever `authType` is `password`, and rejected otherwise. Never readable back. |
+| `--allowed-emails <json\|@file>` | No | Email addresses or domains admitted under `email` and `sso` gating. At least one is required for those modes. (JSON, or @path / @- to read a file or stdin). |
+| `--output-configs <json\|@file>` | No | Block outputs to surface to visitors. Omitted surfaces none. (JSON, or @path / @- to read a file or stdin). |
+| `--include-thinking` | No | Allow visitors to receive provider thinking events. |
+| `--no-include-thinking` | No | Send --include-thinking as false. |
+| `--include-tool-calls` | No | Allow visitors to receive tool lifecycle events. |
+| `--no-include-tool-calls` | No | Send --include-tool-calls as false. |
+| `-y, --yes` | Yes | Confirm this destructive operation. |
+
+</CommandTable>
+
+## Deploy workflow
+
+```bash
+sim workflows deploy <workflowId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `workflowId` | Yes | Unique workflow identifier. |
 
 </CommandTable>
 
@@ -298,10 +458,10 @@ sim workflows deploy <id> [options]
 
 </CommandTable>
 
-## Run a deployed workflow
+## Duplicate workflow
 
 ```bash
-sim workflows run <id> [options]
+sim workflows duplicate create <workflowId> [options]
 ```
 
 **Arguments**
@@ -310,7 +470,34 @@ sim workflows run <id> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `id` | Yes | Unique workflow identifier. |
+| `workflowId` | Yes | Unique workflow identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--name <value>` | No | Name for the copy. Defaults to the source name, deduplicated within the folder. |
+| `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
+
+</CommandTable>
+
+## Run a deployed workflow or execute saved state manually
+
+```bash
+sim workflows run <workflowId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `workflowId` | Yes | Unique workflow identifier. |
 
 </CommandTable>
 
@@ -326,7 +513,13 @@ sim workflows run <id> [options]
 | `--select-output <value...>` | No | Return blockName.field values (e.g. agent_1.content); missing fields are omitted (space-separated, or @path / @- with one value per line). |
 | `--include-file-base64` | No | Inline eligible output files as base64 content. Rejected when `async` is true. |
 | `--no-include-file-base64` | No | Send --include-file-base64 as false. |
-| `--base64-max-bytes <value>` | No | Maximum total bytes of file content to inline as base64. Rejected when `async` is true. |
+| `--base64-max-bytes <value>` | No | Maximum total bytes of file content to inline as base64, lowering but never raising the server limit of 16 MiB. Rejected when `async` is true. |
+| `--run-id <value>` | No | One-shot identifier for this run; NOT an idempotency key — reusing a claimed value fails with RUN_ID_CONFLICT instead of replaying the first result, and a fresh value starts another run. |
+| `--manual` | No | Run the current saved workflow state instead of the active deployment. |
+| `--trigger <blockId>` | No | Enter a manual run through this runnable trigger (requires --manual). |
+| `--mock-payload` | No | Use the selected trigger's server-derived mock payload (requires --manual). |
+| `--from-block <blockId>` | No | Run manually from this saved workflow block. |
+| `--source-run <runId>` | No | Prior run whose persisted state supplies upstream outputs (requires --from-block). |
 | `--follow` | No | Stream the run as it happens; progress on stderr, result on stdout. The stream reports only success and output, so the result omits the run id and timings a non-streaming run returns. |
 | `--include-thinking` | No | Show model reasoning while following (requires --follow). |
 | `--include-tool-calls` | No | Show tool calls while following (requires --follow). |
@@ -336,7 +529,7 @@ sim workflows run <id> [options]
 ## Print a workflow as a portable JSON document
 
 ```bash
-sim workflows export <id>
+sim workflows export <workflowId>
 ```
 
 **Arguments**
@@ -345,14 +538,14 @@ sim workflows export <id>
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `id` | Yes | Unique workflow identifier. |
+| `workflowId` | Yes | Unique workflow identifier. |
 
 </CommandTable>
 
 ## Get workflow
 
 ```bash
-sim workflows get <id>
+sim workflows get <workflowId>
 ```
 
 **Arguments**
@@ -361,14 +554,14 @@ sim workflows get <id>
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `id` | Yes | Unique workflow identifier. |
+| `workflowId` | Yes | Unique workflow identifier. |
 
 </CommandTable>
 
 ## Show a workflow’s current deployment
 
 ```bash
-sim workflows deployment status <id>
+sim workflows deployment status <workflowId>
 ```
 
 **Arguments**
@@ -377,14 +570,89 @@ sim workflows deployment status <id>
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `id` | Yes | Unique workflow identifier. |
+| `workflowId` | Yes | Unique workflow identifier. |
+
+</CommandTable>
+
+## Update workflow public API access
+
+```bash
+sim workflows deployment update <workflowId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `workflowId` | Yes | Unique workflow identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--is-public-api <true\|false>` | Yes | Whether the deployed workflow should accept unauthenticated public API execution. Accepted values: `true`, `false`. |
+
+</CommandTable>
+
+## Get workflow state
+
+```bash
+sim workflows state get <workflowId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `workflowId` | Yes | Unique workflow identifier. |
+
+</CommandTable>
+
+## Replace workflow state
+
+```bash
+sim workflows state replace <workflowId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `workflowId` | Yes | Unique workflow identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--dry-run` | No | Validate and lint without persisting. The response is identical to the committed write of the same body, so a caller can inspect `lint` and then re-send the request for real. Nothing is written, no audit entry is recorded, and collaborators are not notified. |
+| `--no-dry-run` | No | Send --dry-run as false. |
+| `--blocks <json\|@file>` | Yes | Blocks keyed by block id. (JSON, or @path / @- to read a file or stdin). |
+| `--edges <json\|@file>` | Yes | Directed connections between blocks. (JSON, or @path / @- to read a file or stdin). |
+| `--loops <json\|@file>` | No | Ignored on write: loop containers are recomputed from `blocks`. (JSON, or @path / @- to read a file or stdin). |
+| `--parallels <json\|@file>` | No | Ignored on write: parallel containers are recomputed from `blocks`. (JSON, or @path / @- to read a file or stdin). |
+| `--variables <json\|@file>` | No | Replacement variable set. Omit to leave the stored variables untouched. (JSON, or @path / @- to read a file or stdin). |
+| `-y, --yes` | No | Confirm this destructive operation (required unless --dry-run). |
 
 </CommandTable>
 
 ## Get workflow version
 
 ```bash
-sim workflows versions get <id> <version>
+sim workflows versions get <workflowId> <version>
 ```
 
 **Arguments**
@@ -393,7 +661,7 @@ sim workflows versions get <id> <version>
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `id` | Yes | Unique workflow identifier. |
+| `workflowId` | Yes | Unique workflow identifier. |
 | `version` | Yes | Numeric deployment version. |
 
 </CommandTable>
@@ -401,7 +669,7 @@ sim workflows versions get <id> <version>
 ## List workflow versions
 
 ```bash
-sim workflows versions list <id> [options]
+sim workflows versions list <workflowId> [options]
 ```
 
 **Arguments**
@@ -410,7 +678,7 @@ sim workflows versions list <id> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `id` | Yes | Unique workflow identifier. |
+| `workflowId` | Yes | Unique workflow identifier. |
 
 </CommandTable>
 
@@ -421,6 +689,34 @@ sim workflows versions list <id> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+
+</CommandTable>
+
+## Update workflow version
+
+```bash
+sim workflows versions update <workflowId> <version> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `workflowId` | Yes | Unique workflow identifier. |
+| `version` | Yes | Numeric deployment version. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--name <value>` | No | New label for the deployment version. |
+| `--description <value>` | No | New release note for the deployment version, or null to clear it. (--description null sends the word, not JSON null). |
 
 </CommandTable>
 
@@ -455,6 +751,7 @@ sim workflows list [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
+| `--scope <value>` | No | Which lifecycle set to list: `active` (default) for live workflows, `archived` for workflows a `DELETE` archived. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too. Accepted values: `active`, `archived`. |
 | `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
 | `--deployed-only` | No | Return only workflows with an active deployment when true. |
 | `--no-deployed-only` | No | Send --deployed-only as false. |
@@ -465,10 +762,27 @@ sim workflows list [options]
 
 </CommandTable>
 
-## Rollback workflow
+## Move workflows
 
 ```bash
-sim workflows rollback <id> [options]
+sim workflows move [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--workflow <value...>` | Yes | Workflows to move. Duplicates are collapsed. (space-separated, or @path / @- with one value per line). |
+| `--to <value>` | Yes | Destination folder path; / moves the workflows to the workspace root. |
+
+</CommandTable>
+
+## Restore an archived workflow
+
+```bash
+sim workflows restore <workflowId>
 ```
 
 **Arguments**
@@ -477,7 +791,24 @@ sim workflows rollback <id> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `id` | Yes | Unique workflow identifier. |
+| `workflowId` | Yes | Unique workflow identifier. |
+
+</CommandTable>
+
+## Revert workflow to version
+
+```bash
+sim workflows revert create <workflowId> <version> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `workflowId` | Yes | Unique workflow identifier. |
+| `version` | Yes | Numeric deployment version, or `active` for the currently live version. |
 
 </CommandTable>
 
@@ -487,14 +818,41 @@ sim workflows rollback <id> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--version <value>` | No | Deployment version to reactivate. Omit to select the previous active version. |
+| `-y, --yes` | Yes | Confirm this destructive operation. |
+
+</CommandTable>
+
+## Rollback workflow
+
+```bash
+sim workflows rollback <workflowId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `workflowId` | Yes | Unique workflow identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--to-version <value>` | No | Deployment version to reactivate. Omit to select the previous active version. |
+| `-y, --yes` | Yes | Confirm this destructive operation. |
 
 </CommandTable>
 
 ## Take a workflow out of deployment
 
 ```bash
-sim workflows undeploy <id>
+sim workflows undeploy <workflowId> [options]
 ```
 
 **Arguments**
@@ -503,14 +861,24 @@ sim workflows undeploy <id>
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `id` | Yes | Unique workflow identifier. |
+| `workflowId` | Yes | Unique workflow identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-y, --yes` | Yes | Confirm this destructive operation. |
 
 </CommandTable>
 
 ## Update workflow
 
 ```bash
-sim workflows update <id> [options]
+sim workflows update <workflowId> [options]
 ```
 
 **Arguments**
@@ -519,7 +887,7 @@ sim workflows update <id> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `id` | Yes | Unique workflow identifier. |
+| `workflowId` | Yes | Unique workflow identifier. |
 
 </CommandTable>
 
@@ -530,7 +898,7 @@ sim workflows update <id> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--name <value>` | No | Replacement workflow name. |
-| `--description <value>` | No | Replacement workflow description; null clears it. |
+| `--description <value>` | No | Replacement workflow description; null clears it. (--description null sends the word, not JSON null). |
 | `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
 
 </CommandTable>
@@ -538,7 +906,7 @@ sim workflows update <id> [options]
 ## Move a workflow to a folder
 
 ```bash
-sim workflows mv <id> <folder>
+sim workflows mv <workflowId> <folder>
 ```
 
 **Arguments**
@@ -547,7 +915,7 @@ sim workflows mv <id> <folder>
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `id` | Yes | Unique workflow identifier. |
+| `workflowId` | Yes | Unique workflow identifier. |
 | `folder` | Yes | Folder path as shown in the app; the leading / is optional |
 
 </CommandTable>

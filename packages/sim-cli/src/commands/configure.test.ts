@@ -6,10 +6,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { readConfigProfile, writeConfigProfile, writeCredentialsProfile } from '../config/index'
 import { configureCommand } from './configure'
 
-const mocks = vi.hoisted(() => ({ profileName: 'default' }))
+const mocks = vi.hoisted(() => ({
+  profileName: 'default',
+  profileFrom: vi.fn(),
+}))
 
 vi.mock('../context', () => ({
-  profileFrom: () => ({ name: mocks.profileName }),
+  profileFrom: mocks.profileFrom,
 }))
 
 let dir: string
@@ -24,6 +27,8 @@ beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'sim-cli-'))
   process.env.SIM_CONFIG_DIR = dir
   mocks.profileName = 'default'
+  mocks.profileFrom.mockClear()
+  mocks.profileFrom.mockImplementation(() => ({ name: mocks.profileName }))
   vi.spyOn(console, 'log').mockImplementation(() => {})
 })
 
@@ -66,5 +71,40 @@ describe('configure --set-endpoint', () => {
       auth_profile: 'default',
       workspace: 'ws_acme',
     })
+  })
+
+  it('refuses an empty value instead of silently ignoring the flag', async () => {
+    // An empty string is falsy, so the setter fell through to the "print
+    // current settings" branch and exited 0 having done nothing.
+    await expect(run('--set-endpoint', '')).rejects.toThrow(
+      '--set-endpoint requires a value. To remove it, run: sim configure --unset endpoint'
+    )
+    await expect(run('--set-workspace', '  ')).rejects.toThrow(
+      '--set-workspace requires a value. To remove it, run: sim configure --unset workspace'
+    )
+    await expect(run('--set-output', '')).rejects.toThrow(
+      '--set-output requires a value. To remove it, run: sim configure --unset output'
+    )
+    expect(readConfigProfile('default')).toEqual({})
+  })
+
+  it('still removes a setting through --unset', async () => {
+    writeConfigProfile('default', { endpoint: 'https://sim.example', workspace: 'ws_1' })
+
+    await run('--unset', 'workspace')
+
+    expect(readConfigProfile('default')).toEqual({ endpoint: 'https://sim.example' })
+  })
+
+  it('resolves a profile name that does not exist yet, because configure creates it', async () => {
+    // Resolution rejects an unknown --profile so a typo cannot silently talk to
+    // production. `configure --profile x --set-…` is one of the two documented
+    // ways a profile comes into existence, so it is exempt.
+    await run('--set-workspace', 'ws_new')
+
+    expect(mocks.profileFrom).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ allowUnknownProfile: true })
+    )
   })
 })

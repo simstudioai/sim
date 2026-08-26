@@ -29,6 +29,7 @@ import { handlePostExecutionPauseState } from '@/lib/workflows/executor/pause-pe
 import {
   loadDeployedWorkflowState,
   loadWorkflowDeploymentVersionState,
+  loadWorkflowFromNormalizedTables,
 } from '@/lib/workflows/persistence/utils'
 import { shouldEmitAgentStreamEvents } from '@/lib/workflows/streaming/agent-stream-protocol'
 import {
@@ -39,7 +40,7 @@ import { workflowHasResponseBlock } from '@/lib/workflows/utils'
 import { withCustomBlockOverlay } from '@/blocks/custom/server-overlay'
 import { normalizeName } from '@/executor/constants'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
-import type { ExecutionMetadata } from '@/executor/execution/types'
+import type { ExecutionMetadata, SerializableExecutionState } from '@/executor/execution/types'
 import type { NormalizedBlockOutput } from '@/executor/types'
 import {
   classifyExecutionError,
@@ -61,9 +62,9 @@ type WorkflowRecord = typeof workflowTable.$inferSelect
  * execute route holds inline (call-chain guard, execution-id claim,
  * LoggingSession, preprocessing/billing, deployed-state load, file-field
  * processing, timeout-bound core execution, output compaction), composed from
- * the same libs, for the caller class that runs DEPLOYED state with no draft or
- * override controls: the v2 execute route and in-process internal callers
- * (MCP bridge). The HTTP endpoints are syntactic sugar over this function.
+ * the same libs, for v2 and in-process internal callers (MCP bridge). Manual and
+ * entry-point controls are trusted, server-derived options; HTTP callers never
+ * supply executor state or snapshots directly.
  */
 export interface ExecuteWorkflowServiceParams {
   workflowId: string
@@ -106,6 +107,16 @@ export interface ExecuteWorkflowServiceParams {
   requestHeaders?: Headers
   includeThinking?: boolean
   includeToolCalls?: boolean
+  /** Execute the current saved state manually instead of the active deployment. */
+  useDraftState?: boolean
+  /** Explicit trigger entry point selected and validated by the application use case. */
+  triggerBlockId?: string
+  /** Trusted prior-run snapshot resolved by the application use case. */
+  runFromBlock?: {
+    startBlockId: string
+    sourceSnapshot: SerializableExecutionState
+    sourceExecutionId: string
+  }
 }
 
 export interface ExecuteWorkflowServiceFailure {
@@ -218,9 +229,26 @@ export async function executeWorkflowService(
     requestHeaders,
     includeThinking = false,
     includeToolCalls = false,
+    useDraftState = false,
+    triggerBlockId,
+    runFromBlock,
   } = params
 
   let reqLogger = logger.withMetadata({ requestId, workflowId, userId })
+
+  if (useDraftState && mode === 'async') {
+    return failure({
+      kind: 'precheck',
+      message: 'Manual execution does not support async mode',
+      statusCode: 400,
+    })
+  }
+  if (useDraftState && deploymentVersionId) {
+    throw new Error('Manual execution cannot be pinned to a deployment version')
+  }
+  if (runFromBlock && !useDraftState) {
+    throw new Error('Run-from-block requires manual execution state')
+  }
 
   if (callChain) {
     const chainError = validateCallChain(callChain)
@@ -283,7 +311,7 @@ export async function executeWorkflowService(
       triggerType,
       executionId,
       requestId,
-      checkDeployment: true,
+      checkDeployment: !useDraftState,
       rateLimitCounter,
       loggingSession,
       useAuthenticatedUserAsActor,
@@ -365,9 +393,20 @@ export async function executeWorkflowService(
     let workflowVariables: Record<string, unknown> = {}
     let workflowBlocks: Record<string, unknown> = {}
     try {
-      const workflowData = deploymentVersionId
-        ? await loadWorkflowDeploymentVersionState(workflowId, deploymentVersionId, workspaceId)
-        : await loadDeployedWorkflowState(workflowId, workspaceId)
+      const workflowData = useDraftState
+        ? await loadWorkflowFromNormalizedTables(workflowId)
+        : deploymentVersionId
+          ? await loadWorkflowDeploymentVersionState(workflowId, deploymentVersionId, workspaceId)
+          : await loadDeployedWorkflowState(workflowId, workspaceId)
+
+      if (useDraftState && !workflowData) {
+        await releaseExecutionSlot(executionId)
+        return failure({
+          kind: 'input',
+          message: `Workflow ${workflowId} has no saved state to run manually`,
+          statusCode: 400,
+        })
+      }
 
       if (abortSignal?.aborted) {
         await releaseExecutionSlot(executionId)
@@ -482,7 +521,10 @@ export async function executeWorkflowService(
               enabled: true,
               selectedOutputs: resolvedSelectedOutputs,
               isSecureMode: false,
-              workflowTriggerType: 'api',
+              workflowTriggerType: triggerType,
+              triggerBlockId,
+              useDraftState,
+              runFromBlock,
               onStream,
               onBlockComplete,
               skipLoggingComplete: true,
@@ -527,7 +569,8 @@ export async function executeWorkflowService(
       billingAttribution,
       workflowUserId: workflow.userId,
       triggerType,
-      useDraftState: false,
+      triggerBlockId,
+      useDraftState,
       startTime: new Date().toISOString(),
       isClientSession: false,
       enforceCredentialAccess: useAuthenticatedUserAsActor,
@@ -577,6 +620,7 @@ export async function executeWorkflowService(
         includeFileBase64,
         base64MaxBytes,
         abortSignal: timeoutController.signal,
+        runFromBlock,
       })
 
       await handlePostExecutionPauseState({ result, workflowId, executionId, loggingSession })

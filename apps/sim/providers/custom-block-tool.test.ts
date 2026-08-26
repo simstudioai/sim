@@ -45,9 +45,9 @@ describe('transformBlockTool — custom blocks', () => {
     )
 
     expect(tool).not.toBeNull()
-    // Unique per block, name/description from the block (never the source workflow).
-    expect(tool!.id).toBe('deployed_block_executor_custom_block_test')
-    expect(tool!.name).toBe('The Elder')
+    expect(tool!.id).toBe('deployed_block_executor')
+    // Sourced from the consumer's block, never the source workflow it is bound to.
+    expect(tool!.description).toBe('Ask the elder')
     // Baked params: block type + assembled (id-keyed) input mapping.
     expect(tool!.params.blockType).toBe('custom_block_test')
     expect(tool!.params.inputMapping).toBe('{"q":"hi"}')

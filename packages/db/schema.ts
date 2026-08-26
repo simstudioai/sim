@@ -1196,23 +1196,22 @@ export const userStats = pgTable('user_stats', {
   totalCost: decimal('total_cost').notNull().default('0'),
   currentUsageLimit: decimal('current_usage_limit').default(DEFAULT_FREE_CREDITS.toString()), // Default $5 (1,000 credits) for free plan, null for team/enterprise
   usageLimitUpdatedAt: timestamp('usage_limit_updated_at').defaultNow(),
-  /**
-   * Active per-period baseline (not a per-usage hot-path counter). Current usage
-   * = this baseline + attributed usage_log rows for the period; reset at rollover.
-   */
+  /** @deprecated No readers or writers; usage is the attributed usage_log ledger. Drop via DROP COLUMN in a follow-up migration. */
   currentPeriodCost: decimal('current_period_cost').notNull().default('0'),
-  lastPeriodCost: decimal('last_period_cost').default('0'), // Usage from previous billing period
+  /** Previous-period usage; written by the cycle-close sweep from ledger sums. */
+  lastPeriodCost: decimal('last_period_cost').default('0'),
   /**
    * Threshold/final billing tracker.
    *
-   * This is intentionally still written when threshold billing or invoice
-   * finalization serializes overage collection. It is not incremented by the
-   * ordinary per-usage ledger write path.
+   * Incremented when threshold billing collects overage mid-period; reset to
+   * zero by the cycle-close sweep at period rollover. It is not incremented
+   * by the ordinary per-usage ledger write path.
    */
   billedOverageThisPeriod: decimal('billed_overage_this_period').notNull().default('0'), // Amount of overage already billed via threshold billing
-  // Pro usage snapshot when joining a team (to prevent double-billing)
-  proPeriodCostSnapshot: decimal('pro_period_cost_snapshot').default('0'), // Snapshot of Pro usage when joining team
-  proPeriodCostSnapshotAt: timestamp('pro_period_cost_snapshot_at'), // When the snapshot was captured (= join moment). Used to cap daily-refresh computation so post-join refresh isn't deducted from pre-join personal Pro usage (and vice-versa for the org's pooled refresh).
+  /** @deprecated No readers or writers; ledger entity stamps attribute pre/post-join usage. Drop via DROP COLUMN in a follow-up migration. */
+  proPeriodCostSnapshot: decimal('pro_period_cost_snapshot').default('0'),
+  /** @deprecated No readers or writers; see proPeriodCostSnapshot. Drop via DROP COLUMN in a follow-up migration. */
+  proPeriodCostSnapshotAt: timestamp('pro_period_cost_snapshot_at'),
   /**
    * Credit balance tracker.
    *
@@ -1222,9 +1221,9 @@ export const userStats = pgTable('user_stats', {
   creditBalance: decimal('credit_balance').notNull().default('0'),
   /** @deprecated Not written; report Copilot cost from usage_log. Legacy/admin reads only. */
   totalCopilotCost: decimal('total_copilot_cost').notNull().default('0'),
-  /** Active per-period Copilot baseline; reset at rollover (not a per-usage counter). */
+  /** @deprecated No readers or writers; Copilot usage is the copilot-source usage_log ledger. Drop via DROP COLUMN in a follow-up migration. */
   currentPeriodCopilotCost: decimal('current_period_copilot_cost').notNull().default('0'),
-  /** Previous-period Copilot cost; set at rollover. */
+  /** Previous-period Copilot cost; written by the cycle-close sweep from copilot-source ledger sums. */
   lastPeriodCopilotCost: decimal('last_period_copilot_cost').default('0'),
   /** @deprecated Not written; report Copilot tokens from usage_log. Legacy/admin reads only. */
   totalCopilotTokens: bigint('total_copilot_tokens', { mode: 'number' }).notNull().default(0),
@@ -1362,6 +1361,16 @@ export const subscription = pgTable(
     billingInterval: text('billing_interval'),
     stripeScheduleId: text('stripe_schedule_id'),
     metadata: json('metadata'),
+    /**
+     * Durable cycle-close marker: the `periodStart` of the most recent period
+     * whose close (final overage collection, `billedOverageThisPeriod` reset,
+     * last-period bookkeeping) has been committed. The daily cycle-close sweep
+     * closes the previous period whenever this lags the row's `periodStart`,
+     * then advances it. Null = never initialized; the first sweep initializes
+     * it to the current `periodStart` without billing so historical periods
+     * are never retroactively closed.
+     */
+    lastClosedPeriodStart: timestamp('last_closed_period_start'),
   },
   (table) => ({
     referenceStatusIdx: index('subscription_reference_status_idx').on(
@@ -1582,6 +1591,7 @@ export const organization = pgTable('organization', {
     .$type<Record<string, number>>()
     .notNull()
     .default({}),
+  /** @deprecated No readers or writers; a departed member's ledger rows stay stamped to the org's period, so nothing needs capturing. Drop via DROP COLUMN in a follow-up migration. */
   departedMemberUsage: decimal('departed_member_usage').notNull().default('0'),
   /**
    * Organization credit balance tracker.
@@ -2554,7 +2564,11 @@ export const document = pgTable(
      * this column existed.
      */
     processingQueuedAt: timestamp('processing_queued_at'),
+    /** Opaque dispatch generation; NULL identifies payloads created before token rollout. */
+    processingQueueToken: text('processing_queue_token'),
     processingStartedAt: timestamp('processing_started_at'),
+    /** Scheduled execution time of an accepted durable quota continuation. */
+    processingDeferredUntil: timestamp('processing_deferred_until'),
     processingCompletedAt: timestamp('processing_completed_at'),
     processingError: text('processing_error'),
 
@@ -4421,6 +4435,7 @@ export const knowledgeConnectorSyncLog = pgTable(
     docsUpdated: integer('docs_updated').notNull().default(0),
     docsDeleted: integer('docs_deleted').notNull().default(0),
     docsUnchanged: integer('docs_unchanged').notNull().default(0),
+    docsSkipped: integer('docs_skipped').notNull().default(0),
     docsFailed: integer('docs_failed').notNull().default(0),
     errorMessage: text('error_message'),
   },

@@ -19,8 +19,8 @@ function options(over: Record<string, unknown> = {}) {
   >[0]
 }
 
-/** Tiny delays so retry cases do not spend real seconds sleeping. */
-const FAST = { initialDelayMs: 1, maxDelayMs: 1 }
+/** Tiny waits keep retry cases fast; the explicit budget absorbs test-runner scheduling latency. */
+const FAST = { initialDelayMs: 1, maxDelayMs: 1, retryBudgetMs: 1_000 }
 
 function sites(entries: Array<{ id: string; url: string }>) {
   return createMockResponse({ json: entries })
@@ -108,8 +108,6 @@ describe('resolveAtlassianCloudId', () => {
   it('gives up on a persistent fault within a bounded attempt budget', async () => {
     fetchMock.mockImplementation(async () => failure(500))
 
-    // Delays only. `maxRetries` still comes from the discovery budget, so this
-    // fails if the shared default of 5 ever leaks back in.
     await expect(resolveAtlassianCloudId(options({ retryOptions: FAST }))).rejects.toThrow(
       /Failed to fetch Jira accessible resources: 500/
     )

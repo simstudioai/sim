@@ -20,7 +20,6 @@ const mocks = vi.hoisted(() => ({
   updateWorkspaceFileFolder: vi.fn(),
   deleteWorkspaceFile: vi.fn(),
   renameWorkspaceFile: vi.fn(),
-  performMoveRenameWorkspaceFile: vi.fn(),
   performUpdateWorkspaceFileFolder: vi.fn(),
   performCreateFolder: vi.fn(),
   performUpdateFolder: vi.fn(),

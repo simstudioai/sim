@@ -3,8 +3,7 @@ import { EMAIL_CAPABILITY, inspectCapability } from '@sim/deployment-config/env-
 /**
  * Server/client feature-flag pairs that must be set together — server code
  * reads the bare var, the browser bundle reads the NEXT_PUBLIC_ twin
- * (apps/sim/lib/core/config/env-flags.ts documents each). Note the one
- * mismatched pair: DEPLOY_AS_BLOCK ↔ NEXT_PUBLIC_CUSTOM_BLOCKS_ENABLED.
+ * (apps/sim/lib/core/config/env-flags.ts documents each).
  */
 export const FLAG_TWINS: ReadonlyArray<{ server: string; client: string }> = [
   { server: 'BILLING_ENABLED', client: 'NEXT_PUBLIC_BILLING_ENABLED' },
@@ -23,7 +22,7 @@ export const FLAG_TWINS: ReadonlyArray<{ server: string; client: string }> = [
   { server: 'SSO_ENABLED', client: 'NEXT_PUBLIC_SSO_ENABLED' },
   { server: 'EMAIL_PASSWORD_SIGNUP_ENABLED', client: 'NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED' },
   { server: 'E2B_ENABLED', client: 'NEXT_PUBLIC_E2B_ENABLED' },
-  { server: 'DEPLOY_AS_BLOCK', client: 'NEXT_PUBLIC_CUSTOM_BLOCKS_ENABLED' },
+  { server: 'SLACK_EXTENDED_SCOPES', client: 'NEXT_PUBLIC_SLACK_EXTENDED_SCOPES' },
 ]
 
 /** Self-host feature unlocks offered by the wizard's Custom flow. */
@@ -46,11 +45,6 @@ export const SELF_HOST_UNLOCKS: ReadonlyArray<{ server: string; label: string; h
   { server: 'FORKING_ENABLED', label: 'Workflow forking', hint: '' },
   { server: 'INBOX_ENABLED', label: 'Inbox', hint: '' },
   { server: 'WHITELABELING_ENABLED', label: 'Whitelabeling', hint: 'custom branding' },
-  {
-    server: 'DEPLOY_AS_BLOCK',
-    label: 'Deploy as block',
-    hint: 'publish workflows as reusable blocks',
-  },
 ]
 
 export function getConfiguredMailProvider(vars: Map<string, string>): string {

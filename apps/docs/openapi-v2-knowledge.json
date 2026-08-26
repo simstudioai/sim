@@ -36,7 +36,7 @@
       "get": {
         "operationId": "listKnowledgeBases",
         "summary": "List Knowledge Bases",
-        "description": "List knowledge bases in a workspace with folder filtering, search, sorting, and opaque cursor pagination. A workspace folder tree over 10,000 folders is a `413`.",
+        "description": "List knowledge bases in a workspace with lifecycle scope, folder filtering, search, sorting, and opaque cursor pagination. `scope` defaults to `active`; pass `archived` to list knowledge bases a `DELETE` archived, each carrying the `deletedAt` instant it was archived, and recover one with `POST /api/v2/knowledge/{knowledgeBaseId}/restore`. A workspace folder tree over 10,000 folders is a `413`.",
         "tags": ["Knowledge Bases"],
         "parameters": [
           {
@@ -49,6 +49,18 @@
               "minLength": 1,
               "maxLength": 128,
               "description": "Workspace whose knowledge bases should be listed."
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": false,
+            "description": "Which lifecycle set to list: `active` (default) for live knowledge bases, `archived` for knowledge bases a `DELETE` archived and `POST /knowledge/{knowledgeBaseId}/restore` can bring back. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too.",
+            "schema": {
+              "default": "active",
+              "description": "Which lifecycle set to list: `active` (default) for live knowledge bases, `archived` for knowledge bases a `DELETE` archived and `POST /knowledge/{knowledgeBaseId}/restore` can bring back. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too.",
+              "type": "string",
+              "enum": ["active", "archived"]
             }
           },
           {
@@ -226,6 +238,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -238,7 +253,7 @@
         }
       }
     },
-    "/api/v2/knowledge/{id}": {
+    "/api/v2/knowledge/{knowledgeBaseId}": {
       "get": {
         "operationId": "getKnowledgeBase",
         "summary": "Get Knowledge Base",
@@ -246,7 +261,7 @@
         "tags": ["Knowledge Bases"],
         "parameters": [
           {
-            "name": "id",
+            "name": "knowledgeBaseId",
             "in": "path",
             "required": true,
             "description": "Unique knowledge base identifier.",
@@ -323,7 +338,7 @@
         "tags": ["Knowledge Bases"],
         "parameters": [
           {
-            "name": "id",
+            "name": "knowledgeBaseId",
             "in": "path",
             "required": true,
             "description": "Unique knowledge base identifier.",
@@ -385,6 +400,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -403,7 +421,7 @@
         "tags": ["Knowledge Bases"],
         "parameters": [
           {
-            "name": "id",
+            "name": "knowledgeBaseId",
             "in": "path",
             "required": true,
             "description": "Unique knowledge base identifier.",
@@ -471,7 +489,7 @@
         }
       }
     },
-    "/api/v2/knowledge/{id}/connectors": {
+    "/api/v2/knowledge/{knowledgeBaseId}/connectors": {
       "get": {
         "operationId": "listKnowledgeConnectors",
         "summary": "List Knowledge Connectors",
@@ -479,7 +497,7 @@
         "tags": ["Knowledge Bases"],
         "parameters": [
           {
-            "name": "id",
+            "name": "knowledgeBaseId",
             "in": "path",
             "required": true,
             "description": "Unique knowledge base identifier.",
@@ -602,7 +620,7 @@
         "tags": ["Knowledge Bases"],
         "parameters": [
           {
-            "name": "id",
+            "name": "knowledgeBaseId",
             "in": "path",
             "required": true,
             "description": "Unique knowledge base identifier.",
@@ -664,6 +682,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -676,24 +697,13 @@
         }
       }
     },
-    "/api/v2/knowledge/{id}/connectors/{connectorId}": {
+    "/api/v2/knowledge/{knowledgeBaseId}/connectors/{connectorId}": {
       "get": {
         "operationId": "getKnowledgeConnector",
         "summary": "Get Knowledge Connector",
         "description": "Retrieve one connector and its ten most recent synchronization attempts. Stored API keys and encrypted secret material are never returned. A workspace API key is rejected with `403`; use a personal API key.",
         "tags": ["Knowledge Bases"],
         "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "description": "Knowledge base that owns the connector.",
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "description": "Knowledge base that owns the connector."
-            }
-          },
           {
             "name": "connectorId",
             "in": "path",
@@ -703,6 +713,17 @@
               "type": "string",
               "minLength": 1,
               "description": "Connector selected for the operation."
+            }
+          },
+          {
+            "name": "knowledgeBaseId",
+            "in": "path",
+            "required": true,
+            "description": "Knowledge base that owns the connector.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Knowledge base that owns the connector."
             }
           },
           {
@@ -770,17 +791,6 @@
         "tags": ["Knowledge Bases"],
         "parameters": [
           {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "description": "Knowledge base that owns the connector.",
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "description": "Knowledge base that owns the connector."
-            }
-          },
-          {
             "name": "connectorId",
             "in": "path",
             "required": true,
@@ -789,6 +799,17 @@
               "type": "string",
               "minLength": 1,
               "description": "Connector selected for the operation."
+            }
+          },
+          {
+            "name": "knowledgeBaseId",
+            "in": "path",
+            "required": true,
+            "description": "Knowledge base that owns the connector.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Knowledge base that owns the connector."
             }
           }
         ],
@@ -843,6 +864,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -861,17 +885,6 @@
         "tags": ["Knowledge Bases"],
         "parameters": [
           {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "description": "Knowledge base that owns the connector.",
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "description": "Knowledge base that owns the connector."
-            }
-          },
-          {
             "name": "connectorId",
             "in": "path",
             "required": true,
@@ -880,6 +893,17 @@
               "type": "string",
               "minLength": 1,
               "description": "Connector selected for the operation."
+            }
+          },
+          {
+            "name": "knowledgeBaseId",
+            "in": "path",
+            "required": true,
+            "description": "Knowledge base that owns the connector.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Knowledge base that owns the connector."
             }
           },
           {
@@ -951,24 +975,13 @@
         }
       }
     },
-    "/api/v2/knowledge/{id}/connectors/{connectorId}/sync": {
+    "/api/v2/knowledge/{knowledgeBaseId}/connectors/{connectorId}/sync": {
       "post": {
         "operationId": "syncKnowledgeConnector",
         "summary": "Sync Knowledge Connector",
         "description": "Queue a connector synchronization. Rehydration forces existing documents to be fetched and indexed again. A workspace API key is rejected with `403`; use a personal API key.",
         "tags": ["Knowledge Bases"],
         "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "description": "Knowledge base that owns the connector.",
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "description": "Knowledge base that owns the connector."
-            }
-          },
           {
             "name": "connectorId",
             "in": "path",
@@ -978,6 +991,17 @@
               "type": "string",
               "minLength": 1,
               "description": "Connector selected for the operation."
+            }
+          },
+          {
+            "name": "knowledgeBaseId",
+            "in": "path",
+            "required": true,
+            "description": "Knowledge base that owns the connector.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Knowledge base that owns the connector."
             }
           }
         ],
@@ -1032,6 +1056,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -1044,24 +1071,13 @@
         }
       }
     },
-    "/api/v2/knowledge/{id}/connectors/{connectorId}/documents": {
+    "/api/v2/knowledge/{knowledgeBaseId}/connectors/{connectorId}/documents": {
       "get": {
         "operationId": "listKnowledgeConnectorDocuments",
         "summary": "List Knowledge Connector Documents",
         "description": "List documents produced by one connector with opaque cursor pagination. Excluded documents are omitted unless explicitly requested. A workspace API key is rejected with `403`; use a personal API key.",
         "tags": ["Knowledge Bases"],
         "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "description": "Knowledge base that owns the connector.",
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "description": "Knowledge base that owns the connector."
-            }
-          },
           {
             "name": "connectorId",
             "in": "path",
@@ -1071,6 +1087,17 @@
               "type": "string",
               "minLength": 1,
               "description": "Connector selected for the operation."
+            }
+          },
+          {
+            "name": "knowledgeBaseId",
+            "in": "path",
+            "required": true,
+            "description": "Knowledge base that owns the connector.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Knowledge base that owns the connector."
             }
           },
           {
@@ -1172,17 +1199,6 @@
         "tags": ["Knowledge Bases"],
         "parameters": [
           {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "description": "Knowledge base that owns the connector.",
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "description": "Knowledge base that owns the connector."
-            }
-          },
-          {
             "name": "connectorId",
             "in": "path",
             "required": true,
@@ -1191,6 +1207,17 @@
               "type": "string",
               "minLength": 1,
               "description": "Connector selected for the operation."
+            }
+          },
+          {
+            "name": "knowledgeBaseId",
+            "in": "path",
+            "required": true,
+            "description": "Knowledge base that owns the connector.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Knowledge base that owns the connector."
             }
           }
         ],
@@ -1241,6 +1268,9 @@
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -1311,6 +1341,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -1323,7 +1356,7 @@
         }
       }
     },
-    "/api/v2/knowledge/{id}/tags": {
+    "/api/v2/knowledge/{knowledgeBaseId}/tags": {
       "get": {
         "operationId": "listKnowledgeTags",
         "summary": "List Tags",
@@ -1331,7 +1364,7 @@
         "tags": ["Knowledge Bases"],
         "parameters": [
           {
-            "name": "id",
+            "name": "knowledgeBaseId",
             "in": "path",
             "required": true,
             "description": "Unique knowledge base identifier.",
@@ -1397,17 +1430,265 @@
             "$ref": "#/components/responses/ServiceUnavailable"
           }
         }
-      }
-    },
-    "/api/v2/knowledge/{id}/documents": {
-      "get": {
-        "operationId": "listKnowledgeDocuments",
-        "summary": "List Documents",
-        "description": "List documents in a knowledge base with filename search, state filtering, tag filtering, sorting, and opaque cursor pagination. Tag values are keyed by display name; resolve those to write slots with `GET /api/v2/knowledge/{id}/tags`.",
+      },
+      "post": {
+        "operationId": "createKnowledgeTag",
+        "summary": "Create Tag",
+        "description": "Define one tag on a knowledge base; use `PUT` on this path to declare several at once. Define a tag here, write its `tagSlot` on a document with `PATCH /api/v2/knowledge/{knowledgeBaseId}/documents/{documentId}`, then filter by its `displayName` on the document list or on search. Omit `tagSlot` to take the next free slot for the field type; a field type with no free slot left is a `400` naming it, since the remedy is a different type or a deleted definition rather than a retry. A `tagSlot` already taken, or a `displayName` already defined on this knowledge base, is a `409` naming which of the two to change. A workspace API key is rejected with `403`; use a personal API key.",
         "tags": ["Knowledge Bases"],
         "parameters": [
           {
-            "name": "id",
+            "name": "knowledgeBaseId",
+            "in": "path",
+            "required": true,
+            "description": "Unique knowledge base identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique knowledge base identifier."
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Workspace scope, display name, field type, and optional slot.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateKnowledgeTagRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The created tag definition.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2KnowledgeTagResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "put": {
+        "operationId": "bulkSaveKnowledgeTagDefinitions",
+        "summary": "Bulk Save Tag Definitions",
+        "description": "Declare, in one request, several of the knowledge base's tag definitions. `POST` on this path defines exactly one tag; this is the same write over a list, and every slot the body names is written to the declaration it carries while slots it does not name are left alone. Updating an existing definition requires naming its current name in `originalDisplayName`; that is the only form that edits one in place. Without it the entry is a create, and a requested `tagSlot` another name already holds is refused in `errors` — it is neither overwritten nor relocated to a different slot, so an explicitly requested slot always means that slot or an error. A create whose `displayName` already exists is refused in `errors`. Per-definition failures are reported in `errors` and still answer `200`. This writes the vocabulary, not one document's tag values — set those with `PATCH /api/v2/knowledge/{knowledgeBaseId}/documents/{documentId}`. A workspace API key is rejected with `403`; use a personal API key.",
+        "tags": ["Knowledge Bases"],
+        "parameters": [
+          {
+            "name": "knowledgeBaseId",
+            "in": "path",
+            "required": true,
+            "description": "Unique knowledge base identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique knowledge base identifier."
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Workspace scope and the tag definitions to create or update.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkSaveKnowledgeTagDefinitionsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Definitions created and updated by the save.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2BulkSaveKnowledgeTagDefinitionsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteKnowledgeTagDefinitions",
+        "summary": "Delete Tag Definitions",
+        "description": "Remove tag definitions from the knowledge base. `unused` defaults to `true`, which removes only the definitions no document still carries a value for — the recoverable half, since a definition with nothing behind it can simply be redefined. Pass `unused=false` to delete every definition on the knowledge base, which also clears its slot on every document and chunk and is not recoverable. Delete one definition at a time with `DELETE /api/v2/knowledge/{knowledgeBaseId}/tags/{tagId}`. A workspace API key is rejected with `403`; use a personal API key.",
+        "tags": ["Knowledge Bases"],
+        "parameters": [
+          {
+            "name": "knowledgeBaseId",
+            "in": "path",
+            "required": true,
+            "description": "Unique knowledge base identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique knowledge base identifier."
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace that owns the knowledge base.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "Workspace that owns the knowledge base."
+            }
+          },
+          {
+            "name": "unused",
+            "in": "query",
+            "required": false,
+            "description": "Whether to remove only the tag definitions no document in the knowledge base still carries a value for. Defaults to true. Pass `unused=false` to delete every definition on the knowledge base, which also clears its slot on every document and chunk and is not recoverable.",
+            "schema": {
+              "description": "Whether to remove only the tag definitions no document in the knowledge base still carries a value for. Defaults to true. Pass `unused=false` to delete every definition on the knowledge base, which also clears its slot on every document and chunk and is not recoverable.",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Number of tag definitions removed.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2DeleteKnowledgeTagDefinitionsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/knowledge/{knowledgeBaseId}/documents": {
+      "get": {
+        "operationId": "listKnowledgeDocuments",
+        "summary": "List Documents",
+        "description": "List documents in a knowledge base with filename search, state filtering, tag filtering, sorting, and opaque cursor pagination. Tag values are keyed by display name; resolve those to write slots with `GET /api/v2/knowledge/{knowledgeBaseId}/tags`.",
+        "tags": ["Knowledge Bases"],
+        "parameters": [
+          {
+            "name": "knowledgeBaseId",
             "in": "path",
             "required": true,
             "description": "Unique knowledge base identifier.",
@@ -1570,11 +1851,11 @@
       "patch": {
         "operationId": "bulkUpdateKnowledgeDocuments",
         "summary": "Bulk Enable or Disable Documents",
-        "description": "Enable or disable many documents in one request, either by identifier or, with `selectAll`, every document in the knowledge base. Bulk delete is not offered; delete documents one at a time with `DELETE /api/v2/knowledge/{id}/documents/{documentId}`. A workspace API key is rejected with `403`; use a personal API key.",
+        "description": "Enable or disable many documents in one request, either by identifier or, with `selectAll`, every document in the knowledge base. Bulk delete is not offered; delete documents one at a time with `DELETE /api/v2/knowledge/{knowledgeBaseId}/documents/{documentId}`. A workspace API key is rejected with `403`; use a personal API key.",
         "tags": ["Knowledge Bases"],
         "parameters": [
           {
-            "name": "id",
+            "name": "knowledgeBaseId",
             "in": "path",
             "required": true,
             "description": "Unique knowledge base identifier.",
@@ -1633,6 +1914,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -1651,7 +1935,7 @@
         "tags": ["Knowledge Bases"],
         "parameters": [
           {
-            "name": "id",
+            "name": "knowledgeBaseId",
             "in": "path",
             "required": true,
             "description": "Unique knowledge base identifier.",
@@ -1740,7 +2024,7 @@
         }
       }
     },
-    "/api/v2/knowledge/{id}/documents/uploads": {
+    "/api/v2/knowledge/{knowledgeBaseId}/documents/uploads": {
       "post": {
         "operationId": "createKnowledgeDocumentUpload",
         "summary": "Create Document Upload",
@@ -1748,7 +2032,7 @@
         "tags": ["Knowledge Bases"],
         "parameters": [
           {
-            "name": "id",
+            "name": "knowledgeBaseId",
             "in": "path",
             "required": true,
             "description": "Unique knowledge base identifier.",
@@ -1825,7 +2109,7 @@
         }
       }
     },
-    "/api/v2/knowledge/{id}/documents/uploads/{uploadId}": {
+    "/api/v2/knowledge/{knowledgeBaseId}/documents/uploads/{uploadId}": {
       "delete": {
         "operationId": "abortKnowledgeDocumentUpload",
         "summary": "Abort Document Upload",
@@ -1833,7 +2117,7 @@
         "tags": ["Knowledge Bases"],
         "parameters": [
           {
-            "name": "id",
+            "name": "knowledgeBaseId",
             "in": "path",
             "required": true,
             "description": "Unique knowledge base identifier.",
@@ -1927,7 +2211,7 @@
         }
       }
     },
-    "/api/v2/knowledge/{id}/documents/uploads/{uploadId}/parts": {
+    "/api/v2/knowledge/{knowledgeBaseId}/documents/uploads/{uploadId}/parts": {
       "post": {
         "operationId": "createKnowledgeDocumentUploadPartUrls",
         "summary": "Create Document Upload Part URLs",
@@ -1935,7 +2219,7 @@
         "tags": ["Knowledge Bases"],
         "parameters": [
           {
-            "name": "id",
+            "name": "knowledgeBaseId",
             "in": "path",
             "required": true,
             "description": "Unique knowledge base identifier.",
@@ -2031,6 +2315,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -2043,7 +2330,7 @@
         }
       }
     },
-    "/api/v2/knowledge/{id}/documents/uploads/{uploadId}/complete": {
+    "/api/v2/knowledge/{knowledgeBaseId}/documents/uploads/{uploadId}/complete": {
       "post": {
         "operationId": "completeKnowledgeDocumentUpload",
         "summary": "Complete Document Upload",
@@ -2051,7 +2338,7 @@
         "tags": ["Knowledge Bases"],
         "parameters": [
           {
-            "name": "id",
+            "name": "knowledgeBaseId",
             "in": "path",
             "required": true,
             "description": "Unique knowledge base identifier.",
@@ -2124,9 +2411,6 @@
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
-          "402": {
-            "$ref": "#/components/responses/UsageLimitExceeded"
-          },
           "403": {
             "$ref": "#/components/responses/Forbidden"
           },
@@ -2148,24 +2432,13 @@
         }
       }
     },
-    "/api/v2/knowledge/{id}/documents/{documentId}": {
+    "/api/v2/knowledge/{knowledgeBaseId}/documents/{documentId}": {
       "get": {
         "operationId": "getKnowledgeDocument",
         "summary": "Get Document",
         "description": "Retrieve document detail, processing state, and connector provenance.",
         "tags": ["Knowledge Bases"],
         "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "description": "Unique knowledge base identifier.",
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "description": "Unique knowledge base identifier."
-            }
-          },
           {
             "name": "documentId",
             "in": "path",
@@ -2175,6 +2448,17 @@
               "type": "string",
               "minLength": 1,
               "description": "Unique knowledge document identifier."
+            }
+          },
+          {
+            "name": "knowledgeBaseId",
+            "in": "path",
+            "required": true,
+            "description": "Unique knowledge base identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique knowledge base identifier."
             }
           },
           {
@@ -2237,20 +2521,9 @@
       "patch": {
         "operationId": "updateKnowledgeDocument",
         "summary": "Update Document",
-        "description": "Rename a document, enable or disable it for search, set any of its 17 tag slots, or requeue it for processing. Absent fields are unchanged, and derived indexing state is read-only. Resolve a tag display name to its slot with `GET /api/v2/knowledge/{id}/tags`. The returned document omits the connector provenance the detail read carries. A workspace API key is rejected with `403`; use a personal API key.",
+        "description": "Rename a document, enable or disable it for search, set any of its 17 tag slots, or requeue it for processing. Absent fields are unchanged, and derived indexing state is read-only. Resolve a tag display name to its slot with `GET /api/v2/knowledge/{knowledgeBaseId}/tags`. The returned document omits the connector provenance the detail read carries. A workspace API key is rejected with `403`; use a personal API key.",
         "tags": ["Knowledge Bases"],
         "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "description": "Unique knowledge base identifier.",
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "description": "Unique knowledge base identifier."
-            }
-          },
           {
             "name": "documentId",
             "in": "path",
@@ -2260,6 +2533,17 @@
               "type": "string",
               "minLength": 1,
               "description": "Unique knowledge document identifier."
+            }
+          },
+          {
+            "name": "knowledgeBaseId",
+            "in": "path",
+            "required": true,
+            "description": "Unique knowledge base identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique knowledge base identifier."
             }
           }
         ],
@@ -2311,6 +2595,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -2329,17 +2616,6 @@
         "tags": ["Knowledge Bases"],
         "parameters": [
           {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "description": "Unique knowledge base identifier.",
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "description": "Unique knowledge base identifier."
-            }
-          },
-          {
             "name": "documentId",
             "in": "path",
             "required": true,
@@ -2348,6 +2624,17 @@
               "type": "string",
               "minLength": 1,
               "description": "Unique knowledge document identifier."
+            }
+          },
+          {
+            "name": "knowledgeBaseId",
+            "in": "path",
+            "required": true,
+            "description": "Unique knowledge base identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique knowledge base identifier."
             }
           },
           {
@@ -2578,6 +2865,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -2644,6 +2934,9 @@
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -2749,6 +3042,1179 @@
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/knowledge/{knowledgeBaseId}/restore": {
+      "post": {
+        "operationId": "restoreKnowledgeBase",
+        "summary": "Restore Knowledge Base",
+        "description": "Un-archive a soft-deleted knowledge base along with its documents and connectors. Idempotent: a knowledge base that is already active is returned unchanged with no audit entry recorded. Restoring into an archived workspace is a `409`, and a knowledge base whose folder is still archived is returned to the workspace root. A workspace folder tree over 10,000 folders is a `413`.",
+        "tags": ["Knowledge Bases"],
+        "parameters": [
+          {
+            "name": "knowledgeBaseId",
+            "in": "path",
+            "required": true,
+            "description": "Unique knowledge base identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique knowledge base identifier."
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Workspace scope for the knowledge base.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RestoreKnowledgeBaseRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The restored knowledge base.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2KnowledgeBaseResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/knowledge/{knowledgeBaseId}/documents/from-workspace-files": {
+      "post": {
+        "operationId": "addWorkspaceFilesToKnowledgeBase",
+        "summary": "Index Workspace Files",
+        "description": "Index files the workspace already stores, without re-uploading their bytes. Each reference is authorized against the file it names, so a reference the caller cannot read, one over the 100 MB document limit, or one whose type is not supported is reported in `failed` while the rest are queued — a partial outcome is a `200`, not a multi-status. A queued document starts in the `pending` processing state; the entries returned here carry only its identity, so read `GET /api/v2/knowledge/{knowledgeBaseId}/documents/{documentId}` for its current state. A workspace API key is rejected with `403`; use a personal API key.",
+        "tags": ["Knowledge Bases"],
+        "parameters": [
+          {
+            "name": "knowledgeBaseId",
+            "in": "path",
+            "required": true,
+            "description": "Unique knowledge base identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique knowledge base identifier."
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Workspace scope and the workspace file references to index.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddWorkspaceFilesToKnowledgeBaseRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Files queued for indexing, with any that could not be.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2AddWorkspaceFilesToKnowledgeBaseResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "402": {
+            "$ref": "#/components/responses/UsageLimitExceeded"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/knowledge/{knowledgeBaseId}/documents/{documentId}/chunks": {
+      "get": {
+        "operationId": "listKnowledgeChunks",
+        "summary": "List Chunks",
+        "description": "List the passages a document was split into, with content search, enabled filtering, sorting, and opaque cursor pagination. Tag values are projected by slot; resolve slots to display names with `GET /api/v2/knowledge/{knowledgeBaseId}/tags`. A document that has not finished processing answers `409`; the message names the status it is in. A workspace API key is rejected with `403`; use a personal API key.",
+        "tags": ["Knowledge Bases"],
+        "parameters": [
+          {
+            "name": "documentId",
+            "in": "path",
+            "required": true,
+            "description": "Unique knowledge document identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique knowledge document identifier."
+            }
+          },
+          {
+            "name": "knowledgeBaseId",
+            "in": "path",
+            "required": true,
+            "description": "Unique knowledge base identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique knowledge base identifier."
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace that owns the knowledge base.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "Workspace that owns the knowledge base."
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "description": "Case-insensitive substring match against chunk content.",
+            "schema": {
+              "description": "Case-insensitive substring match against chunk content.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "enabled",
+            "in": "query",
+            "required": false,
+            "description": "Restrict to enabled or disabled chunks. `all` returns both.",
+            "schema": {
+              "default": "all",
+              "description": "Restrict to enabled or disabled chunks. `all` returns both.",
+              "type": "string",
+              "enum": ["true", "false", "all"]
+            }
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "required": false,
+            "description": "Field used to sort the result.",
+            "schema": {
+              "default": "chunkIndex",
+              "description": "Field used to sort the result.",
+              "type": "string",
+              "enum": ["chunkIndex", "tokenCount", "enabled"]
+            }
+          },
+          {
+            "name": "sortOrder",
+            "in": "query",
+            "required": false,
+            "description": "Sort direction.",
+            "schema": {
+              "default": "asc",
+              "description": "Sort direction.",
+              "type": "string",
+              "enum": ["asc", "desc"]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum chunks to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+            "schema": {
+              "default": 50,
+              "description": "Maximum chunks to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
+            "schema": {
+              "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of document chunks.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2KnowledgeChunkListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createKnowledgeChunk",
+        "summary": "Create Chunk",
+        "description": "Append a chunk to a document. The text is embedded before the response returns, so the chunk is searchable immediately, and it inherits the document's tag values and the next `chunkIndex`. Chunks of a connector-synced document are read-only and a write answers `403` with `error.details.code: \"CONNECTOR_MANAGED_RESOURCE_READ_ONLY\"` — change the content at the source and re-sync, or exclude the document from the connector. A workspace API key is rejected with `403`; use a personal API key.",
+        "tags": ["Knowledge Bases"],
+        "parameters": [
+          {
+            "name": "documentId",
+            "in": "path",
+            "required": true,
+            "description": "Unique knowledge document identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique knowledge document identifier."
+            }
+          },
+          {
+            "name": "knowledgeBaseId",
+            "in": "path",
+            "required": true,
+            "description": "Unique knowledge base identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique knowledge base identifier."
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Workspace scope and the text to embed.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateKnowledgeChunkRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The created chunk.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2KnowledgeChunkResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "bulkUpdateKnowledgeChunks",
+        "summary": "Bulk Update Chunks",
+        "description": "Enable, disable, or delete many chunks of one document in a single request. Best-effort: an identifier naming no chunk in the document is skipped rather than failing the request, so `processed` is the authoritative count. Chunks of a connector-synced document are read-only and a write answers `403` with `error.details.code: \"CONNECTOR_MANAGED_RESOURCE_READ_ONLY\"` — change the content at the source and re-sync, or exclude the document from the connector. A workspace API key is rejected with `403`; use a personal API key.",
+        "tags": ["Knowledge Bases"],
+        "parameters": [
+          {
+            "name": "documentId",
+            "in": "path",
+            "required": true,
+            "description": "Unique knowledge document identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique knowledge document identifier."
+            }
+          },
+          {
+            "name": "knowledgeBaseId",
+            "in": "path",
+            "required": true,
+            "description": "Unique knowledge base identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique knowledge base identifier."
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Workspace scope, the operation to apply, and the chunks to apply it to.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkUpdateKnowledgeChunksRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Outcome of the bulk chunk operation.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2BulkKnowledgeChunksResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/knowledge/{knowledgeBaseId}/documents/{documentId}/chunks/{chunkId}": {
+      "get": {
+        "operationId": "getKnowledgeChunk",
+        "summary": "Get Chunk",
+        "description": "Retrieve one chunk of a document, including the exact text that was embedded. A document that has not finished processing answers `409`; the message names the status it is in. A workspace API key is rejected with `403`; use a personal API key.",
+        "tags": ["Knowledge Bases"],
+        "parameters": [
+          {
+            "name": "documentId",
+            "in": "path",
+            "required": true,
+            "description": "Unique knowledge document identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique knowledge document identifier."
+            }
+          },
+          {
+            "name": "chunkId",
+            "in": "path",
+            "required": true,
+            "description": "Unique chunk identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique chunk identifier."
+            }
+          },
+          {
+            "name": "knowledgeBaseId",
+            "in": "path",
+            "required": true,
+            "description": "Unique knowledge base identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique knowledge base identifier."
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace that owns the knowledge base.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "Workspace that owns the knowledge base."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The requested chunk.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2KnowledgeChunkResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateKnowledgeChunk",
+        "summary": "Update Chunk",
+        "description": "Correct a chunk's text or take it out of search. Changing `content` re-embeds the chunk and re-derives the document's token and character counts, so the correction reaches search immediately; disabling keeps the chunk indexed. Chunks of a connector-synced document are read-only and a write answers `403` with `error.details.code: \"CONNECTOR_MANAGED_RESOURCE_READ_ONLY\"` — change the content at the source and re-sync, or exclude the document from the connector. A document that has not finished processing answers `409`; the message names the status it is in. A workspace API key is rejected with `403`; use a personal API key.",
+        "tags": ["Knowledge Bases"],
+        "parameters": [
+          {
+            "name": "documentId",
+            "in": "path",
+            "required": true,
+            "description": "Unique knowledge document identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique knowledge document identifier."
+            }
+          },
+          {
+            "name": "chunkId",
+            "in": "path",
+            "required": true,
+            "description": "Unique chunk identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique chunk identifier."
+            }
+          },
+          {
+            "name": "knowledgeBaseId",
+            "in": "path",
+            "required": true,
+            "description": "Unique knowledge base identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique knowledge base identifier."
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Workspace scope and the fields to update. At least one is required.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateKnowledgeChunkRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated chunk.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2KnowledgeChunkResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteKnowledgeChunk",
+        "summary": "Delete Chunk",
+        "description": "Permanently remove one chunk and subtract it from the document's counts. Deleting does not renumber the remaining chunks, so `chunkIndex` values stay stable but become non-contiguous. Chunks of a connector-synced document are read-only and a write answers `403` with `error.details.code: \"CONNECTOR_MANAGED_RESOURCE_READ_ONLY\"` — change the content at the source and re-sync, or exclude the document from the connector. A document that has not finished processing answers `409`; the message names the status it is in. A workspace API key is rejected with `403`; use a personal API key.",
+        "tags": ["Knowledge Bases"],
+        "parameters": [
+          {
+            "name": "documentId",
+            "in": "path",
+            "required": true,
+            "description": "Unique knowledge document identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique knowledge document identifier."
+            }
+          },
+          {
+            "name": "chunkId",
+            "in": "path",
+            "required": true,
+            "description": "Unique chunk identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique chunk identifier."
+            }
+          },
+          {
+            "name": "knowledgeBaseId",
+            "in": "path",
+            "required": true,
+            "description": "Unique knowledge base identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique knowledge base identifier."
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace that owns the knowledge base.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "Workspace that owns the knowledge base."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Chunk deletion acknowledgement.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2KnowledgeDeleteResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/knowledge/{knowledgeBaseId}/tags/{tagId}": {
+      "patch": {
+        "operationId": "updateKnowledgeTag",
+        "summary": "Update Tag",
+        "description": "Rename a tag, or change the value type stored in its slot. Renaming changes the name filters and document reads use; the slot, and every value in it, is untouched. A tag's slot is fixed for its lifetime and each slot holds one kind of value, so `fieldType` can only change to another type valid for the slot the tag already occupies — anything else is a `400`, and the way to get a tag of that type is to create one. A name another tag on this knowledge base already holds is a `409`. A workspace API key is rejected with `403`; use a personal API key.",
+        "tags": ["Knowledge Bases"],
+        "parameters": [
+          {
+            "name": "tagId",
+            "in": "path",
+            "required": true,
+            "description": "Unique tag definition identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique tag definition identifier."
+            }
+          },
+          {
+            "name": "knowledgeBaseId",
+            "in": "path",
+            "required": true,
+            "description": "Unique knowledge base identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique knowledge base identifier."
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Workspace scope and the fields to update. At least one is required.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateKnowledgeTagRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated tag definition.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2KnowledgeTagResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteKnowledgeTag",
+        "summary": "Delete Tag",
+        "description": "Remove a tag definition and clear its slot across every document and chunk in the knowledge base. Without a definition the slot has no meaning, so leaving the values would strand them under a raw slot name — this is not recoverable. A workspace API key is rejected with `403`; use a personal API key.",
+        "tags": ["Knowledge Bases"],
+        "parameters": [
+          {
+            "name": "tagId",
+            "in": "path",
+            "required": true,
+            "description": "Unique tag definition identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique tag definition identifier."
+            }
+          },
+          {
+            "name": "knowledgeBaseId",
+            "in": "path",
+            "required": true,
+            "description": "Unique knowledge base identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique knowledge base identifier."
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace that owns the knowledge base.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "Workspace that owns the knowledge base."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tag deletion acknowledgement.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2DeleteKnowledgeTagResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/knowledge/{knowledgeBaseId}/tags/next-slot": {
+      "get": {
+        "operationId": "getNextKnowledgeTagSlot",
+        "summary": "Get Next Tag Slot",
+        "description": "Report which slot a create would take for a field type, and how many are left. Advisory rather than a claim: nothing is reserved, and `POST /api/v2/knowledge/{knowledgeBaseId}/tags` assigns the same slot when `tagSlot` is omitted. A workspace API key is rejected with `403`; use a personal API key.",
+        "tags": ["Knowledge Bases"],
+        "parameters": [
+          {
+            "name": "knowledgeBaseId",
+            "in": "path",
+            "required": true,
+            "description": "Unique knowledge base identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique knowledge base identifier."
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace that owns the knowledge base.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "Workspace that owns the knowledge base."
+            }
+          },
+          {
+            "name": "fieldType",
+            "in": "query",
+            "required": true,
+            "description": "Value type stored in the slot; it decides which slots are usable and which filter operators apply. Slot capacity per type: text 7, number 5, date 2, boolean 3.",
+            "schema": {
+              "type": "string",
+              "enum": ["text", "number", "date", "boolean"],
+              "description": "Value type stored in the slot; it decides which slots are usable and which filter operators apply. Slot capacity per type: text 7, number 5, date 2, boolean 3.",
+              "examples": ["text"]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Slot availability for the requested field type.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2NextKnowledgeTagSlotResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/knowledge/{knowledgeBaseId}/tags/usage": {
+      "get": {
+        "operationId": "listKnowledgeTagUsage",
+        "summary": "List Tag Usage",
+        "description": "Report how many documents and chunks carry a value for each defined tag, so a caller can tell a tag that is actually populated from one that was only declared. The bounded set is returned in one page; `nextCursor` is always null. A workspace API key is rejected with `403`; use a personal API key.",
+        "tags": ["Knowledge Bases"],
+        "parameters": [
+          {
+            "name": "knowledgeBaseId",
+            "in": "path",
+            "required": true,
+            "description": "Unique knowledge base identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique knowledge base identifier."
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace that owns the knowledge base.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "Workspace that owns the knowledge base."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Usage counts for every defined tag.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2KnowledgeTagUsageListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -3033,7 +4499,7 @@
                 "description": "Human-readable explanation of the error."
               },
               "details": {
-                "description": "Structured error details. On a `403` whose cause a caller can act on, this carries a `code` from a closed set:\n- `INSUFFICIENT_WORKSPACE_ROLE` — The caller has access to the workspace but its role is below the one this operation requires.\n- `PERSONAL_API_KEYS_DISABLED` — The workspace's organization does not allow personal API keys. Use a workspace API key.\n- `WORKSPACE_KEY_OPERATION_NOT_PERMITTED` — This operation is not available to a workspace-scoped API key. Use a personal API key.\n- `PRINCIPAL_KIND_NOT_PERMITTED` — This operation does not accept the caller’s kind of API key.\n- `ORGANIZATION_MEMBERSHIP_REQUIRED` — The caller is not a member of the organization it named.\n- `ORGANIZATION_ADMIN_REQUIRED` — The caller is a member of the organization but not an admin or owner.\n- `ENTERPRISE_PLAN_REQUIRED` — The organization has no active enterprise subscription.\n- `ORGANIZATION_PLAN_REQUIRED` — The organization has no active organization subscription (Pro for Teams, Max for Teams, or Enterprise).\n- `AUDIT_LOGS_DISABLED` — Audit logging is not enabled for this deployment.\n- `SKILL_EDITOR_ACCESS_REQUIRED` — The caller can write in the workspace but is not an editor of this skill.\n- `SECRET_ADMIN_ACCESS_REQUIRED` — The caller can write in the workspace but is not an admin of this secret. Ask a workspace admin, or someone holding admin on the secret, to grant access or set the value.\n- `WORKSPACE_RESOURCE_LIMIT_REACHED` — The workspace already holds the maximum number of resources of this kind. Delete one, or contact Sim to raise the limit; the message names the ceiling.\n- `PUBLIC_SHARING_NOT_ALLOWED` — The workspace's organization does not permit sharing this resource publicly. An organization admin controls the policy.\n- `CREDENTIAL_ADMIN_ACCESS_REQUIRED` — The caller can reach the workspace but cannot administer this credential.\n- `MCP_SERVER_URL_NOT_ALLOWED` — The supplied MCP server URL is outside the allowed domains or resolves to an internal address."
+                "description": "Structured error details. On a `403` whose cause a caller can act on, this carries a `code` from a closed set:\n- `INSUFFICIENT_WORKSPACE_ROLE` — The caller has access to the workspace but its role is below the one this operation requires.\n- `PERSONAL_API_KEYS_DISABLED` — The workspace's organization does not allow personal API keys. Use a workspace API key.\n- `WORKSPACE_KEY_OPERATION_NOT_PERMITTED` — This operation is not available to a workspace-scoped API key. Use a personal API key.\n- `PRINCIPAL_KIND_NOT_PERMITTED` — This operation does not accept the caller’s kind of API key.\n- `ORGANIZATION_MEMBERSHIP_REQUIRED` — The caller is not a member of the organization it named.\n- `ORGANIZATION_ADMIN_REQUIRED` — The caller is a member of the organization but not an admin or owner.\n- `ENTERPRISE_PLAN_REQUIRED` — The organization has no active enterprise subscription.\n- `ORGANIZATION_PLAN_REQUIRED` — The organization has no active organization subscription (Pro for Teams, Max for Teams, or Enterprise).\n- `AUDIT_LOGS_DISABLED` — Audit logging is not enabled for this deployment.\n- `SKILL_EDITOR_ACCESS_REQUIRED` — The caller can write in the workspace but is not an editor of this skill.\n- `SECRET_ADMIN_ACCESS_REQUIRED` — The caller can write in the workspace but is not an admin of this secret. Ask a workspace admin, or someone holding admin on the secret, to grant access or set the value.\n- `WORKSPACE_RESOURCE_LIMIT_REACHED` — The workspace already holds the maximum number of resources of this kind. Delete one, or contact Sim to raise the limit; the message names the ceiling.\n- `PUBLIC_SHARING_NOT_ALLOWED` — The workspace's organization does not permit sharing this resource publicly. An organization admin controls the policy.\n- `CREDENTIAL_ADMIN_ACCESS_REQUIRED` — The caller can reach the workspace but cannot administer this credential.\n- `MCP_SERVER_URL_NOT_ALLOWED` — The supplied MCP server URL is outside the allowed domains or resolves to an internal address.\n- `WORKSPACE_PLAN_CAPABILITY_REQUIRED` — The workspace's plan does not include a capability this request depends on. The message names the capability; upgrading the workspace's plan is the remedy.\n- `CHAT_AUTH_MODE_NOT_PERMITTED` — The workspace's permission group does not allow the chat authentication mode the request selected. A mode already saved on the deployment may still be re-saved; changing to a disallowed one cannot.\n- `CONNECTOR_MANAGED_RESOURCE_READ_ONLY` — This resource is managed by a knowledge base connector and cannot be edited directly. Change it at the source and re-sync, or exclude the document from the connector."
               }
             },
             "required": ["code", "message"],
@@ -3128,6 +4594,11 @@
             "format": "date-time",
             "examples": ["2025-06-18T16:45:00Z"]
           },
+          "webUrl": {
+            "type": "string",
+            "format": "uri",
+            "description": "Canonical absolute URL for opening this resource in the Sim web application."
+          },
           "ownerEmail": {
             "type": "string",
             "format": "email",
@@ -3138,9 +4609,24 @@
           "folderPath": {
             "type": "string",
             "title": "Folder path",
-            "description": "Canonical containing-folder path; `/` is the workspace root.",
+            "description": "Canonical containing-folder path; `/` is the workspace root. Resolved against active folders only, so an archived knowledge base whose containing folder was archived with it reports `/`.",
             "maxLength": 4096,
             "examples": ["/Product"]
+          },
+          "deletedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp when the knowledge base was archived by `DELETE /knowledge/{knowledgeBaseId}`, or null while the knowledge base is active. Only `GET /knowledge?scope=archived` returns knowledge bases with a non-null value.",
+            "format": "date-time",
+            "examples": ["2026-01-16T09:00:00Z"]
           }
         },
         "required": [
@@ -3153,8 +4639,10 @@
           "chunkingConfig",
           "createdAt",
           "updatedAt",
+          "webUrl",
           "ownerEmail",
-          "folderPath"
+          "folderPath",
+          "deletedAt"
         ],
         "additionalProperties": false,
         "title": "Knowledge base",
@@ -3285,10 +4773,46 @@
             "type": "number",
             "minimum": 0,
             "maximum": 500
+          },
+          "strategy": {
+            "description": "Chunking strategy applied during document processing. `regex` additionally requires `strategyOptions.pattern`.",
+            "type": "string",
+            "enum": ["auto", "text", "regex", "recursive", "sentence", "token"]
+          },
+          "strategyOptions": {
+            "description": "Strategy-specific tuning options. `strictBoundaries` is accepted only with `strategy: \"regex\"`.",
+            "type": "object",
+            "properties": {
+              "pattern": {
+                "description": "Regular expression used by the regex chunking strategy.",
+                "type": "string",
+                "maxLength": 500
+              },
+              "separators": {
+                "description": "Ordered separators used to split content into chunks.",
+                "maxItems": 32,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 100
+                }
+              },
+              "recipe": {
+                "description": "Content-aware recipe used by the automatic chunking strategy.",
+                "type": "string",
+                "enum": ["plain", "markdown", "code"]
+              },
+              "strictBoundaries": {
+                "description": "Whether regex matches must form strict chunk boundaries.",
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": false
           }
         },
+        "additionalProperties": false,
         "title": "Knowledge chunking configuration input",
-        "description": "Chunking configuration applied when processing documents."
+        "description": "Chunking configuration applied when processing documents. On update this object is replaced wholesale rather than merged, so a caller preserving one key must read, modify, and write the whole object back."
       },
       "CreateKnowledgeBaseRequest": {
         "type": "object",
@@ -3754,6 +5278,13 @@
             "maximum": 9007199254740991,
             "description": "Documents unchanged."
           },
+          "docsSkipped": {
+            "default": 0,
+            "description": "Documents intentionally skipped because they could not be indexed safely.",
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
           "docsFailed": {
             "type": "integer",
             "minimum": 0,
@@ -3782,6 +5313,7 @@
           "docsUpdated",
           "docsDeleted",
           "docsUnchanged",
+          "docsSkipped",
           "docsFailed",
           "errorMessage"
         ],
@@ -4603,7 +6135,7 @@
             "maximum": 100
           },
           "tagFilters": {
-            "description": "Structured tag filters, at most 10 of them. Every filter must hold, including two that name the same tag: repeating one tag narrows the result rather than widening it, matching `GET /api/v2/knowledge/{id}/documents`. To match either of two values for one tag, issue a search per value. Each filtered tag must resolve to the same slot and field type in every knowledge base selected; one missing from any of them, or defined inconsistently across them, is rejected rather than ignored, and those knowledge bases must be searched separately. List the available names with `GET /api/v2/knowledge/{id}/tags`.",
+            "description": "Structured tag filters, at most 10 of them. Every filter must hold, including two that name the same tag: repeating one tag narrows the result rather than widening it, matching `GET /api/v2/knowledge/{knowledgeBaseId}/documents`. To match either of two values for one tag, issue a search per value. Each filtered tag must resolve to the same slot and field type in every knowledge base selected; one missing from any of them, or defined inconsistently across them, is rejected rather than ignored, and those knowledge bases must be searched separately. List the available names with `GET /api/v2/knowledge/{knowledgeBaseId}/tags`.",
             "maxItems": 10,
             "type": "array",
             "items": {
@@ -4648,6 +6180,10 @@
       "V2KnowledgeTag": {
         "type": "object",
         "properties": {
+          "id": {
+            "type": "string",
+            "description": "Tag definition identifier. Published because `PATCH` and `DELETE /knowledge/{knowledgeBaseId}/tags/{tagId}` address a definition by it; without it those operations are unreachable from a list read."
+          },
           "displayName": {
             "type": "string",
             "description": "Display name used by tag filters and by tag values on document reads.",
@@ -4664,7 +6200,7 @@
             "examples": ["text"]
           }
         },
-        "required": ["displayName", "tagSlot", "fieldType"],
+        "required": ["id", "displayName", "tagSlot", "fieldType"],
         "additionalProperties": false,
         "title": "Knowledge tag",
         "description": "A tag defined on a knowledge base, and the slot it is stored in."
@@ -4785,7 +6321,7 @@
               ],
               "description": "Tag value; dates are ISO 8601 strings and an unset tag is null."
             },
-            "description": "Document tag values keyed by tag display name. Writes address the same tags by slot (`tag1`..`tag7`); resolve names to slots with GET /api/v2/knowledge/{id}/tags.",
+            "description": "Document tag values keyed by tag display name. Writes address the same tags by slot (`tag1`..`tag7`); resolve names to slots with GET /api/v2/knowledge/{knowledgeBaseId}/tags.",
             "examples": [
               {
                 "category": "billing",
@@ -5149,7 +6685,7 @@
           "url": {
             "type": "string",
             "format": "uri",
-            "description": "Signed URL to which the file bytes are uploaded. Send the bytes with `PUT` to this URL, including exactly the headers in `headers` and nothing that alters the body. Success is `204` with an empty body. A failure is the same `{ \"error\": { \"code\", \"message\" } }` envelope as every other v2 response: `400` when the body does not match the size or content type the session was created for, `403` when the token is invalid, expired, or belongs to another session, and `409` when the session is no longer accepting bytes. The URL is signed and self-describing — construct it from this field only, never by hand."
+            "description": "Signed URL to which the file bytes are uploaded. Send the bytes with `PUT` to this URL, including exactly the headers in `headers` and nothing that alters the body. The URL is signed and self-describing — construct it from this field only, never by hand.\n\n**Where this URL points depends on the deployment, and so does what answers you.** When Sim stores objects itself the URL is Sim's own data plane: success is `204` with an empty body, and a failure is the same `{ \"error\": { \"code\", \"message\" } }` envelope as every other v2 response — `400` when the body does not match the size or content type the session was created for, `403` when the token is invalid, expired, or belongs to another session, and `409` when the session is no longer accepting bytes. When object storage is configured — S3, Google Cloud Storage, or Azure Blob — the URL is that provider's own presigned URL, and the provider answers directly: treat **any `2xx` as success** (S3 and GCS answer `200`, Azure `201`), and on failure expect the provider's error document, typically XML, not the v2 envelope. Do not branch on `204` and do not parse a failure as JSON."
           },
           "headers": {
             "type": "object",
@@ -5353,7 +6889,7 @@
           "url": {
             "type": "string",
             "format": "uri",
-            "description": "Signed URL for this upload part. Send the bytes with `PUT` to this URL, including exactly the headers in `headers` and nothing that alters the body. Success is `204` with an empty body. A failure is the same `{ \"error\": { \"code\", \"message\" } }` envelope as every other v2 response: `400` when the body does not match the size or content type the session was created for, `403` when the token is invalid, expired, or belongs to another session, and `409` when the session is no longer accepting bytes. The URL is signed and self-describing — construct it from this field only, never by hand."
+            "description": "Signed URL for this upload part. Send the bytes with `PUT` to this URL, including exactly the headers in `headers` and nothing that alters the body. The URL is signed and self-describing — construct it from this field only, never by hand.\n\n**Where this URL points depends on the deployment, and so does what answers you.** When Sim stores objects itself the URL is Sim's own data plane: success is `204` with an empty body, and a failure is the same `{ \"error\": { \"code\", \"message\" } }` envelope as every other v2 response — `400` when the body does not match the size or content type the session was created for, `403` when the token is invalid, expired, or belongs to another session, and `409` when the session is no longer accepting bytes. When object storage is configured — S3, Google Cloud Storage, or Azure Blob — the URL is that provider's own presigned URL, and the provider answers directly: treat **any `2xx` as success** (S3 and GCS answer `200`, Azure `201`), and on failure expect the provider's error document, typically XML, not the v2 envelope. Do not branch on `204` and do not parse a failure as JSON.\n\nYou do not need to retain the `ETag` each part upload returns. Unlike a raw S3 multipart flow, completion takes no request body: Sim lists the uploaded parts from the provider itself and reads their entity tags there, so `POST .../complete` only has to happen after every part has been sent."
           },
           "headers": {
             "type": "object",
@@ -5521,7 +7057,7 @@
               ],
               "description": "Tag value; dates are ISO 8601 strings and an unset tag is null."
             },
-            "description": "Document tag values keyed by tag display name. Writes address the same tags by slot (`tag1`..`tag7`); resolve names to slots with GET /api/v2/knowledge/{id}/tags.",
+            "description": "Document tag values keyed by tag display name. Writes address the same tags by slot (`tag1`..`tag7`); resolve names to slots with GET /api/v2/knowledge/{knowledgeBaseId}/tags.",
             "examples": [
               {
                 "category": "billing",
@@ -5974,6 +7510,903 @@
         "additionalProperties": false,
         "title": "Delete knowledge folder response",
         "description": "Folder deletion acknowledgement and deleted-resource counts."
+      },
+      "RestoreKnowledgeBaseRequest": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Workspace that owns the knowledge base."
+          }
+        },
+        "required": ["workspaceId"],
+        "additionalProperties": false,
+        "title": "Restore knowledge base request",
+        "description": "Workspace scope for the knowledge base.",
+        "examples": [
+          {
+            "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64"
+          }
+        ]
+      },
+      "V2AddedWorkspaceFileDocument": {
+        "type": "object",
+        "properties": {
+          "documentId": {
+            "type": "string",
+            "description": "Identifier of the queued knowledge document."
+          },
+          "filename": {
+            "type": "string",
+            "description": "Filename recorded on the knowledge document."
+          },
+          "mimeType": {
+            "type": "string",
+            "description": "MIME type of the source workspace file."
+          },
+          "fileSize": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "File size in bytes."
+          }
+        },
+        "required": ["documentId", "filename", "mimeType", "fileSize"],
+        "additionalProperties": false,
+        "title": "Indexed workspace file",
+        "description": "A workspace file that was queued for indexing into a knowledge base."
+      },
+      "V2AddWorkspaceFilesToKnowledgeBaseData": {
+        "type": "object",
+        "properties": {
+          "knowledgeBaseId": {
+            "type": "string",
+            "description": "Knowledge base the files were added to."
+          },
+          "added": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V2AddedWorkspaceFileDocument"
+            },
+            "description": "Files queued for indexing, in request order."
+          },
+          "failed": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "References that could not be indexed, echoed exactly as they were sent."
+          }
+        },
+        "required": ["knowledgeBaseId", "added", "failed"],
+        "additionalProperties": false,
+        "title": "Add workspace files data",
+        "description": "Outcome of indexing workspace files into a knowledge base."
+      },
+      "V2AddWorkspaceFilesToKnowledgeBaseResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2AddWorkspaceFilesToKnowledgeBaseData"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Index workspace files response",
+        "description": "Documents queued for indexing and references that could not be."
+      },
+      "AddWorkspaceFilesToKnowledgeBaseRequest": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Workspace that owns both the files and the base."
+          },
+          "fileReferences": {
+            "minItems": 1,
+            "maxItems": 100,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "Workspace file identifiers or storage keys to index. Duplicates resolving to the same file are indexed once."
+          }
+        },
+        "required": ["workspaceId", "fileReferences"],
+        "additionalProperties": false,
+        "title": "Index workspace files request",
+        "description": "Workspace scope and the workspace file references to index.",
+        "examples": [
+          {
+            "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+            "fileReferences": ["handbook.pdf"]
+          }
+        ]
+      },
+      "V2KnowledgeChunk": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique chunk identifier.",
+            "examples": ["4c1f9e77-2b3a-4f8d-9e10-6a2c8d4b1e05"]
+          },
+          "chunkIndex": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Zero-based position of the chunk within its document.",
+            "examples": [3]
+          },
+          "content": {
+            "type": "string",
+            "description": "Text content of the chunk, exactly as it was embedded.",
+            "examples": ["To reset your password, open Settings and choose Security."]
+          },
+          "contentLength": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Character count of `content`.",
+            "examples": [58]
+          },
+          "tokenCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Tokens the chunk consumed when embedded.",
+            "examples": [14]
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether the chunk participates in search. A disabled chunk stays indexed."
+          },
+          "startOffset": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Character offset of the chunk within the extracted document text."
+          },
+          "endOffset": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Character offset just past the end of the chunk."
+          },
+          "tag1": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Text tag value inherited from the document, or null when the slot is unset."
+          },
+          "tag2": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Text tag value inherited from the document, or null when the slot is unset."
+          },
+          "tag3": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Text tag value inherited from the document, or null when the slot is unset."
+          },
+          "tag4": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Text tag value inherited from the document, or null when the slot is unset."
+          },
+          "tag5": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Text tag value inherited from the document, or null when the slot is unset."
+          },
+          "tag6": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Text tag value inherited from the document, or null when the slot is unset."
+          },
+          "tag7": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Text tag value inherited from the document, or null when the slot is unset."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "description": "ISO 8601 timestamp when the chunk was created."
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "description": "ISO 8601 timestamp when the chunk was last modified."
+          }
+        },
+        "required": [
+          "id",
+          "chunkIndex",
+          "content",
+          "contentLength",
+          "tokenCount",
+          "enabled",
+          "startOffset",
+          "endOffset",
+          "tag1",
+          "tag2",
+          "tag3",
+          "tag4",
+          "tag5",
+          "tag6",
+          "tag7",
+          "createdAt",
+          "updatedAt"
+        ],
+        "additionalProperties": false,
+        "title": "Knowledge chunk",
+        "description": "One embedded passage of a knowledge document."
+      },
+      "V2KnowledgeChunkListResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V2KnowledgeChunk"
+            },
+            "description": "Items in the current page."
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself."
+          }
+        },
+        "required": ["data", "nextCursor"],
+        "additionalProperties": false,
+        "title": "Knowledge chunk list response",
+        "description": "A cursor-paginated page of document chunks."
+      },
+      "V2KnowledgeChunkResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2KnowledgeChunk"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Knowledge chunk response",
+        "description": "A single document chunk."
+      },
+      "CreateKnowledgeChunkRequest": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Workspace that owns the knowledge base."
+          },
+          "content": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 10000,
+            "description": "Text to embed. It is embedded on write, so the chunk is searchable immediately."
+          },
+          "enabled": {
+            "default": true,
+            "description": "Whether the new chunk participates in search.",
+            "type": "boolean"
+          }
+        },
+        "required": ["workspaceId", "content"],
+        "additionalProperties": false,
+        "title": "Create knowledge chunk request",
+        "description": "Workspace scope and the text to embed.",
+        "examples": [
+          {
+            "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+            "content": "To reset your password, open Settings and choose Security."
+          }
+        ]
+      },
+      "V2BulkKnowledgeChunksData": {
+        "type": "object",
+        "properties": {
+          "operation": {
+            "type": "string",
+            "enum": ["enable", "disable", "delete"],
+            "description": "Operation that was applied."
+          },
+          "processed": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Number of chunks the operation changed.",
+            "examples": [12]
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Per-chunk failures. A populated array still answers 200."
+          }
+        },
+        "required": ["operation", "processed", "errors"],
+        "additionalProperties": false,
+        "title": "Bulk knowledge chunk update data",
+        "description": "Outcome of a bulk enable, disable, or delete across knowledge chunks."
+      },
+      "V2BulkKnowledgeChunksResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2BulkKnowledgeChunksData"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Bulk knowledge chunk response",
+        "description": "Counts and per-chunk failures from a bulk chunk operation."
+      },
+      "BulkUpdateKnowledgeChunksRequest": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Workspace that owns the knowledge base."
+          },
+          "operation": {
+            "type": "string",
+            "enum": ["enable", "disable", "delete"],
+            "description": "What to do with the selected chunks."
+          },
+          "chunkIds": {
+            "minItems": 1,
+            "maxItems": 100,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "Chunks to operate on, by identifier. Ids outside the document are ignored."
+          }
+        },
+        "required": ["workspaceId", "operation", "chunkIds"],
+        "additionalProperties": false,
+        "title": "Bulk knowledge chunk request",
+        "description": "Workspace scope, the operation to apply, and the chunks to apply it to.",
+        "examples": [
+          {
+            "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+            "operation": "disable",
+            "chunkIds": ["4c1f9e77-2b3a-4f8d-9e10-6a2c8d4b1e05"]
+          }
+        ]
+      },
+      "UpdateKnowledgeChunkRequest": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Workspace that owns the knowledge base."
+          },
+          "content": {
+            "description": "Replacement text. Changing it re-embeds the chunk and re-derives its token and character counts.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 10000
+          },
+          "enabled": {
+            "description": "Whether the chunk participates in search. Disabling keeps it indexed.",
+            "type": "boolean"
+          }
+        },
+        "required": ["workspaceId"],
+        "additionalProperties": false,
+        "title": "Update knowledge chunk request",
+        "description": "Workspace scope and the fields to update. At least one is required.",
+        "examples": [
+          {
+            "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+            "enabled": false
+          }
+        ]
+      },
+      "V2KnowledgeTagResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2KnowledgeTag"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Knowledge tag response",
+        "description": "A single tag definition."
+      },
+      "CreateKnowledgeTagRequest": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Workspace that owns the knowledge base."
+          },
+          "displayName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "description": "Name tag filters and document reads use for this tag.",
+            "examples": ["category"]
+          },
+          "fieldType": {
+            "default": "text",
+            "type": "string",
+            "enum": ["text", "number", "date", "boolean"],
+            "description": "Value type stored in the slot; it decides which slots are usable and which filter operators apply. Slot capacity per type: text 7, number 5, date 2, boolean 3.",
+            "examples": ["text"]
+          },
+          "tagSlot": {
+            "description": "Slot to store the tag in. Omit to take the next free slot for the field type; a slot that does not belong to the field type, or one already in use, is rejected.",
+            "type": "string",
+            "enum": [
+              "tag1",
+              "tag2",
+              "tag3",
+              "tag4",
+              "tag5",
+              "tag6",
+              "tag7",
+              "number1",
+              "number2",
+              "number3",
+              "number4",
+              "number5",
+              "date1",
+              "date2",
+              "boolean1",
+              "boolean2",
+              "boolean3"
+            ],
+            "examples": ["tag1"]
+          }
+        },
+        "required": ["workspaceId", "displayName"],
+        "additionalProperties": false,
+        "title": "Create knowledge tag request",
+        "description": "Workspace scope, display name, field type, and optional slot.",
+        "examples": [
+          {
+            "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+            "displayName": "category",
+            "fieldType": "text"
+          }
+        ]
+      },
+      "UpdateKnowledgeTagRequest": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Workspace that owns the knowledge base."
+          },
+          "displayName": {
+            "description": "New tag display name.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "examples": ["category"]
+          },
+          "fieldType": {
+            "description": "New value type for the tag.",
+            "type": "string",
+            "enum": ["text", "number", "date", "boolean"],
+            "examples": ["text"]
+          }
+        },
+        "required": ["workspaceId"],
+        "additionalProperties": false,
+        "title": "Update knowledge tag request",
+        "description": "Workspace scope and the fields to update. At least one is required.",
+        "examples": [
+          {
+            "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+            "displayName": "topic"
+          }
+        ]
+      },
+      "V2DeleteKnowledgeTagData": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Identifier of the deleted tag definition."
+          },
+          "tagSlot": {
+            "type": "string",
+            "description": "Slot the deleted tag occupied; its values are now cleared."
+          },
+          "displayName": {
+            "type": "string",
+            "description": "Display name the deleted tag carried."
+          },
+          "deleted": {
+            "type": "boolean",
+            "const": true,
+            "description": "Confirms that the tag definition was deleted."
+          }
+        },
+        "required": ["id", "tagSlot", "displayName", "deleted"],
+        "additionalProperties": false,
+        "title": "Delete knowledge tag data",
+        "description": "Acknowledgement for a deleted tag definition."
+      },
+      "V2DeleteKnowledgeTagResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2DeleteKnowledgeTagData"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Delete knowledge tag response",
+        "description": "Acknowledgement naming the deleted definition and the slot it freed."
+      },
+      "V2NextKnowledgeTagSlotData": {
+        "type": "object",
+        "properties": {
+          "nextAvailableSlot": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The free slot a create would take, or null when the field type is exhausted.",
+            "examples": ["tag3"]
+          },
+          "fieldType": {
+            "type": "string",
+            "description": "Field type the slots were counted for."
+          },
+          "usedSlots": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Slots of this field type already holding a tag."
+          },
+          "totalSlots": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Total slots this field type has: 7 for text, 5 for number, 2 for date, 3 for boolean."
+          },
+          "availableSlots": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Slots of this field type still free, or 0 when the field type is exhausted."
+          }
+        },
+        "required": ["nextAvailableSlot", "fieldType", "usedSlots", "totalSlots", "availableSlots"],
+        "additionalProperties": false,
+        "title": "Next knowledge tag slot",
+        "description": "Slot availability for one tag field type."
+      },
+      "V2NextKnowledgeTagSlotResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2NextKnowledgeTagSlotData"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Next knowledge tag slot response",
+        "description": "Slot availability for one tag field type."
+      },
+      "V2KnowledgeTagUsage": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Tag definition identifier. Published for the same reason the vocabulary read publishes it: `PATCH` and `DELETE /knowledge/{knowledgeBaseId}/tags/{tagId}` address a definition by id, so without it a usage row cannot be acted on without a second read and a slot join.",
+            "examples": ["7c9e6679-7425-40de-944b-e07fc1f90ae7"]
+          },
+          "tagSlot": {
+            "type": "string",
+            "description": "Slot the tag occupies.",
+            "examples": ["tag1"]
+          },
+          "displayName": {
+            "type": "string",
+            "description": "Tag display name.",
+            "examples": ["category"]
+          },
+          "fieldType": {
+            "type": "string",
+            "description": "Value type stored in the slot.",
+            "examples": ["text"]
+          },
+          "documentCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Documents in the knowledge base carrying a value in this slot."
+          },
+          "chunkCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Indexed chunks carrying a value in this slot."
+          }
+        },
+        "required": ["id", "tagSlot", "displayName", "fieldType", "documentCount", "chunkCount"],
+        "additionalProperties": false,
+        "title": "Knowledge tag usage",
+        "description": "How widely one tag is populated across a knowledge base."
+      },
+      "V2KnowledgeTagUsageListResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V2KnowledgeTagUsage"
+            },
+            "description": "Items in the current page."
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Always `null` — this list has no `cursor` or `limit` param and returns its whole bounded set in one page. Present so the list can gain pages later without a shape change."
+          }
+        },
+        "required": ["data", "nextCursor"],
+        "additionalProperties": false,
+        "title": "Knowledge tag usage response",
+        "description": "Usage counts for every tag defined on one knowledge base."
+      },
+      "V2BulkSaveKnowledgeTagDefinitionsData": {
+        "type": "object",
+        "properties": {
+          "created": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V2KnowledgeTag"
+            },
+            "description": "Definitions that did not previously exist."
+          },
+          "updated": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V2KnowledgeTag"
+            },
+            "description": "Definitions whose slot was already defined."
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Per-definition failures. A populated array still answers 200."
+          }
+        },
+        "required": ["created", "updated", "errors"],
+        "additionalProperties": false,
+        "title": "Bulk save knowledge tag definitions data",
+        "description": "Definitions created and updated by a bulk tag-definition save."
+      },
+      "V2BulkSaveKnowledgeTagDefinitionsResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2BulkSaveKnowledgeTagDefinitionsData"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Bulk save tag definitions response",
+        "description": "Definitions created and updated, with any per-definition failures."
+      },
+      "V2BulkSaveKnowledgeTagDefinition": {
+        "type": "object",
+        "properties": {
+          "tagSlot": {
+            "type": "string",
+            "enum": [
+              "tag1",
+              "tag2",
+              "tag3",
+              "tag4",
+              "tag5",
+              "tag6",
+              "tag7",
+              "number1",
+              "number2",
+              "number3",
+              "number4",
+              "number5",
+              "date1",
+              "date2",
+              "boolean1",
+              "boolean2",
+              "boolean3"
+            ],
+            "description": "Storage slot the tag occupies. It must belong to the tag’s `fieldType`.",
+            "examples": ["tag1"]
+          },
+          "displayName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "description": "Name tag filters and document reads use for this tag.",
+            "examples": ["category"]
+          },
+          "fieldType": {
+            "type": "string",
+            "enum": ["text", "number", "date", "boolean"],
+            "description": "Value type stored in the slot; it decides which slots are usable and which filter operators apply. Slot capacity per type: text 7, number 5, date 2, boolean 3.",
+            "examples": ["text"]
+          },
+          "originalDisplayName": {
+            "description": "Previous display name, when this entry renames an existing definition.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "examples": ["category"]
+          }
+        },
+        "required": ["tagSlot", "displayName", "fieldType"],
+        "additionalProperties": false,
+        "title": "Knowledge tag definition input",
+        "description": "One tag definition declared in a bulk save."
+      },
+      "BulkSaveKnowledgeTagDefinitionsRequest": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Workspace that owns the knowledge base."
+          },
+          "definitions": {
+            "minItems": 1,
+            "maxItems": 17,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V2BulkSaveKnowledgeTagDefinition"
+            },
+            "description": "Tag definitions to create or update on the knowledge base."
+          }
+        },
+        "required": ["workspaceId", "definitions"],
+        "additionalProperties": false,
+        "title": "Bulk save tag definitions request",
+        "description": "Workspace scope and the tag definitions to create or update.",
+        "examples": [
+          {
+            "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+            "definitions": [
+              {
+                "tagSlot": "tag1",
+                "displayName": "category",
+                "fieldType": "text"
+              }
+            ]
+          }
+        ]
+      },
+      "V2DeleteKnowledgeTagDefinitionsData": {
+        "type": "object",
+        "properties": {
+          "unused": {
+            "type": "boolean",
+            "description": "Whether the delete was restricted to definitions no document still uses."
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Number of tag definitions removed."
+          }
+        },
+        "required": ["unused", "count"],
+        "additionalProperties": false,
+        "title": "Delete knowledge tag definitions data",
+        "description": "Outcome of a knowledge-base tag-definition delete."
+      },
+      "V2DeleteKnowledgeTagDefinitionsResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2DeleteKnowledgeTagDefinitionsData"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Delete tag definitions response",
+        "description": "Number of tag definitions that were removed."
       }
     }
   },

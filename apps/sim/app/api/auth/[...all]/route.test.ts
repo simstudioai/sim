@@ -7,6 +7,8 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 const handlerMocks = vi.hoisted(() => ({
   betterAuthGET: vi.fn(),
   betterAuthPOST: vi.fn(),
+  credentialGroupCallback: vi.fn(),
+  credentialGroupRateLimit: vi.fn(),
   ensureAnonymousUserExists: vi.fn(),
   createAnonymousSession: vi.fn(() => ({
     user: { id: 'anon' },
@@ -30,9 +32,105 @@ vi.mock('@/lib/auth/anonymous', () => ({
   createAnonymousSession: handlerMocks.createAnonymousSession,
 }))
 
+vi.mock('@/lib/credential-groups/oauth-state', () => ({
+  isCredentialGroupOAuthState: (state: string) => state.startsWith('cg_'),
+}))
+
+vi.mock('@/lib/credential-groups/providers', () => ({
+  CREDENTIAL_GROUP_PROVIDER_IDS: ['gmail', 'google-calendar', 'confluence', 'jira', 'slack'],
+  CREDENTIAL_GROUP_STANDARD_OAUTH_PROVIDER_IDS: ['gmail', 'google-calendar', 'confluence', 'jira'],
+  getCredentialGroupStandardOAuthProviderFromProviderId: (providerId: string) => {
+    const providers: Record<string, string> = {
+      'google-email': 'gmail',
+      'google-calendar': 'google-calendar',
+      confluence: 'confluence',
+      jira: 'jira',
+    }
+    const provider = providers[providerId]
+    if (!provider) throw new Error(`Unsupported managed OAuth provider: ${providerId}`)
+    return provider
+  },
+}))
+
+vi.mock('@/lib/credential-groups/rate-limit', () => ({
+  enforcePublicCredentialGroupIpRateLimit: handlerMocks.credentialGroupRateLimit,
+}))
+
+vi.mock('@/app/api/credential-groups/oauth-callback', () => ({
+  handleCredentialGroupOAuthCallback: handlerMocks.credentialGroupCallback,
+}))
+
 import { GET, POST } from '@/app/api/auth/[...all]/route'
 
 afterAll(resetEnvFlagsMock)
+
+describe('auth catch-all route managed OAuth callbacks', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    handlerMocks.credentialGroupRateLimit.mockResolvedValue(null)
+    handlerMocks.credentialGroupCallback.mockResolvedValue(new Response(null, { status: 204 }))
+  })
+
+  it.each([
+    ['google-email', 'gmail'],
+    ['google-calendar', 'google-calendar'],
+    ['confluence', 'confluence'],
+    ['jira', 'jira'],
+  ])('dispatches a managed %s callback by its state prefix', async (providerId, provider) => {
+    const request = createMockRequest(
+      'GET',
+      undefined,
+      {},
+      `http://localhost:3000/api/auth/oauth2/callback/${providerId}?state=cg_attempt&code=code-1`
+    )
+
+    const response = await GET(request)
+
+    expect(response.status).toBe(204)
+    expect(handlerMocks.credentialGroupRateLimit).toHaveBeenCalledWith(request, 'oauth-callback')
+    expect(handlerMocks.credentialGroupCallback).toHaveBeenCalledWith({
+      request,
+      provider,
+      query: { state: 'cg_attempt', code: 'code-1' },
+      limited: null,
+    })
+    expect(handlerMocks.betterAuthGET).not.toHaveBeenCalled()
+  })
+
+  it('leaves ordinary connector callbacks with Better Auth', async () => {
+    handlerMocks.betterAuthGET.mockResolvedValueOnce(new Response(null, { status: 204 }))
+    const request = createMockRequest(
+      'GET',
+      undefined,
+      {},
+      'http://localhost:3000/api/auth/oauth2/callback/jira?state=better-auth-state&code=code-1'
+    )
+
+    const response = await GET(request)
+
+    expect(response.status).toBe(204)
+    expect(handlerMocks.betterAuthGET).toHaveBeenCalledWith(request)
+    expect(handlerMocks.credentialGroupCallback).not.toHaveBeenCalled()
+  })
+
+  it('rejects a managed state sent to an unsupported connector callback', async () => {
+    const request = createMockRequest(
+      'GET',
+      undefined,
+      {},
+      'http://localhost:3000/api/auth/oauth2/callback/unknown?state=cg_attempt&code=code-1'
+    )
+
+    const response = await GET(request)
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toEqual({
+      error: 'Unsupported managed OAuth provider.',
+    })
+    expect(handlerMocks.betterAuthGET).not.toHaveBeenCalled()
+    expect(handlerMocks.credentialGroupCallback).not.toHaveBeenCalled()
+  })
+})
 
 describe('auth catch-all route (DISABLE_AUTH get-session)', () => {
   beforeEach(() => {

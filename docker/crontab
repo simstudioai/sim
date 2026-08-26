@@ -42,6 +42,9 @@ SHELL=/bin/sh
 # Microsoft Graph subscription renewal (Teams chat triggers expire after ~3 days)
 0 */12 * * * curl -fsS -m 120 -o /dev/null -H "Authorization: Bearer $CRON_SECRET" "$SIM_URL/api/cron/renew-subscriptions"
 
+# Billing cycle close: final overage collection + per-period tracker reset for elapsed periods
+0 */6 * * * curl -fsS -m 120 -o /dev/null -H "Authorization: Bearer $CRON_SECRET" "$SIM_URL/api/cron/billing-cycle-close"
+
 # Reclaims sandbox images
 30 4 * * * curl -fsS -m 300 -o /dev/null -H "Authorization: Bearer $CRON_SECRET" "$SIM_URL/api/cron/cleanup-sandbox-images"
 

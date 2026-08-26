@@ -4,6 +4,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   collectDeniedOperationIds,
+  createToolAccessGate,
   isOperationAllowed,
   type OperationGateBlock,
   pickDefaultOperation,
@@ -126,5 +127,36 @@ describe('pickDefaultOperation', () => {
     expect(pickDefaultOperation(selectorBlock, candidates, denyAll, 'not-an-operation')).toBe(
       'not-an-operation'
     )
+  })
+})
+
+describe('createToolAccessGate', () => {
+  it('allows everything when nothing is denied', () => {
+    for (const deniedTools of [undefined, null, []]) {
+      const gate = createToolAccessGate(deniedTools)
+      expect(gate('slack_canvas')).toBe(true)
+    }
+  })
+
+  it('reuses one gate instance for every unrestricted config', () => {
+    expect(createToolAccessGate([])).toBe(createToolAccessGate(undefined))
+  })
+
+  it('denies exactly the listed tool ids', () => {
+    const gate = createToolAccessGate(['slack_canvas'])
+    expect(gate('slack_canvas')).toBe(false)
+    expect(gate('slack_message')).toBe(true)
+  })
+
+  it('matches tool ids verbatim, so a version suffix is a different tool', () => {
+    const gate = createToolAccessGate(['gmail_read'])
+    expect(gate('gmail_read')).toBe(false)
+    expect(gate('gmail_read_v2')).toBe(true)
+  })
+
+  it('composes with isOperationAllowed to gate a block operation', () => {
+    const gate = createToolAccessGate(['slack_canvas'])
+    expect(isOperationAllowed(selectorBlock, 'canvas', gate)).toBe(false)
+    expect(isOperationAllowed(selectorBlock, 'send', gate)).toBe(true)
   })
 })

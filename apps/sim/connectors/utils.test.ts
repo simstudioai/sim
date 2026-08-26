@@ -61,12 +61,19 @@ import { s3Connector } from '@/connectors/s3/s3'
 import { sentryConnector } from '@/connectors/sentry/sentry'
 import { typeformConnector } from '@/connectors/typeform/typeform'
 import {
+  appendPendingMicrosoftGraphFolders,
+  assertMicrosoftGraphNextLink,
   ConnectorFileTooLargeError,
+  decodeMicrosoftGraphTraversalCursor,
+  encodeMicrosoftGraphTraversalCursor,
   extractConnectorText,
   hasIndexablePayload,
   htmlToPlainText,
   isIndexableConnectorFile,
   isSkippedDocument,
+  MICROSOFT_GRAPH_MAX_CURSOR_ENCODED_BYTES,
+  MICROSOFT_GRAPH_MAX_ITEM_ID_BYTES,
+  MICROSOFT_GRAPH_MAX_PENDING_FOLDERS,
   markSkipped,
   pipelineParsedMimeType,
   readBodyWithLimit,
@@ -1180,30 +1187,104 @@ describe('readBodyWithLimit', () => {
     expect(result?.byteLength).toBe(2048)
   })
 
-  it('returns null and cancels the stream once the cap is exceeded', async () => {
-    const onCancel = vi.fn()
+  it('returns null as soon as the streamed cap is exceeded', async () => {
     const chunk = new Uint8Array(1024).fill(65)
-    // Cap is 2048; the third 1KB chunk pushes the total to 3072 and trips the cap,
-    // so the remaining body is never buffered into memory.
-    const result = await readBodyWithLimit(streamResponse([chunk, chunk, chunk], onCancel), 2048)
+    const onCancel = vi.fn()
+    const result = await readBodyWithLimit(
+      streamResponse([chunk, chunk, chunk, chunk], onCancel),
+      2048
+    )
     expect(result).toBeNull()
-    expect(onCancel).toHaveBeenCalled()
+    expect(onCancel).toHaveBeenCalledOnce()
   })
 
-  it('enforces the cap on bodyless responses via the arrayBuffer fallback', async () => {
+  it('does not materialize a bodyless response whose size is unknown', async () => {
+    const arrayBuffer = vi.fn(async () => new Uint8Array(5000).buffer)
     // double-cast-allowed: minimal response stub exercising the no-stream branch
-    const oversized = {
+    const unknownSize = {
       body: null,
-      arrayBuffer: async () => new Uint8Array(5000).buffer,
+      arrayBuffer,
     } as unknown as Response
-    expect(await readBodyWithLimit(oversized, 4096)).toBeNull()
+    expect(await readBodyWithLimit(unknownSize, 4096)).toBeNull()
+    expect(arrayBuffer).not.toHaveBeenCalled()
+  })
 
+  it('uses a trusted content length to bound a bodyless response fallback', async () => {
     // double-cast-allowed: minimal response stub exercising the no-stream branch
     const within = {
       body: null,
+      headers: new Headers({ 'content-length': '100' }),
       arrayBuffer: async () => new Uint8Array(100).buffer,
     } as unknown as Response
     expect((await readBodyWithLimit(within, 4096))?.byteLength).toBe(100)
+  })
+})
+
+describe('Microsoft Graph traversal cursors', () => {
+  it('round-trips canonical cursors and accepts the former OneDrive JSON shape', () => {
+    const state = {
+      folderStack: ['folder-a', 'folder-b'],
+      currentFolder: 'folder-current',
+      nextLink: 'https://graph.microsoft.com/v1.0/me/drive/root/children?$skiptoken=abc',
+    }
+
+    expect(
+      decodeMicrosoftGraphTraversalCursor(
+        encodeMicrosoftGraphTraversalCursor(state, 'OneDrive'),
+        'OneDrive'
+      )
+    ).toEqual(state)
+    expect(decodeMicrosoftGraphTraversalCursor(JSON.stringify(state), 'OneDrive')).toEqual(state)
+  })
+
+  it('rejects off-origin continuation URLs before they can receive a bearer token', () => {
+    expect(() => assertMicrosoftGraphNextLink('https://evil.example/steal')).toThrow(
+      /non-Microsoft Graph/
+    )
+    expect(() =>
+      decodeMicrosoftGraphTraversalCursor(
+        Buffer.from(
+          JSON.stringify({
+            folderStack: [],
+            nextLink: 'https://evil.example/steal',
+          })
+        ).toString('base64'),
+        'SharePoint'
+      )
+    ).toThrow(/non-Microsoft Graph/)
+  })
+
+  it('rejects invalid and oversized cursor members', () => {
+    const encode = (state: unknown) => Buffer.from(JSON.stringify(state)).toString('base64')
+
+    expect(() =>
+      decodeMicrosoftGraphTraversalCursor(encode({ folderStack: [42] }), 'OneDrive')
+    ).toThrow(/must be a string/)
+    expect(() =>
+      decodeMicrosoftGraphTraversalCursor(
+        encode({ folderStack: ['x'.repeat(MICROSOFT_GRAPH_MAX_ITEM_ID_BYTES + 1)] }),
+        'OneDrive'
+      )
+    ).toThrow(/size limit/)
+    expect(() =>
+      decodeMicrosoftGraphTraversalCursor(
+        'x'.repeat(MICROSOFT_GRAPH_MAX_CURSOR_ENCODED_BYTES + 1),
+        'OneDrive'
+      )
+    ).toThrow(/encoded state exceeds/)
+  })
+
+  it('enforces the pending-folder cap before mutating traversal state', () => {
+    const pending = Array.from(
+      { length: MICROSOFT_GRAPH_MAX_PENDING_FOLDERS },
+      (_, index) => `folder-${index}`
+    )
+
+    expect(() => appendPendingMicrosoftGraphFolders(pending, ['overflow'], 'OneDrive')).toThrow(
+      /Narrow the connector/
+    )
+    expect(pending).toHaveLength(MICROSOFT_GRAPH_MAX_PENDING_FOLDERS)
+    expect(pending).not.toContain('overflow')
   })
 })
 

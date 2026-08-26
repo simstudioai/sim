@@ -291,13 +291,13 @@ describe('listDashboardOrganizations', () => {
       externalCollaboratorCount: 0,
       planLabel: 'No plan',
     })
-    // Pagination, membership/collaborators, and two batched usage aggregates.
+    // Pagination, membership/collaborators, and the batched ledger aggregate.
     // This count remains constant regardless of the number of organizations.
-    expect(dbChainMockFns.select).toHaveBeenCalledTimes(6)
+    expect(dbChainMockFns.select).toHaveBeenCalledTimes(5)
     expect(dbChainMockFns.selectDistinctOn).toHaveBeenCalledTimes(1)
   })
 
-  it('preserves the frozen baseline for an Enterprise subscription using its Stripe period', async () => {
+  it('reports ledger usage for an Enterprise subscription using its Stripe period', async () => {
     queueTableRows(organization, [{ total: 1 }])
     queueTableRows(organization, [
       { id: 'org-1', name: 'One', orgUsageLimit: '100', creditBalance: '0' },
@@ -325,13 +325,12 @@ describe('listDashboardOrganizations', () => {
       },
     ])
     queueTableRows(usageLog, [{ organizationId: 'org-1', cost: '2.5', workflowRuns: 3 }])
-    queueTableRows(member, [{ organizationId: 'org-1', cost: '1.5' }])
 
     const result = await listDashboardOrganizations({ search: '', limit: 50, offset: 0 })
 
     expect(result.data[0]).toMatchObject({
       reportingPeriod: { source: 'stripe' },
-      usage: { usedDollars: 4, workflowRuns: 3 },
+      usage: { usedDollars: 2.5, workflowRuns: 3 },
     })
   })
 

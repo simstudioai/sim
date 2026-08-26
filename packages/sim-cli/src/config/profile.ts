@@ -67,6 +67,12 @@ export interface ProfileOverrides {
   apiKey?: string
   workspaceId?: string
   output?: OutputFormat
+  /**
+   * Skips the "does this profile exist?" check for the two commands that
+   * legitimately name a profile before it exists — `sim login --profile x` and
+   * `sim configure --profile x --set-…`, both of which create it.
+   */
+  allowUnknownProfile?: boolean
 }
 
 /**
@@ -164,6 +170,70 @@ export function listProfiles(): string[] {
   return [...names].sort()
 }
 
+/** Levenshtein distance. The inputs are profile names, so the matrix is tiny. */
+function editDistance(a: string, b: string): number {
+  let previous = Array.from({ length: b.length + 1 }, (_, index) => index)
+
+  for (let i = 1; i <= a.length; i++) {
+    const current = [i]
+    for (let j = 1; j <= b.length; j++) {
+      current[j] = Math.min(
+        previous[j] + 1,
+        current[j - 1] + 1,
+        previous[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)
+      )
+    }
+    previous = current
+  }
+
+  return previous[b.length]
+}
+
+/** The closest configured profile, when it is within two edits of the typo. */
+function nearestProfile(name: string, known: string[]): string | null {
+  const lowered = name.toLowerCase()
+  let best: string | null = null
+  let bestDistance = Number.POSITIVE_INFINITY
+
+  for (const candidate of known) {
+    const distance = editDistance(lowered, candidate.toLowerCase())
+    if (distance < bestDistance) {
+      best = candidate
+      bestDistance = distance
+    }
+  }
+
+  return bestDistance <= 2 ? best : null
+}
+
+/**
+ * Refuses a profile name that names nothing.
+ *
+ * Without this, a typo resolved to the built-in defaults — meaning
+ * `sim --profile stagng …` silently talked to production and sent it whatever
+ * key `SIM_API_KEY` or the `default` credentials held. Only an explicitly named
+ * profile is checked: `default` stays valid with no config file at all, which
+ * is the documented CI path of setting `SIM_API_KEY`/`SIM_WORKSPACE` and never
+ * running `sim login`.
+ */
+function requireKnownProfile(name: string): void {
+  if (name === DEFAULT_PROFILE) return
+
+  const known = listProfiles()
+  if (known.includes(name)) return
+
+  if (known.length === 0) {
+    throw new ProfileConfigError(
+      `Unknown profile "${name}". No profiles are configured yet. Run: sim login --profile ${name}`
+    )
+  }
+
+  const suggestion = nearestProfile(name, known)
+  throw new ProfileConfigError(
+    `Unknown profile "${name}".${suggestion ? ` Did you mean "${suggestion}"?` : ''} Configured profiles: ${known.join(', ')}.`
+  )
+}
+
 /** Profiles that directly share the named profile's stored authentication. */
 export function listAuthenticationDependents(authProfile: string): string[] {
   return listProfiles().filter(
@@ -249,7 +319,10 @@ function resolve<T>(
 }
 
 export function resolveProfile(overrides: ProfileOverrides = {}): ResolvedProfile {
-  const name = overrides.profile || process.env.SIM_PROFILE || DEFAULT_PROFILE
+  const named = overrides.profile || process.env.SIM_PROFILE
+  const name = named || DEFAULT_PROFILE
+  if (named && !overrides.allowUnknownProfile) requireKnownProfile(named)
+
   const config = readConfigProfile(name)
   const authProfile = resolveAuthenticationProfileName(name)
   const authConfig = authProfile === name ? config : readConfigProfile(authProfile)

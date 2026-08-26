@@ -3,13 +3,16 @@
  */
 
 import { describe, expect, it } from 'vitest'
+import { v2ApiRowSchema, v2EnrichmentRunDetailSchema } from '@/lib/api/contracts/v2/tables'
 import type { TableSchema, WorkflowGroup } from '@/lib/table/types'
 import {
   presentV2CreateTableImport,
+  presentV2TableDispatch,
   presentV2TableExport,
   presentV2TableImport,
   presentV2WorkflowGroup,
 } from '@/app/api/v2/tables/presenters'
+import { toApiEnrichmentDetail, toApiRow } from '@/app/api/v2/tables/utils'
 
 const createdAt = new Date('2026-08-01T00:00:00.000Z')
 const importRecord = {
@@ -22,6 +25,9 @@ const importRecord = {
   tableId: 'table-1',
   status: 'running' as const,
   rowsProcessed: 2,
+  rowsRejected: 0,
+  cellsRejected: 0,
+  rejectedSamples: [],
   error: null,
   createdAt,
   updatedAt: createdAt,
@@ -53,6 +59,9 @@ describe('v2 table presenters', () => {
           target: importRecord.target,
           tableId: 'table-1',
           rowsProcessed: 2,
+          rowsRejected: 0,
+          cellsRejected: 0,
+          rejectedSamples: [],
           error: null,
           createdAt: createdAt.toISOString(),
           updatedAt: createdAt.toISOString(),
@@ -136,5 +145,217 @@ describe('presentV2WorkflowGroup', () => {
     } as unknown as WorkflowGroup
 
     expect(presentV2WorkflowGroup(legacy, schema).outputs[0].columnName).toBe('score')
+  })
+})
+
+describe('presentV2TableDispatch', () => {
+  const stored = {
+    id: 'dispatch-1',
+    tableId: 'table-1',
+    workspaceId: 'workspace-1',
+    requestId: 'request-1',
+    mode: 'incomplete' as const,
+    scope: { groupIds: ['group-1'], rowIds: ['row-1'], filter: { all: [] } },
+    status: 'complete' as const,
+    cursor: 512,
+    limit: { type: 'rows' as const, max: 50 },
+    processedCount: 12,
+    isManualRun: true,
+    triggeredByUserId: 'user-1',
+    requestedAt: new Date('2026-01-01T00:00:00.000Z'),
+    completedAt: new Date('2026-01-01T00:05:00.000Z'),
+    canceledAt: null,
+  }
+
+  it('serializes lifecycle timestamps and keeps a terminal status readable', () => {
+    const presented = presentV2TableDispatch(stored)
+
+    expect(presented.status).toBe('complete')
+    expect(presented.requestedAt).toBe('2026-01-01T00:00:00.000Z')
+    expect(presented.completedAt).toBe('2026-01-01T00:05:00.000Z')
+    expect(presented.canceledAt).toBeNull()
+  })
+
+  /**
+   * A field named `cursor` on a v2 resource reads as a pagination token, and the
+   * scheduler's internal identities have no public meaning.
+   */
+  it('withholds the scheduler cursor and internal identities', () => {
+    const presented = presentV2TableDispatch(stored)
+
+    expect(presented).not.toHaveProperty('cursor')
+    expect(presented).not.toHaveProperty('requestId')
+    expect(presented).not.toHaveProperty('triggeredByUserId')
+  })
+
+  /** The stored scope also carries a compiled filter, which is not public. */
+  it('publishes only the addressable half of the run scope', () => {
+    expect(presentV2TableDispatch(stored).scope).toEqual({
+      groupIds: ['group-1'],
+      rowIds: ['row-1'],
+    })
+  })
+})
+
+describe('toApiRow run state', () => {
+  const row = {
+    id: 'row-1',
+    data: { 'col-1': 'Ada' },
+    createdAt: new Date('2026-01-01T00:00:00.000Z'),
+    updatedAt: new Date('2026-01-02T00:00:00.000Z'),
+  }
+  const identity = (data: Record<string, unknown>) => data
+
+  it('omits run state entirely when the read did not ask for it', () => {
+    expect(toApiRow(row, identity)).not.toHaveProperty('runState')
+  })
+
+  /**
+   * `jobId` is the async scheduler's identity and addresses nothing public;
+   * `enrichmentDetails` has its own sub-resource and is never hydrated here.
+   */
+  it('drops the scheduler job id and the deep cascade payload', () => {
+    const presented = toApiRow(row, identity, {
+      'group-1': {
+        status: 'completed',
+        executionId: 'execution-1',
+        jobId: 'job-1',
+        workflowId: 'workflow-1',
+        error: null,
+        enrichmentDetails: null,
+      },
+    })
+
+    expect(presented.runState?.['group-1']).toEqual({
+      status: 'completed',
+      executionId: 'execution-1',
+      workflowId: 'workflow-1',
+      error: null,
+      runningBlockIds: [],
+      blockErrors: {},
+      canceledAt: null,
+    })
+  })
+
+  it('carries the fields a caller polls a failed cell for', () => {
+    const presented = toApiRow(row, identity, {
+      'group-1': {
+        status: 'error',
+        executionId: 'execution-1',
+        jobId: null,
+        workflowId: 'workflow-1',
+        error: 'boom',
+        runningBlockIds: ['block-1'],
+        blockErrors: { 'block-1': 'boom' },
+        cancelledAt: '2026-01-03T00:00:00.000Z',
+      },
+    })
+
+    expect(presented.runState?.['group-1']).toMatchObject({
+      status: 'error',
+      error: 'boom',
+      runningBlockIds: ['block-1'],
+      blockErrors: { 'block-1': 'boom' },
+      canceledAt: '2026-01-03T00:00:00.000Z',
+    })
+  })
+
+  it('presents a row that has never run as an empty map, not an absent one', () => {
+    expect(toApiRow(row, identity, {}).runState).toEqual({})
+  })
+
+  /**
+   * `status` is a `text` column read through a bare `as` cast, and the response
+   * schema is `.parse`d on the way out — a closed enum there turns one drifted
+   * row into a 500 on a well-formed read.
+   */
+  it('publishes a stored status the domain union does not name', () => {
+    const presented = toApiRow(row, identity, {
+      'group-1': {
+        status: 'reconciling' as never,
+        executionId: null,
+        jobId: null,
+        workflowId: 'workflow-1',
+        error: null,
+      },
+    })
+
+    expect(() => v2ApiRowSchema.parse(presented)).not.toThrow()
+    expect(v2ApiRowSchema.parse(presented).runState?.['group-1'].status).toBe('reconciling')
+  })
+})
+
+/**
+ * `tableRowExecutions.enrichmentDetails` is schemaless jsonb read back through a
+ * bare `as` cast, so every declared key is a claim about the writer rather than
+ * a property of the column.
+ */
+describe('toApiEnrichmentDetail', () => {
+  it('projects a complete blob unchanged', () => {
+    const detail = {
+      startedAt: '2026-01-01T00:00:00.000Z',
+      completedAt: '2026-01-01T00:00:01.000Z',
+      durationMs: 1000,
+      totalCost: 0.25,
+      matchedProvider: 'hunter',
+      aborted: false,
+      providers: [
+        {
+          id: 'hunter',
+          label: 'Hunter',
+          toolId: 'hunter_find_email',
+          status: 'matched' as const,
+          cost: 0.25,
+          durationMs: 900,
+          error: null,
+        },
+      ],
+    }
+
+    const presented = toApiEnrichmentDetail(detail)
+
+    expect(presented).toEqual(detail)
+    expect(() => v2EnrichmentRunDetailSchema.parse(presented)).not.toThrow()
+  })
+
+  it('answers null for a missing cascade', () => {
+    expect(toApiEnrichmentDetail(null)).toBeNull()
+  })
+
+  /** A blob written before the cascade breakdown settled is a partial answer, not a 500. */
+  it('defaults every key a drifted blob is missing', () => {
+    const presented = toApiEnrichmentDetail({
+      startedAt: '2026-01-01 00:00:00+00',
+      providers: [{ id: 'hunter', status: 'rate_limited' }],
+    } as never)
+
+    expect(presented).toEqual({
+      startedAt: '2026-01-01T00:00:00.000Z',
+      completedAt: null,
+      durationMs: 0,
+      totalCost: 0,
+      matchedProvider: null,
+      aborted: false,
+      providers: [
+        {
+          id: 'hunter',
+          label: '',
+          toolId: '',
+          status: 'rate_limited',
+          cost: 0,
+          durationMs: 0,
+          error: null,
+        },
+      ],
+    })
+    expect(() => v2EnrichmentRunDetailSchema.parse(presented)).not.toThrow()
+  })
+
+  it('drops a timestamp no date-time consumer could parse', () => {
+    const presented = toApiEnrichmentDetail({ startedAt: 'never', completedAt: 7 } as never)
+
+    expect(presented?.startedAt).toBeNull()
+    expect(presented?.completedAt).toBeNull()
+    expect(() => v2EnrichmentRunDetailSchema.parse(presented)).not.toThrow()
   })
 })

@@ -38,6 +38,64 @@ export interface FollowOptions {
   stderr: CommentaryWriter
 }
 
+type WorkflowRunSelection =
+  | { source: 'manual' }
+  | {
+      source: 'manual'
+      entry: { type: 'trigger'; blockId?: string; useMockPayload?: boolean }
+    }
+  | {
+      source: 'manual'
+      entry: { type: 'block'; blockId: string; sourceRunId: string }
+    }
+
+/** Projects friendly CLI flags into the API's strict nested run selector. */
+export function resolveWorkflowRunSelection(
+  flags: Record<string, unknown>
+): WorkflowRunSelection | undefined {
+  const manual = flags.manual === true
+  const trigger = typeof flags.trigger === 'string' ? flags.trigger : undefined
+  const useMockPayload = flags.mockPayload === true
+  const fromBlock = typeof flags.fromBlock === 'string' ? flags.fromBlock : undefined
+  const sourceRun = typeof flags.sourceRun === 'string' ? flags.sourceRun : undefined
+
+  if ((trigger || useMockPayload) && !manual) {
+    throw new SimApiError('--trigger and --mock-payload require --manual', 0)
+  }
+  if (fromBlock && (trigger || useMockPayload)) {
+    throw new SimApiError('--from-block cannot be combined with --trigger or --mock-payload', 0)
+  }
+  if (fromBlock && !sourceRun) {
+    throw new SimApiError('--from-block requires --source-run <runId>', 0)
+  }
+  if (sourceRun && !fromBlock) {
+    throw new SimApiError('--source-run requires --from-block <blockId>', 0)
+  }
+  if ((manual || fromBlock) && flags.async === true) {
+    throw new SimApiError('Manual execution does not support --async', 0)
+  }
+  if (useMockPayload && flags.input !== undefined) {
+    throw new SimApiError('--mock-payload cannot be combined with --input', 0)
+  }
+
+  if (fromBlock && sourceRun) {
+    return {
+      source: 'manual',
+      entry: { type: 'block', blockId: fromBlock, sourceRunId: sourceRun },
+    }
+  }
+  if (!manual) return undefined
+  if (!trigger && !useMockPayload) return { source: 'manual' }
+  return {
+    source: 'manual',
+    entry: {
+      type: 'trigger',
+      ...(trigger ? { blockId: trigger } : {}),
+      ...(useMockPayload ? { useMockPayload: true } : {}),
+    },
+  }
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
@@ -278,6 +336,9 @@ async function followRun(workflowId: string, command: Command): Promise<void> {
  */
 function followOrDelegate(previous: ((args: unknown[]) => unknown) | null) {
   return async (workflowId: string, _options: unknown, command: Command): Promise<void> => {
+    const initialFlags = command.optsWithGlobals() as Record<string, unknown>
+    const selection = resolveWorkflowRunSelection(initialFlags)
+    if (selection) command.setOptionValue('run', selection)
     const flags = command.optsWithGlobals() as Record<string, unknown>
 
     if (flags.follow !== true) {
@@ -328,6 +389,20 @@ export function attachWorkflowRunFollow(workflows: Command): void {
   const previous = typeof held === 'function' ? (held as (args: unknown[]) => unknown) : null
 
   run
+    .option('--manual', 'Run the current saved workflow state instead of the active deployment')
+    .option(
+      '--trigger <blockId>',
+      'Enter a manual run through this runnable trigger (requires --manual)'
+    )
+    .option(
+      '--mock-payload',
+      "Use the selected trigger's server-derived mock payload (requires --manual)"
+    )
+    .option('--from-block <blockId>', 'Run manually from this saved workflow block')
+    .option(
+      '--source-run <runId>',
+      'Prior run whose persisted state supplies upstream outputs (requires --from-block)'
+    )
     .option(
       '--follow',
       'Stream the run as it happens; progress on stderr, result on stdout. The stream reports only success and output, so the result omits the run id and timings a non-streaming run returns'

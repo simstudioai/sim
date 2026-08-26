@@ -185,6 +185,21 @@ export async function loadAuthorizedWorkspaceUploadSession(
   })
 }
 
+/**
+ * Reads an upload session's current state after current workspace
+ * authorization. The `GET` is a control leg like every other, so the session's
+ * auth binding and the caller's present workspace permission are both
+ * re-checked here rather than the session being looked up on its id alone.
+ */
+export async function readWorkspaceUploadSession(
+  principal: Principal,
+  input: UploadSessionControlInput
+): Promise<UploadSessionRecord> {
+  const session = await loadAuthorizedWorkspaceUploadSession(principal, input)
+  await reauthorizeWorkspaceUploadPurpose(principal, session, fileOperations.uploadRead)
+  return session
+}
+
 /** Issues multipart URLs after current workspace authorization. */
 export async function issueWorkspaceUploadPartUrls(
   principal: Principal,
@@ -320,6 +335,13 @@ export const completeWorkspaceFileUploadOperation = {
   }) {
     if (!request) throw new Error('Upload completion requires a request context')
     return completeWorkspaceUploadSession(principal, input, request)
+  },
+} as const
+
+export const readWorkspaceFileUploadOperation = {
+  operation: fileOperations.uploadRead,
+  async execute({ principal, input }: { principal: Principal; input: UploadSessionControlInput }) {
+    return readWorkspaceUploadSession(principal, input)
   },
 } as const
 

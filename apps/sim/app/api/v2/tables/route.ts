@@ -11,9 +11,20 @@ export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 /** Every param that changes which tables, in which order, this list returns. */
-function tableCursorFilters(query: { workspaceId: string; folderPath?: string; search?: string }) {
+function tableCursorFilters(query: {
+  workspaceId: string
+  scope: string
+  folderPath?: string
+  search?: string
+}) {
   return cursorScopeKey(cursorRoute(v2ListTablesContract), {
     workspaceId: query.workspaceId,
+    // Stamped only when it is not the default. `scope` carries
+    // `.default('active')`, so it is always present on the parsed query;
+    // binding it unconditionally would put a constant in every fingerprint and
+    // reject every cursor minted before the field existed — including on
+    // callers who never sent it.
+    scope: query.scope === 'active' ? undefined : query.scope,
     folderPath: query.folderPath,
     search: query.search,
   })
@@ -28,6 +39,7 @@ export const GET = defineV2JsonRoute({
   errorPolicy: v2TableErrorPolicies.default,
   mapInput: ({ query }) => ({
     workspaceId: query.workspaceId,
+    scope: query.scope,
     folderPath: query.folderPath,
     search: query.search,
     sortBy: query.sortBy,

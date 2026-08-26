@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMockFns, resetDbChainMock, schemaMock } from '@sim/testing'
+import { dbChainMockFns, flattenMockConditions, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   EMPTY_JOB_FIELDS,
@@ -9,6 +9,8 @@ import {
   latestJobsForTables,
   latestNonExportJobJson,
   mapJobRow,
+  recordImportRejections,
+  type TableImportRejectionSummary,
 } from '@/lib/table/jobs/service'
 
 function job(overrides: Partial<LatestJobRow>): LatestJobRow {
@@ -172,5 +174,53 @@ describe('latestJobsForTables', () => {
     const jobs = await latestJobsForTables(['table-1'])
 
     expect(jobs.get('table-1')).toMatchObject({ jobId: 'job-1', pendingDeleteRemaining: 6 })
+  })
+})
+
+/**
+ * The merge is hand-written SQL (`coalesce(payload, '{}'::jsonb) || $1::jsonb`) over a
+ * four-clause WHERE, and the row-queue mock returns whatever was queued regardless of the
+ * statement — so a canned `.returning()` cannot tell a merge from a clobbering overwrite.
+ * The generated statement and condition nodes are the only place either is observable.
+ */
+describe('recordImportRejections', () => {
+  const summary: TableImportRejectionSummary = {
+    rowsRejected: 2,
+    cellsRejected: 5,
+    rejectedSamples: [{ code: 'CSV_QUOTE_NOT_CLOSED', line: 7, message: 'Quote not closed' }],
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('merges the summary into the existing payload rather than replacing it', async () => {
+    await recordImportRejections('table-1', 'workspace-1', 'job-1', summary)
+
+    const update = dbChainMockFns.set.mock.calls.at(-1)?.[0] as { payload?: unknown }
+    const payload = update?.payload as { toSQL?: () => { sql: string; params: unknown[] } }
+    // A plain `set({ payload: summary })` writes the object itself — no fragment, no merge —
+    // which is what silently drops `kind`/`userId`/`source`/`target` from the job payload.
+    expect(typeof payload?.toSQL).toBe('function')
+
+    const rendered = payload.toSQL!()
+    expect(rendered.sql.replace(/\s+/g, ' ')).toBe("coalesce(?, '{}'::jsonb) || ?::jsonb")
+    expect(rendered.params).toEqual([schemaMock.tableJobs.payload, JSON.stringify(summary)])
+  })
+
+  it('scopes the merge to this job, table, workspace and job type', async () => {
+    await recordImportRejections('table-1', 'workspace-1', 'job-1', summary)
+
+    const conditions = flattenMockConditions(dbChainMockFns.where.mock.calls.at(-1)?.[0])
+    expect(conditions).toEqual(
+      expect.arrayContaining([
+        { type: 'eq', left: schemaMock.tableJobs.id, right: 'job-1' },
+        { type: 'eq', left: schemaMock.tableJobs.tableId, right: 'table-1' },
+        { type: 'eq', left: schemaMock.tableJobs.workspaceId, right: 'workspace-1' },
+        { type: 'eq', left: schemaMock.tableJobs.type, right: 'import' },
+      ])
+    )
+    expect(conditions).toHaveLength(4)
   })
 })

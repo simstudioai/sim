@@ -2,7 +2,6 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mergeToolParameters } from '@/tools/merge-params'
 import * as toolMetadata from '@/tools/metadata'
 import {
-  createExecutionToolSchema,
   createLLMToolSchema,
   createUserToolSchema,
   filterSchemaForLLM,
@@ -412,21 +411,6 @@ describe('Tool Parameters Utils', () => {
         type: 'array',
       })
       expect(schema.properties.attachments.description).toContain('canonical workspace file IDs')
-    })
-  })
-
-  describe('createExecutionToolSchema', () => {
-    it.concurrent('should create complete schema with all parameters', () => {
-      const schema = createExecutionToolSchema(mockToolConfig)
-
-      expect(schema.properties).toHaveProperty('apiKey')
-      expect(schema.properties).toHaveProperty('message')
-      expect(schema.properties).toHaveProperty('channel')
-      expect(schema.properties).toHaveProperty('timeout')
-      expect(schema.required).toContain('apiKey')
-      expect(schema.required).toContain('message')
-      expect(schema.required).not.toContain('channel')
-      expect(schema.required).not.toContain('timeout')
     })
   })
 

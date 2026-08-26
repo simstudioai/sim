@@ -215,6 +215,7 @@ import {
 } from '@/blocks/blocks/microsoft_excel'
 import { MicrosoftPlannerBlock, MicrosoftPlannerBlockMeta } from '@/blocks/blocks/microsoft_planner'
 import { MicrosoftTeamsBlock, MicrosoftTeamsBlockMeta } from '@/blocks/blocks/microsoft_teams'
+import { MicrosoftWordBlock, MicrosoftWordBlockMeta } from '@/blocks/blocks/microsoft_word'
 import { MillionVerifierBlock, MillionVerifierBlockMeta } from '@/blocks/blocks/millionverifier'
 import { MintlifyBlock, MintlifyBlockMeta } from '@/blocks/blocks/mintlify'
 import {
@@ -286,6 +287,7 @@ import { SapS4HanaBlock, SapS4HanaBlockMeta } from '@/blocks/blocks/sap_s4hana'
 import { ScheduleBlock } from '@/blocks/blocks/schedule'
 import { SearchBlock } from '@/blocks/blocks/search'
 import { SecretsManagerBlock, SecretsManagerBlockMeta } from '@/blocks/blocks/secrets_manager'
+import { SemrushBlock, SemrushBlockMeta } from '@/blocks/blocks/semrush'
 import { SendblueBlock, SendblueBlockMeta } from '@/blocks/blocks/sendblue'
 import { SendGridBlock, SendGridBlockMeta } from '@/blocks/blocks/sendgrid'
 import { SentryBlock, SentryBlockMeta } from '@/blocks/blocks/sentry'
@@ -298,7 +300,7 @@ import { ShopifyBlock, ShopifyBlockMeta } from '@/blocks/blocks/shopify'
 import { SimWorkspaceEventBlock } from '@/blocks/blocks/sim_workspace_event'
 import { SimilarwebBlock, SimilarwebBlockMeta } from '@/blocks/blocks/similarweb'
 import { SixtyfourBlock, SixtyfourBlockMeta } from '@/blocks/blocks/sixtyfour'
-import { SlackBlock, SlackBlockMeta, SlackV2Block } from '@/blocks/blocks/slack'
+import { SlackBlock, SlackBlockMeta, SlackV2Block, SlackV2BlockMeta } from '@/blocks/blocks/slack'
 import { SmartleadBlock, SmartleadBlockMeta } from '@/blocks/blocks/smartlead'
 import { SmtpBlock, SmtpBlockMeta } from '@/blocks/blocks/smtp'
 import { SnowflakeBlock, SnowflakeBlockMeta } from '@/blocks/blocks/snowflake'
@@ -559,6 +561,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   microsoft_excel_v2: MicrosoftExcelV2Block,
   microsoft_planner: MicrosoftPlannerBlock,
   microsoft_teams: MicrosoftTeamsBlock,
+  microsoft_word: MicrosoftWordBlock,
   mintlify: MintlifyBlock,
   mistral_parse: MistralParseBlock,
   mistral_parse_v2: MistralParseV2Block,
@@ -624,6 +627,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   schedule: ScheduleBlock,
   search: SearchBlock,
   secrets_manager: SecretsManagerBlock,
+  semrush: SemrushBlock,
   sendblue: SendblueBlock,
   sendgrid: SendGridBlock,
   sentry: SentryBlock,
@@ -876,6 +880,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   microsoft_excel_v2: MicrosoftExcelV2BlockMeta,
   microsoft_planner: MicrosoftPlannerBlockMeta,
   microsoft_teams: MicrosoftTeamsBlockMeta,
+  microsoft_word: MicrosoftWordBlockMeta,
   millionverifier: MillionVerifierBlockMeta,
   mintlify: MintlifyBlockMeta,
   mistral_parse: MistralParseBlockMeta,
@@ -931,6 +936,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   sap_concur: SapConcurBlockMeta,
   sap_s4hana: SapS4HanaBlockMeta,
   secrets_manager: SecretsManagerBlockMeta,
+  semrush: SemrushBlockMeta,
   sendblue: SendblueBlockMeta,
   sendgrid: SendGridBlockMeta,
   sentry: SentryBlockMeta,
@@ -943,6 +949,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   similarweb: SimilarwebBlockMeta,
   sixtyfour: SixtyfourBlockMeta,
   slack: SlackBlockMeta,
+  slack_v2: SlackV2BlockMeta,
   smartlead: SmartleadBlockMeta,
   smtp: SmtpBlockMeta,
   snowflake: SnowflakeBlockMeta,

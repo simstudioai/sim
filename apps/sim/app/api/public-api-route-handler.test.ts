@@ -7,23 +7,16 @@ import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts'
 import { recordRateLimitSnapshot } from '@/lib/api/server/rate-limit-context'
 
-const {
-  mockCheckRateLimit,
-  mockGate,
-  mockHandler,
-  mockLoggerError,
-  mockLoggerInfo,
-  requestContextState,
-} = vi.hoisted(() => ({
-  mockCheckRateLimit: vi.fn(),
-  mockGate: vi.fn(),
-  mockHandler: vi.fn(),
-  mockLoggerError: vi.fn(),
-  mockLoggerInfo: vi.fn(),
-  requestContextState: {
-    current: undefined as { requestId: string; method?: string; path?: string } | undefined,
-  },
-}))
+const { mockCheckRateLimit, mockHandler, mockLoggerError, mockLoggerInfo, requestContextState } =
+  vi.hoisted(() => ({
+    mockCheckRateLimit: vi.fn(),
+    mockHandler: vi.fn(),
+    mockLoggerError: vi.fn(),
+    mockLoggerInfo: vi.fn(),
+    requestContextState: {
+      current: undefined as { requestId: string; method?: string; path?: string } | undefined,
+    },
+  }))
 
 vi.mock('@sim/logger', () => ({
   createLogger: () => ({
@@ -53,10 +46,6 @@ vi.mock('@/lib/core/utils/request', () => ({
 
 vi.mock('@/app/api/v1/middleware', () => ({
   checkRateLimit: mockCheckRateLimit,
-}))
-
-vi.mock('@/app/api/v2/lib/gate', () => ({
-  v2ApiGateError: mockGate,
 }))
 
 import { withPublicApiRouteHandler } from '@/app/api/public-api-route-handler'
@@ -132,7 +121,6 @@ function listRequest(query = 'workspaceId=workspace-1'): NextRequest {
 describe('withPublicApiRouteHandler', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockGate.mockResolvedValue(null)
     mockCheckRateLimit.mockImplementation(async (request: NextRequest) => {
       recordRateLimitSnapshot(request, RATE_LIMIT)
       return RATE_LIMIT
@@ -165,7 +153,6 @@ describe('withPublicApiRouteHandler', () => {
     expect(request.bodyUsed).toBe(false)
     expect(mockHandler).not.toHaveBeenCalled()
     expect(mockCheckRateLimit).toHaveBeenCalledWith(request, 'table-rows')
-    expect(mockGate).not.toHaveBeenCalled()
     if (status === 401) {
       expect(response.headers.get('X-RateLimit-Limit')).toBe('0')
     } else {
@@ -174,25 +161,12 @@ describe('withPublicApiRouteHandler', () => {
     }
   })
 
-  it('checks the v2 rollout gate before reading or parsing the body', async () => {
-    mockGate.mockResolvedValue(NextResponse.json({ error: 'Not found' }, { status: 404 }))
-    const request = postRequest('{not valid json')
-
-    const response = await POST(request, { params: { itemId: 'item-1' } })
-
-    expect(response.status).toBe(404)
-    expect(request.bodyUsed).toBe(false)
-    expect(mockGate).toHaveBeenCalledWith('user-1')
-    expect(mockHandler).not.toHaveBeenCalled()
-  })
-
   it('fails fast when an allowed rate-limit result has no user ID', async () => {
     mockCheckRateLimit.mockResolvedValue({ ...RATE_LIMIT, userId: undefined })
 
     const response = await GET(listRequest())
 
     expect(response.status).toBe(500)
-    expect(mockGate).not.toHaveBeenCalled()
     expect(mockHandler).not.toHaveBeenCalled()
   })
 

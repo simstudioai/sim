@@ -1339,9 +1339,12 @@ export const DEPLOYMENT_CONFIGURATION_KEYS: readonly string[] = [
   ...new Set([
     ...CORE_CONFIGURATION_KEYS,
     ...ENV_CAPABILITIES.flatMap(capabilityKeys),
+    'COPILOT_API_KEY',
     'EMAIL_VERIFICATION_ENABLED',
+    'NEXT_PUBLIC_CHAT_DISABLED',
     'NEXT_PUBLIC_E2B_ENABLED',
     'NEXT_PUBLIC_SANDBOXES_ENABLED',
+    'SIM_AGENT_API_URL',
     ...Object.values(LLM_KEY_POOLS).flatMap((pool) => [
       ...pool.keys,
       ...('fallbackKey' in pool ? [pool.fallbackKey] : []),
@@ -1390,6 +1393,7 @@ const MICROSOFT_OAUTH_SERVICES = new Set([
   'microsoft-excel',
   'microsoft-teams',
   'microsoft-planner',
+  'microsoft-word',
 ])
 
 export function resolveOAuthClientCapabilityId(serviceId: string): OAuthClientCapabilityId | null {

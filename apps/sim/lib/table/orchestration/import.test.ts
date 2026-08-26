@@ -15,6 +15,10 @@ const {
   mockGetMaxRowsPerTable,
   mockDispatchAfterBatchInsert,
   mockSignalSchemaChanged,
+  mockGetWorkspaceTableLimits,
+  mockBatchInsertRows,
+  mockCreateTable,
+  mockDeleteTable,
 } = vi.hoisted(() => ({
   mockMarkTableJobRunning: vi.fn(),
   mockReleaseJobClaim: vi.fn(),
@@ -23,6 +27,10 @@ const {
   mockGetMaxRowsPerTable: vi.fn(),
   mockDispatchAfterBatchInsert: vi.fn(),
   mockSignalSchemaChanged: vi.fn(),
+  mockGetWorkspaceTableLimits: vi.fn(),
+  mockBatchInsertRows: vi.fn(),
+  mockCreateTable: vi.fn(),
+  mockDeleteTable: vi.fn(),
 }))
 
 vi.mock('@/lib/table/jobs/service', () => ({
@@ -35,18 +43,21 @@ vi.mock('@/lib/table/import-data', () => ({
 }))
 vi.mock('@/lib/table/billing', () => ({
   getMaxRowsPerTable: mockGetMaxRowsPerTable,
-  getWorkspaceTableLimits: vi.fn(),
+  getWorkspaceTableLimits: mockGetWorkspaceTableLimits,
   wouldExceedRowLimit: (limit: number, current: number, added: number) =>
     limit >= 0 && current + added > limit,
 }))
 vi.mock('@/lib/table/rows/service', () => ({
-  batchInsertRows: vi.fn(),
+  batchInsertRows: mockBatchInsertRows,
   dispatchAfterBatchInsert: mockDispatchAfterBatchInsert,
 }))
-vi.mock('@/lib/table/service', () => ({ createTable: vi.fn(), deleteTable: vi.fn() }))
+vi.mock('@/lib/table/service', () => ({
+  createTable: mockCreateTable,
+  deleteTable: mockDeleteTable,
+}))
 vi.mock('@/lib/table/events', () => ({ signalTableSchemaChanged: mockSignalSchemaChanged }))
 
-import { performTableCsvImport } from '@/lib/table/orchestration/import'
+import { performCreateTableFromCsv, performTableCsvImport } from '@/lib/table/orchestration/import'
 
 const TABLE = {
   id: 'table-1',
@@ -94,6 +105,12 @@ beforeEach(() => {
     table: TABLE,
   })
   mockImportReplaceRows.mockResolvedValue({ insertedCount: 2, deletedCount: 10 })
+  mockGetWorkspaceTableLimits.mockResolvedValue({ maxTables: 10, maxRowsPerTable: 1000 })
+  mockCreateTable.mockResolvedValue(TABLE)
+  mockDeleteTable.mockResolvedValue(undefined)
+  mockBatchInsertRows.mockImplementation(async ({ rows }: { rows: unknown[] }) =>
+    rows.map((_, index) => ({ id: `row-${index}` }))
+  )
 })
 
 describe('performTableCsvImport', () => {
@@ -212,6 +229,55 @@ describe('performTableCsvImport', () => {
     })
   })
 
+  /**
+   * The parser drops malformed records silently, so a buffered import used to
+   * finish with a smaller table and nothing distinguishing it from a clean one.
+   */
+  describe('rejection accounting', () => {
+    it('reports the records a malformed CSV silently dropped', async () => {
+      const result = await performTableCsvImport(
+        importParams({
+          fileStream: csvStream('email,name\na@b.c,Ann\nd@e.f,"unterminated\ng@h.i,Gil\n'),
+        })
+      )
+
+      expect(result.success).toBe(true)
+      expect(result.data?.rejections?.rowsRejected).toBeGreaterThan(0)
+      expect(result.data?.rejections?.rejectedSamples[0]).toMatchObject({
+        code: 'CSV_QUOTE_NOT_CLOSED',
+      })
+    })
+
+    it('counts cells the target column type could not represent', async () => {
+      const result = await performTableCsvImport(
+        importParams({
+          table: {
+            ...TABLE,
+            schema: {
+              columns: [
+                { id: 'col_age', name: 'age', type: 'number', required: false, unique: false },
+              ],
+            },
+          },
+          fileStream: csvStream('age\n42\nnot-a-number\n'),
+        })
+      )
+
+      expect(result.success).toBe(true)
+      expect(result.data?.rejections).toEqual({
+        rowsRejected: 0,
+        cellsRejected: 1,
+        rejectedSamples: [],
+      })
+    })
+
+    it('omits the accounting entirely from a clean import', async () => {
+      const result = await performTableCsvImport(importParams())
+
+      expect(result.data).not.toHaveProperty('rejections')
+    })
+  })
+
   it('rejects createColumns naming a header the file does not have', async () => {
     const result = await performTableCsvImport(importParams({ createColumns: ['phone'] }))
 
@@ -231,5 +297,39 @@ describe('performTableCsvImport', () => {
     // column the write creates share one key — otherwise the values land under
     // a key nothing reads.
     expect(Object.keys(rows[0])).toContain(additions[0].id)
+  })
+})
+
+describe('performCreateTableFromCsv', () => {
+  function createParams(text: string) {
+    return {
+      workspaceId: 'ws-1',
+      userId: 'user-1',
+      fileStream: csvStream(text),
+      fileName: 'contacts.csv',
+      fallbackDelimiter: ',' as const,
+      folderId: null,
+      timezone: 'UTC',
+      requestId: 'req-1',
+    }
+  }
+
+  it('reports the records a malformed CSV silently dropped', async () => {
+    const result = await performCreateTableFromCsv(
+      createParams('email,name\na@b.c,Ann\nd@e.f,"unterminated\ng@h.i,Gil\n')
+    )
+
+    expect(result.success).toBe(true)
+    expect(result.data?.rejections?.rowsRejected).toBeGreaterThan(0)
+    expect(result.data?.rejections?.rejectedSamples[0]).toMatchObject({
+      code: 'CSV_QUOTE_NOT_CLOSED',
+    })
+  })
+
+  it('omits the accounting entirely from a clean import', async () => {
+    const result = await performCreateTableFromCsv(createParams(CSV))
+
+    expect(result.success).toBe(true)
+    expect(result.data).not.toHaveProperty('rejections')
   })
 })

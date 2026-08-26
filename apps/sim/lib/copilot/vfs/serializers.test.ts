@@ -391,6 +391,57 @@ describe('hosted-key VFS metadata', () => {
   })
 })
 
+describe('serializeBlockSchema permission-group gating', () => {
+  const slackBlock = {
+    type: 'slack',
+    name: 'Slack',
+    description: 'Slack',
+    category: 'tools',
+    subBlocks: [
+      {
+        id: 'operation',
+        title: 'Operation',
+        type: 'dropdown',
+        options: [
+          { label: 'Send Message', id: 'send' },
+          { label: 'Create Canvas', id: 'canvas' },
+        ],
+      },
+    ],
+    tools: { access: ['slack_message', 'slack_canvas'] },
+    inputs: {},
+    outputs: {},
+  } as unknown as BlockConfig
+
+  it('publishes every operation and tool when nothing is denied', () => {
+    const schema = JSON.parse(serializeBlockSchema(slackBlock))
+
+    expect(schema.tools).toEqual(['slack_message', 'slack_canvas'])
+    expect(schema.subBlocks[0].options.map((option: { id: string }) => option.id)).toEqual([
+      'send',
+      'canvas',
+    ])
+  })
+
+  it('withholds denied operations and tool ids from the viewer schema', () => {
+    const schema = JSON.parse(
+      serializeBlockSchema(slackBlock, {
+        deniedOperationIds: new Set(['canvas']),
+        isToolAllowed: (toolId: string) => toolId !== 'slack_canvas',
+      })
+    )
+
+    expect(schema.tools).toEqual(['slack_message'])
+    expect(schema.subBlocks[0].options).toEqual([{ label: 'Send Message', id: 'send' }])
+  })
+
+  it('leaves the shared registry options array untouched', () => {
+    serializeBlockSchema(slackBlock, { deniedOperationIds: new Set(['canvas']) })
+
+    expect(slackBlock.subBlocks[0].options).toHaveLength(2)
+  })
+})
+
 describe('serializeKBMeta', () => {
   const baseKb = {
     id: 'kb-1',
@@ -498,11 +549,6 @@ describe('serializeIntegrationSchema — service-account auth', () => {
     expect(schema.auth.serviceAccount).toEqual({ connectNoun: 'integration secret' })
     expect(schema.oauth).toBeUndefined()
   })
-
-  // The preview-gate behavior (slack custom bot ↔ slack_v2) is covered in
-  // service-account-gate.test.ts, which mocks getBlock — the block registry is
-  // globally stubbed here, so slack_v2's real `preview: true` isn't observable
-  // through serializeIntegrationSchema.
 })
 
 describe('serializeCredentials — type distinguishes reconnect flow', () => {

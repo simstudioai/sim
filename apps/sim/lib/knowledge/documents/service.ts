@@ -20,9 +20,11 @@ import {
   desc,
   eq,
   getTableColumns,
+  gte,
   inArray,
   isNotNull,
   isNull,
+  lt,
   ne,
   or,
   type SQL,
@@ -62,11 +64,24 @@ import { isInsideTriggerRun } from '@/lib/core/config/trigger-runtime'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import {
+  EMBEDDING_QUOTA_EXHAUSTED_MESSAGE,
+  getEmbeddingAggregateItemLimit,
+  isEmbeddingQuotaExhaustion,
+} from '@/lib/embeddings'
+import {
   type DurableSecretProvenance,
   durableSecretProvenanceFromRegistry,
   EXACT_EMPTY_DURABLE_SECRET_PROVENANCE,
   mergeDurableSecretProvenance,
 } from '@/lib/execution/durable-secret-provenance'
+import {
+  assertDocumentChunkCountWithinLimit,
+  isPermanentDocumentProcessingError,
+  isUsageLimitDocumentProcessingError,
+  PermanentDocumentProcessingError,
+  toPermanentDocumentProcessingError,
+  UsageLimitDocumentProcessingError,
+} from '@/lib/knowledge/documents/document-processing-error'
 import { processDocument } from '@/lib/knowledge/documents/document-processor'
 import {
   failStaleDocumentProcessingClaim,
@@ -82,16 +97,19 @@ import {
   type DocumentProcessingPayload,
   hasDocumentProcessingBillingScope,
 } from '@/lib/knowledge/documents/processing-payload'
+import { scheduleDocumentProcessingQuotaContinuation } from '@/lib/knowledge/documents/processing-quota-continuation'
+import { DOCUMENT_PROCESSING_STALE_THRESHOLD_MS } from '@/lib/knowledge/documents/processing-timeouts.server'
 import {
   buildTagFilterCondition,
   type TagFilterCondition,
 } from '@/lib/knowledge/documents/tag-filter'
 import {
   type DocumentSortField,
+  MAX_PROCESSING_ATTEMPTS,
   QUEUED_DISPATCH_GRACE_MS,
   type SortOrder,
 } from '@/lib/knowledge/documents/types'
-import { getEmbeddingModelInfo } from '@/lib/knowledge/embedding-models'
+import { EMBEDDING_DIMENSIONS, getEmbeddingModelInfo } from '@/lib/knowledge/embedding-models'
 import { generateEmbeddings } from '@/lib/knowledge/embeddings'
 import { runWithKnowledgeModelInputProvenance } from '@/lib/knowledge/model-input-provenance'
 import {
@@ -287,9 +305,11 @@ const TIMEOUTS = {
 
 const LARGE_DOC_CONFIG = {
   MAX_CHUNKS_PER_BATCH: 500,
-  MAX_EMBEDDING_BATCH: envNumber(env.KB_CONFIG_BATCH_SIZE, 2000),
+  MAX_EMBEDDING_BATCH: Math.min(
+    envNumber(env.KB_CONFIG_BATCH_SIZE, 2000, { min: 1, integer: true }),
+    getEmbeddingAggregateItemLimit(EMBEDDING_DIMENSIONS)
+  ),
   MAX_FILE_SIZE: 100 * 1024 * 1024,
-  MAX_CHUNKS_PER_DOCUMENT: 100000,
 }
 
 const HARD_DELETE_DOCUMENT_BATCH_SIZE = 250
@@ -627,11 +647,31 @@ function bindKnowledgeDocumentWriteSecretProvenance(options: {
 /** Per-call cap for `tasks.batchTrigger` on Trigger.dev SDK 4.3.1+. */
 const TRIGGER_BATCH_SIZE = 1000
 
+/**
+ * Immediate outcome of handing document work to its execution backend.
+ *
+ * `accepted` means Trigger.dev accepted the child run, the direct fallback
+ * finished the job, or a concurrent caller already installed a live queue
+ * generation for the document. It deliberately does not claim that an
+ * asynchronous child succeeded: that eventual outcome belongs to the document
+ * row and child task run, neither of which the dispatching connector waits for.
+ */
+export interface DocumentProcessingDispatchResult {
+  requested: number
+  accepted: number
+  failed: number
+  /** Deduplicated input IDs whose work this call neither accepted nor found live. */
+  failedDocumentIds: string[]
+}
+
 function buildJobPayload(
   doc: DocumentData,
   knowledgeBaseId: string,
   processingOptions: ProcessingOptions,
   requestId: string,
+  processingQueueToken: string,
+  processingQueuedAt: Date,
+  chargedAtDispatch: boolean,
   billingContext: DocumentProcessingBillingContext
 ): DocumentProcessingPayload {
   return createDocumentProcessingPayload(
@@ -646,6 +686,9 @@ function buildJobPayload(
       },
       processingOptions,
       requestId,
+      processingQueueToken,
+      chargedAtDispatch,
+      processingQueuedAt: processingQueuedAt.toISOString(),
     },
     billingContext
   )
@@ -705,39 +748,201 @@ async function resolveDocumentProcessingBillingContext(
  * queue has not started, and a leftover value from a prior run would otherwise
  * be reported as this attempt's start time.
  *
- * Guarded on `pending` so it can never disturb a document a worker has already
- * claimed — `processDocumentAsync` uses `processingStartedAt` as a
- * compare-and-set token, and overwriting it under a live run would strand that
- * run's completion writes. If the worker wins the race, this update matches no
- * rows and the worker's own timestamps stand, which is the correct outcome:
- * queue wait no longer matters once processing has begun.
+ * Guarded on `pending` and an empty queue timestamp, so concurrent dispatch
+ * callers cannot both charge and enqueue the same document. A retained token
+ * with no timestamp identifies a withdrawn generation and is atomically
+ * replaced here; the old generation can no longer finalize the row afterward.
+ * Returning the rows this write claimed lets the caller dispatch only its own
+ * generation. A worker that already claimed the row or another caller that
+ * already queued it wins cleanly.
  */
-async function markDocumentsQueued(documentIds: string[], queuedAt: Date): Promise<void> {
-  await db
-    .update(document)
-    .set({
-      processingQueuedAt: queuedAt,
-      processingStartedAt: null,
-      // Spent here because this is the one write every dispatch passes through,
-      // and it is already guarded — so the budget cannot be charged twice for a
-      // single dispatch, nor skipped by a caller that dispatches another way.
-      // Refunded by `clearDocumentsQueued` when the dispatch provably never
-      // happened, so only attempts a worker could have seen are ever spent.
-      processingAttempts: sql`${document.processingAttempts} + 1`,
-    })
-    .where(and(inArray(document.id, documentIds), eq(document.processingStatus, 'pending')))
+interface QueuedDocumentGeneration {
+  readonly documentId: string
+  readonly processingQueuedAt: Date
+  readonly chargedAtDispatch: boolean
+}
+
+interface MarkDocumentsQueuedResult {
+  readonly generations: QueuedDocumentGeneration[]
+  readonly acceptedWithoutDispatchIds: string[]
+  readonly unresolvedIds: string[]
+}
+
+function acceptedDocumentStateCondition(observedAt: Date): SQL | undefined {
+  const queuedCutoff = new Date(observedAt.getTime() - QUEUED_DISPATCH_GRACE_MS)
+  const processingCutoff = new Date(observedAt.getTime() - DOCUMENT_PROCESSING_STALE_THRESHOLD_MS)
+  return or(
+    eq(document.processingStatus, 'completed'),
+    and(
+      eq(document.processingStatus, 'pending'),
+      isNotNull(document.processingQueuedAt),
+      gte(document.processingQueuedAt, queuedCutoff)
+    ),
+    and(
+      eq(document.processingStatus, 'processing'),
+      isNotNull(document.processingStartedAt),
+      gte(document.processingStartedAt, processingCutoff)
+    )
+  )
+}
+
+async function isDocumentAcceptedWithoutDispatch(
+  documentId: string,
+  knowledgeBaseId: string,
+  observedAt: Date
+): Promise<boolean> {
+  const accepted = await db
+    .select({ id: document.id })
+    .from(document)
+    .where(
+      and(
+        eq(document.id, documentId),
+        eq(document.knowledgeBaseId, knowledgeBaseId),
+        acceptedDocumentStateCondition(observedAt),
+        eq(document.userExcluded, false),
+        isNull(document.archivedAt),
+        isNull(document.deletedAt)
+      )
+    )
+    .limit(1)
+  return accepted.length > 0
+}
+
+async function markDocumentsQueued(
+  documentIds: string[],
+  knowledgeBaseId: string,
+  queueToken: string,
+  queuedAt: Date
+): Promise<MarkDocumentsQueuedResult> {
+  const legacyAdoptionCutoff = new Date(queuedAt.getTime() - QUEUED_DISPATCH_GRACE_MS)
+  return db.transaction(async (tx) => {
+    const claimed = await tx
+      .update(document)
+      .set({
+        processingQueuedAt: queuedAt,
+        processingQueueToken: queueToken,
+        processingStartedAt: null,
+        processingDeferredUntil: null,
+        /**
+         * Spent here because this is the one write every dispatch passes through,
+         * and it is already guarded — so the budget cannot be charged twice for a
+         * single dispatch, nor skipped by a caller that dispatches another way.
+         * Refunded by `clearDocumentsQueued` when the dispatch provably never
+         * happened, so only attempts a worker could have seen are ever spent.
+         */
+        processingAttempts: sql`${document.processingAttempts} + 1`,
+      })
+      .where(
+        and(
+          inArray(document.id, documentIds),
+          eq(document.knowledgeBaseId, knowledgeBaseId),
+          eq(document.processingStatus, 'pending'),
+          eq(document.userExcluded, false),
+          isNull(document.processingQueuedAt),
+          isNull(document.archivedAt),
+          isNull(document.deletedAt)
+        )
+      )
+      .returning({ id: document.id })
+
+    const claimedIds = new Set(claimed.map((row) => row.id))
+    const unclaimedIds = documentIds.filter((documentId) => !claimedIds.has(documentId))
+    const resumed =
+      unclaimedIds.length === 0
+        ? []
+        : await tx
+            .update(document)
+            .set({ processingQueueToken: queueToken })
+            .where(
+              and(
+                inArray(document.id, unclaimedIds),
+                eq(document.knowledgeBaseId, knowledgeBaseId),
+                or(
+                  and(
+                    or(
+                      eq(document.processingStatus, 'pending'),
+                      eq(document.processingStatus, 'failed')
+                    ),
+                    eq(document.processingQueueToken, queueToken)
+                  ),
+                  and(
+                    eq(document.processingStatus, 'pending'),
+                    isNull(document.processingQueueToken),
+                    lt(document.processingQueuedAt, legacyAdoptionCutoff)
+                  )
+                ),
+                isNotNull(document.processingQueuedAt),
+                isNull(document.processingDeferredUntil),
+                eq(document.userExcluded, false),
+                isNull(document.archivedAt),
+                isNull(document.deletedAt)
+              )
+            )
+            .returning({ id: document.id, processingQueuedAt: document.processingQueuedAt })
+
+    const resumedIds = new Set(resumed.map((row) => row.id))
+    const unresolvedIds = unclaimedIds.filter((documentId) => !resumedIds.has(documentId))
+    const acceptedWithoutDispatch =
+      unresolvedIds.length === 0
+        ? []
+        : await tx
+            .select({ id: document.id })
+            .from(document)
+            .where(
+              and(
+                inArray(document.id, unresolvedIds),
+                eq(document.knowledgeBaseId, knowledgeBaseId),
+                acceptedDocumentStateCondition(queuedAt),
+                eq(document.userExcluded, false),
+                isNull(document.archivedAt),
+                isNull(document.deletedAt)
+              )
+            )
+            .for('update')
+
+    const acceptedWithoutDispatchIds = acceptedWithoutDispatch.map((row) => row.id)
+    const acceptedWithoutDispatchIdSet = new Set(acceptedWithoutDispatchIds)
+
+    return {
+      generations: [
+        ...claimed.map((row) => ({
+          documentId: row.id,
+          processingQueuedAt: queuedAt,
+          chargedAtDispatch: true,
+        })),
+        ...resumed.flatMap((row) =>
+          row.processingQueuedAt
+            ? [
+                {
+                  documentId: row.id,
+                  processingQueuedAt: row.processingQueuedAt,
+                  chargedAtDispatch: false,
+                },
+              ]
+            : []
+        ),
+      ],
+      acceptedWithoutDispatchIds,
+      unresolvedIds: unresolvedIds.filter(
+        (documentId) => !acceptedWithoutDispatchIdSet.has(documentId)
+      ),
+    }
+  })
 }
 
 /**
- * Withdraws a queue stamp whose dispatch provably never happened.
+ * Withdraws a live queue timestamp whose dispatch provably never happened.
  *
  * {@link markDocumentsQueued} runs before dispatch on purpose — `batchTrigger`
  * chunks, so a batch can half-succeed, and stamping afterwards would leave the
  * runs that did start with no stamp and no grace. The cost of that ordering is
  * that a batch where *every* dispatch failed still carries a fresh stamp, and
  * recovery sweeps would honour a grace period the documents did not earn. Total
- * failure is the one case where nothing was dispatched, so the stamp can be
- * taken back and the next sweep is free to reclaim them immediately.
+ * failure is the one case where nothing was dispatched, so the timestamp can
+ * be taken back and the next sweep is free to reclaim them immediately. The
+ * generation token stays until an exact-token failure recorder finalizes it or
+ * a newer dispatcher adopts the timestamp-less row. That ownership marker
+ * prevents an older recorder from failing a newer blank pending generation.
  *
  * The attempt {@link markDocumentsQueued} charged is refunded in the same
  * statement. The budget exists to stop re-billing a document that keeps failing
@@ -757,7 +962,11 @@ async function markDocumentsQueued(documentIds: string[], queuedAt: Date): Promi
  * call wrote, so a concurrent dispatch that has already re-stamped a document
  * is left alone.
  */
-async function clearDocumentsQueued(documentIds: string[], queuedAt: Date): Promise<void> {
+async function clearDocumentsQueued(
+  documentIds: string[],
+  queueToken: string,
+  queuedAt: Date
+): Promise<void> {
   await db
     .update(document)
     .set({
@@ -768,15 +977,34 @@ async function clearDocumentsQueued(documentIds: string[], queuedAt: Date): Prom
       and(
         inArray(document.id, documentIds),
         eq(document.processingStatus, 'pending'),
+        eq(document.processingQueueToken, queueToken),
         eq(document.processingQueuedAt, queuedAt)
       )
     )
 }
 
+async function bestEffortWithdrawDocumentsQueued(
+  documentIds: string[],
+  queueToken: string,
+  queuedAt: Date,
+  reason: string
+): Promise<void> {
+  if (documentIds.length === 0) return
+  try {
+    await clearDocumentsQueued(documentIds, queueToken, queuedAt)
+  } catch (error) {
+    logger.warn(`[${queueToken}] Failed to withdraw queue ownership after ${reason}`, {
+      error: getErrorMessage(error),
+    })
+  }
+}
+
 /**
  * Dispatches document processing jobs via Trigger.dev's `batchTrigger` when
  * available, or in-process otherwise. Throws only when every dispatch fails;
- * partial failures are logged and recovered by the next sync's stuck-doc pass.
+ * partial failures are returned and recovered by the next sync's stuck-doc
+ * pass. A successful Trigger.dev hand-off is only an accepted child run, not a
+ * claim about its eventual processing outcome.
  */
 export async function processDocumentsWithQueue(
   createdDocuments: DocumentData[],
@@ -784,20 +1012,79 @@ export async function processDocumentsWithQueue(
   processingOptions: ProcessingOptions,
   requestId: string,
   billingAttribution: BillingAttributionSnapshot | undefined
-): Promise<void> {
-  if (createdDocuments.length === 0) return
+): Promise<DocumentProcessingDispatchResult> {
+  const seenDocumentIds = new Set<string>()
+  const uniqueDocuments = createdDocuments.filter((createdDocument) => {
+    if (seenDocumentIds.has(createdDocument.documentId)) return false
+    seenDocumentIds.add(createdDocument.documentId)
+    return true
+  })
+  if (uniqueDocuments.length === 0) {
+    return { requested: 0, accepted: 0, failed: 0, failedDocumentIds: [] }
+  }
 
-  const billingContext = await resolveDocumentProcessingBillingContext(
-    knowledgeBaseId,
-    billingAttribution
-  )
-  const jobPayloads = createdDocuments.map((doc) =>
-    buildJobPayload(doc, knowledgeBaseId, processingOptions, requestId, billingContext)
-  )
-
-  const documentIds = createdDocuments.map((doc) => doc.documentId)
+  const requested = uniqueDocuments.length
   const queuedAt = new Date()
-  await markDocumentsQueued(documentIds, queuedAt)
+  const documentIds = uniqueDocuments.map((doc) => doc.documentId)
+  const {
+    generations: queuedGenerations,
+    acceptedWithoutDispatchIds,
+    unresolvedIds,
+  } = await markDocumentsQueued(documentIds, knowledgeBaseId, requestId, queuedAt)
+  const generationByDocumentId = new Map(
+    queuedGenerations.map((generation) => [generation.documentId, generation])
+  )
+  const queuedDocuments = uniqueDocuments.filter((doc) =>
+    generationByDocumentId.has(doc.documentId)
+  )
+  const acceptedWithoutDispatch = acceptedWithoutDispatchIds.length
+  const unresolved = unresolvedIds.length
+  const newlyClaimedIds = queuedGenerations
+    .filter((generation) => generation.chargedAtDispatch)
+    .map((generation) => generation.documentId)
+
+  let billingContext: DocumentProcessingBillingContext
+  try {
+    billingContext = await resolveDocumentProcessingBillingContext(
+      knowledgeBaseId,
+      billingAttribution
+    )
+  } catch (error) {
+    await bestEffortWithdrawDocumentsQueued(
+      newlyClaimedIds,
+      requestId,
+      queuedAt,
+      'billing-context resolution failed'
+    )
+    throw error
+  }
+
+  if (queuedDocuments.length === 0) {
+    logger.info(`[${requestId}] No documents were eligible for a new processing dispatch`, {
+      acceptedWithoutDispatch,
+      unresolved,
+    })
+    return {
+      requested,
+      accepted: acceptedWithoutDispatch,
+      failed: unresolved,
+      failedDocumentIds: unresolvedIds,
+    }
+  }
+
+  const jobPayloads = queuedDocuments.map((doc) => {
+    const generation = generationByDocumentId.get(doc.documentId)!
+    return buildJobPayload(
+      doc,
+      knowledgeBaseId,
+      processingOptions,
+      requestId,
+      requestId,
+      generation.processingQueuedAt,
+      generation.chargedAtDispatch,
+      billingContext
+    )
+  })
 
   const useTrigger = isTriggerAvailable()
   logger.info(
@@ -805,37 +1092,66 @@ export async function processDocumentsWithQueue(
     { backend: useTrigger ? 'trigger-dev' : 'direct' }
   )
 
-  const dispatched = useTrigger
-    ? await dispatchViaBatchTrigger(jobPayloads, requestId)
-    : await dispatchInProcess(jobPayloads, requestId)
+  let dispatchedIds: Set<string>
+  try {
+    dispatchedIds = useTrigger
+      ? await dispatchViaBatchTrigger(jobPayloads, requestId)
+      : await dispatchInProcess(jobPayloads, requestId)
+  } catch (error) {
+    await bestEffortWithdrawDocumentsQueued(
+      newlyClaimedIds,
+      requestId,
+      queuedAt,
+      'dispatch setup failed'
+    )
+    throw error
+  }
 
   logger.info(
-    `[${requestId}] Document dispatch complete: ${dispatched}/${jobPayloads.length} succeeded`
+    `[${requestId}] Document dispatch complete: ${dispatchedIds.size}/${jobPayloads.length} accepted`
   )
 
-  if (dispatched === 0) {
-    /**
-     * Best-effort, unlike the stamp itself: failing to write the stamp means the
-     * grace cannot be promised and dispatching anyway is the unsafe direction, so
-     * that write throws. Failing to withdraw one only delays recovery by a grace
-     * period, so it must not mask the dispatch failure that is the real error.
-     */
-    try {
-      await clearDocumentsQueued(documentIds, queuedAt)
-    } catch (error) {
-      logger.warn(`[${requestId}] Failed to withdraw the queue stamp after a failed dispatch`, {
-        error: getErrorMessage(error),
-      })
+  /**
+   * Refund every newly owned generation that provably failed before claiming
+   * processing, including one failed chunk in an otherwise successful batch.
+   */
+  const failedNewlyClaimedIds = newlyClaimedIds.filter(
+    (documentId) => !dispatchedIds.has(documentId)
+  )
+  await bestEffortWithdrawDocumentsQueued(
+    failedNewlyClaimedIds,
+    requestId,
+    queuedAt,
+    'a newly claimed dispatch failed'
+  )
+
+  if (dispatchedIds.size === 0) {
+    if (acceptedWithoutDispatch === 0) {
+      throw new Error(`All ${jobPayloads.length} document processing dispatches failed`)
     }
-    throw new Error(`All ${jobPayloads.length} document processing dispatches failed`)
+  }
+
+  const unresolvedIdSet = new Set(unresolvedIds)
+  const failedDocumentIds = uniqueDocuments.flatMap((doc) =>
+    unresolvedIdSet.has(doc.documentId) ||
+    (generationByDocumentId.has(doc.documentId) && !dispatchedIds.has(doc.documentId))
+      ? [doc.documentId]
+      : []
+  )
+
+  return {
+    requested,
+    accepted: acceptedWithoutDispatch + dispatchedIds.size,
+    failed: failedDocumentIds.length,
+    failedDocumentIds,
   }
 }
 
 async function dispatchViaBatchTrigger(
   jobPayloads: DocumentProcessingPayload[],
   requestId: string
-): Promise<number> {
-  let dispatched = 0
+): Promise<Set<string>> {
+  const dispatchedIds = new Set<string>()
   const batchIds: string[] = []
   const undispatched: DocumentProcessingPayload[] = []
   const region = await resolveTriggerRegion()
@@ -859,7 +1175,7 @@ async function dispatchViaBatchTrigger(
         }))
       )
       batchIds.push(result.batchId)
-      dispatched += chunk.length
+      for (const payload of chunk) dispatchedIds.add(payload.documentId)
     } catch (error) {
       logger.error(`[${requestId}] Failed to batchTrigger ${chunk.length} document jobs`, {
         error: getErrorMessage(error),
@@ -880,23 +1196,40 @@ async function dispatchViaBatchTrigger(
     logger.warn(
       `[${requestId}] Processing ${undispatched.length} documents in-process after failed enqueue`
     )
-    dispatched += await dispatchInProcess(undispatched, requestId)
+    const directlyDispatchedIds = await dispatchInProcess(undispatched, requestId)
+    for (const documentId of directlyDispatchedIds) dispatchedIds.add(documentId)
   }
 
-  return dispatched
+  return dispatchedIds
 }
 
 /** Each in-process job runs chunking + embedding + many DB inserts. */
 const IN_PROCESS_DISPATCH_CONCURRENCY = 5
 
+export interface DocumentProcessingAttemptContext {
+  /** True only when this invocation follows a successful queue-budget charge. */
+  readonly chargedAtDispatch: boolean
+  /** Opaque generation token; absent only for payloads created before token rollout. */
+  readonly processingQueueToken?: string
+  /** Queue generation this invocation is allowed to claim. */
+  readonly processingQueuedAt?: Date
+  /** Durably schedules the next quota attempt and returns its execution time. */
+  readonly scheduleQuotaContinuation?: () => Promise<Date>
+  /** The durable quota retry horizon was exhausted for this indexing pass. */
+  readonly quotaContinuationExhausted?: boolean
+  /** Signals that this invocation owns the persisted processing generation. */
+  readonly onClaimed?: () => void
+}
+
 async function dispatchInProcess(
   jobPayloads: DocumentProcessingPayload[],
   requestId: string
-): Promise<number> {
+): Promise<Set<string>> {
   const results = await mapWithConcurrency(
     jobPayloads,
     IN_PROCESS_DISPATCH_CONCURRENCY,
     async (p) => {
+      let processingClaimed = false
       try {
         await processDocumentAsync(
           p.knowledgeBaseId,
@@ -904,16 +1237,68 @@ async function dispatchInProcess(
           p.docData,
           p.processingOptions,
           p,
-          p.requestId
+          p.requestId,
+          {
+            chargedAtDispatch: p.chargedAtDispatch ?? true,
+            processingQueueToken: p.processingQueueToken,
+            ...(p.processingQueuedAt ? { processingQueuedAt: new Date(p.processingQueuedAt) } : {}),
+            scheduleQuotaContinuation: () => scheduleDocumentProcessingQuotaContinuation(p),
+            onClaimed: () => {
+              processingClaimed = true
+            },
+          }
         )
-        return true
+        if (processingClaimed) return true
+
+        const acceptedByLiveGeneration = await isDocumentAcceptedWithoutDispatch(
+          p.documentId,
+          p.knowledgeBaseId,
+          new Date()
+        )
+        return acceptedByLiveGeneration
       } catch (error) {
-        logger.error(`[${requestId}] Document dispatch failed`, { error: getErrorMessage(error) })
-        return false
+        if (isPermanentDocumentProcessingError(error)) {
+          logger.warn(`[${requestId}] Document processing reached an expected terminal state`, {
+            code: error.code,
+          })
+          return true
+        }
+        if (isEmbeddingQuotaExhaustion(error)) {
+          logger.warn(`[${requestId}] Embedding quota is exhausted; continuation scheduled`, {
+            documentId: p.documentId,
+            quotaRetryCount: p.quotaRetryCount ?? 0,
+          })
+          return true
+        }
+        const message = processingClaimed
+          ? 'In-process document processing failed'
+          : 'In-process document dispatch failed before claiming the document'
+        logger.error(`[${requestId}] ${message}`, {
+          documentId: p.documentId,
+          error: getErrorMessage(error),
+        })
+        return processingClaimed
       }
     }
   )
-  return results.filter(Boolean).length
+  return new Set(
+    results.flatMap((succeeded, index) => (succeeded ? [jobPayloads[index].documentId] : []))
+  )
+}
+
+function queueGenerationConditions(
+  attemptContext: DocumentProcessingAttemptContext | undefined
+): SQL[] {
+  if (!attemptContext) return []
+  if (attemptContext.processingQueueToken) {
+    return [eq(document.processingQueueToken, attemptContext.processingQueueToken)]
+  }
+  return attemptContext.processingQueuedAt
+    ? [
+        isNull(document.processingQueueToken),
+        eq(document.processingQueuedAt, attemptContext.processingQueuedAt),
+      ]
+    : [isNull(document.processingQueueToken)]
 }
 
 /**
@@ -926,6 +1311,9 @@ async function dispatchInProcess(
  * user-triggered reprocess) mints a fresh one. It is what makes the embedding
  * charge bill once per pass — see the `sourceReference` note at the `recordUsage`
  * call below.
+ * @param attemptContext - Identifies whether queue admission charged this
+ * invocation against the document's retry budget. Direct callers omit it and
+ * therefore cannot refund an attempt they never charged.
  */
 export async function processDocumentAsync(
   knowledgeBaseId: string,
@@ -938,10 +1326,12 @@ export async function processDocumentAsync(
   },
   processingOptions: ProcessingOptions = {},
   providedBillingContext?: BillingAttributionSnapshot | DocumentProcessingBillingContext,
-  indexingPassId?: string
+  indexingPassId?: string,
+  attemptContext?: DocumentProcessingAttemptContext
 ): Promise<void> {
   const startTime = Date.now()
   const processingStartedAt = new Date()
+  let processingFilename = docData.filename
   try {
     logger.info(`[${documentId}] Starting document processing`, {
       knowledgeBaseId,
@@ -990,6 +1380,7 @@ export async function processDocumentAsync(
         and(
           eq(document.id, documentId),
           eq(knowledgeBase.id, knowledgeBaseId),
+          eq(document.userExcluded, false),
           isNull(document.archivedAt),
           isNull(document.deletedAt),
           isNull(knowledgeBase.deletedAt)
@@ -1006,6 +1397,7 @@ export async function processDocumentAsync(
         .set({
           processingStatus: 'failed',
           processingError: 'Document or knowledge base no longer exists',
+          processingDeferredUntil: null,
           processingCompletedAt: new Date(),
         })
         // Never overwrite a finished pass, and never resurrect state on a row
@@ -1014,6 +1406,8 @@ export async function processDocumentAsync(
           and(
             eq(document.id, documentId),
             ne(document.processingStatus, 'completed'),
+            ...queueGenerationConditions(attemptContext),
+            eq(document.userExcluded, false),
             isNull(document.archivedAt),
             isNull(document.deletedAt)
           )
@@ -1022,6 +1416,7 @@ export async function processDocumentAsync(
     }
 
     const ctx = contextRows[0]
+    processingFilename = ctx.filename
     const persistedDocData = {
       filename: ctx.filename,
       fileUrl: ctx.fileUrl,
@@ -1030,20 +1425,24 @@ export async function processDocumentAsync(
     }
 
     /**
-     * Claiming is guarded on the document not already being `completed`.
+     * Claiming is guarded by both completion status and queue generation.
      *
      * Without a status predicate this write was reachable for a finished
      * document — a late or duplicate dispatch would flip `completed` back to
      * `processing`, discard the pass that had already indexed and billed, and
-     * index it a second time. `pending`, `failed` and `processing` stay
-     * claimable so a Trigger.dev retry of the same run still proceeds; the
-     * commit CAS downstream is what keeps two live workers from both finishing.
+     * index it a second time. `pending`, `failed`, and `processing` remain
+     * claimable so a Trigger retry can recover if an earlier attempt threw
+     * before persisting its failure. Queued workers also match the exact stamp
+     * carried in their payload. A retry or recovery sweep re-stamps the row, so
+     * an older delayed quota continuation becomes a harmless no-op instead of
+     * stealing the newer pass.
      */
     const claimed = await db
       .update(document)
       .set({
         processingStatus: 'processing',
         processingStartedAt,
+        processingDeferredUntil: null,
         processingCompletedAt: null,
         processingError: null,
       })
@@ -1051,6 +1450,8 @@ export async function processDocumentAsync(
         and(
           eq(document.id, documentId),
           ne(document.processingStatus, 'completed'),
+          ...queueGenerationConditions(attemptContext),
+          eq(document.userExcluded, false),
           isNull(document.archivedAt),
           isNull(document.deletedAt)
         )
@@ -1059,10 +1460,12 @@ export async function processDocumentAsync(
 
     if (claimed.length === 0) {
       logger.info(
-        `[${documentId}] Skipping document processing: already completed, archived, or deleted`
+        `[${documentId}] Skipping document processing: superseded, already active, completed, archived, or deleted`
       )
       return
     }
+
+    attemptContext?.onClaimed?.()
 
     logger.info(`[${documentId}] Status updated to 'processing', starting document processor`)
 
@@ -1123,22 +1526,9 @@ export async function processDocumentAsync(
       : await checkActorUsageLimits(documentActorUserId)
     if (usageGate.isExceeded) {
       logger.warn(`[${documentId}] Usage limit reached — skipping document indexing`)
-      await db
-        .update(document)
-        .set({
-          processingStatus: 'failed',
-          processingError:
-            usageGate.message ?? 'Usage limit exceeded. Please upgrade your plan to continue.',
-          processingCompletedAt: new Date(),
-        })
-        .where(
-          and(
-            eq(document.id, documentId),
-            eq(document.processingStatus, 'processing'),
-            eq(document.processingStartedAt, processingStartedAt)
-          )
-        )
-      return
+      throw new UsageLimitDocumentProcessingError(
+        usageGate.message ?? 'Usage limit exceeded. Please upgrade your plan to continue.'
+      )
     }
     let billableEmbeddingTokens = 0
     let embeddingModelName = kbEmbeddingModel
@@ -1179,12 +1569,7 @@ export async function processDocumentAsync(
             rawConfig?.strategyOptions
           )
 
-          if (processed.chunks.length > LARGE_DOC_CONFIG.MAX_CHUNKS_PER_DOCUMENT) {
-            throw new Error(
-              `Document has ${processed.chunks.length.toLocaleString()} chunks, exceeding maximum of ${LARGE_DOC_CONFIG.MAX_CHUNKS_PER_DOCUMENT.toLocaleString()}. ` +
-                `This document is unusually large and may need to be split into multiple files or preprocessed to reduce content.`
-            )
-          }
+          assertDocumentChunkCountWithinLimit(processed.chunks.length)
 
           const now = new Date()
 
@@ -1193,6 +1578,19 @@ export async function processDocumentAsync(
           )
 
           const chunkTexts = processed.chunks.map((chunk) => chunk.text)
+          const embeddingModelInfo = getEmbeddingModelInfo(kbEmbeddingModel)
+          for (let chunkIndex = 0; chunkIndex < chunkTexts.length; chunkIndex++) {
+            const tokenCount = estimateTokenCount(
+              chunkTexts[chunkIndex],
+              embeddingModelInfo.tokenizerProvider
+            ).count
+            if (tokenCount > embeddingModelInfo.maxInputTokens) {
+              throw new PermanentDocumentProcessingError(
+                'document_complexity_limit',
+                `Chunk ${chunkIndex + 1} contains ${tokenCount.toLocaleString()} estimated tokens, exceeding the ${embeddingModelInfo.maxInputTokens.toLocaleString()}-token limit for ${kbEmbeddingModel}. Reduce the knowledge-base chunk size and retry.`
+              )
+            }
+          }
           const embeddings: number[][] = []
 
           if (chunkTexts.length > 0) {
@@ -1228,7 +1626,7 @@ export async function processDocumentAsync(
 
           logger.info(`[${documentId}] Embeddings generated, creating embedding records with tags`)
 
-          const tokenizerProvider = getEmbeddingModelInfo(kbEmbeddingModel).tokenizerProvider
+          const tokenizerProvider = embeddingModelInfo.tokenizerProvider
 
           const chunkProvenances = processed.chunks.map((chunk) =>
             documentSecretContext.tracked
@@ -1282,6 +1680,8 @@ export async function processDocumentAsync(
                   eq(document.id, documentId),
                   eq(document.processingStatus, 'processing'),
                   eq(document.processingStartedAt, processingStartedAt),
+                  ...queueGenerationConditions(attemptContext),
+                  eq(document.userExcluded, false),
                   isNull(document.archivedAt),
                   isNull(document.deletedAt),
                   isNull(knowledgeBase.deletedAt)
@@ -1339,12 +1739,19 @@ export async function processDocumentAsync(
                 // A completed pass clears the budget: the next failure starts
                 // from a full allowance rather than inheriting a stale count.
                 processingAttempts: 0,
+                processingQueueToken: null,
+                processingQueuedAt: null,
+                processingDeferredUntil: null,
               })
               .where(
                 and(
                   eq(document.id, documentId),
                   eq(document.processingStatus, 'processing'),
-                  eq(document.processingStartedAt, processingStartedAt)
+                  eq(document.processingStartedAt, processingStartedAt),
+                  ...queueGenerationConditions(attemptContext),
+                  eq(document.userExcluded, false),
+                  isNull(document.archivedAt),
+                  isNull(document.deletedAt)
                 )
               )
             return true
@@ -1439,30 +1846,76 @@ export async function processDocumentAsync(
     }
   } catch (error) {
     const processingTime = Date.now() - startTime
-    const errorMessage = getErrorMessage(error, 'Unknown error')
-    logger.error(`[${documentId}] Failed to process document after ${processingTime}ms:`, {
-      errorType: toError(error).name,
+    const embeddingQuotaExhausted = isEmbeddingQuotaExhaustion(error)
+    const usageLimitExceeded = isUsageLimitDocumentProcessingError(error)
+    const permanentError = toPermanentDocumentProcessingError(error, processingFilename)
+    let recordedError = permanentError ?? error
+    let quotaDeferredUntil: Date | null = null
+    let quotaContinuationAttempted = false
+    if (embeddingQuotaExhausted && attemptContext?.scheduleQuotaContinuation) {
+      quotaContinuationAttempted = true
+      try {
+        quotaDeferredUntil = await attemptContext.scheduleQuotaContinuation()
+      } catch (continuationError) {
+        recordedError = continuationError
+      }
+    }
+    const quotaContinuationFailed = quotaContinuationAttempted && !quotaDeferredUntil
+    const errorMessage = embeddingQuotaExhausted
+      ? quotaContinuationFailed
+        ? getErrorMessage(recordedError, 'Embedding quota continuation dispatch failed')
+        : EMBEDDING_QUOTA_EXHAUSTED_MESSAGE
+      : getErrorMessage(recordedError, 'Unknown error')
+    const logContext = {
+      errorType: toError(recordedError).name,
       knowledgeBaseId,
       mimeType: docData.mimeType,
       fileSize: docData.fileSize,
-    })
+    }
+    const logMessage = quotaDeferredUntil
+      ? `[${documentId}] Deferred document processing after ${processingTime}ms:`
+      : `[${documentId}] Failed to process document after ${processingTime}ms:`
+    if (
+      (embeddingQuotaExhausted && !quotaContinuationFailed) ||
+      usageLimitExceeded ||
+      permanentError
+    ) {
+      logger.warn(logMessage, logContext)
+    } else {
+      logger.error(logMessage, logContext)
+    }
 
     await db
       .update(document)
       .set({
-        processingStatus: 'failed',
-        processingError: errorMessage,
-        processingCompletedAt: new Date(),
+        processingStatus: quotaDeferredUntil ? 'pending' : 'failed',
+        processingError: quotaDeferredUntil ? null : errorMessage,
+        processingStartedAt: quotaDeferredUntil ? null : processingStartedAt,
+        ...(quotaDeferredUntil && attemptContext?.processingQueueToken
+          ? { processingQueuedAt: quotaDeferredUntil }
+          : {}),
+        processingDeferredUntil: quotaDeferredUntil,
+        processingCompletedAt: quotaDeferredUntil ? null : new Date(),
+        ...(permanentError ||
+        (embeddingQuotaExhausted && attemptContext?.quotaContinuationExhausted)
+          ? { processingAttempts: MAX_PROCESSING_ATTEMPTS }
+          : (embeddingQuotaExhausted || usageLimitExceeded) && attemptContext?.chargedAtDispatch
+            ? { processingAttempts: sql`GREATEST(${document.processingAttempts} - 1, 0)` }
+            : {}),
       })
       .where(
         and(
           eq(document.id, documentId),
           eq(document.processingStatus, 'processing'),
-          eq(document.processingStartedAt, processingStartedAt)
+          eq(document.processingStartedAt, processingStartedAt),
+          ...queueGenerationConditions(attemptContext),
+          eq(document.userExcluded, false),
+          isNull(document.archivedAt),
+          isNull(document.deletedAt)
         )
       )
 
-    throw error
+    throw recordedError
   }
 }
 
@@ -2614,11 +3067,16 @@ export async function bulkDocumentOperationByFilter(
 }
 
 export async function markDocumentAsFailedTimeout(
+  knowledgeBaseId: string,
   documentId: string,
   processingStartedAt: Date,
   requestId: string
 ): Promise<{ success: boolean; processingDuration: number }> {
-  const result = await failStaleDocumentProcessingClaim({ documentId, processingStartedAt })
+  const result = await failStaleDocumentProcessingClaim({
+    knowledgeBaseId,
+    documentId,
+    processingStartedAt,
+  })
 
   if (result.success) {
     logger.info(
@@ -2672,9 +3130,14 @@ export async function retryDocumentProcessing(
       .update(document)
       .set({
         processingStatus: 'pending',
-        // `processingQueuedAt` is stamped by `markDocumentsQueued` on the
-        // dispatch below, for this and every other caller.
+        /**
+         * Invalidates the prior dispatch generation in the same write that
+         * reopens the row. The dispatch below installs its fresh generation.
+         */
+        processingQueuedAt: null,
+        processingQueueToken: null,
         processingStartedAt: null,
+        processingDeferredUntil: null,
         processingCompletedAt: null,
         processingError: null,
         chunkCount: 0,
@@ -2688,7 +3151,11 @@ export async function retryDocumentProcessing(
             inArray(document.processingStatus, ['completed', 'failed']),
             and(
               eq(document.processingStatus, 'pending'),
-              sql`COALESCE(${document.processingQueuedAt}, ${document.uploadedAt}) < ${sql.param(queuedGraceCutoff, document.processingQueuedAt)}`
+              sql`COALESCE(${document.processingQueuedAt}, ${document.uploadedAt}) < ${sql.param(queuedGraceCutoff, document.processingQueuedAt)}`,
+              or(
+                isNull(document.processingDeferredUntil),
+                lt(document.processingDeferredUntil, queuedGraceCutoff)
+              )
             )
           ),
           isNull(document.archivedAt),
@@ -2723,7 +3190,7 @@ export async function retryDocumentProcessing(
    * retryable and visible in the document list with its reason.
    */
   try {
-    await processDocumentsWithQueue(
+    const dispatch = await processDocumentsWithQueue(
       [
         {
           documentId,
@@ -2738,6 +3205,9 @@ export async function retryDocumentProcessing(
       requestId,
       billingAttribution
     )
+    if (dispatch.failed > 0 || dispatch.accepted !== 1) {
+      throw new Error(`Document processing dispatch was not accepted for ${documentId}`)
+    }
   } catch (error) {
     const failureMessage = getErrorMessage(error, 'Document processing dispatch failed')
     await recordUndispatchedDocumentFailure({
@@ -3184,6 +3654,19 @@ async function deleteDocumentsByLifecyclePolicy(
   return excludedCount + hardDeletedCount
 }
 
+export class ConnectorSyncDeletionGuardError extends Error {
+  constructor() {
+    super('Connector sync no longer owns the destructive document operation')
+    this.name = 'ConnectorSyncDeletionGuardError'
+  }
+}
+
+export interface ConnectorSyncDeletionGuard {
+  connectorId: string
+  knowledgeBaseId: string
+  syncLockToken: string
+}
+
 export async function hardDeleteDocuments(
   documentIds: string[],
   requestId: string,
@@ -3197,7 +3680,8 @@ export async function hardDeleteDocuments(
    * despite no longer belonging to the connector the caller reasoned about.
    */
   expectedConnectorId?: string,
-  expectedKnowledgeBaseId?: string
+  expectedKnowledgeBaseId?: string,
+  connectorSyncGuard?: ConnectorSyncDeletionGuard
 ): Promise<number> {
   const ids = [...new Set(documentIds)]
   if (ids.length === 0) {
@@ -3210,7 +3694,8 @@ export async function hardDeleteDocuments(
       ids.slice(offset, offset + HARD_DELETE_DOCUMENT_BATCH_SIZE),
       requestId,
       expectedConnectorId,
-      expectedKnowledgeBaseId
+      expectedKnowledgeBaseId,
+      connectorSyncGuard
     )
   }
   return deletedCount
@@ -3224,9 +3709,14 @@ async function hardDeleteDocumentBatch(
   documentIds: string[],
   requestId: string,
   expectedConnectorId?: string,
-  expectedKnowledgeBaseId?: string
+  expectedKnowledgeBaseId?: string,
+  connectorSyncGuard?: ConnectorSyncDeletionGuard
 ): Promise<number> {
   const ids = [...new Set(documentIds)]
+  const scopedConnectorId = connectorSyncGuard?.connectorId ?? expectedConnectorId
+  const scopedKnowledgeBaseId = connectorSyncGuard?.knowledgeBaseId ?? expectedKnowledgeBaseId
+  const requireEligibleDocument = Boolean(expectedKnowledgeBaseId || connectorSyncGuard)
+  const requireVisibleDocument = Boolean(expectedKnowledgeBaseId && !connectorSyncGuard)
   const documentsToDelete = await db
     .select({
       id: document.id,
@@ -3243,11 +3733,11 @@ async function hardDeleteDocumentBatch(
     .where(
       and(
         inArray(document.id, ids),
-        expectedConnectorId ? eq(document.connectorId, expectedConnectorId) : undefined,
-        expectedKnowledgeBaseId ? eq(document.knowledgeBaseId, expectedKnowledgeBaseId) : undefined,
-        expectedKnowledgeBaseId ? eq(document.userExcluded, false) : undefined,
-        expectedKnowledgeBaseId ? isNull(document.archivedAt) : undefined,
-        expectedKnowledgeBaseId ? isNull(document.deletedAt) : undefined
+        scopedConnectorId ? eq(document.connectorId, scopedConnectorId) : undefined,
+        scopedKnowledgeBaseId ? eq(document.knowledgeBaseId, scopedKnowledgeBaseId) : undefined,
+        requireEligibleDocument ? eq(document.userExcluded, false) : undefined,
+        requireEligibleDocument ? isNull(document.archivedAt) : undefined,
+        requireVisibleDocument ? isNull(document.deletedAt) : undefined
       )
     )
 
@@ -3303,12 +3793,20 @@ async function hardDeleteDocumentBatch(
         userId: knowledgeBase.userId,
       })
       .from(knowledgeBase)
-      .where(inArray(knowledgeBase.id, knowledgeBaseIds))
+      .where(
+        and(
+          inArray(knowledgeBase.id, knowledgeBaseIds),
+          connectorSyncGuard ? isNull(knowledgeBase.deletedAt) : undefined
+        )
+      )
       .orderBy(asc(knowledgeBase.id))
       .for('update')
     const lockedKnowledgeBaseById = new Map(lockedKnowledgeBases.map((kb) => [kb.id, kb]))
     for (const doc of documentsToDelete) {
       const lockedKb = lockedKnowledgeBaseById.get(doc.knowledgeBaseId)
+      if (!lockedKb && connectorSyncGuard) {
+        throw new ConnectorSyncDeletionGuardError()
+      }
       if (
         !lockedKb ||
         lockedKb.workspaceId !== doc.workspaceId ||
@@ -3317,6 +3815,27 @@ async function hardDeleteDocumentBatch(
         throw new Error(
           `Knowledge base ${doc.knowledgeBaseId} storage ownership changed; retry document deletion`
         )
+      }
+    }
+
+    if (connectorSyncGuard) {
+      const [heldSyncLock] = await tx
+        .select({ id: knowledgeConnector.id })
+        .from(knowledgeConnector)
+        .where(
+          and(
+            eq(knowledgeConnector.id, connectorSyncGuard.connectorId),
+            eq(knowledgeConnector.knowledgeBaseId, connectorSyncGuard.knowledgeBaseId),
+            eq(knowledgeConnector.status, 'syncing'),
+            eq(knowledgeConnector.syncLockToken, connectorSyncGuard.syncLockToken),
+            isNull(knowledgeConnector.archivedAt),
+            isNull(knowledgeConnector.deletedAt)
+          )
+        )
+        .for('update')
+
+      if (!heldSyncLock) {
+        throw new ConnectorSyncDeletionGuardError()
       }
     }
 
@@ -3331,7 +3850,7 @@ async function hardDeleteDocumentBatch(
      * ID set rather than the stale `existingIds`.
      */
     const stillTargetedIds =
-      expectedConnectorId || expectedKnowledgeBaseId
+      scopedConnectorId || scopedKnowledgeBaseId
         ? (
             await tx
               .select({ id: document.id })
@@ -3339,15 +3858,17 @@ async function hardDeleteDocumentBatch(
               .where(
                 and(
                   inArray(document.id, existingIds),
-                  expectedConnectorId ? eq(document.connectorId, expectedConnectorId) : undefined,
-                  expectedKnowledgeBaseId
-                    ? eq(document.knowledgeBaseId, expectedKnowledgeBaseId)
+                  scopedConnectorId ? eq(document.connectorId, scopedConnectorId) : undefined,
+                  scopedKnowledgeBaseId
+                    ? eq(document.knowledgeBaseId, scopedKnowledgeBaseId)
                     : undefined,
-                  expectedKnowledgeBaseId ? eq(document.userExcluded, false) : undefined,
-                  expectedKnowledgeBaseId ? isNull(document.archivedAt) : undefined,
-                  expectedKnowledgeBaseId ? isNull(document.deletedAt) : undefined
+                  requireEligibleDocument ? eq(document.userExcluded, false) : undefined,
+                  requireEligibleDocument ? isNull(document.archivedAt) : undefined,
+                  requireVisibleDocument ? isNull(document.deletedAt) : undefined
                 )
               )
+              .orderBy(asc(document.id))
+              .for('update')
           ).map((d) => d.id)
         : existingIds
 

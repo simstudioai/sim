@@ -21,16 +21,16 @@ Non-secret settings live in `~/.sim/config`:
 ```ini
 [default]
 endpoint = https://www.sim.ai
-workspace = ws_abc123
+workspace = b7f4a1c3-9e02-4d68-8a5b-1c3f6d90e274
 output = table
 
 [profile dev]
 endpoint = http://localhost:3000
-workspace = ws_local
+workspace = a3c81b02-5f4d-4e19-9d7a-2b6c1e084f55
 
 [profile acme]
 auth_profile = default
-workspace = ws_acme
+workspace = 7e2d9c14-6b83-4a55-8f01-c4d3e9a76b28
 ```
 
 Keys live in `~/.sim/credentials`, written `0600`:
@@ -48,11 +48,21 @@ The section-naming asymmetry — `[profile dev]` in config, `[dev]` in credentia
 
 ```bash
 sim configure --set-endpoint http://localhost:3000 --profile dev
-sim configure --set-workspace ws_local --profile dev
-sim profiles                                      # list them; * marks the active one
-sim profile add acme --workspace ws_acme          # share the active stored login
-sim whoami            # resolved values, where each came from, and whether they work
+sim configure --set-workspace a3c81b02-5f4d-4e19-9d7a-2b6c1e084f55 --profile dev
+
+sim profiles   # list them; * marks the active one
+sim whoami     # resolved values, where each came from, and whether they work
+
+# Share the active stored login with a second workspace
+sim profile add acme --workspace 7e2d9c14-6b83-4a55-8f01-c4d3e9a76b28
 ```
+
+A profile name that is not configured is refused, with the closest configured
+name suggested. A typo used to fall through to the built-in defaults, so
+`--profile stagng` talked to production and handed it whatever key resolved.
+The two exceptions are the commands whose job is to create a profile:
+`sim login --profile new` and `sim configure --profile new` still accept a name
+that does not exist yet.
 
 ## Where settings come from
 
@@ -62,13 +72,13 @@ Each setting resolves independently, first match wins:
 | --- | --- |
 | 1 | Command-line flag (`--endpoint`, `--workspace`, `--output`) |
 | 2 | Environment (`SIM_ENDPOINT`, `SIM_API_KEY`, `SIM_WORKSPACE`, `SIM_OUTPUT`) |
+| 3 | `~/.sim/config` for the selected profile and credentials for its `auth_profile`, when set |
+| 4 | Built-in default (`https://www.sim.ai`, `table`) |
 
 `SIM_TIMEOUT_SECONDS` bounds each request (default `3600`, `0` waits
 indefinitely) and `SIM_DEBUG=1` traces requests to stderr. Node ignores
 `HTTPS_PROXY` unless `NODE_USE_ENV_PROXY=1` is also set, on Node 22.21+ or
 24.5+; the CLI warns when a proxy is configured but will not be used.
-| 3 | `~/.sim/config` for the selected profile and credentials for its `auth_profile`, when set |
-| 4 | Built-in default (`https://www.sim.ai`, `table`) |
 
 Formats are listed under [Output formats](#output-formats).
 
@@ -105,7 +115,8 @@ http://localhost:3000/cli/auth?request=…&scope=platform
 Waiting for approval…
 
 ✓ Logged in. Key stored in /Users/you/.sim/credentials
-  Personal key, defaulting to ws_local. Override per command with --workspace.
+  Personal key, defaulting to a3c81b02-5f4d-4e19-9d7a-2b6c1e084f55.
+  Override per command with --workspace.
 ```
 
 The approval page is where you pick the workspace — the terminal has no key yet,
@@ -116,6 +127,35 @@ the key can access.
 
 `sim login --workspace <id>` preselects a workspace in the picker, and an
 existing profile's workspace preselects itself on re-login.
+
+### Personal and workspace keys
+
+Some operations accept only a **personal** API key: secrets, knowledge chunks,
+knowledge connectors, knowledge tag writes, `chat`, `audit-logs`, and most
+workflow deployment writes. A workspace-scoped key gets a `FORBIDDEN` response
+on those, under one of two codes:
+
+- `WORKSPACE_KEY_OPERATION_NOT_PERMITTED` — the workspace-scoped operations,
+  which is most of the list: secrets, knowledge, `chat`, and the deployment
+  writes.
+- `PRINCIPAL_KIND_NOT_PERMITTED` — the organization-scoped ones, which never go
+  through workspace authorization at all. `audit-logs` is the one in this list.
+
+Match on either when you are branching on the refusal. `sim whoami` reports
+which kind you hold on its `Key type` row, and `sim meta status` reports the
+same thing as `personal` or `workspace` alongside the rest of the key's state:
+
+```bash
+$ sim meta status --output json
+{
+  "v2Enabled": true,
+  "keyType": "personal",
+  "expiresAt": null
+}
+```
+
+`sim whoami --no-verify` stays offline and so cannot read the key type; it
+prints `not checked` instead.
 
 `sim logout` removes the stored key. A shared workspace profile cannot remove
 its authentication profile's key; use `sim logout --all --profile <name>` to
@@ -129,10 +169,14 @@ The commands below are the common ones. The complete reference — every group,
 subcommand, argument, and flag, generated from this package — is at
 [docs.sim.ai/cli/commands](https://docs.sim.ai/cli/commands).
 
-Plural resource names are canonical, but every plural top-level resource group
-also accepts its singular form: for example, `sim table list`,
-`sim file get`, and `sim workflow get` are equivalent to their plural
-spellings.
+Plural resource names are canonical. Most plural top-level resource groups also
+accept their singular form — `sim table list`, `sim file get`, and
+`sim workflow get` are equivalent to their plural spellings. The groups with a
+singular alias are `audit-logs`, `credentials`, `custom-tools`, `files`, `logs`,
+`mcp-servers`, `secrets`, `skills`, `tables`, `workflows`, and `workspaces`;
+`blocks`, `tools`, `chat-deployments`, `connector-types`, and
+`workflow-mcp-servers` are plural-only. `sim --help` lists each group with the
+aliases it actually accepts.
 
 `knowledge` also accepts the shorter `kb` alias.
 
@@ -152,8 +196,8 @@ sim workflows runs resume <runId> --workflow <workflowId> --context <contextId> 
 sim logs list [--level error] [--workflow <id>…] [--trigger <name>…] [--start-date <date>]
 sim logs get <runId>
 
-sim audit-logs list --organization <organizationId> [--all-workspaces]
-sim audit-logs get <id> --organization <organizationId>
+sim audit-logs list [--organization <organizationId>] [--all-workspaces]
+sim audit-logs get <id> [--organization <organizationId>]
 
 sim workspaces list
 sim workspaces get
@@ -204,7 +248,8 @@ sim billing logs [--period 7d] [--source sim-chat] [--limit <n>] [--all-workspac
 ```
 
 The `sim-chat` billing source combines Copilot and workspace chat usage.
-Organization audit logs require a personal API key. Commands with
+Organization audit logs require a personal API key; `--organization` defaults
+to your only organization and is needed only when you belong to more than one. Commands with
 `--all-workspaces` otherwise default to the workspace in the active profile.
 
 `workflows runs get` is the lightweight status and polling resource.
@@ -255,13 +300,36 @@ Primitive lists take space-separated values. Prefix a path with `@` to read
 one value per line, or use `@-` to read the list from stdin.
 
 ```bash
-sim files mv --file-ids file_1 file_2 --to Archive
+sim files mv --file-ids wf_3Kq9tVbN2xLpR7sWmZ4dY wf_8Jd5cHy1QnT6vXbA0rEuP --to Archive
 sim files mv --file-ids @file-ids.txt --to Archive
-printf 'file_1\nfile_2\n' | sim files mv --file-ids @- --to Archive
+printf 'wf_3Kq9tVbN2xLpR7sWmZ4dY\nwf_8Jd5cHy1QnT6vXbA0rEuP\n' | sim files mv --file-ids @- --to Archive
 ```
+
+File IDs carry a `wf_` prefix, as above. Workflow, knowledge-base, and
+workspace IDs are bare UUIDs, and table IDs are `tbl_`-prefixed — the `wf_`
+prefix belongs to files, not workflows.
 
 Arrays of objects remain JSON inputs because they cannot be represented as a
 flat list without losing structure.
+
+### Secret values
+
+`sim secrets set` takes the same `@` convention for its `--value`. Passing a
+secret inline exposes it to shell history and to anything reading the process
+list, so prefer a file or stdin; the contents are sent verbatim, with no
+trimming. A value that genuinely begins with `@` is written `@@`, and only the
+leading `@` is dropped. Omit `--value` entirely and the terminal prompts for it
+without echoing.
+
+```bash
+sim secrets set STRIPE_KEY --scope workspace --value @stripe.key
+op read op://vault/stripe/key | sim secrets set STRIPE_KEY --scope workspace --value @-
+sim secrets set MENTION --scope workspace --value @@channel   # the literal @channel
+```
+
+`--unredacted` marks a workspace secret whose value may appear in run logs and
+model-visible content; `--no-unredacted` restores redaction. Omit both and the
+secret keeps whatever it had. Both apply only to `--scope workspace`.
 
 ### Filtering table rows
 
@@ -311,9 +379,10 @@ sim --output json logs list --level error | jq -r '.[].runId'
 sim logs list --level error --output json | jq -r '.[].runId'
 SIM_OUTPUT=yaml sim logs list --level error > logs.yaml
 
-SIM_OUTPUT=text sim files list | while IFS=$'\t' read -r id name size type uploaded; do
-  echo "$id $name"
-done
+SIM_OUTPUT=text sim files list |
+  while IFS=$'\t' read -r id name folder size type uploaded_by uploaded; do
+    echo "$id $name"
+  done
 ```
 
 An absent value is an em-dash in `table` and an **empty field** in `text`, so

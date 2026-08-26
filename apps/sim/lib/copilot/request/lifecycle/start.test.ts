@@ -25,7 +25,9 @@ const {
   appendEvent,
   cleanupAbortMarker,
   hasAbortMarker,
+  registerActiveStream,
   releasePendingChatStream,
+  unregisterActiveStream,
   fetchGo,
 } = vi.hoisted(() => ({
   runCopilotLifecycle: vi.fn(),
@@ -39,7 +41,9 @@ const {
   appendEvent: vi.fn(),
   cleanupAbortMarker: vi.fn(),
   hasAbortMarker: vi.fn(),
+  registerActiveStream: vi.fn(),
   releasePendingChatStream: vi.fn(),
+  unregisterActiveStream: vi.fn(),
   fetchGo: vi.fn(),
 }))
 
@@ -77,8 +81,8 @@ vi.mock('@/lib/copilot/request/session', () => ({
   cleanupAbortMarker,
   hasAbortMarker,
   releasePendingChatStream,
-  registerActiveStream: vi.fn(),
-  unregisterActiveStream: vi.fn(),
+  registerActiveStream,
+  unregisterActiveStream,
   startAbortPoller: vi.fn().mockReturnValue(setInterval(() => {}, 999999)),
   isExplicitStopReason: vi.fn().mockReturnValue(false),
   SSE_RESPONSE_HEADERS: {},
@@ -323,6 +327,32 @@ describe('createSSEStream terminal error handling', () => {
     await drainStream(stream)
 
     expect(lifecycleTraceparent).toMatch(/^00-[0-9a-f]{32}-[0-9a-f]{16}-0[0-9a-f]$/)
+  })
+
+  it('releases the stream registration and pollers when the session reset fails before the lifecycle starts', async () => {
+    resetBuffer.mockRejectedValue(new Error('redis down'))
+
+    const stream = createSSEStream({
+      requestPayload: { message: 'hello' },
+      userId: 'user-1',
+      streamId: 'stream-leak',
+      executionId: 'exec-leak',
+      runId: 'run-leak',
+      chatId: 'chat-leak',
+      currentChat: null,
+      isNewChat: false,
+      message: 'hello',
+      titleModel: 'gpt-5.4',
+      requestId: 'req-leak',
+      orchestrateOptions: {},
+    })
+
+    await expect(drainStream(stream)).rejects.toThrow('redis down')
+
+    expect(runCopilotLifecycle).not.toHaveBeenCalled()
+    expect(registerActiveStream).toHaveBeenCalledWith('stream-leak', expect.any(AbortController))
+    expect(unregisterActiveStream).toHaveBeenCalledWith('stream-leak')
+    expect(releasePendingChatStream).toHaveBeenCalledWith('chat-leak', 'stream-leak')
   })
 
   it('does not scan manually authored title input against unrelated active secrets', async () => {

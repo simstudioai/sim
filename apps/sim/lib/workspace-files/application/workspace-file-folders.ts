@@ -99,10 +99,15 @@ export interface DeleteWorkspaceFileFolderResult {
   path?: string
 }
 
-export interface RestoreWorkspaceFileFolderInput {
+/**
+ * Addresses exactly one archived folder — by internal id, or by the canonical
+ * path an archived-scope list reports. The two selectors are mutually exclusive
+ * by construction: a caller supplying neither, or both, is a compile error rather
+ * than a `validation` failure raised after the operation has already authorized.
+ */
+export type RestoreWorkspaceFileFolderInput = {
   workspaceId: string
-  folderId: string
-}
+} & ({ folderId: string; path?: never } | { folderId?: never; path: string })
 
 export interface RestoreWorkspaceFileFolderResult {
   folder: WorkspaceFileFolderRecord
@@ -244,11 +249,41 @@ async function executeDeleteWorkspaceFileFolder(args: {
   return { deletedItems, path: args.input.path }
 }
 
+/**
+ * Resolves an archived folder's id from its canonical path.
+ *
+ * Deliberately scans the archived set rather than walking the active tree:
+ * `findWorkspaceFileFolderIdByPath` resolves live folders, and the folder being
+ * restored is by definition not one. Folder counts are small — this is the same
+ * full set the folder list already returns unpaged — so a scan is cheaper than
+ * a second recursive path query.
+ */
+async function findArchivedFolderIdByPath(workspaceId: string, path: string): Promise<string> {
+  const target = parseFolderPath(path)
+  if (target.length === 0) {
+    throw new OrchestrationError('validation', 'The workspace root cannot be restored')
+  }
+  const archived = await listWorkspaceFileFolders(workspaceId, { scope: 'archived' })
+  const match = archived.find((folder) => {
+    const segments = parseWorkspaceFileFolderDisplayPath(folder.path)
+    return (
+      segments.length === target.length &&
+      segments.every((segment, index) => segment === target[index])
+    )
+  })
+  if (!match) throw new OrchestrationError('not_found', 'Folder not found')
+  return match.id
+}
+
 async function executeRestoreWorkspaceFileFolder(args: {
   input: RestoreWorkspaceFileFolderInput
   context: FolderOperationContext
 }): Promise<RestoreWorkspaceFileFolderResult> {
-  return restoreWorkspaceFileFolder(args.context.workspaceId, args.input.folderId)
+  const folderId =
+    args.input.path !== undefined
+      ? await findArchivedFolderIdByPath(args.context.workspaceId, args.input.path)
+      : args.input.folderId
+  return restoreWorkspaceFileFolder(args.context.workspaceId, folderId)
 }
 
 export const listWorkspaceFileFoldersOperation = defineAuthorizedWorkspaceFileUseCase({
@@ -332,11 +367,11 @@ export const restoreWorkspaceFileFolderOperation = defineAuthorizedWorkspaceFile
   operation: fileOperations.restoreFolder,
   resolveContext: (args: { input: RestoreWorkspaceFileFolderInput }) => resolveFolderContext(args),
   execute: executeRestoreWorkspaceFileFolder,
-  projectAudit({ input, result }) {
+  projectAudit({ result }) {
     return {
       action: AuditAction.FOLDER_RESTORED,
       resourceType: AuditResourceType.FOLDER,
-      resourceId: input.folderId,
+      resourceId: result.folder.id,
       resourceName: result.folder.name,
       description: `Restored file folder "${result.folder.name}"`,
       metadata: { restoredItems: result.restoredItems },

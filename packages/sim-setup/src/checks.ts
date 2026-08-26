@@ -482,18 +482,6 @@ function checkCoherence(ctx: CheckContext): Finding[] {
     }
   }
   if (
-    isTruthy(sim.vars.get('PII_GRANULAR_REDACTION')) &&
-    !isTruthy(sim.vars.get('PII_REDACTION'))
-  ) {
-    findings.push({
-      group: 'coherence',
-      status: 'warn',
-      message:
-        'PII_GRANULAR_REDACTION is on but PII_REDACTION is off — the granular flag is inert without it',
-      fix: 'set PII_REDACTION=true or remove PII_GRANULAR_REDACTION',
-    })
-  }
-  if (
     Boolean(sim.vars.get('TURNSTILE_SECRET_KEY')) !==
     Boolean(sim.vars.get('NEXT_PUBLIC_TURNSTILE_SITE_KEY'))
   ) {

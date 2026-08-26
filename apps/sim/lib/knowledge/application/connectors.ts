@@ -581,7 +581,7 @@ export const updateKnowledgeConnectorDocuments = defineAuthorizedKnowledgeUseCas
         and(
           eq(document.connectorId, context.connectorId),
           inArray(document.id, documentIds),
-          eq(document.userExcluded, !restoring),
+          eq(document.userExcluded, restoring),
           isNull(document.archivedAt),
           isNull(document.deletedAt)
         )

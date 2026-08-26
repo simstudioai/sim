@@ -40,12 +40,15 @@ export const POST = defineV2JsonRoute({
     limit:
       body.limit === undefined ? V2_DEFAULT_ROW_LIMIT : body.limit === 0 ? undefined : body.limit,
     includeTotal: false,
+    includeRunState: body.includeRunState,
   }),
   useCase: queryTableRows,
-  present: ({ table, rows, nextCursor }, { params }) => {
+  present: ({ table, rows, nextCursor }, { params, body }) => {
     const toNamedRow = namedRowMapper(table.schema.columns)
     return {
-      data: rows.map((row) => toApiRow(row, toNamedRow)),
+      data: rows.map((row) =>
+        toApiRow(row, toNamedRow, body.includeRunState ? row.executions : undefined)
+      ),
       nextCursor: nextCursor
         ? encodeScopedCursor(queryRowCursorScope(params.tableId), nextCursor)
         : null,

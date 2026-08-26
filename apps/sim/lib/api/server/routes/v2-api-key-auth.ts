@@ -21,10 +21,16 @@ interface RateLimitSubscription {
 
 export interface V2ApiKeyAuthContext {
   principal: V2ApiKeyPrincipal
-  rolloutUserId: string
   rateLimitSubjectIds: readonly [string, ...string[]]
   rateLimitSubscription: RateLimitSubscription | null
   keyType: 'personal' | 'workspace'
+  /**
+   * When the authenticated key expires, or `null` when it never does — read
+   * from the same row `requireValidRow` has just checked, so no surface has to
+   * go back to the API-key table for it. `/api/v2/meta` reports it, and the
+   * application layer must never query `api_key` itself to find it out.
+   */
+  keyExpiresAt: Date | null
 }
 
 export class V2ApiKeyUnauthenticatedError extends Error {
@@ -68,10 +74,10 @@ export async function authenticateV2ApiKey(
         userId: ANONYMOUS_USER_ID,
         keyId: 'auth-disabled',
       },
-      rolloutUserId: ANONYMOUS_USER_ID,
       rateLimitSubjectIds: [`user:${ANONYMOUS_USER_ID}`],
       rateLimitSubscription: null,
       keyType: 'personal',
+      keyExpiresAt: null,
     }
   }
   if (!apiKeyHeader) {
@@ -100,12 +106,12 @@ export async function authenticateV2ApiKey(
     const subscription = await getHighestPrioritySubscription(row.userId, { onError: 'throw' })
     return {
       principal: { kind: 'personal_api_key', userId: row.userId, keyId: row.id },
-      rolloutUserId: row.userId,
       rateLimitSubjectIds: [`api-key:${row.id}`, `user:${row.userId}`],
       rateLimitSubscription: subscription
         ? { plan: subscription.plan, referenceId: subscription.referenceId }
         : null,
       keyType: 'personal',
+      keyExpiresAt: row.expiresAt,
     }
   }
 
@@ -119,7 +125,6 @@ export async function authenticateV2ApiKey(
   }
   return {
     principal: { kind: 'workspace_api_key', workspaceId, keyId: row.id },
-    rolloutUserId: payer.billedAccountUserId,
     rateLimitSubjectIds: [`api-key:${row.id}`, `workspace:${workspaceId}`],
     rateLimitSubscription: payer.payerSubscription
       ? {
@@ -128,5 +133,6 @@ export async function authenticateV2ApiKey(
         }
       : null,
     keyType: 'workspace',
+    keyExpiresAt: row.expiresAt,
   }
 }

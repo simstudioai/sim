@@ -1,13 +1,14 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { ChunkBudget } from '@/lib/chunkers/chunk-budget'
 import type { Chunk, RegexChunkerOptions } from '@/lib/chunkers/types'
 import {
   addOverlap,
   buildChunks,
   cleanText,
   estimateTokens,
+  iterateWordBoundaryChunks,
   resolveChunkerOptions,
-  splitAtWordBoundaries,
   tokensToChars,
 } from '@/lib/chunkers/utils'
 import {
@@ -63,6 +64,7 @@ export class RegexChunker {
   private readonly chunkOverlap: number
   private readonly regex: LinearRegex
   private readonly strictBoundaries: boolean
+  private readonly maxChunks?: number
 
   constructor(options: RegexChunkerOptions) {
     const resolved = resolveChunkerOptions(options)
@@ -70,6 +72,7 @@ export class RegexChunker {
     this.chunkOverlap = resolved.chunkOverlap
     this.regex = this.compilePattern(options.pattern)
     this.strictBoundaries = options.strictBoundaries ?? false
+    this.maxChunks = options.maxChunks
   }
 
   /**
@@ -122,21 +125,41 @@ export class RegexChunker {
 
     if (!this.strictBoundaries && estimateTokens(cleaned) <= this.chunkSize) {
       logger.info('Content fits in single chunk')
-      return buildChunks([cleaned], 0)
+      const texts: string[] = []
+      new ChunkBudget(this.maxChunks).add(texts, cleaned)
+      return buildChunks(texts, 0)
     }
 
-    const segments = this.regex.split(cleaned).filter((s) => s.trim().length > 0)
-
-    if (segments.length <= 1) {
-      if (this.strictBoundaries) {
+    const segments = this.nonEmptySegments(cleaned)
+    if (this.strictBoundaries) {
+      const first = segments.next()
+      const second = segments.next()
+      if (first.done || second.done) {
+        const chunks: string[] = []
+        new ChunkBudget(this.maxChunks).add(chunks, cleaned.trim())
         logger.info('Regex pattern produced no splits in strict mode, returning single chunk')
-        return buildChunks([cleaned.trim()], 0)
+        return buildChunks(chunks, 0)
       }
+
+      const allSegments = this.prependSegments(first.value, second.value, segments)
+      const chunks = this.expandOversizedSegments(allSegments, new ChunkBudget(this.maxChunks))
+      logger.info(`Chunked into ${chunks.length} strict-boundary regex chunks`)
+      return buildChunks(chunks, 0)
+    }
+
+    const first = segments.next()
+    const second = segments.next()
+
+    if (first.done || second.done) {
       logger.warn(
         'Regex pattern did not produce any splits, falling back to word-boundary splitting'
       )
       const chunkSizeChars = tokensToChars(this.chunkSize)
-      let chunks = splitAtWordBoundaries(cleaned, chunkSizeChars)
+      const budget = new ChunkBudget(this.maxChunks)
+      let chunks: string[] = []
+      for (const chunk of iterateWordBoundaryChunks(cleaned, chunkSizeChars)) {
+        budget.add(chunks, chunk)
+      }
       if (this.chunkOverlap > 0) {
         const overlapChars = tokensToChars(this.chunkOverlap)
         chunks = addOverlap(chunks, overlapChars)
@@ -144,13 +167,9 @@ export class RegexChunker {
       return buildChunks(chunks, this.chunkOverlap)
     }
 
-    if (this.strictBoundaries) {
-      const chunks = this.expandOversizedSegments(segments)
-      logger.info(`Chunked into ${chunks.length} strict-boundary regex chunks`)
-      return buildChunks(chunks, 0)
-    }
-
-    const merged = this.mergeSegments(segments)
+    const allSegments = this.prependSegments(first.value, second.value, segments)
+    const budget = new ChunkBudget(this.maxChunks)
+    const merged = this.mergeSegments(allSegments, budget)
 
     let chunks = merged
     if (this.chunkOverlap > 0) {
@@ -162,12 +181,28 @@ export class RegexChunker {
     return buildChunks(chunks, this.chunkOverlap)
   }
 
+  private *nonEmptySegments(content: string): Generator<string> {
+    for (const segment of this.regex.iterateSplits(content)) {
+      if (segment.trim()) yield segment
+    }
+  }
+
+  private *prependSegments(
+    first: string,
+    second: string,
+    rest: Iterable<string>
+  ): Generator<string> {
+    yield first
+    yield second
+    yield* rest
+  }
+
   /**
    * In strict-boundary mode each segment becomes its own chunk. Segments that
    * exceed chunkSize are still split at word boundaries to preserve the token
    * limit invariant; this is a safety floor, not a merge.
    */
-  private expandOversizedSegments(segments: string[]): string[] {
+  private expandOversizedSegments(segments: Iterable<string>, budget: ChunkBudget): string[] {
     const result: string[] = []
     const chunkSizeChars = tokensToChars(this.chunkSize)
 
@@ -176,11 +211,10 @@ export class RegexChunker {
       if (!trimmed) continue
 
       if (estimateTokens(trimmed) <= this.chunkSize) {
-        result.push(trimmed)
+        budget.add(result, trimmed)
       } else {
-        const subChunks = splitAtWordBoundaries(trimmed, chunkSizeChars)
-        for (const sub of subChunks) {
-          if (sub.trim()) result.push(sub)
+        for (const sub of iterateWordBoundaryChunks(trimmed, chunkSizeChars)) {
+          if (sub.trim()) budget.add(result, sub)
         }
       }
     }
@@ -188,7 +222,7 @@ export class RegexChunker {
     return result
   }
 
-  private mergeSegments(segments: string[]): string[] {
+  private mergeSegments(segments: Iterable<string>, budget: ChunkBudget): string[] {
     const chunks: string[] = []
     let current = ''
 
@@ -199,14 +233,13 @@ export class RegexChunker {
         current = test
       } else {
         if (current.trim()) {
-          chunks.push(current.trim())
+          budget.add(chunks, current.trim())
         }
 
         if (estimateTokens(segment) > this.chunkSize) {
           const chunkSizeChars = tokensToChars(this.chunkSize)
-          const subChunks = splitAtWordBoundaries(segment, chunkSizeChars)
-          for (const sub of subChunks) {
-            chunks.push(sub)
+          for (const sub of iterateWordBoundaryChunks(segment, chunkSizeChars)) {
+            budget.add(chunks, sub)
           }
           current = ''
         } else {
@@ -216,7 +249,7 @@ export class RegexChunker {
     }
 
     if (current.trim()) {
-      chunks.push(current.trim())
+      budget.add(chunks, current.trim())
     }
 
     return chunks

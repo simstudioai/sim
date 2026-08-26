@@ -48,8 +48,8 @@ const PRIVATE_NO_STORE = { 'Cache-Control': 'private, no-store' } as const
  * improvement on the baseline rather than a conformance fix: without it a
  * client's only defensible policy on a 503 is an immediate retry, which is
  * exactly the traffic a degraded dependency cannot absorb. Sim raises 503 when
- * the API-key store, the rollout gate, the rate-limit backend, or
- * execution-identity allocation is briefly unavailable, and all four are made
+ * the API-key store, the rate-limit backend, or execution-identity allocation
+ * is briefly unavailable, and all three are made
  * worse by an unthrottled retry storm.
  *
  * 429 is deliberately absent because every 429 already knows its own wait: the

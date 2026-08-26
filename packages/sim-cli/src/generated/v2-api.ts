@@ -25,6 +25,7 @@ export type AbortFileUploadHeaders = {
 
 type AbortFileUploadResponseRef0 = {
   id: string
+  webUrl: string
   name: string
   size: number
   type: string
@@ -59,9 +60,9 @@ export type AbortFileUploadResponse = {
   data: AbortFileUploadResponseRef1
 }
 
-/** `DELETE /api/v2/knowledge/[id]/documents/uploads/[uploadId]` */
+/** `DELETE /api/v2/knowledge/[knowledgeBaseId]/documents/uploads/[uploadId]` */
 export type AbortKnowledgeDocumentUploadParams = {
-  id: string
+  knowledgeBaseId: string
   uploadId: string
 }
 
@@ -109,6 +110,63 @@ type AbortKnowledgeDocumentUploadResponseRef1 = {
 
 export type AbortKnowledgeDocumentUploadResponse = {
   data: AbortKnowledgeDocumentUploadResponseRef1
+}
+
+/** `POST /api/v2/workflows/[workflowId]/versions/[version]/activate` */
+export type ActivateWorkflowVersionParams = {
+  version: number
+  workflowId: string
+}
+
+export type ActivateWorkflowVersionQuery = Record<string, unknown>
+
+export type ActivateWorkflowVersionBody = Record<string, unknown>
+
+type ActivateWorkflowVersionResponseRef0 = {
+  deploymentVersionId: string
+  version: number
+  deployedAt: string
+}
+
+type ActivateWorkflowVersionResponseRef1 = {
+  id: string
+  deploymentVersionId: string
+  version: number
+  action: 'deploy' | 'activate'
+  status: 'preparing' | 'activating' | 'active' | 'failed' | 'superseded'
+  isCurrent: boolean
+  readiness: ActivateWorkflowVersionResponseRef2
+  requestedAt: string
+  activatedAt?: string | null
+  error?: ActivateWorkflowVersionResponseRef3 | null
+}
+
+type ActivateWorkflowVersionResponseRef2 = {
+  webhooks: 'pending' | 'ready' | 'not_applicable'
+  schedules: 'pending' | 'ready' | 'not_applicable'
+  mcp: 'pending' | 'ready' | 'not_applicable'
+}
+
+type ActivateWorkflowVersionResponseRef3 = {
+  code: string
+  message: string
+  retryable: boolean
+}
+
+type ActivateWorkflowVersionResponseRef4 = ActivateWorkflowVersionResponseRef5
+
+type ActivateWorkflowVersionResponseRef5 = {
+  id: string
+  isDeployed: boolean
+  deployedAt: string | null
+  warnings: Array<string>
+  activeDeployment: ActivateWorkflowVersionResponseRef0 | null
+  latestDeploymentAttempt: ActivateWorkflowVersionResponseRef1 | null
+  version: number
+}
+
+export type ActivateWorkflowVersionResponse = {
+  data: ActivateWorkflowVersionResponseRef4
 }
 
 /** `POST /api/v2/tables/[tableId]/columns` */
@@ -242,6 +300,241 @@ export type AddWorkflowGroupResponse = {
   data: AddWorkflowGroupResponseRef1
 }
 
+/** `POST /api/v2/knowledge/[knowledgeBaseId]/documents/from-workspace-files` */
+export type AddWorkspaceFilesToKnowledgeBaseParams = {
+  knowledgeBaseId: string
+}
+
+export type AddWorkspaceFilesToKnowledgeBaseQuery = Record<string, unknown>
+
+export type AddWorkspaceFilesToKnowledgeBaseBody = {
+  workspaceId: string
+  fileReferences: Array<string>
+}
+
+type AddWorkspaceFilesToKnowledgeBaseResponseRef0 = {
+  documentId: string
+  filename: string
+  mimeType: string
+  fileSize: number
+}
+
+type AddWorkspaceFilesToKnowledgeBaseResponseRef1 = {
+  knowledgeBaseId: string
+  added: Array<AddWorkspaceFilesToKnowledgeBaseResponseRef0>
+  failed: Array<string>
+}
+
+export type AddWorkspaceFilesToKnowledgeBaseResponse = {
+  data: AddWorkspaceFilesToKnowledgeBaseResponseRef1
+}
+
+/** `POST /api/v2/workflows/[workflowId]/operations` */
+export type ApplyWorkflowOperationsParams = {
+  workflowId: string
+}
+
+export type ApplyWorkflowOperationsQuery = {
+  dryRun?: boolean
+}
+
+type ApplyWorkflowOperationsBodyRef0 =
+  | {
+      operation_type: 'add'
+      block_id: string
+      params: {
+        type: string
+        name: string
+      }
+    }
+  | {
+      operation_type: 'edit'
+      block_id: string
+      params: Record<string, unknown>
+    }
+  | {
+      operation_type: 'delete'
+      block_id: string
+    }
+  | {
+      operation_type: 'insert_into_subflow'
+      block_id: string
+      params: {
+        subflowId: string
+        type: string
+        name: string
+      }
+    }
+  | {
+      operation_type: 'extract_from_subflow'
+      block_id: string
+      params: {
+        subflowId: string
+      }
+    }
+
+export type ApplyWorkflowOperationsBody = {
+  operations: Array<ApplyWorkflowOperationsBodyRef0>
+  atomic?: boolean
+  layout?: 'targeted' | 'none'
+  setBlockEnabled?: Array<{
+    block_id: string
+    enabled: boolean
+  }>
+}
+
+type ApplyWorkflowOperationsResponseRef0 = {
+  type:
+    | 'block_not_found'
+    | 'invalid_block_type'
+    | 'block_not_allowed'
+    | 'model_not_allowed'
+    | 'block_locked'
+    | 'tool_not_allowed'
+    | 'invalid_edge_target'
+    | 'invalid_edge_source'
+    | 'invalid_edge_scope'
+    | 'invalid_source_handle'
+    | 'invalid_target_handle'
+    | 'invalid_subblock_field'
+    | 'missing_required_params'
+    | 'invalid_subflow_parent'
+    | 'nested_subflow_not_allowed'
+    | 'duplicate_block_name'
+    | 'reserved_block_name'
+    | 'retry_not_supported'
+    | 'duplicate_trigger'
+    | 'duplicate_single_instance_block'
+    | 'disabled_ancestor'
+  operationType: string
+  blockId: string
+  reason: string
+  details?: Record<string, unknown>
+}
+
+type ApplyWorkflowOperationsResponseRef1 = {
+  blockId: string
+  blockType: string
+  field: string
+  error: string
+}
+
+type ApplyWorkflowOperationsResponseRef2 = {
+  sources: Array<{
+    blockId: string
+    blockName: string | null
+    blockType: string | null
+  }>
+  sinks: Array<{
+    blockId: string
+    blockName: string | null
+    blockType: string | null
+  }>
+  orphanBlocks: Array<{
+    blockId: string
+    blockName: string | null
+    blockType: string | null
+  }>
+  emptyOutgoingPorts: Array<{
+    blockId: string
+    blockName: string | null
+    blockType: string | null
+    handle: string
+    label: string
+  }>
+  invalidBranchPorts: Array<{
+    blockId: string
+    blockName: string | null
+    blockType: string | null
+    sourceHandle: string
+    reason: string
+  }>
+  invalidConnectionTargets: Array<{
+    sourceBlockId: string
+    sourceBlockName: string | null
+    sourceHandle: string | null
+    targetBlockId: string
+    reason: string
+  }>
+  fieldIssues: Array<{
+    blockId: string
+    blockName: string | null
+    blockType: string | null
+    missingRequiredFields: Array<string>
+    inactiveModeValues: Array<{
+      canonicalId: string
+      activeMemberId: string | null
+      inactiveMemberId: string
+      kind: 'credential' | 'resource' | 'other'
+    }>
+  }>
+  unresolvedReferences: Array<{
+    blockId: string
+    blockName: string | null
+    blockType: string | null
+    field: string
+    value: string | Array<string>
+    kind: 'credential' | 'resource' | 'custom-tool' | 'mcp-tool' | 'skill'
+    reason: string
+  }>
+  notes: Array<string>
+}
+
+type ApplyWorkflowOperationsResponseRef3 = {
+  id: string
+  warnings: Array<string>
+  needsRedeployment: boolean
+  applied: number
+  skipped: Array<ApplyWorkflowOperationsResponseRef0>
+  deferred: Array<ApplyWorkflowOperationsResponseRef0>
+  inputValidationErrors: Array<ApplyWorkflowOperationsResponseRef1>
+  mintedBlockIds: Record<string, string>
+  lint: ApplyWorkflowOperationsResponseRef2
+  dryRun: boolean
+}
+
+export type ApplyWorkflowOperationsResponse = {
+  data: ApplyWorkflowOperationsResponseRef3
+}
+
+/** `PATCH /api/v2/workflows/[workflowId]/variables` */
+export type ApplyWorkflowVariablesParams = {
+  workflowId: string
+}
+
+export type ApplyWorkflowVariablesQuery = Record<string, unknown>
+
+export type ApplyWorkflowVariablesBody = {
+  operations: Array<
+    | {
+        operation: 'add'
+        name: string
+        type: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'plain'
+        value: unknown
+      }
+    | {
+        operation: 'edit'
+        name: string
+        type?: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'plain'
+        value: unknown
+      }
+    | {
+        operation: 'delete'
+        name: string
+      }
+  >
+}
+
+type ApplyWorkflowVariablesResponseRef0 = {
+  id: string
+  variableCount: number
+  changed: boolean
+}
+
+export type ApplyWorkflowVariablesResponse = {
+  data: ApplyWorkflowVariablesResponseRef0
+}
+
 /** `POST /api/v2/files/bulk-delete` */
 export type BulkDeleteFilesQuery = Record<string, unknown>
 
@@ -260,9 +553,138 @@ export type BulkDeleteFilesResponse = {
   data: BulkDeleteFilesResponseRef0
 }
 
-/** `PATCH /api/v2/knowledge/[id]/documents` */
-export type BulkUpdateKnowledgeDocumentsParams = {
+/** `POST /api/v2/tables/bulk-delete` */
+export type BulkDeleteTablesQuery = Record<string, unknown>
+
+type BulkDeleteTablesBodyRef0 = string
+
+export type BulkDeleteTablesBody = {
+  workspaceId: string
+  tableIds?: Array<string>
+  folderPaths?: Array<BulkDeleteTablesBodyRef0>
+}
+
+type BulkDeleteTablesResponseRef0 = {
+  deleted: Array<{
+    kind: 'table' | 'folder'
+    id: string
+    name: string
+  }>
+  skipped: Array<{
+    kind: 'table' | 'folder'
+    id: string
+    name: string
+  }>
+  notFound: Array<{
+    kind: 'table' | 'folder'
+    id: string
+  }>
+  failed: Array<{
+    kind: 'table' | 'folder'
+    id: string
+    name: string
+    reason: string
+  }>
+  deletedItems: {
+    tables: number
+    folders: number
+  }
+}
+
+export type BulkDeleteTablesResponse = {
+  data: BulkDeleteTablesResponseRef0
+}
+
+/** `GET /api/v2/files/bulk-download` */
+export type BulkDownloadFilesQuery = {
+  workspaceId: string
+  fileIds?: string
+  folderPaths?: string
+}
+
+/** Non-JSON response (`binary`). */
+export type BulkDownloadFilesResponse = never
+
+/** `PUT /api/v2/knowledge/[knowledgeBaseId]/tags` */
+export type BulkSaveKnowledgeTagDefinitionsParams = {
+  knowledgeBaseId: string
+}
+
+export type BulkSaveKnowledgeTagDefinitionsQuery = Record<string, unknown>
+
+type BulkSaveKnowledgeTagDefinitionsBodyRef0 = {
+  tagSlot:
+    | 'tag1'
+    | 'tag2'
+    | 'tag3'
+    | 'tag4'
+    | 'tag5'
+    | 'tag6'
+    | 'tag7'
+    | 'number1'
+    | 'number2'
+    | 'number3'
+    | 'number4'
+    | 'number5'
+    | 'date1'
+    | 'date2'
+    | 'boolean1'
+    | 'boolean2'
+    | 'boolean3'
+  displayName: string
+  fieldType: 'text' | 'number' | 'date' | 'boolean'
+  originalDisplayName?: string
+}
+
+export type BulkSaveKnowledgeTagDefinitionsBody = {
+  workspaceId: string
+  definitions: Array<BulkSaveKnowledgeTagDefinitionsBodyRef0>
+}
+
+type BulkSaveKnowledgeTagDefinitionsResponseRef0 = {
   id: string
+  displayName: string
+  tagSlot: string
+  fieldType: string
+}
+
+type BulkSaveKnowledgeTagDefinitionsResponseRef1 = {
+  created: Array<BulkSaveKnowledgeTagDefinitionsResponseRef0>
+  updated: Array<BulkSaveKnowledgeTagDefinitionsResponseRef0>
+  errors: Array<string>
+}
+
+export type BulkSaveKnowledgeTagDefinitionsResponse = {
+  data: BulkSaveKnowledgeTagDefinitionsResponseRef1
+}
+
+/** `PATCH /api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]/chunks` */
+export type BulkUpdateKnowledgeChunksParams = {
+  documentId: string
+  knowledgeBaseId: string
+}
+
+export type BulkUpdateKnowledgeChunksQuery = Record<string, unknown>
+
+export type BulkUpdateKnowledgeChunksBody = {
+  workspaceId: string
+  operation: 'enable' | 'disable' | 'delete'
+  chunkIds: Array<string>
+}
+
+type BulkUpdateKnowledgeChunksResponseRef0 = {
+  operation: 'enable' | 'disable' | 'delete'
+  processed: number
+  errors: Array<string>
+}
+
+export type BulkUpdateKnowledgeChunksResponse = {
+  data: BulkUpdateKnowledgeChunksResponseRef0
+}
+
+/** `PATCH /api/v2/knowledge/[knowledgeBaseId]/documents` */
+export type BulkUpdateKnowledgeDocumentsParams = {
+  knowledgeBaseId: string
 }
 
 export type BulkUpdateKnowledgeDocumentsQuery = Record<string, unknown>
@@ -285,8 +707,70 @@ export type BulkUpdateKnowledgeDocumentsResponse = {
   data: BulkUpdateKnowledgeDocumentsResponseRef0
 }
 
-/** `DELETE /api/v2/tables/exports/[exportId]` */
+/** `POST /api/v2/tables/[tableId]/rows/bulk-update` */
+export type BulkUpdateTableRowsParams = {
+  tableId: string
+}
+
+export type BulkUpdateTableRowsQuery = Record<string, unknown>
+
+type BulkUpdateTableRowsBodyRef0 = Record<string, unknown>
+
+export type BulkUpdateTableRowsBody = {
+  workspaceId: string
+  updates: Array<{
+    rowId: string
+    data: BulkUpdateTableRowsBodyRef0
+  }>
+}
+
+type BulkUpdateTableRowsResponseRef0 = {
+  updatedCount: number
+  updatedRowIds: Array<string>
+}
+
+export type BulkUpdateTableRowsResponse = {
+  data: BulkUpdateTableRowsResponseRef0
+}
+
+/** `DELETE /api/v2/tables/[tableId]/dispatches/[dispatchId]` */
+export type CancelTableDispatchParams = {
+  tableId: string
+  dispatchId: string
+}
+
+export type CancelTableDispatchQuery = {
+  workspaceId: string
+}
+
+type CancelTableDispatchResponseRef0 = {
+  id: string
+  tableId: string
+  workspaceId: string
+  status: 'pending' | 'dispatching' | 'complete' | 'canceled'
+  mode: 'all' | 'incomplete' | 'new'
+  scope: {
+    groupIds: Array<string>
+    rowIds?: Array<string>
+  }
+  limit: {
+    type: 'rows'
+    max: number
+  } | null
+  processedCount: number
+  isManualRun: boolean
+  requestedAt: string
+  completedAt: string | null
+  canceledAt: string | null
+}
+
+export type CancelTableDispatchResponse = {
+  data: CancelTableDispatchResponseRef0
+}
+
+/** `DELETE /api/v2/tables/[tableId]/exports/[exportId]` */
 export type CancelTableExportParams = {
+  tableId: string
   exportId: string
 }
 
@@ -339,6 +823,12 @@ type CancelTableImportResponseRef1 = {
 type CancelTableImportResponseRef2 = string
 
 type CancelTableImportResponseRef3 = {
+  code: string
+  line: number | null
+  message: string
+}
+
+type CancelTableImportResponseRef4 = {
   id: string
   workspaceId: string
   status: 'uploading' | 'processing' | 'completed' | 'failed' | 'canceled' | 'expired'
@@ -356,6 +846,9 @@ type CancelTableImportResponseRef3 = {
       }
   tableId: string | null
   rowsProcessed: number
+  rowsRejected: number
+  cellsRejected: number
+  rejectedSamples: Array<CancelTableImportResponseRef3>
   error: string | null
   createdAt: string
   updatedAt: string
@@ -363,7 +856,7 @@ type CancelTableImportResponseRef3 = {
 }
 
 export type CancelTableImportResponse = {
-  data: CancelTableImportResponseRef3
+  data: CancelTableImportResponseRef4
 }
 
 /** `POST /api/v2/tables/[tableId]/cancel-runs` */
@@ -451,9 +944,9 @@ export type CancelTableRunsResponse = {
   data: CancelTableRunsResponseRef0
 }
 
-/** `POST /api/v2/workflows/[id]/runs/[runId]/cancel` */
+/** `POST /api/v2/workflows/[workflowId]/runs/[runId]/cancel` */
 export type CancelWorkflowRunParams = {
-  id: string
+  workflowId: string
   runId: string
 }
 
@@ -520,6 +1013,7 @@ export type CompleteFileUploadHeaders = {
 
 type CompleteFileUploadResponseRef0 = {
   id: string
+  webUrl: string
   name: string
   size: number
   type: string
@@ -554,9 +1048,9 @@ export type CompleteFileUploadResponse = {
   data: CompleteFileUploadResponseRef1
 }
 
-/** `POST /api/v2/knowledge/[id]/documents/uploads/[uploadId]/complete` */
+/** `POST /api/v2/knowledge/[knowledgeBaseId]/documents/uploads/[uploadId]/complete` */
 export type CompleteKnowledgeDocumentUploadParams = {
-  id: string
+  knowledgeBaseId: string
   uploadId: string
 }
 
@@ -634,6 +1128,12 @@ type CompleteTableImportResponseRef1 = {
 type CompleteTableImportResponseRef2 = string
 
 type CompleteTableImportResponseRef3 = {
+  code: string
+  line: number | null
+  message: string
+}
+
+type CompleteTableImportResponseRef4 = {
   id: string
   workspaceId: string
   status: 'uploading' | 'processing' | 'completed' | 'failed' | 'canceled' | 'expired'
@@ -651,6 +1151,9 @@ type CompleteTableImportResponseRef3 = {
       }
   tableId: string | null
   rowsProcessed: number
+  rowsRejected: number
+  cellsRejected: number
+  rejectedSamples: Array<CompleteTableImportResponseRef3>
   error: string | null
   createdAt: string
   updatedAt: string
@@ -658,7 +1161,7 @@ type CompleteTableImportResponseRef3 = {
 }
 
 export type CompleteTableImportResponse = {
-  data: CompleteTableImportResponseRef3
+  data: CompleteTableImportResponseRef4
 }
 
 /** `POST /api/v2/credentials/connections` */
@@ -745,6 +1248,7 @@ export type CreateFileBody = {
 
 type CreateFileResponseRef0 = {
   id: string
+  webUrl: string
   name: string
   size: number
   type: string
@@ -797,6 +1301,7 @@ export type CreateFileUploadBody = {
 
 type CreateFileUploadResponseRef0 = {
   id: string
+  webUrl: string
   name: string
   size: number
   type: string
@@ -889,6 +1394,13 @@ type CreateKnowledgeBaseBodyRef0 = {
   maxSize?: number
   minSize?: number
   overlap?: number
+  strategy?: 'auto' | 'text' | 'regex' | 'recursive' | 'sentence' | 'token'
+  strategyOptions?: {
+    pattern?: string
+    separators?: Array<string>
+    recipe?: 'plain' | 'markdown' | 'code'
+    strictBoundaries?: boolean
+  }
 }
 
 type CreateKnowledgeBaseBodyRef1 = string
@@ -926,17 +1438,57 @@ type CreateKnowledgeBaseResponseRef1 = {
   connectorTypes?: Array<string>
   createdAt: string
   updatedAt: string
+  webUrl: string
   ownerEmail: string
   folderPath: string
+  deletedAt: string | null
 }
 
 export type CreateKnowledgeBaseResponse = {
   data: CreateKnowledgeBaseResponseRef1
 }
 
-/** `POST /api/v2/knowledge/[id]/connectors` */
-export type CreateKnowledgeConnectorParams = {
+/** `POST /api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]/chunks` */
+export type CreateKnowledgeChunkParams = {
+  documentId: string
+  knowledgeBaseId: string
+}
+
+export type CreateKnowledgeChunkQuery = Record<string, unknown>
+
+export type CreateKnowledgeChunkBody = {
+  workspaceId: string
+  content: string
+  enabled?: boolean
+}
+
+type CreateKnowledgeChunkResponseRef0 = {
   id: string
+  chunkIndex: number
+  content: string
+  contentLength: number
+  tokenCount: number
+  enabled: boolean
+  startOffset: number
+  endOffset: number
+  tag1: string | null
+  tag2: string | null
+  tag3: string | null
+  tag4: string | null
+  tag5: string | null
+  tag6: string | null
+  tag7: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type CreateKnowledgeChunkResponse = {
+  data: CreateKnowledgeChunkResponseRef0
+}
+
+/** `POST /api/v2/knowledge/[knowledgeBaseId]/connectors` */
+export type CreateKnowledgeConnectorParams = {
+  knowledgeBaseId: string
 }
 
 export type CreateKnowledgeConnectorQuery = Record<string, unknown>
@@ -972,9 +1524,9 @@ export type CreateKnowledgeConnectorResponse = {
   data: CreateKnowledgeConnectorResponseRef0
 }
 
-/** `POST /api/v2/knowledge/[id]/documents/uploads` */
+/** `POST /api/v2/knowledge/[knowledgeBaseId]/documents/uploads` */
 export type CreateKnowledgeDocumentUploadParams = {
-  id: string
+  knowledgeBaseId: string
 }
 
 export type CreateKnowledgeDocumentUploadQuery = Record<string, unknown>
@@ -1058,9 +1610,9 @@ export type CreateKnowledgeDocumentUploadResponse = {
   data: CreateKnowledgeDocumentUploadResponseRef5
 }
 
-/** `POST /api/v2/knowledge/[id]/documents/uploads/[uploadId]/parts` */
+/** `POST /api/v2/knowledge/[knowledgeBaseId]/documents/uploads/[uploadId]/parts` */
 export type CreateKnowledgeDocumentUploadPartUrlsParams = {
-  id: string
+  knowledgeBaseId: string
   uploadId: string
 }
 
@@ -1111,6 +1663,48 @@ type CreateKnowledgeFolderResponseRef0 = {
 
 export type CreateKnowledgeFolderResponse = {
   data: CreateKnowledgeFolderResponseRef0
+}
+
+/** `POST /api/v2/knowledge/[knowledgeBaseId]/tags` */
+export type CreateKnowledgeTagParams = {
+  knowledgeBaseId: string
+}
+
+export type CreateKnowledgeTagQuery = Record<string, unknown>
+
+export type CreateKnowledgeTagBody = {
+  workspaceId: string
+  displayName: string
+  fieldType?: 'text' | 'number' | 'date' | 'boolean'
+  tagSlot?:
+    | 'tag1'
+    | 'tag2'
+    | 'tag3'
+    | 'tag4'
+    | 'tag5'
+    | 'tag6'
+    | 'tag7'
+    | 'number1'
+    | 'number2'
+    | 'number3'
+    | 'number4'
+    | 'number5'
+    | 'date1'
+    | 'date2'
+    | 'boolean1'
+    | 'boolean2'
+    | 'boolean3'
+}
+
+type CreateKnowledgeTagResponseRef0 = {
+  id: string
+  displayName: string
+  tagSlot: string
+  fieldType: string
+}
+
+export type CreateKnowledgeTagResponse = {
+  data: CreateKnowledgeTagResponseRef0
 }
 
 /** `POST /api/v2/mcp-servers` */
@@ -1249,6 +1843,7 @@ type CreateTableResponseRef0 = {
 
 type CreateTableResponseRef1 = {
   id: string
+  webUrl: string
   name: string
   description: string | null
   ownerEmail: string
@@ -1284,6 +1879,96 @@ type CreateTableResponseRef1 = {
 
 export type CreateTableResponse = {
   data: CreateTableResponseRef1
+}
+
+/** `POST /api/v2/tables/[tableId]/dispatches` */
+export type CreateTableDispatchParams = {
+  tableId: string
+}
+
+export type CreateTableDispatchQuery = Record<string, unknown>
+
+type CreateTableDispatchBodyRef0 =
+  | {
+      all: Array<
+        | CreateTableDispatchBodyRef0
+        | {
+            field: string
+            op:
+              | 'eq'
+              | 'ne'
+              | 'gt'
+              | 'gte'
+              | 'lt'
+              | 'lte'
+              | 'in'
+              | 'nin'
+              | 'contains'
+              | 'ncontains'
+              | 'startsWith'
+              | 'endsWith'
+              | 'like'
+              | 'ilike'
+              | 'nlike'
+              | 'nilike'
+              | 'isEmpty'
+              | 'isNotEmpty'
+              | 'isNull'
+              | 'isNotNull'
+            value?: unknown
+          }
+      >
+    }
+  | {
+      any: Array<
+        | CreateTableDispatchBodyRef0
+        | {
+            field: string
+            op:
+              | 'eq'
+              | 'ne'
+              | 'gt'
+              | 'gte'
+              | 'lt'
+              | 'lte'
+              | 'in'
+              | 'nin'
+              | 'contains'
+              | 'ncontains'
+              | 'startsWith'
+              | 'endsWith'
+              | 'like'
+              | 'ilike'
+              | 'nlike'
+              | 'nilike'
+              | 'isEmpty'
+              | 'isNotEmpty'
+              | 'isNull'
+              | 'isNotNull'
+            value?: unknown
+          }
+      >
+    }
+
+export type CreateTableDispatchBody = {
+  workspaceId: string
+  groupIds: Array<string>
+  runMode?: 'all' | 'incomplete'
+  rowIds?: Array<string>
+  filter?: CreateTableDispatchBodyRef0
+  excludeRowIds?: Array<string>
+  limit?: {
+    type: 'rows'
+    max: number
+  }
+}
+
+type CreateTableDispatchResponseRef0 = {
+  dispatchId: string | null
+}
+
+export type CreateTableDispatchResponse = {
+  data: CreateTableDispatchResponseRef0
 }
 
 /** `POST /api/v2/tables/[tableId]/exports` */
@@ -1383,6 +2068,12 @@ type CreateTableImportResponseRef0 = {
 type CreateTableImportResponseRef1 = string
 
 type CreateTableImportResponseRef2 = {
+  code: string
+  line: number | null
+  message: string
+}
+
+type CreateTableImportResponseRef3 = {
   id: string
   workspaceId: string
   status: 'uploading' | 'processing' | 'completed' | 'failed' | 'canceled' | 'expired'
@@ -1400,35 +2091,38 @@ type CreateTableImportResponseRef2 = {
       }
   tableId: string | null
   rowsProcessed: number
+  rowsRejected: number
+  cellsRejected: number
+  rejectedSamples: Array<CreateTableImportResponseRef2>
   error: string | null
   createdAt: string
   updatedAt: string
   completedAt: string | null
 }
 
-type CreateTableImportResponseRef3 = {
+type CreateTableImportResponseRef4 = {
   method: 'put'
   url: string
   headers: Record<string, string>
   expiresAt: string
 }
 
-type CreateTableImportResponseRef4 = {
+type CreateTableImportResponseRef5 = {
   method: 'multipart'
   partSize: number
   partCount: number
 }
 
-type CreateTableImportResponseRef5 = {
+type CreateTableImportResponseRef6 = {
   type: 'workspace_file'
   fileId: string
 }
 
-type CreateTableImportResponseRef6 = {
+type CreateTableImportResponseRef7 = {
   id: string
   workspaceId: string
   status: 'uploading' | 'processing' | 'completed' | 'failed' | 'canceled' | 'expired'
-  source: CreateTableImportResponseRef5
+  source: CreateTableImportResponseRef6
   target:
     | {
         type: 'new'
@@ -1442,26 +2136,29 @@ type CreateTableImportResponseRef6 = {
       }
   tableId: string | null
   rowsProcessed: number
+  rowsRejected: number
+  cellsRejected: number
+  rejectedSamples: Array<CreateTableImportResponseRef2>
   error: string | null
   createdAt: string
   updatedAt: string
   completedAt: string | null
 }
 
-type CreateTableImportResponseRef7 =
+type CreateTableImportResponseRef8 =
   | {
-      session: CreateTableImportResponseRef2
+      session: CreateTableImportResponseRef3
       uploadToken: string
-      transfer: CreateTableImportResponseRef3 | CreateTableImportResponseRef4
+      transfer: CreateTableImportResponseRef4 | CreateTableImportResponseRef5
     }
   | {
-      session: CreateTableImportResponseRef6
+      session: CreateTableImportResponseRef7
       uploadToken: null
       transfer: null
     }
 
 export type CreateTableImportResponse = {
-  data: CreateTableImportResponseRef7
+  data: CreateTableImportResponseRef8
 }
 
 /** `POST /api/v2/tables/imports/[importId]/parts` */
@@ -1518,28 +2215,39 @@ export type CreateTableRowsBody =
     }
 
 type CreateTableRowsResponseRef0 = {
-  data: CreateTableRowsResponseRef2
+  data: CreateTableRowsResponseRef3
 }
 
 type CreateTableRowsResponseRef1 = Record<string, unknown>
 
 type CreateTableRowsResponseRef2 = {
+  status: string
+  executionId: string | null
+  workflowId: string
+  error: string | null
+  runningBlockIds: Array<string>
+  blockErrors: Record<string, string>
+  canceledAt: string | null
+}
+
+type CreateTableRowsResponseRef3 = {
   id: string
   data: CreateTableRowsResponseRef1
+  runState?: Record<string, CreateTableRowsResponseRef2>
   createdAt: string
   updatedAt: string
 }
 
-type CreateTableRowsResponseRef3 = {
-  data: CreateTableRowsResponseRef4
+type CreateTableRowsResponseRef4 = {
+  data: CreateTableRowsResponseRef5
 }
 
-type CreateTableRowsResponseRef4 = {
-  rows: Array<CreateTableRowsResponseRef2>
+type CreateTableRowsResponseRef5 = {
+  rows: Array<CreateTableRowsResponseRef3>
   insertedCount: number
 }
 
-export type CreateTableRowsResponse = CreateTableRowsResponseRef0 | CreateTableRowsResponseRef3
+export type CreateTableRowsResponse = CreateTableRowsResponseRef0 | CreateTableRowsResponseRef4
 
 /** `POST /api/v2/tables/[tableId]/views` */
 export type CreateTableViewParams = {
@@ -1692,6 +2400,13 @@ export type CreateWorkflowBody = {
 
 type CreateWorkflowResponseRef0 = {
   id: string
+  type: string
+  name: string
+}
+
+type CreateWorkflowResponseRef1 = {
+  id: string
+  webUrl: string
   name: string
   description: string | null
   folderPath: string
@@ -1702,10 +2417,11 @@ type CreateWorkflowResponseRef0 = {
   lastRunAt: string | null
   createdAt: string
   updatedAt: string
+  blocks: Array<CreateWorkflowResponseRef0>
 }
 
 export type CreateWorkflowResponse = {
-  data: CreateWorkflowResponseRef0
+  data: CreateWorkflowResponseRef1
 }
 
 /** `POST /api/v2/workflows/folders` */
@@ -1731,6 +2447,31 @@ export type CreateWorkflowFolderResponse = {
   data: CreateWorkflowFolderResponseRef0
 }
 
+/** `POST /api/v2/workflow-mcp-servers` */
+export type CreateWorkflowMcpServerQuery = Record<string, unknown>
+
+export type CreateWorkflowMcpServerBody = {
+  workspaceId: string
+  name: string
+  description?: string
+  isPublic?: boolean
+  workflowIds?: Array<string>
+}
+
+type CreateWorkflowMcpServerResponseRef0 = {
+  id: string
+  name: string
+  description: string | null
+  isPublic: boolean
+  mcpServerUrl: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type CreateWorkflowMcpServerResponse = {
+  data: CreateWorkflowMcpServerResponseRef0
+}
+
 /** `DELETE /api/v2/credentials/[credentialId]` */
 export type DeleteCredentialParams = {
   credentialId: string
@@ -1749,9 +2490,9 @@ export type DeleteCredentialResponse = {
   data: DeleteCredentialResponseRef0
 }
 
-/** `DELETE /api/v2/custom-tools/[id]` */
+/** `DELETE /api/v2/custom-tools/[customToolId]` */
 export type DeleteCustomToolParams = {
-  id: string
+  customToolId: string
 }
 
 export type DeleteCustomToolQuery = {
@@ -1819,9 +2560,9 @@ export type DeleteFileFolderResponse = {
   data: DeleteFileFolderResponseRef0
 }
 
-/** `DELETE /api/v2/knowledge/[id]` */
+/** `DELETE /api/v2/knowledge/[knowledgeBaseId]` */
 export type DeleteKnowledgeBaseParams = {
-  id: string
+  knowledgeBaseId: string
 }
 
 export type DeleteKnowledgeBaseQuery = {
@@ -1837,10 +2578,30 @@ export type DeleteKnowledgeBaseResponse = {
   data: DeleteKnowledgeBaseResponseRef0
 }
 
-/** `DELETE /api/v2/knowledge/[id]/connectors/[connectorId]` */
-export type DeleteKnowledgeConnectorParams = {
+/** `DELETE /api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]/chunks/[chunkId]` */
+export type DeleteKnowledgeChunkParams = {
+  documentId: string
+  chunkId: string
+  knowledgeBaseId: string
+}
+
+export type DeleteKnowledgeChunkQuery = {
+  workspaceId: string
+}
+
+type DeleteKnowledgeChunkResponseRef0 = {
   id: string
+  deleted: true
+}
+
+export type DeleteKnowledgeChunkResponse = {
+  data: DeleteKnowledgeChunkResponseRef0
+}
+
+/** `DELETE /api/v2/knowledge/[knowledgeBaseId]/connectors/[connectorId]` */
+export type DeleteKnowledgeConnectorParams = {
   connectorId: string
+  knowledgeBaseId: string
 }
 
 export type DeleteKnowledgeConnectorQuery = {
@@ -1859,10 +2620,10 @@ export type DeleteKnowledgeConnectorResponse = {
   data: DeleteKnowledgeConnectorResponseRef0
 }
 
-/** `DELETE /api/v2/knowledge/[id]/documents/[documentId]` */
+/** `DELETE /api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]` */
 export type DeleteKnowledgeDocumentParams = {
-  id: string
   documentId: string
+  knowledgeBaseId: string
 }
 
 export type DeleteKnowledgeDocumentQuery = {
@@ -1912,9 +2673,49 @@ export type DeleteKnowledgeFolderResponse = {
   data: DeleteKnowledgeFolderResponseRef0
 }
 
-/** `DELETE /api/v2/mcp-servers/[id]` */
-export type DeleteMcpServerParams = {
+/** `DELETE /api/v2/knowledge/[knowledgeBaseId]/tags/[tagId]` */
+export type DeleteKnowledgeTagParams = {
+  tagId: string
+  knowledgeBaseId: string
+}
+
+export type DeleteKnowledgeTagQuery = {
+  workspaceId: string
+}
+
+type DeleteKnowledgeTagResponseRef0 = {
   id: string
+  tagSlot: string
+  displayName: string
+  deleted: true
+}
+
+export type DeleteKnowledgeTagResponse = {
+  data: DeleteKnowledgeTagResponseRef0
+}
+
+/** `DELETE /api/v2/knowledge/[knowledgeBaseId]/tags` */
+export type DeleteKnowledgeTagDefinitionsParams = {
+  knowledgeBaseId: string
+}
+
+export type DeleteKnowledgeTagDefinitionsQuery = {
+  workspaceId: string
+  unused?: boolean
+}
+
+type DeleteKnowledgeTagDefinitionsResponseRef0 = {
+  unused: boolean
+  count: number
+}
+
+export type DeleteKnowledgeTagDefinitionsResponse = {
+  data: DeleteKnowledgeTagDefinitionsResponseRef0
+}
+
+/** `DELETE /api/v2/mcp-servers/[mcpServerId]` */
+export type DeleteMcpServerParams = {
+  mcpServerId: string
 }
 
 export type DeleteMcpServerQuery = {
@@ -1950,9 +2751,9 @@ export type DeleteSecretResponse = {
   data: DeleteSecretResponseRef0
 }
 
-/** `DELETE /api/v2/skills/[id]` */
+/** `DELETE /api/v2/skills/[skillId]` */
 export type DeleteSkillParams = {
-  id: string
+  skillId: string
 }
 
 export type DeleteSkillQuery = {
@@ -2178,9 +2979,9 @@ export type DeleteTableViewResponse = {
   data: DeleteTableViewResponseRef0
 }
 
-/** `DELETE /api/v2/workflows/[id]` */
+/** `DELETE /api/v2/workflows/[workflowId]` */
 export type DeleteWorkflowParams = {
-  id: string
+  workflowId: string
 }
 
 export type DeleteWorkflowQuery = Record<string, unknown>
@@ -2188,10 +2989,27 @@ export type DeleteWorkflowQuery = Record<string, unknown>
 type DeleteWorkflowResponseRef0 = {
   id: string
   deleted: true
+  archived: true
 }
 
 export type DeleteWorkflowResponse = {
   data: DeleteWorkflowResponseRef0
+}
+
+/** `DELETE /api/v2/workflows/[workflowId]/deployments/chat` */
+export type DeleteWorkflowChatDeploymentParams = {
+  workflowId: string
+}
+
+export type DeleteWorkflowChatDeploymentQuery = Record<string, unknown>
+
+type DeleteWorkflowChatDeploymentResponseRef0 = {
+  id: string
+  deleted: true
+}
+
+export type DeleteWorkflowChatDeploymentResponse = {
+  data: DeleteWorkflowChatDeploymentResponseRef0
 }
 
 /** `DELETE /api/v2/workflows/folders` */
@@ -2263,9 +3081,25 @@ export type DeleteWorkflowGroupResponse = {
   data: DeleteWorkflowGroupResponseRef0
 }
 
-/** `POST /api/v2/workflows/[id]/deploy` */
-export type DeployWorkflowParams = {
+/** `DELETE /api/v2/workflow-mcp-servers/[serverId]` */
+export type DeleteWorkflowMcpServerParams = {
+  serverId: string
+}
+
+export type DeleteWorkflowMcpServerQuery = Record<string, unknown>
+
+type DeleteWorkflowMcpServerResponseRef0 = {
   id: string
+  deleted: true
+}
+
+export type DeleteWorkflowMcpServerResponse = {
+  data: DeleteWorkflowMcpServerResponseRef0
+}
+
+/** `POST /api/v2/workflows/[workflowId]/deploy` */
+export type DeployWorkflowParams = {
+  workflowId: string
 }
 
 export type DeployWorkflowQuery = Record<string, unknown>
@@ -2320,6 +3154,40 @@ export type DeployWorkflowResponse = {
   data: DeployWorkflowResponseRef4
 }
 
+/** `POST /api/v2/workflow-mcp-servers/[serverId]/tools` */
+export type DeployWorkflowMcpToolParams = {
+  serverId: string
+}
+
+export type DeployWorkflowMcpToolQuery = Record<string, unknown>
+
+export type DeployWorkflowMcpToolBody = {
+  workflowId: string
+  toolName?: string
+  toolDescription?: string
+  parameterDescriptions?: Array<{
+    name: string
+    description: string
+  }>
+}
+
+type DeployWorkflowMcpToolResponseRef0 = {
+  id: string
+  serverId: string
+  workflowId: string
+  toolName: string
+  toolDescription: string | null
+  mcpServerUrl: string
+  apiEndpoint: string
+  updated: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export type DeployWorkflowMcpToolResponse = {
+  data: DeployWorkflowMcpToolResponseRef0
+}
+
 /** `GET /api/v2/files/[fileId]` */
 export type DownloadFileParams = {
   fileId: string
@@ -2332,15 +3200,78 @@ export type DownloadFileQuery = {
 /** Non-JSON response (`binary`). */
 export type DownloadFileResponse = never
 
-/** `POST /api/v2/workflows/[id]/execute` */
-export type ExecuteWorkflowParams = {
+/** `GET /api/v2/workflows/[workflowId]/runs/[runId]/files/[fileId]` */
+export type DownloadRunFileParams = {
+  workflowId: string
+  runId: string
+  fileId: string
+}
+
+export type DownloadRunFileQuery = Record<string, unknown>
+
+/** Non-JSON response (`binary`). */
+export type DownloadRunFileResponse = never
+
+/** `POST /api/v2/workflows/[workflowId]/duplicate` */
+export type DuplicateWorkflowParams = {
+  workflowId: string
+}
+
+export type DuplicateWorkflowQuery = Record<string, unknown>
+
+type DuplicateWorkflowBodyRef0 = string
+
+export type DuplicateWorkflowBody = {
+  name?: string
+  folderPath?: DuplicateWorkflowBodyRef0
+}
+
+type DuplicateWorkflowResponseRef0 = {
   id: string
+  webUrl: string
+  name: string
+  description: string | null
+  folderPath: string
+  workspaceId: string
+  isDeployed: boolean
+  deployedAt: string | null
+  runCount: number
+  lastRunAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type DuplicateWorkflowResponse = {
+  data: DuplicateWorkflowResponseRef0
+}
+
+/** `POST /api/v2/workflows/[workflowId]/execute` */
+export type ExecuteWorkflowParams = {
+  workflowId: string
 }
 
 export type ExecuteWorkflowQuery = Record<string, unknown>
 
 export type ExecuteWorkflowBody = {
   input?: Record<string, unknown>
+  run?:
+    | {
+        source: 'deployment'
+      }
+    | {
+        source: 'manual'
+        entry?:
+          | {
+              type: 'trigger'
+              blockId?: string
+              useMockPayload?: boolean
+            }
+          | {
+              type: 'block'
+              blockId: string
+              sourceRunId: string
+            }
+      }
   async?: boolean
   executionTimeoutSeconds?: number
   stream?: boolean
@@ -2395,9 +3326,9 @@ export type ExecuteWorkflowResponse =
       data: ExecuteWorkflowResponseRef2
     }
 
-/** `GET /api/v2/workflows/[id]/export` */
+/** `GET /api/v2/workflows/[workflowId]/export` */
 export type ExportWorkflowParams = {
-  id: string
+  workflowId: string
 }
 
 export type ExportWorkflowQuery = Record<string, unknown>
@@ -2419,107 +3350,13 @@ export type ExportWorkflowResponse = {
   data: ExportWorkflowResponseRef0
 }
 
-/** `POST /api/v2/tables/[tableId]/rows/find` */
-export type FindTableRowsParams = {
-  tableId: string
-}
-
-export type FindTableRowsQuery = Record<string, unknown>
-
-type FindTableRowsBodyRef0 =
-  | {
-      all: Array<
-        | FindTableRowsBodyRef0
-        | {
-            field: string
-            op:
-              | 'eq'
-              | 'ne'
-              | 'gt'
-              | 'gte'
-              | 'lt'
-              | 'lte'
-              | 'in'
-              | 'nin'
-              | 'contains'
-              | 'ncontains'
-              | 'startsWith'
-              | 'endsWith'
-              | 'like'
-              | 'ilike'
-              | 'nlike'
-              | 'nilike'
-              | 'isEmpty'
-              | 'isNotEmpty'
-              | 'isNull'
-              | 'isNotNull'
-            value?: unknown
-          }
-      >
-    }
-  | {
-      any: Array<
-        | FindTableRowsBodyRef0
-        | {
-            field: string
-            op:
-              | 'eq'
-              | 'ne'
-              | 'gt'
-              | 'gte'
-              | 'lt'
-              | 'lte'
-              | 'in'
-              | 'nin'
-              | 'contains'
-              | 'ncontains'
-              | 'startsWith'
-              | 'endsWith'
-              | 'like'
-              | 'ilike'
-              | 'nlike'
-              | 'nilike'
-              | 'isEmpty'
-              | 'isNotEmpty'
-              | 'isNull'
-              | 'isNotNull'
-            value?: unknown
-          }
-      >
-    }
-
-export type FindTableRowsBody = {
-  workspaceId: string
-  q: string
-  predicate?: FindTableRowsBodyRef0
-  sort?: Array<{
-    field: string
-    direction: 'asc' | 'desc'
-  }>
-}
-
-type FindTableRowsResponseRef0 = {
-  ordinal: number
-  rowId: string
-  column: string
-}
-
-type FindTableRowsResponseRef1 = {
-  matches: Array<FindTableRowsResponseRef0>
-  truncated: boolean
-}
-
-export type FindTableRowsResponse = {
-  data: FindTableRowsResponseRef1
-}
-
-/** `GET /api/v2/audit-logs/[id]` */
+/** `GET /api/v2/audit-logs/[auditLogId]` */
 export type GetAuditLogParams = {
-  id: string
+  auditLogId: string
 }
 
 export type GetAuditLogQuery = {
-  organizationId: string
+  organizationId?: string
 }
 
 type GetAuditLogResponseRef0 = {
@@ -2569,9 +3406,207 @@ export type GetBillingStatusResponse = {
   data: GetBillingStatusResponseRef0
 }
 
-/** `GET /api/v2/custom-tools/[id]` */
-export type GetCustomToolParams = {
+/** `GET /api/v2/blocks/[blockId]` */
+export type GetBlockParams = {
+  blockId: string
+}
+
+export type GetBlockQuery = {
+  workspaceId: string
+}
+
+type GetBlockResponseRef0 = {
   id: string
+  type: string
+  title?: string
+  required?: boolean
+  requiredWhen?: GetBlockResponseRef1
+  description?: string
+  placeholder?: string
+  mode?: string
+  hidden?: boolean
+  condition?: GetBlockResponseRef1
+  options?: Array<{
+    id: string
+    label?: string
+    hasIcon?: boolean
+  }>
+  min?: number
+  max?: number
+  step?: number
+  integer?: boolean
+  rows?: number
+  password?: boolean
+  multiSelect?: boolean
+  language?: string
+  generationType?: string
+  serviceId?: string
+  requiredScopes?: Array<string>
+  mimeType?: string
+  acceptedTypes?: string
+  multiple?: boolean
+  maxSize?: number
+  connectionDroppable?: boolean
+  columns?: Array<string>
+  dependsOn?:
+    | Array<string>
+    | {
+        all?: Array<string>
+        any?: Array<string>
+      }
+  canonicalParamId?: string
+  defaultValue?: string | number | boolean | Record<string, unknown> | Array<unknown>
+  hasComputedDefault?: boolean
+}
+
+type GetBlockResponseRef1 = {
+  field: string
+  value: string | number | boolean | Array<string | number | boolean>
+  not?: boolean
+  and?: {
+    field: string
+    value?: string | number | boolean | Array<string | number | boolean>
+    not?: boolean
+  }
+}
+
+type GetBlockResponseRef2 = {
+  type: string
+  required?: boolean
+  visibility?: string
+  description?: string
+  default?: unknown
+  items?: unknown
+  schema?: unknown
+}
+
+type GetBlockResponseRef3 = {
+  type: string
+  description?: string
+  optional?: boolean
+  nullable?: boolean
+  properties?: Record<string, unknown>
+  items?: {
+    type: string
+    description?: string
+    properties?: Record<string, unknown>
+  }
+  fileConfig?: {
+    mimeType?: string
+    extension?: string
+  }
+}
+
+type GetBlockResponseRef4 = {
+  id: string
+  name: string
+  description: string
+  version?: string
+  hostedApiKey: 'always' | 'conditional' | 'none'
+  oauth?: {
+    required: boolean
+    provider: string
+    requiredScopes?: Array<string>
+  }
+  params: Record<string, GetBlockResponseRef5>
+  outputs: Record<string, GetBlockResponseRef3>
+}
+
+type GetBlockResponseRef5 = {
+  type: string
+  required?: boolean
+  visibility?: string
+  description?: string
+  default?: unknown
+  items?: unknown
+}
+
+type GetBlockResponseRef6 = {
+  id: string
+  name: string
+  description: string
+  longDescription?: string
+  category: string
+  integrationType?: string
+  source: 'builtin' | 'custom'
+  authMode?: string
+  triggerAllowed: boolean
+  triggerCapable: boolean
+  triggerIds: Array<string>
+  toolIds: Array<string>
+  operationIds: Array<string>
+  preview: boolean
+  sunset?: {
+    status: 'legacy' | 'deprecated'
+    replacedBy?: string
+  }
+  docsLink?: string
+  tags: Array<string>
+  bestPractices?: string
+  inputSchema: Array<GetBlockResponseRef0>
+  operationInputSchema: Record<string, Array<GetBlockResponseRef0>>
+  inputDefinitions: Record<
+    string,
+    {
+      type: string
+      description?: string
+      schema?: unknown
+    }
+  >
+  operations: Record<
+    string,
+    {
+      toolId?: string
+      toolName?: string
+      description?: string
+      inputs: Record<string, GetBlockResponseRef2>
+      outputs: Record<string, GetBlockResponseRef3>
+      inputSchema: Array<GetBlockResponseRef0>
+    }
+  >
+  tools: Array<GetBlockResponseRef4>
+  triggers: Array<{
+    id: string
+    outputs: Record<
+      string,
+      {
+        type: string
+        description?: string
+      }
+    >
+    configFields: Record<
+      string,
+      {
+        type: string
+        required: boolean
+        title?: string
+        description?: string
+        placeholder?: string
+        default?: unknown
+        options?: Array<{
+          id: string
+          label: string
+        }>
+        condition?: GetBlockResponseRef1
+      }
+    >
+  }>
+  outputs: Record<
+    string,
+    {
+      type: string
+      description?: string
+    }
+  >
+}
+
+export type GetBlockResponse = {
+  data: GetBlockResponseRef6
+}
+
+/** `GET /api/v2/custom-tools/[customToolId]` */
+export type GetCustomToolParams = {
+  customToolId: string
 }
 
 export type GetCustomToolQuery = {
@@ -2626,6 +3661,7 @@ type GetFileResponseRef0 = {
 
 type GetFileResponseRef1 = {
   id: string
+  webUrl: string
   name: string
   size: number
   type: string
@@ -2667,9 +3703,59 @@ export type GetFileShareResponse = {
   data: GetFileShareResponseRef0 | null
 }
 
-/** `GET /api/v2/knowledge/[id]` */
-export type GetKnowledgeBaseParams = {
+/** `GET /api/v2/files/uploads/[uploadId]` */
+export type GetFileUploadParams = {
+  uploadId: string
+}
+
+export type GetFileUploadQuery = {
+  workspaceId: string
+}
+
+export type GetFileUploadHeaders = {
+  'upload-token': string
+}
+
+type GetFileUploadResponseRef0 = {
   id: string
+  webUrl: string
+  name: string
+  size: number
+  type: string
+  key: string
+  folderPath: string
+  uploadedByEmail: string
+  uploadedAt: string
+  updatedAt: string
+  deletedAt: string | null
+}
+
+type GetFileUploadResponseRef1 = {
+  id: string
+  status:
+    | 'uploading'
+    | 'completing'
+    | 'finalizing'
+    | 'completed'
+    | 'failed'
+    | 'aborting'
+    | 'aborted'
+    | 'expired'
+  name: string
+  contentType: string
+  size: number
+  expiresAt: string
+  error: string | null
+  file: GetFileUploadResponseRef0 | null
+}
+
+export type GetFileUploadResponse = {
+  data: GetFileUploadResponseRef1
+}
+
+/** `GET /api/v2/knowledge/[knowledgeBaseId]` */
+export type GetKnowledgeBaseParams = {
+  knowledgeBaseId: string
 }
 
 export type GetKnowledgeBaseQuery = {
@@ -2701,18 +3787,55 @@ type GetKnowledgeBaseResponseRef1 = {
   connectorTypes?: Array<string>
   createdAt: string
   updatedAt: string
+  webUrl: string
   ownerEmail: string
   folderPath: string
+  deletedAt: string | null
 }
 
 export type GetKnowledgeBaseResponse = {
   data: GetKnowledgeBaseResponseRef1
 }
 
-/** `GET /api/v2/knowledge/[id]/connectors/[connectorId]` */
-export type GetKnowledgeConnectorParams = {
+/** `GET /api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]/chunks/[chunkId]` */
+export type GetKnowledgeChunkParams = {
+  documentId: string
+  chunkId: string
+  knowledgeBaseId: string
+}
+
+export type GetKnowledgeChunkQuery = {
+  workspaceId: string
+}
+
+type GetKnowledgeChunkResponseRef0 = {
   id: string
+  chunkIndex: number
+  content: string
+  contentLength: number
+  tokenCount: number
+  enabled: boolean
+  startOffset: number
+  endOffset: number
+  tag1: string | null
+  tag2: string | null
+  tag3: string | null
+  tag4: string | null
+  tag5: string | null
+  tag6: string | null
+  tag7: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type GetKnowledgeChunkResponse = {
+  data: GetKnowledgeChunkResponseRef0
+}
+
+/** `GET /api/v2/knowledge/[knowledgeBaseId]/connectors/[connectorId]` */
+export type GetKnowledgeConnectorParams = {
   connectorId: string
+  knowledgeBaseId: string
 }
 
 export type GetKnowledgeConnectorQuery = {
@@ -2729,6 +3852,7 @@ type GetKnowledgeConnectorResponseRef0 = {
   docsUpdated: number
   docsDeleted: number
   docsUnchanged: number
+  docsSkipped: number
   docsFailed: number
   errorMessage: string | null
 }
@@ -2756,10 +3880,10 @@ export type GetKnowledgeConnectorResponse = {
   data: GetKnowledgeConnectorResponseRef1
 }
 
-/** `GET /api/v2/knowledge/[id]/documents/[documentId]` */
+/** `GET /api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]` */
 export type GetKnowledgeDocumentParams = {
-  id: string
   documentId: string
+  knowledgeBaseId: string
 }
 
 export type GetKnowledgeDocumentQuery = {
@@ -2801,6 +3925,14 @@ export type GetLogQuery = Record<string, unknown>
 type GetLogResponseRef0 = {
   id: string
   name: string
+  size: number
+  type: string
+  downloadPath: string
+}
+
+type GetLogResponseRef1 = {
+  id: string
+  name: string
   type: string
   duration?: number
   durationMs?: number
@@ -2837,10 +3969,10 @@ type GetLogResponseRef0 = {
     endTime?: string
     duration?: number
   }>
-  children?: Array<GetLogResponseRef0>
+  children?: Array<GetLogResponseRef1>
 }
 
-type GetLogResponseRef1 = {
+type GetLogResponseRef2 = {
   runId: string
   workflowId: string | null
   deploymentVersionId: string | null
@@ -2850,7 +3982,7 @@ type GetLogResponseRef1 = {
   startedAt: string
   endedAt: string | null
   totalDurationMs: number | null
-  files: Array<unknown> | null
+  files: Array<GetLogResponseRef0> | null
   workflow: {
     id: string | null
     name: string
@@ -2863,21 +3995,75 @@ type GetLogResponseRef1 = {
     deleted: boolean
   }
   workflowState: Record<string, unknown> | null
-  traceSpans: Array<GetLogResponseRef0>
+  traceSpans: Array<GetLogResponseRef1>
   finalOutput: unknown | null
   cost: {
     total: number
+    items: Array<{
+      category: 'fixed' | 'model' | 'tool'
+      description: string
+      cost: number
+      inputTokens?: number
+      outputTokens?: number
+    }> | null
   } | null
+  workflowInput: unknown | null
   createdAt: string
 }
 
 export type GetLogResponse = {
-  data: GetLogResponseRef1
+  data: GetLogResponseRef2
 }
 
-/** `GET /api/v2/mcp-servers/[id]` */
+/** `GET /api/v2/logs/stats` */
+export type GetLogStatsQuery = {
+  workspaceId: string
+  workflowIds?: string
+  folderPaths?: string
+  triggers?: string
+  level?: 'info' | 'error'
+  startDate?: string
+  endDate?: string
+  segmentCount?: number
+}
+
+type GetLogStatsResponseRef0 = {
+  workflowId: string
+  workflowName: string
+  segments: Array<GetLogStatsResponseRef1>
+  totalExecutions: number
+  totalSuccessful: number
+  overallSuccessRate: number
+}
+
+type GetLogStatsResponseRef1 = {
+  timestamp: string
+  totalExecutions: number
+  successfulExecutions: number
+  avgDurationMs: number
+}
+
+type GetLogStatsResponseRef2 = {
+  workflows: Array<GetLogStatsResponseRef0>
+  workflowsTruncated: boolean
+  aggregateSegments: Array<GetLogStatsResponseRef1>
+  totalRuns: number
+  totalErrors: number
+  avgLatency: number
+  timeBounds: {
+    start: string
+    end: string
+  }
+  segmentMs: number
+}
+
+export type GetLogStatsResponse = {
+  data: GetLogStatsResponseRef2
+}
+
+/** `GET /api/v2/mcp-servers/[mcpServerId]` */
 export type GetMcpServerParams = {
-  id: string
+  mcpServerId: string
 }
 
 export type GetMcpServerQuery = {
@@ -2911,9 +4097,79 @@ export type GetMcpServerResponse = {
   data: GetMcpServerResponseRef0
 }
 
-/** `GET /api/v2/skills/[id]` */
-export type GetSkillParams = {
+/** `GET /api/v2/meta` */
+export type GetMetaQuery = Record<string, unknown>
+
+type GetMetaResponseRef0 = {
+  v2Enabled: boolean
+  keyType: 'personal' | 'workspace'
+  expiresAt: string | null
+}
+
+export type GetMetaResponse = {
+  data: GetMetaResponseRef0
+}
+
+/** `GET /api/v2/knowledge/[knowledgeBaseId]/tags/next-slot` */
+export type GetNextKnowledgeTagSlotParams = {
+  knowledgeBaseId: string
+}
+
+export type GetNextKnowledgeTagSlotQuery = {
+  workspaceId: string
+  fieldType: 'text' | 'number' | 'date' | 'boolean'
+}
+
+type GetNextKnowledgeTagSlotResponseRef0 = {
+  nextAvailableSlot: string | null
+  fieldType: string
+  usedSlots: Array<string>
+  totalSlots: number
+  availableSlots: number
+}
+
+export type GetNextKnowledgeTagSlotResponse = {
+  data: GetNextKnowledgeTagSlotResponseRef0
+}
+
+/** `GET /api/v2/tables/[tableId]/rows/[rowId]/enrichment/[groupId]` */
+export type GetRowEnrichmentParams = {
+  tableId: string
+  rowId: string
+  groupId: string
+}
+
+export type GetRowEnrichmentQuery = {
+  workspaceId: string
+}
+
+type GetRowEnrichmentResponseRef0 = {
+  startedAt: string | null
+  completedAt: string | null
+  durationMs: number
+  totalCost: number
+  matchedProvider: string | null
+  aborted: boolean
+  providers: Array<GetRowEnrichmentResponseRef1>
+}
+
+type GetRowEnrichmentResponseRef1 = {
   id: string
+  label: string
+  toolId: string
+  status: string
+  cost: number
+  durationMs: number
+  error: string | null
+}
+
+export type GetRowEnrichmentResponse = {
+  data: GetRowEnrichmentResponseRef0 | null
+}
+
+/** `GET /api/v2/skills/[skillId]` */
+export type GetSkillParams = {
+  skillId: string
 }
 
 export type GetSkillQuery = {
@@ -2953,6 +4209,7 @@ type GetTableResponseRef0 = {
 
 type GetTableResponseRef1 = {
   id: string
+  webUrl: string
   name: string
   description: string | null
   ownerEmail: string
@@ -2990,8 +4247,44 @@ export type GetTableResponse = {
   data: GetTableResponseRef1
 }
 
-/** `GET /api/v2/tables/exports/[exportId]` */
+/** `GET /api/v2/tables/[tableId]/dispatches/[dispatchId]` */
+export type GetTableDispatchParams = {
+  tableId: string
+  dispatchId: string
+}
+
+export type GetTableDispatchQuery = {
+  workspaceId: string
+}
+
+type GetTableDispatchResponseRef0 = {
+  id: string
+  tableId: string
+  workspaceId: string
+  status: 'pending' | 'dispatching' | 'complete' | 'canceled'
+  mode: 'all' | 'incomplete' | 'new'
+  scope: {
+    groupIds: Array<string>
+    rowIds?: Array<string>
+  }
+  limit: {
+    type: 'rows'
+    max: number
+  } | null
+  processedCount: number
+  isManualRun: boolean
+  requestedAt: string
+  completedAt: string | null
+  canceledAt: string | null
+}
+
+export type GetTableDispatchResponse = {
+  data: GetTableDispatchResponseRef0
+}
+
+/** `GET /api/v2/tables/[tableId]/exports/[exportId]` */
 export type GetTableExportParams = {
+  tableId: string
   exportId: string
 }
 
@@ -3044,6 +4337,12 @@ type GetTableImportResponseRef1 = {
 type GetTableImportResponseRef2 = string
 
 type GetTableImportResponseRef3 = {
+  code: string
+  line: number | null
+  message: string
+}
+
+type GetTableImportResponseRef4 = {
   id: string
   workspaceId: string
   status: 'uploading' | 'processing' | 'completed' | 'failed' | 'canceled' | 'expired'
@@ -3061,6 +4360,9 @@ type GetTableImportResponseRef3 = {
       }
   tableId: string | null
   rowsProcessed: number
+  rowsRejected: number
+  cellsRejected: number
+  rejectedSamples: Array<GetTableImportResponseRef3>
   error: string | null
   createdAt: string
   updatedAt: string
@@ -3068,7 +4370,7 @@ type GetTableImportResponseRef3 = {
 }
 
 export type GetTableImportResponse = {
-  data: GetTableImportResponseRef3
+  data: GetTableImportResponseRef4
 }
 
 /** `GET /api/v2/tables/[tableId]/rows/[rowId]` */
@@ -3079,19 +4381,31 @@ export type GetTableRowParams = {
 
 export type GetTableRowQuery = {
   workspaceId: string
+  includeRunState?: boolean
 }
 
 type GetTableRowResponseRef0 = Record<string, unknown>
 
 type GetTableRowResponseRef1 = {
+  status: string
+  executionId: string | null
+  workflowId: string
+  error: string | null
+  runningBlockIds: Array<string>
+  blockErrors: Record<string, string>
+  canceledAt: string | null
+}
+
+type GetTableRowResponseRef2 = {
   id: string
   data: GetTableRowResponseRef0
+  runState?: Record<string, GetTableRowResponseRef1>
   createdAt: string
   updatedAt: string
 }
 
 export type GetTableRowResponse = {
-  data: GetTableRowResponseRef1
+  data: GetTableRowResponseRef2
 }
 
 /** `GET /api/v2/tables/[tableId]/views/[viewId]` */
@@ -3131,9 +4445,63 @@ export type GetTableViewResponse = {
   data: GetTableViewResponseRef1
 }
 
-/** `GET /api/v2/workflows/[id]` */
-export type GetWorkflowParams = {
+/** `GET /api/v2/tools/[toolId]` */
+export type GetToolParams = {
+  toolId: string
+}
+
+export type GetToolQuery = {
+  workspaceId: string
+}
+
+type GetToolResponseRef0 = {
+  type: string
+  required?: boolean
+  visibility?: string
+  description?: string
+  default?: unknown
+  items?: unknown
+}
+
+type GetToolResponseRef1 = {
+  type: string
+  description?: string
+  optional?: boolean
+  nullable?: boolean
+  properties?: Record<string, unknown>
+  items?: {
+    type: string
+    description?: string
+    properties?: Record<string, unknown>
+  }
+  fileConfig?: {
+    mimeType?: string
+    extension?: string
+  }
+}
+
+type GetToolResponseRef2 = {
   id: string
+  name: string
+  description: string
+  version?: string
+  hostedApiKey: 'always' | 'conditional' | 'none'
+  oauth?: {
+    required: boolean
+    provider: string
+    requiredScopes?: Array<string>
+  }
+  params: Record<string, GetToolResponseRef0>
+  outputs: Record<string, GetToolResponseRef1>
+}
+
+export type GetToolResponse = {
+  data: GetToolResponseRef2
+}
+
+/** `GET /api/v2/workflows/[workflowId]` */
+export type GetWorkflowParams = {
+  workflowId: string
 }
 
 export type GetWorkflowQuery = Record<string, unknown>
@@ -3146,6 +4514,7 @@ type GetWorkflowResponseRef0 = {
 
 type GetWorkflowResponseRef1 = {
   id: string
+  webUrl: string
   name: string
   description: string | null
   folderPath: string
@@ -3164,9 +4533,51 @@ export type GetWorkflowResponse = {
   data: GetWorkflowResponseRef1
 }
 
-/** `GET /api/v2/workflows/[id]/deployment` */
-export type GetWorkflowDeploymentParams = {
+/** `GET /api/v2/workflows/[workflowId]/deployments/chat` */
+export type GetWorkflowChatDeploymentParams = {
+  workflowId: string
+}
+
+export type GetWorkflowChatDeploymentQuery = Record<string, unknown>
+
+type GetWorkflowChatDeploymentResponseRef0 = {
+  primaryColor?: string
+  welcomeMessage?: string
+  imageUrl?: string
+}
+
+type GetWorkflowChatDeploymentResponseRef1 = {
+  blockId: string
+  path: string
+}
+
+type GetWorkflowChatDeploymentResponseRef2 = {
   id: string
+  workflowId: string
+  workspaceId: string
+  identifier: string
+  url: string
+  title: string
+  description: string
+  isActive: boolean
+  authType: 'public' | 'password' | 'email' | 'sso'
+  hasPassword: boolean
+  allowedEmails: Array<string>
+  customizations: GetWorkflowChatDeploymentResponseRef0
+  outputConfigs: Array<GetWorkflowChatDeploymentResponseRef1>
+  includeThinking: boolean
+  includeToolCalls: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export type GetWorkflowChatDeploymentResponse = {
+  data: GetWorkflowChatDeploymentResponseRef2
+}
+
+/** `GET /api/v2/workflows/[workflowId]/deployment` */
+export type GetWorkflowDeploymentParams = {
+  workflowId: string
 }
 
 export type GetWorkflowDeploymentQuery = Record<string, unknown>
@@ -3210,21 +4621,45 @@ type GetWorkflowDeploymentResponseRef4 = {
   activeDeployment: GetWorkflowDeploymentResponseRef0 | null
   latestDeploymentAttempt: GetWorkflowDeploymentResponseRef1 | null
   needsRedeployment: boolean
+  isPublicApi: boolean
 }
 
 export type GetWorkflowDeploymentResponse = {
   data: GetWorkflowDeploymentResponseRef4
 }
 
-/** `GET /api/v2/workflows/[id]/runs/[runId]` */
-export type GetWorkflowRunParams = {
+/** `GET /api/v2/workflow-mcp-servers/[serverId]` */
+export type GetWorkflowMcpServerParams = {
+  serverId: string
+}
+
+export type GetWorkflowMcpServerQuery = Record<string, unknown>
+
+type GetWorkflowMcpServerResponseRef0 = {
   id: string
+  name: string
+  description: string | null
+  isPublic: boolean
+  mcpServerUrl: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type GetWorkflowMcpServerResponse = {
+  data: GetWorkflowMcpServerResponseRef0
+}
+
+/** `GET /api/v2/workflows/[workflowId]/runs/[runId]` */
+export type GetWorkflowRunParams = {
+  workflowId: string
   runId: string
 }
 
 export type GetWorkflowRunQuery = {
   includeOutput?: boolean
   selectedOutputs?: string
+  includeFileBase64?: boolean
+  base64MaxBytes?: number
 }
 
 type GetWorkflowRunResponseRef0 = {
@@ -3243,6 +4678,15 @@ type GetWorkflowRunResponseRef0 = {
 }
 
 type GetWorkflowRunResponseRef1 = {
+  id: string
+  name: string
+  size: number
+  type: string
+  downloadPath: string
+  base64: string | null
+}
+
+type GetWorkflowRunResponseRef2 = {
   runId: string
   workflowId: string
   status:
@@ -3274,16 +4718,121 @@ type GetWorkflowRunResponseRef1 = {
   error: GetWorkflowRunResponseRef0 | null
   output: unknown | null
   blockOutputs: Record<string, unknown> | null
+  files: Array<GetWorkflowRunResponseRef1> | null
 }
 
 export type GetWorkflowRunResponse = {
-  data: GetWorkflowRunResponseRef1
+  data: GetWorkflowRunResponseRef2
 }
 
-/** `GET /api/v2/workflows/[id]/versions/[version]` */
-export type GetWorkflowVersionParams = {
+/** `GET /api/v2/workflows/[workflowId]/state` */
+export type GetWorkflowStateParams = {
+  workflowId: string
+}
+
+export type GetWorkflowStateQuery = Record<string, unknown>
+
+type GetWorkflowStateResponseRef0 = {
   id: string
+  type: string
+  name: string
+  position: {
+    x: number
+    y: number
+  }
+  subBlocks: Record<
+    string,
+    {
+      id: string
+      type: string
+      value: unknown
+    }
+  >
+  outputs: Record<string, unknown>
+  enabled: boolean
+  horizontalHandles?: boolean
+  height?: number
+  advancedMode?: boolean
+  errorEnabled?: boolean
+  retry?: {
+    enabled: boolean
+    maxTries: number
+    waitBetweenTriesMs: number
+  }
+  triggerMode?: boolean
+  data?: {
+    parentId?: string
+    extent?: 'parent'
+    width?: number
+    height?: number
+    collection?: unknown
+    count?: number
+    loopType?: 'for' | 'forEach' | 'while' | 'doWhile'
+    whileCondition?: string
+    doWhileCondition?: string
+    parallelType?: 'collection' | 'count'
+    batchSize?: number
+    type?: string
+    canonicalModes?: Record<string, 'basic' | 'advanced'>
+  }
+  locked?: boolean
+}
+
+type GetWorkflowStateResponseRef1 = {
+  id: string
+  source: string
+  target: string
+  sourceHandle?: string | null
+  targetHandle?: string | null
+  type?: string
+}
+
+type GetWorkflowStateResponseRef2 = {
+  id: string
+  nodes: Array<string>
+  iterations: number
+  loopType: 'for' | 'forEach' | 'while' | 'doWhile'
+  forEachItems?: Array<unknown> | Record<string, unknown> | string
+  whileCondition?: string
+  doWhileCondition?: string
+  enabled?: boolean
+  locked?: boolean
+}
+
+type GetWorkflowStateResponseRef3 = {
+  id: string
+  nodes: Array<string>
+  distribution?: Array<unknown> | Record<string, unknown> | string
+  count?: number
+  parallelType?: 'count' | 'collection'
+  batchSize?: number
+  enabled?: boolean
+  locked?: boolean
+}
+
+type GetWorkflowStateResponseRef4 = {
+  id: string
+  name: string
+  type: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'plain'
+  value: unknown
+}
+
+type GetWorkflowStateResponseRef5 = {
+  blocks: Record<string, GetWorkflowStateResponseRef0>
+  edges: Array<GetWorkflowStateResponseRef1>
+  loops: Record<string, GetWorkflowStateResponseRef2>
+  parallels: Record<string, GetWorkflowStateResponseRef3>
+  variables: Record<string, GetWorkflowStateResponseRef4>
+}
+
+export type GetWorkflowStateResponse = {
+  data: GetWorkflowStateResponseRef5
+}
+
+/** `GET /api/v2/workflows/[workflowId]/versions/[version]` */
+export type GetWorkflowVersionParams = {
   version: number
+  workflowId: string
 }
 
 export type GetWorkflowVersionQuery = Record<string, unknown>
@@ -3325,9 +4874,9 @@ export type GetWorkspaceResponse = {
   data: GetWorkspaceResponseRef0
 }
 
-/** `POST /api/v2/skills/[id]/editors` */
+/** `POST /api/v2/skills/[skillId]/editors` */
 export type GrantSkillEditorParams = {
-  id: string
+  skillId: string
 }
 
 export type GrantSkillEditorQuery = Record<string, unknown>
@@ -3386,7 +4935,7 @@ export type ListAuditLogsQuery = {
   includeDeparted?: boolean
   limit?: number
   cursor?: string
-  organizationId: string
+  organizationId?: string
   actorEmail?: string
 }
 
@@ -3453,6 +5002,147 @@ type ListBillingLogsResponseRef0 = {
 
 export type ListBillingLogsResponse = {
   data: Array<ListBillingLogsResponseRef0>
+  nextCursor: string | null
+  scope: 'user' | 'workspace'
+}
+
+/** `GET /api/v2/blocks` */
+export type ListBlocksQuery = {
+  workspaceId: string
+  search?: string
+  category?: 'blocks' | 'tools' | 'triggers'
+  capability?: 'trigger'
+  source?: 'builtin' | 'custom'
+  sortBy?: 'id' | 'name' | 'category'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  cursor?: string
+}
+
+type ListBlocksResponseRef0 = {
+  id: string
+  name: string
+  description: string
+  longDescription?: string
+  category: string
+  integrationType?: string
+  source: 'builtin' | 'custom'
+  authMode?: string
+  triggerAllowed: boolean
+  triggerCapable: boolean
+  triggerIds: Array<string>
+  toolIds: Array<string>
+  operationIds: Array<string>
+  preview: boolean
+  sunset?: {
+    status: 'legacy' | 'deprecated'
+    replacedBy?: string
+  }
+  docsLink?: string
+  tags: Array<string>
+}
+
+export type ListBlocksResponse = {
+  data: Array<ListBlocksResponseRef0>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/chat-deployments` */
+export type ListChatDeploymentsQuery = {
+  workspaceId: string
+  workflowId?: string
+  isActive?: boolean
+  sortBy?: 'identifier' | 'createdAt' | 'updatedAt'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  cursor?: string
+}
+
+type ListChatDeploymentsResponseRef0 = {
+  id: string
+  workflowId: string
+  workspaceId: string
+  identifier: string
+  url: string
+  title: string
+  description: string
+  isActive: boolean
+  authType: 'public' | 'password' | 'email' | 'sso'
+  outputConfigs: Array<ListChatDeploymentsResponseRef1>
+  includeThinking: boolean
+  includeToolCalls: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+type ListChatDeploymentsResponseRef1 = {
+  blockId: string
+  path: string
+}
+
+export type ListChatDeploymentsResponse = {
+  data: Array<ListChatDeploymentsResponseRef0>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/connector-types` */
+export type ListConnectorTypesQuery = {
+  workspaceId: string
+  search?: string
+}
+
+type ListConnectorTypesResponseRef0 = {
+  connectorType: string
+  name: string
+  description: string
+  version: string
+  auth:
+    | {
+        mode: 'oauth'
+        provider: string
+        requiredScopes?: Array<string>
+      }
+    | {
+        mode: 'apiKey'
+        label?: string
+        placeholder?: string
+        optional: boolean
+      }
+  configFields: Array<ListConnectorTypesResponseRef1>
+  supportsIncrementalSync: boolean
+  tagDefinitions: Array<{
+    id: string
+    displayName: string
+    fieldType: 'text' | 'number' | 'date' | 'boolean'
+  }>
+}
+
+type ListConnectorTypesResponseRef1 = {
+  id: string
+  title: string
+  type: 'short-input' | 'dropdown' | 'selector'
+  placeholder?: string
+  required?: boolean
+  description?: string
+  options?: Array<{
+    id: string
+    label: string
+  }>
+  selectorKey?: string
+  mimeType?: string
+  dependsOn?:
+    | Array<string>
+    | {
+        all?: Array<string>
+        any?: Array<string>
+      }
+  mode?: 'basic' | 'advanced'
+  canonicalParamId?: string
+  multi?: boolean
+}
+
+export type ListConnectorTypesResponse = {
+  data: Array<ListConnectorTypesResponseRef0>
   nextCursor: string | null
 }
 
@@ -3582,6 +5272,7 @@ export type ListFileFoldersQuery = {
   search?: string
   sortBy?: 'name' | 'createdAt' | 'updatedAt'
   sortOrder?: 'asc' | 'desc'
+  scope?: 'active' | 'archived'
 }
 
 type ListFileFoldersResponseRef0 = {
@@ -3626,6 +5317,7 @@ export type ListFilesQuery = {
 
 type ListFilesResponseRef0 = {
   id: string
+  webUrl: string
   name: string
   size: number
   type: string
@@ -3647,6 +5339,7 @@ type ListKnowledgeBasesQueryRef0 = string
 
 export type ListKnowledgeBasesQuery = {
   workspaceId: string
+  scope?: 'active' | 'archived'
   folderPath?: ListKnowledgeBasesQueryRef0
   search?: string
   sortBy?: 'name' | 'createdAt' | 'updatedAt'
@@ -3667,8 +5360,10 @@ type ListKnowledgeBasesResponseRef0 = {
   connectorTypes?: Array<string>
   createdAt: string
   updatedAt: string
+  webUrl: string
   ownerEmail: string
   folderPath: string
+  deletedAt: string | null
 }
 
 type ListKnowledgeBasesResponseRef1 = {
@@ -3689,10 +5384,51 @@ export type ListKnowledgeBasesResponse = {
   nextCursor: string | null
 }
 
-/** `GET /api/v2/knowledge/[id]/connectors/[connectorId]/documents` */
-export type ListKnowledgeConnectorDocumentsParams = {
+/** `GET /api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]/chunks` */
+export type ListKnowledgeChunksParams = {
+  documentId: string
+  knowledgeBaseId: string
+}
+
+export type ListKnowledgeChunksQuery = {
+  workspaceId: string
+  search?: string
+  enabled?: 'true' | 'false' | 'all'
+  sortBy?: 'chunkIndex' | 'tokenCount' | 'enabled'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  cursor?: string
+}
+
+type ListKnowledgeChunksResponseRef0 = {
   id: string
+  chunkIndex: number
+  content: string
+  contentLength: number
+  tokenCount: number
+  enabled: boolean
+  startOffset: number
+  endOffset: number
+  tag1: string | null
+  tag2: string | null
+  tag3: string | null
+  tag4: string | null
+  tag5: string | null
+  tag6: string | null
+  tag7: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type ListKnowledgeChunksResponse = {
+  data: Array<ListKnowledgeChunksResponseRef0>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/knowledge/[knowledgeBaseId]/connectors/[connectorId]/documents` */
+export type ListKnowledgeConnectorDocumentsParams = {
   connectorId: string
+  knowledgeBaseId: string
 }
 
 export type ListKnowledgeConnectorDocumentsQuery = {
@@ -3718,9 +5454,9 @@ export type ListKnowledgeConnectorDocumentsResponse = {
   nextCursor: string | null
 }
 
-/** `GET /api/v2/knowledge/[id]/connectors` */
+/** `GET /api/v2/knowledge/[knowledgeBaseId]/connectors` */
 export type ListKnowledgeConnectorsParams = {
-  id: string
+  knowledgeBaseId: string
 }
 
 export type ListKnowledgeConnectorsQuery = {
@@ -3754,9 +5490,9 @@ export type ListKnowledgeConnectorsResponse = {
   nextCursor: string | null
 }
 
-/** `GET /api/v2/knowledge/[id]/documents` */
+/** `GET /api/v2/knowledge/[knowledgeBaseId]/documents` */
 export type ListKnowledgeDocumentsParams = {
-  id: string
+  knowledgeBaseId: string
 }
 
 export type ListKnowledgeDocumentsQuery = {
@@ -3821,9 +5557,9 @@ export type ListKnowledgeFoldersResponse = {
   nextCursor: string | null
 }
 
-/** `GET /api/v2/knowledge/[id]/tags` */
+/** `GET /api/v2/knowledge/[knowledgeBaseId]/tags` */
 export type ListKnowledgeTagsParams = {
-  id: string
+  knowledgeBaseId: string
 }
 
 export type ListKnowledgeTagsQuery = {
@@ -3831,6 +5567,7 @@ export type ListKnowledgeTagsQuery = {
 }
 
 type ListKnowledgeTagsResponseRef0 = {
+  id: string
   displayName: string
   tagSlot: string
   fieldType: string
@@ -3838,6 +5575,29 @@ type ListKnowledgeTagsResponseRef0 = {
 
 export type ListKnowledgeTagsResponse = {
   data: Array<ListKnowledgeTagsResponseRef0>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/knowledge/[knowledgeBaseId]/tags/usage` */
+export type ListKnowledgeTagUsageParams = {
+  knowledgeBaseId: string
+}
+
+export type ListKnowledgeTagUsageQuery = {
+  workspaceId: string
+}
+
+type ListKnowledgeTagUsageResponseRef0 = {
+  id: string
+  tagSlot: string
+  displayName: string
+  fieldType: string
+  documentCount: number
+  chunkCount: number
+}
+
+export type ListKnowledgeTagUsageResponse = {
+  data: Array<ListKnowledgeTagUsageResponseRef0>
   nextCursor: string | null
 }
 
@@ -3859,12 +5619,17 @@ export type ListLogsQuery = {
   includeFinalOutput?: boolean
   limit?: number
   cursor?: string
-  order?: 'asc' | 'desc'
+  status?: string
+  workflowName?: string
+  includeJobRuns?: boolean
   runId?: string
+  sortBy?: 'startedAt' | 'durationMs' | 'cost' | 'status'
+  sortOrder?: 'asc' | 'desc'
   folderPaths?: string
 }
 
 type ListLogsResponseRef0 = {
+  kind: 'workflow' | 'job'
   runId: string
   workflowId: string | null
   deploymentVersionId: string | null
@@ -3877,7 +5642,7 @@ type ListLogsResponseRef0 = {
   cost: {
     total: number
   } | null
-  files: Array<unknown> | null
+  files: Array<ListLogsResponseRef1> | null
   workflow?: {
     id: string | null
     name: string
@@ -3885,10 +5650,18 @@ type ListLogsResponseRef0 = {
     deleted: boolean
   }
   finalOutput?: unknown
-  traceSpans?: Array<ListLogsResponseRef1>
+  traceSpans?: Array<ListLogsResponseRef2>
 }
 
 type ListLogsResponseRef1 = {
+  id: string
+  name: string
+  size: number
+  type: string
+  downloadPath: string
+}
+
+type ListLogsResponseRef2 = {
   id: string
   name: string
   type: string
@@ -3927,7 +5700,7 @@ type ListLogsResponseRef1 = {
     endTime?: string
     duration?: number
   }>
-  children?: Array<ListLogsResponseRef1>
+  children?: Array<ListLogsResponseRef2>
 }
 
 export type ListLogsResponse = {
@@ -3973,9 +5746,9 @@ export type ListMcpServersResponse = {
   nextCursor: string | null
 }
 
-/** `GET /api/v2/mcp-servers/[id]/tools` */
+/** `GET /api/v2/mcp-servers/[mcpServerId]/tools` */
 export type ListMcpServerToolsParams = {
-  id: string
+  mcpServerId: string
 }
 
 export type ListMcpServerToolsQuery = {
@@ -4027,9 +5800,9 @@ export type ListSecretsResponse = {
   nextCursor: string | null
 }
 
-/** `GET /api/v2/skills/[id]/editors` */
+/** `GET /api/v2/skills/[skillId]/editors` */
 export type ListSkillEditorsParams = {
-  id: string
+  skillId: string
 }
 
 export type ListSkillEditorsQuery = {
@@ -4076,6 +5849,41 @@ export type ListSkillsResponse = {
   nextCursor: string | null
 }
 
+/** `GET /api/v2/tables/[tableId]/dispatches` */
+export type ListTableDispatchesParams = {
+  tableId: string
+}
+
+export type ListTableDispatchesQuery = {
+  workspaceId: string
+}
+
+type ListTableDispatchesResponseRef0 = {
+  id: string
+  tableId: string
+  workspaceId: string
+  status: 'pending' | 'dispatching' | 'complete' | 'canceled'
+  mode: 'all' | 'incomplete' | 'new'
+  scope: {
+    groupIds: Array<string>
+    rowIds?: Array<string>
+  }
+  limit: {
+    type: 'rows'
+    max: number
+  } | null
+  processedCount: number
+  isManualRun: boolean
+  requestedAt: string
+  completedAt: string | null
+  canceledAt: string | null
+}
+
+export type ListTableDispatchesResponse = {
+  data: Array<ListTableDispatchesResponseRef0>
+  nextCursor: string | null
+}
+
 /** `GET /api/v2/tables/folders` */
 type ListTableFoldersQueryRef0 = string
 
@@ -4109,16 +5917,28 @@ export type ListTableRowsQuery = {
   workspaceId: string
   limit?: number
   cursor?: string
+  includeRunState?: boolean
 }
 
 type ListTableRowsResponseRef0 = {
   id: string
   data: ListTableRowsResponseRef1
+  runState?: Record<string, ListTableRowsResponseRef2>
   createdAt: string
   updatedAt: string
 }
 
 type ListTableRowsResponseRef1 = Record<string, unknown>
+
+type ListTableRowsResponseRef2 = {
+  status: string
+  executionId: string | null
+  workflowId: string
+  error: string | null
+  runningBlockIds: Array<string>
+  blockErrors: Record<string, string>
+  canceledAt: string | null
+}
 
 export type ListTableRowsResponse = {
   data: Array<ListTableRowsResponseRef0>
@@ -4130,6 +5950,7 @@ type ListTablesQueryRef0 = string
 
 export type ListTablesQuery = {
   workspaceId: string
+  scope?: 'active' | 'archived'
   folderPath?: ListTablesQueryRef0
   search?: string
   sortBy?: 'name' | 'createdAt' | 'updatedAt'
@@ -4140,6 +5961,7 @@ export type ListTablesQuery = {
 
 type ListTablesResponseRef0 = {
   id: string
+  webUrl: string
   name: string
   description: string | null
   ownerEmail: string
@@ -4223,6 +6045,36 @@ export type ListTableViewsResponse = {
   nextCursor: string | null
 }
 
+/** `GET /api/v2/tools` */
+export type ListToolsQuery = {
+  workspaceId: string
+  search?: string
+  hostedApiKey?: 'always' | 'conditional' | 'none'
+  oauthProvider?: string
+  sortBy?: 'id' | 'name'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  cursor?: string
+}
+
+type ListToolsResponseRef0 = {
+  id: string
+  name: string
+  description: string
+  version?: string
+  hostedApiKey: 'always' | 'conditional' | 'none'
+  oauth?: {
+    required: boolean
+    provider: string
+    requiredScopes?: Array<string>
+  }
+}
+
+export type ListToolsResponse = {
+  data: Array<ListToolsResponseRef0>
+  nextCursor: string | null
+}
+
 /** `GET /api/v2/workflows/folders` */
 type ListWorkflowFoldersQueryRef0 = string
 
@@ -4285,9 +6137,59 @@ export type ListWorkflowGroupsResponse = {
   nextCursor: string | null
 }
 
-/** `GET /api/v2/workflows/[id]/runs` */
-export type ListWorkflowRunsParams = {
+/** `GET /api/v2/workflow-mcp-servers` */
+export type ListWorkflowMcpServersQuery = {
+  workspaceId: string
+  sortBy?: 'name' | 'createdAt' | 'updatedAt'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  cursor?: string
+}
+
+type ListWorkflowMcpServersResponseRef0 = {
   id: string
+  name: string
+  description: string | null
+  isPublic: boolean
+  mcpServerUrl: string
+  createdAt: string
+  updatedAt: string
+  toolCount: number
+  toolNames: Array<string>
+}
+
+export type ListWorkflowMcpServersResponse = {
+  data: Array<ListWorkflowMcpServersResponseRef0>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/workflow-mcp-servers/[serverId]/tools` */
+export type ListWorkflowMcpToolsParams = {
+  serverId: string
+}
+
+export type ListWorkflowMcpToolsQuery = Record<string, unknown>
+
+type ListWorkflowMcpToolsResponseRef0 = {
+  id: string
+  serverId: string
+  workflowId: string
+  toolName: string
+  toolDescription: string | null
+  mcpServerUrl: string
+  apiEndpoint: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type ListWorkflowMcpToolsResponse = {
+  data: Array<ListWorkflowMcpToolsResponseRef0>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/workflows/[workflowId]/runs` */
+export type ListWorkflowRunsParams = {
+  workflowId: string
 }
 
 export type ListWorkflowRunsQuery = {
@@ -4323,6 +6225,7 @@ type ListWorkflowsQueryRef0 = string
 
 export type ListWorkflowsQuery = {
   workspaceId: string
+  scope?: 'active' | 'archived'
   folderPath?: ListWorkflowsQueryRef0
   deployedOnly?: boolean
   limit?: number
@@ -4334,6 +6237,7 @@ export type ListWorkflowsQuery = {
 
 type ListWorkflowsResponseRef0 = {
   id: string
+  webUrl: string
   name: string
   description: string | null
   folderPath: string
@@ -4351,9 +6255,9 @@ export type ListWorkflowsResponse = {
   nextCursor: string | null
 }
 
-/** `GET /api/v2/workflows/[id]/versions` */
+/** `GET /api/v2/workflows/[workflowId]/versions` */
 export type ListWorkflowVersionsParams = {
-  id: string
+  workflowId: string
 }
 
 export type ListWorkflowVersionsQuery = {
@@ -4443,6 +6347,66 @@ type MoveFileItemsResponseRef0 = {
 
 export type MoveFileItemsResponse = {
   data: MoveFileItemsResponseRef0
+}
+
+/** `POST /api/v2/tables/move` */
+export type MoveTablesQuery = Record<string, unknown>
+
+type MoveTablesBodyRef0 = string
+
+export type MoveTablesBody = {
+  workspaceId: string
+  tableIds?: Array<string>
+  folderPaths?: Array<MoveTablesBodyRef0>
+  targetFolderPath?: MoveTablesBodyRef0
+}
+
+type MoveTablesResponseRef0 = {
+  moved: Array<{
+    kind: 'table' | 'folder'
+    id: string
+    name: string
+  }>
+  skipped: Array<{
+    kind: 'table' | 'folder'
+    id: string
+    name: string
+  }>
+  notFound: Array<{
+    kind: 'table' | 'folder'
+    id: string
+  }>
+  failed: Array<{
+    kind: 'table' | 'folder'
+    id: string
+    name: string
+    reason: string
+  }>
+}
+
+export type MoveTablesResponse = {
+  data: MoveTablesResponseRef0
+}
+
+/** `POST /api/v2/workflows/move` */
+export type MoveWorkflowsQuery = Record<string, unknown>
+
+type MoveWorkflowsBodyRef0 = string
+
+export type MoveWorkflowsBody = {
+  workspaceId: string
+  workflowIds: Array<string>
+  folderPath: MoveWorkflowsBodyRef0
+}
+
+type MoveWorkflowsResponseRef0 = {
+  moved: Array<string>
+  failed: Array<string>
+  folderPath: string
+}
+
+export type MoveWorkflowsResponse = {
+  data: MoveWorkflowsResponseRef0
 }
 
 /** `POST /api/v2/tables/[tableId]/query` */
@@ -4548,16 +6512,28 @@ export type QueryRowsBody = {
   }>
   limit?: number
   cursor?: string
+  includeRunState?: boolean
 }
 
 type QueryRowsResponseRef0 = {
   id: string
   data: QueryRowsResponseRef1
+  runState?: Record<string, QueryRowsResponseRef2>
   createdAt: string
   updatedAt: string
 }
 
 type QueryRowsResponseRef1 = Record<string, unknown>
+
+type QueryRowsResponseRef2 = {
+  status: string
+  executionId: string | null
+  workflowId: string
+  error: string | null
+  runningBlockIds: Array<string>
+  blockErrors: Record<string, string>
+  canceledAt: string | null
+}
 
 export type QueryRowsResponse = {
   data: Array<QueryRowsResponseRef0>
@@ -4671,6 +6647,32 @@ export type QueryRowsCountResponse = {
   data: QueryRowsCountResponseRef0
 }
 
+/** `GET /api/v2/files/[fileId]/text` */
+export type ReadFileTextParams = {
+  fileId: string
+}
+
+export type ReadFileTextQuery = {
+  workspaceId: string
+  maxBytes?: number
+}
+
+type ReadFileTextResponseRef0 = {
+  fileId: string
+  name: string
+  type: string
+  text: string
+  truncated: boolean
+  degraded: boolean
+  degradedReason: string | null
+  charCount: number
+  byteCount: number
+}
+
+export type ReadFileTextResponse = {
+  data: ReadFileTextResponseRef0
+}
+
 /** `PATCH /api/v2/files/folders` */
 export type RelocateFileFolderQuery = Record<string, unknown>
 
@@ -4778,6 +6780,7 @@ export type RenameFileBody = {
 
 type RenameFileResponseRef0 = {
   id: string
+  webUrl: string
   name: string
   size: number
   type: string
@@ -4793,6 +6796,247 @@ export type RenameFileResponse = {
   data: RenameFileResponseRef0
 }
 
+/** `PUT /api/v2/workflows/[workflowId]/deployments/chat` */
+export type ReplaceWorkflowChatDeploymentParams = {
+  workflowId: string
+}
+
+export type ReplaceWorkflowChatDeploymentQuery = Record<string, unknown>
+
+type ReplaceWorkflowChatDeploymentBodyRef0 = {
+  primaryColor?: string
+  welcomeMessage?: string
+  imageUrl?: string
+}
+
+type ReplaceWorkflowChatDeploymentBodyRef1 = {
+  blockId: string
+  path: string
+}
+
+export type ReplaceWorkflowChatDeploymentBody = {
+  identifier: string
+  title: string
+  description?: string
+  customizations?: ReplaceWorkflowChatDeploymentBodyRef0
+  authType?: 'public' | 'password' | 'email' | 'sso'
+  password?: string
+  allowedEmails?: Array<string>
+  outputConfigs?: Array<ReplaceWorkflowChatDeploymentBodyRef1>
+  includeThinking?: boolean
+  includeToolCalls?: boolean
+}
+
+type ReplaceWorkflowChatDeploymentResponseRef0 = {
+  primaryColor?: string
+  welcomeMessage?: string
+  imageUrl?: string
+}
+
+type ReplaceWorkflowChatDeploymentResponseRef1 = {
+  blockId: string
+  path: string
+}
+
+type ReplaceWorkflowChatDeploymentResponseRef2 = {
+  id: string
+  workflowId: string
+  workspaceId: string
+  identifier: string
+  url: string
+  title: string
+  description: string
+  isActive: boolean
+  authType: 'public' | 'password' | 'email' | 'sso'
+  hasPassword: boolean
+  allowedEmails: Array<string>
+  customizations: ReplaceWorkflowChatDeploymentResponseRef0
+  outputConfigs: Array<ReplaceWorkflowChatDeploymentResponseRef1>
+  includeThinking: boolean
+  includeToolCalls: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export type ReplaceWorkflowChatDeploymentResponse = {
+  data: ReplaceWorkflowChatDeploymentResponseRef2
+}
+
+/** `PUT /api/v2/workflows/[workflowId]/state` */
+export type ReplaceWorkflowStateParams = {
+  workflowId: string
+}
+
+export type ReplaceWorkflowStateQuery = {
+  dryRun?: boolean
+}
+
+type ReplaceWorkflowStateBodyRef0 = {
+  id: string
+  type: string
+  name: string
+  position: {
+    x: number
+    y: number
+  }
+  subBlocks: Record<
+    string,
+    {
+      id: string
+      type: string
+      value: unknown
+    }
+  >
+  outputs: Record<string, unknown>
+  enabled: boolean
+  horizontalHandles?: boolean
+  height?: number
+  advancedMode?: boolean
+  errorEnabled?: boolean
+  retry?: {
+    enabled: boolean
+    maxTries: number
+    waitBetweenTriesMs: number
+  }
+  triggerMode?: boolean
+  data?: {
+    parentId?: string
+    extent?: 'parent'
+    width?: number
+    height?: number
+    collection?: unknown
+    count?: number
+    loopType?: 'for' | 'forEach' | 'while' | 'doWhile'
+    whileCondition?: string
+    doWhileCondition?: string
+    parallelType?: 'collection' | 'count'
+    batchSize?: number
+    type?: string
+    canonicalModes?: Record<string, 'basic' | 'advanced'>
+  }
+  locked?: boolean
+}
+
+type ReplaceWorkflowStateBodyRef1 = {
+  id: string
+  source: string
+  target: string
+  sourceHandle?: string | null
+  targetHandle?: string | null
+  type?: string
+}
+
+type ReplaceWorkflowStateBodyRef2 = {
+  id: string
+  nodes: Array<string>
+  iterations: number
+  loopType: 'for' | 'forEach' | 'while' | 'doWhile'
+  forEachItems?: Array<unknown> | Record<string, unknown> | string
+  whileCondition?: string
+  doWhileCondition?: string
+  enabled?: boolean
+  locked?: boolean
+}
+
+type ReplaceWorkflowStateBodyRef3 = {
+  id: string
+  nodes: Array<string>
+  distribution?: Array<unknown> | Record<string, unknown> | string
+  count?: number
+  parallelType?: 'count' | 'collection'
+  batchSize?: number
+  enabled?: boolean
+  locked?: boolean
+}
+
+type ReplaceWorkflowStateBodyRef4 = {
+  id: string
+  name: string
+  type: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'plain'
+  value: unknown
+}
+
+export type ReplaceWorkflowStateBody = {
+  blocks: Record<string, ReplaceWorkflowStateBodyRef0>
+  edges: Array<ReplaceWorkflowStateBodyRef1>
+  loops?: Record<string, ReplaceWorkflowStateBodyRef2>
+  parallels?: Record<string, ReplaceWorkflowStateBodyRef3>
+  variables?: Record<string, ReplaceWorkflowStateBodyRef4>
+}
+
+type ReplaceWorkflowStateResponseRef0 = {
+  sources: Array<{
+    blockId: string
+    blockName: string | null
+    blockType: string | null
+  }>
+  sinks: Array<{
+    blockId: string
+    blockName: string | null
+    blockType: string | null
+  }>
+  orphanBlocks: Array<{
+    blockId: string
+    blockName: string | null
+    blockType: string | null
+  }>
+  emptyOutgoingPorts: Array<{
+    blockId: string
+    blockName: string | null
+    blockType: string | null
+    handle: string
+    label: string
+  }>
+  invalidBranchPorts: Array<{
+    blockId: string
+    blockName: string | null
+    blockType: string | null
+    sourceHandle: string
+    reason: string
+  }>
+  invalidConnectionTargets: Array<{
+    sourceBlockId: string
+    sourceBlockName: string | null
+    sourceHandle: string | null
+    targetBlockId: string
+    reason: string
+  }>
+  fieldIssues: Array<{
+    blockId: string
+    blockName: string | null
+    blockType: string | null
+    missingRequiredFields: Array<string>
+    inactiveModeValues: Array<{
+      canonicalId: string
+      activeMemberId: string | null
+      inactiveMemberId: string
+      kind: 'credential' | 'resource' | 'other'
+    }>
+  }>
+  unresolvedReferences: Array<{
+    blockId: string
+    blockName: string | null
+    blockType: string | null
+    field: string
+    value: string | Array<string>
+    kind: 'credential' | 'resource' | 'custom-tool' | 'mcp-tool' | 'skill'
+    reason: string
+  }>
+  notes: Array<string>
+}
+
+type ReplaceWorkflowStateResponseRef1 = {
+  id: string
+  warnings: Array<string>
+  needsRedeployment: boolean
+  lint: ReplaceWorkflowStateResponseRef0
+  dryRun: boolean
+}
+
+export type ReplaceWorkflowStateResponse = {
+  data: ReplaceWorkflowStateResponseRef1
+}
+
 /** `POST /api/v2/files/[fileId]/restore` */
 export type RestoreFileParams = {
   fileId: string
@@ -4806,6 +7050,7 @@ export type RestoreFileBody = {
 
 type RestoreFileResponseRef0 = {
   id: string
+  webUrl: string
   name: string
   size: number
   type: string
@@ -4821,9 +7066,200 @@ export type RestoreFileResponse = {
   data: RestoreFileResponseRef0
 }
 
-/** `POST /api/v2/workflows/[id]/runs/[runId]/resume` */
-export type ResumeWorkflowParams = {
+/** `POST /api/v2/files/folders/restore` */
+export type RestoreFileFolderQuery = Record<string, unknown>
+
+type RestoreFileFolderBodyRef0 = string
+
+export type RestoreFileFolderBody = {
+  workspaceId: string
+  path: RestoreFileFolderBodyRef0
+}
+
+type RestoreFileFolderResponseRef0 = {
+  name: string
+  path: string
+  parentPath: string
+  createdAt: string
+  updatedAt: string
+}
+
+type RestoreFileFolderResponseRef1 = {
+  folder: RestoreFileFolderResponseRef0
+  restoredItems: {
+    files: number
+    folders: number
+  }
+}
+
+export type RestoreFileFolderResponse = {
+  data: RestoreFileFolderResponseRef1
+}
+
+/** `POST /api/v2/knowledge/[knowledgeBaseId]/restore` */
+export type RestoreKnowledgeBaseParams = {
+  knowledgeBaseId: string
+}
+
+export type RestoreKnowledgeBaseQuery = Record<string, unknown>
+
+export type RestoreKnowledgeBaseBody = {
+  workspaceId: string
+}
+
+type RestoreKnowledgeBaseResponseRef0 = {
+  maxSize: number
+  minSize: number
+  overlap: number
+  strategy?: 'auto' | 'text' | 'regex' | 'recursive' | 'sentence' | 'token'
+  strategyOptions?: {
+    pattern?: string
+    separators?: Array<string>
+    recipe?: 'plain' | 'markdown' | 'code'
+    strictBoundaries?: boolean
+  }
+}
+
+type RestoreKnowledgeBaseResponseRef1 = {
   id: string
+  name: string
+  description: string | null
+  tokenCount: number
+  embeddingModel: string
+  embeddingDimension: number
+  chunkingConfig: RestoreKnowledgeBaseResponseRef0
+  docCount?: number
+  connectorTypes?: Array<string>
+  createdAt: string
+  updatedAt: string
+  webUrl: string
+  ownerEmail: string
+  folderPath: string
+  deletedAt: string | null
+}
+
+export type RestoreKnowledgeBaseResponse = {
+  data: RestoreKnowledgeBaseResponseRef1
+}
+
+/** `POST /api/v2/tables/[tableId]/restore` */
+export type RestoreTableParams = {
+  tableId: string
+}
+
+export type RestoreTableQuery = Record<string, unknown>
+
+export type RestoreTableBody = {
+  workspaceId: string
+}
+
+type RestoreTableResponseRef0 = {
+  id: string | null
+  type: 'import' | 'delete' | 'export' | 'backfill' | 'update' | null
+  status: 'running' | 'ready' | 'failed' | 'canceled'
+  rowsProcessed: number
+  error: string | null
+}
+
+type RestoreTableResponseRef1 = {
+  id: string
+  webUrl: string
+  name: string
+  description: string | null
+  ownerEmail: string
+  schema: {
+    columns: Array<{
+      id?: string
+      name: string
+      type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'json' | 'select'
+      required: boolean
+      unique: boolean
+      workflowGroupId?: string
+      options?: Array<{
+        id: string
+        name: string
+      }>
+      multiple?: boolean
+      currencyCode?: string
+    }>
+  }
+  rowCount: number
+  maxRows: number
+  folderPath: string
+  locks: {
+    schemaLocked: boolean
+    insertLocked: boolean
+    updateLocked: boolean
+    deleteLocked: boolean
+  }
+  job: RestoreTableResponseRef0 | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type RestoreTableResponse = {
+  data: RestoreTableResponseRef1
+}
+
+/** `POST /api/v2/tables/folders/restore` */
+export type RestoreTableFolderQuery = Record<string, unknown>
+
+type RestoreTableFolderBodyRef0 = string
+
+export type RestoreTableFolderBody = {
+  workspaceId: string
+  path: RestoreTableFolderBodyRef0
+}
+
+type RestoreTableFolderResponseRef0 = {
+  name: string
+  path: string
+  parentPath: string
+  createdAt: string
+  updatedAt: string
+}
+
+type RestoreTableFolderResponseRef1 = {
+  folder: RestoreTableFolderResponseRef0
+  restoredItems: {
+    folders: number
+    tables: number
+  }
+}
+
+export type RestoreTableFolderResponse = {
+  data: RestoreTableFolderResponseRef1
+}
+
+/** `POST /api/v2/workflows/[workflowId]/restore` */
+export type RestoreWorkflowParams = {
+  workflowId: string
+}
+
+export type RestoreWorkflowQuery = Record<string, unknown>
+
+type RestoreWorkflowResponseRef0 = {
+  id: string
+  webUrl: string
+  name: string
+  description: string | null
+  folderPath: string
+  workspaceId: string
+  isDeployed: boolean
+  deployedAt: string | null
+  runCount: number
+  lastRunAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type RestoreWorkflowResponse = {
+  data: RestoreWorkflowResponseRef0
+}
+
+/** `POST /api/v2/workflows/[workflowId]/runs/[runId]/resume` */
+export type ResumeWorkflowParams = {
+  workflowId: string
   runId: string
 }
 
@@ -4874,9 +7310,29 @@ export type ResumeWorkflowResponse =
       data: ResumeWorkflowResponseRef2
     }
 
-/** `DELETE /api/v2/skills/[id]/editors` */
-export type RevokeSkillEditorParams = {
+/** `POST /api/v2/workflows/[workflowId]/versions/[version]/revert` */
+export type RevertWorkflowVersionParams = {
+  version: number | 'active'
+  workflowId: string
+}
+
+export type RevertWorkflowVersionQuery = Record<string, unknown>
+
+export type RevertWorkflowVersionBody = Record<string, unknown>
+
+type RevertWorkflowVersionResponseRef0 = {
   id: string
+  version: number | 'active'
+  lastSaved: number
+}
+
+export type RevertWorkflowVersionResponse = {
+  data: RevertWorkflowVersionResponseRef0
+}
+
+/** `DELETE /api/v2/skills/[skillId]/editors` */
+export type RevokeSkillEditorParams = {
+  skillId: string
 }
 
 export type RevokeSkillEditorQuery = {
@@ -4893,9 +7349,9 @@ export type RevokeSkillEditorResponse = {
   data: RevokeSkillEditorResponseRef0
 }
 
-/** `POST /api/v2/workflows/[id]/rollback` */
+/** `POST /api/v2/workflows/[workflowId]/rollback` */
 export type RollbackWorkflowParams = {
-  id: string
+  workflowId: string
 }
 
 export type RollbackWorkflowQuery = Record<string, unknown>
@@ -4970,96 +7426,6 @@ export type RunRowEnrichmentResponse = {
   data: RunRowEnrichmentResponseRef0
 }
 
-/** `POST /api/v2/tables/[tableId]/columns/run` */
-export type RunTableColumnParams = {
-  tableId: string
-}
-
-export type RunTableColumnQuery = Record<string, unknown>
-
-type RunTableColumnBodyRef0 =
-  | {
-      all: Array<
-        | RunTableColumnBodyRef0
-        | {
-            field: string
-            op:
-              | 'eq'
-              | 'ne'
-              | 'gt'
-              | 'gte'
-              | 'lt'
-              | 'lte'
-              | 'in'
-              | 'nin'
-              | 'contains'
-              | 'ncontains'
-              | 'startsWith'
-              | 'endsWith'
-              | 'like'
-              | 'ilike'
-              | 'nlike'
-              | 'nilike'
-              | 'isEmpty'
-              | 'isNotEmpty'
-              | 'isNull'
-              | 'isNotNull'
-            value?: unknown
-          }
-      >
-    }
-  | {
-      any: Array<
-        | RunTableColumnBodyRef0
-        | {
-            field: string
-            op:
-              | 'eq'
-              | 'ne'
-              | 'gt'
-              | 'gte'
-              | 'lt'
-              | 'lte'
-              | 'in'
-              | 'nin'
-              | 'contains'
-              | 'ncontains'
-              | 'startsWith'
-              | 'endsWith'
-              | 'like'
-              | 'ilike'
-              | 'nlike'
-              | 'nilike'
-              | 'isEmpty'
-              | 'isNotEmpty'
-              | 'isNull'
-              | 'isNotNull'
-            value?: unknown
-          }
-      >
-    }
-
-export type RunTableColumnBody = {
-  workspaceId: string
-  groupIds: Array<string>
-  runMode?: 'all' | 'incomplete'
-  rowIds?: Array<string>
-  filter?: RunTableColumnBodyRef0
-  excludeRowIds?: Array<string>
-  limit?: {
-    type: 'rows'
-    max: number
-  }
-}
-
-type RunTableColumnResponseRef0 = {
-  dispatchId: string | null
-}
-
-export type RunTableColumnResponse = {
-  data: RunTableColumnResponseRef0
-}
-
 /** `POST /api/v2/knowledge/search` */
 export type SearchKnowledgeQuery = Record<string, unknown>
 
@@ -5119,6 +7485,100 @@ export type SearchKnowledgeResponse = {
   data: SearchKnowledgeResponseRef1
 }
 
+/** `POST /api/v2/tables/[tableId]/rows/search` */
+export type SearchTableRowsParams = {
+  tableId: string
+}
+
+export type SearchTableRowsQuery = Record<string, unknown>
+
+type SearchTableRowsBodyRef0 =
+  | {
+      all: Array<
+        | SearchTableRowsBodyRef0
+        | {
+            field: string
+            op:
+              | 'eq'
+              | 'ne'
+              | 'gt'
+              | 'gte'
+              | 'lt'
+              | 'lte'
+              | 'in'
+              | 'nin'
+              | 'contains'
+              | 'ncontains'
+              | 'startsWith'
+              | 'endsWith'
+              | 'like'
+              | 'ilike'
+              | 'nlike'
+              | 'nilike'
+              | 'isEmpty'
+              | 'isNotEmpty'
+              | 'isNull'
+              | 'isNotNull'
+            value?: unknown
+          }
+      >
+    }
+  | {
+      any: Array<
+        | SearchTableRowsBodyRef0
+        | {
+            field: string
+            op:
+              | 'eq'
+              | 'ne'
+              | 'gt'
+              | 'gte'
+              | 'lt'
+              | 'lte'
+              | 'in'
+              | 'nin'
+              | 'contains'
+              | 'ncontains'
+              | 'startsWith'
+              | 'endsWith'
+              | 'like'
+              | 'ilike'
+              | 'nlike'
+              | 'nilike'
+              | 'isEmpty'
+              | 'isNotEmpty'
+              | 'isNull'
+              | 'isNotNull'
+            value?: unknown
+          }
+      >
+    }
+
+export type SearchTableRowsBody = {
+  workspaceId: string
+  q: string
+  predicate?: SearchTableRowsBodyRef0
+  sort?: Array<{
+    field: string
+    direction: 'asc' | 'desc'
+  }>
+}
+
+type SearchTableRowsResponseRef0 = {
+  ordinal: number
+  rowId: string
+  column: string
+}
+
+type SearchTableRowsResponseRef1 = {
+  matches: Array<SearchTableRowsResponseRef0>
+  truncated: boolean
+}
+
+export type SearchTableRowsResponse = {
+  data: SearchTableRowsResponseRef1
+}
+
 /** `PUT /api/v2/secrets/[name]` */
 export type SetSecretParams = {
   name: string
@@ -5148,10 +7608,10 @@ export type SetSecretResponse = {
   data: SetSecretResponseRef0
 }
 
-/** `POST /api/v2/knowledge/[id]/connectors/[connectorId]/sync` */
+/** `POST /api/v2/knowledge/[knowledgeBaseId]/connectors/[connectorId]/sync` */
 export type SyncKnowledgeConnectorParams = {
-  id: string
   connectorId: string
+  knowledgeBaseId: string
 }
 
 export type SyncKnowledgeConnectorQuery = Record<string, unknown>
@@ -5170,8 +7630,9 @@ export type SyncKnowledgeConnectorResponse = {
   data: SyncKnowledgeConnectorResponseRef0
 }
 
-/** `GET /api/v2/tables/exports/[exportId]/download` */
+/** `GET /api/v2/tables/[tableId]/exports/[exportId]/download` */
 export type TableExportDownloadParams = {
+  tableId: string
   exportId: string
 }
 
@@ -5189,9 +7650,9 @@ export type TableExportDownloadResponse = {
   data: TableExportDownloadResponseRef0
 }
 
-/** `DELETE /api/v2/workflows/[id]/deploy` */
+/** `DELETE /api/v2/workflows/[workflowId]/deploy` */
 export type UndeployWorkflowParams = {
-  id: string
+  workflowId: string
 }
 
 export type UndeployWorkflowQuery = Record<string, unknown>
@@ -5240,9 +7701,93 @@ export type UndeployWorkflowResponse = {
   data: UndeployWorkflowResponseRef4
 }
 
-/** `PATCH /api/v2/custom-tools/[id]` */
-export type UpdateCustomToolParams = {
+/** `DELETE /api/v2/workflow-mcp-servers/[serverId]/tools/[workflowId]` */
+export type UndeployWorkflowMcpToolParams = {
+  serverId: string
+  workflowId: string
+}
+
+export type UndeployWorkflowMcpToolQuery = Record<string, unknown>
+
+type UndeployWorkflowMcpToolResponseRef0 = {
   id: string
+  serverId: string
+  workflowId: string
+  deleted: true
+}
+
+export type UndeployWorkflowMcpToolResponse = {
+  data: UndeployWorkflowMcpToolResponseRef0
+}
+
+/** `POST /api/v2/files/[fileId]/unzip` */
+export type UnzipFileParams = {
+  fileId: string
+}
+
+export type UnzipFileQuery = Record<string, unknown>
+
+export type UnzipFileBody = {
+  workspaceId: string
+}
+
+type UnzipFileResponseRef0 = {
+  folderPath: string
+  extractedFileCount: number
+  skippedFileCount: number
+}
+
+export type UnzipFileResponse = {
+  data: UnzipFileResponseRef0
+}
+
+/** `PATCH /api/v2/credentials/[credentialId]` */
+export type UpdateCredentialParams = {
+  credentialId: string
+}
+
+export type UpdateCredentialQuery = {
+  workspaceId: string
+}
+
+export type UpdateCredentialBody = {
+  displayName?: string
+  description?: string | null
+  serviceAccountJson?: string
+  apiToken?: string
+  domain?: string
+  signingSecret?: string
+  botToken?: string
+  clientId?: string
+  clientSecret?: string
+  certificateId?: string
+  orgId?: string
+  dataCenter?: string
+  authMethod?: string
+  privateKey?: string
+  username?: string
+}
+
+type UpdateCredentialResponseRef0 = {
+  id: string
+  type: 'oauth' | 'service_account'
+  displayName: string
+  description: string | null
+  providerId: string | null
+  accountId: string | null
+  hasServiceAccountKey: boolean
+  role: 'admin' | 'member'
+  createdAt: string
+  updatedAt: string
+}
+
+export type UpdateCredentialResponse = {
+  data: UpdateCredentialResponseRef0
+}
+
+/** `PATCH /api/v2/custom-tools/[customToolId]` */
+export type UpdateCustomToolParams = {
+  customToolId: string
 }
 
 export type UpdateCustomToolQuery = Record<string, unknown>
@@ -5304,6 +7849,7 @@ export type UpdateFileContentBody = {
 
 type UpdateFileContentResponseRef0 = {
   id: string
+  webUrl: string
   name: string
   size: number
   type: string
@@ -5319,9 +7865,9 @@ export type UpdateFileContentResponse = {
   data: UpdateFileContentResponseRef0
 }
 
-/** `PATCH /api/v2/knowledge/[id]` */
+/** `PATCH /api/v2/knowledge/[knowledgeBaseId]` */
 export type UpdateKnowledgeBaseParams = {
-  id: string
+  knowledgeBaseId: string
 }
 
 export type UpdateKnowledgeBaseQuery = Record<string, unknown>
@@ -5330,6 +7876,13 @@ type UpdateKnowledgeBaseBodyRef0 = {
   maxSize?: number
   minSize?: number
   overlap?: number
+  strategy?: 'auto' | 'text' | 'regex' | 'recursive' | 'sentence' | 'token'
+  strategyOptions?: {
+    pattern?: string
+    separators?: Array<string>
+    recipe?: 'plain' | 'markdown' | 'code'
+    strictBoundaries?: boolean
+  }
 }
 
 type UpdateKnowledgeBaseBodyRef1 = string
@@ -5367,18 +7920,59 @@ type UpdateKnowledgeBaseResponseRef1 = {
   connectorTypes?: Array<string>
   createdAt: string
   updatedAt: string
+  webUrl: string
   ownerEmail: string
   folderPath: string
+  deletedAt: string | null
 }
 
 export type UpdateKnowledgeBaseResponse = {
   data: UpdateKnowledgeBaseResponseRef1
 }
 
-/** `PATCH /api/v2/knowledge/[id]/connectors/[connectorId]` */
-export type UpdateKnowledgeConnectorParams = {
+/** `PATCH /api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]/chunks/[chunkId]` */
+export type UpdateKnowledgeChunkParams = {
+  documentId: string
+  chunkId: string
+  knowledgeBaseId: string
+}
+
+export type UpdateKnowledgeChunkQuery = Record<string, unknown>
+
+export type UpdateKnowledgeChunkBody = {
+  workspaceId: string
+  content?: string
+  enabled?: boolean
+}
+
+type UpdateKnowledgeChunkResponseRef0 = {
   id: string
+  chunkIndex: number
+  content: string
+  contentLength: number
+  tokenCount: number
+  enabled: boolean
+  startOffset: number
+  endOffset: number
+  tag1: string | null
+  tag2: string | null
+  tag3: string | null
+  tag4: string | null
+  tag5: string | null
+  tag6: string | null
+  tag7: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type UpdateKnowledgeChunkResponse = {
+  data: UpdateKnowledgeChunkResponseRef0
+}
+
+/** `PATCH /api/v2/knowledge/[knowledgeBaseId]/connectors/[connectorId]` */
+export type UpdateKnowledgeConnectorParams = {
   connectorId: string
+  knowledgeBaseId: string
 }
 
 export type UpdateKnowledgeConnectorQuery = Record<string, unknown>
@@ -5412,10 +8006,10 @@ export type UpdateKnowledgeConnectorResponse = {
   data: UpdateKnowledgeConnectorResponseRef0
 }
 
-/** `PATCH /api/v2/knowledge/[id]/connectors/[connectorId]/documents` */
+/** `PATCH /api/v2/knowledge/[knowledgeBaseId]/connectors/[connectorId]/documents` */
 export type UpdateKnowledgeConnectorDocumentsParams = {
-  id: string
   connectorId: string
+  knowledgeBaseId: string
 }
 
 export type UpdateKnowledgeConnectorDocumentsQuery = Record<string, unknown>
@@ -5436,10 +8030,10 @@ export type UpdateKnowledgeConnectorDocumentsResponse = {
   data: UpdateKnowledgeConnectorDocumentsResponseRef0
 }
 
-/** `PATCH /api/v2/knowledge/[id]/documents/[documentId]` */
+/** `PATCH /api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]` */
 export type UpdateKnowledgeDocumentParams = {
-  id: string
   documentId: string
+  knowledgeBaseId: string
 }
 
 export type UpdateKnowledgeDocumentQuery = Record<string, unknown>
@@ -5494,9 +8088,34 @@ export type UpdateKnowledgeDocumentResponse = {
   data: UpdateKnowledgeDocumentResponseRef0 | UpdateKnowledgeDocumentResponseRef1
 }
 
-/** `PATCH /api/v2/mcp-servers/[id]` */
-export type UpdateMcpServerParams = {
+/** `PATCH /api/v2/knowledge/[knowledgeBaseId]/tags/[tagId]` */
+export type UpdateKnowledgeTagParams = {
+  tagId: string
+  knowledgeBaseId: string
+}
+
+export type UpdateKnowledgeTagQuery = Record<string, unknown>
+
+export type UpdateKnowledgeTagBody = {
+  workspaceId: string
+  displayName?: string
+  fieldType?: 'text' | 'number' | 'date' | 'boolean'
+}
+
+type UpdateKnowledgeTagResponseRef0 = {
   id: string
+  displayName: string
+  tagSlot: string
+  fieldType: string
+}
+
+export type UpdateKnowledgeTagResponse = {
+  data: UpdateKnowledgeTagResponseRef0
+}
+
+/** `PATCH /api/v2/mcp-servers/[mcpServerId]` */
+export type UpdateMcpServerParams = {
+  mcpServerId: string
 }
 
 export type UpdateMcpServerQuery = Record<string, unknown>
@@ -5630,9 +8249,9 @@ export type UpdateRowsByFilterResponse = {
   data: UpdateRowsByFilterResponseRef0
 }
 
-/** `PATCH /api/v2/skills/[id]` */
+/** `PATCH /api/v2/skills/[skillId]` */
 export type UpdateSkillParams = {
-  id: string
+  skillId: string
 }
 
 export type UpdateSkillQuery = Record<string, unknown>
@@ -5684,6 +8303,7 @@ type UpdateTableResponseRef0 = {
 
 type UpdateTableResponseRef1 = {
   id: string
+  webUrl: string
   name: string
   description: string | null
   ownerEmail: string
@@ -5784,14 +8404,25 @@ export type UpdateTableRowBody = {
 type UpdateTableRowResponseRef0 = Record<string, unknown>
 
 type UpdateTableRowResponseRef1 = {
+  status: string
+  executionId: string | null
+  workflowId: string
+  error: string | null
+  runningBlockIds: Array<string>
+  blockErrors: Record<string, string>
+  canceledAt: string | null
+}
+
+type UpdateTableRowResponseRef2 = {
   id: string
   data: UpdateTableRowResponseRef0
+  runState?: Record<string, UpdateTableRowResponseRef1>
   createdAt: string
   updatedAt: string
 }
 
 export type UpdateTableRowResponse = {
-  data: UpdateTableRowResponseRef1
+  data: UpdateTableRowResponseRef2
 }
 
 /** `PATCH /api/v2/tables/[tableId]/views/[viewId]` */
@@ -5944,9 +8575,9 @@ export type UpdateTableViewResponse = {
   data: UpdateTableViewResponseRef1
 }
 
-/** `PATCH /api/v2/workflows/[id]` */
+/** `PATCH /api/v2/workflows/[workflowId]` */
 export type UpdateWorkflowParams = {
-  id: string
+  workflowId: string
 }
 
 export type UpdateWorkflowQuery = Record<string, unknown>
@@ -5961,6 +8592,7 @@ export type UpdateWorkflowBody = {
 
 type UpdateWorkflowResponseRef0 = {
   id: string
+  webUrl: string
   name: string
   description: string | null
   folderPath: string
@@ -6063,9 +8695,79 @@ export type UpdateWorkflowGroupResponse = {
   data: UpdateWorkflowGroupResponseRef1
 }
 
-/** `POST /api/v2/knowledge/[id]/documents` */
-export type UploadKnowledgeDocumentParams = {
+/** `PATCH /api/v2/workflow-mcp-servers/[serverId]` */
+export type UpdateWorkflowMcpServerParams = {
+  serverId: string
+}
+
+export type UpdateWorkflowMcpServerQuery = Record<string, unknown>
+
+export type UpdateWorkflowMcpServerBody = {
+  name?: string
+  description?: string | null
+  isPublic?: boolean
+}
+
+type UpdateWorkflowMcpServerResponseRef0 = {
   id: string
+  name: string
+  description: string | null
+  isPublic: boolean
+  mcpServerUrl: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type UpdateWorkflowMcpServerResponse = {
+  data: UpdateWorkflowMcpServerResponseRef0
+}
+
+/** `PATCH /api/v2/workflows/[workflowId]/deployment` */
+export type UpdateWorkflowPublicApiParams = {
+  workflowId: string
+}
+
+export type UpdateWorkflowPublicApiQuery = Record<string, unknown>
+
+export type UpdateWorkflowPublicApiBody = {
+  isPublicApi: boolean
+}
+
+type UpdateWorkflowPublicApiResponseRef0 = {
+  id: string
+  isPublicApi: boolean
+}
+
+export type UpdateWorkflowPublicApiResponse = {
+  data: UpdateWorkflowPublicApiResponseRef0
+}
+
+/** `PATCH /api/v2/workflows/[workflowId]/versions/[version]` */
+export type UpdateWorkflowVersionParams = {
+  version: number
+  workflowId: string
+}
+
+export type UpdateWorkflowVersionQuery = Record<string, unknown>
+
+export type UpdateWorkflowVersionBody = {
+  name?: string
+  description?: string | null
+}
+
+type UpdateWorkflowVersionResponseRef0 = {
+  version: number
+  name: string | null
+  description: string | null
+}
+
+export type UpdateWorkflowVersionResponse = {
+  data: UpdateWorkflowVersionResponseRef0
+}
+
+/** `POST /api/v2/knowledge/[knowledgeBaseId]/documents` */
+export type UploadKnowledgeDocumentParams = {
+  knowledgeBaseId: string
 }
 
 export type UploadKnowledgeDocumentQuery = {
@@ -6139,29 +8841,41 @@ export type UpsertTableRowBody = {
 type UpsertTableRowResponseRef0 = Record<string, unknown>
 
 type UpsertTableRowResponseRef1 = {
+  status: string
+  executionId: string | null
+  workflowId: string
+  error: string | null
+  runningBlockIds: Array<string>
+  blockErrors: Record<string, string>
+  canceledAt: string | null
+}
+
+type UpsertTableRowResponseRef2 = {
   id: string
   data: UpsertTableRowResponseRef0
+  runState?: Record<string, UpsertTableRowResponseRef1>
   createdAt: string
   updatedAt: string
 }
 
-type UpsertTableRowResponseRef2 = {
-  row: UpsertTableRowResponseRef1
+type UpsertTableRowResponseRef3 = {
+  row: UpsertTableRowResponseRef2
   operation: 'insert' | 'update'
 }
 
 export type UpsertTableRowResponse = {
-  data: UpsertTableRowResponseRef2
+  data: UpsertTableRowResponseRef3
 }
 
 /**
  * Every v2 operation, keyed by name.
  *
- * `query` and `body` describe each field well enough for the CLI to build a
- * flag for it and coerce the string argv gives back: its kind, whether it is
- * required, its enum values, and its server-side default. A slot the contract
- * does not declare — or one whose shape is a union with no flat field list —
- * is absent, and the runtime falls back to taking it as JSON.
+ * `query`, `body`, and `headers` describe each field well enough for the CLI
+ * to build a flag for it and coerce the string argv gives back: its kind,
+ * whether it is required, its enum values, and its server-side default. A slot
+ * the contract does not declare — or one whose shape is a union with no flat
+ * field list — is absent, and the runtime falls back to taking it as JSON.
+ * Headers the CLI sets itself, such as the API key, are never listed.
  *
  * `summary` is the operation's one-line description, lifted from the OpenAPI
  * specs so `--help` reuses prose that is already written and already checked.
@@ -6181,13 +8895,20 @@ export const V2_OPERATIONS = {
         describe: 'Workspace that owns the upload session.',
       },
     },
+    headers: {
+      'upload-token': {
+        kind: 'string',
+        required: true,
+        describe: 'Signed upload control token returned when the upload session was created.',
+      },
+    },
   },
   abortKnowledgeDocumentUpload: {
     method: 'DELETE',
-    path: '/api/v2/knowledge/[id]/documents/uploads/[uploadId]',
-    pathParams: ['id', 'uploadId'] as const,
+    path: '/api/v2/knowledge/[knowledgeBaseId]/documents/uploads/[uploadId]',
+    pathParams: ['knowledgeBaseId', 'uploadId'] as const,
     pathParamDocs: {
-      id: 'Unique knowledge base identifier.',
+      knowledgeBaseId: 'Unique knowledge base identifier.',
       uploadId: 'Upload session identifier returned when the upload was created.',
     },
     responseMode: 'json',
@@ -6199,6 +8920,24 @@ export const V2_OPERATIONS = {
         describe: 'Workspace that owns the knowledge base.',
       },
     },
+    headers: {
+      'upload-token': {
+        kind: 'string',
+        required: true,
+        describe: 'Signed upload control token returned when the upload session was created.',
+      },
+    },
+  },
+  activateWorkflowVersion: {
+    method: 'POST',
+    path: '/api/v2/workflows/[workflowId]/versions/[version]/activate',
+    pathParams: ['workflowId', 'version'] as const,
+    pathParamDocs: {
+      workflowId: 'Unique workflow identifier.',
+      version: 'Numeric deployment version.',
+    },
+    responseMode: 'json',
+    summary: 'Activate Workflow Version',
   },
   addTableColumn: {
     method: 'POST',
@@ -6238,6 +8977,78 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  addWorkspaceFilesToKnowledgeBase: {
+    method: 'POST',
+    path: '/api/v2/knowledge/[knowledgeBaseId]/documents/from-workspace-files',
+    pathParams: ['knowledgeBaseId'] as const,
+    pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
+    responseMode: 'json',
+    summary: 'Index Workspace Files',
+    body: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns both the files and the base.',
+      },
+      fileReferences: {
+        kind: 'array',
+        required: true,
+        describe:
+          'Workspace file identifiers or storage keys to index. Duplicates resolving to the same file are indexed once.',
+      },
+    },
+  },
+  applyWorkflowOperations: {
+    method: 'POST',
+    path: '/api/v2/workflows/[workflowId]/operations',
+    pathParams: ['workflowId'] as const,
+    pathParamDocs: { workflowId: 'Unique workflow identifier.' },
+    responseMode: 'json',
+    summary: 'Apply Workflow Operations',
+    query: {
+      dryRun: {
+        kind: 'boolean',
+        describe:
+          'Validate and lint without persisting. The response is identical to the committed write of the same body, so a caller can inspect `lint` and then re-send the request for real. Nothing is written, no audit entry is recorded, and collaborators are not notified.',
+      },
+    },
+    body: {
+      operations: { kind: 'array', required: true, describe: 'Edits to apply, in a single batch.' },
+      atomic: {
+        kind: 'boolean',
+        default: false,
+        describe:
+          'Fail the whole batch when any operation is declined or any block input would be dropped. The default applies what it can and reports the rest in `skipped` and `inputValidationErrors`; `true` writes nothing and answers `409` instead.',
+      },
+      layout: {
+        kind: 'enum',
+        values: ['targeted', 'none'] as const,
+        default: 'targeted',
+        describe:
+          'Whether to reposition blocks the batch touched. `targeted` (default) nudges only the affected subgraph; `none` leaves every position exactly as supplied.',
+      },
+      setBlockEnabled: {
+        kind: 'array',
+        describe:
+          'Blocks to enable or disable, applied after `operations`. Disabling a loop or parallel cascades to its unlocked descendants; enabling a block whose container is disabled is declined.',
+      },
+    },
+  },
+  applyWorkflowVariables: {
+    method: 'PATCH',
+    path: '/api/v2/workflows/[workflowId]/variables',
+    pathParams: ['workflowId'] as const,
+    pathParamDocs: { workflowId: 'Unique workflow identifier.' },
+    responseMode: 'json',
+    summary: 'Update Workflow Variables',
+    body: {
+      operations: {
+        kind: 'array',
+        required: true,
+        describe: 'Variable changes to apply, in order.',
+      },
+    },
+  },
   bulkDeleteFiles: {
     method: 'POST',
     path: '/api/v2/files/bulk-delete',
@@ -6249,11 +9060,103 @@ export const V2_OPERATIONS = {
       fileIds: { kind: 'array', required: true, describe: 'File identifiers to update.' },
     },
   },
+  bulkDeleteTables: {
+    method: 'POST',
+    path: '/api/v2/tables/bulk-delete',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'Bulk Delete Tables and Folders',
+    body: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns every selected item.',
+      },
+      tableIds: { kind: 'array', default: [], describe: 'Tables to archive, by identifier.' },
+      folderPaths: {
+        kind: 'array',
+        describe:
+          'Table folders to delete, by canonical path. Each cascades to everything inside it.',
+      },
+    },
+  },
+  bulkDownloadFiles: {
+    method: 'GET',
+    path: '/api/v2/files/bulk-download',
+    pathParams: [] as const,
+    responseMode: 'binary',
+    summary: 'Bulk Download Files',
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace containing the selection.',
+      },
+      fileIds: {
+        kind: 'string',
+        describe: 'File identifiers to include, comma-separated. At most 100 entries.',
+      },
+      folderPaths: {
+        kind: 'string',
+        describe:
+          'Folder paths to include with all their descendants, comma-separated. At most 100 entries, and the files they resolve to count against the same 100-file download ceiling. A path that matches no folder is rejected rather than ignored.',
+      },
+    },
+  },
+  bulkSaveKnowledgeTagDefinitions: {
+    method: 'PUT',
+    path: '/api/v2/knowledge/[knowledgeBaseId]/tags',
+    pathParams: ['knowledgeBaseId'] as const,
+    pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
+    responseMode: 'json',
+    summary: 'Bulk Save Tag Definitions',
+    body: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
+      definitions: {
+        kind: 'array',
+        required: true,
+        describe: 'Tag definitions to create or update on the knowledge base.',
+      },
+    },
+  },
+  bulkUpdateKnowledgeChunks: {
+    method: 'PATCH',
+    path: '/api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]/chunks',
+    pathParams: ['knowledgeBaseId', 'documentId'] as const,
+    pathParamDocs: {
+      knowledgeBaseId: 'Unique knowledge base identifier.',
+      documentId: 'Unique knowledge document identifier.',
+    },
+    responseMode: 'json',
+    summary: 'Bulk Update Chunks',
+    body: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
+      operation: {
+        kind: 'enum',
+        required: true,
+        values: ['enable', 'disable', 'delete'] as const,
+        describe: 'What to do with the selected chunks.',
+      },
+      chunkIds: {
+        kind: 'array',
+        required: true,
+        describe: 'Chunks to operate on, by identifier. Ids outside the document are ignored.',
+      },
+    },
+  },
   bulkUpdateKnowledgeDocuments: {
     method: 'PATCH',
-    path: '/api/v2/knowledge/[id]/documents',
-    pathParams: ['id'] as const,
-    pathParamDocs: { id: 'Unique knowledge base identifier.' },
+    path: '/api/v2/knowledge/[knowledgeBaseId]/documents',
+    pathParams: ['knowledgeBaseId'] as const,
+    pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
     responseMode: 'json',
     summary: 'Bulk Enable or Disable Documents',
     body: {
@@ -6281,11 +9184,48 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  bulkUpdateTableRows: {
+    method: 'POST',
+    path: '/api/v2/tables/[tableId]/rows/bulk-update',
+    pathParams: ['tableId'] as const,
+    pathParamDocs: { tableId: 'Unique table identifier.' },
+    responseMode: 'json',
+    summary: 'Bulk Update Rows',
+    body: {
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the table.' },
+      updates: {
+        kind: 'array',
+        required: true,
+        describe: 'One merge patch per row. Each row identifier may appear at most once.',
+      },
+    },
+  },
+  cancelTableDispatch: {
+    method: 'DELETE',
+    path: '/api/v2/tables/[tableId]/dispatches/[dispatchId]',
+    pathParams: ['tableId', 'dispatchId'] as const,
+    pathParamDocs: {
+      tableId: 'Unique table identifier.',
+      dispatchId: 'Unique table run-dispatch identifier.',
+    },
+    responseMode: 'json',
+    summary: 'Cancel Run Dispatch',
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the transfer resource.',
+      },
+    },
+  },
   cancelTableExport: {
     method: 'DELETE',
-    path: '/api/v2/tables/exports/[exportId]',
-    pathParams: ['exportId'] as const,
-    pathParamDocs: { exportId: 'Unique table-export identifier.' },
+    path: '/api/v2/tables/[tableId]/exports/[exportId]',
+    pathParams: ['tableId', 'exportId'] as const,
+    pathParamDocs: {
+      tableId: 'Unique table identifier.',
+      exportId: 'Unique table-export identifier.',
+    },
     responseMode: 'json',
     summary: 'Cancel Table Export',
     query: {
@@ -6308,6 +9248,12 @@ export const V2_OPERATIONS = {
         kind: 'string',
         required: true,
         describe: 'Workspace that owns the transfer resource.',
+      },
+    },
+    headers: {
+      'upload-token': {
+        kind: 'string',
+        describe: 'Signed upload control token returned when an upload-backed import was created.',
       },
     },
   },
@@ -6337,9 +9283,12 @@ export const V2_OPERATIONS = {
   },
   cancelWorkflowRun: {
     method: 'POST',
-    path: '/api/v2/workflows/[id]/runs/[runId]/cancel',
-    pathParams: ['id', 'runId'] as const,
-    pathParamDocs: { id: 'Unique workflow identifier.', runId: 'Unique workflow run identifier.' },
+    path: '/api/v2/workflows/[workflowId]/runs/[runId]/cancel',
+    pathParams: ['workflowId', 'runId'] as const,
+    pathParamDocs: {
+      workflowId: 'Unique workflow identifier.',
+      runId: 'Unique workflow run identifier.',
+    },
     responseMode: 'json',
     summary: 'Cancel Workflow Run',
   },
@@ -6375,13 +9324,20 @@ export const V2_OPERATIONS = {
         describe: 'Workspace that owns the upload session.',
       },
     },
+    headers: {
+      'upload-token': {
+        kind: 'string',
+        required: true,
+        describe: 'Signed upload control token returned when the upload session was created.',
+      },
+    },
   },
   completeKnowledgeDocumentUpload: {
     method: 'POST',
-    path: '/api/v2/knowledge/[id]/documents/uploads/[uploadId]/complete',
-    pathParams: ['id', 'uploadId'] as const,
+    path: '/api/v2/knowledge/[knowledgeBaseId]/documents/uploads/[uploadId]/complete',
+    pathParams: ['knowledgeBaseId', 'uploadId'] as const,
     pathParamDocs: {
-      id: 'Unique knowledge base identifier.',
+      knowledgeBaseId: 'Unique knowledge base identifier.',
       uploadId: 'Upload session identifier returned when the upload was created.',
     },
     responseMode: 'json',
@@ -6391,6 +9347,13 @@ export const V2_OPERATIONS = {
         kind: 'string',
         required: true,
         describe: 'Workspace that owns the knowledge base.',
+      },
+    },
+    headers: {
+      'upload-token': {
+        kind: 'string',
+        required: true,
+        describe: 'Signed upload control token returned when the upload session was created.',
       },
     },
   },
@@ -6406,6 +9369,13 @@ export const V2_OPERATIONS = {
         kind: 'string',
         required: true,
         describe: 'Workspace that owns the transfer resource.',
+      },
+    },
+    headers: {
+      'upload-token': {
+        kind: 'string',
+        required: true,
+        describe: 'Signed upload control token returned when the upload session was created.',
       },
     },
   },
@@ -6550,6 +9520,13 @@ export const V2_OPERATIONS = {
         describe: 'Multipart part numbers for which signed URLs should be created.',
       },
     },
+    headers: {
+      'upload-token': {
+        kind: 'string',
+        required: true,
+        describe: 'Signed upload control token returned when the upload session was created.',
+      },
+    },
   },
   createKnowledgeBase: {
     method: 'POST',
@@ -6575,11 +9552,39 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  createKnowledgeChunk: {
+    method: 'POST',
+    path: '/api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]/chunks',
+    pathParams: ['knowledgeBaseId', 'documentId'] as const,
+    pathParamDocs: {
+      knowledgeBaseId: 'Unique knowledge base identifier.',
+      documentId: 'Unique knowledge document identifier.',
+    },
+    responseMode: 'json',
+    summary: 'Create Chunk',
+    body: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
+      content: {
+        kind: 'string',
+        required: true,
+        describe: 'Text to embed. It is embedded on write, so the chunk is searchable immediately.',
+      },
+      enabled: {
+        kind: 'boolean',
+        default: true,
+        describe: 'Whether the new chunk participates in search.',
+      },
+    },
+  },
   createKnowledgeConnector: {
     method: 'POST',
-    path: '/api/v2/knowledge/[id]/connectors',
-    pathParams: ['id'] as const,
-    pathParamDocs: { id: 'Unique knowledge base identifier.' },
+    path: '/api/v2/knowledge/[knowledgeBaseId]/connectors',
+    pathParams: ['knowledgeBaseId'] as const,
+    pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
     responseMode: 'json',
     summary: 'Create Knowledge Connector',
     body: {
@@ -6611,9 +9616,9 @@ export const V2_OPERATIONS = {
   },
   createKnowledgeDocumentUpload: {
     method: 'POST',
-    path: '/api/v2/knowledge/[id]/documents/uploads',
-    pathParams: ['id'] as const,
-    pathParamDocs: { id: 'Unique knowledge base identifier.' },
+    path: '/api/v2/knowledge/[knowledgeBaseId]/documents/uploads',
+    pathParams: ['knowledgeBaseId'] as const,
+    pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
     responseMode: 'json',
     summary: 'Create Document Upload',
     body: {
@@ -6645,10 +9650,10 @@ export const V2_OPERATIONS = {
   },
   createKnowledgeDocumentUploadPartUrls: {
     method: 'POST',
-    path: '/api/v2/knowledge/[id]/documents/uploads/[uploadId]/parts',
-    pathParams: ['id', 'uploadId'] as const,
+    path: '/api/v2/knowledge/[knowledgeBaseId]/documents/uploads/[uploadId]/parts',
+    pathParams: ['knowledgeBaseId', 'uploadId'] as const,
     pathParamDocs: {
-      id: 'Unique knowledge base identifier.',
+      knowledgeBaseId: 'Unique knowledge base identifier.',
       uploadId: 'Upload session identifier returned when the upload was created.',
     },
     responseMode: 'json',
@@ -6667,6 +9672,13 @@ export const V2_OPERATIONS = {
         describe: 'Multipart part numbers for which signed URLs should be created.',
       },
     },
+    headers: {
+      'upload-token': {
+        kind: 'string',
+        required: true,
+        describe: 'Signed upload control token returned when the upload session was created.',
+      },
+    },
   },
   createKnowledgeFolder: {
     method: 'POST',
@@ -6681,6 +9693,57 @@ export const V2_OPERATIONS = {
         describe: 'Workspace in which to create the folder.',
       },
       path: { kind: 'string', required: true, describe: 'Path of the folder to create.' },
+    },
+  },
+  createKnowledgeTag: {
+    method: 'POST',
+    path: '/api/v2/knowledge/[knowledgeBaseId]/tags',
+    pathParams: ['knowledgeBaseId'] as const,
+    pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
+    responseMode: 'json',
+    summary: 'Create Tag',
+    body: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
+      displayName: {
+        kind: 'string',
+        required: true,
+        describe: 'Name tag filters and document reads use for this tag.',
+      },
+      fieldType: {
+        kind: 'enum',
+        values: ['text', 'number', 'date', 'boolean'] as const,
+        default: 'text',
+        describe:
+          'Value type stored in the slot; it decides which slots are usable and which filter operators apply. Slot capacity per type: text 7, number 5, date 2, boolean 3.',
+      },
+      tagSlot: {
+        kind: 'enum',
+        values: [
+          'tag1',
+          'tag2',
+          'tag3',
+          'tag4',
+          'tag5',
+          'tag6',
+          'tag7',
+          'number1',
+          'number2',
+          'number3',
+          'number4',
+          'number5',
+          'date1',
+          'date2',
+          'boolean1',
+          'boolean2',
+          'boolean3',
+        ] as const,
+        describe:
+          'Slot to store the tag in. Omit to take the next free slot for the field type; a slot that does not belong to the field type, or one already in use, is rejected.',
+      },
     },
   },
   createMcpServer: {
@@ -6833,6 +9896,36 @@ export const V2_OPERATIONS = {
       folderPath: { kind: 'string', describe: 'Folder in which to create the table.' },
     },
   },
+  createTableDispatch: {
+    method: 'POST',
+    path: '/api/v2/tables/[tableId]/dispatches',
+    pathParams: ['tableId'] as const,
+    pathParamDocs: { tableId: 'Unique table identifier.' },
+    responseMode: 'json',
+    summary: 'Create Run Dispatch',
+    body: {
+      workspaceId: { kind: 'string', required: true, describe: 'Unique workspace identifier.' },
+      groupIds: {
+        kind: 'array',
+        required: true,
+        describe: 'Workflow or enrichment groups to run.',
+      },
+      runMode: {
+        kind: 'enum',
+        values: ['all', 'incomplete'] as const,
+        default: 'all',
+        describe: 'Whether to run all or only incomplete cells.',
+      },
+      rowIds: { kind: 'array', describe: 'Explicit row subset to run.' },
+      filter: {
+        kind: 'unknown',
+        describe:
+          'Recursive predicate tree. Each group node is exactly one non-empty `all` or `any` array whose members are further groups or `{ field, op, value }` conditions; the root must be a group, not a bare condition. At most 100 members per group, 10 levels of nesting, and 500 nodes in total. The negating operators include nulls: `ne`, `nin`, `ncontains`, `nlike`, and `nilike` match rows whose column is null or absent, so "not X" is not the complement of "X" over a nullable column. That holds for every column type, multi-select included. To exclude nulls, `all`-combine the negation with `isNotEmpty` (multi-select) or `isNotNull`. Comparison: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`. Membership: `in`, `nin` (array operand). Emptiness: `isEmpty`, `isNotEmpty`, `isNull`, `isNotNull` (no operand). Substring, always case-insensitive, operand matched literally: `contains`, `ncontains`, `startsWith`, `endsWith`. Pattern: `like`/`nlike` (case-sensitive), `ilike`/`nilike` (case-insensitive). **`*` is the only wildcard** and stands for any run of characters; `%`, `_`, and backslash match themselves. Use `like: "Hi*"`, not `like: "Hi%"`. A `select` column compares by option id and restricts its operators: single-select accepts `eq`, `ne`, `in`, `nin`; multi-select accepts `contains`, `ncontains`. Option names are accepted as operands and resolved to ids.',
+      },
+      excludeRowIds: { kind: 'array', describe: 'Rows excluded from a select-all run scope.' },
+      limit: { kind: 'object', describe: 'Optional cap on eligible rows to run.' },
+    },
+  },
   createTableExport: {
     method: 'POST',
     path: '/api/v2/tables/[tableId]/exports',
@@ -6904,6 +9997,13 @@ export const V2_OPERATIONS = {
         describe: 'Multipart part numbers for which signed URLs should be created.',
       },
     },
+    headers: {
+      'upload-token': {
+        kind: 'string',
+        required: true,
+        describe: 'Signed upload control token returned when the upload session was created.',
+      },
+    },
   },
   createTableRows: {
     method: 'POST',
@@ -6970,11 +10070,41 @@ export const V2_OPERATIONS = {
       path: { kind: 'string', required: true, describe: 'Path of the folder to create.' },
     },
   },
+  createWorkflowMcpServer: {
+    method: 'POST',
+    path: '/api/v2/workflow-mcp-servers',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'Create Workflow MCP Server',
+    body: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace in which to publish the server.',
+      },
+      name: {
+        kind: 'string',
+        required: true,
+        describe: 'Server display name, shown to connecting MCP clients.',
+      },
+      description: { kind: 'string', describe: 'Optional server description.' },
+      isPublic: {
+        kind: 'boolean',
+        default: false,
+        describe:
+          'Whether the server answers MCP clients without a Sim API key. Defaults to false — a public server executes the workflows it publishes for anyone holding its URL.',
+      },
+      workflowIds: {
+        kind: 'array',
+        describe: 'Deployed workflows to publish as tools on the new server.',
+      },
+    },
+  },
   deleteCredential: {
     method: 'DELETE',
     path: '/api/v2/credentials/[credentialId]',
     pathParams: ['credentialId'] as const,
-    pathParamDocs: { credentialId: 'Credential to disconnect.' },
+    pathParamDocs: { credentialId: 'Credential to update or disconnect.' },
     responseMode: 'json',
     summary: 'Disconnect Credential',
     query: {
@@ -6987,9 +10117,9 @@ export const V2_OPERATIONS = {
   },
   deleteCustomTool: {
     method: 'DELETE',
-    path: '/api/v2/custom-tools/[id]',
-    pathParams: ['id'] as const,
-    pathParamDocs: { id: 'Unique custom tool identifier.' },
+    path: '/api/v2/custom-tools/[customToolId]',
+    pathParams: ['customToolId'] as const,
+    pathParamDocs: { customToolId: 'Unique custom tool identifier.' },
     responseMode: 'json',
     summary: 'Delete Custom Tool',
     query: {
@@ -7044,9 +10174,9 @@ export const V2_OPERATIONS = {
   },
   deleteKnowledgeBase: {
     method: 'DELETE',
-    path: '/api/v2/knowledge/[id]',
-    pathParams: ['id'] as const,
-    pathParamDocs: { id: 'Unique knowledge base identifier.' },
+    path: '/api/v2/knowledge/[knowledgeBaseId]',
+    pathParams: ['knowledgeBaseId'] as const,
+    pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
     responseMode: 'json',
     summary: 'Delete Knowledge Base',
     query: {
@@ -7057,12 +10187,31 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  deleteKnowledgeChunk: {
+    method: 'DELETE',
+    path: '/api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]/chunks/[chunkId]',
+    pathParams: ['knowledgeBaseId', 'documentId', 'chunkId'] as const,
+    pathParamDocs: {
+      knowledgeBaseId: 'Unique knowledge base identifier.',
+      documentId: 'Unique knowledge document identifier.',
+      chunkId: 'Unique chunk identifier.',
+    },
+    responseMode: 'json',
+    summary: 'Delete Chunk',
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
+    },
+  },
   deleteKnowledgeConnector: {
     method: 'DELETE',
-    path: '/api/v2/knowledge/[id]/connectors/[connectorId]',
-    pathParams: ['id', 'connectorId'] as const,
+    path: '/api/v2/knowledge/[knowledgeBaseId]/connectors/[connectorId]',
+    pathParams: ['knowledgeBaseId', 'connectorId'] as const,
     pathParamDocs: {
-      id: 'Knowledge base that owns the connector.',
+      knowledgeBaseId: 'Knowledge base that owns the connector.',
       connectorId: 'Connector selected for the operation.',
     },
     responseMode: 'json',
@@ -7081,10 +10230,10 @@ export const V2_OPERATIONS = {
   },
   deleteKnowledgeDocument: {
     method: 'DELETE',
-    path: '/api/v2/knowledge/[id]/documents/[documentId]',
-    pathParams: ['id', 'documentId'] as const,
+    path: '/api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]',
+    pathParams: ['knowledgeBaseId', 'documentId'] as const,
     pathParamDocs: {
-      id: 'Unique knowledge base identifier.',
+      knowledgeBaseId: 'Unique knowledge base identifier.',
       documentId: 'Unique knowledge document identifier.',
     },
     responseMode: 'json',
@@ -7128,11 +10277,49 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  deleteKnowledgeTag: {
+    method: 'DELETE',
+    path: '/api/v2/knowledge/[knowledgeBaseId]/tags/[tagId]',
+    pathParams: ['knowledgeBaseId', 'tagId'] as const,
+    pathParamDocs: {
+      knowledgeBaseId: 'Unique knowledge base identifier.',
+      tagId: 'Unique tag definition identifier.',
+    },
+    responseMode: 'json',
+    summary: 'Delete Tag',
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
+    },
+  },
+  deleteKnowledgeTagDefinitions: {
+    method: 'DELETE',
+    path: '/api/v2/knowledge/[knowledgeBaseId]/tags',
+    pathParams: ['knowledgeBaseId'] as const,
+    pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
+    responseMode: 'json',
+    summary: 'Delete Tag Definitions',
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
+      unused: {
+        kind: 'boolean',
+        describe:
+          'Whether to remove only the tag definitions no document in the knowledge base still carries a value for. Defaults to true. Pass `unused=false` to delete every definition on the knowledge base, which also clears its slot on every document and chunk and is not recoverable.',
+      },
+    },
+  },
   deleteMcpServer: {
     method: 'DELETE',
-    path: '/api/v2/mcp-servers/[id]',
-    pathParams: ['id'] as const,
-    pathParamDocs: { id: 'Unique MCP server identifier.' },
+    path: '/api/v2/mcp-servers/[mcpServerId]',
+    pathParams: ['mcpServerId'] as const,
+    pathParamDocs: { mcpServerId: 'Unique MCP server identifier.' },
     responseMode: 'json',
     summary: 'Delete MCP Server',
     query: {
@@ -7168,10 +10355,11 @@ export const V2_OPERATIONS = {
   },
   deleteSkill: {
     method: 'DELETE',
-    path: '/api/v2/skills/[id]',
-    pathParams: ['id'] as const,
+    path: '/api/v2/skills/[skillId]',
+    pathParams: ['skillId'] as const,
     pathParamDocs: {
-      id: 'Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`.',
+      skillId:
+        'Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`.',
     },
     responseMode: 'json',
     summary: 'Delete Skill',
@@ -7275,11 +10463,19 @@ export const V2_OPERATIONS = {
   },
   deleteWorkflow: {
     method: 'DELETE',
-    path: '/api/v2/workflows/[id]',
-    pathParams: ['id'] as const,
-    pathParamDocs: { id: 'Unique workflow identifier.' },
+    path: '/api/v2/workflows/[workflowId]',
+    pathParams: ['workflowId'] as const,
+    pathParamDocs: { workflowId: 'Unique workflow identifier.' },
     responseMode: 'json',
     summary: 'Delete Workflow',
+  },
+  deleteWorkflowChatDeployment: {
+    method: 'DELETE',
+    path: '/api/v2/workflows/[workflowId]/deployments/chat',
+    pathParams: ['workflowId'] as const,
+    pathParamDocs: { workflowId: 'Unique workflow identifier.' },
+    responseMode: 'json',
+    summary: 'Delete Workflow Chat Deployment',
   },
   deleteWorkflowFolder: {
     method: 'DELETE',
@@ -7324,11 +10520,19 @@ export const V2_OPERATIONS = {
       groupId: { kind: 'string', required: true, describe: 'Workflow group to delete.' },
     },
   },
+  deleteWorkflowMcpServer: {
+    method: 'DELETE',
+    path: '/api/v2/workflow-mcp-servers/[serverId]',
+    pathParams: ['serverId'] as const,
+    pathParamDocs: { serverId: 'Unique workflow-MCP server identifier.' },
+    responseMode: 'json',
+    summary: 'Delete Workflow MCP Server',
+  },
   deployWorkflow: {
     method: 'POST',
-    path: '/api/v2/workflows/[id]/deploy',
-    pathParams: ['id'] as const,
-    pathParamDocs: { id: 'Unique workflow identifier.' },
+    path: '/api/v2/workflows/[workflowId]/deploy',
+    pathParams: ['workflowId'] as const,
+    pathParamDocs: { workflowId: 'Unique workflow identifier.' },
     responseMode: 'json',
     summary: 'Deploy Workflow',
     body: {
@@ -7336,6 +10540,35 @@ export const V2_OPERATIONS = {
       description: {
         kind: 'string',
         describe: 'Optional release note for the deployment version.',
+      },
+    },
+  },
+  deployWorkflowMcpTool: {
+    method: 'POST',
+    path: '/api/v2/workflow-mcp-servers/[serverId]/tools',
+    pathParams: ['serverId'] as const,
+    pathParamDocs: { serverId: 'Unique workflow-MCP server identifier.' },
+    responseMode: 'json',
+    summary: 'Publish Workflow As MCP Tool',
+    body: {
+      workflowId: {
+        kind: 'string',
+        required: true,
+        describe: 'Deployed workflow to publish. The workflow must already be deployed.',
+      },
+      toolName: {
+        kind: 'string',
+        describe:
+          'Name MCP clients call. Normalized to the MCP tool-name grammar, and derived from the workflow name when omitted.',
+      },
+      toolDescription: {
+        kind: 'string',
+        describe: 'Description shown to MCP clients. Derived from the workflow name when omitted.',
+      },
+      parameterDescriptions: {
+        kind: 'array',
+        describe:
+          'Per-field description overrides applied to the schema generated from the deployed workflow inputs. A name matching no input field is ignored.',
       },
     },
   },
@@ -7350,17 +10583,52 @@ export const V2_OPERATIONS = {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
     },
   },
+  downloadRunFile: {
+    method: 'GET',
+    path: '/api/v2/workflows/[workflowId]/runs/[runId]/files/[fileId]',
+    pathParams: ['workflowId', 'runId', 'fileId'] as const,
+    pathParamDocs: {
+      workflowId: 'Unique workflow identifier.',
+      runId: 'Unique workflow run identifier.',
+      fileId: 'Identifier of a file the run produced, as reported by the run resource.',
+    },
+    responseMode: 'binary',
+    summary: 'Download Workflow Run File',
+  },
+  duplicateWorkflow: {
+    method: 'POST',
+    path: '/api/v2/workflows/[workflowId]/duplicate',
+    pathParams: ['workflowId'] as const,
+    pathParamDocs: { workflowId: 'Unique workflow identifier.' },
+    responseMode: 'json',
+    summary: 'Duplicate Workflow',
+    body: {
+      name: {
+        kind: 'string',
+        describe: 'Name for the copy. Defaults to the source name, deduplicated within the folder.',
+      },
+      folderPath: {
+        kind: 'string',
+        describe: "Destination folder path. Defaults to the source workflow's folder.",
+      },
+    },
+  },
   executeWorkflow: {
     method: 'POST',
-    path: '/api/v2/workflows/[id]/execute',
-    pathParams: ['id'] as const,
-    pathParamDocs: { id: 'Unique workflow identifier.' },
+    path: '/api/v2/workflows/[workflowId]/execute',
+    pathParams: ['workflowId'] as const,
+    pathParamDocs: { workflowId: 'Unique workflow identifier.' },
     responseMode: 'json',
     summary: 'Execute Workflow',
     body: {
       input: {
         kind: 'object',
-        describe: 'Workflow input keyed by deployed trigger input-field name.',
+        describe: 'Workflow input keyed by the selected trigger input-field name.',
+      },
+      run: {
+        kind: 'unknown',
+        describe:
+          'Workflow state and entry point to execute. Omit for the active deployment. Manual execution requires a personal API key with write access and supports synchronous or streamed runs only.',
       },
       async: {
         kind: 'boolean',
@@ -7382,7 +10650,7 @@ export const V2_OPERATIONS = {
       selectedOutputs: {
         kind: 'array',
         describe:
-          'Block output references to include in a streamed response. Rejected when `async` is true.',
+          'Block output references to include in a streamed response, as `blockId`, `blockId.path`, or `BlockName.path` (resolved against the live workflow). Requires `stream: true` — it shapes the streamed envelope only, so it is rejected on a sync request and when `async` is true. To narrow a finished run, pass `selectedOutputs` to the run resource instead.',
       },
       includeThinking: {
         kind: 'boolean',
@@ -7403,48 +10671,42 @@ export const V2_OPERATIONS = {
       base64MaxBytes: {
         kind: 'integer',
         describe:
-          'Maximum total bytes of file content to inline as base64. Rejected when `async` is true.',
+          'Maximum total bytes of file content to inline as base64, lowering but never raising the server limit of 16 MiB. Rejected when `async` is true.',
+      },
+    },
+    headers: {
+      'x-run-id': {
+        kind: 'string',
+        describe:
+          'Caller-supplied run identifier, available only to API-key callers. A one-shot uniqueness claim, NOT an idempotency key: reusing a value fails with `409` and `error.details.code: "RUN_ID_CONFLICT"` rather than replaying the original result. To retry safely, send a fresh value per attempt, or omit the header and let the server allocate one.',
+      },
+      'x-sim-via': {
+        kind: 'string',
+        describe:
+          'Comma-separated workflow identifiers naming the workflow-to-workflow call chain that led to this request. Each hop appends its own workflow id, and Sim sets it automatically; supply it yourself only when relaying an existing chain. A chain at the maximum depth is rejected with `409` and `error.details.code: "CALL_CHAIN_DEPTH_EXCEEDED"`.',
       },
     },
   },
   exportWorkflow: {
     method: 'GET',
-    path: '/api/v2/workflows/[id]/export',
-    pathParams: ['id'] as const,
-    pathParamDocs: { id: 'Unique workflow identifier.' },
+    path: '/api/v2/workflows/[workflowId]/export',
+    pathParams: ['workflowId'] as const,
+    pathParamDocs: { workflowId: 'Unique workflow identifier.' },
     responseMode: 'json',
     summary: 'Export Workflow',
   },
-  findTableRows: {
-    method: 'POST',
-    path: '/api/v2/tables/[tableId]/rows/find',
-    pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
-    responseMode: 'json',
-    summary: 'Find Rows',
-    body: {
-      workspaceId: { kind: 'string', required: true, describe: 'Unique workspace identifier.' },
-      q: { kind: 'string', required: true, describe: 'Case-insensitive cell substring to find.' },
-      predicate: {
-        kind: 'unknown',
-        describe:
-          'Recursive predicate tree. Each group node is exactly one non-empty `all` or `any` array whose members are further groups or `{ field, op, value }` conditions; the root must be a group, not a bare condition. At most 100 members per group, 10 levels of nesting, and 500 nodes in total. The negating operators include nulls: `ne`, `nin`, `ncontains`, `nlike`, and `nilike` match rows whose column is null or absent, so "not X" is not the complement of "X" over a nullable column. That holds for every column type, multi-select included. To exclude nulls, `all`-combine the negation with `isNotEmpty` (multi-select) or `isNotNull`. Comparison: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`. Membership: `in`, `nin` (array operand). Emptiness: `isEmpty`, `isNotEmpty`, `isNull`, `isNotNull` (no operand). Substring, always case-insensitive, operand matched literally: `contains`, `ncontains`, `startsWith`, `endsWith`. Pattern: `like`/`nlike` (case-sensitive), `ilike`/`nilike` (case-insensitive). **`*` is the only wildcard** and stands for any run of characters; `%`, `_`, and backslash match themselves. Use `like: "Hi*"`, not `like: "Hi%"`. A `select` column compares by option id and restricts its operators: single-select accepts `eq`, `ne`, `in`, `nin`; multi-select accepts `contains`, `ncontains`. Option names are accepted as operands and resolved to ids.',
-      },
-      sort: { kind: 'array', describe: 'Ordered table-row sort specification.' },
-    },
-  },
   getAuditLog: {
     method: 'GET',
-    path: '/api/v2/audit-logs/[id]',
-    pathParams: ['id'] as const,
-    pathParamDocs: { id: 'Audit-log entry identifier.' },
+    path: '/api/v2/audit-logs/[auditLogId]',
+    pathParams: ['auditLogId'] as const,
+    pathParamDocs: { auditLogId: 'Audit-log entry identifier.' },
     responseMode: 'json',
     summary: 'Get Audit Log',
     query: {
       organizationId: {
         kind: 'string',
-        required: true,
-        describe: 'Organization whose audit-log entry should be returned.',
+        describe:
+          "Organization whose audit-log entry should be returned. Defaults to the caller's own organization when omitted. A caller that belongs to no organization, or that names one it is not a member of, is refused with a 403.",
       },
     },
   },
@@ -7458,15 +10720,34 @@ export const V2_OPERATIONS = {
       workspaceId: {
         kind: 'string',
         describe:
-          'Workspace whose payer should be resolved. Workspace API keys are pinned to their own workspace.',
+          'Workspace whose payer should be resolved. A workspace API key is pinned to its own workspace: any other id answers `404 Workspace not found`, which is also what an id that does not exist answers.',
+      },
+    },
+  },
+  getBlock: {
+    method: 'GET',
+    path: '/api/v2/blocks/[blockId]',
+    pathParams: ['blockId'] as const,
+    pathParamDocs: {
+      blockId:
+        'Block type identifier. An unversioned base type resolves to the newest version, and the response echoes the resolved id.',
+    },
+    responseMode: 'json',
+    summary: 'Get Block',
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe:
+          'Workspace whose integration allowlist, revealed preview blocks, and deployed custom blocks decide what this catalog contains.',
       },
     },
   },
   getCustomTool: {
     method: 'GET',
-    path: '/api/v2/custom-tools/[id]',
-    pathParams: ['id'] as const,
-    pathParamDocs: { id: 'Unique custom tool identifier.' },
+    path: '/api/v2/custom-tools/[customToolId]',
+    pathParams: ['customToolId'] as const,
+    pathParamDocs: { customToolId: 'Unique custom tool identifier.' },
     responseMode: 'json',
     summary: 'Get Custom Tool',
     query: {
@@ -7506,11 +10787,33 @@ export const V2_OPERATIONS = {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
     },
   },
+  getFileUpload: {
+    method: 'GET',
+    path: '/api/v2/files/uploads/[uploadId]',
+    pathParams: ['uploadId'] as const,
+    pathParamDocs: { uploadId: 'Upload session identifier.' },
+    responseMode: 'json',
+    summary: 'Get File Upload',
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the upload session.',
+      },
+    },
+    headers: {
+      'upload-token': {
+        kind: 'string',
+        required: true,
+        describe: 'Signed upload control token returned when the upload session was created.',
+      },
+    },
+  },
   getKnowledgeBase: {
     method: 'GET',
-    path: '/api/v2/knowledge/[id]',
-    pathParams: ['id'] as const,
-    pathParamDocs: { id: 'Unique knowledge base identifier.' },
+    path: '/api/v2/knowledge/[knowledgeBaseId]',
+    pathParams: ['knowledgeBaseId'] as const,
+    pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
     responseMode: 'json',
     summary: 'Get Knowledge Base',
     query: {
@@ -7521,12 +10824,31 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  getKnowledgeChunk: {
+    method: 'GET',
+    path: '/api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]/chunks/[chunkId]',
+    pathParams: ['knowledgeBaseId', 'documentId', 'chunkId'] as const,
+    pathParamDocs: {
+      knowledgeBaseId: 'Unique knowledge base identifier.',
+      documentId: 'Unique knowledge document identifier.',
+      chunkId: 'Unique chunk identifier.',
+    },
+    responseMode: 'json',
+    summary: 'Get Chunk',
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
+    },
+  },
   getKnowledgeConnector: {
     method: 'GET',
-    path: '/api/v2/knowledge/[id]/connectors/[connectorId]',
-    pathParams: ['id', 'connectorId'] as const,
+    path: '/api/v2/knowledge/[knowledgeBaseId]/connectors/[connectorId]',
+    pathParams: ['knowledgeBaseId', 'connectorId'] as const,
     pathParamDocs: {
-      id: 'Knowledge base that owns the connector.',
+      knowledgeBaseId: 'Knowledge base that owns the connector.',
       connectorId: 'Connector selected for the operation.',
     },
     responseMode: 'json',
@@ -7541,10 +10863,10 @@ export const V2_OPERATIONS = {
   },
   getKnowledgeDocument: {
     method: 'GET',
-    path: '/api/v2/knowledge/[id]/documents/[documentId]',
-    pathParams: ['id', 'documentId'] as const,
+    path: '/api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]',
+    pathParams: ['knowledgeBaseId', 'documentId'] as const,
     pathParamDocs: {
-      id: 'Unique knowledge base identifier.',
+      knowledgeBaseId: 'Unique knowledge base identifier.',
       documentId: 'Unique knowledge document identifier.',
     },
     responseMode: 'json',
@@ -7565,11 +10887,61 @@ export const V2_OPERATIONS = {
     responseMode: 'json',
     summary: 'Get Log',
   },
+  getLogStats: {
+    method: 'GET',
+    path: '/api/v2/logs/stats',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'Get Log Statistics',
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace whose execution statistics to summarize.',
+      },
+      workflowIds: {
+        kind: 'string',
+        describe:
+          'Comma-separated workflow identifiers to include. At most 200 entries. An empty entry is rejected.',
+      },
+      folderPaths: {
+        kind: 'string',
+        describe:
+          'Comma-separated workflow folder paths to include. At most 100 entries. A path covers its whole subtree. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.',
+      },
+      triggers: {
+        kind: 'string',
+        describe:
+          'Comma-separated trigger types to include. An empty entry is rejected. The vocabulary is open, so an unrecognized member selects no runs; the literal `all` disables this filter.',
+      },
+      level: {
+        kind: 'enum',
+        values: ['info', 'error'] as const,
+        describe: 'Severity level to include.',
+      },
+      startDate: {
+        kind: 'string',
+        describe:
+          'Only include runs started at or after this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant.',
+      },
+      endDate: {
+        kind: 'string',
+        describe:
+          'Only include runs started at or before this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant.',
+      },
+      segmentCount: {
+        kind: 'integer',
+        default: 72,
+        describe:
+          'Number of equal time buckets to divide the window into, from 1 to 500. Exactly this many buckets are always returned. Buckets are never narrower than one minute, so on a short window the series extends past the end of the window rather than being compressed, and the trailing buckets are empty.',
+      },
+    },
+  },
   getMcpServer: {
     method: 'GET',
-    path: '/api/v2/mcp-servers/[id]',
-    pathParams: ['id'] as const,
-    pathParamDocs: { id: 'Unique MCP server identifier.' },
+    path: '/api/v2/mcp-servers/[mcpServerId]',
+    pathParams: ['mcpServerId'] as const,
+    pathParamDocs: { mcpServerId: 'Unique MCP server identifier.' },
     responseMode: 'json',
     summary: 'Get MCP Server',
     query: {
@@ -7580,12 +10952,57 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  getMeta: {
+    method: 'GET',
+    path: '/api/v2/meta',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'Get API Capabilities',
+  },
+  getNextKnowledgeTagSlot: {
+    method: 'GET',
+    path: '/api/v2/knowledge/[knowledgeBaseId]/tags/next-slot',
+    pathParams: ['knowledgeBaseId'] as const,
+    pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
+    responseMode: 'json',
+    summary: 'Get Next Tag Slot',
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
+      fieldType: {
+        kind: 'enum',
+        required: true,
+        values: ['text', 'number', 'date', 'boolean'] as const,
+        describe:
+          'Value type stored in the slot; it decides which slots are usable and which filter operators apply. Slot capacity per type: text 7, number 5, date 2, boolean 3.',
+      },
+    },
+  },
+  getRowEnrichment: {
+    method: 'GET',
+    path: '/api/v2/tables/[tableId]/rows/[rowId]/enrichment/[groupId]',
+    pathParams: ['tableId', 'rowId', 'groupId'] as const,
+    pathParamDocs: {
+      tableId: 'Unique table identifier.',
+      rowId: 'Unique table row identifier.',
+      groupId: 'Workflow or enrichment group to run.',
+    },
+    responseMode: 'json',
+    summary: 'Get Enrichment Run Detail',
+    query: {
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the table.' },
+    },
+  },
   getSkill: {
     method: 'GET',
-    path: '/api/v2/skills/[id]',
-    pathParams: ['id'] as const,
+    path: '/api/v2/skills/[skillId]',
+    pathParams: ['skillId'] as const,
     pathParamDocs: {
-      id: 'Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`.',
+      skillId:
+        'Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`.',
     },
     responseMode: 'json',
     summary: 'Get Skill',
@@ -7604,11 +11021,32 @@ export const V2_OPERATIONS = {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the table.' },
     },
   },
+  getTableDispatch: {
+    method: 'GET',
+    path: '/api/v2/tables/[tableId]/dispatches/[dispatchId]',
+    pathParams: ['tableId', 'dispatchId'] as const,
+    pathParamDocs: {
+      tableId: 'Unique table identifier.',
+      dispatchId: 'Unique table run-dispatch identifier.',
+    },
+    responseMode: 'json',
+    summary: 'Get Run Dispatch',
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the transfer resource.',
+      },
+    },
+  },
   getTableExport: {
     method: 'GET',
-    path: '/api/v2/tables/exports/[exportId]',
-    pathParams: ['exportId'] as const,
-    pathParamDocs: { exportId: 'Unique table-export identifier.' },
+    path: '/api/v2/tables/[tableId]/exports/[exportId]',
+    pathParams: ['tableId', 'exportId'] as const,
+    pathParamDocs: {
+      tableId: 'Unique table identifier.',
+      exportId: 'Unique table-export identifier.',
+    },
     responseMode: 'json',
     summary: 'Get Table Export',
     query: {
@@ -7633,6 +11071,12 @@ export const V2_OPERATIONS = {
         describe: 'Workspace that owns the transfer resource.',
       },
     },
+    headers: {
+      'upload-token': {
+        kind: 'string',
+        describe: 'Signed upload control token returned when an upload-backed import was created.',
+      },
+    },
   },
   getTableRow: {
     method: 'GET',
@@ -7643,6 +11087,10 @@ export const V2_OPERATIONS = {
     summary: 'Get Row',
     query: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the table.' },
+      includeRunState: {
+        kind: 'boolean',
+        describe: 'Include per-workflow-group run state on the returned row. Off by default.',
+      },
     },
   },
   getTableView: {
@@ -7656,27 +11104,65 @@ export const V2_OPERATIONS = {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the table.' },
     },
   },
+  getTool: {
+    method: 'GET',
+    path: '/api/v2/tools/[toolId]',
+    pathParams: ['toolId'] as const,
+    pathParamDocs: {
+      toolId:
+        'Tool identifier. An unversioned name resolves to the newest version, and the response echoes the resolved id.',
+    },
+    responseMode: 'json',
+    summary: 'Get Tool',
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe:
+          'Workspace whose integration allowlist, revealed preview blocks, and deployed custom blocks decide what this catalog contains.',
+      },
+    },
+  },
   getWorkflow: {
     method: 'GET',
-    path: '/api/v2/workflows/[id]',
-    pathParams: ['id'] as const,
-    pathParamDocs: { id: 'Unique workflow identifier.' },
+    path: '/api/v2/workflows/[workflowId]',
+    pathParams: ['workflowId'] as const,
+    pathParamDocs: { workflowId: 'Unique workflow identifier.' },
     responseMode: 'json',
     summary: 'Get Workflow',
   },
+  getWorkflowChatDeployment: {
+    method: 'GET',
+    path: '/api/v2/workflows/[workflowId]/deployments/chat',
+    pathParams: ['workflowId'] as const,
+    pathParamDocs: { workflowId: 'Unique workflow identifier.' },
+    responseMode: 'json',
+    summary: 'Get Workflow Chat Deployment',
+  },
   getWorkflowDeployment: {
     method: 'GET',
-    path: '/api/v2/workflows/[id]/deployment',
-    pathParams: ['id'] as const,
-    pathParamDocs: { id: 'Unique workflow identifier.' },
+    path: '/api/v2/workflows/[workflowId]/deployment',
+    pathParams: ['workflowId'] as const,
+    pathParamDocs: { workflowId: 'Unique workflow identifier.' },
     responseMode: 'json',
     summary: 'Get Workflow Deployment',
   },
+  getWorkflowMcpServer: {
+    method: 'GET',
+    path: '/api/v2/workflow-mcp-servers/[serverId]',
+    pathParams: ['serverId'] as const,
+    pathParamDocs: { serverId: 'Unique workflow-MCP server identifier.' },
+    responseMode: 'json',
+    summary: 'Get Workflow MCP Server',
+  },
   getWorkflowRun: {
     method: 'GET',
-    path: '/api/v2/workflows/[id]/runs/[runId]',
-    pathParams: ['id', 'runId'] as const,
-    pathParamDocs: { id: 'Unique workflow identifier.', runId: 'Unique workflow run identifier.' },
+    path: '/api/v2/workflows/[workflowId]/runs/[runId]',
+    pathParams: ['workflowId', 'runId'] as const,
+    pathParamDocs: {
+      workflowId: 'Unique workflow identifier.',
+      runId: 'Unique workflow run identifier.',
+    },
     responseMode: 'json',
     summary: 'Get Workflow Run',
     query: {
@@ -7688,15 +11174,35 @@ export const V2_OPERATIONS = {
       selectedOutputs: {
         kind: 'string',
         describe:
-          'Comma-separated block output references to include, as `blockId` or `blockId.path`. Block *names* are not resolved here — unlike the execute request, this resource reads a recorded run and matches ids only, so a name selects nothing and yields an empty `blockOutputs`.',
+          'Comma-separated block output references to include, as `blockId` or `blockId.path`. Block *names* are not resolved here — unlike the execute request, this resource reads a recorded run and matches ids only, so a selector that is not headed by a block id answers `400` instead of an empty `blockOutputs`.',
+      },
+      includeFileBase64: {
+        kind: 'boolean',
+        describe:
+          "Inline each produced file's bytes as base64. Requires `includeOutput`. A file above the inline ceiling answers `413` naming its download path; fetch large files from `downloadPath` instead.",
+      },
+      base64MaxBytes: {
+        kind: 'integer',
+        describe: 'Per-file inline ceiling, lowering but never raising the server limit of 16 MiB.',
       },
     },
   },
+  getWorkflowState: {
+    method: 'GET',
+    path: '/api/v2/workflows/[workflowId]/state',
+    pathParams: ['workflowId'] as const,
+    pathParamDocs: { workflowId: 'Unique workflow identifier.' },
+    responseMode: 'json',
+    summary: 'Get Workflow State',
+  },
   getWorkflowVersion: {
     method: 'GET',
-    path: '/api/v2/workflows/[id]/versions/[version]',
-    pathParams: ['id', 'version'] as const,
-    pathParamDocs: { id: 'Unique workflow identifier.', version: 'Numeric deployment version.' },
+    path: '/api/v2/workflows/[workflowId]/versions/[version]',
+    pathParams: ['workflowId', 'version'] as const,
+    pathParamDocs: {
+      workflowId: 'Unique workflow identifier.',
+      version: 'Numeric deployment version.',
+    },
     responseMode: 'json',
     summary: 'Get Workflow Version',
   },
@@ -7710,10 +11216,11 @@ export const V2_OPERATIONS = {
   },
   grantSkillEditor: {
     method: 'POST',
-    path: '/api/v2/skills/[id]/editors',
-    pathParams: ['id'] as const,
+    path: '/api/v2/skills/[skillId]/editors',
+    pathParams: ['skillId'] as const,
     pathParamDocs: {
-      id: 'Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`.',
+      skillId:
+        'Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`.',
     },
     responseMode: 'json',
     summary: 'Grant Skill Editor',
@@ -7794,8 +11301,8 @@ export const V2_OPERATIONS = {
       },
       organizationId: {
         kind: 'string',
-        required: true,
-        describe: 'Organization whose audit trail should be queried.',
+        describe:
+          "Organization whose audit trail should be queried. Defaults to the caller's own organization when omitted. A caller that belongs to no organization, or that names one it is not a member of, is refused with a 403.",
       },
       actorEmail: { kind: 'string', describe: 'Filter by actor email address.' },
     },
@@ -7824,7 +11331,8 @@ export const V2_OPERATIONS = {
       },
       workspaceId: {
         kind: 'string',
-        describe: 'Restrict results to one workspace whose payer the caller can inspect.',
+        describe:
+          "Narrow the ledger to usage events attributed to one workspace. It does not change whose events are reported — a personal API key always reports the usage of the person holding it, and a workspace API key always reports its own workspace's complete ledger across every member. The response `scope` field says which of the two you received. A workspace API key is pinned to its own workspace: any other id answers `404 Workspace not found`, which is also what an id that does not exist answers.",
       },
       period: {
         kind: 'enum',
@@ -7853,6 +11361,123 @@ export const V2_OPERATIONS = {
         kind: 'string',
         describe:
           'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
+  listBlocks: {
+    method: 'GET',
+    path: '/api/v2/blocks',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'List Blocks',
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe:
+          'Workspace whose integration allowlist, revealed preview blocks, and deployed custom blocks decide what this catalog contains.',
+      },
+      search: {
+        kind: 'string',
+        describe: 'Case-insensitive substring match against the block id, name, and description.',
+      },
+      category: {
+        kind: 'enum',
+        values: ['blocks', 'tools', 'triggers'] as const,
+        describe: 'Restrict to one toolbar category.',
+      },
+      capability: {
+        kind: 'enum',
+        values: ['trigger'] as const,
+        describe:
+          'Restrict to blocks that can start a workflow — the `triggers` category, blocks declaring `triggerAllowed`, and blocks with trigger-mode fields.',
+      },
+      source: {
+        kind: 'enum',
+        values: ['builtin', 'custom'] as const,
+        describe: 'Restrict to shipped blocks or to this workspace’s deployed custom blocks.',
+      },
+      sortBy: {
+        kind: 'enum',
+        values: ['id', 'name', 'category'] as const,
+        default: 'id',
+        describe:
+          'Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'asc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum blocks to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
+  listChatDeployments: {
+    method: 'GET',
+    path: '/api/v2/chat-deployments',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'List Chat Deployments',
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace whose chat deployments to list.',
+      },
+      workflowId: { kind: 'string', describe: 'Restrict to deployments of one workflow.' },
+      isActive: { kind: 'boolean', describe: 'Restrict to active or inactive deployments.' },
+      sortBy: {
+        kind: 'enum',
+        values: ['identifier', 'createdAt', 'updatedAt'] as const,
+        default: 'createdAt',
+        describe: 'Field used to sort the result.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'desc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum chat deployments to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
+  listConnectorTypes: {
+    method: 'GET',
+    path: '/api/v2/connector-types',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'List Connector Types',
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe:
+          'Workspace whose integration allowlist, revealed preview blocks, and deployed custom blocks decide what this catalog contains.',
+      },
+      search: {
+        kind: 'string',
+        describe: 'Case-insensitive substring match against the connector name.',
       },
     },
   },
@@ -7999,6 +11624,13 @@ export const V2_OPERATIONS = {
         default: 'asc',
         describe: 'Sort direction.',
       },
+      scope: {
+        kind: 'enum',
+        values: ['active', 'archived'] as const,
+        default: 'active',
+        describe:
+          'Which lifecycle set to list: `active` (default) returns live folders only; `archived` returns folders a recursive `DELETE` soft-deleted, which is how a caller finds a path to hand to `POST /api/v2/files/folders/restore`. Authorization is identical for both.',
+      },
     },
   },
   listFiles: {
@@ -8086,6 +11718,13 @@ export const V2_OPERATIONS = {
         required: true,
         describe: 'Workspace whose knowledge bases should be listed.',
       },
+      scope: {
+        kind: 'enum',
+        values: ['active', 'archived'] as const,
+        default: 'active',
+        describe:
+          'Which lifecycle set to list: `active` (default) for live knowledge bases, `archived` for knowledge bases a `DELETE` archived and `POST /knowledge/{knowledgeBaseId}/restore` can bring back. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too.',
+      },
       folderPath: {
         kind: 'string',
         describe:
@@ -8121,12 +11760,63 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  listKnowledgeChunks: {
+    method: 'GET',
+    path: '/api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]/chunks',
+    pathParams: ['knowledgeBaseId', 'documentId'] as const,
+    pathParamDocs: {
+      knowledgeBaseId: 'Unique knowledge base identifier.',
+      documentId: 'Unique knowledge document identifier.',
+    },
+    responseMode: 'json',
+    summary: 'List Chunks',
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
+      search: {
+        kind: 'string',
+        describe: 'Case-insensitive substring match against chunk content.',
+      },
+      enabled: {
+        kind: 'enum',
+        values: ['true', 'false', 'all'] as const,
+        default: 'all',
+        describe: 'Restrict to enabled or disabled chunks. `all` returns both.',
+      },
+      sortBy: {
+        kind: 'enum',
+        values: ['chunkIndex', 'tokenCount', 'enabled'] as const,
+        default: 'chunkIndex',
+        describe: 'Field used to sort the result.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'asc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum chunks to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
   listKnowledgeConnectorDocuments: {
     method: 'GET',
-    path: '/api/v2/knowledge/[id]/connectors/[connectorId]/documents',
-    pathParams: ['id', 'connectorId'] as const,
+    path: '/api/v2/knowledge/[knowledgeBaseId]/connectors/[connectorId]/documents',
+    pathParams: ['knowledgeBaseId', 'connectorId'] as const,
     pathParamDocs: {
-      id: 'Knowledge base that owns the connector.',
+      knowledgeBaseId: 'Knowledge base that owns the connector.',
       connectorId: 'Connector selected for the operation.',
     },
     responseMode: 'json',
@@ -8156,9 +11846,9 @@ export const V2_OPERATIONS = {
   },
   listKnowledgeConnectors: {
     method: 'GET',
-    path: '/api/v2/knowledge/[id]/connectors',
-    pathParams: ['id'] as const,
-    pathParamDocs: { id: 'Unique knowledge base identifier.' },
+    path: '/api/v2/knowledge/[knowledgeBaseId]/connectors',
+    pathParams: ['knowledgeBaseId'] as const,
+    pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
     responseMode: 'json',
     summary: 'List Knowledge Connectors',
     query: {
@@ -8194,9 +11884,9 @@ export const V2_OPERATIONS = {
   },
   listKnowledgeDocuments: {
     method: 'GET',
-    path: '/api/v2/knowledge/[id]/documents',
-    pathParams: ['id'] as const,
-    pathParamDocs: { id: 'Unique knowledge base identifier.' },
+    path: '/api/v2/knowledge/[knowledgeBaseId]/documents',
+    pathParams: ['knowledgeBaseId'] as const,
+    pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
     responseMode: 'json',
     summary: 'List Documents',
     query: {
@@ -8291,11 +11981,26 @@ export const V2_OPERATIONS = {
   },
   listKnowledgeTags: {
     method: 'GET',
-    path: '/api/v2/knowledge/[id]/tags',
-    pathParams: ['id'] as const,
-    pathParamDocs: { id: 'Unique knowledge base identifier.' },
+    path: '/api/v2/knowledge/[knowledgeBaseId]/tags',
+    pathParams: ['knowledgeBaseId'] as const,
+    pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
     responseMode: 'json',
     summary: 'List Tags',
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
+    },
+  },
+  listKnowledgeTagUsage: {
+    method: 'GET',
+    path: '/api/v2/knowledge/[knowledgeBaseId]/tags/usage',
+    pathParams: ['knowledgeBaseId'] as const,
+    pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
+    responseMode: 'json',
+    summary: 'List Tag Usage',
     query: {
       workspaceId: {
         kind: 'string',
@@ -8318,12 +12023,13 @@ export const V2_OPERATIONS = {
       },
       workflowIds: {
         kind: 'string',
-        describe: 'Comma-separated workflow identifiers to include. An empty entry is rejected.',
+        describe:
+          'Comma-separated workflow identifiers to include. An empty entry is rejected. At most 200 entries.',
       },
       triggers: {
         kind: 'string',
         describe:
-          'Comma-separated trigger types to include. An empty entry is rejected. Values are matched exactly and are case-sensitive — every recorded trigger is lowercase, so `API` matches nothing while `api` matches. The vocabulary is open: it covers the core trigger types (`manual`, `api`, `schedule`, `chat`, `webhook`, `mcp`, `copilot`, `workflow`, `custom_block`) and the provider id of any webhook trigger (`slack`, `gmail`, `github`, …), so an unrecognized member is not rejected — it selects no runs. The literal value `all` is a sentinel that disables this filter entirely, so a list containing it returns runs of every trigger type; no real trigger type is named `all`.',
+          'Comma-separated trigger types to include. An empty entry is rejected. Values are matched exactly and are case-sensitive — every recorded trigger is lowercase, so `API` matches nothing while `api` matches. The vocabulary is open: it covers the core trigger types (`manual`, `api`, `schedule`, `chat`, `webhook`, `mcp`, `copilot`, `workflow`, `custom_block`) and the provider id of any webhook trigger (`slack`, `gmail`, `github`, …), so an unrecognized member is not rejected — it selects no runs. The literal value `all` is a sentinel that disables this filter entirely, so a list containing it returns runs of every trigger type; no real trigger type is named `all`. At most 100 entries.',
       },
       level: {
         kind: 'enum',
@@ -8366,7 +12072,7 @@ export const V2_OPERATIONS = {
         values: ['basic', 'full'] as const,
         default: 'basic',
         describe:
-          'Response detail level. `full` adds the `workflow` summary to every item. `includeTraceSpans=true` and `includeFinalOutput=true` each imply `full`, so either one adds `workflow` even when `details=basic` is sent explicitly.',
+          'Response detail level. `full` adds the `workflow` summary to every workflow run; a job run never carries one, whatever this is set to. `includeTraceSpans=true` and `includeFinalOutput=true` each imply `full`, so either one adds `workflow` even when `details=basic` is sent explicitly.',
       },
       includeTraceSpans: {
         kind: 'boolean',
@@ -8389,18 +12095,39 @@ export const V2_OPERATIONS = {
         describe:
           'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
       },
-      order: {
+      status: {
+        kind: 'string',
+        describe:
+          'Comma-separated execution statuses to include, from `pending` | `running` | `paused` | `redacting` | `completed` | `failed` | `cancelled`. An empty entry is rejected. ANDed with `level`, which reports severity rather than lifecycle.',
+      },
+      workflowName: {
+        kind: 'string',
+        describe:
+          "Case-insensitive substring match against the run's workflow name. Runs whose workflow has been deleted match nothing, because the name is no longer joinable.",
+      },
+      includeJobRuns: {
+        kind: 'boolean',
+        describe:
+          'Whether Chat and Sim-agent job runs join the sequence alongside workflow runs. Job runs report `kind: "job"`, carry no `workflow` summary, and never carry a cost ledger. They are dropped entirely — not partially matched — whenever a filter they cannot answer is set (`workflowIds`, `workflowName`, `folderPaths`, `model`, or `status`), so a filter never means two different things across the union. Accepted only under `sortBy=startedAt`: job runs record cost as a document and no comparable status, so they cannot participate in the other orderings.',
+      },
+      runId: { kind: 'string', describe: 'Exact run identifier to match.' },
+      sortBy: {
+        kind: 'enum',
+        values: ['startedAt', 'durationMs', 'cost', 'status'] as const,
+        default: 'startedAt',
+        describe:
+          'Field used to sort the result. `durationMs` and `cost` are null until a run settles; those runs order as though the value were below every recorded one, so they trail an ascending page and lead a descending one. Only `startedAt` can order Chat and Sim-agent job runs, so any other value is rejected together with `includeJobRuns=true`.',
+      },
+      sortOrder: {
         kind: 'enum',
         values: ['asc', 'desc'] as const,
         default: 'desc',
-        describe:
-          'Sort direction by execution start time. This list is sortable only by execution start time, so it takes `order` in place of `sortBy`/`sortOrder`, which it rejects.',
+        describe: 'Sort direction.',
       },
-      runId: { kind: 'string', describe: 'Exact run identifier to match.' },
       folderPaths: {
         kind: 'string',
         describe:
-          'Comma-separated workflow folder paths to include. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.',
+          'Comma-separated workflow folder paths to include. At most 100 entries. A path covers its whole subtree, so `/prod` also selects runs in `/prod/nested`. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.',
       },
     },
   },
@@ -8448,9 +12175,9 @@ export const V2_OPERATIONS = {
   },
   listMcpServerTools: {
     method: 'GET',
-    path: '/api/v2/mcp-servers/[id]/tools',
-    pathParams: ['id'] as const,
-    pathParamDocs: { id: 'Unique MCP server identifier.' },
+    path: '/api/v2/mcp-servers/[mcpServerId]/tools',
+    pathParams: ['mcpServerId'] as const,
+    pathParamDocs: { mcpServerId: 'Unique MCP server identifier.' },
     responseMode: 'json',
     summary: 'List MCP Server Tools',
     query: {
@@ -8515,10 +12242,11 @@ export const V2_OPERATIONS = {
   },
   listSkillEditors: {
     method: 'GET',
-    path: '/api/v2/skills/[id]/editors',
-    pathParams: ['id'] as const,
+    path: '/api/v2/skills/[skillId]/editors',
+    pathParams: ['skillId'] as const,
     pathParamDocs: {
-      id: 'Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`.',
+      skillId:
+        'Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`.',
     },
     responseMode: 'json',
     summary: 'List Skill Editors',
@@ -8588,6 +12316,17 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  listTableDispatches: {
+    method: 'GET',
+    path: '/api/v2/tables/[tableId]/dispatches',
+    pathParams: ['tableId'] as const,
+    pathParamDocs: { tableId: 'Unique table identifier.' },
+    responseMode: 'json',
+    summary: 'List Active Run Dispatches',
+    query: {
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the table.' },
+    },
+  },
   listTableFolders: {
     method: 'GET',
     path: '/api/v2/tables/folders',
@@ -8643,6 +12382,11 @@ export const V2_OPERATIONS = {
         describe:
           'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
       },
+      includeRunState: {
+        kind: 'boolean',
+        describe:
+          'Include per-workflow-group run state on every returned row. Off by default: run state is a separate sidecar read and its `blockErrors` are unbounded, so a full page carries it only when asked. Caps `limit` at 200.',
+      },
     },
   },
   listTables: {
@@ -8656,6 +12400,13 @@ export const V2_OPERATIONS = {
         kind: 'string',
         required: true,
         describe: 'Workspace whose tables should be listed.',
+      },
+      scope: {
+        kind: 'enum',
+        values: ['active', 'archived'] as const,
+        default: 'active',
+        describe:
+          'Which lifecycle set to list: `active` (default) for live tables, `archived` for tables a `DELETE` archived and `POST /tables/{tableId}/restore` can bring back. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too.',
       },
       folderPath: {
         kind: 'string',
@@ -8701,6 +12452,58 @@ export const V2_OPERATIONS = {
     summary: 'List Views',
     query: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the table.' },
+    },
+  },
+  listTools: {
+    method: 'GET',
+    path: '/api/v2/tools',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'List Tools',
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe:
+          'Workspace whose integration allowlist, revealed preview blocks, and deployed custom blocks decide what this catalog contains.',
+      },
+      search: {
+        kind: 'string',
+        describe: 'Case-insensitive substring match against the tool id, name, and description.',
+      },
+      hostedApiKey: {
+        kind: 'enum',
+        values: ['always', 'conditional', 'none'] as const,
+        describe: 'Restrict to tools by how their API key is supplied.',
+      },
+      oauthProvider: {
+        kind: 'string',
+        describe: 'Restrict to tools that authenticate against this OAuth service.',
+      },
+      sortBy: {
+        kind: 'enum',
+        values: ['id', 'name'] as const,
+        default: 'id',
+        describe:
+          'Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'asc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum tools to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
     },
   },
   listWorkflowFolders: {
@@ -8749,11 +12552,57 @@ export const V2_OPERATIONS = {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the table.' },
     },
   },
+  listWorkflowMcpServers: {
+    method: 'GET',
+    path: '/api/v2/workflow-mcp-servers',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'List Workflow MCP Servers',
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace whose published MCP servers to list.',
+      },
+      sortBy: {
+        kind: 'enum',
+        values: ['name', 'createdAt', 'updatedAt'] as const,
+        default: 'createdAt',
+        describe:
+          'Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'desc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum workflow-MCP servers to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
+  listWorkflowMcpTools: {
+    method: 'GET',
+    path: '/api/v2/workflow-mcp-servers/[serverId]/tools',
+    pathParams: ['serverId'] as const,
+    pathParamDocs: { serverId: 'Unique workflow-MCP server identifier.' },
+    responseMode: 'json',
+    summary: 'List Workflow MCP Tools',
+  },
   listWorkflowRuns: {
     method: 'GET',
-    path: '/api/v2/workflows/[id]/runs',
-    pathParams: ['id'] as const,
-    pathParamDocs: { id: 'Unique workflow identifier.' },
+    path: '/api/v2/workflows/[workflowId]/runs',
+    pathParams: ['workflowId'] as const,
+    pathParamDocs: { workflowId: 'Unique workflow identifier.' },
     responseMode: 'json',
     summary: 'List Workflow Runs',
     query: {
@@ -8805,6 +12654,13 @@ export const V2_OPERATIONS = {
         required: true,
         describe: 'Workspace whose workflows should be listed.',
       },
+      scope: {
+        kind: 'enum',
+        values: ['active', 'archived'] as const,
+        default: 'active',
+        describe:
+          'Which lifecycle set to list: `active` (default) for live workflows, `archived` for workflows a `DELETE` archived. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too.',
+      },
       folderPath: {
         kind: 'string',
         describe:
@@ -8846,9 +12702,9 @@ export const V2_OPERATIONS = {
   },
   listWorkflowVersions: {
     method: 'GET',
-    path: '/api/v2/workflows/[id]/versions',
-    pathParams: ['id'] as const,
-    pathParamDocs: { id: 'Unique workflow identifier.' },
+    path: '/api/v2/workflows/[workflowId]/versions',
+    pathParams: ['workflowId'] as const,
+    pathParamDocs: { workflowId: 'Unique workflow identifier.' },
     responseMode: 'json',
     summary: 'List Workflow Versions',
     query: {
@@ -8934,6 +12790,50 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  moveTables: {
+    method: 'POST',
+    path: '/api/v2/tables/move',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'Move Tables and Folders',
+    body: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns every selected item.',
+      },
+      tableIds: { kind: 'array', default: [], describe: 'Tables to move, by identifier.' },
+      folderPaths: { kind: 'array', describe: 'Table folders to re-parent, by canonical path.' },
+      targetFolderPath: {
+        kind: 'string',
+        describe: 'Destination folder path. Omit to move the selection to the workspace root.',
+      },
+    },
+  },
+  moveWorkflows: {
+    method: 'POST',
+    path: '/api/v2/workflows/move',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'Move Workflows',
+    body: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace holding every workflow in the batch.',
+      },
+      workflowIds: {
+        kind: 'array',
+        required: true,
+        describe: 'Workflows to move. Duplicates are collapsed.',
+      },
+      folderPath: {
+        kind: 'string',
+        required: true,
+        describe: 'Destination folder path; `/` moves the workflows to the workspace root.',
+      },
+    },
+  },
   queryRows: {
     method: 'POST',
     path: '/api/v2/tables/[tableId]/query',
@@ -8954,6 +12854,12 @@ export const V2_OPERATIONS = {
         describe: 'Maximum rows to return; zero requests an unbounded result.',
       },
       cursor: { kind: 'string', describe: 'Opaque cursor returned by the previous query page.' },
+      includeRunState: {
+        kind: 'boolean',
+        default: false,
+        describe:
+          'Include per-workflow-group run state on every returned row. Off by default: run state is a separate sidecar read and its `blockErrors` are unbounded, so a full page carries it only when asked. Incompatible with `limit: 0`, and caps `limit` at 200.',
+      },
     },
   },
   queryRowsCount: {
@@ -8969,6 +12875,22 @@ export const V2_OPERATIONS = {
         kind: 'unknown',
         describe:
           'A single `{ field, op, value }` condition or a recursive `all`/`any` group; either form is normalized to a grouped predicate after validation. At most 100 members per group, 10 levels of nesting, and 500 nodes in total. The negating operators include nulls: `ne`, `nin`, `ncontains`, `nlike`, and `nilike` match rows whose column is null or absent, so "not X" is not the complement of "X" over a nullable column. That holds for every column type, multi-select included. To exclude nulls, `all`-combine the negation with `isNotEmpty` (multi-select) or `isNotNull`. Comparison: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`. Membership: `in`, `nin` (array operand). Emptiness: `isEmpty`, `isNotEmpty`, `isNull`, `isNotNull` (no operand). Substring, always case-insensitive, operand matched literally: `contains`, `ncontains`, `startsWith`, `endsWith`. Pattern: `like`/`nlike` (case-sensitive), `ilike`/`nilike` (case-insensitive). **`*` is the only wildcard** and stands for any run of characters; `%`, `_`, and backslash match themselves. Use `like: "Hi*"`, not `like: "Hi%"`. A `select` column compares by option id and restricts its operators: single-select accepts `eq`, `ne`, `in`, `nin`; multi-select accepts `contains`, `ncontains`. Option names are accepted as operands and resolved to ids.',
+      },
+    },
+  },
+  readFileText: {
+    method: 'GET',
+    path: '/api/v2/files/[fileId]/text',
+    pathParams: ['fileId'] as const,
+    pathParamDocs: { fileId: 'File identifier.' },
+    responseMode: 'json',
+    summary: 'Read File Text',
+    query: {
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
+      maxBytes: {
+        kind: 'integer',
+        describe:
+          'Optional ceiling on the source bytes fed to the parser, lowering but never raising the server limit.',
       },
     },
   },
@@ -9048,6 +12970,92 @@ export const V2_OPERATIONS = {
       name: { kind: 'string', required: true, describe: 'New file name, including its extension.' },
     },
   },
+  replaceWorkflowChatDeployment: {
+    method: 'PUT',
+    path: '/api/v2/workflows/[workflowId]/deployments/chat',
+    pathParams: ['workflowId'] as const,
+    pathParamDocs: { workflowId: 'Unique workflow identifier.' },
+    responseMode: 'json',
+    summary: 'Create or Replace Workflow Chat Deployment',
+    body: {
+      identifier: {
+        kind: 'string',
+        required: true,
+        describe: 'URL slug the deployed chat answers on. Must be free across live deployments.',
+      },
+      title: { kind: 'string', required: true, describe: 'Title shown to visitors.' },
+      description: {
+        kind: 'string',
+        describe: 'Description shown to visitors. Omitted clears it.',
+      },
+      customizations: {
+        kind: 'object',
+        describe: 'Presentation overrides. Omitted fields take platform defaults.',
+      },
+      authType: {
+        kind: 'enum',
+        values: ['public', 'password', 'email', 'sso'] as const,
+        default: 'public',
+        describe:
+          'How visitors are gated. `public` leaves the chat open to anyone holding the URL.',
+      },
+      password: {
+        kind: 'string',
+        describe:
+          'Write-only password. Required whenever `authType` is `password`, and rejected otherwise. Never readable back.',
+      },
+      allowedEmails: {
+        kind: 'array',
+        describe:
+          'Email addresses or domains admitted under `email` and `sso` gating. At least one is required for those modes.',
+      },
+      outputConfigs: {
+        kind: 'array',
+        describe: 'Block outputs to surface to visitors. Omitted surfaces none.',
+      },
+      includeThinking: {
+        kind: 'boolean',
+        default: false,
+        describe: 'Allow visitors to receive provider thinking events.',
+      },
+      includeToolCalls: {
+        kind: 'boolean',
+        default: false,
+        describe: 'Allow visitors to receive tool lifecycle events.',
+      },
+    },
+  },
+  replaceWorkflowState: {
+    method: 'PUT',
+    path: '/api/v2/workflows/[workflowId]/state',
+    pathParams: ['workflowId'] as const,
+    pathParamDocs: { workflowId: 'Unique workflow identifier.' },
+    responseMode: 'json',
+    summary: 'Replace Workflow State',
+    query: {
+      dryRun: {
+        kind: 'boolean',
+        describe:
+          'Validate and lint without persisting. The response is identical to the committed write of the same body, so a caller can inspect `lint` and then re-send the request for real. Nothing is written, no audit entry is recorded, and collaborators are not notified.',
+      },
+    },
+    body: {
+      blocks: { kind: 'object', required: true, describe: 'Blocks keyed by block id.' },
+      edges: { kind: 'array', required: true, describe: 'Directed connections between blocks.' },
+      loops: {
+        kind: 'object',
+        describe: 'Ignored on write: loop containers are recomputed from `blocks`.',
+      },
+      parallels: {
+        kind: 'object',
+        describe: 'Ignored on write: parallel containers are recomputed from `blocks`.',
+      },
+      variables: {
+        kind: 'object',
+        describe: 'Replacement variable set. Omit to leave the stored variables untouched.',
+      },
+    },
+  },
   restoreFile: {
     method: 'POST',
     path: '/api/v2/files/[fileId]/restore',
@@ -9063,11 +13071,87 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  restoreFileFolder: {
+    method: 'POST',
+    path: '/api/v2/files/folders/restore',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'Restore Folder',
+    body: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the archived folder.',
+      },
+      path: {
+        kind: 'string',
+        required: true,
+        describe:
+          'Path of the archived folder to restore, as reported by `GET /api/v2/files/folders?scope=archived`.',
+      },
+    },
+  },
+  restoreKnowledgeBase: {
+    method: 'POST',
+    path: '/api/v2/knowledge/[knowledgeBaseId]/restore',
+    pathParams: ['knowledgeBaseId'] as const,
+    pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
+    responseMode: 'json',
+    summary: 'Restore Knowledge Base',
+    body: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
+    },
+  },
+  restoreTable: {
+    method: 'POST',
+    path: '/api/v2/tables/[tableId]/restore',
+    pathParams: ['tableId'] as const,
+    pathParamDocs: { tableId: 'Unique table identifier.' },
+    responseMode: 'json',
+    summary: 'Restore Table',
+    body: {
+      workspaceId: { kind: 'string', required: true, describe: 'Unique workspace identifier.' },
+    },
+  },
+  restoreTableFolder: {
+    method: 'POST',
+    path: '/api/v2/tables/folders/restore',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'Restore Folder',
+    body: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the archived folder.',
+      },
+      path: {
+        kind: 'string',
+        required: true,
+        describe: 'Path the folder held when `DELETE /api/v2/tables/folders` archived it.',
+      },
+    },
+  },
+  restoreWorkflow: {
+    method: 'POST',
+    path: '/api/v2/workflows/[workflowId]/restore',
+    pathParams: ['workflowId'] as const,
+    pathParamDocs: { workflowId: 'Unique workflow identifier.' },
+    responseMode: 'json',
+    summary: 'Restore Workflow',
+  },
   resumeWorkflow: {
     method: 'POST',
-    path: '/api/v2/workflows/[id]/runs/[runId]/resume',
-    pathParams: ['id', 'runId'] as const,
-    pathParamDocs: { id: 'Unique workflow identifier.', runId: 'Unique workflow run identifier.' },
+    path: '/api/v2/workflows/[workflowId]/runs/[runId]/resume',
+    pathParams: ['workflowId', 'runId'] as const,
+    pathParamDocs: {
+      workflowId: 'Unique workflow identifier.',
+      runId: 'Unique workflow run identifier.',
+    },
     responseMode: 'json',
     summary: 'Resume Workflow Run',
     body: {
@@ -9079,12 +13163,24 @@ export const V2_OPERATIONS = {
       input: { kind: 'unknown', describe: 'Input supplied to the paused workflow block.' },
     },
   },
+  revertWorkflowVersion: {
+    method: 'POST',
+    path: '/api/v2/workflows/[workflowId]/versions/[version]/revert',
+    pathParams: ['workflowId', 'version'] as const,
+    pathParamDocs: {
+      workflowId: 'Unique workflow identifier.',
+      version: 'Numeric deployment version, or `active` for the currently live version.',
+    },
+    responseMode: 'json',
+    summary: 'Revert Workflow To Version',
+  },
   revokeSkillEditor: {
     method: 'DELETE',
-    path: '/api/v2/skills/[id]/editors',
-    pathParams: ['id'] as const,
+    path: '/api/v2/skills/[skillId]/editors',
+    pathParams: ['skillId'] as const,
     pathParamDocs: {
-      id: 'Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`.',
+      skillId:
+        'Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`.',
     },
     responseMode: 'json',
     summary: 'Revoke Skill Editor',
@@ -9099,9 +13195,9 @@ export const V2_OPERATIONS = {
   },
   rollbackWorkflow: {
     method: 'POST',
-    path: '/api/v2/workflows/[id]/rollback',
-    pathParams: ['id'] as const,
-    pathParamDocs: { id: 'Unique workflow identifier.' },
+    path: '/api/v2/workflows/[workflowId]/rollback',
+    pathParams: ['workflowId'] as const,
+    pathParamDocs: { workflowId: 'Unique workflow identifier.' },
     responseMode: 'json',
     summary: 'Rollback Workflow',
     body: {
@@ -9124,36 +13220,6 @@ export const V2_OPERATIONS = {
     summary: 'Run Enrichment For One Row',
     body: {
       workspaceId: { kind: 'string', required: true, describe: 'Unique workspace identifier.' },
-    },
-  },
-  runTableColumn: {
-    method: 'POST',
-    path: '/api/v2/tables/[tableId]/columns/run',
-    pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
-    responseMode: 'json',
-    summary: 'Run Column Groups',
-    body: {
-      workspaceId: { kind: 'string', required: true, describe: 'Unique workspace identifier.' },
-      groupIds: {
-        kind: 'array',
-        required: true,
-        describe: 'Workflow or enrichment groups to run.',
-      },
-      runMode: {
-        kind: 'enum',
-        values: ['all', 'incomplete'] as const,
-        default: 'all',
-        describe: 'Whether to run all or only incomplete cells.',
-      },
-      rowIds: { kind: 'array', describe: 'Explicit row subset to run.' },
-      filter: {
-        kind: 'unknown',
-        describe:
-          'Recursive predicate tree. Each group node is exactly one non-empty `all` or `any` array whose members are further groups or `{ field, op, value }` conditions; the root must be a group, not a bare condition. At most 100 members per group, 10 levels of nesting, and 500 nodes in total. The negating operators include nulls: `ne`, `nin`, `ncontains`, `nlike`, and `nilike` match rows whose column is null or absent, so "not X" is not the complement of "X" over a nullable column. That holds for every column type, multi-select included. To exclude nulls, `all`-combine the negation with `isNotEmpty` (multi-select) or `isNotNull`. Comparison: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`. Membership: `in`, `nin` (array operand). Emptiness: `isEmpty`, `isNotEmpty`, `isNull`, `isNotNull` (no operand). Substring, always case-insensitive, operand matched literally: `contains`, `ncontains`, `startsWith`, `endsWith`. Pattern: `like`/`nlike` (case-sensitive), `ilike`/`nilike` (case-insensitive). **`*` is the only wildcard** and stands for any run of characters; `%`, `_`, and backslash match themselves. Use `like: "Hi*"`, not `like: "Hi%"`. A `select` column compares by option id and restricts its operators: single-select accepts `eq`, `ne`, `in`, `nin`; multi-select accepts `contains`, `ncontains`. Option names are accepted as operands and resolved to ids.',
-      },
-      excludeRowIds: { kind: 'array', describe: 'Rows excluded from a select-all run scope.' },
-      limit: { kind: 'object', describe: 'Optional cap on eligible rows to run.' },
     },
   },
   searchKnowledge: {
@@ -9187,7 +13253,7 @@ export const V2_OPERATIONS = {
       tagFilters: {
         kind: 'array',
         describe:
-          'Structured tag filters, at most 10 of them. Every filter must hold, including two that name the same tag: repeating one tag narrows the result rather than widening it, matching `GET /api/v2/knowledge/{id}/documents`. To match either of two values for one tag, issue a search per value. Each filtered tag must resolve to the same slot and field type in every knowledge base selected; one missing from any of them, or defined inconsistently across them, is rejected rather than ignored, and those knowledge bases must be searched separately. List the available names with `GET /api/v2/knowledge/{id}/tags`.',
+          'Structured tag filters, at most 10 of them. Every filter must hold, including two that name the same tag: repeating one tag narrows the result rather than widening it, matching `GET /api/v2/knowledge/{knowledgeBaseId}/documents`. To match either of two values for one tag, issue a search per value. Each filtered tag must resolve to the same slot and field type in every knowledge base selected; one missing from any of them, or defined inconsistently across them, is rejected rather than ignored, and those knowledge bases must be searched separately. List the available names with `GET /api/v2/knowledge/{knowledgeBaseId}/tags`.',
       },
       searchMode: {
         kind: 'enum',
@@ -9212,6 +13278,24 @@ export const V2_OPERATIONS = {
         describe:
           'How many candidate chunks to retrieve before reranking. Defaults to four times `topK`, capped at 100. A larger pool costs more retrieval work but gives the reranker more to choose from.',
       },
+    },
+  },
+  searchTableRows: {
+    method: 'POST',
+    path: '/api/v2/tables/[tableId]/rows/search',
+    pathParams: ['tableId'] as const,
+    pathParamDocs: { tableId: 'Unique table identifier.' },
+    responseMode: 'json',
+    summary: 'Search Rows',
+    body: {
+      workspaceId: { kind: 'string', required: true, describe: 'Unique workspace identifier.' },
+      q: { kind: 'string', required: true, describe: 'Case-insensitive cell substring to find.' },
+      predicate: {
+        kind: 'unknown',
+        describe:
+          'Recursive predicate tree. Each group node is exactly one non-empty `all` or `any` array whose members are further groups or `{ field, op, value }` conditions; the root must be a group, not a bare condition. At most 100 members per group, 10 levels of nesting, and 500 nodes in total. The negating operators include nulls: `ne`, `nin`, `ncontains`, `nlike`, and `nilike` match rows whose column is null or absent, so "not X" is not the complement of "X" over a nullable column. That holds for every column type, multi-select included. To exclude nulls, `all`-combine the negation with `isNotEmpty` (multi-select) or `isNotNull`. Comparison: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`. Membership: `in`, `nin` (array operand). Emptiness: `isEmpty`, `isNotEmpty`, `isNull`, `isNotNull` (no operand). Substring, always case-insensitive, operand matched literally: `contains`, `ncontains`, `startsWith`, `endsWith`. Pattern: `like`/`nlike` (case-sensitive), `ilike`/`nilike` (case-insensitive). **`*` is the only wildcard** and stands for any run of characters; `%`, `_`, and backslash match themselves. Use `like: "Hi*"`, not `like: "Hi%"`. A `select` column compares by option id and restricts its operators: single-select accepts `eq`, `ne`, `in`, `nin`; multi-select accepts `contains`, `ncontains`. Option names are accepted as operands and resolved to ids.',
+      },
+      sort: { kind: 'array', describe: 'Ordered table-row sort specification.' },
     },
   },
   setSecret: {
@@ -9254,10 +13338,10 @@ export const V2_OPERATIONS = {
   },
   syncKnowledgeConnector: {
     method: 'POST',
-    path: '/api/v2/knowledge/[id]/connectors/[connectorId]/sync',
-    pathParams: ['id', 'connectorId'] as const,
+    path: '/api/v2/knowledge/[knowledgeBaseId]/connectors/[connectorId]/sync',
+    pathParams: ['knowledgeBaseId', 'connectorId'] as const,
     pathParamDocs: {
-      id: 'Knowledge base that owns the connector.',
+      knowledgeBaseId: 'Knowledge base that owns the connector.',
       connectorId: 'Connector selected for the operation.',
     },
     responseMode: 'json',
@@ -9277,9 +13361,12 @@ export const V2_OPERATIONS = {
   },
   tableExportDownload: {
     method: 'GET',
-    path: '/api/v2/tables/exports/[exportId]/download',
-    pathParams: ['exportId'] as const,
-    pathParamDocs: { exportId: 'Unique table-export identifier.' },
+    path: '/api/v2/tables/[tableId]/exports/[exportId]/download',
+    pathParams: ['tableId', 'exportId'] as const,
+    pathParamDocs: {
+      tableId: 'Unique table identifier.',
+      exportId: 'Unique table-export identifier.',
+    },
     responseMode: 'json',
     summary: 'Download Table Export',
     query: {
@@ -9292,17 +13379,77 @@ export const V2_OPERATIONS = {
   },
   undeployWorkflow: {
     method: 'DELETE',
-    path: '/api/v2/workflows/[id]/deploy',
-    pathParams: ['id'] as const,
-    pathParamDocs: { id: 'Unique workflow identifier.' },
+    path: '/api/v2/workflows/[workflowId]/deploy',
+    pathParams: ['workflowId'] as const,
+    pathParamDocs: { workflowId: 'Unique workflow identifier.' },
     responseMode: 'json',
     summary: 'Undeploy Workflow',
   },
+  undeployWorkflowMcpTool: {
+    method: 'DELETE',
+    path: '/api/v2/workflow-mcp-servers/[serverId]/tools/[workflowId]',
+    pathParams: ['serverId', 'workflowId'] as const,
+    pathParamDocs: {
+      serverId: 'Unique workflow-MCP server identifier.',
+      workflowId: 'Workflow published as a tool on this server.',
+    },
+    responseMode: 'json',
+    summary: 'Unpublish Workflow MCP Tool',
+  },
+  unzipFile: {
+    method: 'POST',
+    path: '/api/v2/files/[fileId]/unzip',
+    pathParams: ['fileId'] as const,
+    pathParamDocs: { fileId: 'File identifier.' },
+    responseMode: 'json',
+    summary: 'Unzip File',
+    body: {
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the archive.' },
+    },
+  },
+  updateCredential: {
+    method: 'PATCH',
+    path: '/api/v2/credentials/[credentialId]',
+    pathParams: ['credentialId'] as const,
+    pathParamDocs: { credentialId: 'Credential to update or disconnect.' },
+    responseMode: 'json',
+    summary: 'Update Credential',
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace expected to own the credential.',
+      },
+    },
+    body: {
+      displayName: { kind: 'string', describe: 'New name shown for the credential in Sim.' },
+      description: {
+        kind: 'string',
+        describe: 'New credential description. Send null to clear the stored one.',
+      },
+      serviceAccountJson: {
+        kind: 'string',
+        describe: 'Write-only Google service-account JSON key.',
+      },
+      apiToken: { kind: 'string', describe: 'Write-only provider API token.' },
+      domain: { kind: 'string', describe: 'Provider account domain.' },
+      signingSecret: { kind: 'string', describe: 'Write-only webhook signing secret.' },
+      botToken: { kind: 'string', describe: 'Write-only bot token.' },
+      clientId: { kind: 'string', describe: 'OAuth client identifier.' },
+      clientSecret: { kind: 'string', describe: 'Write-only OAuth client secret.' },
+      certificateId: { kind: 'string', describe: 'Provider certificate mapping identifier.' },
+      orgId: { kind: 'string', describe: 'Provider organization ID.' },
+      dataCenter: { kind: 'string', describe: 'Provider data center.' },
+      authMethod: { kind: 'string', describe: 'Provider authentication method.' },
+      privateKey: { kind: 'string', describe: 'Write-only PEM private key.' },
+      username: { kind: 'string', describe: 'Provider run-as username.' },
+    },
+  },
   updateCustomTool: {
     method: 'PATCH',
-    path: '/api/v2/custom-tools/[id]',
-    pathParams: ['id'] as const,
-    pathParamDocs: { id: 'Unique custom tool identifier.' },
+    path: '/api/v2/custom-tools/[customToolId]',
+    pathParams: ['customToolId'] as const,
+    pathParamDocs: { customToolId: 'Unique custom tool identifier.' },
     responseMode: 'json',
     summary: 'Update Custom Tool',
     body: {
@@ -9341,9 +13488,9 @@ export const V2_OPERATIONS = {
   },
   updateKnowledgeBase: {
     method: 'PATCH',
-    path: '/api/v2/knowledge/[id]',
-    pathParams: ['id'] as const,
-    pathParamDocs: { id: 'Unique knowledge base identifier.' },
+    path: '/api/v2/knowledge/[knowledgeBaseId]',
+    pathParams: ['knowledgeBaseId'] as const,
+    pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
     responseMode: 'json',
     summary: 'Update Knowledge Base',
     body: {
@@ -9358,12 +13505,40 @@ export const V2_OPERATIONS = {
       folderPath: { kind: 'string', describe: 'New containing-folder path.' },
     },
   },
+  updateKnowledgeChunk: {
+    method: 'PATCH',
+    path: '/api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]/chunks/[chunkId]',
+    pathParams: ['knowledgeBaseId', 'documentId', 'chunkId'] as const,
+    pathParamDocs: {
+      knowledgeBaseId: 'Unique knowledge base identifier.',
+      documentId: 'Unique knowledge document identifier.',
+      chunkId: 'Unique chunk identifier.',
+    },
+    responseMode: 'json',
+    summary: 'Update Chunk',
+    body: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
+      content: {
+        kind: 'string',
+        describe:
+          'Replacement text. Changing it re-embeds the chunk and re-derives its token and character counts.',
+      },
+      enabled: {
+        kind: 'boolean',
+        describe: 'Whether the chunk participates in search. Disabling keeps it indexed.',
+      },
+    },
+  },
   updateKnowledgeConnector: {
     method: 'PATCH',
-    path: '/api/v2/knowledge/[id]/connectors/[connectorId]',
-    pathParams: ['id', 'connectorId'] as const,
+    path: '/api/v2/knowledge/[knowledgeBaseId]/connectors/[connectorId]',
+    pathParams: ['knowledgeBaseId', 'connectorId'] as const,
     pathParamDocs: {
-      id: 'Knowledge base that owns the connector.',
+      knowledgeBaseId: 'Knowledge base that owns the connector.',
       connectorId: 'Connector selected for the operation.',
     },
     responseMode: 'json',
@@ -9392,10 +13567,10 @@ export const V2_OPERATIONS = {
   },
   updateKnowledgeConnectorDocuments: {
     method: 'PATCH',
-    path: '/api/v2/knowledge/[id]/connectors/[connectorId]/documents',
-    pathParams: ['id', 'connectorId'] as const,
+    path: '/api/v2/knowledge/[knowledgeBaseId]/connectors/[connectorId]/documents',
+    pathParams: ['knowledgeBaseId', 'connectorId'] as const,
     pathParamDocs: {
-      id: 'Knowledge base that owns the connector.',
+      knowledgeBaseId: 'Knowledge base that owns the connector.',
       connectorId: 'Connector selected for the operation.',
     },
     responseMode: 'json',
@@ -9421,10 +13596,10 @@ export const V2_OPERATIONS = {
   },
   updateKnowledgeDocument: {
     method: 'PATCH',
-    path: '/api/v2/knowledge/[id]/documents/[documentId]',
-    pathParams: ['id', 'documentId'] as const,
+    path: '/api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]',
+    pathParams: ['knowledgeBaseId', 'documentId'] as const,
     pathParamDocs: {
-      id: 'Unique knowledge base identifier.',
+      knowledgeBaseId: 'Unique knowledge base identifier.',
       documentId: 'Unique knowledge document identifier.',
     },
     responseMode: 'json',
@@ -9464,11 +13639,35 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  updateKnowledgeTag: {
+    method: 'PATCH',
+    path: '/api/v2/knowledge/[knowledgeBaseId]/tags/[tagId]',
+    pathParams: ['knowledgeBaseId', 'tagId'] as const,
+    pathParamDocs: {
+      knowledgeBaseId: 'Unique knowledge base identifier.',
+      tagId: 'Unique tag definition identifier.',
+    },
+    responseMode: 'json',
+    summary: 'Update Tag',
+    body: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
+      displayName: { kind: 'string', describe: 'New tag display name.' },
+      fieldType: {
+        kind: 'enum',
+        values: ['text', 'number', 'date', 'boolean'] as const,
+        describe: 'New value type for the tag.',
+      },
+    },
+  },
   updateMcpServer: {
     method: 'PATCH',
-    path: '/api/v2/mcp-servers/[id]',
-    pathParams: ['id'] as const,
-    pathParamDocs: { id: 'Unique MCP server identifier.' },
+    path: '/api/v2/mcp-servers/[mcpServerId]',
+    pathParams: ['mcpServerId'] as const,
+    pathParamDocs: { mcpServerId: 'Unique MCP server identifier.' },
     responseMode: 'json',
     summary: 'Update MCP Server',
     body: {
@@ -9556,10 +13755,11 @@ export const V2_OPERATIONS = {
   },
   updateSkill: {
     method: 'PATCH',
-    path: '/api/v2/skills/[id]',
-    pathParams: ['id'] as const,
+    path: '/api/v2/skills/[skillId]',
+    pathParams: ['skillId'] as const,
     pathParamDocs: {
-      id: 'Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`.',
+      skillId:
+        'Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`.',
     },
     responseMode: 'json',
     summary: 'Update Skill',
@@ -9647,9 +13847,9 @@ export const V2_OPERATIONS = {
   },
   updateWorkflow: {
     method: 'PATCH',
-    path: '/api/v2/workflows/[id]',
-    pathParams: ['id'] as const,
-    pathParamDocs: { id: 'Unique workflow identifier.' },
+    path: '/api/v2/workflows/[workflowId]',
+    pathParams: ['workflowId'] as const,
+    pathParamDocs: { workflowId: 'Unique workflow identifier.' },
     responseMode: 'json',
     summary: 'Update Workflow',
     body: {
@@ -9695,11 +13895,61 @@ export const V2_OPERATIONS = {
       autoRun: { kind: 'boolean', describe: 'Replacement automatic-run setting.' },
     },
   },
+  updateWorkflowMcpServer: {
+    method: 'PATCH',
+    path: '/api/v2/workflow-mcp-servers/[serverId]',
+    pathParams: ['serverId'] as const,
+    pathParamDocs: { serverId: 'Unique workflow-MCP server identifier.' },
+    responseMode: 'json',
+    summary: 'Update Workflow MCP Server',
+    body: {
+      name: { kind: 'string', describe: 'Server display name, shown to connecting MCP clients.' },
+      description: { kind: 'string', describe: 'New server description, or null to clear it.' },
+      isPublic: {
+        kind: 'boolean',
+        describe: 'Whether the server answers MCP clients without a Sim API key.',
+      },
+    },
+  },
+  updateWorkflowPublicApi: {
+    method: 'PATCH',
+    path: '/api/v2/workflows/[workflowId]/deployment',
+    pathParams: ['workflowId'] as const,
+    pathParamDocs: { workflowId: 'Unique workflow identifier.' },
+    responseMode: 'json',
+    summary: 'Update Workflow Public API Access',
+    body: {
+      isPublicApi: {
+        kind: 'boolean',
+        required: true,
+        describe:
+          'Whether the deployed workflow should accept unauthenticated public API execution.',
+      },
+    },
+  },
+  updateWorkflowVersion: {
+    method: 'PATCH',
+    path: '/api/v2/workflows/[workflowId]/versions/[version]',
+    pathParams: ['workflowId', 'version'] as const,
+    pathParamDocs: {
+      workflowId: 'Unique workflow identifier.',
+      version: 'Numeric deployment version.',
+    },
+    responseMode: 'json',
+    summary: 'Update Workflow Version',
+    body: {
+      name: { kind: 'string', describe: 'New label for the deployment version.' },
+      description: {
+        kind: 'string',
+        describe: 'New release note for the deployment version, or null to clear it.',
+      },
+    },
+  },
   uploadKnowledgeDocument: {
     method: 'POST',
-    path: '/api/v2/knowledge/[id]/documents',
-    pathParams: ['id'] as const,
-    pathParamDocs: { id: 'Unique knowledge base identifier.' },
+    path: '/api/v2/knowledge/[knowledgeBaseId]/documents',
+    pathParams: ['knowledgeBaseId'] as const,
+    pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
     responseMode: 'json',
     summary: 'Upload Document',
     query: {

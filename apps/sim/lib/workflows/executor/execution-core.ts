@@ -812,12 +812,8 @@ async function executeWorkflowCoreImpl(
 
     // Resolve the org/workspace PII redaction policy once; serves both the input
     // stage (below) and the block-outputs stage (threaded into the executor).
-    // Resolved from stored rules UNCONDITIONALLY — deliberately NOT gated on the
-    // `pii-redaction` feature flag. The flag gates configuration (the settings
-    // route); a transient/false flag read at execution time would skip masking
-    // and leak PII (fail-open). Stored rules are only writable by entitled orgs,
-    // so their presence is the source of truth; absence yields the disabled
-    // default (one indexed lookup, no masking cost for non-PII orgs).
+    // Stored rules are the source of truth; absence yields the disabled default
+    // with one indexed lookup and no masking cost for non-PII organizations.
     const [row] = await db
       .select({ orgSettings: organization.dataRetentionSettings })
       .from(workspace)

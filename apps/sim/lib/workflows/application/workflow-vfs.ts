@@ -36,12 +36,12 @@ import {
 import { VfsPathLimitError, validateVfsPathSegments } from '@/lib/vfs/limits'
 import { encodeVfsPathSegments } from '@/lib/vfs/path'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
-import { resolveActiveWorkspaceApplicationContext } from '@/lib/workflows/application/context'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import { requireWorkflowTransition } from '@/lib/workflows/application/transition-result'
 import { deleteWorkflowRecord, updateWorkflowRecord } from '@/lib/workflows/orchestration'
 import { duplicateWorkflow as duplicateWorkflowRecord } from '@/lib/workflows/persistence/duplicate'
 import type { ActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
 
 const MAX_WORKFLOW_VFS_ITEMS = 100
 const MAX_WORKFLOW_VFS_INDEX_ROWS = 10_000

@@ -102,4 +102,75 @@ describe('ini', () => {
   it('round-trips an empty document without emitting a stray newline', () => {
     expect(serializeIni(parseIni(''))).toBe('')
   })
+
+  it('merges duplicate sections instead of dropping the later block', () => {
+    const doc = parseIni('[default]\nendpoint = https://sim.ai\n\n[default]\nworkspace = ws_2\n')
+    expect(getSection(doc, 'default')).toEqual({
+      endpoint: 'https://sim.ai',
+      workspace: 'ws_2',
+    })
+  })
+
+  it('resolves a duplicated key the same way a write targets it', () => {
+    // `setSectionValues` upserts into the first block, so a first-wins read is
+    // what makes the value it wrote the value that comes back.
+    const doc = parseIni('[default]\nendpoint = https://first.example\n[default]\nendpoint = x\n')
+    expect(getSection(doc, 'default')).toEqual({ endpoint: 'https://first.example' })
+
+    setSectionValues(doc, 'default', { endpoint: 'https://written.example' })
+    expect(getSection(parseIni(serializeIni(doc)), 'default')).toEqual({
+      endpoint: 'https://written.example',
+    })
+  })
+
+  /**
+   * A merged read makes a later duplicate the active value once the first copy
+   * is gone, so clearing only the first block reported an unset that did not
+   * happen.
+   */
+  it('unsets a key in every block that repeats the section', () => {
+    const doc = parseIni('[default]\nendpoint = https://first.example\n[default]\nendpoint = x\n')
+
+    setSectionValues(doc, 'default', { endpoint: null })
+
+    expect(getSection(parseIni(serializeIni(doc)), 'default')).toEqual({})
+  })
+
+  /** Same reasoning for a whole profile: `sim logout` has to leave none of it. */
+  it('removes every block that repeats the section name', () => {
+    const doc = parseIni('[profile dev]\napi_key = a\n[profile dev]\napi_key = b\n')
+
+    expect(removeSection(doc, 'profile dev')).toBe(true)
+
+    expect(getSection(doc, 'profile dev')).toBe(null)
+    expect(listSections(doc)).toEqual([])
+  })
+
+  it('does not open a gap inside the last section across repeated writes', () => {
+    let text = SAMPLE
+    for (const [key, value] of [
+      ['workspace', 'ws_local'],
+      ['output', 'json'],
+      ['endpoint', 'http://localhost:4000'],
+    ]) {
+      const doc = parseIni(text)
+      setSectionValues(doc, 'profile dev', { [key]: value })
+      text = serializeIni(doc)
+    }
+
+    expect(text).toBe(
+      `# top-level note
+
+[default]
+endpoint = https://sim.ai
+workspace = ws_1
+
+[profile dev]
+# points at the local stack
+endpoint = http://localhost:4000
+workspace = ws_local
+output = json
+`
+    )
+  })
 })

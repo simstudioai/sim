@@ -6,7 +6,6 @@ import {
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
   v2ApiKeyAuthModuleMock,
-  v2GateModuleMock,
   v2RateLimiterModuleMock,
   v2RouteMocks,
 } from '@sim/testing'
@@ -28,11 +27,22 @@ vi.mock('@/lib/workflows/application/list-workflows', () => ({
 
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
-vi.mock('@/app/api/v2/lib/gate', () => v2GateModuleMock)
 
+import { v2ListWorkflowsContract } from '@/lib/api/contracts/v2/workflows'
+import { cursorRoute, cursorScopeKey } from '@/lib/api/cursor-binding'
+import { writeSortedCursor } from '@/app/api/v2/lib/response'
 import { GET, POST } from '@/app/api/v2/workflows/route'
 
 const WORKSPACE_ID = 'workspace-1'
+const SEEDED_START_BLOCK = {
+  id: 'start-1',
+  type: 'starter',
+  name: 'Start',
+  position: { x: 0, y: 0 },
+  subBlocks: {},
+  outputs: {},
+  enabled: true,
+}
 const WORKFLOW = {
   id: 'workflow-1',
   name: 'Daily digest',
@@ -55,7 +65,6 @@ const workspaceAuth = {
     workspaceId: WORKSPACE_ID,
     keyId: 'workspace-key-1',
   },
-  rolloutUserId: 'billing-owner-1',
   rateLimitSubjectIds: ['api-key:workspace-key-1', `workspace:${WORKSPACE_ID}`] as const,
   rateLimitSubscription: null,
   keyType: 'workspace' as const,
@@ -67,7 +76,6 @@ const personalAuth = {
     userId: 'user-1',
     keyId: 'personal-key-1',
   },
-  rolloutUserId: 'user-1',
   rateLimitSubjectIds: ['api-key:personal-key-1', 'user:user-1'] as const,
   rateLimitSubscription: null,
   keyType: 'personal' as const,
@@ -77,7 +85,6 @@ describe('/api/v2/workflows', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(workspaceAuth)
-    v2RouteMocks.gate.mockResolvedValue(null)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
     mocks.listWorkflows.mockResolvedValue({
@@ -86,7 +93,58 @@ describe('/api/v2/workflows', () => {
       sortBy: 'position',
       sortOrder: 'asc',
     })
-    mocks.createWorkflow.mockResolvedValue({ workflow: WORKFLOW, folderPath: '/' })
+    mocks.createWorkflow.mockResolvedValue({
+      workflow: WORKFLOW,
+      folderPath: '/',
+      normalizedState: { blocks: { 'start-1': SEEDED_START_BLOCK } },
+    })
+  })
+
+  it('lists the active scope by default and forwards an explicit archived scope', async () => {
+    await GET(new NextRequest(`http://localhost/api/v2/workflows?workspaceId=${WORKSPACE_ID}`))
+    expect(mocks.listWorkflows).toHaveBeenCalledWith(
+      expect.objectContaining({ input: expect.objectContaining({ scope: 'active' }) })
+    )
+
+    await GET(
+      new NextRequest(
+        `http://localhost/api/v2/workflows?workspaceId=${WORKSPACE_ID}&scope=archived`
+      )
+    )
+    expect(mocks.listWorkflows).toHaveBeenLastCalledWith(
+      expect.objectContaining({ input: expect.objectContaining({ scope: 'archived' }) })
+    )
+  })
+
+  it('rejects a scope the surface does not serve', async () => {
+    const response = await GET(
+      new NextRequest(`http://localhost/api/v2/workflows?workspaceId=${WORKSPACE_ID}&scope=all`)
+    )
+
+    expect(response.status).toBe(400)
+    expect(mocks.listWorkflows).not.toHaveBeenCalled()
+  })
+
+  it('refuses a cursor replayed under a different scope', async () => {
+    mocks.listWorkflows.mockResolvedValueOnce({
+      workflows: [WORKFLOW],
+      nextCursorKeys: [1, WORKFLOW.id],
+      sortBy: 'position',
+      sortOrder: 'asc',
+    })
+    const first = await GET(
+      new NextRequest(`http://localhost/api/v2/workflows?workspaceId=${WORKSPACE_ID}`)
+    )
+    const { nextCursor } = await first.json()
+    expect(nextCursor).toEqual(expect.any(String))
+
+    const replayed = await GET(
+      new NextRequest(
+        `http://localhost/api/v2/workflows?workspaceId=${WORKSPACE_ID}&scope=archived&cursor=${encodeURIComponent(nextCursor)}`
+      )
+    )
+
+    expect(replayed.status).toBe(400)
   })
 
   it('authenticates and rate limits before parsing list input', async () => {
@@ -163,6 +221,39 @@ describe('/api/v2/workflows', () => {
     )
   })
 
+  /**
+   * `scope` carries `.default('active')`, so it is present on every parsed
+   * query. Stamping it unconditionally would put a constant in every
+   * fingerprint and refuse every cursor minted before the param existed, with
+   * the misleading "cursor does not match the requested filters" message — a
+   * caller that changed nothing would be told it changed a filter. The default
+   * must therefore contribute nothing to the scope.
+   */
+  it('resumes a cursor minted before scope entered the binding', async () => {
+    const legacyCursor = writeSortedCursor(
+      [1, WORKFLOW.id],
+      'position',
+      'asc',
+      cursorScopeKey(cursorRoute(v2ListWorkflowsContract), {
+        workspaceId: WORKSPACE_ID,
+        deployedOnly: false,
+      })
+    ) as string
+
+    const response = await GET(
+      new NextRequest(
+        `http://localhost/api/v2/workflows?workspaceId=${WORKSPACE_ID}&cursor=${encodeURIComponent(legacyCursor)}`
+      )
+    )
+
+    expect(response.status).toBe(200)
+    expect(mocks.listWorkflows).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({ cursorKeys: [1, WORKFLOW.id] }),
+      })
+    )
+  })
+
   it('lists through the workspace principal and preserves rate headers', async () => {
     const request = new NextRequest(
       `http://localhost/api/v2/workflows?workspaceId=${WORKSPACE_ID}`,
@@ -177,6 +268,7 @@ describe('/api/v2/workflows', () => {
       data: [
         {
           id: WORKFLOW.id,
+          webUrl: `https://test.sim.ai/workspace/${WORKSPACE_ID}/w/${WORKFLOW.id}`,
           name: WORKFLOW.name,
           description: null,
           folderPath: '/',
@@ -208,7 +300,9 @@ describe('/api/v2/workflows', () => {
     const response = await POST(request)
 
     expect(response.status).toBe(201)
-    expect((await response.json()).data.id).toBe(WORKFLOW.id)
+    const created = (await response.json()).data
+    expect(created.id).toBe(WORKFLOW.id)
+    expect(created.blocks).toEqual([{ id: 'start-1', type: 'starter', name: 'Start' }])
     expect(mocks.createWorkflow).toHaveBeenCalledWith({
       principal: personalAuth.principal,
       input: { workspaceId: WORKSPACE_ID, name: WORKFLOW.name },

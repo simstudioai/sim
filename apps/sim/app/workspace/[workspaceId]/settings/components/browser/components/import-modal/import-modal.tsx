@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { BrowserImportProfile } from '@sim/desktop-bridge'
 import {
   ChipModal,
@@ -39,29 +39,29 @@ function browserOptions(profiles: BrowserImportProfile[]) {
  */
 export function ImportModal({ open, onOpenChange, profiles, pending, onImport }: ImportModalProps) {
   const browsers = useMemo(() => browserOptions(profiles), [profiles])
-  const [browserId, setBrowserId] = useState(browsers[0]?.value ?? '')
+  const [pickedBrowserId, setPickedBrowserId] = useState(browsers[0]?.value ?? '')
+
+  /**
+   * A reload can drop the browser or profile that was picked. Falling back here
+   * rather than correcting in an effect matters: the effect form commits and
+   * paints one frame in which the profile still belongs to the previously
+   * selected browser, and Import is enabled during it.
+   */
+  const browserId = browsers.some((browser) => browser.value === pickedBrowserId)
+    ? pickedBrowserId
+    : (browsers[0]?.value ?? '')
 
   const profilesForBrowser = useMemo(
     () => profiles.filter((profile) => profile.browserId === browserId),
     [browserId, profiles]
   )
-  const [profileId, setProfileId] = useState(profilesForBrowser[0]?.id ?? '')
+  const [pickedProfileId, setPickedProfileId] = useState(profilesForBrowser[0]?.id ?? '')
 
-  // Keep the selection valid as the browser changes or the list reloads,
-  // rather than leaving a profile selected that belongs to another browser.
-  useEffect(() => {
-    if (!profilesForBrowser.some((profile) => profile.id === profileId)) {
-      setProfileId(profilesForBrowser[0]?.id ?? '')
-    }
-  }, [profileId, profilesForBrowser])
+  const profileId = profilesForBrowser.some((profile) => profile.id === pickedProfileId)
+    ? pickedProfileId
+    : (profilesForBrowser[0]?.id ?? '')
 
-  useEffect(() => {
-    if (!browsers.some((browser) => browser.value === browserId)) {
-      setBrowserId(browsers[0]?.value ?? '')
-    }
-  }, [browserId, browsers])
-
-  const selected = profiles.find((profile) => profile.id === profileId) ?? null
+  const selected = profilesForBrowser.find((profile) => profile.id === profileId) ?? null
 
   return (
     <ChipModal open={open} onOpenChange={onOpenChange} srTitle='Import from your browser'>
@@ -79,7 +79,7 @@ export function ImportModal({ open, onOpenChange, profiles, pending, onImport }:
           title='Browser'
           options={browsers}
           value={browserId}
-          onChange={setBrowserId}
+          onChange={setPickedBrowserId}
           placeholder='Select a browser'
           align='start'
           disabled={pending || browsers.length === 0}
@@ -92,7 +92,7 @@ export function ImportModal({ open, onOpenChange, profiles, pending, onImport }:
             label: profile.profileLabel,
           }))}
           value={profileId}
-          onChange={setProfileId}
+          onChange={setPickedProfileId}
           placeholder='Select a profile'
           align='start'
           disabled={pending || profilesForBrowser.length === 0}

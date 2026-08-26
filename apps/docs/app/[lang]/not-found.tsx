@@ -8,17 +8,20 @@ export const metadata = {
 export default function NotFound() {
   return (
     <DocsPage>
-      <div className='flex min-h-[70vh] flex-col items-center justify-center gap-4 text-center'>
-        <h1 className='bg-gradient-to-b from-[var(--brand-accent)] to-[var(--brand-accent-hover)] bg-clip-text font-semibold text-8xl text-transparent'>
-          404
-        </h1>
-        <h2 className='font-semibold text-2xl text-[var(--text-primary)]'>Page Not Found</h2>
-        <p className='text-[var(--text-muted)]'>
-          The page you're looking for doesn't exist or has been moved.
-        </p>
-        <ChipLink href='/' variant='primary'>
-          Go home
-        </ChipLink>
+      <div className='flex min-h-[60vh] flex-col items-center justify-center px-4 py-24 text-center'>
+        <div className='flex w-full max-w-[410px] flex-col items-center gap-3'>
+          <h1 className='text-balance text-[40px] text-[var(--text-primary)] leading-[110%] tracking-[-0.02em]'>
+            Page not found
+          </h1>
+          <p className='text-[var(--text-muted)] text-lg'>
+            The page you&apos;re looking for doesn&apos;t exist or has been moved.
+          </p>
+          <div className='mt-3 flex flex-wrap items-center justify-center gap-2'>
+            <ChipLink href='/' variant='primary'>
+              Return home
+            </ChipLink>
+          </div>
+        </div>
       </div>
     </DocsPage>
   )

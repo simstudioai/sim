@@ -108,6 +108,19 @@ describe('provider runtime context', () => {
     )
   })
 
+  it('resolves a provider-only alias before executing the canonical tool', async () => {
+    await runWithProviderRuntimeContext(
+      { toolIdByWireId: new Map([['gmail_send__sim_2', 'gmail_send']]) },
+      () => executeProviderTool('gmail_send__sim_2', { oauthCredential: 'credential-b' })
+    )
+
+    expect(mockExecuteTool).toHaveBeenCalledWith(
+      'gmail_send',
+      { oauthCredential: 'credential-b' },
+      expect.any(Object)
+    )
+  })
+
   it('rebinds a prompt-exposed environment placeholder for the exact tool call', async () => {
     const sourceRegistry = new ResolvedSecretTraceRegistry([
       {

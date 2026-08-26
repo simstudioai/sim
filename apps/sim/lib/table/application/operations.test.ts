@@ -51,6 +51,10 @@ describe('table operation registry', () => {
 
     expect(tableOperations.createExport.minimumRole).toBe('read')
     expect(tableOperations.cancelExport.minimumRole).toBe('read')
+
+    /** Reading the state of a run you started is a read; un-archiving is a write. */
+    expect(tableOperations.readRun.minimumRole).toBe('read')
+    expect(tableOperations.restore.minimumRole).toBe('write')
   })
 
   it('admits executor delegation only for the intentional internal route operations', () => {
