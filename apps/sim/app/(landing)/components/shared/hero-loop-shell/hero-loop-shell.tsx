@@ -10,6 +10,8 @@ import { DESIGN, useDesignScale } from '@/app/(landing)/hooks/use-design-scale'
 interface HeroLoopShellProps {
   /** Workspace name in the sidebar header chip. */
   workspaceName?: string
+  /** Viewer name shown in the sidebar profile footer. */
+  profileName?: string
   /** Recent-chat entries in the sidebar - four fill the design height. */
   chats: readonly string[]
   /** Deployed-workflow entries in the sidebar - five fill the design height. */
@@ -30,6 +32,7 @@ interface HeroLoopShellProps {
  */
 export function HeroLoopShell({
   workspaceName = 'Brightwave',
+  profileName = 'Morgan',
   chats,
   workflows,
   activeNav,
@@ -49,6 +52,7 @@ export function HeroLoopShell({
       >
         <EnterpriseSidebar
           workspaceName={workspaceName}
+          profileName={profileName}
           chats={chats}
           workflows={workflows}
           activeNav={activeNav}

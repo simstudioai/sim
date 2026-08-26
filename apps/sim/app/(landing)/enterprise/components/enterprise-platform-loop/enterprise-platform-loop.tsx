@@ -96,6 +96,7 @@ export function EnterprisePlatformLoop({
   return (
     <HeroLoopShell
       workspaceName={content.workspaceName}
+      profileName={content.profileName}
       chats={content.sidebarChats}
       workflows={content.sidebarWorkflows}
     >

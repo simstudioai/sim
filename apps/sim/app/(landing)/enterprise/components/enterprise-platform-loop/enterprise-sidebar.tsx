@@ -1,16 +1,22 @@
 import { memo } from 'react'
-import { ChevronDown, cn, Home, Library } from '@sim/emcn'
 import {
-  Calendar,
+  ChipChevronDown,
+  chipContentIconClass,
+  chipContentLabelClass,
+  chipVariants,
+  cn,
+} from '@sim/emcn'
+import {
   Database,
-  File,
+  Files,
   HelpCircle,
+  Home,
   Integration,
+  Library,
   MoreHorizontal,
   PanelLeft,
   Plus,
   Search,
-  Settings,
   Table,
 } from '@sim/emcn/icons'
 import Image from 'next/image'
@@ -21,9 +27,8 @@ import {
 
 const WORKSPACE_NAV = [
   { label: 'Tables', icon: Table },
-  { label: 'Files', icon: File },
-  { label: 'Knowledge base', icon: Database },
-  { label: 'Scheduled tasks', icon: Calendar },
+  { label: 'Files', icon: Files },
+  { label: 'Knowledge bases', icon: Database },
   { label: 'Logs', icon: Library },
 ] as const
 
@@ -36,14 +41,9 @@ interface IconRowProps {
 /** A sidebar nav row with a leading icon, like the real workspace sidebar. */
 function IconRow({ icon: Icon, label, active = false }: IconRowProps) {
   return (
-    <div
-      className={cn(
-        'mx-0.5 flex h-[28px] items-center gap-2 rounded-[8px] px-2',
-        active && 'bg-[var(--surface-active)]'
-      )}
-    >
-      <Icon className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
-      <span className='truncate text-[13px] text-[var(--text-body)]'>{label}</span>
+    <div className={chipVariants({ active, fullWidth: true })}>
+      <Icon className={chipContentIconClass} />
+      <span className={chipContentLabelClass}>{label}</span>
     </div>
   )
 }
@@ -51,8 +51,8 @@ function IconRow({ icon: Icon, label, active = false }: IconRowProps) {
 /** A bare text row - the real sidebar's chat and workflow entries. */
 function TextRow({ label }: { label: string }) {
   return (
-    <div className='mx-0.5 flex h-[28px] items-center rounded-[8px] px-2'>
-      <span className='truncate text-[13px] text-[var(--text-body)]'>{label}</span>
+    <div className={chipVariants({ fullWidth: true })}>
+      <span className={chipContentLabelClass}>{label}</span>
     </div>
   )
 }
@@ -61,7 +61,7 @@ function TextRow({ label }: { label: string }) {
 function SectionLabel({ label, actions }: { label: string; actions?: boolean }) {
   return (
     <div className='flex items-center justify-between px-4 pb-1.5'>
-      <span className='text-[12px] text-[var(--text-icon)]'>{label}</span>
+      <span className='text-[var(--text-muted)] text-caption'>{label}</span>
       {actions && (
         <span className='flex items-center gap-2 text-[var(--text-icon)]'>
           <MoreHorizontal className='size-[14px]' />
@@ -75,6 +75,8 @@ function SectionLabel({ label, actions }: { label: string; actions?: boolean }) 
 export interface EnterpriseSidebarProps {
   /** Workspace name in the header chip. Defaults to the enterprise workspace. */
   workspaceName?: string
+  /** Viewer name shown in the profile footer. Defaults to the enterprise persona. */
+  profileName?: string
   /** Recent-chat entries - four fill the design height. Defaults enterprise. */
   chats?: readonly string[]
   /** Deployed-workflow entries - five fill the design height. Defaults enterprise. */
@@ -91,30 +93,26 @@ export interface EnterpriseSidebarProps {
  * The Brightwave workspace sidebar, rendered live (the homepage loop keeps its
  * baked-screenshot sidebar; the enterprise loop draws its own so the content
  * can read like a large tenured deployment): the workspace header, New chat /
- * Search / Integrations, a filled-out Chats history, the Workspace nav, a full
- * Workflows section, and the Help / Settings footer. Purely decorative -
+ * Integrations, a filled-out Chats history, the Workspace nav, a full
+ * Workflows section, and the profile / Help footer. Purely decorative -
  * hover/click behavior is owned by the parent's `pointer-events-none` frame.
- * The workspace name and the chat / workflow entries are injectable so each
- * solutions hero can read like that team's workspace; defaults keep the
+ * The workspace and profile names plus the chat / workflow entries are injectable
+ * so each solutions hero can read like that team's workspace; defaults keep the
  * enterprise page exactly as it renders today. Memoized - the sidebar is
  * fully static per props, and every consuming loop re-renders on each clock
  * tick with stable sidebar props.
  */
 export const EnterpriseSidebar = memo(function EnterpriseSidebar({
   workspaceName = 'Brightwave',
+  profileName = 'Morgan',
   chats = SIDEBAR_CHATS,
   workflows = SIDEBAR_WORKFLOWS,
   activeNav,
 }: EnterpriseSidebarProps = {}) {
   return (
-    <div className='flex h-full w-[249px] flex-shrink-0 flex-col bg-[var(--surface-1)] pt-3'>
-      {/* Workspace header, matching the real product's WorkspaceHeader chip
-          (borderless `chipVariants()` geometry: h-[30px] rounded-lg px-2 with
-          mx-0.5, 16px logo, text-sm name, 14px chevron) and therefore the
-          homepage's baked sidebar pixels - logo + name + chevron as a bare
-          row, panel toggle right-aligned outside it. */}
+    <div className='flex h-full w-[238px] flex-shrink-0 flex-col bg-[var(--surface-1)] pt-3'>
       <div className='flex flex-shrink-0 items-center justify-between px-2'>
-        <div className='mx-0.5 flex h-[30px] min-w-0 items-center gap-2 rounded-lg px-2'>
+        <div className={cn(chipVariants(), 'min-w-0 flex-1')}>
           {/* The exact Brightwave mark the homepage capture seeds
               (`readme-tour-capture` sets `logoUrl: '/landing/rivian-logo.svg'`),
               so both platform previews show the same company logo. */}
@@ -125,30 +123,36 @@ export const EnterpriseSidebar = memo(function EnterpriseSidebar({
             height={16}
             className='size-[16px] flex-shrink-0 rounded-sm'
           />
-          <span className='min-w-0 truncate text-[var(--text-body)] text-sm'>{workspaceName}</span>
-          <ChevronDown className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+          <span className={chipContentLabelClass}>{workspaceName}</span>
+          <ChipChevronDown />
         </div>
-        <PanelLeft className='mr-1.5 size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
+        <div className='flex h-[30px] w-[65px] flex-shrink-0 items-center gap-[1px]'>
+          <span className={chipVariants()}>
+            <Search className={chipContentIconClass} />
+          </span>
+          <span className={chipVariants()}>
+            <PanelLeft className={chipContentIconClass} />
+          </span>
+        </div>
       </div>
 
-      <div className='mt-2.5 flex flex-shrink-0 flex-col gap-0.5 px-2'>
+      <div className='mt-4 flex flex-shrink-0 flex-col gap-[1px] px-2'>
         <IconRow icon={Home} label='New chat' active={!activeNav} />
-        <IconRow icon={Search} label='Search' />
         <IconRow icon={Integration} label='Integrations' />
       </div>
 
-      <div className='mt-3.5 flex flex-shrink-0 flex-col'>
+      <div className='mt-4 flex flex-shrink-0 flex-col'>
         <SectionLabel label='Chats' />
-        <div className='flex flex-col gap-0.5 px-2'>
+        <div className='flex flex-col gap-[1px] px-2'>
           {chats.map((chat) => (
             <TextRow key={chat} label={chat} />
           ))}
         </div>
       </div>
 
-      <div className='mt-3.5 flex flex-shrink-0 flex-col'>
+      <div className='mt-4 flex flex-shrink-0 flex-col'>
         <SectionLabel label='Workspace' />
-        <div className='flex flex-col gap-0.5 px-2'>
+        <div className='flex flex-col gap-[1px] px-2'>
           {WORKSPACE_NAV.map((item) => (
             <IconRow
               key={item.label}
@@ -160,18 +164,27 @@ export const EnterpriseSidebar = memo(function EnterpriseSidebar({
         </div>
       </div>
 
-      <div className='flex min-h-0 flex-1 flex-col overflow-hidden pt-3.5'>
+      <div className='flex min-h-0 flex-1 flex-col overflow-hidden pt-4'>
         <SectionLabel label='Workflows' actions />
-        <div className='flex flex-col gap-0.5 px-2'>
+        <div className='flex flex-col gap-[1px] px-2'>
           {workflows.map((workflow) => (
             <TextRow key={workflow} label={workflow} />
           ))}
         </div>
       </div>
 
-      <div className='flex flex-shrink-0 flex-col gap-0.5 px-2 pt-[9px] pb-2'>
-        <IconRow icon={HelpCircle} label='Help' />
-        <IconRow icon={Settings} label='Settings' />
+      <div className='flex flex-shrink-0 items-center border-t px-2 pt-[9px] pb-2'>
+        <div className='flex min-w-0 flex-1'>
+          <div className={cn(chipVariants(), 'min-w-0 max-w-full')}>
+            <span className='flex size-[16px] flex-shrink-0 items-center justify-center rounded-full bg-[var(--surface-4)] text-[var(--text-body)] text-micro leading-none'>
+              {profileName.charAt(0).toUpperCase()}
+            </span>
+            <span className={chipContentLabelClass}>{profileName}</span>
+          </div>
+        </div>
+        <span className={cn(chipVariants(), 'flex-shrink-0')}>
+          <HelpCircle className={chipContentIconClass} />
+        </span>
       </div>
     </div>
   )
