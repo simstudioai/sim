@@ -1,5 +1,28 @@
 import type { ToolResponse } from '@/tools/types'
 
+/**
+ * Outbound fetch deadline (milliseconds) for the two `run-sync-get-dataset-items`
+ * endpoints.
+ *
+ * Apify documents that "If the Actor run exceeds 300 seconds, the HTTP response
+ * will return the 408 status code (Request Timeout)" on both the actor and the
+ * actor-task variant. Sim's own transport falls back to `options.timeout || 300000`
+ * in `lib/core/security/input-validation.server.ts` — the same number — so a run
+ * that lands on the boundary is a race between Apify's structured 408 and a
+ * generic `Request timed out after 300000ms` that names neither the actor nor the
+ * reason.
+ *
+ * This is a deliberate fixed clamp, not the user's `actorTimeout`/`taskTimeout`
+ * seconds value reinterpreted as milliseconds: the endpoint caps every sync run at
+ * 300s regardless of the run timeout asked for, so the only budget the transport
+ * needs is 300s plus the cost of the round trip around it — connection setup, the
+ * run being queued, and transferring a dataset body that may reach the 10MB tool
+ * response cap. 30s of headroom matches `INTERNAL_ROUTE_TRANSPORT_OVERHEAD_MS` in
+ * `tools/index.ts`, which exists for the same reason, and keeps the value far
+ * below `getMaxExecutionTimeout()` (which clamps it anyway).
+ */
+export const APIFY_SYNC_TRANSPORT_TIMEOUT_MS = 330_000
+
 /** Apify actor run object returned by the run/status endpoints. */
 export interface ApifyRun {
   id: string
@@ -34,7 +57,8 @@ export interface RunActorParams {
 export interface RunActorResult extends ToolResponse {
   output: {
     success: boolean
-    runId: string
+    /** Absent for the sync endpoint, whose response carries no run identifier. */
+    runId?: string
     status: string
     datasetId?: string
     items?: unknown[]

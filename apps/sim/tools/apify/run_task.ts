@@ -44,7 +44,8 @@ export const apifyRunTaskTool: ToolConfig<RunTaskParams, RunTaskResult> = {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Timeout in seconds for the run. Example: 300 for 5 minutes',
+      description:
+        'Timeout in seconds for the run. Use 0 for no timeout. Example: 300 for 5 minutes',
     },
     build: {
       type: 'string',
@@ -67,7 +68,7 @@ export const apifyRunTaskTool: ToolConfig<RunTaskParams, RunTaskResult> = {
       if (params.memory) {
         queryParams.set('memory', params.memory.toString())
       }
-      if (params.taskTimeout) {
+      if (params.taskTimeout != null) {
         queryParams.set('timeout', params.taskTimeout.toString())
       }
       if (params.build) {

@@ -1,10 +1,13 @@
 import { ApifyIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { RunActorResult } from '@/tools/apify/types'
+import { APIFY_SYNC_TRANSPORT_TIMEOUT_MS, type RunActorResult } from '@/tools/apify/types'
 
 const RUN_OPERATIONS = ['apify_run_actor_sync', 'apify_run_actor_async']
 const RUN_OR_TASK_OPERATIONS = [...RUN_OPERATIONS, 'apify_run_task']
+
+/** Operations that call a `run-sync-get-dataset-items` endpoint and inherit its 300s/408 contract. */
+const SYNC_RUN_OPERATIONS = new Set(['apify_run_actor_sync', 'apify_run_task'])
 
 export const ApifyBlock: BlockConfig<RunActorResult> = {
   type: 'apify',
@@ -234,10 +237,18 @@ Return ONLY the valid JSON object - no explanations, no markdown.`,
         /**
          * `timeout` is reserved by the tool request transport as the outbound fetch
          * deadline in milliseconds, so the seconds-valued subBlock is remapped onto a
-         * tool-specific parameter and cleared here to keep it off the transport.
+         * tool-specific parameter and never forwarded as-is.
+         *
+         * The sync endpoints then get a deliberate transport deadline of their own:
+         * without one they ride the transport's bare 300000ms fallback, which is the
+         * same number as Apify's documented 300s sync cap, so a boundary run races a
+         * structured 408 against a generic transport timeout. See
+         * `APIFY_SYNC_TRANSPORT_TIMEOUT_MS`.
          */
-        result.timeout = undefined
-        if (rest.timeout) {
+        result.timeout = SYNC_RUN_OPERATIONS.has(operation)
+          ? APIFY_SYNC_TRANSPORT_TIMEOUT_MS
+          : undefined
+        if (rest.timeout != null && rest.timeout !== '') {
           const timeoutSeconds = Number(rest.timeout)
           if (operation === 'apify_run_task') result.taskTimeout = timeoutSeconds
           else result.actorTimeout = timeoutSeconds

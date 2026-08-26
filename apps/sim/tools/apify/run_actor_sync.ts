@@ -40,7 +40,7 @@ export const apifyRunActorSyncTool: ToolConfig<RunActorParams, RunActorResult> =
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Timeout in seconds for the actor run. Example: 300 for 5 minutes, 3600 for 1 hour',
+        'Timeout in seconds for the actor run. Use 0 for no timeout. Example: 300 for 5 minutes',
     },
     build: {
       type: 'string',
@@ -59,7 +59,7 @@ export const apifyRunActorSyncTool: ToolConfig<RunActorParams, RunActorResult> =
       if (params.memory) {
         queryParams.set('memory', params.memory.toString())
       }
-      if (params.actorTimeout) {
+      if (params.actorTimeout != null) {
         queryParams.set('timeout', params.actorTimeout.toString())
       }
       if (params.build) {
@@ -92,7 +92,7 @@ export const apifyRunActorSyncTool: ToolConfig<RunActorParams, RunActorResult> =
       const errorText = await response.text()
       return {
         success: false,
-        output: { success: false, runId: '', status: 'ERROR', items: [] },
+        output: { success: false, status: 'ERROR', items: [] },
         error: `APIFY API error: ${errorText}`,
       }
     }
@@ -102,17 +102,21 @@ export const apifyRunActorSyncTool: ToolConfig<RunActorParams, RunActorResult> =
       success: true,
       output: {
         success: true,
-        runId: 'sync-execution',
         status: 'SUCCEEDED',
-        items,
+        items: Array.isArray(items) ? items : [],
       },
     }
   },
 
+  /**
+   * The sync endpoint answers with a bare dataset-items array and documents no run
+   * identifier — neither in the body nor in a response header (only the
+   * `X-Apify-Pagination-*` family is returned) — so no `runId` is emitted. Wiring a
+   * fabricated id into `apify_get_run` would 404 every time.
+   */
   outputs: {
     success: { type: 'boolean', description: 'Whether the actor run succeeded' },
-    runId: { type: 'string', description: 'APIFY run ID' },
     status: { type: 'string', description: 'Run status (SUCCEEDED, FAILED, etc.)' },
-    items: { type: 'array', description: 'Dataset items (if completed)' },
+    items: { type: 'array', description: 'Dataset items produced by the run' },
   },
 }

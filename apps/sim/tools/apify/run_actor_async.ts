@@ -58,7 +58,7 @@ export const apifyRunActorAsyncTool: ToolConfig<RunActorParams, RunActorResult> 
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Timeout in seconds for the actor run. Example: 300 for 5 minutes, 3600 for 1 hour',
+        'Timeout in seconds for the actor run. Use 0 for no timeout. Example: 300 for 5 minutes',
     },
     build: {
       type: 'string',
@@ -81,7 +81,7 @@ export const apifyRunActorAsyncTool: ToolConfig<RunActorParams, RunActorResult> 
       if (params.memory) {
         queryParams.set('memory', params.memory.toString())
       }
-      if (params.actorTimeout) {
+      if (params.actorTimeout != null) {
         queryParams.set('timeout', params.actorTimeout.toString())
       }
       if (params.build) {
@@ -132,79 +132,79 @@ export const apifyRunActorAsyncTool: ToolConfig<RunActorParams, RunActorResult> 
     }
   },
 
-  postProcess: async (result, params) => {
+  /**
+   * Polls through `executeTool` rather than global `fetch` so both follow-up calls
+   * ride the guarded tool transport — DNS-validated, IP-pinned, and bounded by the
+   * 10MB tool response cap — instead of reaching the network unmediated. Reuses the
+   * sibling `apify_get_run` and `apify_get_dataset_items` tools, which already own
+   * those request shapes.
+   */
+  postProcess: async (result, params, executeTool) => {
     if (!result.success) {
       return result
     }
 
     const runId = result.output.runId
+    if (!runId) {
+      return result
+    }
 
+    const terminalStatuses = new Set(['SUCCEEDED', 'FAILED', 'ABORTED', 'TIMED-OUT'])
     let elapsedTime = 0
 
-    while (elapsedTime < MAX_POLL_TIME_MS) {
-      await sleep(POLL_INTERVAL_MS)
-      elapsedTime += POLL_INTERVAL_MS
-
-      const statusResponse = await fetch(`https://api.apify.com/v2/actor-runs/${runId}`, {
-        headers: {
-          Authorization: `Bearer ${params.apiKey}`,
-        },
+    while (elapsedTime <= MAX_POLL_TIME_MS) {
+      const statusResult = await executeTool('apify_get_run', {
+        apiKey: params.apiKey,
+        runId,
       })
 
-      if (!statusResponse.ok) {
+      if (!statusResult.success) {
         return {
           success: false,
           output: { success: false, runId, status: 'UNKNOWN' },
-          error: 'Failed to fetch run status',
+          error: statusResult.error || 'Failed to fetch run status',
         }
       }
 
-      const statusData = await statusResponse.json()
-      const run = statusData.data as ApifyRun
+      const status = statusResult.output.status as string
+      const datasetId = (statusResult.output.datasetId as string | null) ?? undefined
 
-      if (
-        run.status === 'SUCCEEDED' ||
-        run.status === 'FAILED' ||
-        run.status === 'ABORTED' ||
-        run.status === 'TIMED-OUT'
-      ) {
-        if (run.status === 'SUCCEEDED' && run.defaultDatasetId) {
-          const limit = Math.max(1, Math.min(params.itemLimit || 100, 250000))
-          const itemsResponse = await fetch(
-            `https://api.apify.com/v2/datasets/${run.defaultDatasetId}/items?limit=${limit}`,
-            {
-              headers: {
-                Authorization: `Bearer ${params.apiKey}`,
-              },
-            }
-          )
+      if (terminalStatuses.has(status)) {
+        if (status === 'SUCCEEDED' && datasetId) {
+          const itemsResult = await executeTool('apify_get_dataset_items', {
+            apiKey: params.apiKey,
+            datasetId,
+            itemLimit: Math.max(1, Math.min(params.itemLimit || 100, 250000)),
+          })
 
-          if (itemsResponse.ok) {
-            const items = await itemsResponse.json()
+          if (itemsResult.success) {
             return {
               success: true,
               output: {
                 success: true,
                 runId,
-                status: run.status,
-                datasetId: run.defaultDatasetId,
-                items,
+                status,
+                datasetId,
+                items: (itemsResult.output.items as unknown[]) ?? [],
               },
             }
           }
         }
 
         return {
-          success: run.status === 'SUCCEEDED',
+          success: status === 'SUCCEEDED',
           output: {
-            success: run.status === 'SUCCEEDED',
+            success: status === 'SUCCEEDED',
             runId,
-            status: run.status,
-            datasetId: run.defaultDatasetId,
+            status,
+            datasetId,
           },
-          error: run.status !== 'SUCCEEDED' ? `Actor run ${run.status}` : undefined,
+          error: status !== 'SUCCEEDED' ? `Actor run ${status}` : undefined,
         }
       }
+
+      await sleep(POLL_INTERVAL_MS)
+      elapsedTime += POLL_INTERVAL_MS
     }
 
     return {
@@ -214,7 +214,7 @@ export const apifyRunActorAsyncTool: ToolConfig<RunActorParams, RunActorResult> 
         runId,
         status: 'TIMEOUT',
       },
-      error: 'Actor run timed out after 5 minutes of polling',
+      error: `Actor run did not finish within the polling window (${MAX_POLL_TIME_MS / 1000}s)`,
     }
   },
 
