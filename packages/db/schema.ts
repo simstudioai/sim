@@ -1,4 +1,3 @@
-import { omit } from '@sim/utils/object'
 import { getTableColumns, type SQL, sql } from 'drizzle-orm'
 import {
   type AnyPgColumn,
@@ -2106,10 +2105,8 @@ export const workspaceFiles = pgTable(
      */
     displayName: text('display_name'),
     contentType: text('content_type').notNull(),
-    /** contract-pending(after the cutover is fully deployed and size_bytes has no NULLs): drop size, workspace_files_sync_size_columns, and the temporary dev cutover runner — all application reads and writes use size_bytes */
-    size: integer('size').notNull().default(0),
-    /** Exact byte size. The deploy migration backfills existing rows before this release serves traffic. */
-    sizeBytes: bigint('size_bytes', { mode: 'number' }),
+    /** Exact byte size. */
+    sizeBytes: bigint('size_bytes', { mode: 'number' }).notNull(),
     /**
      * Intrinsic pixel dimensions of an image file, captured lazily on first view (and stored so later
      * views reserve layout space before the image loads, via aspect-ratio). NULL for non-images and for
@@ -2174,9 +2171,9 @@ export const workspaceFiles = pgTable(
   })
 )
 
-/** Canonical application projection; the legacy `size` bridge is migration-only. */
-export const workspaceFileColumns = omit(getTableColumns(workspaceFiles), ['size'])
-export type WorkspaceFileRow = Omit<typeof workspaceFiles.$inferSelect, 'size'>
+/** Canonical application projection for workspace-file metadata. */
+export const workspaceFileColumns = getTableColumns(workspaceFiles)
+export type WorkspaceFileRow = typeof workspaceFiles.$inferSelect
 
 export const uploadSessionStatusEnum = pgEnum('upload_session_status', [
   'uploading',

@@ -102,7 +102,6 @@ interface FakeTransferState {
   users?: Record<string, number>
   workspace: FakeWorkspace
   workspaceFileBytes?: number
-  workspaceFileMissingSizeCount?: number
 }
 
 function createFakeTx(state: FakeTransferState) {
@@ -166,7 +165,6 @@ function createFakeTx(state: FakeTransferState) {
       {
         document_bytes: state.documentBytes ?? 0,
         workspace_file_bytes: state.workspaceFileBytes ?? 0,
-        workspace_file_missing_size_count: state.workspaceFileMissingSizeCount ?? 0,
       },
     ]
   })
@@ -188,7 +186,6 @@ function updateFor(
 
 interface FakeBatchTransferState {
   exactBytes: Record<string, number>
-  missingSizeCounts?: Record<string, number>
   organizations?: Record<string, number>
   users?: Record<string, number>
   workspaces: FakeWorkspace[]
@@ -217,7 +214,6 @@ function createFakeBatchTx(state: FakeBatchTransferState) {
       workspace_id: workspaceId,
       document_bytes: 0,
       workspace_file_bytes: bytes,
-      workspace_file_missing_size_count: state.missingSizeCounts?.[workspaceId] ?? 0,
     }))
   )
 
@@ -535,31 +531,7 @@ describe('changeWorkspaceStoragePayerInTx', () => {
     expect(query.values).not.toContain('workspaceFiles.deletedAt')
     expect(query.values).toContain('document.connectorId')
     expect(query.values).toContain('document.deletedAt')
-    expect(query.values.filter((value) => value === 'workspace-1')).toHaveLength(3)
-  })
-
-  it('fails closed when a billable file is missing canonical size metadata', async () => {
-    const fake = createFakeTx({
-      workspace: {
-        id: 'workspace-1',
-        billedAccountUserId: 'user-1',
-        organizationId: null,
-        storageUsedBytes: 10,
-      },
-      workspaceFileBytes: 10,
-      workspaceFileMissingSizeCount: 1,
-      users: { 'user-1': 10, 'user-2': 0 },
-    })
-
-    await expect(
-      changeWorkspaceStoragePayerInTx(fake.tx, {
-        workspaceId: 'workspace-1',
-        organizationId: null,
-        billedAccountUserId: 'user-2',
-      })
-    ).rejects.toThrow('Workspace workspace-1 has files missing canonical size_bytes metadata')
-
-    expect(fake.updates).toEqual([])
+    expect(query.values.filter((value) => value === 'workspace-1')).toHaveLength(2)
   })
 })
 
@@ -711,34 +683,6 @@ describe('changeWorkspaceStoragePayersInTx', () => {
     expect(fake.execute).not.toHaveBeenCalled()
     expect(fake.updates).toEqual([])
     expect(fake.locks).toEqual([{ ids: ['workspace-a'], table: 'workspace' }])
-  })
-
-  it('fails the batch before payer writes when canonical size metadata is missing', async () => {
-    const fake = createFakeBatchTx({
-      exactBytes: { 'workspace-a': 10 },
-      missingSizeCounts: { 'workspace-a': 1 },
-      users: { current: 10, destination: 0 },
-      workspaces: [
-        {
-          id: 'workspace-a',
-          billedAccountUserId: 'current',
-          organizationId: null,
-          storageUsedBytes: 10,
-        },
-      ],
-    })
-
-    await expect(
-      changeWorkspaceStoragePayersInTx(fake.tx, [
-        {
-          workspaceId: 'workspace-a',
-          organizationId: null,
-          billedAccountUserId: 'destination',
-        },
-      ])
-    ).rejects.toThrow('Workspace workspace-a has files missing canonical size_bytes metadata')
-
-    expect(fake.updates).toEqual([])
   })
 })
 

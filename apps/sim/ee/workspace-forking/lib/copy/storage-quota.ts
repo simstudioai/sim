@@ -47,11 +47,8 @@ export async function sumForkCopyBytes(
   const fileBytes =
     fileSelectors.length === 0
       ? sql<number>`0`
-      : sql<number | null>`(
-          SELECT CASE
-            WHEN count(*) FILTER (WHERE ${workspaceFiles.sizeBytes} IS NULL) > 0 THEN NULL
-            ELSE coalesce(sum(${workspaceFiles.sizeBytes}), 0)
-          END
+      : sql<number>`(
+          SELECT coalesce(sum(${workspaceFiles.sizeBytes}), 0)
           FROM ${workspaceFiles}
           WHERE ${and(
             fileSelectors.length === 1 ? fileSelectors[0] : or(...fileSelectors),
@@ -77,10 +74,10 @@ export async function sumForkCopyBytes(
             isNotNull(document.storageKey)
           )}
         )`
-  const [row] = await executor.execute<{ total: number | string | null }>(
+  const [row] = await executor.execute<{ total: number | string }>(
     sql`SELECT (${fileBytes} + ${kbBytes})::bigint AS total`
   )
-  if (row?.total == null) {
+  if (!row) {
     throw new ForkError('Storage calculation is temporarily unavailable', 503)
   }
   return Number(row.total)

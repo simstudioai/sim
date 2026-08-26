@@ -49,7 +49,7 @@ import {
 } from '@/ee/workspace-forking/lib/copy/storage-quota'
 import { ForkError } from '@/ee/workspace-forking/lib/lineage/authz'
 
-function makeExecutor(total: number | string | null) {
+function makeExecutor(total: number | string) {
   const execute = vi.fn((_query: unknown) => Promise.resolve([{ total }]))
   return { executor: { execute } as unknown as DbOrTx, execute }
 }
@@ -71,8 +71,7 @@ describe('sumForkCopyBytes', () => {
     const compiled = outerQuery.toSQL()
     expect(compiled.sql).toBe('SELECT (? + ?)::bigint AS total')
     const [fileBytes, kbBytes] = compiled.params
-    expect(fileBytes.toSQL().sql).toContain('count(*) FILTER')
-    expect(fileBytes.toSQL().sql).toContain('IS NULL')
+    expect(fileBytes.toSQL().sql).toContain('coalesce(sum')
     expect(fileBytes.toSQL().params).toContainEqual({
       type: 'and',
       conditions: [
@@ -101,17 +100,6 @@ describe('sumForkCopyBytes', () => {
     const bytes = await sumForkCopyBytes(executor, 'src-ws', { fileKeys: ['workspace/src/k1'] })
 
     expect(bytes).toBe(1024)
-  })
-
-  it('fails closed when a selected workspace file lacks canonical size metadata', async () => {
-    const { executor } = makeExecutor(null)
-
-    await expect(
-      sumForkCopyBytes(executor, 'src-ws', { fileIds: ['wf-missing-size'] })
-    ).rejects.toMatchObject({
-      message: 'Storage calculation is temporarily unavailable',
-      statusCode: 503,
-    })
   })
 
   it('runs no query for an empty selection', async () => {

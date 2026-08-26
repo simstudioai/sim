@@ -5,17 +5,8 @@
  */
 export const MAX_WORKSPACE_FILE_SIZE = 5 * 1024 * 1024 * 1024
 
-/**
- * Returns the canonical workspace-file byte size after the `size_bytes` cutover.
- *
- * The migration backfills every existing row before the new application image is
- * promoted, and its compatibility trigger fills the column for writes from an old
- * image during rollout. A null therefore indicates migration drift, not a legacy row.
- */
-export function getWorkspaceFileSize(file: { sizeBytes: number | null }): number {
-  if (file.sizeBytes === null) {
-    throw new Error('Workspace file is missing canonical size_bytes metadata')
-  }
+/** Returns a validated workspace-file byte size. */
+export function getWorkspaceFileSize(file: { sizeBytes: number }): number {
   if (!Number.isSafeInteger(file.sizeBytes) || file.sizeBytes < 0) {
     throw new Error(`Invalid workspace file size: ${file.sizeBytes}`)
   }

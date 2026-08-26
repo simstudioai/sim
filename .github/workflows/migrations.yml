@@ -80,7 +80,6 @@ jobs:
               echo "ERROR: db:push needs an interactive rename decision; land it as a versioned migration instead of relying on push." >&2
               exit 1
             fi
-            bun run ./scripts/apply-dev-workspace-file-size-cutover.ts
           else
             echo "Applying versioned migrations (db:migrate)"
             bun run ./scripts/migrate.ts

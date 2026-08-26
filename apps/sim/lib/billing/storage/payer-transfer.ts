@@ -17,7 +17,6 @@ interface ExactWorkspaceStorageRow {
   [key: string]: unknown
   document_bytes: number | string
   workspace_file_bytes: number | string
-  workspace_file_missing_size_count: number | string
 }
 
 interface BatchExactWorkspaceStorageRow extends ExactWorkspaceStorageRow {
@@ -88,13 +87,6 @@ async function getExactWorkspaceStorageBytes(tx: DbOrTx, workspaceId: string): P
         WHERE ${workspaceFiles.workspaceId} = ${workspaceId}
           AND ${workspaceFiles.context} = 'workspace'
       ), 0)::bigint AS workspace_file_bytes,
-      (
-        SELECT COUNT(*)
-        FROM ${workspaceFiles}
-        WHERE ${workspaceFiles.workspaceId} = ${workspaceId}
-          AND ${workspaceFiles.context} = 'workspace'
-          AND ${workspaceFiles.sizeBytes} IS NULL
-      )::bigint AS workspace_file_missing_size_count,
       COALESCE((
         SELECT SUM(${document.fileSize}::bigint)
         FROM ${document}
@@ -109,10 +101,6 @@ async function getExactWorkspaceStorageBytes(tx: DbOrTx, workspaceId: string): P
   if (!row) {
     throw new Error(`Could not recompute storage for workspace ${workspaceId}`)
   }
-  if (parseExactBytes(row.workspace_file_missing_size_count, 'missing workspace file size') > 0) {
-    throw new Error(`Workspace ${workspaceId} has files missing canonical size_bytes metadata`)
-  }
-
   const workspaceFileBytes = parseExactBytes(row.workspace_file_bytes, 'workspace file')
   const documentBytes = parseExactBytes(row.document_bytes, 'knowledge document')
   const total = workspaceFileBytes + documentBytes
@@ -178,16 +166,12 @@ async function getExactWorkspaceStorageBytesBatch(
       COALESCE(SUM(storage_by_workspace.workspace_file_bytes), 0)::bigint
         AS workspace_file_bytes,
       COALESCE(SUM(storage_by_workspace.document_bytes), 0)::bigint
-        AS document_bytes,
-      COALESCE(SUM(storage_by_workspace.workspace_file_missing_size_count), 0)::bigint
-        AS workspace_file_missing_size_count
+        AS document_bytes
     FROM (
       SELECT
         ${workspaceFiles.workspaceId} AS workspace_id,
         SUM(${workspaceFiles.sizeBytes}) AS workspace_file_bytes,
-        0::bigint AS document_bytes,
-        COUNT(*) FILTER (WHERE ${workspaceFiles.sizeBytes} IS NULL)::bigint
-          AS workspace_file_missing_size_count
+        0::bigint AS document_bytes
       FROM ${workspaceFiles}
       WHERE ${inArray(workspaceFiles.workspaceId, workspaceIds)}
         AND ${workspaceFiles.context} = 'workspace'
@@ -198,8 +182,7 @@ async function getExactWorkspaceStorageBytesBatch(
       SELECT
         ${knowledgeBase.workspaceId} AS workspace_id,
         0::bigint AS workspace_file_bytes,
-        SUM(${document.fileSize}::bigint) AS document_bytes,
-        0::bigint AS workspace_file_missing_size_count
+        SUM(${document.fileSize}::bigint) AS document_bytes
       FROM ${document}
       INNER JOIN ${knowledgeBase}
         ON ${knowledgeBase.id} = ${document.knowledgeBaseId}
@@ -213,11 +196,6 @@ async function getExactWorkspaceStorageBytesBatch(
   `)
 
   for (const row of rows) {
-    if (parseExactBytes(row.workspace_file_missing_size_count, 'missing workspace file size') > 0) {
-      throw new Error(
-        `Workspace ${row.workspace_id} has files missing canonical size_bytes metadata`
-      )
-    }
     const workspaceFileBytes = parseExactBytes(row.workspace_file_bytes, 'workspace file')
     const documentBytes = parseExactBytes(row.document_bytes, 'knowledge document')
     const total = workspaceFileBytes + documentBytes
