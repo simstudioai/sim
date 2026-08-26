@@ -211,7 +211,7 @@ sim tables batch-delete [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--table-ids <json\|@file>` | No | Tables to archive, by identifier. (JSON, or @path / @- to read a file or stdin). |
-| `--folder <value...>` | No | Folder path as shown in the app; the leading / is optional (space-separated, or @path / @- with one value per line). |
+| `--folder <value...>` | No | Folder path as shown in the app; the leading / is optional (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
 | `-y, --yes` | Yes | Confirm this destructive operation. |
 
 </CommandTable>
@@ -319,8 +319,8 @@ sim tables rows batch-delete <tableId> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--filter <json\|@file>` | No | Predicate: &#123;"all":[&#123;"field":"status","op":"eq","value":"active"&#125;]&#125;; groups use all/any. Operators: eq, ne, gt, gte, lt, lte, in, nin, contains, ncontains, startsWith, endsWith, like, ilike, nlike, nilike, isEmpty, isNotEmpty, isNull, isNotNull (JSON, or @path / @- to read a file or stdin). |
-| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
-| `--row <value...>` | No | Explicit row identifiers to delete. (space-separated, or @path / @- with one value per line). |
+| `--limit <value>` | No | Maximum matching rows to delete. (caps a --filter match only; omit it to act on every match, and note 0 is not accepted). |
+| `--row <value...>` | No | Explicit row identifiers to delete. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
 | `-y, --yes` | Yes | Confirm this destructive operation. |
 
 </CommandTable>
@@ -507,7 +507,7 @@ sim tables rows batch-update <tableId> [options]
 | --- | --- | --- |
 | `--filter <json\|@file>` | Yes | Predicate: &#123;"all":[&#123;"field":"status","op":"eq","value":"active"&#125;]&#125;; groups use all/any. Operators: eq, ne, gt, gte, lt, lte, in, nin, contains, ncontains, startsWith, endsWith, like, ilike, nlike, nilike, isEmpty, isNotEmpty, isNull, isNotNull (JSON, or @path / @- to read a file or stdin). |
 | `--data <json\|@file>` | Yes | Row-data patch applied to every matching row. (JSON, or @path / @- to read a file or stdin). |
-| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--limit <value>` | No | Maximum matching rows to update. (caps a --filter match only; omit it to act on every match, and note 0 is not accepted). |
 | `-y, --yes` | Yes | Confirm this destructive operation. |
 
 </CommandTable>
@@ -588,11 +588,11 @@ sim tables dispatches create <tableId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--group-ids <value...>` | Yes | Workflow or enrichment groups to run. (space-separated, or @path / @- with one value per line). |
+| `--group-ids <value...>` | Yes | Workflow or enrichment groups to run. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
 | `--run-mode <value>` | No | Whether to run all or only incomplete cells. Accepted values: `all`, `incomplete`. |
-| `--row-ids <value...>` | No | Explicit row subset to run. (space-separated, or @path / @- with one value per line). |
+| `--row-ids <value...>` | No | Explicit row subset to run. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
 | `--filter <json\|@file>` | No | Predicate: &#123;"all":[&#123;"field":"status","op":"eq","value":"active"&#125;]&#125;; groups use all/any. Operators: eq, ne, gt, gte, lt, lte, in, nin, contains, ncontains, startsWith, endsWith, like, ilike, nlike, nilike, isEmpty, isNotEmpty, isNull, isNotNull (JSON, or @path / @- to read a file or stdin). |
-| `--exclude-row-ids <value...>` | No | Rows excluded from a select-all run scope. (space-separated, or @path / @- with one value per line). |
+| `--exclude-row-ids <value...>` | No | Rows excluded from a select-all run scope. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
 | `--max-rows <n>` | No | Stop after this many eligible rows have run (1-1,000,000). Omit for an unbounded run. |
 
 </CommandTable>
@@ -630,7 +630,7 @@ sim tables dispatches list <tableId>
 
 </CommandTable>
 
-## Cancel table export
+## Stop a running export
 
 ```bash
 sim tables exports cancel <tableId> <exportId>
@@ -707,10 +707,10 @@ sim tables exports download <tableId> <exportId>
 
 </CommandTable>
 
-## Cancel table import
+## Stop a running import
 
 ```bash
-sim tables imports cancel <importId>
+sim tables imports cancel <importId> [options]
 ```
 
 **Arguments**
@@ -720,6 +720,16 @@ sim tables imports cancel <importId>
 | Argument | Required | Description |
 | --- | --- | --- |
 | `importId` | Yes | Unique table-import identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-y, --yes` | Yes | Confirm this destructive operation. |
 
 </CommandTable>
 
@@ -764,7 +774,7 @@ sim tables cancel-runs <tableId> [options]
 | `--scope <value>` | Yes | Whether to cancel across the table or one row. Accepted values: `all`, `row`. |
 | `--row-id <value>` | No | Row whose runs should be canceled for row scope. |
 | `--filter <json\|@file>` | No | Predicate: &#123;"all":[&#123;"field":"status","op":"eq","value":"active"&#125;]&#125;; groups use all/any. Operators: eq, ne, gt, gte, lt, lte, in, nin, contains, ncontains, startsWith, endsWith, like, ilike, nlike, nilike, isEmpty, isNotEmpty, isNull, isNotNull (JSON, or @path / @- to read a file or stdin). |
-| `--exclude-row-ids <value...>` | No | Rows excluded from an all-scope cancellation. (space-separated, or @path / @- with one value per line). |
+| `--exclude-row-ids <value...>` | No | Rows excluded from an all-scope cancellation. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
 | `-y, --yes` | Yes | Confirm this destructive operation. |
 
 </CommandTable>
@@ -1077,7 +1087,7 @@ sim tables list [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--scope <value>` | No | Which lifecycle set to list: `active` (default) for live tables, `archived` for tables a `DELETE` archived and `POST /tables/&#123;tableId&#125;/restore` can bring back. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too. Accepted values: `active`, `archived`. |
+| `--scope <value>` | No | Which lifecycle set to list: `active` (default) for live tables, `archived` for tables a delete archived and a table restore can bring back. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too. Accepted values: `active`, `archived`. |
 | `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
 | `--search <value>` | No | Case-insensitive substring match against the resource name. |
 | `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `createdAt`, `updatedAt`. |
@@ -1099,7 +1109,7 @@ sim tables move [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--table-ids <json\|@file>` | No | Tables to move, by identifier. (JSON, or @path / @- to read a file or stdin). |
-| `--folder <value...>` | No | Table folders to move, by path as shown in the app; the leading / is optional (space-separated, or @path / @- with one value per line). |
+| `--folder <value...>` | No | Table folders to move, by path as shown in the app; the leading / is optional (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
 | `--to <value>` | No | Destination folder path; omit for root. |
 
 </CommandTable>
@@ -1187,7 +1197,7 @@ sim tables upsert <tableId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--data <json\|@file>` | Yes | Complete set of row cells keyed by column name. On the update branch this REPLACES the matched row: any column not present here is cleared, unlike the merging `PATCH /api/v2/tables/&#123;tableId&#125;/rows/&#123;rowId&#125;`. (JSON, or @path / @- to read a file or stdin). |
+| `--data <json\|@file>` | Yes | Complete set of row cells keyed by column name. On the update branch this REPLACES the matched row: any column not present here is cleared, unlike a single-row update, which merges. (JSON, or @path / @- to read a file or stdin). |
 | `--on <value>` | No | Unique column to resolve the conflict against. |
 
 </CommandTable>
@@ -1222,6 +1232,7 @@ sim tables import [path] [options]
 | `--mapping <json\|@file>` | No | Column mapping (--table-id only). |
 | `--create-columns <json\|@file>` | No | Columns to create (--table-id only). |
 | `--timezone <iana>` | No | Timezone for date parsing, e.g. America/New_York. |
+| `-y, --yes` | No | Confirm this destructive operation (required with --mode replace). |
 | `--no-wait` | No | Return once the import is queued instead of watching it. |
 
 </CommandTable>

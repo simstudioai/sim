@@ -24,7 +24,7 @@ import { V2_OPERATIONS } from '../packages/sim-cli/src/generated/v2-api'
 import { buildProgram } from '../packages/sim-cli/src/program'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const OUTPUT_DIR = path.join(ROOT, 'apps/docs/content/docs/en/cli')
+export const OUTPUT_DIR = path.join(ROOT, 'apps/docs/content/docs/en/cli')
 
 /** Commander's synthetic help command is not part of the documented surface. */
 const HELP_COMMAND = 'help'
@@ -38,7 +38,7 @@ const HELP_COMMAND = 'help'
  * these, so they are listed — the same guard `scripts/generate-docs.ts` uses for
  * its hand-authored integration pages.
  */
-const GUIDE_PAGES = [
+export const GUIDE_PAGES = [
   'index',
   'authentication',
   'configuration',
@@ -201,14 +201,32 @@ function asSentence(value: string): string {
   return /[.!?]$/.test(value) ? value : `${value}.`
 }
 
+/**
+ * Renders a default value for prose, or `''` when there is nothing to state.
+ *
+ * A repeatable flag's Commander default is `[]` — the empty accumulator its
+ * collector appends to, not a value anyone would type — and `String([])` is the
+ * empty string, which rendered as a dangling "Defaults to ``." The check is on
+ * emptiness rather than falsiness: `false` and `0` are real defaults a caller
+ * needs stated, and a `!value` guard would silently drop both.
+ */
+export function formatDefault(value: unknown): string {
+  if (Array.isArray(value)) {
+    return value.length > 0 ? value.map(String).join(', ') : ''
+  }
+  const text = String(value)
+  return text.trim() ? text : ''
+}
+
 /** Returns a table-ready cell: escaped prose, with code spans left intact. */
-function describeOption(option: Command['options'][number]): string {
+export function describeOption(option: Command['options'][number]): string {
   const parts = [asSentence(escapeCell(stripRequiredSuffix(option.description || '')))]
   if (option.argChoices && option.argChoices.length > 0) {
     parts.push(`Accepted values: ${option.argChoices.map(code).join(', ')}.`)
   }
   if (option.defaultValue !== undefined) {
-    parts.push(`Defaults to ${code(String(option.defaultValue))}.`)
+    const fallback = formatDefault(option.defaultValue)
+    if (fallback) parts.push(`Defaults to ${code(fallback)}.`)
   }
   const description = parts.filter(Boolean).join(' ')
   return description || '—'
@@ -705,4 +723,6 @@ function main(): void {
   )
 }
 
-main()
+// Guarded so the pure helpers above can be imported by tests without the
+// generator rewriting the docs as a side effect of the import.
+if (import.meta.main) main()

@@ -114,6 +114,25 @@ describe('buildRequest', () => {
     })
   })
 
+  it('still sends an explicit zero, which is a value the caller chose', () => {
+    expect(buildRequest('listLogs', [], { minCost: '0' }, WORKSPACE).query).toMatchObject({
+      minCost: 0,
+    })
+    expect(
+      buildRequest('readFileText', ['wf_1'], { maxBytes: '0' }, WORKSPACE).query
+    ).toMatchObject({ maxBytes: 0 })
+  })
+
+  it('still sends an empty body string, which is how a description is cleared', () => {
+    expect(buildRequest('updateWorkflow', ['wf_1'], { description: '' }, WORKSPACE).body).toEqual({
+      description: '',
+    })
+    // Blank-scoped to the query on both spellings: a body string is the value.
+    expect(buildRequest('updateWorkflow', ['wf_1'], { description: ' ' }, WORKSPACE).body).toEqual({
+      description: ' ',
+    })
+  })
+
   describe('failures, all before any network call', () => {
     it('rejects a missing path arg', () => {
       expect(() => buildRequest('getTable', [], {}, WORKSPACE)).toThrow('Missing <tableId>')
@@ -123,6 +142,77 @@ describe('buildRequest', () => {
       expect(() => buildRequest('getWorkspace', [], {}, null)).toThrow(
         'No workspace set. Pass --workspace, or run: sim configure --set-workspace <id>'
       )
+    })
+
+    /**
+     * The URL builder skips an empty value, so a blank filter was not sent and
+     * not refused either — `logs list --status ""` came back unfiltered while
+     * `--workflow ""` (a list flag) had always been an error.
+     */
+    it('rejects an empty query filter the way it rejects an empty list entry', () => {
+      expect(() => buildRequest('listLogs', [], { status: '' }, WORKSPACE)).toThrow(
+        '--status cannot be empty'
+      )
+      expect(() => buildRequest('listLogs', [], { workflowName: '' }, WORKSPACE)).toThrow(
+        '--workflow-name cannot be empty'
+      )
+    })
+
+    /**
+     * `Number('')` is `0`, so a blank numeric filter coerced into a real one:
+     * `--max-cost ""` asked for runs costing at most nothing and answered `0`
+     * rows, the same silent-wrong-result the blank-string refusal exists to
+     * remove.
+     */
+    it('rejects a blank numeric query filter, which coercion would read as 0', () => {
+      expect(() => buildRequest('listLogs', [], { maxCost: '' }, WORKSPACE)).toThrow(
+        '--max-cost cannot be empty'
+      )
+      expect(() => buildRequest('listLogs', [], { minDurationMs: '' }, WORKSPACE)).toThrow(
+        '--min-duration-ms cannot be empty'
+      )
+      expect(() => buildRequest('readFileText', ['wf_1'], { maxBytes: '' }, WORKSPACE)).toThrow(
+        '--max-bytes cannot be empty'
+      )
+    })
+
+    /**
+     * A quoted space is invisible in a shell and reached the wire as every
+     * blank the empty string did — `--max-cost " "` as a real `0` ceiling,
+     * `--deployed-only " "` as an explicit `false`, `--status " "` as the
+     * `%20` the route reads as blank and answers `400`.
+     */
+    it('rejects a whitespace-only query filter, which is blank on the wire too', () => {
+      expect(() => buildRequest('listLogs', [], { status: ' ' }, WORKSPACE)).toThrow(
+        '--status cannot be empty'
+      )
+      expect(() => buildRequest('listLogs', [], { maxCost: ' ' }, WORKSPACE)).toThrow(
+        '--max-cost cannot be empty'
+      )
+      expect(() => buildRequest('listLogs', [], { minDurationMs: '\t' }, WORKSPACE)).toThrow(
+        '--min-duration-ms cannot be empty'
+      )
+      expect(() => buildRequest('listWorkflows', [], { deployedOnly: '  ' }, WORKSPACE)).toThrow(
+        '--deployed-only cannot be empty'
+      )
+    })
+
+    /** Only an all-whitespace value is blank; the surrounding spaces are the caller's. */
+    it('still sends a query value that has content around its whitespace', () => {
+      expect(buildRequest('listLogs', [], { workflowName: ' q3 ' }, WORKSPACE).query).toMatchObject(
+        { workflowName: ' q3 ' }
+      )
+    })
+
+    /**
+     * A paginating `limit` is the walk size, not a filter, and the pager reads
+     * it from the flags itself — refusing a blank one in wording that says what
+     * `0` means there. Left to it rather than pre-empted with a generic
+     * refusal, whitespace included: the pager trims before it decides.
+     */
+    it('leaves a blank paginating limit to the pager, which words it better', () => {
+      expect(() => buildRequest('listWorkflows', [], { limit: '' }, WORKSPACE)).not.toThrow()
+      expect(() => buildRequest('listWorkflows', [], { limit: ' ' }, WORKSPACE)).not.toThrow()
     })
 
     it('rejects a missing required flag', () => {
@@ -239,6 +329,17 @@ describe('repeated flags encode per the field kind, not uniformly', () => {
     expect(() => coerce('@urgent', { kind: 'array' }, { list: true }, 'tag')).toThrow(
       /cannot read urgent/
     )
+  })
+
+  /**
+   * `--allowed-emails @example.org` is the natural spelling of a domain
+   * pattern, and the `@` convention reads it as a file. The escape existed; the
+   * failure never mentioned it.
+   */
+  it('points at @@ when an @ list value names no file', () => {
+    expect(() =>
+      coerce(['@example.org'], { kind: 'array' }, { list: true }, 'allowed-emails')
+    ).toThrow(/cannot read example\.org.*write @@example\.org/s)
   })
 
   it('rejects empty lines in a list file', () => {

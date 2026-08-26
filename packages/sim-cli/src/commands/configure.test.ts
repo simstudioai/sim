@@ -3,7 +3,12 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Command } from 'commander'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { readConfigProfile, writeConfigProfile, writeCredentialsProfile } from '../config/index'
+import {
+  listProfiles,
+  readConfigProfile,
+  writeConfigProfile,
+  writeCredentialsProfile,
+} from '../config/index'
 import { configureCommand } from './configure'
 
 const mocks = vi.hoisted(() => ({
@@ -12,13 +17,24 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('../context', () => ({
+  // The real one-liner: the root globals live on the root command, so the
+  // refusal below only fires if the harness parses argv the way the shipped
+  // program does.
+  globalsOf: (command: Command) => command.optsWithGlobals(),
   profileFrom: mocks.profileFrom,
 }))
 
 let dir: string
 
 function run(...args: string[]): Promise<Command> {
-  const root = new Command('sim').exitOverride()
+  // The three root globals are declared exactly as program.ts declares them, so
+  // `configure --endpoint …` parses here the way it does in the shipped tree.
+  const root = new Command('sim')
+    .exitOverride()
+    .option('-P, --profile <name>')
+    .option('--endpoint <url>')
+    .option('-w, --workspace <id>')
+    .option('--output <format>')
   root.addCommand(configureCommand())
   return root.parseAsync(['node', 'sim', 'configure', ...args])
 }
@@ -106,5 +122,79 @@ describe('configure --set-endpoint', () => {
       expect.anything(),
       expect.objectContaining({ allowUnknownProfile: true })
     )
+  })
+})
+
+describe('configure --set-workspace', () => {
+  /**
+   * A stored value is read back as a real setting, so a value carrying a line
+   * break used to add a setting nobody typed — `endpoint` included, which is
+   * what decides where the API key is sent. Its sibling `--set-endpoint` has
+   * been validated all along; this is the same check for the other value.
+   */
+  it('refuses a workspace value that would inject another setting', async () => {
+    await expect(
+      run('--set-workspace', 'ws_1\nendpoint = http://elsewhere.invalid')
+    ).rejects.toThrow(/Invalid workspace id/)
+
+    expect(readConfigProfile('default')).toEqual({})
+  })
+
+  it('stores an ordinary workspace id, trimmed', async () => {
+    await run('--set-workspace', '  ws_new  ')
+    expect(readConfigProfile('default')).toEqual({ workspace: 'ws_new' })
+  })
+
+  /**
+   * `listProfiles` counts section names, so the empty section an unset used to
+   * leave behind made the typo guard accept that name from then on.
+   */
+  it('creates nothing when unsetting on a profile that does not exist', async () => {
+    mocks.profileName = 'fresh'
+
+    await run('--unset', 'workspace')
+
+    expect(readConfigProfile('fresh')).toEqual({})
+    expect(listProfiles()).not.toContain('fresh')
+    expect(console.log).toHaveBeenCalledWith(expect.stringContaining('No settings stored'))
+  })
+})
+
+/**
+ * The root globals are transient overrides on every other command, so
+ * `configure --endpoint …` discarded the value and exited 0 after printing the
+ * settings it had not changed — which reads like a confirmation.
+ */
+describe('configure and the root globals', () => {
+  it('refuses --endpoint and names the flag that stores it', async () => {
+    await expect(run('--endpoint', 'https://other.example')).rejects.toThrow(
+      'sim configure --set-endpoint https://other.example'
+    )
+    expect(readConfigProfile('default')).toEqual({})
+  })
+
+  it('refuses -w and --output the same way', async () => {
+    await expect(run('-w', 'ws_9')).rejects.toThrow('sim configure --set-workspace ws_9')
+    await expect(run('--output', 'json')).rejects.toThrow('sim configure --set-output json')
+    expect(readConfigProfile('default')).toEqual({})
+  })
+
+  it('does not print a stale stored value as if it had been set', async () => {
+    writeConfigProfile('default', { endpoint: 'https://staging.example' })
+
+    await expect(run('--endpoint', 'https://other.example')).rejects.toThrow('--set-endpoint')
+
+    expect(console.log).not.toHaveBeenCalled()
+    expect(readConfigProfile('default')).toEqual({ endpoint: 'https://staging.example' })
+  })
+
+  it('still prints stored settings and still stores a --set- flag', async () => {
+    writeConfigProfile('default', { endpoint: 'https://staging.example' })
+
+    await run()
+    expect(console.log).toHaveBeenCalledWith(expect.stringContaining('https://staging.example'))
+
+    await run('--set-endpoint', 'https://x.example')
+    expect(readConfigProfile('default')).toMatchObject({ endpoint: 'https://x.example' })
   })
 })

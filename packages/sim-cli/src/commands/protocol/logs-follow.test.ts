@@ -3,9 +3,10 @@
  */
 import { Command } from 'commander'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { CLI_CONTRACT } from '../../contract/commands'
 import { type ListLogsResponse, V2_OPERATIONS } from '../../generated/v2-api'
 import { SimApiError } from '../../http/client'
-import { attachLogsFollow, type LogRow } from './logs-follow'
+import { attachLogsFollow, type LogRow, MAX_CELL_WIDTH } from './logs-follow'
 
 const { mockRequest, mockSleep, profile } = vi.hoisted(() => ({
   mockRequest: vi.fn(),
@@ -234,6 +235,90 @@ describe('sim logs follow', () => {
 
     expect(stdout.filter((line) => line.includes('STARTED'))).toHaveLength(1)
     expect(stdout).toHaveLength(3)
+  })
+
+  it('keeps a run id whole when the follow started with an empty backlog', async () => {
+    // `-n 0` seeds the writer with no rows, so the widths used to lock to the
+    // header labels — RUN is three characters, and a 36-character run id
+    // printed as `9f…`, uncopyable.
+    profile.output = 'table'
+    const runId = '9f5e9856-1801-4028-a85f-6e335e65d974'
+    const arrival = row(runId, '2026-08-17T10:00:01.000Z')
+    arrival.workflow = {
+      id: 'wf_1',
+      name: 'clitest-nightly-sync',
+      description: null,
+      deleted: false,
+    }
+    respondWith([page([]), page([arrival])])
+
+    await follow('-n', '0')
+
+    const printed = stdout.join('\n')
+    expect(printed).toContain(runId)
+    expect(printed).toContain('clitest-nightly-sync')
+    expect(printed).not.toContain('…')
+  })
+
+  it('lines an arriving row up with the header it printed before any rows', async () => {
+    // The floors are the half of this that keeps `-n 0` readable: without them
+    // the columns lock to their header labels, and every cell of the first real
+    // row overflows, so nothing below the header lines up for the life of the
+    // follow.
+    profile.output = 'table'
+    const arrival = row('9f5e9856-1801-4028-a85f-6e335e65d974', '2026-08-17T10:00:01.000Z')
+    respondWith([page([]), page([arrival])])
+
+    await follow('-n', '0')
+
+    const [header, printed] = stdout
+    expect(printed.indexOf('completed')).toBe(header.indexOf('STATUS'))
+    expect(printed.indexOf('Nightly sync')).toBe(header.indexOf('WORKFLOW'))
+    expect(printed.indexOf('9f5e9856')).toBe(header.indexOf('RUN'))
+  })
+
+  it('keeps a later row wider than the batch that locked the widths', async () => {
+    profile.output = 'table'
+    const first = row('run_1', '2026-08-17T10:00:01.000Z')
+    first.workflow = { id: 'wf_1', name: 'short', description: null, deleted: false }
+    const second = row('run_2', '2026-08-17T10:00:02.000Z')
+    second.workflow = {
+      id: 'wf_2',
+      name: 'a-considerably-longer-workflow-name',
+      description: null,
+      deleted: false,
+    }
+    respondWith([page([first]), page([second, first])])
+
+    await follow('-n', '1')
+
+    expect(stdout.join('\n')).toContain('a-considerably-longer-workflow-name')
+  })
+
+  it('still cuts a cell at the width one column may ever take', async () => {
+    profile.output = 'table'
+    const huge = 'x'.repeat(MAX_CELL_WIDTH + 40)
+    const arrival = row('run_1', '2026-08-17T10:00:01.000Z')
+    arrival.workflow = { id: 'wf_1', name: huge, description: null, deleted: false }
+    respondWith([page([]), page([arrival])])
+
+    await follow('-n', '0')
+
+    const printed = stdout.join('\n')
+    expect(printed).not.toContain(huge)
+    expect(printed).toContain(`${'x'.repeat(MAX_CELL_WIDTH - 1)}…`)
+  })
+
+  it('asks for no column floor wider than a column may render', () => {
+    // A floor above the cap is silently clamped, so an oversized spec would
+    // read as deliberate and do nothing.
+    const oversized = Object.entries(CLI_CONTRACT).flatMap(([operation, spec]) =>
+      [...(spec.columns ?? []), ...(spec.fields ?? [])]
+        .filter((column) => (column.minWidth ?? 0) > MAX_CELL_WIDTH)
+        .map((column) => `${operation}.${column.header}`)
+    )
+
+    expect(oversized).toEqual([])
   })
 
   it('keeps rows on stdout and retry notices on stderr', async () => {

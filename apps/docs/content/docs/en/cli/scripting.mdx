@@ -14,7 +14,7 @@ to read stdin.
 
 ```bash
 sim workflows import --workflow @wf.json
-sim tables rows query tbl_123 --filter @filter.json
+sim tables rows query tbl_9f3c1a05d4b7426e8c2f0917ab35de64 --filter @filter.json
 cat wf.json | sim workflows import --workflow @-
 ```
 
@@ -24,12 +24,26 @@ Primitive lists take space-separated values. With `@`, the file supplies one
 value per line:
 
 ```bash
-sim files mv --file-ids file_1 file_2 --to Archive
+sim files mv --file-ids wf_3Qm8ZtLpR2yVnKd7BsXwC wf_5Hn1JvTqW9xUcMb4RzPgL --to Archive
 sim files mv --file-ids @file-ids.txt --to Archive
-printf 'file_1\nfile_2\n' | sim files mv --file-ids @- --to Archive
+printf 'wf_3Qm8ZtLpR2yVnKd7BsXwC\nwf_5Hn1JvTqW9xUcMb4RzPgL\n' | sim files mv --file-ids @- --to Archive
 ```
 
 Arrays of objects stay JSON.
+
+## Passing a literal leading `@`
+
+Because `@` introduces a file reference, a value that genuinely starts with one
+is written `@@`. Only the leading `@` is dropped, and every `@`-aware flag
+accepts the escape:
+
+```bash
+sim files share set wf_3Qm8ZtLpR2yVnKd7BsXwC --allowed-emails @@example.org
+sim secrets set API_HOST --value @@internal
+```
+
+Without it, `--allowed-emails @example.org` can only be read as a request to
+open a file named `example.org`.
 
 ## Filtering table rows
 
@@ -37,7 +51,7 @@ Arrays of objects stay JSON.
 groups of `{field, op, value}` conditions, nestable.
 
 ```bash
-sim tables rows query tbl_123 \
+sim tables rows query tbl_9f3c1a05d4b7426e8c2f0917ab35de64 \
   --filter '{"all":[{"field":"status","op":"eq","value":"open"},
                     {"field":"score","op":"gt","value":10}]}' \
   --limit 50
@@ -50,7 +64,7 @@ Operators: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`, `in`, `nin`, `contains`,
 `--sort` is also JSON, an ordered list of keys:
 
 ```bash
-sim tables rows query tbl_123 --sort '[{"field":"createdAt","direction":"desc"}]'
+sim tables rows query tbl_9f3c1a05d4b7426e8c2f0917ab35de64 --sort '[{"field":"createdAt","direction":"desc"}]'
 ```
 
 ## Pagination
@@ -68,16 +82,18 @@ Deletions require an explicit selector **and** `--yes`. There is no "delete
 everything" default:
 
 ```bash
-sim tables rows batch-delete tbl_123 --row row_1 row_2 --yes
-sim files delete file_123 --yes
+sim tables rows batch-delete tbl_9f3c1a05d4b7426e8c2f0917ab35de64 --row row_2f81c0a94db54e6f8a13c7e0526bd94a row_6b3e59d0af1c42d7b80e94f3a271c568 --yes
+sim files delete wf_8Kd2NpVrY6zTfQa3XwBmS --yes
 ```
 
 Without `--yes` the command explains what it would have destroyed and stops.
 
 <Callout type="warn">
-`batch-delete` and `batch-update` carry the default `--limit` of `100`, so a
-filter matching more rows than that silently affects only the first 100. Pass
-`--limit 0` to affect every matching row.
+On `batch-delete` and `batch-update`, `--limit` has no default and is not a page
+size — it is a ceiling on how many matching rows the one call may touch. Leave it
+off and the command acts on **every** row the filter matches, however many that
+is. `--limit 0` is not the unbounded form here and is rejected; pass a whole
+number of 1 or more to cap the blast radius, or omit the flag deliberately.
 </Callout>
 
 ## Exit codes
@@ -92,7 +108,7 @@ Errors print one line to stderr, prefixed `Error:`, plus the API's error code an
 validation details when it supplies them. Failures are safe to branch on:
 
 ```bash
-if ! sim workflows run wf_7Yb2 --output json > result.json; then
+if ! sim workflows run 3a9e21d8-5f47-4c0b-b2ea-91d7c6034ef8 --output json > result.json; then
   echo "run failed" >&2
   exit 1
 fi
@@ -117,11 +133,23 @@ esac
 
 ## Selecting workflow output
 
-`--select-output` takes `blockName.field` selectors. Fields that a run did not
-produce are simply omitted:
+`--select-output` shapes a streamed result, so it requires `--follow`. It takes
+`blockName.field` selectors; fields that a run did not produce are simply
+omitted:
 
 ```bash
-sim workflows run wf_7Yb2 --select-output agent_1.content --output json
+sim workflows run 3a9e21d8-5f47-4c0b-b2ea-91d7c6034ef8 --follow --select-output agent_1.content --output json
+```
+
+Without `--follow` the CLI refuses the pair rather than spending a request on a
+response that carries no outputs, and `--async` cannot be combined with it
+either — there is no stream to shape. To narrow a run that has already finished,
+read it back with `workflows runs get`, which matches block **ids** rather than
+the block names `workflows run` takes:
+
+```bash
+sim workflows runs get "$run_id" --workflow 3a9e21d8-5f47-4c0b-b2ea-91d7c6034ef8 \
+  --select-output 1d4c8f02-7b63-4a19-8e52-63f0a7c5d9b1.content --output json
 ```
 
 ## Polling a long run
@@ -129,9 +157,9 @@ sim workflows run wf_7Yb2 --select-output agent_1.content --output json
 Start the run asynchronously, then poll its status:
 
 ```bash
-run_id=$(sim workflows run wf_7Yb2 --async --output json | jq -r '.runId')
+run_id=$(sim workflows run 3a9e21d8-5f47-4c0b-b2ea-91d7c6034ef8 --async --output json | jq -r '.runId')
 
-until sim workflows runs get "$run_id" --workflow wf_7Yb2 --output json \
+until sim workflows runs get "$run_id" --workflow 3a9e21d8-5f47-4c0b-b2ea-91d7c6034ef8 --output json \
   | jq -e '.status | IN("completed","failed","cancelled")' > /dev/null; do
   sleep 5
 done
@@ -169,9 +197,9 @@ export SIM_API_KEY="${SIM_API_KEY:?missing}"
 export SIM_WORKSPACE="${SIM_WORKSPACE:?missing}"
 export SIM_OUTPUT=json
 
-run_id=$(sim workflows run wf_7Yb2 --input '{"source":"nightly"}' | jq -r '.runId')
+run_id=$(sim workflows run 3a9e21d8-5f47-4c0b-b2ea-91d7c6034ef8 --input '{"source":"nightly"}' | jq -r '.runId')
 
-if [ "$(sim workflows runs get "$run_id" --workflow wf_7Yb2 | jq -r '.status')" != "completed" ]; then
+if [ "$(sim workflows runs get "$run_id" --workflow 3a9e21d8-5f47-4c0b-b2ea-91d7c6034ef8 | jq -r '.status')" != "completed" ]; then
   sim logs get "$run_id" >&2
   exit 1
 fi

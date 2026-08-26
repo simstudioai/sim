@@ -206,6 +206,59 @@ describe('/api/v2/secrets/[name]', () => {
     expect(response.status).toBe(200)
   })
 
+  it('sends a value-less workspace write through as a metadata-only update at 200', async () => {
+    mocks.set.mockResolvedValueOnce({ secret, userId: 'user-1', created: false })
+
+    const response = await PUT(
+      request('PUT', { workspaceId: WORKSPACE_ID, scope: 'workspace', unredacted: false }),
+      context
+    )
+
+    expect(response.status).toBe(200)
+    expect(mocks.set).toHaveBeenCalledWith({
+      principal: PRINCIPAL,
+      input: {
+        workspaceId: WORKSPACE_ID,
+        name: SECRET_NAME,
+        scope: 'workspace',
+        unredacted: false,
+      },
+      request: expect.anything(),
+    })
+    expect(mocks.set.mock.calls[0][0].input).not.toHaveProperty('value')
+  })
+
+  it('answers 404 rather than creating when a metadata-only write names no secret', async () => {
+    mocks.set.mockRejectedValueOnce(new OrchestrationError('not_found', 'Secret not found'))
+
+    const response = await PUT(
+      request('PUT', { workspaceId: WORKSPACE_ID, scope: 'workspace', unredacted: true }),
+      context
+    )
+
+    expect(response.status).toBe(404)
+  })
+
+  it('rejects a value-less personal write, which has no metadata field to update', async () => {
+    const response = await PUT(
+      request('PUT', { workspaceId: WORKSPACE_ID, scope: 'personal' }),
+      context
+    )
+
+    expect(response.status).toBe(400)
+    expect(mocks.set).not.toHaveBeenCalled()
+  })
+
+  it('rejects a workspace write carrying nothing to write', async () => {
+    const response = await PUT(
+      request('PUT', { workspaceId: WORKSPACE_ID, scope: 'workspace' }),
+      context
+    )
+
+    expect(response.status).toBe(400)
+    expect(mocks.set).not.toHaveBeenCalled()
+  })
+
   it('deletes a secret through the semantic delete operation', async () => {
     const response = await DELETE(request('DELETE'), context)
 

@@ -19,6 +19,7 @@ import {
   readWorkspaceSecretValues,
   setPersonalSecret,
   setWorkspaceSecret,
+  updateWorkspaceSecretMetadata,
 } from '@/lib/credentials/secret-values'
 import { secretOperations } from '@/lib/secrets/application/operations'
 import { scanSecretReferences } from '@/lib/secrets/references/scan'
@@ -268,7 +269,12 @@ export interface SetSecretInput {
   workspaceId: string
   name: string
   scope: SecretScope
-  value: string
+  /**
+   * Omitted for a workspace-scope metadata-only write, which updates `description`
+   * and `unredacted` alone and never re-encrypts or replaces the stored value.
+   * Required for personal scope, which has no other writable field.
+   */
+  value?: string
   /**
    * Workspace scope only, and rejected at the contract for personal scope: an
    * `env_personal` row is a per-workspace mirror of one user-global secret, so a
@@ -307,6 +313,50 @@ export const setSecretUseCase = defineAuthorizedWorkspaceUseCase({
     }
 
     if (input.scope === 'workspace') {
+      /**
+       * A value-less workspace write takes the update-only manager: no encryption,
+       * no variables rewrite, and no credential insert, so it cannot create a
+       * secret and cannot cost the caller a re-transmission of the plaintext. A
+       * miss is a 404, and `created: false` keeps the route answering 200 for
+       * something it did not create.
+       */
+      if (input.value === undefined) {
+        /**
+         * A write that names none of the three writable fields would still issue
+         * the UPDATE, stamping `updatedAt` and dropping the workspace's env cache
+         * entry for nothing. The contract rejects it; this repeats the guard for
+         * every other surface that reaches the use case directly.
+         */
+        if (input.description === undefined && input.unredacted === undefined) {
+          throw new OrchestrationError(
+            'validation',
+            'value, description, or unredacted is required'
+          )
+        }
+
+        const metadata = await updateWorkspaceSecretMetadata({
+          workspaceId: context.workspaceId,
+          name: input.name,
+          description: input.description,
+          unredacted: input.unredacted,
+        })
+        if (!metadata) throw new OrchestrationError('not_found', 'Secret not found')
+        /**
+         * The response read is a second statement, so a delete committed between
+         * the two leaves nothing to report back. That is the same disappearance
+         * the miss above answers, so it answers the same way rather than raising
+         * the unclassified fault a "must exist" read would.
+         */
+        const updated = await findSecretMetadata({
+          workspaceId: context.workspaceId,
+          userId,
+          scope: 'workspace',
+          name: input.name,
+        })
+        if (!updated) throw new OrchestrationError('not_found', 'Secret not found')
+        return { secret: updated, userId, created: false }
+      }
+
       const mutation = await setWorkspaceSecret({
         workspaceId: context.workspaceId,
         name: input.name,
@@ -323,6 +373,15 @@ export const setSecretUseCase = defineAuthorizedWorkspaceUseCase({
       return { secret, userId, created: mutation.created }
     }
 
+    /**
+     * Personal scope has no metadata field, so a value-less write here could only be
+     * a silent no-op. The contract rejects it; this repeats the guard for every
+     * other surface that reaches the use case directly.
+     */
+    if (input.value === undefined) {
+      throw new OrchestrationError('validation', 'value is required for a personal secret')
+    }
+
     const mutation = await setPersonalSecret({ userId, name: input.name, value: input.value })
     const secret = await getPersonalSecretMetadata({
       workspaceId: context.workspaceId,
@@ -337,7 +396,10 @@ export const setSecretUseCase = defineAuthorizedWorkspaceUseCase({
     resourceType: AuditResourceType.ENVIRONMENT,
     resourceId: `${input.scope}:${input.name}`,
     resourceName: input.name,
-    description: `Set ${input.scope} secret "${input.name}"`,
+    description:
+      input.value === undefined
+        ? `Updated ${input.scope} secret "${input.name}" metadata`
+        : `Set ${input.scope} secret "${input.name}"`,
     metadata: {
       scope: input.scope,
       name: input.name,

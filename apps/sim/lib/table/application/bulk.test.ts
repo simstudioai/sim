@@ -640,6 +640,83 @@ describe('path-keyed bulk table selections', () => {
   })
 
   /**
+   * The v2 audit formatter nulls `resourceId` for every folder row, so the leaf
+   * name is all a v2 consumer would have left — and two folders named `dup` in
+   * different trees produce byte-identical rows. The single-folder delete
+   * records the path for the same reason.
+   */
+  it('records the folder path a path-keyed bulk delete named, as the single delete does', async () => {
+    mocks.bulkDeleteFolders.mockResolvedValue({
+      succeeded: [{ id: 'folder-1', name: 'Sales' }],
+      failed: [],
+      folderCount: 1,
+      resourceCount: 0,
+    })
+    mocks.planFolderSelection.mockResolvedValue({
+      selected: [{ id: 'folder-1', name: 'Sales' }],
+      notFound: [],
+      contained: [],
+      covered: new Set<string>(),
+    })
+
+    await bulkDeleteTables.execute({
+      principal,
+      input: {
+        assertedWorkspaceId: 'workspace-1',
+        folderKeying: 'paths' as const,
+        tableIds: [],
+        folders: ['/Sales'],
+      },
+    })
+
+    expect(mocks.audit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'folder.deleted',
+        resourceId: 'folder-1',
+        description: 'Deleted table folder "/Sales"',
+        metadata: expect.objectContaining({ path: '/Sales' }),
+      })
+    )
+  })
+
+  /**
+   * The id-keyed surface skips the folder-tree index read on purpose, so it has
+   * no path to record. Pinned so a later change cannot quietly take that lock.
+   */
+  it('records no path for an id-keyed bulk delete', async () => {
+    mocks.bulkDeleteFolders.mockResolvedValue({
+      succeeded: [{ id: 'folder-1', name: 'Sales' }],
+      failed: [],
+      folderCount: 1,
+      resourceCount: 0,
+    })
+    mocks.planFolderSelection.mockResolvedValue({
+      selected: [{ id: 'folder-1', name: 'Sales' }],
+      notFound: [],
+      contained: [],
+      covered: new Set<string>(),
+    })
+
+    await bulkDeleteTables.execute({
+      principal,
+      input: {
+        assertedWorkspaceId: 'workspace-1',
+        folderKeying: 'ids' as const,
+        tableIds: [],
+        folders: ['folder-1'],
+      },
+    })
+
+    expect(mocks.audit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'folder.deleted',
+        description: 'Deleted table folder "Sales"',
+        metadata: expect.not.objectContaining({ path: expect.anything() }),
+      })
+    )
+  })
+
+  /**
    * One index for the whole batch: `resolveTableFolderPath` takes the folder
    * tree lock per call, so per-path resolution would be a lock acquisition each.
    */

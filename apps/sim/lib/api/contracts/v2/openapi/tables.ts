@@ -79,6 +79,7 @@ import {
 import { TABLE_LIMITS } from '@/lib/table/constants'
 
 const WORKSPACE_ID = 'a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64'
+const WORKFLOW_ID = '3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36'
 const TABLE_ID = 'tbl_7c9e6679742540de944be07fc1f90ae7'
 const ROW_ID = 'row_1f3e5d7c9b8a4c2d806e4a6b8d0f2e93'
 const VIEW_ID = 'view_6b8d0f2a4c3e4e5da28f7c9b1d3f5a07'
@@ -964,7 +965,7 @@ const declaredRoutes = [
           {
             workspaceId: WORKSPACE_ID,
             group: {
-              workflowId: 'wf_1b3d5f7a9c2e4680b4d6f8a0c2e4b619',
+              workflowId: WORKFLOW_ID,
               name: 'Enrich company',
               outputs: [{ blockId: 'block_lookup', path: 'output.revenue', columnName: 'revenue' }],
             },

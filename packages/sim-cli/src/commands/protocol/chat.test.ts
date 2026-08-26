@@ -102,7 +102,7 @@ function written(spy: WriteSpy): string {
 
 const FINAL = {
   type: 'final',
-  data: { content: 'Hello there', conversationId: 'conv-1', model: 'mothership' },
+  data: { content: 'Hello there', conversationId: 'conv-1', model: 'sim' },
 }
 
 describe('sim chat', () => {

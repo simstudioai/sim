@@ -43,6 +43,7 @@ vi.mock('@/lib/file-parsers', () => ({
 }))
 
 import { DocCompileUserError } from '@/lib/copilot/tools/server/files/doc-compile-error'
+import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { readWorkspaceFileText } from '@/lib/workspace-files/application/read-workspace-file-text'
 
 const WORKSPACE_ID = 'workspace-1'
@@ -198,15 +199,22 @@ describe('readWorkspaceFileText', () => {
     expect(result.truncated).toBe(true)
   })
 
+  /**
+   * The message is served to raw HTTP, Copilot, and the CLI alike, so it names
+   * the remedy rather than an endpoint only one of those three can call.
+   */
   it('rejects an unsupported type and names the raw-bytes escape hatch', async () => {
-    mocks.getFile.mockResolvedValueOnce(fileRecord({ name: 'photo.heic' }))
+    mocks.getFile.mockResolvedValue(fileRecord({ name: 'photo.heic' }))
 
     await expect(
       readWorkspaceFileText.execute({ principal: principals[2], input: input() })
     ).rejects.toMatchObject({
       code: 'validation',
-      message: expect.stringContaining(`GET /api/v2/files/${FILE_ID}`),
+      message: expect.stringContaining('download the raw bytes'),
     })
+    await expect(
+      readWorkspaceFileText.execute({ principal: principals[2], input: input() })
+    ).rejects.toMatchObject({ message: expect.not.stringMatching(/\/api\/v2\//) })
     expect(mocks.fetchBuffer).not.toHaveBeenCalled()
   })
 
@@ -237,6 +245,22 @@ describe('readWorkspaceFileText', () => {
     await expect(
       readWorkspaceFileText.execute({ principal: principals[2], input: input({ maxBytes: 1024 }) })
     ).rejects.toMatchObject({ code: 'payload_too_large' })
+  })
+
+  /**
+   * Both numbers are sub-1 KB, which the default size formatting renders as
+   * "0 Bytes" — leaving the caller unable to work out what to pass instead.
+   */
+  it('names the real size and limit when both are under 1 KB', async () => {
+    mocks.getFile.mockResolvedValueOnce(fileRecord({ size: 28 }))
+
+    await expect(
+      readWorkspaceFileText.execute({ principal: principals[2], input: input({ maxBytes: 27 }) })
+    ).rejects.toMatchObject({
+      code: 'payload_too_large',
+      message: expect.stringContaining('is 28 Bytes, above the 27 Bytes'),
+    })
+    expect(mocks.fetchBuffer).not.toHaveBeenCalled()
   })
 
   it('reports a missing file as not found', async () => {
@@ -318,5 +342,25 @@ describe('readWorkspaceFileText', () => {
     await readWorkspaceFileText.execute({ principal: principals[2], input: input() })
 
     expect(mocks.fetchServable.mock.calls[0][2]).toMatchObject({ maxBytes: expect.any(Number) })
+  })
+
+  /**
+   * The artifact branch renders the same caller-supplied ceiling, so it needs
+   * the same exact-byte formatting the source branch does.
+   */
+  it('names a sub-1 KB artifact limit in bytes', async () => {
+    mocks.getFile.mockResolvedValueOnce(
+      fileRecord({ name: 'report.pdf', type: 'text/x-pdflibjs', size: 10 })
+    )
+    mocks.fetchServable.mockRejectedValueOnce(
+      new PayloadSizeLimitError({ label: 'artifact', maxBytes: 27 })
+    )
+
+    await expect(
+      readWorkspaceFileText.execute({ principal: principals[2], input: input({ maxBytes: 27 }) })
+    ).rejects.toMatchObject({
+      code: 'payload_too_large',
+      message: expect.stringContaining('renders to more than 27 Bytes'),
+    })
   })
 })

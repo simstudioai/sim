@@ -17,7 +17,6 @@ import {
   restoreTable,
   type TableDefinition,
   type TableSchema,
-  type TableScope,
   updateTableDescription,
 } from '@/lib/table'
 import { defineAuthorizedTableUseCase } from '@/lib/table/application/authorized-table-use-case'
@@ -26,14 +25,28 @@ import {
   resolveArchivedTableContext,
   resolveTableWorkspaceContext,
 } from '@/lib/table/application/context'
-import { resolveTableFolderPath, tableFolderPathForId } from '@/lib/table/application/folder-paths'
+import {
+  archivableTableFolderPath,
+  resolveTableFolderPath,
+  tableFolderPathForId,
+} from '@/lib/table/application/folder-paths'
 import { tableOperations } from '@/lib/table/application/operations'
 import { signalTableSchemaChanged } from '@/lib/table/events'
 
 export interface ListTablesInput {
   workspaceId: string
-  /** Which lifecycle set to list. Omitted means `active`, matching every shipped caller. */
-  scope?: TableScope
+  /**
+   * Which lifecycle set to list. Omitted means `active`, matching every shipped
+   * caller. Deliberately narrower than the `TableScope` the query layer takes:
+   * its third value, `'all'`, would mix archived rows into a page projected by
+   * the strict folder-path resolver, which throws on the dangling `folderId` a
+   * folder archive leaves behind.
+   *
+   * The value set is the one `ListWorkflowsInput['scope']` accepts; the
+   * optionality is not, since that sibling requires a scope where this one
+   * defaults an absent scope through to the query.
+   */
+  scope?: 'active' | 'archived'
   folderPath?: string
   search?: string
   sortBy: V2TableSortBy
@@ -68,7 +81,10 @@ export const listTablesUseCase = defineAuthorizedTableUseCase({
     return {
       tables: tables.map((table) => ({
         table,
-        folderPath: tableFolderPathForId(folderIndex, table.folderId),
+        folderPath:
+          input.scope === 'archived'
+            ? archivableTableFolderPath(folderIndex, table.folderId)
+            : tableFolderPathForId(folderIndex, table.folderId),
       })),
       nextKeys,
       sortBy: input.sortBy,

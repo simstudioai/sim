@@ -436,7 +436,7 @@ export const v2ListTablesQuerySchema = z
     scope: v2TableScopeSchema
       .default('active')
       .describe(
-        'Which lifecycle set to list: `active` (default) for live tables, `archived` for tables a `DELETE` archived and `POST /tables/{tableId}/restore` can bring back. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too.'
+        'Which lifecycle set to list: `active` (default) for live tables, `archived` for tables a delete archived and a table restore can bring back. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too.'
       ),
     folderPath: v2FolderPathInputSchema
       .optional()
@@ -664,7 +664,7 @@ export const v2RestoreTableFolderBodySchema = z
   .object({
     workspaceId: workspaceIdSchema.describe('Workspace that owns the archived folder.'),
     path: v2NonRootFolderPathInputSchema.describe(
-      'Path the folder held when `DELETE /api/v2/tables/folders` archived it.'
+      'Path the folder held when a folder delete archived it.'
     ),
   })
   .strict()
@@ -1185,7 +1185,7 @@ export const v2UpsertTableRowBodySchema = upsertTableRowBodySchema
   .omit(OMIT_PRIVATE_PROVENANCE)
   .extend({
     data: v2RowDataSchema.describe(
-      'Complete set of row cells keyed by column name. On the update branch this REPLACES the matched row: any column not present here is cleared, unlike the merging `PATCH /api/v2/tables/{tableId}/rows/{rowId}`.'
+      'Complete set of row cells keyed by column name. On the update branch this REPLACES the matched row: any column not present here is cleared, unlike a single-row update, which merges.'
     ),
   })
   .strict()

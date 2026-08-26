@@ -5,7 +5,11 @@ import { attachCredentialCommands } from './commands/credentials'
 import { attachProtocolCommands } from './commands/protocol/index'
 import { attachSecretCommands } from './commands/secrets'
 import { OUTPUT_FORMATS } from './config/index'
-import { assertNoReservedProgramFlags, buildGeneratedCommands } from './runtime/build'
+import {
+  assertNoReservedProgramFlags,
+  buildGeneratedCommands,
+  refuseHelpAfterUnknownCommand,
+} from './runtime/build'
 import { CLI_VERSION } from './version'
 
 /** Root program description, shared by `--help` and the generated docs. */
@@ -145,6 +149,7 @@ export function buildProgram(options: { version?: boolean } = {}): Command {
 
   program.addHelpText('after', HELP_EPILOGUE)
 
+  refuseHelpAfterUnknownCommand(program)
   assertNoReservedProgramFlags(program)
 
   return program

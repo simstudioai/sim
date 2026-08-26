@@ -85,3 +85,50 @@ describe('the root version flag', () => {
     expect(help).toContain('takes no value')
   })
 })
+
+/**
+ * `sim <group> <unknown> --help` exited 0 printing the group's help, so a probe
+ * that reads the exit code to ask "does this command exist?" was told yes.
+ */
+describe('help typed after a command that does not exist', () => {
+  it('refuses it inside a group', async () => {
+    const { out, code } = await parse(['workspaces', 'zzzz', '--help'])
+
+    expect(code).toBe('commander.unknownCommand')
+    expect(out).not.toContain('Manage workspaces')
+  })
+
+  it('refuses a command the group never had', async () => {
+    const { code } = await parse(['chat-deployments', 'get', '--help'])
+
+    expect(code).toBe('commander.unknownCommand')
+  })
+
+  it('refuses it at the root', async () => {
+    const { code } = await parse(['zzzz', '--help'])
+
+    expect(code).toBe('commander.unknownCommand')
+  })
+
+  it('still answers help for a group and for its commands', async () => {
+    const group = await parse(['workspaces', '--help'])
+    expect(group.code).toBe('commander.helpDisplayed')
+    expect(group.out).toContain('Usage: sim workspaces')
+
+    const leaf = await parse(['workspaces', 'get', '--help'])
+    expect(leaf.code).toBe('commander.helpDisplayed')
+    expect(leaf.out).toContain('Usage: sim workspaces get')
+  })
+
+  /**
+   * Both exclusions are load-bearing: `files restore` registers a positional
+   * while hosting a subcommand, and `profiles` acts on its own, so an operand
+   * there is not an unknown command.
+   */
+  it('leaves a command that legitimately takes an operand alone', async () => {
+    expect((await parse(['files', 'restore', 'wf_1', '--help'])).code).toBe(
+      'commander.helpDisplayed'
+    )
+    expect((await parse(['profiles', 'zzzz', '--help'])).code).toBe('commander.helpDisplayed')
+  })
+})

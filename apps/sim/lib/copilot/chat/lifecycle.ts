@@ -231,6 +231,11 @@ export async function getAccessibleCopilotChatWithMessages(
  * Resolve or create a copilot chat session.
  * If chatId is provided, loads the existing chat. Otherwise creates a new one.
  * Supports both workflow-scoped and workspace-scoped chats.
+ *
+ * A resumed chat must match every scope the caller asserted — workflow,
+ * workspace, and `type`. Any mismatch resolves to `chat: null`, exactly as an
+ * unknown id does, so callers cannot distinguish the reasons a chat did not
+ * resolve. `title` is stamped only on a newly created chat.
  */
 export async function resolveOrCreateChat(params: {
   chatId?: string
@@ -239,8 +244,9 @@ export async function resolveOrCreateChat(params: {
   workspaceId?: string
   model: string
   type?: 'mothership' | 'copilot'
+  title?: string
 }): Promise<ChatLoadResult> {
-  const { chatId, userId, workflowId, workspaceId, model, type } = params
+  const { chatId, userId, workflowId, workspaceId, model, type, title } = params
 
   if (workspaceId) {
     await assertActiveWorkspaceAccess(workspaceId, userId)
@@ -266,6 +272,16 @@ export async function resolveOrCreateChat(params: {
           userId,
           requestWorkspaceId: workspaceId,
           chatWorkspaceId: chat.workspaceId,
+        })
+        return { chatId, chat: null, conversationHistory: [], isNew: false }
+      }
+
+      if (type && chat.type !== type) {
+        logger.warn('Copilot chat type mismatch', {
+          chatId,
+          userId,
+          requestType: type,
+          chatType: chat.type,
         })
         return { chatId, chat: null, conversationHistory: [], isNew: false }
       }
@@ -299,7 +315,7 @@ export async function resolveOrCreateChat(params: {
       ...(workflowId ? { workflowId } : {}),
       ...(workspaceId ? { workspaceId } : {}),
       type: type ?? 'copilot',
-      title: null,
+      title: title ?? null,
       model,
       lastSeenAt: now,
     })

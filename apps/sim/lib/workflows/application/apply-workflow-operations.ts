@@ -1,5 +1,6 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { type Principal, resolvePrincipalAttribution } from '@sim/auth/principal'
+import { db } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import type { BlockState, WorkflowState } from '@sim/workflow-types/workflow'
@@ -44,7 +45,12 @@ import {
   type ValidationError,
 } from '@/lib/workflows/editing/types'
 import { preValidateCredentialInputs } from '@/lib/workflows/editing/validation'
-import { replaceWorkflowNormalizedState } from '@/lib/workflows/persistence/replace-normalized-state'
+import { prepareWorkflowStateForPersistence } from '@/lib/workflows/persistence/prepare-state'
+import {
+  assertWorkflowGraphIdsUnclaimed,
+  collectWorkflowGraphIds,
+  replaceWorkflowNormalizedState,
+} from '@/lib/workflows/persistence/replace-normalized-state'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { validateWorkflowState } from '@/lib/workflows/sanitization/validation'
 import { withBlockVisibility } from '@/blocks/visibility/server-context'
@@ -358,6 +364,30 @@ export const applyWorkflowOperations = defineAuthorizedWorkflowUseCase({
      * dry run reports precisely what a committed apply of the same body would.
      */
     if (input.dryRun) {
+      /**
+       * The same preparation the committed write runs, so a dry run checks the
+       * ids that write would actually insert — the prepared graph, not the
+       * engine's output — and reports the notes that write would raise. Without
+       * it a dry run could report success, and no warnings, for a body whose
+       * commit is refused with a conflict or silently sanitized.
+       *
+       * `prepareWorkflowStateForPersistence` is **not** pure: its sanitization
+       * step rewrites nested sub-block objects in place, and `graph.blocks`
+       * holds the very objects this response returns. That is safe only because
+       * `validateWorkflowState(..., { sanitize: true })` above already ran the
+       * same sanitizer over these blocks, so this second pass writes back the
+       * values that are already there. Keep that call ahead of this one.
+       */
+      const prepared = prepareWorkflowStateForPersistence({
+        blocks: graph.blocks,
+        edges: graph.edges,
+      })
+      await assertWorkflowGraphIdsUnclaimed(
+        db,
+        context.workflowId,
+        collectWorkflowGraphIds(prepared.state)
+      )
+
       logger.info('Evaluated workflow operations without persisting', {
         workflowId: context.workflowId,
         workspaceId: context.workspaceId,
@@ -377,7 +407,7 @@ export const applyWorkflowOperations = defineAuthorizedWorkflowUseCase({
         inputValidationErrors: validationErrors,
         mintedBlockIds,
         lint,
-        warnings: validation.warnings,
+        warnings: [...validation.warnings, ...prepared.warnings],
         needsRedeployment: await checkNeedsRedeployment(context.workflowId),
         dryRun: true,
       }

@@ -12,7 +12,10 @@ import { toV2Secret } from '@/app/api/v2/secrets/utils'
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-/** PUT /api/v2/secrets/[name] — Create or replace a write-only secret value. */
+/**
+ * PUT /api/v2/secrets/[name] — Create or replace a write-only secret value, or
+ * update a workspace secret's metadata alone when the body carries no value.
+ */
 export const PUT = defineV2JsonRoute({
   contract: v2SetSecretContract,
   operation: secretOperations.set,

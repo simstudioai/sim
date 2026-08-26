@@ -1,9 +1,11 @@
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
 import {
+  FORBIDDEN_IN_VALUE,
   getSection,
   type IniDocument,
   listSections,
+  ProfileConfigError,
   parseIni,
   removeSection,
   serializeIni,
@@ -35,11 +37,37 @@ export const DEFAULT_ENDPOINT = 'https://www.sim.ai'
 export const OUTPUT_FORMATS = ['table', 'json', 'yaml', 'text'] as const
 export type OutputFormat = (typeof OUTPUT_FORMATS)[number]
 
-/** An invalid active profile setting that the user can correct. */
-export class ProfileConfigError extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = 'ProfileConfigError'
+export { FORBIDDEN_IN_VALUE, ProfileConfigError } from './ini'
+
+/** {@link FORBIDDEN_IN_VALUE}, for redacting every match out of an error message. */
+const FORBIDDEN_IN_VALUE_GLOBAL = new RegExp(FORBIDDEN_IN_VALUE.source, 'g')
+
+/**
+ * The shape a newly created profile name has to have.
+ *
+ * Enforced only when a profile is being created. A name reaches the config file
+ * as part of a section header, and the file format has no escape syntax, so a
+ * name that carries a bracket or a line break would forge a header for another
+ * profile — the writer refuses that outright, and this pattern is the friendlier
+ * refusal that names the rule instead of the mechanism.
+ */
+export const PROFILE_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
+
+/**
+ * Refuses a name for a profile that does not exist yet.
+ *
+ * Creation only, deliberately: a hand-written `[profile my stack]` predates this
+ * rule and must keep resolving, so the read path stays governed by
+ * {@link requireKnownProfile} alone.
+ */
+export function validateProfileName(name: string): void {
+  if (!PROFILE_NAME_PATTERN.test(name)) {
+    // Redacted the same way as in `normalizeWorkspaceId`: the rejected name is
+    // untrusted text, and echoing its control characters into a terminal is how
+    // an error message becomes an escape-sequence delivery vehicle.
+    throw new ProfileConfigError(
+      `Invalid profile name "${name.replace(FORBIDDEN_IN_VALUE_GLOBAL, ' ')}". Use letters, numbers, dots, underscores, or hyphens, starting with a letter or number.`
+    )
   }
 }
 
@@ -280,16 +308,43 @@ export function deleteProfile(profile: string): { config: boolean; credentials: 
  * the user has to edit.
  */
 export function normalizeEndpoint(endpoint: string, source: string): string {
-  // A trailing slash here produces `https://sim.ai//api/v2/...`, which some
-  // proxies 404 rather than normalize.
-  const trimmed = endpoint.replace(/\/+$/, '')
+  // Surrounding whitespace is stripped first, and for the same reason as in
+  // `normalizeWorkspaceId`: `new URL()` tolerates padding and hands the padded
+  // string straight back, but the config writer refuses it. Without this,
+  // `login --endpoint " https://…"` failed *after* the device flow had already
+  // minted a key, discarding it and reporting a file-format problem instead of
+  // naming the flag. It also has to come first so the slash strip sees the real
+  // end of the URL — and that strip is there because a trailing slash produces
+  // `https://sim.ai//api/v2/...`, which some proxies 404 rather than normalize.
+  const trimmed = endpoint.trim().replace(/\/+$/, '')
+
+  // Trimming only reaches the ends, and a control character in the middle is
+  // the one that matters: the URL parser deletes tabs and line breaks from
+  // anywhere in its input before parsing it, so a string whose visible text
+  // names one host can resolve to a different authority — and the resolved one
+  // is where the API key is sent. Refusing the whole forbidden set here means
+  // the endpoint this function blesses is the endpoint every later parse sees.
+  //
+  // A character check rather than parse-and-compare: comparing `trimmed`
+  // against `parsed.href` would also reject legitimate endpoints, because the
+  // parser rewrites percent-encoding, lowercases the scheme and host,
+  // punycodes an IDN, and drops a default port. The forbidden set is instead a
+  // strict superset of the characters the parser silently removes, so it is
+  // exact for this hazard — and it is `FORBIDDEN_IN_VALUE`, the same constant
+  // the config writer enforces, so a value accepted here can never be refused
+  // by the write that stores it.
+  if (FORBIDDEN_IN_VALUE.test(trimmed)) {
+    throw new ProfileConfigError(
+      `Invalid endpoint "${endpoint.replace(FORBIDDEN_IN_VALUE_GLOBAL, ' ')}" from ${source}. An endpoint cannot contain line breaks or control characters.`
+    )
+  }
 
   let parsed: URL
   try {
     parsed = new URL(trimmed)
   } catch {
     throw new ProfileConfigError(
-      `Invalid endpoint "${endpoint}" from ${source}. Use an absolute URL, e.g. ${DEFAULT_ENDPOINT} or http://localhost:3000`
+      `Invalid endpoint "${endpoint.replace(FORBIDDEN_IN_VALUE_GLOBAL, ' ')}" from ${source}. Use an absolute URL, e.g. ${DEFAULT_ENDPOINT} or http://localhost:3000`
     )
   }
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
@@ -298,6 +353,29 @@ export function normalizeEndpoint(endpoint: string, source: string): string {
     )
   }
 
+  return trimmed
+}
+
+/**
+ * Validates a workspace id on its way into the config file.
+ *
+ * The sibling of {@link normalizeEndpoint}, and for the same reason: a stored
+ * setting is read back as a real setting, so a value that could carry a line
+ * break would come back as an extra setting the user never typed — including an
+ * `endpoint`, which decides where the API key is sent. Only structure is
+ * checked, not the id's shape: ids are server-minted and the CLI has no business
+ * deciding what one may look like.
+ */
+export function normalizeWorkspaceId(workspaceId: string, source: string): string {
+  const trimmed = workspaceId.trim()
+  if (!trimmed) {
+    throw new ProfileConfigError(`Empty workspace id from ${source}.`)
+  }
+  if (FORBIDDEN_IN_VALUE.test(trimmed)) {
+    throw new ProfileConfigError(
+      `Invalid workspace id "${trimmed.replace(FORBIDDEN_IN_VALUE_GLOBAL, ' ')}" from ${source}. A workspace id cannot contain line breaks or control characters.`
+    )
+  }
   return trimmed
 }
 
@@ -322,6 +400,12 @@ export function resolveProfile(overrides: ProfileOverrides = {}): ResolvedProfil
   const named = overrides.profile || process.env.SIM_PROFILE
   const name = named || DEFAULT_PROFILE
   if (named && !overrides.allowUnknownProfile) requireKnownProfile(named)
+  // `allowUnknownProfile` means "this profile is about to be created", which is
+  // the only moment the name shape is the CLI's to decide. An existing profile,
+  // however it was written, keeps resolving.
+  if (named && overrides.allowUnknownProfile && !listProfiles().includes(named)) {
+    validateProfileName(named)
+  }
 
   const config = readConfigProfile(name)
   const authProfile = resolveAuthenticationProfileName(name)
