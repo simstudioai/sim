@@ -14,6 +14,16 @@ vi.mock('@/lib/core/security/input-validation.server', () => ({
   validateUrlWithDNS: mockValidateUrlWithDNS,
 }))
 
+/**
+ * `vitest.setup.ts` mocks the tool registry to `{}` because the real one pulls
+ * ~5,907 modules. Registering just this tool keeps that saving while giving
+ * `executeTool` the *same object reference* the spy below is attached to.
+ */
+vi.mock('@/tools/registry', async () => {
+  const { getDocumentTool } = await import('@/tools/elasticsearch/get_document')
+  return { tools: { elasticsearch_get_document: getDocumentTool } }
+})
+
 import { getDocumentTool } from '@/tools/elasticsearch/get_document'
 import { executeTool } from '@/tools/index'
 

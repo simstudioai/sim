@@ -6,6 +6,43 @@ import { RECORD_OUTPUT_PROPERTIES } from './types'
 
 const logger = createLogger('AttioAssertRecord')
 
+/**
+ * Normalizes `matchingAttribute` to a non-empty string before it is handed to
+ * `URLSearchParams`.
+ *
+ * The parameter is declared `type: 'string'`, but it is `visibility:
+ * 'user-or-llm'` and an LLM can emit an attribute id that looks numeric as a
+ * JSON **number**. Calling `.trim()` on the raw value then threw
+ * `params.matchingAttribute.trim is not a function` — an unhandled `TypeError`
+ * surfaced to the caller instead of a named, actionable error.
+ *
+ * `null` and `undefined` are rejected *before* coercion, because
+ * `String(null)` is the truthy `'null'`: coercing first would send a request
+ * matching on an attribute literally named `"null"` rather than reporting the
+ * missing value. This mirrors `toGuardedString` in `@/tools/url-path`, which
+ * solves the same problem for the path zone but is module-private there; the
+ * few lines are duplicated rather than widening that shared module's surface
+ * for a single call site.
+ *
+ * No charset check is applied. Attio documents the value as "the ID or slug of
+ * the attribute" and publishes no pattern for a slug, so any allowlist would be
+ * a guess that silently rejects legitimate attributes. Correct encoding — not
+ * validation — is what confines the value to the query zone.
+ */
+function requiredQueryValue(value: unknown, paramName: string): string {
+  if (value === null || value === undefined) {
+    throw new Error(`${paramName} is required`)
+  }
+
+  const trimmed = String(value).trim()
+
+  if (!trimmed) {
+    throw new Error(`${paramName} is required`)
+  }
+
+  return trimmed
+}
+
 export const attioAssertRecordTool: ToolConfig<AttioAssertRecordParams, AttioAssertRecordResponse> =
   {
     id: 'attio_assert_record',
@@ -49,8 +86,15 @@ export const attioAssertRecordTool: ToolConfig<AttioAssertRecordParams, AttioAss
     },
 
     request: {
-      url: (params) =>
-        `https://api.attio.com/v2/objects/${safeUrlPathSegment(params.objectType, 'objectType')}/records?matching_attribute=${params.matchingAttribute.trim()}`,
+      url: (params) => {
+        const objectType = safeUrlPathSegment(params.objectType, 'objectType')
+        const searchParams = new URLSearchParams()
+        searchParams.set(
+          'matching_attribute',
+          requiredQueryValue(params.matchingAttribute, 'matchingAttribute')
+        )
+        return `https://api.attio.com/v2/objects/${objectType}/records?${searchParams.toString()}`
+      },
       method: 'PUT',
       headers: (params) => ({
         Authorization: `Bearer ${params.accessToken}`,
