@@ -102,12 +102,20 @@ interface AccessibleResource {
   url: string
 }
 
+export interface AtlassianDiscoveryRetryOptions extends RetryOptions {
+  /**
+   * Selector routes set this to avoid putting provider-controlled response
+   * bodies into thrown errors, which the shared retry helper intentionally logs.
+   */
+  omitResponseBodyFromErrors?: boolean
+}
+
 interface ResolveAtlassianCloudIdOptions {
   domain: string
   accessToken: string
   /** Product name woven into the failure messages, e.g. `Jira` or `Confluence`. */
   product: string
-  retryOptions?: RetryOptions
+  retryOptions?: AtlassianDiscoveryRetryOptions
 }
 
 const cloudIdCache = createAtlassianDiscoveryCache()
@@ -141,8 +149,9 @@ export function fetchAtlassianDiscoveryJson<T>(
   url: string,
   headers: Record<string, string>,
   failureLabel: string,
-  retryOptions?: RetryOptions
+  retryOptions?: AtlassianDiscoveryRetryOptions
 ): Promise<T> {
+  const { omitResponseBodyFromErrors = false, ...effectiveRetryOptions } = retryOptions ?? {}
   return retryWithExponentialBackoff(
     async () => {
       const response = await fetch(url, {
@@ -152,10 +161,10 @@ export function fetchAtlassianDiscoveryJson<T>(
       })
 
       if (!response.ok) {
-        const errorText = await response.text()
-        const error: HTTPError = new Error(
-          `${failureLabel}: ${response.status} - ${errorText || response.statusText}`
-        )
+        const errorDetail = omitResponseBodyFromErrors
+          ? ''
+          : ` - ${(await response.text()) || response.statusText}`
+        const error: HTTPError = new Error(`${failureLabel}: ${response.status}${errorDetail}`)
         error.status = response.status
         error.statusText = response.statusText
         const retryAfterMs = parseRetryAfter(response.headers.get('Retry-After'))
@@ -165,14 +174,14 @@ export function fetchAtlassianDiscoveryJson<T>(
 
       return (await response.json()) as T
     },
-    { ...ATLASSIAN_DISCOVERY_RETRY_OPTIONS, ...retryOptions }
+    { ...ATLASSIAN_DISCOVERY_RETRY_OPTIONS, ...effectiveRetryOptions }
   )
 }
 
 function fetchAccessibleResources(
   accessToken: string,
   product: string,
-  retryOptions: RetryOptions | undefined
+  retryOptions: AtlassianDiscoveryRetryOptions | undefined
 ): Promise<AccessibleResource[]> {
   return fetchAtlassianDiscoveryJson<AccessibleResource[]>(
     ACCESSIBLE_RESOURCES_URL,
@@ -232,7 +241,10 @@ export async function resolveAtlassianCloudId(
   options: ResolveAtlassianCloudIdOptions
 ): Promise<string> {
   const { domain, accessToken, product, retryOptions } = options
-  const key = atlassianDiscoveryKey(normalizeAtlassianSiteUrl(domain), accessToken)
+  const errorMode = retryOptions?.omitResponseBodyFromErrors
+    ? 'sanitized-errors'
+    : 'standard-errors'
+  const key = `${atlassianDiscoveryKey(normalizeAtlassianSiteUrl(domain), accessToken)}:${errorMode}`
 
   return cloudIdCache.resolve(key, async () =>
     selectAtlassianCloudId(

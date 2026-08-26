@@ -1,6 +1,8 @@
 import { createLogger } from '@sim/logger'
-import { resolveAtlassianCloudId } from '@/lib/atlassian/discovery'
-import type { RetryOptions } from '@/lib/knowledge/documents/utils'
+import {
+  type AtlassianDiscoveryRetryOptions,
+  resolveAtlassianCloudId,
+} from '@/lib/atlassian/discovery'
 import { fetchWithRetry } from '@/lib/knowledge/documents/utils'
 
 const logger = createLogger('JiraUtils')
@@ -250,7 +252,7 @@ export function normalizeJiraWorklogTimestamp(value: string): string {
 export function getJiraCloudId(
   domain: string,
   accessToken: string,
-  retryOptions?: RetryOptions
+  retryOptions?: AtlassianDiscoveryRetryOptions
 ): Promise<string> {
   return resolveAtlassianCloudId({ domain, accessToken, product: 'Jira', retryOptions })
 }

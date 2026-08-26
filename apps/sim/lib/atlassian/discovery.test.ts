@@ -123,6 +123,19 @@ describe('resolveAtlassianCloudId', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
+  it('omits provider response bodies from selector discovery errors', async () => {
+    fetchMock.mockResolvedValue(failure(403, { marker: 'provider-body-secret-marker' }))
+
+    const error = await resolveAtlassianCloudId(
+      options({
+        retryOptions: { ...FAST, omitResponseBodyFromErrors: true },
+      })
+    ).catch((caught) => caught as Error)
+
+    expect(error.message).toBe('Failed to fetch Jira accessible resources: 403')
+    expect(error.message).not.toContain('provider-body-secret-marker')
+  })
+
   it('does not pin a failure in the cache', async () => {
     fetchMock.mockResolvedValueOnce(failure(403, { message: 'nope' }))
     await expect(resolveAtlassianCloudId(options({ retryOptions: FAST }))).rejects.toThrow()
