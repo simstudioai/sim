@@ -1,7 +1,13 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import {
+  dbChainMockFns,
+  drizzleOrmMock,
+  queueTableRows,
+  resetDbChainMock,
+  schemaMock,
+} from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -222,6 +228,10 @@ describe('closeElapsedBillingPeriod', () => {
       invoiceIdemKeyStem: `cycle-close-overage:sub-1:${PERIOD_START.toISOString()}:invoice`,
       metadata: expect.objectContaining({ type: 'overage_billing', organizationId: 'org-1' }),
     })
+
+    // Member row locks are acquired in sorted order so parallel closes of
+    // organizations sharing a member cannot deadlock.
+    expect(drizzleOrmMock.asc).toHaveBeenCalledWith(schemaMock.userStats.userId)
 
     // Bookkeeping: last-period CASE write + billedOverage reset on member rows.
     const bookkeepingSet = dbChainMockFns.set.mock.calls.find(
@@ -661,5 +671,40 @@ describe('sweepBillingCycleCloses', () => {
     expect(summary.candidates).toBe(2)
     expect(summary.initialized).toBe(2)
     expect(summary.failed).toBe(0)
+  })
+
+  it('iterates candidates in keyset pages, fetching until a short page', async () => {
+    queueTableRows(
+      schemaMock.subscription,
+      Array.from({ length: 250 }, (_, i) =>
+        subRow({ id: `sub-p1-${String(i).padStart(3, '0')}`, lastClosedPeriodStart: null })
+      )
+    )
+    queueTableRows(schemaMock.subscription, [
+      subRow({ id: 'sub-p2-0', lastClosedPeriodStart: null }),
+      subRow({ id: 'sub-p2-1', lastClosedPeriodStart: null }),
+      subRow({ id: 'sub-p2-2', lastClosedPeriodStart: null }),
+    ])
+
+    const summary = await sweepBillingCycleCloses()
+
+    expect(summary).toEqual({ candidates: 253, closed: 0, initialized: 253, failed: 0 })
+    // A full page signals another fetch; the short second page ends the loop.
+    expect(dbChainMockFns.limit).toHaveBeenCalledTimes(2)
+  })
+
+  it('isolates a failing close inside a page', async () => {
+    // 'sub-bad' has a lagging marker past the grace, so its close proceeds
+    // into the org-scope lookup and blows up; 'sub-ok' initializes. The page
+    // completes and the failure is counted, never rethrown.
+    queueTableRows(schemaMock.subscription, [
+      subRow({ id: 'sub-bad' }),
+      subRow({ id: 'sub-ok', lastClosedPeriodStart: null }),
+    ])
+    mockIsSubscriptionOrgScoped.mockRejectedValueOnce(new Error('boom'))
+
+    const summary = await sweepBillingCycleCloses()
+
+    expect(summary).toEqual({ candidates: 2, closed: 0, initialized: 1, failed: 1 })
   })
 })
