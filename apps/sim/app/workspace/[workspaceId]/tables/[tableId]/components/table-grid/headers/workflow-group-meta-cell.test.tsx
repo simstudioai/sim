@@ -46,7 +46,6 @@ vi.mock('@/lib/table/column-types', () => ({
   columnTypeOf: (column: ColumnDefinition) => ({
     icon: () => null,
     label: column.type === 'reference' ? 'Reference' : 'Text',
-    hasConfiguration: column.type === 'reference',
   }),
 }))
 

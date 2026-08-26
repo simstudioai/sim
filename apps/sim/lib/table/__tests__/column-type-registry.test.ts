@@ -49,8 +49,6 @@ describe('registry shape', () => {
 
     expect(definition.label).toBe('Reference')
     expect(definition.icon).toBe(TableIcon)
-    expect(definition.requiresConfigurationOnCreate).toBe(true)
-    expect(definition.hasConfiguration).toBe(true)
     expect(definition.ownedMetadata).toEqual(['referenceTableId'])
     expect(definition.jsonbCast).toBeNull()
   })

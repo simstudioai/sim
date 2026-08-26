@@ -10,8 +10,6 @@ export const referenceColumnType: ColumnTypeDefinition = {
   jsonbCast: null,
   storesOpaqueIds: false,
   supportsUnique: true,
-  requiresConfigurationOnCreate: true,
-  hasConfiguration: true,
   sampleValue: 'row_123',
   ownedMetadata: ['referenceTableId'],
   workflowInputType: 'string',

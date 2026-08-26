@@ -36,6 +36,7 @@ import { resolveRestoredFolderId } from '@/lib/folders/queries'
 import { notifyWorkspaceTablesChanged } from '@/lib/realtime/notify'
 import { assertRowCapacity, notifyTableRowUsage } from '@/lib/table/billing'
 import { generateColumnId, getColumnId, withGeneratedColumnIds } from '@/lib/table/column-keys'
+import { assertColumnReferencesInWorkspace } from '@/lib/table/column-types/registry.server'
 import {
   COLUMN_TYPES,
   DEFAULT_TABLE_VIEW_NAME,
@@ -628,6 +629,7 @@ export async function createTable(
       await trx.execute(
         sql`SELECT 1 FROM workspace WHERE id = ${data.workspaceId} FOR NO KEY UPDATE`
       )
+      await assertColumnReferencesInWorkspace(trx, data.workspaceId, schema.columns)
 
       const [{ count: existingCount }] = await trx
         .select({ count: count() })
