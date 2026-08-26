@@ -179,10 +179,7 @@ export const LangsmithBlock: BlockConfig<LangsmithResponse> = {
       title: 'Session ID',
       type: 'short-input',
       placeholder: 'Tracing project (session) UUID, e.g. 018e4c7e-a9fb-7ef0-a5b6-6ea3a82e9327',
-      condition: {
-        field: 'operation',
-        value: ['langsmith_create_run', 'langsmith_create_feedback'],
-      },
+      condition: { field: 'operation', value: 'langsmith_create_run' },
       mode: 'advanced',
     },
     {
@@ -254,6 +251,22 @@ Fields id, trace_id, dotted_order, start_time are auto-generated if omitted.`,
 Required: id (existing run UUID), name, run_type ("tool"|"chain"|"llm"|"retriever"|"embedding"|"prompt"|"parser")
 Common patch fields: outputs, end_time, status, error`,
       },
+    },
+    {
+      /**
+       * The feedback path's own Session ID field.
+       *
+       * `POST /api/v1/feedback` documents `session_id` as required ("it identifies the tracing
+       * project the feedback belongs to"), so it cannot sit behind the block-level advanced
+       * toggle the way the optional `session_id` on the create-run path does. `mode` is static
+       * per subBlock, so the two paths need two fields; the params mapper falls back to the old
+       * shared `session_id` so blocks that already stored a value under it keep working.
+       */
+      id: 'feedback_session_id',
+      title: 'Session ID',
+      type: 'short-input',
+      placeholder: 'Tracing project (session) UUID, e.g. 018e4c7e-a9fb-7ef0-a5b6-6ea3a82e9327',
+      condition: { field: 'operation', value: 'langsmith_create_feedback' },
     },
     {
       id: 'key',
@@ -404,7 +417,7 @@ Common patch fields: outputs, end_time, status, error`,
             apiKey: params.apiKey,
             runId: params.runId,
             key: params.key,
-            sessionId: params.session_id,
+            sessionId: params.feedback_session_id || params.session_id,
             score: parseScore(params.score),
             value: parseLangsmithFeedbackValue(params.value),
             comment: params.comment,
@@ -456,8 +469,12 @@ Common patch fields: outputs, end_time, status, error`,
     trace_id: { type: 'string', description: 'Trace ID' },
     session_id: {
       type: 'string',
+      description: 'UUID of the tracing project (session) the run belongs to',
+    },
+    feedback_session_id: {
+      type: 'string',
       description:
-        'UUID of the tracing project (session) the run or the feedback belongs to. Required by LangSmith when creating feedback.',
+        'UUID of the tracing project (session) the feedback belongs to. Required by LangSmith when creating feedback',
     },
     session_name: { type: 'string', description: 'Session name' },
     status: { type: 'string', description: 'Run status' },

@@ -547,3 +547,35 @@ describe('langsmith feedback session_id documentation', () => {
     expect(description).toContain('/sessions')
   })
 })
+
+describe('langsmith batch post/patch shape guard', () => {
+  const buildBody = (params: Record<string, unknown>) =>
+    (langsmithCreateRunsBatchTool.request.body as (p: unknown) => Record<string, unknown>)({
+      apiKey: 'test-key',
+      ...params,
+    })
+
+  it.each([
+    ['post', { name: 'a single run' }],
+    ['patch', { id: 'run-1' }],
+  ])('rejects a non-array %s with a named message instead of a TypeError', (field, value) => {
+    expect(() => buildBody({ [field]: value })).toThrowError(
+      `LangSmith batch \`${field}\` must be an array of run objects, received object. Wrap a single run as \`[{ ... }]\`.`
+    )
+  })
+
+  it('rejects a non-array post from transformResponse too', async () => {
+    await expect(
+      langsmithCreateRunsBatchTool.transformResponse!(jsonOk({ message: 'ok' }), {
+        apiKey: 'test-key',
+        post: { name: 'a single run' },
+      } as unknown as LangsmithCreateRunsBatchParams)
+    ).rejects.toThrow('LangSmith batch `post` must be an array of run objects')
+  })
+
+  it('still accepts a real array', () => {
+    const body = buildBody({ post: [{ name: 'run-a' }] })
+    expect(Array.isArray(body.post)).toBe(true)
+    expect((body.post as Record<string, unknown>[])[0]).toMatchObject({ name: 'run-a' })
+  })
+})
