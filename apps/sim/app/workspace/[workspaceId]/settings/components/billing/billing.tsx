@@ -440,7 +440,8 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
     : subscriptionData?.data?.cancelAtPeriodEnd === true
 
   const weeklyRefreshDollars =
-    getPlanWeeklyRefreshDollars(subscription.plan) * (subscription.seats || 1)
+    getPlanWeeklyRefreshDollars(subscription.plan) *
+    (isOrganizationScope ? subscription.seats || 1 : 1)
 
   const invoices = (invoicesData?.invoices ?? []).map((invoice) => ({
     id: invoice.id,
