@@ -50,7 +50,12 @@ import { POST } from '@/app/api/tools/jira/add-attachment/route'
 const CLOUD_ID = '1324a887-45db-1bf4-1e99-ef0ff456d421'
 const ORIGIN = 'https://api.atlassian.com'
 
-const FILE = { key: 'workspace/u1/report.pdf', name: 'report.pdf', size: 12, type: 'application/pdf' }
+const FILE = {
+  key: 'workspace/u1/report.pdf',
+  name: 'report.pdf',
+  size: 12,
+  type: 'application/pdf',
+}
 
 function body(overrides: Record<string, unknown> = {}) {
   return {
@@ -141,9 +146,7 @@ describe('POST /api/tools/jira/add-attachment path safety', () => {
 
   /** cloudId sits earlier in the path, so it is validated first, like the siblings. */
   it('reports cloudId before issueKey when both are hostile', async () => {
-    const response = await POST(
-      createMockRequest('POST', body({ cloudId: '..', issueKey: '..' }))
-    )
+    const response = await POST(createMockRequest('POST', body({ cloudId: '..', issueKey: '..' })))
 
     expect(response.status).toBe(400)
     expect((await response.json()).error).toMatch(/cloudId/)

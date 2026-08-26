@@ -87,14 +87,12 @@ describe('jira_get_comments orderBy', () => {
     expect(url.searchParams.get('orderBy')).toBe('-created')
   })
 
-  it.each([
-    '-created&maxResults=5000',
-    'created&expand=renderedBody',
-    '-created#',
-    'updated',
-  ])('rejects orderBy=%j instead of appending it to the query', (orderBy) => {
-    expect(() => buildRequestUrl({ orderBy })).toThrow(/orderBy/)
-  })
+  it.each(['-created&maxResults=5000', 'created&expand=renderedBody', '-created#', 'updated'])(
+    'rejects orderBy=%j instead of appending it to the query',
+    (orderBy) => {
+      expect(() => buildRequestUrl({ orderBy })).toThrow(/orderBy/)
+    }
+  )
 
   /**
    * An empty orderBy previously produced a bare `orderBy=`, which is not in
@@ -177,8 +175,6 @@ describe('jira_remove_watcher accountId', () => {
       params({ cloudId: undefined })
     )
 
-    expect(fetchedUrls()).toEqual([
-      `${ISSUE_BASE}/watchers?accountId=5b10ac8d82e05b22cc7d4ef5`,
-    ])
+    expect(fetchedUrls()).toEqual([`${ISSUE_BASE}/watchers?accountId=5b10ac8d82e05b22cc7d4ef5`])
   })
 })

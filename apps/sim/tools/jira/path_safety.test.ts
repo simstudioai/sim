@@ -260,3 +260,196 @@ describe('Jira path traversal safety', () => {
     })
   })
 })
+
+/**
+ * The second, invisible class of guarded site.
+ *
+ * Every Jira tool builds its provider URL twice: once in `request.url`, and
+ * again inside `transformResponse` for the branch that first has to discover
+ * the cloud ID from the domain. A reflective probe of `request.url` — which is
+ * all the suite above does — cannot see the rebuild, so a guard removed from
+ * one of them would have gone unnoticed, and `jira_bulk_read`, whose only
+ * guarded site lives in `transformResponse`, was absent from the suite
+ * entirely.
+ *
+ * These tests drive the real `transformResponse` with `cloudId` unset, record
+ * every URL it fetches, and apply the same three assertion families to the
+ * recorded URLs.
+ */
+const CLOUD_ID = '1324a887-45db-1bf4-1e99-ef0ff456d421'
+
+const { mockResolveAtlassianCloudId } = vi.hoisted(() => ({
+  mockResolveAtlassianCloudId: vi.fn(),
+}))
+
+vi.mock('@/lib/atlassian/discovery', () => ({
+  resolveAtlassianCloudId: mockResolveAtlassianCloudId,
+  selectAtlassianCloudId: () => CLOUD_ID,
+}))
+
+/**
+ * `jira_bulk_read` resolves its cloud ID from the dispatcher's own discovery
+ * response rather than from a second lookup, so it needs the id supplied.
+ * Every other tool must have it unset to reach its rebuild branch.
+ */
+const REBUILD_CLOUD_ID: Record<string, string | undefined> = {
+  jira_bulk_read: CLOUD_ID,
+}
+
+/** Tools whose `transformResponse` rebuilds a guarded provider path. */
+const EXPECTED_REBUILD_TOOLS = [
+  'jira_add_comment',
+  'jira_add_watcher',
+  'jira_add_worklog',
+  'jira_assign_issue',
+  'jira_bulk_read',
+  'jira_delete_attachment',
+  'jira_delete_comment',
+  'jira_delete_issue',
+  'jira_delete_issue_link',
+  'jira_delete_worklog',
+  'jira_get_attachments',
+  'jira_get_comments',
+  'jira_get_project',
+  'jira_get_transitions',
+  'jira_get_worklogs',
+  'jira_remove_watcher',
+  'jira_retrieve',
+  'jira_transition_issue',
+  'jira_update_comment',
+  'jira_update_worklog',
+]
+
+interface RebuildResult {
+  urls: URL[]
+  error?: Error
+}
+
+/** A permissive payload every tool's response reader tolerates. */
+function fakeJson() {
+  return {
+    comments: [],
+    worklogs: [],
+    transitions: [],
+    issues: [],
+    values: [],
+    fields: {},
+    id: '1',
+    key: 'PROJ',
+  }
+}
+
+function fakeResponse() {
+  return {
+    ok: true,
+    status: 200,
+    statusText: 'OK',
+    text: async () => '{}',
+    json: async () => fakeJson(),
+  } as unknown as Response
+}
+
+async function runRebuild(
+  tool: AnyTool,
+  overrides: Record<string, string> = {}
+): Promise<RebuildResult> {
+  const recorded: string[] = []
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: unknown) => {
+      recorded.push(String(input))
+      return fakeResponse()
+    })
+  )
+  mockResolveAtlassianCloudId.mockResolvedValue(CLOUD_ID)
+
+  const params = buildParams(tool, overrides)
+  params.cloudId = REBUILD_CLOUD_ID[tool.id]
+
+  let error: Error | undefined
+  try {
+    await tool.transformResponse!(fakeResponse(), params)
+  } catch (caught) {
+    error = caught as Error
+  }
+
+  return {
+    urls: recorded
+      .filter((url) => url.startsWith(`${ORIGIN}${PATH_PREFIX}`))
+      .map((url) => new URL(url)),
+    error,
+  }
+}
+
+/** Params whose probe token lands in the path of at least one rebuilt URL. */
+function rebuildPathParamsOf(tool: AnyTool, urls: URL[]): string[] {
+  return Object.entries(tool.params ?? {})
+    .filter(([, def]) => {
+      const { type, visibility } = def as { type?: string; visibility?: string }
+      return visibility === 'user-or-llm' && (type === undefined || type === 'string')
+    })
+    .map(([name]) => name)
+    .filter((name) =>
+      urls.some(
+        (url) => url.pathname.includes(tokenFor(name)) && !url.search.includes(tokenFor(name))
+      )
+    )
+}
+
+describe('Jira transformResponse rebuild safety', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('covers exactly the tools that rebuild a guarded path', async () => {
+    const found: string[] = []
+    for (const tool of ALL_TOOLS) {
+      if (typeof tool.transformResponse !== 'function') continue
+      const { urls } = await runRebuild(tool)
+      if (rebuildPathParamsOf(tool, urls).length > 0) found.push(tool.id)
+    }
+
+    expect(found.sort()).toEqual(EXPECTED_REBUILD_TOOLS)
+  })
+
+  describe.each(EXPECTED_REBUILD_TOOLS)('%s', (id) => {
+    const tool = ALL_TOOLS.find((candidate) => candidate.id === id)!
+
+    it('guards every identifier it interpolates into a rebuilt path', async () => {
+      const baseline = await runRebuild(tool)
+      expect(baseline.error).toBeUndefined()
+      expect(baseline.urls.length).toBeGreaterThan(0)
+
+      const pathParams = rebuildPathParamsOf(tool, baseline.urls)
+      expect(pathParams.length).toBeGreaterThan(0)
+
+      for (const param of pathParams) {
+        for (const value of REJECTED) {
+          const { urls, error } = await runRebuild(tool, { [param]: value })
+          expect(error?.message).toMatch(param)
+          expect(urls).toEqual([])
+        }
+
+        for (const value of NEUTRALIZED) {
+          const { urls } = await runRebuild(tool, { [param]: value })
+          expect(urls).toHaveLength(baseline.urls.length)
+          urls.forEach((url, index) => {
+            expectSameShapeAgainst(baseline.urls[index], param, url)
+            expect(url.searchParams.get('foo')).toBeNull()
+          })
+        }
+
+        for (const value of LEGITIMATE) {
+          const { urls } = await runRebuild(tool, { [param]: value })
+          expect(urls).toHaveLength(baseline.urls.length)
+          urls.forEach((url, index) => {
+            const expected = segmentsOf(baseline.urls[index]).map((segment) =>
+              segment.replace(tokenFor(param), encodeURIComponent(value.trim()))
+            )
+            expect(segmentsOf(url)).toEqual(expected)
+          })
+        }
+      }
+    })
+  })
+})
