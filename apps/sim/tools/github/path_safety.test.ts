@@ -28,8 +28,29 @@ import type { ToolConfig } from '@/tools/types'
 
 type AnyTool = ToolConfig<any, any>
 
-/** Parameters that legitimately span several path segments. */
-const MULTI_SEGMENT_PARAMS = new Set(['path', 'branch', 'ref'])
+/**
+ * Parameters that legitimately span several path segments.
+ *
+ * `name` is `remove_label`'s label name. GitHub places no character
+ * restriction on a label name and slashes are conventional in the wild
+ * (`area/apiserver`, `kind/bug`, `sig/network`). Verified live against
+ * `kubernetes/kubernetes`: `labels/area/apiserver` and `labels/area%2Fapiserver`
+ * both return `200` for the same label id, and GitHub echoes the *literal*
+ * slash form as the label's canonical `url`. A single-segment guard rejected
+ * every such label.
+ */
+const MULTI_SEGMENT_PARAMS = new Set(['path', 'branch', 'ref', 'name'])
+
+/**
+ * Parameters whose provider normalizes a single trailing `/` away, so the
+ * tool strips it rather than rejecting the value.
+ *
+ * Only the GitHub contents `path`. Verified live against `vercel/next.js`:
+ * `contents/packages/` returns `302` with `Location: .../contents/packages`,
+ * which `fetch` follows to the same `200` the bare form returns. See
+ * `@/tools/github/contents_path`.
+ */
+const TRAILING_SLASH_TOLERANT_PARAMS = new Set(['path'])
 
 /**
  * `compare_commits` interpolates `base` and `head` into `{base}...{head}`.
@@ -44,7 +65,10 @@ const UNVERIFIED_SITES = new Set(['github_compare_commits:base', 'github_compare
 
 const REJECTED_ANYWHERE = ['..', '.', '  ..  ', '\\..\\..'] as const
 const REJECTED_SINGLE_ONLY = ['a/../../b', 'a/b'] as const
-const REJECTED_MULTI_ONLY = ['/leading', 'trailing/', 'a//b', 'a/../b'] as const
+const REJECTED_MULTI_ONLY = ['/leading', 'a//b', 'a/../b'] as const
+
+/** Rejected on multi-segment params that their provider does NOT normalize. */
+const REJECTED_TRAILING_SLASH = ['trailing/'] as const
 
 /** Must NOT throw — encoding already neutralizes them — but must not reshape the path. */
 const NEUTRALIZED = ['%2e%2e', '..%2f..', 'x?foo=attacker'] as const
@@ -142,9 +166,11 @@ describe('github path-parameter traversal safety', () => {
 
   describe('guards every path param independently', () => {
     describe.each(SITES)('$name', (site) => {
+      const tolerantOfTrailingSlash = site.multi && TRAILING_SLASH_TOLERANT_PARAMS.has(site.param)
       const rejected = [
         ...REJECTED_ANYWHERE,
         ...(site.multi ? REJECTED_MULTI_ONLY : REJECTED_SINGLE_ONLY),
+        ...(tolerantOfTrailingSlash ? [] : site.multi ? REJECTED_TRAILING_SLASH : []),
       ]
 
       it.each(rejected)('rejects %j', (value) => {
@@ -173,6 +199,70 @@ describe('github path-parameter traversal safety', () => {
           expect(url.pathname).not.toContain('%2f')
         }
       )
+
+      if (tolerantOfTrailingSlash) {
+        it.each(['src/components', 'packages'] as const)(
+          'resolves %j identically with and without a trailing slash',
+          (value) => {
+            const bare = buildUrl(site.tool, { [site.param]: value })
+            const trailing = buildUrl(site.tool, { [site.param]: `${value}/` })
+
+            expect(trailing.href).toBe(bare.href)
+            expect(segmentsOf(trailing)).toEqual([
+              ...site.prefix,
+              ...value.split('/'),
+              ...site.suffix,
+            ])
+          }
+        )
+
+        it('still rejects a doubled trailing slash', () => {
+          expect(() => buildUrl(site.tool, { [site.param]: 'src/components//' })).toThrow(
+            new RegExp(site.param)
+          )
+        })
+      }
     })
+  })
+})
+
+describe('github label names carry slashes', () => {
+  it('builds the literal-slash label URL GitHub returns as canonical', () => {
+    const url = new URL(
+      (githubTools.githubRemoveLabelTool.request!.url as (p: any) => string)({
+        owner: 'kubernetes',
+        repo: 'kubernetes',
+        issue_number: 1,
+        name: 'area/apiserver',
+      })
+    )
+
+    expect(url.pathname).toBe('/repos/kubernetes/kubernetes/issues/1/labels/area/apiserver')
+    expect(url.pathname).not.toContain('%2F')
+  })
+
+  it.each(['kind/bug', 'sig/network', 'priority/important-soon'] as const)(
+    'accepts the conventional label name %j',
+    (name) => {
+      expect(() =>
+        (githubTools.githubRemoveLabelTool.request!.url as (p: any) => string)({
+          owner: 'o',
+          repo: 'r',
+          issue_number: 1,
+          name,
+        })
+      ).not.toThrow()
+    }
+  )
+
+  it.each(['..', '.', 'a/../b'] as const)('still rejects the traversal label %j', (name) => {
+    expect(() =>
+      (githubTools.githubRemoveLabelTool.request!.url as (p: any) => string)({
+        owner: 'o',
+        repo: 'r',
+        issue_number: 1,
+        name,
+      })
+    ).toThrow(/name/)
   })
 })

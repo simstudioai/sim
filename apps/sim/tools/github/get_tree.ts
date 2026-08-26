@@ -1,6 +1,7 @@
+import { safeGithubContentsPath } from '@/tools/github/contents_path'
 import type { GetTreeParams, TreeResponse } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
-import { safeUrlPath, safeUrlPathSegment } from '@/tools/url-path'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const getTreeTool: ToolConfig<GetTreeParams, TreeResponse> = {
   id: 'github_get_tree',
@@ -45,7 +46,9 @@ export const getTreeTool: ToolConfig<GetTreeParams, TreeResponse> = {
 
   request: {
     url: (params) => {
-      const path = params.path ? safeUrlPath(params.path, 'path') : ''
+      const rawPath = (params.path ?? '').trim()
+      const addressesRoot = rawPath === '' || rawPath === '/'
+      const path = addressesRoot ? '' : safeGithubContentsPath(rawPath, 'path')
       const baseUrl = `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/contents/${path}`
       return params.ref ? `${baseUrl}?ref=${params.ref}` : baseUrl
     },

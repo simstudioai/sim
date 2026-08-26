@@ -1,6 +1,7 @@
+import { safeGithubContentsPath } from '@/tools/github/contents_path'
 import type { CreateFileParams, FileOperationResponse } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
-import { safeUrlPath, safeUrlPathSegment } from '@/tools/url-path'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const createFileTool: ToolConfig<CreateFileParams, FileOperationResponse> = {
   id: 'github_create_file',
@@ -56,7 +57,7 @@ export const createFileTool: ToolConfig<CreateFileParams, FileOperationResponse>
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/contents/${safeUrlPath(params.path, 'path')}`,
+      `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/contents/${safeGithubContentsPath(params.path, 'path')}`,
     method: 'PUT',
     headers: (params) => ({
       Accept: 'application/vnd.github+json',

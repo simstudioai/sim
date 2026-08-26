@@ -152,9 +152,78 @@ describe('safeUrlPath', () => {
     expect(decodeURIComponent(url.pathname.split('/')[5])).toBe('a b#c?d.txt')
   })
 
-  it.concurrent('trims whitespace around each segment', () => {
-    expect(safeUrlPath('  folder / file.jpg  ', 'path')).toBe('folder/file.jpg')
+  /**
+   * The whole-value trim is retained for copy-paste hygiene, so whitespace at
+   * the very start or end of the *entire* value is still removed. That is the
+   * one remaining spelling this helper cannot address; whitespace anywhere
+   * inside the value now survives.
+   */
+  it.concurrent('still trims only at the very edges of the whole value', () => {
+    expect(safeUrlPath(' a/b.txt ', 'path')).toBe('a/b.txt')
+    expect(safeUrlPath('a/ b .txt', 'path')).toBe('a/%20b%20.txt')
   })
+
+  it.concurrent('trims the whole value but never an individual segment', () => {
+    expect(safeUrlPath('  folder/file.jpg  ', 'path')).toBe('folder/file.jpg')
+    expect(safeUrlPath('  folder / file.jpg  ', 'path')).toBe('folder%20/%20file.jpg')
+  })
+
+  /**
+   * Supabase Storage's server-side `VALID_OBJECT_KEY` regex
+   * (`/^[A-Za-z0-9_/!.*'() &$=@;:+,?-]*$/`) includes a literal space, so
+   * whitespace inside a segment is part of the key. Trimming it addressed a
+   * different object and 404'd (or returned the wrong file) with no error.
+   */
+  it.concurrent('preserves whitespace inside a segment, which is a legal storage key', () => {
+    const value = 'folder/ report .csv'
+    const encoded = safeUrlPath(value, 'path')
+    const url = new URL(`${ORIGIN}/storage/v1/object/${encoded}`)
+    const segments = url.pathname.split('/')
+
+    expect(segments.slice(4).map(decodeURIComponent).join('/')).toBe(value)
+    expect(segments[5]).toBe('%20report%20.csv')
+  })
+
+  it.concurrent.each([
+    'a/ leading.txt',
+    'a/trailing.txt /b',
+    'a/ b /c.txt',
+    'my report.csv',
+    'folder/ /file.txt',
+  ] as const)('round-trips %j unchanged', (value) => {
+    const url = new URL(`${ORIGIN}/storage/v1/object/${safeUrlPath(value, 'path')}`)
+
+    expect(url.pathname.split('/').slice(4).map(decodeURIComponent).join('/')).toBe(value)
+  })
+
+  /**
+   * A whitespace-only segment is ALLOWED: Supabase's charset permits a folder
+   * literally named `" "`, it is structurally non-empty, and encoding it to
+   * `%20` keeps the path shape intact. Only a genuinely empty segment is
+   * rejected.
+   */
+  it.concurrent('allows a whitespace-only segment but still rejects an empty one', () => {
+    expect(safeUrlPath('a/ /b', 'path')).toBe('a/%20/b')
+    expect(new URL(`${ORIGIN}/o/${safeUrlPath('a/ /b', 'path')}`).pathname).toBe('/o/a/%20/b')
+    expect(() => safeUrlPath('a//b', 'path')).toThrow(/path/)
+  })
+
+  /**
+   * Dropping the per-segment trim must not re-open traversal. The WHATWG
+   * parser only removes a segment that is *exactly* `.` or `..`; a padded one
+   * encodes to inert text and stays put.
+   */
+  it.concurrent.each(['a/ .. /b', 'a/ ../b', 'a/.. /b', 'a/ . /b'] as const)(
+    'keeps the padded dot segment %j inert instead of popping a segment',
+    (value) => {
+      const url = new URL(`${ORIGIN}/storage/v1/object/${safeUrlPath(value, 'path')}`)
+
+      expect(url.pathname.split('/')).toHaveLength(7)
+      expect(url.pathname.startsWith('/storage/v1/object/')).toBe(true)
+      expect(url.pathname).not.toContain('/../')
+      expect(url.pathname).not.toMatch(/\/\.\.$/)
+    }
+  )
 
   it.concurrent('every vector either throws or keeps the fixed prefix shape', () => {
     for (const value of [...PATH_REJECTED, ...NEUTRALIZED, 'folder/file.jpg']) {
@@ -171,5 +240,61 @@ describe('safeUrlPath', () => {
       expect(segments[3]).toBe('object')
       expect(segments.slice(4).every((segment) => segment !== '')).toBe(true)
     }
+  })
+})
+
+/**
+ * The guards replaced bare `${params.id}` templates at call sites where a
+ * numeric-looking id (Stripe `id`, Spotify ids, X `woeid`) could arrive as a
+ * JSON number. Coercing a non-string to `''` reported it as missing.
+ */
+describe('non-string inputs', () => {
+  it.concurrent.each([
+    [123, '123'],
+    [0, '0'],
+    [1.5, '1.5'],
+    [-7, '-7'],
+    [2487956, '2487956'],
+  ] as const)('stringifies the number %j to %j instead of throwing', (value, expected) => {
+    expect(safeUrlPathSegment(value, 'woeid')).toBe(expected)
+    expect(safeUrlPath(value, 'woeid')).toBe(expected)
+  })
+
+  it.concurrent('keeps a numeric id addressable in the built URL', () => {
+    const url = new URL(`${ORIGIN}/v1/trends/${safeUrlPathSegment(2487956, 'woeid')}`)
+
+    expect(url.pathname).toBe('/v1/trends/2487956')
+  })
+
+  /**
+   * `String(null)` is `'null'` and `String(undefined)` is `'undefined'` — both
+   * truthy — so these must be rejected before coercion or the request would
+   * silently address a resource literally named "null".
+   */
+  it.concurrent.each([
+    ['null', null],
+    ['undefined', undefined],
+  ] as const)('still throws the required error for %s', (_label, value) => {
+    expect(() => safeUrlPathSegment(value as unknown as string, 'id')).toThrow(/id is required/)
+    expect(() => safeUrlPath(value as unknown as string, 'id')).toThrow(/id is required/)
+  })
+
+  it.concurrent('never lets null or undefined reach the path as literal text', () => {
+    for (const value of [null, undefined]) {
+      let built: string | null = null
+      try {
+        built = `${ORIGIN}/v1/${safeUrlPathSegment(value as unknown as string, 'id')}`
+      } catch {
+        continue
+      }
+      expect(built).toBeNull()
+    }
+  })
+
+  it.concurrent('applies the dot-segment guard to a coerced value too', () => {
+    expect(() => safeUrlPathSegment({ toString: () => '..' } as unknown as string, 'id')).toThrow(
+      /id/
+    )
+    expect(() => safeUrlPath({ toString: () => 'a/../b' } as unknown as string, 'id')).toThrow(/id/)
   })
 })
