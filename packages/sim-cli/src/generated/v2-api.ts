@@ -7232,7 +7232,7 @@ type RestoreTableResponseRef1 = {
     columns: Array<{
       id?: string
       name: string
-      type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'json' | 'select'
+      type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'ttl' | 'json' | 'select'
       required: boolean
       unique: boolean
       workflowGroupId?: string
