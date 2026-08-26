@@ -593,7 +593,7 @@ sim tables dispatches create <tableId> [options]
 | `--row-ids <value...>` | No | Explicit row subset to run. (space-separated, or @path / @- with one value per line). |
 | `--filter <json\|@file>` | No | Predicate: &#123;"all":[&#123;"field":"status","op":"eq","value":"active"&#125;]&#125;; groups use all/any. Operators: eq, ne, gt, gte, lt, lte, in, nin, contains, ncontains, startsWith, endsWith, like, ilike, nlike, nilike, isEmpty, isNotEmpty, isNull, isNotNull (JSON, or @path / @- to read a file or stdin). |
 | `--exclude-row-ids <value...>` | No | Rows excluded from a select-all run scope. (space-separated, or @path / @- with one value per line). |
-| `--max-rows <json\|@file>` | No | Cap on eligible rows to run, as an object rather than a count: &#123;"type":"rows","max":100&#125; (JSON, or @path / @- to read a file or stdin). |
+| `--max-rows <n>` | No | Stop after this many eligible rows have run (1-1,000,000). Omit for an unbounded run. |
 
 </CommandTable>
 
@@ -710,7 +710,7 @@ sim tables exports download <tableId> <exportId>
 ## Cancel table import
 
 ```bash
-sim tables imports cancel <importId> [options]
+sim tables imports cancel <importId>
 ```
 
 **Arguments**
@@ -720,23 +720,13 @@ sim tables imports cancel <importId> [options]
 | Argument | Required | Description |
 | --- | --- | --- |
 | `importId` | Yes | Unique table-import identifier. |
-
-</CommandTable>
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--upload-token <value>` | No | Signed upload control token returned when an upload-backed import was created. |
 
 </CommandTable>
 
 ## Get table import
 
 ```bash
-sim tables imports get <importId> [options]
+sim tables imports get <importId>
 ```
 
 **Arguments**
@@ -746,16 +736,6 @@ sim tables imports get <importId> [options]
 | Argument | Required | Description |
 | --- | --- | --- |
 | `importId` | Yes | Unique table-import identifier. |
-
-</CommandTable>
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--upload-token <value>` | No | Signed upload control token returned when an upload-backed import was created. |
 
 </CommandTable>
 
@@ -785,6 +765,7 @@ sim tables cancel-runs <tableId> [options]
 | `--row-id <value>` | No | Row whose runs should be canceled for row scope. |
 | `--filter <json\|@file>` | No | Predicate: &#123;"all":[&#123;"field":"status","op":"eq","value":"active"&#125;]&#125;; groups use all/any. Operators: eq, ne, gt, gte, lt, lte, in, nin, contains, ncontains, startsWith, endsWith, like, ilike, nlike, nilike, isEmpty, isNotEmpty, isNull, isNotNull (JSON, or @path / @- to read a file or stdin). |
 | `--exclude-row-ids <value...>` | No | Rows excluded from an all-scope cancellation. (space-separated, or @path / @- with one value per line). |
+| `-y, --yes` | Yes | Confirm this destructive operation. |
 
 </CommandTable>
 
@@ -1118,7 +1099,7 @@ sim tables move [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--table-ids <json\|@file>` | No | Tables to move, by identifier. (JSON, or @path / @- to read a file or stdin). |
-| `--folder <value...>` | No | Folder path as shown in the app; the leading / is optional (space-separated, or @path / @- with one value per line). |
+| `--folder <value...>` | No | Table folders to move, by path as shown in the app; the leading / is optional (space-separated, or @path / @- with one value per line). |
 | `--to <value>` | No | Destination folder path; omit for root. |
 
 </CommandTable>
@@ -1162,8 +1143,7 @@ sim tables update <tableId> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--name <value>` | No | Identifier: letters, numbers, and underscores; cannot start with a number. |
-| `--description <value>` | No | Replacement table description, or null to clear it. (--no-description clears it). |
-| `--no-description` | No | Send --description as null to clear it. |
+| `--description <value>` | No | Replacement table description, or null to clear it. (--description null sends the word, not JSON null). |
 | `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
 
 </CommandTable>

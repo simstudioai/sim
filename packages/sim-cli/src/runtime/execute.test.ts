@@ -71,7 +71,7 @@ const MOVE_WORKFLOWS: OperationSpec = {
   body: {},
 }
 
-const MOVE_FLAGS = { workflow: ['wf_1'], folder: '/a' }
+const MOVE_FLAGS = { workflow: ['wf_1'], to: '/a' }
 
 /** Invokes a generated command that takes its input from flags rather than positionals. */
 function invokeWithFlags(

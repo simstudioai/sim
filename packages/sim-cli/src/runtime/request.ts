@@ -9,8 +9,6 @@ import { camel, kebab } from './derive'
 export interface FieldSpec {
   kind: 'string' | 'number' | 'integer' | 'boolean' | 'enum' | 'array' | 'object' | 'unknown'
   required?: boolean
-  /** Whether the route contract accepts JSON `null` for this field. */
-  nullable?: boolean
   values?: readonly string[]
   default?: unknown
   /** The field's `.describe()` from the route contract, used as `--help` text. */
@@ -89,7 +87,25 @@ export function pathFlagNameFor(commandSpec: CommandSpec, param: string): string
 }
 
 export function takesJson(field: FieldSpec, flag: FlagSpec): boolean {
+  // `rowCap` builds the object itself from a typed number, so the field's
+  // object kind must not pull the flag back into the JSON form it replaces.
+  if (flag.rowCap) return false
   return flag.json === true || JSON_KINDS.has(field.kind)
+}
+
+/** The route's ceiling on `limit.max`; stated here so the refusal can name it. */
+const MAX_ROW_CAP = 1_000_000
+
+/** Reads `--max-rows 100` as the `{ type: 'rows', max: 100 }` the route declares. */
+function coerceRowCap(raw: unknown, flagName: string): { type: 'rows'; max: number } {
+  const value = Number(raw)
+  if (!Number.isInteger(value) || value < 1 || value > MAX_ROW_CAP) {
+    throw new SimApiError(
+      `--${flagName} must be a whole number between 1 and ${MAX_ROW_CAP.toLocaleString('en-US')}`,
+      0
+    )
+  }
+  return { type: 'rows', max: value }
 }
 
 /**
@@ -139,8 +155,15 @@ function readStdin(): string {
  * unpleasant — unquoted `$(cat f.json)` word-splits into broken JSON, and the
  * quoted form is easy to get wrong. JSON never starts with `@`; primitive list
  * flags reserve it for this explicit file-input form.
+ *
+ * A value that genuinely starts with `@` is written `@@`, and only the leading
+ * `@` is dropped. The escape lives here rather than in any one command so that
+ * every `@`-aware flag inherits it: without it `--tag @urgent` has no spelling
+ * at all, because it can only be read as a request to open a file named
+ * `urgent`.
  */
 export function readArgumentSource(raw: string, flagName: string): { text: string; from: string } {
+  if (raw.startsWith('@@')) return { text: raw.slice(1), from: '' }
   if (!raw.startsWith('@')) return { text: raw, from: '' }
 
   const path = raw.slice(1)
@@ -280,14 +303,6 @@ export function coerce(raw: unknown, field: FieldSpec, flag: FlagSpec, flagName:
   if (raw === undefined) return undefined
 
   /**
-   * The clearing companion, `--no-<flag>`. Commander stores a negated option as
-   * `false`, which on a field the API types as nullable and not boolean can only
-   * have come from that flag. Typing the word `null` as a value stays the four
-   * characters it is, which is the only way to store that text literally.
-   */
-  if (raw === false && field.nullable && field.kind !== 'boolean' && !flag.boolean) return null
-
-  /**
    * A repeated flag. `list` says the CLI accepts several values; the *wire*
    * encoding follows the field's own kind, because the two are not the same
    * question:
@@ -308,6 +323,8 @@ export function coerce(raw: unknown, field: FieldSpec, flag: FlagSpec, flagName:
     // cannot cut one path in half.
     return field.kind === 'string' ? values.join(',') : values
   }
+
+  if (flag.rowCap) return coerceRowCap(raw, flagName)
 
   if (takesJson(field, flag)) {
     if (typeof raw !== 'string') return raw

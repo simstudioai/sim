@@ -182,8 +182,7 @@ sim workflow-mcp-servers update <serverId> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--name <value>` | No | Server display name, shown to connecting MCP clients. |
-| `--description <value>` | No | New server description, or null to clear it. (--no-description clears it). |
-| `--no-description` | No | Send --description as null to clear it. |
+| `--description <value>` | No | New server description, or null to clear it. (--description null sends the word, not JSON null). |
 | `--is-public` | No | Whether the server answers MCP clients without a Sim API key. |
 | `--no-is-public` | No | Send --is-public as false. |
 

@@ -2557,19 +2557,6 @@ export const document = pgTable(
     processingStartedAt: timestamp('processing_started_at'),
     processingCompletedAt: timestamp('processing_completed_at'),
     processingError: text('processing_error'),
-    /**
-     * How the indexed text was obtained: 'file-parser' or 'mistral-ocr'.
-     *
-     * OCR output is a model's transcription of the file, not an extraction from
-     * it, so it can differ from the document while every derived count agrees
-     * with itself — `character_count` measures what was stored, not what the
-     * file contains. Without this column the routing decision was computed and
-     * discarded, leaving an OCR'd document indistinguishable from a cleanly
-     * parsed one. NULL means never processed, or processed before this column
-     * existed; existing rows are not backfilled because the decision was not
-     * recorded at the time.
-     */
-    extractionMethod: text('extraction_method'),
 
     // Document state
     enabled: boolean('enabled').notNull().default(true), // Enable/disable from knowledge base

@@ -132,13 +132,11 @@ describe('files upload', () => {
       },
     ])
     /**
-     * The session is reported alongside the file it became; its token is not.
-     *
-     * `sim files uploads get` needs the session id, and the CLI ran the whole
-     * handshake internally and printed it nowhere — so the one caller that
-     * could never inspect its own transfers was the CLI itself. The token
-     * stays out of every format: it also authorizes aborting and completing
-     * the transfer, and this command runs in CI, where stdout is retained.
+     * The file record only: the transfer session is finished either way by the
+     * time anything is printed, so neither half of it is reported. The token in
+     * particular stays out of every format — it also authorizes aborting and
+     * completing the transfer, and this command runs in CI, where stdout is
+     * retained.
      */
     expect(JSON.parse(logged[0])).toEqual({
       id: 'file_1',
@@ -150,8 +148,8 @@ describe('files upload', () => {
       uploadedBy: 'user_1',
       uploadedAt: '2026-08-04T19:00:00.000Z',
       updatedAt: '2026-08-04T19:00:00.000Z',
-      uploadId: 'upload_1',
     })
+    expect(logged[0]).not.toContain('upload_1')
     expect(logged[0]).not.toContain('secret-token')
   })
 

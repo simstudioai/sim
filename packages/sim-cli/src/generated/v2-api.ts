@@ -3901,7 +3901,6 @@ type GetKnowledgeDocumentResponseRef0 = {
   enabled: boolean
   createdAt: string | null
   tags: Record<string, string | number | boolean | null>
-  extractionMethod: 'file-parser' | 'mistral-ocr' | null
   processingError: string | null
   processingStartedAt: string | null
   processingCompletedAt: string | null
@@ -5525,7 +5524,6 @@ type ListKnowledgeDocumentsResponseRef0 = {
   enabled: boolean
   createdAt: string | null
   tags: Record<string, string | number | boolean | null>
-  extractionMethod: 'file-parser' | 'mistral-ocr' | null
 }
 
 export type ListKnowledgeDocumentsResponse = {
@@ -8075,7 +8073,6 @@ type UpdateKnowledgeDocumentResponseRef0 = {
   enabled: boolean
   createdAt: string | null
   tags: Record<string, string | number | boolean | null>
-  extractionMethod: 'file-parser' | 'mistral-ocr' | null
 }
 
 type UpdateKnowledgeDocumentResponseRef1 = {
@@ -9804,13 +9801,11 @@ export const V2_OPERATIONS = {
       },
       oauthClientId: {
         kind: 'string',
-        nullable: true,
         describe:
           'Pre-registered OAuth client identifier. Changing it on update revokes the stored OAuth grant and forces reauthorization.',
       },
       oauthClientSecret: {
         kind: 'string',
-        nullable: true,
         describe:
           'Write-only pre-registered OAuth client secret. Sending it on update as null or a new value revokes the stored OAuth grant and forces reauthorization, as does switching away from OAuth authentication.',
       },
@@ -10050,7 +10045,7 @@ export const V2_OPERATIONS = {
         describe: 'Workspace in which to create the workflow.',
       },
       name: { kind: 'string', required: true, describe: 'Workflow name.' },
-      description: { kind: 'string', nullable: true, describe: 'Optional workflow description.' },
+      description: { kind: 'string', describe: 'Optional workflow description.' },
       folderPath: {
         kind: 'string',
         describe:
@@ -10542,7 +10537,6 @@ export const V2_OPERATIONS = {
       name: { kind: 'string', describe: 'Optional label for the deployment version.' },
       description: {
         kind: 'string',
-        nullable: true,
         describe: 'Optional release note for the deployment version.',
       },
     },
@@ -13261,7 +13255,6 @@ export const V2_OPERATIONS = {
       },
       searchMode: {
         kind: 'enum',
-        nullable: true,
         default: 'vector',
         describe:
           'Retrieval strategy: vector is semantic-only, while hybrid also runs full-text search.',
@@ -13331,7 +13324,6 @@ export const V2_OPERATIONS = {
       },
       description: {
         kind: 'string',
-        nullable: true,
         describe:
           'What the secret is for, shown to teammates. Workspace scope only — sending it for a personal secret is rejected. Omit it to leave an existing description untouched; send null or an empty string to clear one.',
       },
@@ -13431,7 +13423,6 @@ export const V2_OPERATIONS = {
       displayName: { kind: 'string', describe: 'New name shown for the credential in Sim.' },
       description: {
         kind: 'string',
-        nullable: true,
         describe: 'New credential description. Send null to clear the stored one.',
       },
       serviceAccountJson: {
@@ -13727,13 +13718,11 @@ export const V2_OPERATIONS = {
       },
       oauthClientId: {
         kind: 'string',
-        nullable: true,
         describe:
           'Pre-registered OAuth client identifier. Changing it on update revokes the stored OAuth grant and forces reauthorization.',
       },
       oauthClientSecret: {
         kind: 'string',
-        nullable: true,
         describe:
           'Write-only pre-registered OAuth client secret. Sending it on update as null or a new value revokes the stored OAuth grant and forces reauthorization, as does switching away from OAuth authentication.',
       },
@@ -13791,7 +13780,6 @@ export const V2_OPERATIONS = {
       name: { kind: 'string', describe: 'Replacement table name.' },
       description: {
         kind: 'string',
-        nullable: true,
         describe: 'Replacement table description, or null to clear it.',
       },
       folderPath: {
@@ -13866,7 +13854,6 @@ export const V2_OPERATIONS = {
       name: { kind: 'string', describe: 'Replacement workflow name.' },
       description: {
         kind: 'string',
-        nullable: true,
         describe: 'Replacement workflow description; null clears it.',
       },
       folderPath: {
@@ -13915,11 +13902,7 @@ export const V2_OPERATIONS = {
     summary: 'Update Workflow MCP Server',
     body: {
       name: { kind: 'string', describe: 'Server display name, shown to connecting MCP clients.' },
-      description: {
-        kind: 'string',
-        nullable: true,
-        describe: 'New server description, or null to clear it.',
-      },
+      description: { kind: 'string', describe: 'New server description, or null to clear it.' },
       isPublic: {
         kind: 'boolean',
         describe: 'Whether the server answers MCP clients without a Sim API key.',
@@ -13956,7 +13939,6 @@ export const V2_OPERATIONS = {
       name: { kind: 'string', describe: 'New label for the deployment version.' },
       description: {
         kind: 'string',
-        nullable: true,
         describe: 'New release note for the deployment version, or null to clear it.',
       },
     },

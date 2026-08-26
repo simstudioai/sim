@@ -201,6 +201,25 @@ describe('repeated flags encode per the field kind, not uniformly', () => {
     rmSync(path)
   })
 
+  /**
+   * Without an escape a list value that starts with `@` has no spelling at all:
+   * `--tag @urgent` can only be read as a request to open a file named
+   * `urgent`. The escape belongs to the shared reader, so every `@`-aware flag
+   * has it — `secrets set --value` documented `@@` but implemented it alone.
+   */
+  it('takes @@ as a literal leading @ in a list value', () => {
+    expect(coerce(['@@urgent', 'plain'], { kind: 'array' }, { list: true }, 'tag')).toEqual([
+      '@urgent',
+      'plain',
+    ])
+  })
+
+  it('still reads a single @ in a list value as a file', () => {
+    expect(() => coerce('@urgent', { kind: 'array' }, { list: true }, 'tag')).toThrow(
+      /cannot read urgent/
+    )
+  })
+
   it('rejects empty lines in a list file', () => {
     const path = join(tmpdir(), 'sim-cli-list-empty-line.txt')
     writeFileSync(path, 'file_1\n\nfile_2')
@@ -343,29 +362,16 @@ describe('folder paths are typed by the name the app shows', () => {
   })
 })
 
-describe('clearing a nullable field', () => {
-  const NULLABLE_STRING: FieldSpec = { kind: 'string', nullable: true }
-
+describe('the word null typed into a string flag', () => {
   /**
-   * Five contract fields documented "null clears it" and no flag could express
-   * it: every one is a string, so the word `null` was stored as its four
-   * characters. `--no-<flag>` reaches `coerce` as `false`, which on a nullable
-   * non-boolean field can only have come from that companion.
+   * There is no flag that sends JSON `null`: `--no-<flag>` is spoken for by the
+   * boolean negations, so a field the contract clears with null is cleared from
+   * the terminal only as far as an empty string goes. What a caller types is
+   * text, and `coerce` keeps it that way rather than guessing at the value.
    */
-  it('sends null when the companion flag was used', () => {
-    expect(coerce(false, NULLABLE_STRING, {}, 'description')).toBeNull()
-  })
-
-  it('keeps the literal text null typed as a value', () => {
-    expect(coerce('null', NULLABLE_STRING, {}, 'description')).toBe('null')
-  })
-
-  it('leaves a field the contract does not make nullable alone', () => {
-    expect(coerce(false, { kind: 'string' }, {}, 'name')).toBe(false)
-  })
-
-  it('leaves a boolean field to its own negation', () => {
-    expect(coerce(false, { kind: 'boolean', nullable: true }, {}, 'is-public')).toBe(false)
+  it('stays the four characters, while an empty string stays empty', () => {
+    expect(coerce('null', { kind: 'string' }, {}, 'description')).toBe('null')
+    expect(coerce('', { kind: 'string' }, {}, 'description')).toBe('')
   })
 })
 
@@ -390,13 +396,21 @@ describe('contract-declared headers', () => {
     expect(buildRequest('listTables', [], {}, WORKSPACE)).not.toHaveProperty('headers')
   })
 
-  it('omits an optional header the caller left unset', () => {
-    // Paired with the set case: on its own the assertion also passes when the
-    // operation never had the header at all, or when the flag name it is keyed
-    // by is wrong — which is the class of bug this file exists to catch.
+  /**
+   * `upload-token` is omitted from the flags of `tables imports get`: the token
+   * is a per-transfer credential the CLI never prints, and the session it
+   * addresses is opened and finished inside one `sim files upload`. An omitted
+   * field is dropped even when a value is keyed by its name, so nothing the
+   * caller can type puts the slot back.
+   */
+  it('builds no header for a field the CLI contract omits', () => {
     expect(
-      buildRequest('getTableImport', ['imp_1'], { uploadToken: 'tok_1' }, WORKSPACE).headers
+      buildRequest('getTableImport', ['imp_1'], { uploadToken: 'tok_1' }, WORKSPACE)
+    ).not.toHaveProperty('headers')
+    // Paired with an operation that declares one, so the absence above means
+    // "omitted" rather than "this never builds a header slot at all".
+    expect(
+      buildRequest('getFileUpload', ['up_1'], { uploadToken: 'tok_1' }, WORKSPACE).headers
     ).toEqual({ 'upload-token': 'tok_1' })
-    expect(buildRequest('getTableImport', ['imp_1'], {}, WORKSPACE)).not.toHaveProperty('headers')
   })
 })

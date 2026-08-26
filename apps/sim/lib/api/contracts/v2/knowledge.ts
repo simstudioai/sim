@@ -54,7 +54,6 @@ import {
   DEFAULT_CHUNKING_CONFIG,
   MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_MUTATION_ITEMS,
 } from '@/lib/knowledge/constants'
-import { DOCUMENT_EXTRACTION_METHODS } from '@/lib/knowledge/documents/types'
 import {
   DEFAULT_RERANKER_MODEL,
   rerankerModelSchema,
@@ -256,28 +255,6 @@ export const v2KnowledgeDocumentSummarySchema = v2KnowledgeDocumentCoreSchema
 export type V2KnowledgeDocumentSummary = z.output<typeof v2KnowledgeDocumentSummarySchema>
 
 /**
- * How a document's indexed text was obtained.
- *
- * Carried by every read of an indexed document — the list item and the detail —
- * and deliberately not by the upload acknowledgement, which echoes a document
- * that has not been processed yet and so has nothing to report.
- *
- * This is the only field that separates a transcription from an extraction.
- * `characterCount` and `chunkCount` both measure the text that was stored, so
- * they agree with each other either way; a document routed to OCR because its
- * PDF text layer was too sparse to trust is stored as the model's reading of
- * the file, which can drop, reorder, or repeat content with nothing else in the
- * payload disagreeing.
- */
-const v2KnowledgeExtractionMethodSchema = z
-  .enum(DOCUMENT_EXTRACTION_METHODS)
-  .nullable()
-  .describe(
-    'How the indexed text was obtained: `file-parser` read the file itself, `mistral-ocr` had an external model transcribe it. Null for a document indexed before this was recorded, or one that has not finished processing. OCR output is a transcription rather than an extraction, so it can differ from the file while the character and chunk counts still agree with what was stored.'
-  )
-  .meta({ examples: ['file-parser'] })
-
-/**
  * Tag values carried on a document read, keyed by tag **display name**.
  *
  * The read and write surfaces address tags differently, deliberately:
@@ -313,7 +290,6 @@ export const v2KnowledgeDocumentTagsSchema = z
 export const v2KnowledgeTaggedDocumentSchema = v2KnowledgeDocumentSummarySchema
   .extend({
     tags: v2KnowledgeDocumentTagsSchema,
-    extractionMethod: v2KnowledgeExtractionMethodSchema,
   })
   .meta({
     id: 'V2KnowledgeTaggedDocument',
@@ -330,7 +306,6 @@ export type V2KnowledgeTaggedDocument = z.output<typeof v2KnowledgeTaggedDocumen
 export const v2KnowledgeDocumentSchema = v2KnowledgeDocumentSummarySchema
   .extend({
     tags: v2KnowledgeDocumentTagsSchema,
-    extractionMethod: v2KnowledgeExtractionMethodSchema,
     processingError: z
       .string()
       .nullable()

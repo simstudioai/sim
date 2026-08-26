@@ -459,8 +459,7 @@ sim credentials update <credentialId> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--display-name <value>` | No | New name shown for the credential in Sim. |
-| `--description <value>` | No | New credential description. Send null to clear the stored one. (--no-description clears it). |
-| `--no-description` | No | Send --description as null to clear it. |
+| `--description <value>` | No | New credential description. Send null to clear the stored one. (--description null sends the word, not JSON null). |
 | `--service-account-json <value>` | No | Write-only Google service-account JSON key. |
 | `--api-token <value>` | No | Write-only provider API token. |
 | `--domain <value>` | No | Provider account domain. |
@@ -936,34 +935,6 @@ sim files share set <fileId> [options]
 
 </CommandTable>
 
-### sim files uploads get
-
-Get File Upload
-
-```bash
-sim files uploads get <uploadId> [options]
-```
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `uploadId` | Yes | Upload session identifier. |
-
-</CommandTable>
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--upload-token <value>` | Yes | Signed upload control token returned when the upload session was created. |
-
-</CommandTable>
-
 ### sim files list
 
 List Files
@@ -979,7 +950,7 @@ sim files list [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
-| `--recursive <value>` | No | Whether the folder filter includes files in subfolders. Defaults to true when a search is set, false otherwise, so listing a folder shows that folder while searching one looks through everything in it. Ignored when no folder filter is set, which already spans the workspace. The listed spellings are the whole accepted vocabulary and are case-sensitive; any other value is rejected. Accepted values: `true`, `1`, `yes`, `on`, `y`, `enabled`, `false`, `0`, `no`, `off`, `n`, `disabled`. |
+| `--recursive` | No | Whether the folder filter includes files in subfolders. Defaults to true when a search is set, false otherwise, so listing a folder shows that folder while searching one looks through everything in it. Ignored when no folder filter is set, which already spans the workspace. The listed spellings are the whole accepted vocabulary and are case-sensitive; any other value is rejected. |
 | `--scope <value>` | No | Which lifecycle set to list: `active` (default) for live files, `archived` for files a `DELETE` soft-deleted. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too. Accepted values: `active`, `archived`. |
 | `--search <value>` | No | Case-insensitive substring match against the file name. |
 | `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `size`, `uploadedAt`, `updatedAt`. |
@@ -1826,7 +1797,6 @@ sim knowledge documents update <knowledgeBaseId> <documentId> [options]
 | `--boolean3` | No | New value for boolean tag slot 3. |
 | `--no-boolean3` | No | Send --boolean3 as false. |
 | `--retry-processing` | No | Requeue a failed or stuck document for processing. Send it alone — no other field may accompany it — and it answers with a queue acknowledgement rather than the document. |
-| `--no-retry-processing` | No | Send --retry-processing as false. |
 
 </CommandTable>
 
@@ -2565,10 +2535,8 @@ sim mcp-servers create [options]
 | `--retries <value>` | No | Number of retries per request. Applied server-side as 3 when omitted on create. |
 | `--enabled` | No | Whether the server tools are available to workflows. Applied server-side as true when omitted on create. |
 | `--no-enabled` | No | Send --enabled as false. |
-| `--oauth-client-id <value>` | No | Pre-registered OAuth client identifier. Changing it on update revokes the stored OAuth grant and forces reauthorization. (--no-oauth-client-id clears it). |
-| `--no-oauth-client-id` | No | Send --oauth-client-id as null to clear it. |
-| `--oauth-client-secret <value>` | No | Write-only pre-registered OAuth client secret. Sending it on update as null or a new value revokes the stored OAuth grant and forces reauthorization, as does switching away from OAuth authentication. (--no-oauth-client-secret clears it). |
-| `--no-oauth-client-secret` | No | Send --oauth-client-secret as null to clear it. |
+| `--oauth-client-id <value>` | No | Pre-registered OAuth client identifier. Changing it on update revokes the stored OAuth grant and forces reauthorization. |
+| `--oauth-client-secret <value>` | No | Write-only pre-registered OAuth client secret. Sending it on update as null or a new value revokes the stored OAuth grant and forces reauthorization, as does switching away from OAuth authentication. (--oauth-client-secret null sends the word, not JSON null). |
 
 </CommandTable>
 
@@ -2702,10 +2670,8 @@ sim mcp-servers update <mcpServerId> [options]
 | `--retries <value>` | No | Number of retries per request. Applied server-side as 3 when omitted on create. |
 | `--enabled` | No | Whether the server tools are available to workflows. Applied server-side as true when omitted on create. |
 | `--no-enabled` | No | Send --enabled as false. |
-| `--oauth-client-id <value>` | No | Pre-registered OAuth client identifier. Changing it on update revokes the stored OAuth grant and forces reauthorization. (--no-oauth-client-id clears it). |
-| `--no-oauth-client-id` | No | Send --oauth-client-id as null to clear it. |
-| `--oauth-client-secret <value>` | No | Write-only pre-registered OAuth client secret. Sending it on update as null or a new value revokes the stored OAuth grant and forces reauthorization, as does switching away from OAuth authentication. (--no-oauth-client-secret clears it). |
-| `--no-oauth-client-secret` | No | Send --oauth-client-secret as null to clear it. |
+| `--oauth-client-id <value>` | No | Pre-registered OAuth client identifier. Changing it on update revokes the stored OAuth grant and forces reauthorization. |
+| `--oauth-client-secret <value>` | No | Write-only pre-registered OAuth client secret. Sending it on update as null or a new value revokes the stored OAuth grant and forces reauthorization, as does switching away from OAuth authentication. (--oauth-client-secret null sends the word, not JSON null). |
 
 </CommandTable>
 
@@ -3646,7 +3612,7 @@ sim tables dispatches create <tableId> [options]
 | `--row-ids <value...>` | No | Explicit row subset to run. (space-separated, or @path / @- with one value per line). |
 | `--filter <json\|@file>` | No | Predicate: &#123;"all":[&#123;"field":"status","op":"eq","value":"active"&#125;]&#125;; groups use all/any. Operators: eq, ne, gt, gte, lt, lte, in, nin, contains, ncontains, startsWith, endsWith, like, ilike, nlike, nilike, isEmpty, isNotEmpty, isNull, isNotNull (JSON, or @path / @- to read a file or stdin). |
 | `--exclude-row-ids <value...>` | No | Rows excluded from a select-all run scope. (space-separated, or @path / @- with one value per line). |
-| `--max-rows <json\|@file>` | No | Cap on eligible rows to run, as an object rather than a count: &#123;"type":"rows","max":100&#125; (JSON, or @path / @- to read a file or stdin). |
+| `--max-rows <n>` | No | Stop after this many eligible rows have run (1-1,000,000). Omit for an unbounded run. |
 
 </CommandTable>
 
@@ -3777,7 +3743,7 @@ sim tables exports download <tableId> <exportId>
 Cancel Table Import
 
 ```bash
-sim tables imports cancel <importId> [options]
+sim tables imports cancel <importId>
 ```
 
 **Arguments**
@@ -3787,16 +3753,6 @@ sim tables imports cancel <importId> [options]
 | Argument | Required | Description |
 | --- | --- | --- |
 | `importId` | Yes | Unique table-import identifier. |
-
-</CommandTable>
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--upload-token <value>` | No | Signed upload control token returned when an upload-backed import was created. |
 
 </CommandTable>
 
@@ -3805,7 +3761,7 @@ sim tables imports cancel <importId> [options]
 Get Table Import
 
 ```bash
-sim tables imports get <importId> [options]
+sim tables imports get <importId>
 ```
 
 **Arguments**
@@ -3815,16 +3771,6 @@ sim tables imports get <importId> [options]
 | Argument | Required | Description |
 | --- | --- | --- |
 | `importId` | Yes | Unique table-import identifier. |
-
-</CommandTable>
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--upload-token <value>` | No | Signed upload control token returned when an upload-backed import was created. |
 
 </CommandTable>
 
@@ -3856,6 +3802,7 @@ sim tables cancel-runs <tableId> [options]
 | `--row-id <value>` | No | Row whose runs should be canceled for row scope. |
 | `--filter <json\|@file>` | No | Predicate: &#123;"all":[&#123;"field":"status","op":"eq","value":"active"&#125;]&#125;; groups use all/any. Operators: eq, ne, gt, gte, lt, lte, in, nin, contains, ncontains, startsWith, endsWith, like, ilike, nlike, nilike, isEmpty, isNotEmpty, isNull, isNotNull (JSON, or @path / @- to read a file or stdin). |
 | `--exclude-row-ids <value...>` | No | Rows excluded from an all-scope cancellation. (space-separated, or @path / @- with one value per line). |
+| `-y, --yes` | Yes | Confirm this destructive operation. |
 
 </CommandTable>
 
@@ -4221,7 +4168,7 @@ sim tables move [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--table-ids <json\|@file>` | No | Tables to move, by identifier. (JSON, or @path / @- to read a file or stdin). |
-| `--folder <value...>` | No | Folder path as shown in the app; the leading / is optional (space-separated, or @path / @- with one value per line). |
+| `--folder <value...>` | No | Table folders to move, by path as shown in the app; the leading / is optional (space-separated, or @path / @- with one value per line). |
 | `--to <value>` | No | Destination folder path; omit for root. |
 
 </CommandTable>
@@ -4269,8 +4216,7 @@ sim tables update <tableId> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--name <value>` | No | Identifier: letters, numbers, and underscores; cannot start with a number. |
-| `--description <value>` | No | Replacement table description, or null to clear it. (--no-description clears it). |
-| `--no-description` | No | Send --description as null to clear it. |
+| `--description <value>` | No | Replacement table description, or null to clear it. (--description null sends the word, not JSON null). |
 | `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
 
 </CommandTable>
@@ -4642,8 +4588,7 @@ sim workflow-mcp-servers update <serverId> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--name <value>` | No | Server display name, shown to connecting MCP clients. |
-| `--description <value>` | No | New server description, or null to clear it. (--no-description clears it). |
-| `--no-description` | No | Send --description as null to clear it. |
+| `--description <value>` | No | New server description, or null to clear it. (--description null sends the word, not JSON null). |
 | `--is-public` | No | Whether the server answers MCP clients without a Sim API key. |
 | `--no-is-public` | No | Send --is-public as false. |
 
@@ -4703,7 +4648,7 @@ sim workflows operations apply <workflowId> [options]
 | `--no-atomic` | No | Send --atomic as false. |
 | `--layout <value>` | No | Whether to reposition blocks the batch touched. `targeted` (default) nudges only the affected subgraph; `none` leaves every position exactly as supplied. Accepted values: `targeted`, `none`. |
 | `--set-block-enabled <json\|@file>` | No | Blocks to enable or disable, applied after --operations: [&#123;"block_id":"&lt;uuid&gt;","enabled":false&#125;]. Disabling a loop or parallel cascades to its unlocked descendants; enabling a block whose container is disabled is declined (JSON, or @path / @- to read a file or stdin). |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | No | Confirm this destructive operation (required unless --dry-run). |
 
 </CommandTable>
 
@@ -4895,8 +4840,7 @@ sim workflows create [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--name <value>` | Yes | Workflow name. |
-| `--description <value>` | No | Optional workflow description. (--no-description clears it). |
-| `--no-description` | No | Send --description as null to clear it. |
+| `--description <value>` | No | Optional workflow description. |
 | `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
 
 </CommandTable>
@@ -5131,8 +5075,7 @@ sim workflows deploy <workflowId> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--name <value>` | No | Optional label for the deployment version. |
-| `--description <value>` | No | Optional release note for the deployment version. (--no-description clears it). |
-| `--no-description` | No | Send --description as null to clear it. |
+| `--description <value>` | No | Optional release note for the deployment version. |
 
 </CommandTable>
 
@@ -5339,7 +5282,7 @@ sim workflows state replace <workflowId> [options]
 | `--loops <json\|@file>` | No | Ignored on write: loop containers are recomputed from `blocks`. (JSON, or @path / @- to read a file or stdin). |
 | `--parallels <json\|@file>` | No | Ignored on write: parallel containers are recomputed from `blocks`. (JSON, or @path / @- to read a file or stdin). |
 | `--variables <json\|@file>` | No | Replacement variable set. Omit to leave the stored variables untouched. (JSON, or @path / @- to read a file or stdin). |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | No | Confirm this destructive operation (required unless --dry-run). |
 
 </CommandTable>
 
@@ -5416,8 +5359,7 @@ sim workflows versions update <workflowId> <version> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--name <value>` | No | New label for the deployment version. |
-| `--description <value>` | No | New release note for the deployment version, or null to clear it. (--no-description clears it). |
-| `--no-description` | No | Send --description as null to clear it. |
+| `--description <value>` | No | New release note for the deployment version, or null to clear it. (--description null sends the word, not JSON null). |
 
 </CommandTable>
 
@@ -5482,7 +5424,7 @@ sim workflows move [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--workflow <value...>` | Yes | Workflows to move. Duplicates are collapsed. (space-separated, or @path / @- with one value per line). |
-| `--folder <value>` | Yes | Folder path as shown in the app; the leading / is optional. |
+| `--to <value>` | Yes | Destination folder path; / moves the workflows to the workspace root. |
 
 </CommandTable>
 
@@ -5615,8 +5557,7 @@ sim workflows update <workflowId> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--name <value>` | No | Replacement workflow name. |
-| `--description <value>` | No | Replacement workflow description; null clears it. (--no-description clears it). |
-| `--no-description` | No | Send --description as null to clear it. |
+| `--description <value>` | No | Replacement workflow description; null clears it. (--description null sends the word, not JSON null). |
 | `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
 
 </CommandTable>

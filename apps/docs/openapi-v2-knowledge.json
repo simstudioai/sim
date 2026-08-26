@@ -6320,19 +6320,6 @@
                 "priority": 2
               }
             ]
-          },
-          "extractionMethod": {
-            "anyOf": [
-              {
-                "type": "string",
-                "enum": ["file-parser", "mistral-ocr"]
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "How the indexed text was obtained: `file-parser` read the file itself, `mistral-ocr` had an external model transcribe it. Null for a document indexed before this was recorded, or one that has not finished processing. OCR output is a transcription rather than an extraction, so it can differ from the file while the character and chunk counts still agree with what was stored.",
-            "examples": ["file-parser"]
           }
         },
         "required": [
@@ -6347,8 +6334,7 @@
           "characterCount",
           "enabled",
           "createdAt",
-          "tags",
-          "extractionMethod"
+          "tags"
         ],
         "additionalProperties": false,
         "title": "Knowledge document list item",
@@ -7071,19 +7057,6 @@
               }
             ]
           },
-          "extractionMethod": {
-            "anyOf": [
-              {
-                "type": "string",
-                "enum": ["file-parser", "mistral-ocr"]
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "How the indexed text was obtained: `file-parser` read the file itself, `mistral-ocr` had an external model transcribe it. Null for a document indexed before this was recorded, or one that has not finished processing. OCR output is a transcription rather than an extraction, so it can differ from the file while the character and chunk counts still agree with what was stored.",
-            "examples": ["file-parser"]
-          },
           "processingError": {
             "anyOf": [
               {
@@ -7168,7 +7141,6 @@
           "enabled",
           "createdAt",
           "tags",
-          "extractionMethod",
           "processingError",
           "processingStartedAt",
           "processingCompletedAt",

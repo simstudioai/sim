@@ -116,8 +116,54 @@ describe('the command tree', () => {
     // deliberately takes a singular repeated `--row`. `limit` is two concepts
     // sharing a name on the wire: a page size everywhere else, and on `tables
     // dispatches create` an object capping eligible rows, which is why that one
-    // is `--max-rows`.
-    expect(divergent).toEqual(['rowIds: row, row-ids', 'limit: limit, max-rows'])
+    // is `--max-rows`. `folderPath` is likewise two concepts: a folder filter
+    // or location on most commands, and on `workflows move` the destination —
+    // which its two siblings spell `--to`, because their routes named the same
+    // field `targetFolderPath`. Following the wire spelling there would put
+    // `--folder` on one move command as the destination and on another as the
+    // selection being moved.
+    expect(divergent).toEqual([
+      'folderPath: folder, to',
+      'rowIds: row, row-ids',
+      'limit: limit, max-rows',
+    ])
+  })
+})
+
+describe('the upload control token', () => {
+  /**
+   * The token is minted inside a handshake the CLI drives end to end and is
+   * printed nowhere, so no supported flow leaves a caller holding one. A flag
+   * for it can only ever fail — which is what `sim files uploads get` did on
+   * every invocation — so the sweep is over the whole assembled tree rather
+   * than the two commands that had one. Hidden operations are absent from that
+   * tree by construction, which is exactly the permission this needs: the
+   * transfer steps still declare the header and still send it.
+   */
+  it('reaches no command the CLI actually offers', () => {
+    const offenders: string[] = []
+    const walk = (command: Command, prefix: string[]): void => {
+      const path = [...prefix, command.name()]
+      for (const option of command.options) {
+        if (option.long === '--upload-token') offenders.push(`sim ${path.join(' ')}`)
+      }
+      for (const child of command.commands) walk(child, path)
+    }
+    for (const group of buildGeneratedCommands()) walk(group, [])
+
+    expect(offenders).toEqual([])
+  })
+
+  it('takes the session inspector with it, and leaves the import ones standing', () => {
+    // `files uploads get` required the token, so hiding it is the whole fix;
+    // the import pair only accepted it, and both stay reachable through the
+    // API key and workspace every other command already sends.
+    const all = leafPaths({ includeHidden: true })
+
+    expect(all).not.toContain('files uploads get')
+    expect(leafPaths()).toEqual(
+      expect.arrayContaining(['tables imports get', 'tables imports cancel'])
+    )
   })
 })
 
@@ -357,13 +403,16 @@ describe('list columns', () => {
 })
 
 describe('help states the shape of a JSON flag', () => {
-  it('names the dispatch row cap for what it caps, and spells it out', () => {
-    const help = commandAt('tables', 'dispatches', 'create').helpInformation()
+  it('asks for the dispatch row cap as a count, not as its wire object', () => {
+    const help = flatHelp('tables', 'dispatches', 'create')
 
     // Every other `--limit` in the CLI is a bare integer, so `--limit 2` here
-    // failed with "expected object, received number".
-    expect(help).toContain('--max-rows <json|@file>')
-    expect(help).toContain('{"type":"rows","max":100}')
+    // failed with "expected object, received number" — and the fix for that
+    // must not be to teach the caller `{"type":"rows","max":100}`, whose
+    // `type` has exactly one legal value.
+    expect(help).toContain('--max-rows <n>')
+    expect(help).toContain('1-1,000,000')
+    expect(help).not.toContain('"type":"rows"')
     expect(help).not.toMatch(/--limit\b/)
   })
 
@@ -463,5 +512,71 @@ describe('help and gates state what is actually true', () => {
     // Undocumented, the default surfaces as `Tag slot "number3" is not valid
     // for field type "text"` — blaming a field type the caller never typed.
     expect(flatHelp('knowledge', 'tags', 'create')).toContain('Defaults to text')
+  })
+
+  /**
+   * `--folder` meant the destination on `workflows move` and the selection on
+   * `tables move`, under one generic describe that answered neither. The three
+   * move commands now spell the destination `--to`, and the flag that names
+   * folders being moved says so.
+   */
+  it('spells the move destination --to on every move command', () => {
+    for (const names of [
+      ['workflows', 'move'],
+      ['tables', 'move'],
+      ['files', 'move'],
+    ]) {
+      const help = flatHelp(...names)
+
+      expect(help).toContain('--to <value>')
+      expect(help).not.toContain('--folder <value>')
+    }
+
+    expect(flatHelp('workflows', 'move')).toContain('/ moves the workflows to the workspace root')
+    // The one surviving `--folder` is the selection, not a destination.
+    expect(flatHelp('tables', 'move')).toContain('Table folders to move')
+  })
+
+  it('keeps the retired workflows move --folder working and out of help', () => {
+    const spec = CLI_CONTRACT.moveWorkflows?.flags?.folderPath
+
+    expect(spec?.name).toBe('to')
+    expect(spec?.renamedFrom).toContain('folder')
+  })
+
+  it('takes --recursive as a bare switch on every command that has one', () => {
+    for (const names of [
+      ['files', 'list'],
+      ['files', 'folders', 'delete'],
+      ['knowledge', 'folders', 'delete'],
+      ['tables', 'folders', 'delete'],
+      ['workflows', 'folders', 'delete'],
+    ]) {
+      const help = flatHelp(...names)
+
+      expect(help).toContain('--recursive ')
+      // The server's twelve-spelling string union, which the terminal should
+      // never make anyone type: `--recursive yes`.
+      expect(help).not.toContain('--recursive <')
+    }
+  })
+
+  it('gates the table-wide run cancellation it left open', () => {
+    // `tables dispatches cancel` stops one dispatch behind a gate; this stops
+    // every run on the table and had none.
+    const confirm = CLI_CONTRACT.cancelTableRuns?.confirm ?? ''
+
+    expect(confirm).toBeTruthy()
+    expect(confirm).toContain('--scope')
+  })
+
+  it('offers no negation for the retry that must travel alone', () => {
+    // `retryProcessing` is `z.literal(true)`, so `--no-retry-processing` sent
+    // `retryProcessing: false` as the entire request — a body that asks for
+    // nothing and that the route rejects.
+    const help = flatHelp('knowledge', 'documents', 'update')
+
+    expect(help).toContain('--retry-processing')
+    expect(help).not.toContain('--no-retry-processing')
   })
 })

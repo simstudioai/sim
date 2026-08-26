@@ -362,23 +362,6 @@ function fieldKind(schema: JsonSchema): FieldKind {
 }
 
 /**
- * Whether the contract lets this field be sent as JSON `null`.
- *
- * Read at the reference site as well as through `$defs`, because a field is
- * usually made nullable where it is used rather than in the shared schema it
- * points at. The CLI has no way to type `null` into a string flag, so five
- * fields whose prose said "null clears it" could not be cleared at all — the
- * word `null` was stored as the four characters it is. Emitting the fact is
- * what lets the runtime offer a flag that means it.
- */
-export function isNullable(schema: JsonSchema): boolean {
-  if (Array.isArray(schema.type)) return schema.type.includes('null')
-  const variants = schema.anyOf ?? schema.oneOf
-  if (variants) return variants.some((variant: JsonSchema) => variant.type === 'null')
-  return false
-}
-
-/**
  * Describes one request slot's fields for the runtime that builds flags.
  *
  * Emitted as data rather than baked into types because the CLI has to *iterate*
@@ -466,7 +449,6 @@ export function renderSlotMap(
     const property = deref(properties[key])
     const parts = [`kind: '${fieldKind(property)}'`]
     if (required.has(key)) parts.push('required: true')
-    if (isNullable(properties[key]) || isNullable(property)) parts.push('nullable: true')
     if (property.enum) {
       parts.push(
         `values: [${property.enum.map((v: unknown) => JSON.stringify(v)).join(', ')}] as const`

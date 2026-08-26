@@ -150,28 +150,6 @@ describe('/api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]', () => {
     })
   })
 
-  it('reports how the indexed text was obtained', async () => {
-    mockReadDocument.mockResolvedValue({
-      document: { ...DOCUMENT_ROW, extractionMethod: 'mistral-ocr' },
-      tagDefinitions: TAG_DEFINITIONS,
-      workspaceId: WORKSPACE_ID,
-    })
-
-    const response = await GET(buildGetRequest(), context)
-
-    expect(response.status).toBe(200)
-    const body = await response.json()
-    expect(body.data.extractionMethod).toBe('mistral-ocr')
-  })
-
-  it('reports a null extraction method for a document indexed before it was recorded', async () => {
-    const response = await GET(buildGetRequest(), context)
-
-    expect(response.status).toBe(200)
-    const body = await response.json()
-    expect(body.data.extractionMethod).toBeNull()
-  })
-
   it('updates the whitelisted fields and returns the updated document with its tags', async () => {
     const response = await PATCH(
       buildPatchRequest({

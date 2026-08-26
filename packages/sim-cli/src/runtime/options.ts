@@ -38,15 +38,17 @@ function describeField(
 }
 
 /**
- * How a nullable field is cleared, said in the flag's own help.
+ * The one instruction a route contract gives that a terminal cannot follow.
  *
- * The route contracts describe several of these as "send null to clear it",
- * which was true of the API and impossible from the terminal: every such flag is
- * a string, so the word `null` arrived as its four characters. Naming the
- * companion here is what stops the help promising something the CLI cannot do.
+ * Several v2 body fields document themselves as changed by sending JSON `null`,
+ * which is accurate for the API and untypeable here: those fields are string
+ * flags, so `--description null` sends the four characters. The contract prose
+ * is correct and stays as written; this warns the reader that the literal is
+ * all they can type, without inventing a substitute — an empty string empties a
+ * description but is not what `null` means on, say, `oauthClientSecret`.
  */
-function clearingHint(name: string): string {
-  return ` (--no-${name} clears it)`
+function literalNullHint(documented: string, name: string): string {
+  return /\bnull\b/i.test(documented) ? ` (--${name} null sends the word, not JSON null)` : ''
 }
 
 function addFieldOption(
@@ -96,30 +98,26 @@ function addFieldOption(
 
   const takesList = flag.list === true
   const wantsJson = takesJson(descriptor, flag)
-  const placeholder = takesList ? '<value...>' : wantsJson ? '<json|@file>' : '<value>'
+  const placeholder = takesList
+    ? '<value...>'
+    : flag.rowCap
+      ? '<n>'
+      : wantsJson
+        ? '<json|@file>'
+        : '<value>'
   const choices = flag.choices ?? descriptor.values
   /**
-   * Whether the field has a clear to offer.
-   *
-   * Only a body field can carry an explicit null — a query string has no way to
-   * spell one — and only a field without a default is actually cleared by it:
-   * where the contract declares one, the server substitutes it for the null and
-   * the companion would advertise a clear that never happens.
+   * Only a body field reaches the wire as JSON, and only a plain scalar flag is
+   * stuck with the literal: a `<json|@file>` flag parses `null` into the value.
    */
-  const clearable =
-    slot === 'body' &&
-    descriptor.nullable === true &&
-    !descriptor.required &&
-    descriptor.default === undefined &&
-    !takesList &&
-    !wantsJson
+  const literalNull = slot === 'body' && !takesList && !wantsJson
   const describe = `${documented}${
     takesList
       ? ' (space-separated, or @path / @- with one value per line)'
       : wantsJson
         ? ' (JSON, or @path / @- to read a file or stdin)'
         : ''
-  }${descriptor.required ? ' (required)' : ''}${clearable ? clearingHint(name) : ''}`
+  }${descriptor.required ? ' (required)' : ''}${literalNull ? literalNullHint(documented, name) : ''}`
 
   const renamedFrom = flag.renamedFrom ?? []
   const option = new Option(`${short}--${name} ${placeholder}`, describe)
@@ -135,10 +133,6 @@ function addFieldOption(
   // spelling once both have had their chance to supply the value.
   if (descriptor.required && renamedFrom.length === 0) option.makeOptionMandatory()
   command.addOption(option)
-
-  // Added after the positive flag so Commander does not default the field to
-  // `true`, exactly as the boolean twin above relies on.
-  if (clearable) command.option(`--no-${name}`, `Send --${name} as null to clear it`)
 
   for (const previous of renamedFrom) {
     const retired = new Option(`--${previous} ${placeholder}`).hideHelp()
@@ -211,6 +205,16 @@ export function addOperationOptions(
     // flag is absent, in a TTY or not. Calling it "Skip the confirmation" sent
     // readers looking for a question the CLI never asks, and hid that the flag
     // is the only way the command ever runs.
-    command.option('-y, --yes', 'Confirm this destructive operation (required)')
+    // A dry run is exempt at the gate itself, so on an operation that accepts
+    // `--dry-run` the flag is not unconditionally required and saying so
+    // outright would send a caller reaching for `--yes` to preview a change.
+    const exemptedByDryRun =
+      operationSpec.query?.dryRun !== undefined || operationSpec.body?.dryRun !== undefined
+    command.option(
+      '-y, --yes',
+      exemptedByDryRun
+        ? 'Confirm this destructive operation (required unless --dry-run)'
+        : 'Confirm this destructive operation (required)'
+    )
   }
 }

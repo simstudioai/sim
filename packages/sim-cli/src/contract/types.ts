@@ -59,6 +59,18 @@ export interface FlagSpec {
   list?: boolean
   /** Take a JSON string. Implied for object/array/unknown fields. */
   json?: boolean
+  /**
+   * Accept a plain whole number and send the route's `{ type: 'rows', max: n }`.
+   *
+   * A deliberate one-off for `tables dispatches create --max-rows`: the only
+   * request field in the CLI whose object shape holds exactly one free value,
+   * because its `type` is a `z.literal('rows')`. Left as JSON, the flag made a
+   * caller type `{"type":"rows","max":100}` — four tokens of ceremony to say
+   * `100`, in a shape nothing in the terminal spells out. Not a general
+   * value-transform hook: no second field wants one, and a second one arriving
+   * is the point at which this should become one.
+   */
+  rowCap?: true
   /** Overrides the help text otherwise taken from the OpenAPI description. */
   describe?: string
   /**
@@ -73,7 +85,14 @@ export interface FlagSpec {
   requestDefault?: string
   /** Accepted values when the generated descriptor cannot recover an enum. */
   choices?: readonly string[]
-  /** Expose a string-backed API boolean as a conventional terminal toggle. */
+  /**
+   * Expose a string-backed API boolean as a conventional terminal toggle.
+   *
+   * A toggle declared here carries no generated `--no-<name>` twin, because the
+   * string union behind it has no agreed false spelling to send. That also
+   * makes it the way to withhold the negation from a field the API declares as
+   * `z.literal(true)`, where a sent `false` is a request the route rejects.
+   */
   boolean?: true
   /**
    * This field carries a folder path, so percent-encode each of its segments.

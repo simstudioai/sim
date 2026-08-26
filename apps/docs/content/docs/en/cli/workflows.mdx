@@ -55,7 +55,7 @@ sim workflows operations apply <workflowId> [options]
 | `--no-atomic` | No | Send --atomic as false. |
 | `--layout <value>` | No | Whether to reposition blocks the batch touched. `targeted` (default) nudges only the affected subgraph; `none` leaves every position exactly as supplied. Accepted values: `targeted`, `none`. |
 | `--set-block-enabled <json\|@file>` | No | Blocks to enable or disable, applied after --operations: [&#123;"block_id":"&lt;uuid&gt;","enabled":false&#125;]. Disabling a loop or parallel cascades to its unlocked descendants; enabling a block whose container is disabled is declined (JSON, or @path / @- to read a file or stdin). |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | No | Confirm this destructive operation (required unless --dry-run). |
 
 </CommandTable>
 
@@ -237,8 +237,7 @@ sim workflows create [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--name <value>` | Yes | Workflow name. |
-| `--description <value>` | No | Optional workflow description. (--no-description clears it). |
-| `--no-description` | No | Send --description as null to clear it. |
+| `--description <value>` | No | Optional workflow description. |
 | `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
 
 </CommandTable>
@@ -455,8 +454,7 @@ sim workflows deploy <workflowId> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--name <value>` | No | Optional label for the deployment version. |
-| `--description <value>` | No | Optional release note for the deployment version. (--no-description clears it). |
-| `--no-description` | No | Send --description as null to clear it. |
+| `--description <value>` | No | Optional release note for the deployment version. |
 
 </CommandTable>
 
@@ -647,7 +645,7 @@ sim workflows state replace <workflowId> [options]
 | `--loops <json\|@file>` | No | Ignored on write: loop containers are recomputed from `blocks`. (JSON, or @path / @- to read a file or stdin). |
 | `--parallels <json\|@file>` | No | Ignored on write: parallel containers are recomputed from `blocks`. (JSON, or @path / @- to read a file or stdin). |
 | `--variables <json\|@file>` | No | Replacement variable set. Omit to leave the stored variables untouched. (JSON, or @path / @- to read a file or stdin). |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | No | Confirm this destructive operation (required unless --dry-run). |
 
 </CommandTable>
 
@@ -718,8 +716,7 @@ sim workflows versions update <workflowId> <version> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--name <value>` | No | New label for the deployment version. |
-| `--description <value>` | No | New release note for the deployment version, or null to clear it. (--no-description clears it). |
-| `--no-description` | No | Send --description as null to clear it. |
+| `--description <value>` | No | New release note for the deployment version, or null to clear it. (--description null sends the word, not JSON null). |
 
 </CommandTable>
 
@@ -778,7 +775,7 @@ sim workflows move [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--workflow <value...>` | Yes | Workflows to move. Duplicates are collapsed. (space-separated, or @path / @- with one value per line). |
-| `--folder <value>` | Yes | Folder path as shown in the app; the leading / is optional. |
+| `--to <value>` | Yes | Destination folder path; / moves the workflows to the workspace root. |
 
 </CommandTable>
 
@@ -901,8 +898,7 @@ sim workflows update <workflowId> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--name <value>` | No | Replacement workflow name. |
-| `--description <value>` | No | Replacement workflow description; null clears it. (--no-description clears it). |
-| `--no-description` | No | Send --description as null to clear it. |
+| `--description <value>` | No | Replacement workflow description; null clears it. (--description null sends the word, not JSON null). |
 | `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
 
 </CommandTable>

@@ -1,36 +1,22 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { CLI_MANAGED_HEADERS, isNullable, renderSlotMap } from './generate-v2-cli-api'
+import { CLI_MANAGED_HEADERS, renderSlotMap } from './generate-v2-cli-api'
 
-/** The JSON Schema the CLI generator actually reads, for one field's schema. */
-function jsonFor(schema: z.ZodType): Record<string, unknown> {
-  const json = z.toJSONSchema(z.object({ field: schema }), {
-    io: 'input',
-    unrepresentable: 'any',
-  }) as { properties: Record<string, Record<string, unknown>> }
-  return json.properties.field
-}
-
-describe('nullability carried through to the CLI', () => {
+describe('a field the contract types as nullable', () => {
   /**
-   * Five contract fields documented "null clears it" and reached the terminal as
-   * plain strings, so the word `null` was stored as its four characters. The
-   * runtime can only offer a clearing flag for a field it is told about.
+   * The operation table describes what the CLI can build a flag from, and a flag
+   * that sends JSON `null` is not one of them: `--no-<flag>` already means "send
+   * this boolean as false" on 37 flags, and `--description ''` is how a string
+   * is emptied. Emitting the nullability invited a second meaning for one
+   * spelling, so it is no longer carried.
    */
-  it('reports a nullable string', () => {
-    expect(isNullable(jsonFor(z.string().nullable().optional()))).toBe(true)
-  })
-
-  it('reports a nullable enum', () => {
-    expect(isNullable(jsonFor(z.enum(['vector', 'hybrid']).nullable().optional()))).toBe(true)
-  })
-
-  it('does not report a merely optional field', () => {
-    expect(isNullable(jsonFor(z.string().optional()))).toBe(false)
-  })
-
-  it('does not report a required field', () => {
-    expect(isNullable(jsonFor(z.string()))).toBe(false)
+  it('describes it no differently from any other string', () => {
+    const map = renderSlotMap(
+      z.object({ description: z.string().nullable().optional().describe('Replacement.') }),
+      '  '
+    )
+    expect(map).toContain("kind: 'string'")
+    expect(map).not.toContain('nullable')
   })
 })
 

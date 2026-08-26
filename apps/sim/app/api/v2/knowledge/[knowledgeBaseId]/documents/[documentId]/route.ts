@@ -14,7 +14,6 @@ import {
   updateKnowledgeDocument,
 } from '@/lib/knowledge/application/documents'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
-import { toDocumentExtractionMethod } from '@/lib/knowledge/documents/types'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { serializeDate } from '@/app/api/v1/knowledge/utils'
 import {
@@ -72,7 +71,6 @@ export const GET = defineV2JsonRoute({
     data: {
       ...toV2DocumentSummary(document),
       tags: toV2DocumentTags(document, tagDefinitions),
-      extractionMethod: toDocumentExtractionMethod(document.extractionMethod),
       processingError: document.processingError,
       processingStartedAt: serializeDate(document.processingStartedAt),
       processingCompletedAt: serializeDate(document.processingCompletedAt),

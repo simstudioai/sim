@@ -42,40 +42,48 @@ const UPDATE_TABLE: OperationSpec = {
   path: '/api/v2/tables/{tableId}',
   pathParams: ['tableId'],
   body: {
-    description: { kind: 'string', nullable: true, describe: 'Replacement table description.' },
+    description: {
+      kind: 'string',
+      describe: 'Replacement table description; null clears it.',
+    },
     name: { kind: 'string', describe: 'Replacement table name.' },
+    settings: { kind: 'object', describe: 'Replacement settings, or null to clear them.' },
   },
   query: {
-    note: { kind: 'string', nullable: true, describe: 'A nullable field in the query string.' },
+    note: { kind: 'string', describe: 'A field whose prose mentions null.' },
   },
 }
 
-function nullableHelp(): string {
+function updateHelp(): string {
   const command = new Command('update')
   addOperationOptions(command, 'updateTable', {}, UPDATE_TABLE)
   return command.helpInformation()
 }
 
-describe('a body field the contract types as nullable', () => {
+describe('a body field the contract documents as cleared by null', () => {
   /**
-   * The route contracts describe several of these as "null clears it", which the
-   * CLI could not do: every one is a string flag, so the word `null` arrived as
-   * its four characters and was stored. The companion is what makes the prose
-   * true, and naming it in the help is what stops it promising otherwise.
+   * `--no-<flag>` means "send this boolean as false" everywhere else in the CLI,
+   * so it cannot also mean "send JSON null" here. What remains is that the word
+   * `null` typed into a string flag is stored as its four characters — the help
+   * says so rather than offering a flag, and offers no substitute, because an
+   * empty string empties a description but is not what null means to a field
+   * like `oauthClientSecret`.
    */
-  it('offers a companion flag that clears it, and says so', () => {
-    const help = nullableHelp()
+  it('warns that the word is all the flag can carry, and offers no companion', () => {
+    const help = updateHelp()
 
-    expect(help).toMatch(/--no-description\s+Send --description as null to clear it/)
-    expect(help).toMatch(/\(--no-description\s+clears it\)/)
+    expect(help).toMatch(
+      /--description <value>\s+Replacement table description; null clears it\.\s+\(--description null sends the word, not JSON null\)/
+    )
+    expect(help).not.toMatch(/--no-description/)
   })
 
-  it('leaves a field the contract does not make nullable without one', () => {
-    expect(nullableHelp()).not.toMatch(/--no-name/)
-  })
-
-  /** A query string has no way to spell null, so a clear there would never travel. */
-  it('offers nothing for a nullable query field', () => {
-    expect(nullableHelp()).not.toMatch(/--no-note/)
+  /**
+   * The warning belongs only where the prose invites the literal. `--name` never
+   * mentions null; `--settings` takes JSON, which really does parse `null` into
+   * the value; and a query string carries no JSON at all.
+   */
+  it('warns on that flag and no other', () => {
+    expect(updateHelp().match(/sends the word/g)).toHaveLength(1)
   })
 })

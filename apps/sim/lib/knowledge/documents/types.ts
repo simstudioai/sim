@@ -75,38 +75,6 @@ export function isDocumentProcessingStatus(value: string): value is DocumentProc
   return (DOCUMENT_PROCESSING_STATUSES as readonly string[]).includes(value)
 }
 
-/**
- * How a document's indexed text was obtained.
- *
- * `file-parser` read the file's own bytes — a PDF text layer, a plain-text
- * document, a spreadsheet. `mistral-ocr` sent the file to an external model
- * that transcribed it, so the stored content is that model's reading of the
- * document rather than anything extracted from it: it can omit, reorder, or
- * repeat text with nothing in the document row disagreeing, because every
- * derived count (`characterCount`, `chunkCount`) measures the transcription.
- * Persisting which route ran is what makes that distinction visible to an
- * operator after the fact.
- */
-export const DOCUMENT_EXTRACTION_METHODS = ['file-parser', 'mistral-ocr'] as const
-
-export type DocumentExtractionMethod = (typeof DOCUMENT_EXTRACTION_METHODS)[number]
-
-/**
- * Narrows a stored `extraction_method` onto the union.
- *
- * The column is nullable `text`: NULL is a document indexed before the column
- * existed, or one that has not finished processing. An unrecognised value reads
- * as unknown rather than throwing, because a read of an old row must not fail.
- */
-export function toDocumentExtractionMethod(
-  value: string | null | undefined
-): DocumentExtractionMethod | null {
-  if (value === null || value === undefined) return null
-  return (DOCUMENT_EXTRACTION_METHODS as readonly string[]).includes(value)
-    ? (value as DocumentExtractionMethod)
-    : null
-}
-
 export type DocumentSortField =
   | 'filename'
   | 'fileSize'

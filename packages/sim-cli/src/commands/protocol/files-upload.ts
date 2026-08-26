@@ -54,22 +54,14 @@ export function attachFileUpload(files: Command): void {
         throw new Error(`File upload ${session.id} completed without a file`)
       }
       /**
-       * The session the bytes went through, alongside the file they became.
+       * The file record, and nothing about the session that carried it.
        *
-       * `sim files uploads get` exists for a caller that lost track of a
-       * transfer, and it needs the session id to ask — the CLI ran the whole
-       * handshake internally and printed only the finished file record, so the
-       * one thing that could not inspect its own uploads was the CLI.
-       *
-       * The upload token is deliberately not printed in any format. It is a
-       * live credential that also authorizes aborting and completing the
-       * transfer, and `sim files upload` runs in CI, where stdout is retained
-       * and broadly readable. `sim files uploads get --upload-token` accepts it
-       * from a caller that holds one; nothing has to mint it into a log.
+       * The session is over by the time this line runs — completed on success,
+       * aborted on failure — so its id names nothing a caller can go on to ask
+       * about, and its token is a live credential that also authorizes
+       * aborting and completing the transfer. This command runs in CI, where
+       * stdout is retained and broadly readable; neither belongs in it.
        */
-      printProtocolResult(profile.output, {
-        ...completed.file,
-        uploadId: session.id,
-      })
+      printProtocolResult(profile.output, completed.file)
     })
 }

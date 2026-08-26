@@ -12,7 +12,7 @@ const KNOWLEDGE_TAG_DEFINITIONS_HELP =
 const CUSTOM_TOOL_SCHEMA_HELP =
   'OpenAI function schema: {"type":"function","function":{"name":"...","parameters":{"type":"object","properties":{}}}}'
 const DISPATCH_ROW_LIMIT_HELP =
-  'Cap on eligible rows to run, as an object rather than a count: {"type":"rows","max":100}'
+  'Stop after this many eligible rows have run (1-1,000,000). Omit for an unbounded run'
 /**
  * The shapes behind the graph-write batches.
  *
@@ -50,6 +50,17 @@ const FOLDER_DELETE_FLAGS = {
   recursive: { boolean: true, describe: 'Delete the folder and its descendants' },
 } as const
 const KNOWLEDGE_BASE_PATH_ARGUMENT = { knowledgeBaseId: 'knowledgeBaseId' } as const
+/**
+ * The signed control token a transfer route accepts, kept off the terminal.
+ *
+ * It is minted inside a handshake the CLI drives end to end and is never
+ * printed, so there is no supported way for a caller to be holding one — a flag
+ * for it can only fail, and where it is required the command it gates is
+ * unreachable by construction. The token path exists for a raw-API caller
+ * mid-upload; the CLI reaches the same resources through the API key and
+ * workspace it already sends.
+ */
+const TRANSFER_TOKEN_OMITTED = { 'upload-token': { omit: true } } as const
 const WORKFLOW_RUN_SCOPE = {
   workflowId: {
     name: 'workflow',
@@ -512,13 +523,27 @@ export const CLI_CONTRACT: CliContract = {
     command: 'workflows move',
     flags: {
       workflowIds: { name: 'workflow', list: true },
-      folderPath: FOLDER_PATH_FLAG,
+      // The destination, which its two siblings both spell `--to`. Under
+      // `--folder` it read as the selection being moved — the sense the flag
+      // of that name genuinely has one command over, on `tables move`.
+      folderPath: {
+        ...FOLDER_PATH_INPUT,
+        name: 'to',
+        renamedFrom: ['folder'],
+        describe: 'Destination folder path; / moves the workflows to the workspace root',
+      },
     },
   },
   moveTables: {
     command: 'tables move',
     flags: {
-      folderPaths: FOLDER_PATHS_FLAG,
+      // Folders being moved, not a destination: the generic path blurb the
+      // shared constant carries answers the format question and leaves the
+      // one that matters beside `--to`.
+      folderPaths: {
+        ...FOLDER_PATHS_FLAG,
+        describe: 'Table folders to move, by path as shown in the app; the leading / is optional',
+      },
       targetFolderPath: TARGET_FOLDER_PATH_FLAG,
     },
   },
@@ -650,7 +675,14 @@ export const CLI_CONTRACT: CliContract = {
     ],
   },
   listFiles: {
-    flags: { folderPath: FOLDER_PATH_FLAG },
+    flags: {
+      folderPath: FOLDER_PATH_FLAG,
+      // The same server-side string union as the four folder deletes, and the
+      // one place the terminal override was missed: `--recursive` alone read
+      // as "argument missing" and only `--recursive yes` worked, on the flag
+      // spelled as a bare switch everywhere else in the CLI.
+      recursive: { boolean: true },
+    },
     columns: [
       { header: 'id' },
       { header: 'name' },
@@ -680,7 +712,14 @@ export const CLI_CONTRACT: CliContract = {
   // and `tags list` were left out, so the same value was `<id>` on one command
   // and `<knowledgeBaseId>` on its neighbours.
   getKnowledgeDocument: { pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT },
-  updateKnowledgeDocument: { pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT },
+  updateKnowledgeDocument: {
+    pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
+    // `retryProcessing` is `z.literal(true)` and must travel alone, so the
+    // generated `--no-retry-processing` sends `retryProcessing: false` as the
+    // whole request: a payload that asks for nothing and that the route
+    // rejects. `boolean` suppresses the negation.
+    flags: { retryProcessing: { boolean: true } },
+  },
   listKnowledgeTags: { pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT },
   createKnowledgeTag: {
     pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
@@ -1196,6 +1235,12 @@ export const CLI_CONTRACT: CliContract = {
       excludeRowIds: { list: true },
       filter: { json: true, describe: TABLE_FILTER_HELP },
     },
+    // `tables dispatches cancel` gates one dispatch; this stops every run on
+    // the table at once and was the ungated one of the pair. The message has
+    // to hold for `--scope row` too, so it names the scope rather than
+    // claiming the whole table every time.
+    confirm:
+      'This cancels running column jobs — the whole table with --scope all, one row with --scope row.',
   },
   searchTableRows: {
     command: 'tables rows search',
@@ -1238,12 +1283,13 @@ export const CLI_CONTRACT: CliContract = {
       // Every other `--limit` in the CLI is a page size typed as a bare
       // integer, so this one — an object naming the unit it caps — answered
       // `--limit 2` with "expected object, received number" and the flag name
-      // was the reason anyone typed that. Renamed to say what it caps, with the
-      // shape spelled out; `--limit` still resolves for an existing script.
+      // was the reason anyone typed that. Renamed to say what it caps, and
+      // typed as the count it reads as: `rowCap` builds the object the route
+      // wants. `--limit` still resolves for an existing script.
       limit: {
         name: 'max-rows',
         renamedFrom: ['limit'],
-        json: true,
+        rowCap: true,
         describe: DISPATCH_ROW_LIMIT_HELP,
       },
     },
@@ -1260,7 +1306,15 @@ export const CLI_CONTRACT: CliContract = {
   createTableImport: { hidden: true },
   createTableImportPartUrls: { hidden: true },
   completeTableImport: { hidden: true },
-  cancelTableImport: { command: 'tables imports cancel' },
+  // `get` and `cancel` stay, but not the upload token they also accept. It
+  // addresses an import mid-transfer, and `sim tables import` never leaves one
+  // in that state: the command drives the whole handshake and aborts the
+  // session if any part of it fails. An import a CLI caller can still name is
+  // an import their API key and workspace already reach, which is the branch
+  // `resolveTableImportContext` takes when no token is sent — so the flag adds
+  // a credential to type and no import it reaches.
+  getTableImport: { flags: TRANSFER_TOKEN_OMITTED },
+  cancelTableImport: { command: 'tables imports cancel', flags: TRANSFER_TOKEN_OMITTED },
   cancelTableExport: { command: 'tables exports cancel' },
   tableExportDownload: {
     // GET, but it returns a signed URL rather than a listing.
@@ -1418,4 +1472,11 @@ export const CLI_CONTRACT: CliContract = {
   createFileUploadPartUrls: { hidden: true },
   completeFileUpload: { hidden: true },
   abortFileUpload: { hidden: true },
+  // Inspecting a session goes with them, for a reason the other steps do not
+  // share: it is addressed by a *required* upload token, and `sim files upload`
+  // completes the session on success and aborts it on failure, so no session
+  // outlives the command and no caller is left holding a token to ask with.
+  // Left visible it read as a working command that answered every invocation
+  // with `--upload-token is required` and no way to satisfy it.
+  getFileUpload: { hidden: true },
 }

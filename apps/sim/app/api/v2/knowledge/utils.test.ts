@@ -83,38 +83,6 @@ describe('toV2TaggedDocument', () => {
   })
 })
 
-describe('extraction method exposure', () => {
-  it('reports the extraction method recorded on the document', () => {
-    const projected = toV2TaggedDocument(
-      { ...documentRow, extractionMethod: 'mistral-ocr' },
-      tagDefinitions
-    )
-    expect(projected.extractionMethod).toBe('mistral-ocr')
-    expect(v2KnowledgeTaggedDocumentSchema.parse(projected)).toEqual(projected)
-  })
-
-  it('distinguishes an OCR transcription from a parsed extraction', () => {
-    const ocr = toV2TaggedDocument({ ...documentRow, extractionMethod: 'mistral-ocr' }, [])
-    const parsed = toV2TaggedDocument({ ...documentRow, extractionMethod: 'file-parser' }, [])
-    expect(ocr.extractionMethod).not.toBe(parsed.extractionMethod)
-  })
-
-  it('reports null for a document indexed before the method was recorded', () => {
-    const projected = toV2TaggedDocument(documentRow, tagDefinitions)
-    expect(projected.extractionMethod).toBeNull()
-    expect(v2KnowledgeTaggedDocumentSchema.parse(projected)).toEqual(projected)
-  })
-
-  it('reads an unrecognised stored method as unknown rather than failing the read', () => {
-    const projected = toV2TaggedDocument(
-      { ...documentRow, extractionMethod: 'some-future-parser' },
-      tagDefinitions
-    )
-    expect(projected.extractionMethod).toBeNull()
-    expect(v2KnowledgeTaggedDocumentSchema.parse(projected)).toEqual(projected)
-  })
-})
-
 describe('toV2DocumentTags', () => {
   it('serializes a date-valued slot as an ISO string', () => {
     expect(toV2DocumentTags({ date1: new Date('2026-08-02T00:00:00.000Z') }, [])).toEqual({
