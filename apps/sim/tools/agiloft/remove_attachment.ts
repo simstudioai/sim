@@ -65,6 +65,7 @@ export const agiloftRemoveAttachmentTool: ToolConfig<
   },
 
   request: {
+    internal: true,
     url: () => '/api/tools/agiloft/remove_attachment',
     method: 'POST',
     headers: () => ({ 'Content-Type': 'application/json' }),

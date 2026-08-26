@@ -705,17 +705,19 @@ async function readTableRowsVersion(tableId: string, workspaceId: string): Promi
   return table?.rowsVersion ?? null
 }
 
+export type TableSnapshotModelMountSafety = 'safe' | 'unsafe-provenance' | 'stale'
+
 /**
- * Verifies that a version-pinned table contains no secret-bearing or unknown
- * cells before its opaque CSV bytes cross into a model-controlled sandbox.
+ * Classifies whether a version-pinned table snapshot can cross into a model-controlled sandbox.
+ * A version change takes precedence over provenance because stale bytes must never be mounted.
  */
-export async function isTableSnapshotSafeForModelMount(options: {
+export async function getTableSnapshotModelMountSafety(options: {
   tableId: string
   workspaceId: string
   rowsVersion: number
-}): Promise<boolean> {
+}): Promise<TableSnapshotModelMountSafety> {
   if ((await readTableRowsVersion(options.tableId, options.workspaceId)) !== options.rowsVersion) {
-    return false
+    return 'stale'
   }
 
   const [unsafeRow] = await db
@@ -748,9 +750,11 @@ export async function isTableSnapshotSafeForModelMount(options: {
     )
     .limit(1)
 
-  if (unsafeRow) return false
+  if ((await readTableRowsVersion(options.tableId, options.workspaceId)) !== options.rowsVersion) {
+    return 'stale'
+  }
 
-  return (await readTableRowsVersion(options.tableId, options.workspaceId)) === options.rowsVersion
+  return unsafeRow ? 'unsafe-provenance' : 'safe'
 }
 
 /**

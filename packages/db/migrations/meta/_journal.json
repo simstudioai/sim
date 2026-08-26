@@ -2129,6 +2129,34 @@
       "when": 1787598098228,
       "tag": "0304_slippery_carmella_unuscione",
       "breakpoints": true
+    },
+    {
+      "idx": 305,
+      "version": "7",
+      "when": 1787687900983,
+      "tag": "0305_add_subscription_last_closed_period_start",
+      "breakpoints": true
+    },
+    {
+      "idx": 306,
+      "version": "7",
+      "when": 1787702824793,
+      "tag": "0306_knowledge_pipeline_hardening",
+      "breakpoints": true
+    },
+    {
+      "idx": 307,
+      "version": "7",
+      "when": 1787722270619,
+      "tag": "0307_add_subscription_cycle_close_lagging_idx",
+      "breakpoints": true
+    },
+    {
+      "idx": 308,
+      "version": "7",
+      "when": 1787770314977,
+      "tag": "0308_workspace_file_size_cutover",
+      "breakpoints": true
     }
   ]
 }

@@ -56,6 +56,11 @@ export interface ExternalDocument {
   sourceUrl?: string
   /** Hash of content for change detection (format varies by connector) */
   contentHash: string
+  /**
+   * Connector-owned hash to persist for a skipped hydration that must be retried
+   * even when the source's listing metadata is unchanged.
+   */
+  skippedRetryContentHash?: string
   /** When true, content is empty and will be fetched via getDocument for new/changed docs only */
   contentDeferred?: boolean
   /**
@@ -65,6 +70,12 @@ export interface ExternalDocument {
    * being silently dropped.
    */
   skippedReason?: string
+  /**
+   * Controls what happens when a previously indexed document is intentionally
+   * skipped. The default retains its last-known-good content; `replace` removes
+   * stale indexed content and persists the skipped state as authoritative.
+   */
+  skippedExistingDisposition?: 'replace'
   /** Additional source-specific metadata */
   metadata?: Record<string, unknown>
 }
@@ -76,7 +87,25 @@ export interface ExternalDocumentList {
   documents: ExternalDocument[]
   nextCursor?: string
   hasMore: boolean
+  /**
+   * Whether absence from this listing is authoritative enough for deletion
+   * reconciliation. Defaults to true. Offset-based or otherwise unstable
+   * provider pagination must set this to false.
+   */
+  reconciliationSafe?: boolean
 }
+
+export const SYNC_SKIP_REASONS = [
+  'connector_unavailable',
+  'knowledge_base_deleted',
+  'connector_not_syncable',
+  'dispatch_superseded',
+  'sync_in_progress',
+  'sync_superseded',
+  'connector_deleted_during_sync',
+] as const
+
+export type SyncSkipReason = (typeof SYNC_SKIP_REASONS)[number]
 
 /**
  * Result of a sync operation.
@@ -86,7 +115,19 @@ export interface SyncResult {
   docsUpdated: number
   docsDeleted: number
   docsUnchanged: number
+  /** Source documents intentionally recorded without indexing, such as oversized files. */
+  docsSkipped: number
+  /** Source documents that failed during listing, hydration, or persistence. */
   docsFailed: number
+  /** Immediate hand-off outcome; eventual child results live on document rows and child runs. */
+  processingDispatch: {
+    requested: number
+    accepted: number
+    failed: number
+  }
+  /** Expected queue, lifecycle, or lock no-op. Never derived from error text. */
+  skipReason?: SyncSkipReason
+  /** Diagnostic for an actual failed sync. */
   error?: string
 }
 

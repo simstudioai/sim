@@ -11,7 +11,6 @@ const { mocks, MockV2ApiKeyUnauthenticatedError } = vi.hoisted(() => {
       authenticate: vi.fn(),
       preauthRate: vi.fn(),
       operationRate: vi.fn(),
-      gate: vi.fn(),
       list: vi.fn(),
     },
     MockV2ApiKeyUnauthenticatedError,
@@ -41,7 +40,6 @@ vi.mock('@/lib/core/utils/request', () => ({
   generateRequestId: vi.fn().mockReturnValue('request-1'),
   getClientIp: vi.fn().mockReturnValue('127.0.0.1'),
 }))
-vi.mock('@/app/api/v2/lib/gate', () => ({ v2ApiGateError: mocks.gate }))
 vi.mock('@/lib/secrets/application/use-cases', () => ({
   listSecretsUseCase: { operation: { id: 'secrets.list' }, execute: mocks.list },
 }))
@@ -54,7 +52,6 @@ const WORKSPACE_ID = 'workspace-1'
 const PRINCIPAL = { kind: 'personal_api_key' as const, userId: 'user-1', keyId: 'key-personal' }
 const AUTH = {
   principal: PRINCIPAL,
-  rolloutUserId: 'user-1',
   rateLimitSubjectIds: ['user:user-1'] as const,
   rateLimitSubscription: null,
   keyType: 'personal' as const,
@@ -90,7 +87,6 @@ describe('GET /api/v2/secrets', () => {
     mocks.authenticate.mockResolvedValue(AUTH)
     mocks.preauthRate.mockResolvedValue(RATE_LIMIT_OK)
     mocks.operationRate.mockResolvedValue(RATE_LIMIT_OK)
-    mocks.gate.mockResolvedValue(null)
     mocks.list.mockResolvedValue({
       secrets: [secret],
       values: {},

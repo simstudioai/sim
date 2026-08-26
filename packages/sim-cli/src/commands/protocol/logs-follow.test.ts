@@ -3,7 +3,7 @@
  */
 import { Command } from 'commander'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ListLogsResponse } from '../../generated/v2-api'
+import { type ListLogsResponse, V2_OPERATIONS } from '../../generated/v2-api'
 import { SimApiError } from '../../http/client'
 import { attachLogsFollow, type LogRow } from './logs-follow'
 
@@ -38,6 +38,7 @@ let stderr: string[]
 
 function row(runId: string, startedAt: string): LogRow {
   return {
+    kind: 'workflow',
     runId,
     workflowId: 'wf_1',
     deploymentVersionId: null,
@@ -381,12 +382,43 @@ describe('sim logs follow', () => {
       query: expect.objectContaining({
         workspaceId: 'ws_1',
         details: 'full',
-        order: 'desc',
+        sortBy: 'startedAt',
+        sortOrder: 'desc',
         workflowIds: 'wf_1,wf_2',
         folderPaths: '/Q1%202026',
         limit: 1,
       }),
     })
+  })
+
+  it('sends only query parameters the listLogs operation declares', async () => {
+    respondWith([page([row('run_1', '2026-08-17T10:00:01.000Z')])])
+
+    await follow('-n', '1', '--workflow', 'wf_1', '--folder', '/Q1 2026', '--trigger', 'api')
+
+    const declared = new Set(Object.keys(V2_OPERATIONS.listLogs.query))
+    expect(mockRequest).toHaveBeenCalled()
+    for (const [, init] of mockRequest.mock.calls as unknown as Array<
+      [string, { query: Record<string, unknown> }]
+    >) {
+      const sent = Object.entries(init.query)
+        .filter(([, value]) => value !== undefined && value !== null)
+        .map(([key]) => key)
+      expect(sent.filter((key) => !declared.has(key))).toEqual([])
+    }
+  })
+
+  it('sends sort values the listLogs operation accepts', async () => {
+    respondWith([page([row('run_1', '2026-08-17T10:00:01.000Z')])])
+
+    await follow('-n', '1')
+
+    const [, init] = mockRequest.mock.calls[0] as unknown as [
+      string,
+      { query: Record<string, unknown> },
+    ]
+    expect(V2_OPERATIONS.listLogs.query.sortBy.values).toContain(init.query.sortBy)
+    expect(V2_OPERATIONS.listLogs.query.sortOrder.values).toContain(init.query.sortOrder)
   })
 
   it('waits between polls instead of spinning', async () => {

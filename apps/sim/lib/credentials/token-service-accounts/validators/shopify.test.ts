@@ -100,6 +100,25 @@ describe('validateShopifyServiceAccount', () => {
     })
   })
 
+  /**
+   * The store domain is caller-supplied, so a host that does not resolve is
+   * wrong input rather than a Shopify outage — and `provider_unavailable`
+   * would answer `503 + Retry-After` for a domain that can never work.
+   */
+  it('throws site_not_found when the store host does not resolve', async () => {
+    const dnsError = new TypeError('fetch failed')
+    ;(dnsError as { cause?: unknown }).cause = { code: 'ENOTFOUND' }
+    mockFetch.mockRejectedValueOnce(dnsError)
+
+    await expect(
+      validateShopifyServiceAccount({ apiToken: 'shpat_abc', domain: 'nope.myshopify.com' })
+    ).rejects.toMatchObject({
+      name: 'TokenServiceAccountValidationError',
+      code: 'site_not_found',
+      status: 400,
+    })
+  })
+
   it('throws provider_unavailable on 500', async () => {
     mockFetch.mockResolvedValueOnce(jsonResponse(500, { errors: 'Internal Server Error' }))
 

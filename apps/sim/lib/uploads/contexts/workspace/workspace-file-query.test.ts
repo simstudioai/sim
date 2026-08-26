@@ -66,6 +66,7 @@ function buildRow(overrides: Record<string, unknown> = {}) {
     originalName: 'data.csv',
     contentType: 'text/csv',
     size: 1024,
+    sizeBytes: 1024,
     deletedAt: null,
     uploadedAt: new Date('2024-01-01T00:00:00Z'),
     updatedAt: new Date('2024-01-02T00:00:00Z'),

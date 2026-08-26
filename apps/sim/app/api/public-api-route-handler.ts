@@ -4,7 +4,6 @@ import { type ParsedRequest, type ParseRequestOptions, parseRequest } from '@/li
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { type ApiEndpoint, type AuthorizedRequest, checkRateLimit } from '@/app/api/v1/middleware'
-import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import { v2Error, v2RateLimitError, v2ValidationError } from '@/app/api/v2/lib/response'
 
 interface PublicApiRouteContext {
@@ -55,8 +54,6 @@ export function withPublicApiRouteHandler<C extends AnyApiRouteContract>({
         throw new Error('Allowed public API request is missing a user ID')
       }
       const userId = rateLimit.userId
-      const gate = await v2ApiGateError(userId)
-      if (gate) return gate
 
       const parsed = await parseRequest(contract, request, context ?? {}, {
         validationErrorResponse: v2ValidationError,

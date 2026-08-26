@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Command } from 'commander'
@@ -40,6 +40,11 @@ function program(): Command {
   const root = new Command('sim').exitOverride()
   for (const group of buildGeneratedCommands()) root.addCommand(group)
   attachProtocolCommands(root)
+  const override = (command: Command) => {
+    command.exitOverride()
+    command.commands.forEach(override)
+  }
+  override(root)
   return root
 }
 
@@ -126,6 +131,13 @@ describe('files upload', () => {
         headers: { 'upload-token': 'secret-token' },
       },
     ])
+    /**
+     * The file record only: the transfer session is finished either way by the
+     * time anything is printed, so neither half of it is reported. The token in
+     * particular stays out of every format — it also authorizes aborting and
+     * completing the transfer, and this command runs in CI, where stdout is
+     * retained.
+     */
     expect(JSON.parse(logged[0])).toEqual({
       id: 'file_1',
       name: 'notes.txt',
@@ -137,6 +149,7 @@ describe('files upload', () => {
       uploadedAt: '2026-08-04T19:00:00.000Z',
       updatedAt: '2026-08-04T19:00:00.000Z',
     })
+    expect(logged[0]).not.toContain('upload_1')
     expect(logged[0]).not.toContain('secret-token')
   })
 
@@ -164,4 +177,30 @@ describe('files upload', () => {
       folderPath: '/Q1%20%28draft%29',
     })
   })
+
+  it('rejects an extra positional instead of silently dropping the file it names', async () => {
+    const first = join(dir, 'alpha.txt')
+    const second = join(dir, 'beta.md')
+    writeFileSync(first, 'hello')
+    writeFileSync(second, 'world')
+
+    await expect(
+      program().parseAsync(['node', 'sim', 'file', 'upload', first, second])
+    ).rejects.toThrow(/too many arguments/)
+    expect(mockRequest).not.toHaveBeenCalled()
+  })
+
+  it.skipIf(process.getuid?.() === 0)(
+    'reports an unreadable file as one line instead of a fetch stack trace',
+    async () => {
+      const path = join(dir, 'locked.txt')
+      writeFileSync(path, 'hello')
+      chmodSync(path, 0o000)
+
+      await expect(program().parseAsync(['node', 'sim', 'file', 'upload', path])).rejects.toThrow(
+        /Cannot read .*locked\.txt/
+      )
+      expect(mockRequest).not.toHaveBeenCalled()
+    }
+  )
 })

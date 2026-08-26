@@ -7,8 +7,6 @@ import { isTriggerDevEnabled } from '@/lib/core/config/env-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { runDetached } from '@/lib/core/utils/background'
 import {
-  batchUpdateRows,
-  CSV_MAX_BATCH_SIZE,
   deleteRowsByFilter,
   type Filter,
   queryRows,
@@ -60,15 +58,6 @@ export interface CopilotDeleteRowsByFilterInput extends CopilotBulkRowsInput {
 export type CopilotDeleteRowsByFilterResult =
   | { kind: 'inline'; affectedCount: number; affectedRowIds: string[] }
   | { kind: 'background'; doomedCount: number; jobId: string; bounded: boolean }
-
-export interface CopilotBatchUpdateRowsInput extends CopilotBulkRowsInput {
-  updates: Array<{ rowId: string; data: RowData }>
-}
-
-export interface CopilotBatchUpdateRowsResult {
-  affectedCount: number
-  affectedRowIds: string[]
-}
 
 function requestId(): string {
   return generateId().slice(0, 8)
@@ -369,56 +358,5 @@ export const copilotDeleteRowsByFilter = defineAuthorizedTableUseCase({
     if (result.kind === 'inline' && result.affectedCount > 0) {
       signalTableRowsChanged(context.tableId)
     }
-  },
-})
-
-export const copilotBatchUpdateRows = defineAuthorizedTableUseCase({
-  operation: tableOperations.updateRows,
-  resolveContext: ({ input }: { input: CopilotBatchUpdateRowsInput }) =>
-    resolveActiveTableContext(input),
-  async execute({ principal, input, context }): Promise<CopilotBatchUpdateRowsResult> {
-    if (input.updates.length < 1 || input.updates.length > CSV_MAX_BATCH_SIZE) {
-      throw new OrchestrationError(
-        'validation',
-        `Batch update count must be between 1 and ${CSV_MAX_BATCH_SIZE}`
-      )
-    }
-    const idByName = buildIdByName(context.table.schema)
-    const updates = input.updates.map((update) => ({
-      rowId: update.rowId,
-      data: rowDataNameToId(update.data, idByName),
-    }))
-    return batchUpdateRows(
-      {
-        tableId: context.tableId,
-        updates,
-        workspaceId: context.workspaceId,
-        actorUserId: resolvePrincipalAttribution(principal, {
-          workspaceBillingOwnerUserId: context.billedAccountUserId,
-        }).attributedUserId,
-        secretProvenanceByRowId: Object.fromEntries(
-          updates.map((update) => [
-            update.rowId,
-            createExactEmptyTableRowSecretProvenance(update.data),
-          ])
-        ),
-      },
-      context.table,
-      requestId()
-    )
-  },
-  projectAudit({ context, result }) {
-    if (result.affectedCount === 0) return []
-    return {
-      action: AuditAction.TABLE_UPDATED,
-      resourceType: AuditResourceType.TABLE,
-      resourceId: context.tableId,
-      resourceName: context.table.name,
-      description: `Updated ${result.affectedCount} row(s) in table "${context.table.name}"`,
-      metadata: { op: 'batch_update', rowsUpdated: result.affectedCount },
-    }
-  },
-  afterSuccess({ context, result }) {
-    if (result.affectedCount > 0) signalTableRowsChanged(context.tableId)
   },
 })

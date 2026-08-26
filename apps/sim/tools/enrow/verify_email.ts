@@ -33,13 +33,13 @@ function mapVerifyResult(data: Record<string, unknown>, jobId: string): EnrowVer
  * (complete) or the polling window expires. HTTP 202 means still in progress.
  *
  * Pricing: 0.25 credits per verification (charged per call).
- * Docs: https://enrow.readme.io/reference/verify-single-email
+ * Docs: https://docs.enrow.io/api-reference/email-verifier/verify-single
  */
 export const enrowVerifyEmailTool: ToolConfig<EnrowVerifyEmailParams, EnrowVerifyEmailResponse> = {
   id: 'enrow_verify_email',
   name: 'Enrow Verify Email',
   description:
-    'Verify the deliverability of an email address using the Enrow async verifier. Submits a verification request and polls until the result is ready. Costs 0.25 credits per verification. (https://enrow.readme.io/reference/verify-single-email)',
+    'Verify the deliverability of an email address using the Enrow async verifier. Submits a verification request and polls until the result is ready. Costs 0.25 credits per verification. (https://docs.enrow.io/api-reference/email-verifier/verify-single)',
   version: '1.0.0',
 
   hosting: enrowHosting<EnrowVerifyEmailParams>((_params, output) => {

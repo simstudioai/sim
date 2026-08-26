@@ -1,5 +1,6 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import * as yaml from 'js-yaml'
+import { FileParserError } from '@/lib/file-parsers/errors'
 import type { FileParseResult } from '@/lib/file-parsers/types'
 
 /**
@@ -34,9 +35,9 @@ const MAX_YAML_DEPTH = 500
  * Distinct from a syntax error so callers can tell a malformed file apart from
  * a resource-exhaustion (alias-expansion DoS) attempt.
  */
-export class YamlComplexityError extends Error {
+export class YamlComplexityError extends FileParserError {
   constructor(message: string) {
-    super(message)
+    super('complexity_limit', message)
     this.name = 'YamlComplexityError'
   }
 }
@@ -179,6 +180,10 @@ export function assertYamlWithinLimits(root: unknown): number {
  * that its expanded form stays within safe complexity limits.
  */
 function buildYamlResult(yamlData: unknown): FileParseResult {
+  if (yamlData === undefined) {
+    throw new FileParserError('empty_input', 'Empty YAML input provided')
+  }
+
   const depth = assertYamlWithinLimits(yamlData)
   const jsonContent = JSON.stringify(yamlData, null, 2)
 
@@ -207,8 +212,12 @@ export async function parseYAML(filePath: string): Promise<FileParseResult> {
     const yamlData = yaml.load(content)
     return buildYamlResult(yamlData)
   } catch (error) {
-    if (error instanceof YamlComplexityError) throw error
-    throw new Error(`Invalid YAML: ${getErrorMessage(error, 'Unknown error')}`)
+    if (error instanceof FileParserError) throw error
+    throw new FileParserError(
+      'invalid_format',
+      `Invalid YAML: ${getErrorMessage(error, 'Unknown error')}`,
+      error
+    )
   }
 }
 
@@ -216,13 +225,21 @@ export async function parseYAML(filePath: string): Promise<FileParseResult> {
  * Parse YAML from buffer
  */
 export async function parseYAMLBuffer(buffer: Buffer): Promise<FileParseResult> {
+  if (!buffer || buffer.length === 0) {
+    throw new FileParserError('empty_input', 'Empty buffer provided')
+  }
+
   const content = buffer.toString('utf-8')
 
   try {
     const yamlData = yaml.load(content)
     return buildYamlResult(yamlData)
   } catch (error) {
-    if (error instanceof YamlComplexityError) throw error
-    throw new Error(`Invalid YAML: ${getErrorMessage(error, 'Unknown error')}`)
+    if (error instanceof FileParserError) throw error
+    throw new FileParserError(
+      'invalid_format',
+      `Invalid YAML: ${getErrorMessage(error, 'Unknown error')}`,
+      error
+    )
   }
 }

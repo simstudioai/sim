@@ -11,7 +11,6 @@ import {
   getManagedOAuthConnectorProviderConfig,
 } from '@/lib/auth/connectors/managed-oauth'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
-import { getBaseUrl } from '@/lib/core/utils/urls'
 import { credentialGroupOAuthNonceMatches } from '@/lib/credential-groups/oauth-state'
 import type {
   CredentialGroupProviderAdapter,
@@ -37,6 +36,18 @@ interface OAuthEndpoints {
 interface CurrentStandardOAuthProvider {
   connector: ConnectorProviderConfig
   policy: CredentialGroupProviderPolicy
+}
+
+function getRedirectUri(
+  provider: CredentialGroupStandardOAuthProvider,
+  current: CurrentStandardOAuthProvider
+): string {
+  if (!current.connector.redirectURI) {
+    throw new CredentialGroupProviderConfigurationError(
+      `${getCredentialGroupProviderService(provider).name} OAuth callback is not configured`
+    )
+  }
+  return current.connector.redirectURI
 }
 
 function staticParams(
@@ -215,7 +226,7 @@ export function createStandardOAuthCredentialGroupProviderAdapter(
         current.connector,
         getCredentialGroupProviderService(provider).name
       )
-      const redirectUri = `${getBaseUrl()}/api/credential-groups/oauth/${provider}/callback`
+      const redirectUri = getRedirectUri(provider, current)
       const codeVerifier = managed.pkce ? generatePkceVerifier() : undefined
       return {
         redirectUri,
@@ -237,14 +248,14 @@ export function createStandardOAuthCredentialGroupProviderAdapter(
             accessType: current.connector.accessType,
             responseType: current.connector.responseType,
             responseMode: current.connector.responseMode,
-            loginHint: context.email,
+            loginHint: managed.includeLoginHint ? context.email : undefined,
             additionalParams: {
               ...staticParams(
                 current.connector.authorizationUrlParams,
                 'OAuth authorization parameters'
               ),
               ...managed.authorizationUrlParams,
-              nonce,
+              ...(managed.nonceVerification === 'id_token' ? { nonce } : {}),
             },
           })
           return authorizationUrl.toString()
@@ -254,7 +265,7 @@ export function createStandardOAuthCredentialGroupProviderAdapter(
     async exchangeAndVerify({ context, attempt, code, policy }) {
       const current = getCurrentProvider(provider)
       assertCurrentPolicy(policy, current.policy)
-      const redirectUri = `${getBaseUrl()}/api/credential-groups/oauth/${provider}/callback`
+      const redirectUri = getRedirectUri(provider, current)
       if (attempt.redirectUri !== redirectUri) {
         throw new CredentialGroupOAuthError('Authorization state is invalid or expired.', 400)
       }
@@ -297,11 +308,10 @@ export function createStandardOAuthCredentialGroupProviderAdapter(
           502
         )
       }
-      if (
-        !identity.emailVerified ||
-        !identity.nonce ||
-        !credentialGroupOAuthNonceMatches(identity.nonce, attempt.nonceHash)
-      ) {
+      const nonceMatches =
+        managed.nonceVerification === 'state_only' ||
+        (identity.nonce && credentialGroupOAuthNonceMatches(identity.nonce, attempt.nonceHash))
+      if (!identity.emailVerified || !nonceMatches) {
         throw new CredentialGroupOAuthError(
           `${service.name} returned an invalid identity token.`,
           502

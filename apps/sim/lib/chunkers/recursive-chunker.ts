@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { ChunkBudget } from '@/lib/chunkers/chunk-budget'
 import { MAX_CHUNKING_SEPARATOR_LENGTH, MAX_CHUNKING_SEPARATORS } from '@/lib/chunkers/constants'
 import type { Chunk, RecursiveChunkerOptions } from '@/lib/chunkers/types'
 import {
@@ -6,8 +7,10 @@ import {
   buildChunks,
   cleanText,
   estimateTokens,
+  hasMultipleNonEmptyLiteralParts,
+  iterateLiteralParts,
+  iterateWordBoundaryChunks,
   resolveChunkerOptions,
-  splitAtWordBoundaries,
   tokensToChars,
 } from '@/lib/chunkers/utils'
 
@@ -57,11 +60,13 @@ export class RecursiveChunker {
   private readonly chunkSize: number
   private readonly chunkOverlap: number
   private readonly separators: string[]
+  private readonly maxChunks?: number
 
   constructor(options: RecursiveChunkerOptions = {}) {
     const resolved = resolveChunkerOptions(options)
     this.chunkSize = resolved.chunkSize
     this.chunkOverlap = resolved.chunkOverlap
+    this.maxChunks = options.maxChunks
 
     /**
      * Bounded here as well as at the API boundary: a config persisted before the
@@ -92,11 +97,17 @@ export class RecursiveChunker {
     }
   }
 
-  private splitRecursively(text: string, separatorIndex = 0): string[] {
+  private splitRecursively(
+    text: string,
+    chunks: string[],
+    budget: ChunkBudget,
+    separatorIndex = 0
+  ): void {
     const tokenCount = estimateTokens(text)
 
     if (tokenCount <= this.chunkSize) {
-      return text.trim() ? [text] : []
+      if (text.trim()) budget.add(chunks, text)
+      return
     }
 
     /**
@@ -105,7 +116,6 @@ export class RecursiveChunker {
      */
     let index = separatorIndex
     let separator = ''
-    let parts: string[] = []
 
     while (index < this.separators.length) {
       separator = this.separators[index]
@@ -115,9 +125,7 @@ export class RecursiveChunker {
         break
       }
 
-      parts = text.split(separator).filter((part) => part.trim())
-
-      if (parts.length > 1) {
+      if (hasMultipleNonEmptyLiteralParts(text, separator)) {
         break
       }
 
@@ -126,27 +134,27 @@ export class RecursiveChunker {
 
     if (index >= this.separators.length) {
       const chunkSizeChars = tokensToChars(this.chunkSize)
-      return splitAtWordBoundaries(text, chunkSizeChars)
+      for (const part of iterateWordBoundaryChunks(text, chunkSizeChars)) {
+        budget.add(chunks, part)
+      }
+      return
     }
 
-    const chunks: string[] = []
     let currentChunk = ''
 
-    for (const part of parts) {
+    for (const part of iterateLiteralParts(text, separator)) {
+      if (!part.trim()) continue
       const testChunk = currentChunk + (currentChunk ? separator : '') + part
 
       if (estimateTokens(testChunk) <= this.chunkSize) {
         currentChunk = testChunk
       } else {
         if (currentChunk.trim()) {
-          chunks.push(currentChunk.trim())
+          budget.add(chunks, currentChunk.trim())
         }
 
         if (estimateTokens(part) > this.chunkSize) {
-          const subChunks = this.splitRecursively(part, index + 1)
-          for (const subChunk of subChunks) {
-            chunks.push(subChunk)
-          }
+          this.splitRecursively(part, chunks, budget, index + 1)
           currentChunk = ''
         } else {
           currentChunk = part
@@ -155,10 +163,8 @@ export class RecursiveChunker {
     }
 
     if (currentChunk.trim()) {
-      chunks.push(currentChunk.trim())
+      budget.add(chunks, currentChunk.trim())
     }
-
-    return chunks
   }
 
   async chunk(content: string): Promise<Chunk[]> {
@@ -167,7 +173,8 @@ export class RecursiveChunker {
     }
 
     const cleaned = cleanText(content)
-    let chunks = this.splitRecursively(cleaned)
+    let chunks: string[] = []
+    this.splitRecursively(cleaned, chunks, new ChunkBudget(this.maxChunks))
 
     if (this.chunkOverlap > 0) {
       const overlapChars = tokensToChars(this.chunkOverlap)

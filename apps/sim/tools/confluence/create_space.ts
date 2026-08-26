@@ -80,6 +80,7 @@ export const confluenceCreateSpaceTool: ToolConfig<
   },
 
   request: {
+    internal: true,
     url: () => '/api/tools/confluence/space',
     method: 'POST',
     headers: (params: ConfluenceCreateSpaceParams) => ({

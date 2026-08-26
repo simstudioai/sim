@@ -37,6 +37,7 @@ export const tiktokUploadVideoDraftTool: ToolConfig<
   },
 
   request: {
+    internal: true,
     url: () => '/api/tools/tiktok/upload-video-draft',
     method: 'POST',
     headers: () => ({

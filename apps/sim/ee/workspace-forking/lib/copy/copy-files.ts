@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { workspaceFiles } from '@sim/db/schema'
+import { workspaceFileColumns, workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -20,7 +20,7 @@ import {
   headObject,
   uploadFile,
 } from '@/lib/uploads/core/storage-service'
-import type { StorageContext } from '@/lib/uploads/shared/types'
+import { getWorkspaceFileSize, type StorageContext } from '@/lib/uploads/shared/types'
 import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
 import { resolveForkFolderMapping } from '@/ee/workspace-forking/lib/copy/copy-workflows'
 import {
@@ -180,7 +180,7 @@ export async function planForkFileCopies(params: {
     fileKeys.length > 0 ? inArray(workspaceFiles.key, fileKeys) : undefined,
   ].filter((clause): clause is NonNullable<typeof clause> => clause !== undefined)
   const metas = await tx
-    .select()
+    .select(workspaceFileColumns)
     .from(workspaceFiles)
     .where(
       and(
@@ -219,7 +219,7 @@ export async function planForkFileCopies(params: {
       context: meta.context as StorageContext,
       fileName: meta.originalName,
       contentType: meta.contentType,
-      size: meta.size,
+      size: getWorkspaceFileSize(meta),
       targetFileId: childFileId,
       displayName: meta.displayName,
       userId,
@@ -341,7 +341,7 @@ export async function executeForkFileBlobCopies(
               originalName: targetOriginalName,
               displayName: targetDisplayName,
               contentType: task.contentType,
-              size: task.size,
+              sizeBytes: task.size,
               deletedAt: null,
               uploadedAt: new Date(),
             })
@@ -389,7 +389,7 @@ export async function executeForkFileBlobCopies(
                 originalName: targetOriginalName,
                 displayName: targetDisplayName,
                 contentType: task.contentType,
-                size: task.size,
+                sizeBytes: task.size,
                 deletedAt: null,
                 uploadedAt: new Date(),
               })

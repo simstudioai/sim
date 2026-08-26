@@ -651,7 +651,7 @@ describe('OpenAPI generator', () => {
     const workflowSpec = generateOpenApiDocument(workflowsOpenApiDocument)
     const getRunParameters = getOperation(
       workflowSpec,
-      '/api/v2/workflows/{id}/runs/{runId}',
+      '/api/v2/workflows/{workflowId}/runs/{runId}',
       'get'
     ).parameters as JsonObject[]
     const includeOutput = getRunParameters.find((parameter) => parameter.name === 'includeOutput')

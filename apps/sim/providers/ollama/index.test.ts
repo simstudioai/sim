@@ -119,7 +119,6 @@ function completion(
 function makeTool(id: string, usageControl?: 'auto' | 'force' | 'none'): ProviderToolConfig {
   return {
     id,
-    name: id,
     description: `${id} tool`,
     params: {},
     parameters: { type: 'object', properties: {}, required: [] },

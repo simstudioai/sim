@@ -253,7 +253,7 @@ export interface SearchParams {
   num?: number
   gl?: string
   hl?: string
-  type?: 'search' | 'news' | 'places' | 'images' | 'videos' | 'shopping'
+  type?: 'search' | 'news' | 'places' | 'images' | 'videos' | 'shopping' | 'scholar' | 'patents'
   tbs?: string
 }
 
@@ -267,6 +267,8 @@ export interface SearchResult {
   source?: string
   rating?: number
   ratingCount?: number
+  /** Legacy passthrough of the raw `reviews` key on places items; not an advertised output. */
+  reviews?: number
   address?: string
   price?: string
   duration?: string

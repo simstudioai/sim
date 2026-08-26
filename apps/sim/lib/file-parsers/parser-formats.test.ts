@@ -14,6 +14,7 @@ import * as XLSX from 'xlsx'
 import { parseBuffer } from '@/lib/file-parsers'
 import { DocParser } from '@/lib/file-parsers/doc-parser'
 import { DocxParser } from '@/lib/file-parsers/docx-parser'
+import { FileParserError } from '@/lib/file-parsers/errors'
 import { OpenDocumentParser } from '@/lib/file-parsers/opendocument-parser'
 import { PptxParser } from '@/lib/file-parsers/pptx-parser'
 import { XlsxParser } from '@/lib/file-parsers/xlsx-parser'
@@ -182,6 +183,15 @@ describe('DocxParser', () => {
 
     expect(result.content).toContain('Market Data SOP body text')
     expect(result.metadata?.degraded).toBeFalsy()
+  })
+
+  it('reports a valid image-only or empty Word container as no extractable text', async () => {
+    const buffer = await buildDocx('<w:p><w:r><w:drawing/></w:r></w:p>')
+
+    const error = await new DocxParser().parseBuffer(buffer).catch((caught: unknown) => caught)
+
+    expect(error).toBeInstanceOf(FileParserError)
+    expect(error).toMatchObject({ code: 'no_extractable_text' })
   })
 
   /**

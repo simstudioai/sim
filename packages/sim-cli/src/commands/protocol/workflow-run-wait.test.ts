@@ -286,4 +286,17 @@ describe('workflows runs wait', () => {
 
     expect(progress).toEqual([])
   })
+
+  it('rejects an extra positional rather than waiting on only the first run', async () => {
+    const root = new Command('sim').exitOverride()
+    const runs = new Command('runs').exitOverride()
+    root.addCommand(runs)
+    attachWorkflowRunWait(runs)
+    runs.commands.forEach((command) => command.exitOverride())
+
+    await expect(
+      root.parseAsync(['node', 'sim', 'runs', 'wait', 'run_1', 'run_2', '--workflow', 'wf_1'])
+    ).rejects.toThrow(/too many arguments/)
+    expect(mockRequest).not.toHaveBeenCalled()
+  })
 })

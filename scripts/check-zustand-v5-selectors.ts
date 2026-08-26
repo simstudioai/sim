@@ -8,7 +8,12 @@ const APP_DIR = path.join(ROOT, 'apps/sim')
 const SKIP_DIRS = new Set(['node_modules', '.next', '.turbo', 'coverage', 'dist', 'build'])
 
 const SOURCE_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx'])
-const STORE_HOOK_CALL_PATTERN = /\buse[A-Z][A-Za-z0-9_]*Store\s*\(/g
+/**
+ * Zustand store hooks are named `use<Name>Store` by convention, with one
+ * exception: `useWorkflowRegistry`. Matching only the `Store` suffix left that
+ * store — one of the hottest in the canvas — entirely unchecked.
+ */
+const STORE_HOOK_CALL_PATTERN = /\buse[A-Z][A-Za-z0-9_]*(?:Store|Registry)\s*\(/g
 const SAFE_ANNOTATION = 'zustand-v5-safe:'
 const UNSAFE_SELECTOR_PATTERNS: Array<{ pattern: RegExp; reason: string }> = [
   {

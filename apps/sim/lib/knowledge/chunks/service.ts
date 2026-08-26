@@ -3,13 +3,24 @@ import { document, embedding, knowledgeBase } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
 import { generateId } from '@sim/utils/id'
-import { and, asc, desc, eq, ilike, inArray, isNull, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
+import {
+  type KeysetKey,
+  keysetColumns,
+  keysetPage,
+  listOrderBy,
+  numberKey,
+  resumeKeyset,
+  searchFilter,
+  textKey,
+} from '@/lib/api/list-query'
 import type { DurableSecretProvenance } from '@/lib/execution/durable-secret-provenance'
 import type {
   BatchOperationResult,
   ChunkData,
   ChunkFilters,
   ChunkQueryResult,
+  ChunkSortBy,
   CreateChunkData,
 } from '@/lib/knowledge/chunks/types'
 import { getEmbeddingModelInfo } from '@/lib/knowledge/embedding-models'
@@ -22,7 +33,45 @@ const logger = createLogger('ChunksService')
 const KB_CHUNK_LOCK_TIMEOUT_MS = 5_000
 
 /**
- * Query chunks for a document with filtering and pagination
+ * The keyset each chunk sort pages on.
+ *
+ * Every list ends in `embedding.id`, which is what separates rows the leading
+ * key ties on: `tokenCount` and `enabled` are both non-unique, so without the
+ * tiebreaker a page boundary landing inside a run of equal values either
+ * repeats or drops the tied rows. `chunkIndex` is unique per document, but it
+ * carries the tiebreaker too so the three sorts encode the same arity and a
+ * cursor cannot be replayed across them by accident.
+ */
+const CHUNK_SORTS = {
+  chunkIndex: [
+    numberKey<ChunkData>(embedding.chunkIndex, (row) => row.chunkIndex),
+    textKey<ChunkData>(embedding.id, (row) => row.id),
+  ],
+  tokenCount: [
+    numberKey<ChunkData>(embedding.tokenCount, (row) => row.tokenCount),
+    textKey<ChunkData>(embedding.id, (row) => row.id),
+  ],
+  /**
+   * Ordered on `false < true` as the boolean column itself sorts, projected to
+   * `0`/`1` so the cursor carries a value a keyset key can bind. A bare boolean
+   * has no {@link KeysetKey} codec, and inventing one for a single sort would
+   * put a shared helper behind a column only this list orders by.
+   */
+  enabled: [
+    numberKey<ChunkData>(sql`case when ${embedding.enabled} then 1 else 0 end`, (row) =>
+      row.enabled ? 1 : 0
+    ),
+    textKey<ChunkData>(embedding.id, (row) => row.id),
+  ],
+} satisfies Record<ChunkSortBy, readonly KeysetKey<ChunkData>[]>
+
+/**
+ * Query chunks for a document with filtering and pagination.
+ *
+ * Two positioning schemes share one read. `cursorKeys` is the keyset the public
+ * surface pages on; `offset` is the ordinal the internal surface has always
+ * used. They are never combined — a keyset request sends no offset — so the
+ * ordinal simply stays zero for the paged caller.
  */
 export async function queryChunks(
   documentId: string,
@@ -36,7 +85,9 @@ export async function queryChunks(
     offset = 0,
     sortBy = 'chunkIndex',
     sortOrder = 'asc',
+    cursorKeys,
   } = filters
+  const keys = CHUNK_SORTS[sortBy]
 
   const conditions = [eq(embedding.documentId, documentId)]
 
@@ -46,11 +97,19 @@ export async function queryChunks(
     conditions.push(eq(embedding.enabled, false))
   }
 
-  if (search) {
-    conditions.push(ilike(embedding.content, `%${search}%`))
+  const contentSearch = searchFilter(embedding.content, search)
+  if (contentSearch) {
+    conditions.push(contentSearch)
   }
 
-  const chunks = await db
+  /**
+   * `total` counts the filtered set, so it is read from the filters alone. The
+   * keyset resume narrows the *page*, and folding it into the count would turn
+   * a total into a remainder that shrinks with every page.
+   */
+  const pageConditions = [...conditions, resumeKeyset(keys, cursorKeys, sortOrder)]
+
+  const rows = await db
     .select({
       id: embedding.id,
       chunkIndex: embedding.chunkIndex,
@@ -71,19 +130,9 @@ export async function queryChunks(
       updatedAt: embedding.updatedAt,
     })
     .from(embedding)
-    .where(and(...conditions))
-    .orderBy(
-      (() => {
-        const col =
-          sortBy === 'tokenCount'
-            ? embedding.tokenCount
-            : sortBy === 'enabled'
-              ? embedding.enabled
-              : embedding.chunkIndex
-        return sortOrder === 'desc' ? desc(col) : asc(col)
-      })()
-    )
-    .limit(limit)
+    .where(and(...pageConditions))
+    .orderBy(...listOrderBy(keysetColumns(keys), sortOrder))
+    .limit(limit + 1)
     .offset(offset)
 
   const totalCount = await db
@@ -91,15 +140,18 @@ export async function queryChunks(
     .from(embedding)
     .where(and(...conditions))
 
-  logger.info(`[${requestId}] Retrieved ${chunks.length} chunks for document ${documentId}`)
+  const page = keysetPage(keys, rows as ChunkData[], limit)
+
+  logger.info(`[${requestId}] Retrieved ${page.data.length} chunks for document ${documentId}`)
 
   return {
-    chunks: chunks as ChunkData[],
+    chunks: page.data,
+    nextCursorKeys: page.nextCursorKeys,
     pagination: {
       total: Number(totalCount[0]?.count || 0),
       limit,
       offset,
-      hasMore: chunks.length === limit,
+      hasMore: page.nextCursorKeys !== null,
     },
   }
 }
@@ -328,16 +380,22 @@ export async function batchChunkOperation(
   } else {
     const enabled = operation === 'enable'
 
-    await db
+    const updatedChunks = await db
       .update(embedding)
       .set({
         enabled,
         updatedAt: new Date(),
       })
       .where(and(eq(embedding.documentId, documentId), inArray(embedding.id, chunkIds)))
+      .returning({ id: embedding.id })
 
-    // For enable/disable, we assume all chunks were processed successfully
-    successCount = chunkIds.length
+    successCount = updatedChunks.length
+
+    const matchedIds = new Set(updatedChunks.map(({ id }) => id))
+    const unmatchedIds = chunkIds.filter((chunkId) => !matchedIds.has(chunkId))
+    if (unmatchedIds.length > 0) {
+      errors.push(`No matching chunks found to ${operation}: ${unmatchedIds.join(', ')}`)
+    }
   }
 
   logger.info(

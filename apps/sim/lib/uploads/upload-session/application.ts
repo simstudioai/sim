@@ -3,7 +3,7 @@ import type { CreateInternalFileUploadBody } from '@/lib/api/contracts/upload-se
 import type { OrchestrationRequestContext } from '@/lib/core/orchestration/types'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { loadActiveFolderPathIndex, resolveFolderPathFromIndex } from '@/lib/folders/queries'
-import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
+import { getWorkspaceFile, type WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import {
   abortUploadSession,
   assertUploadSessionAuthBinding,
@@ -185,6 +185,52 @@ export async function loadAuthorizedWorkspaceUploadSession(
   })
 }
 
+/**
+ * Reads an upload session's current state after current workspace
+ * authorization. The `GET` is a control leg like every other, so the session's
+ * auth binding and the caller's present workspace permission are both
+ * re-checked here rather than the session being looked up on its id alone.
+ */
+export interface ReadWorkspaceUploadSessionResult {
+  session: UploadSessionRecord
+  /**
+   * The file the session registered, once it has one.
+   *
+   * The resource documents `file` as "the registered file after finalization",
+   * and a caller polling a transfer it lost track of is exactly who needs it —
+   * it is the only way to learn the id the upload produced without having held
+   * the `complete` response. Loaded here rather than in the presenter because
+   * it is a protected read.
+   *
+   * Still null when a completed session's file has since been deleted, which is
+   * the same shape as "not finalized yet" and needs no separate signal: in both
+   * cases there is no file to address.
+   *
+   * A failed *read*, though, is not that shape. `getWorkspaceFile` logs and
+   * returns null by default, which would let a transient database error present
+   * a finalized upload as fileless to the one caller polling to learn what it
+   * created — and they would stop, having been told there was nothing. It is
+   * read with `throwOnError` so the failure surfaces and the poll can retry,
+   * matching how `readWorkspaceFileRecord` loads the same record.
+   */
+  file: WorkspaceFileRecord | null
+}
+
+export async function readWorkspaceUploadSession(
+  principal: Principal,
+  input: UploadSessionControlInput
+): Promise<ReadWorkspaceUploadSessionResult> {
+  const session = await loadAuthorizedWorkspaceUploadSession(principal, input)
+  await reauthorizeWorkspaceUploadPurpose(principal, session, fileOperations.uploadRead)
+  if (session.status !== 'completed' || !session.completedFileId || !session.workspaceId) {
+    return { session, file: null }
+  }
+  const file = await getWorkspaceFile(session.workspaceId, session.completedFileId, {
+    throwOnError: true,
+  })
+  return { session, file: file ?? null }
+}
+
 /** Issues multipart URLs after current workspace authorization. */
 export async function issueWorkspaceUploadPartUrls(
   principal: Principal,
@@ -320,6 +366,13 @@ export const completeWorkspaceFileUploadOperation = {
   }) {
     if (!request) throw new Error('Upload completion requires a request context')
     return completeWorkspaceUploadSession(principal, input, request)
+  },
+} as const
+
+export const readWorkspaceFileUploadOperation = {
+  operation: fileOperations.uploadRead,
+  async execute({ principal, input }: { principal: Principal; input: UploadSessionControlInput }) {
+    return readWorkspaceUploadSession(principal, input)
   },
 } as const
 

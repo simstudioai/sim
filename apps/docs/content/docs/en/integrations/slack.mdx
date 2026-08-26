@@ -6,7 +6,7 @@ description: Send, update, delete messages, manage views and modals, add or remo
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 <BlockInfoCard 
-  type="slack"
+  type="slack_v2"
   color="#611f69"
 />
 
@@ -1872,18 +1872,27 @@ Set the purpose (description) for a Slack channel (max 250 characters).
 
 A **Trigger** is a block that starts a workflow when an event happens in this service.
 
-### Slack Webhook
+### Slack
 
-Trigger workflow from Slack events like mentions, messages, and reactions
+Trigger from Slack events (mentions, messages, reactions)
 
 #### Configuration
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `signingSecret` | string | Yes | The signing secret from your Slack app to validate request authenticity. |
-| `botToken` | string | No | The bot token from your Slack app. Required for downloading files attached to messages. |
-| `includeFiles` | boolean | No | Download and include file attachments from messages. Requires a bot token with files:read scope. |
-| `setupWizard` | modal | No | Walk through manifest creation, app install, and pasting credentials. |
+| `eventType` | string | Yes | The single Slack event this trigger fires on. Add another trigger block for another event. |
+| `customBotCredential` | string | Yes | Choose a custom Slack bot you set up once and reuse across triggers. |
+| `manualBotCredential` | string | Yes | Set the custom bot credential ID directly. |
+| `source` | string | No | Restrict to direct messages, public channels, or private channels. Leave empty to match any. |
+| `channelFilter` | channel-selector | No | Restrict to specific channels. Leave empty to trigger on any channel the bot has been added to. |
+| `manualChannelFilter` | string | No | Comma-separated channel IDs to restrict to. Set IDs directly here. |
+| `threads` | string | No | Include thread replies, exclude them \(top-level only\), or fire only on thread replies. |
+| `emoji` | string | No | Comma-separated emoji names to restrict to. Leave empty to match any emoji. |
+| `nameContains` | string | No | Only fire when the created channel name contains this text. |
+| `interactionFilter` | string | No | Comma-separated action_ids \(buttons/selects\) or callback_ids \(modals\) to restrict to. Leave empty to fire on any interaction. |
+| `filterBotMessages` | boolean | No | Ignore messages sent by other bots. This app's own output is always ignored. |
+| `includeOwnMessages` | boolean | No | Also fire on this app's own messages and reactions. Can cause loops — use with care. |
+| `includeFiles` | boolean | No | Download and include file attachments from messages. Requires files:read. |
 
 #### Output
 

@@ -16,7 +16,7 @@ import {
   timestampKey,
 } from '@/lib/api/list-query'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { assertStorableCustomToolSchema } from '@/lib/custom-tools/schema'
+import { assertValidCustomToolDeclaration } from '@/lib/custom-tools/schema'
 
 const logger = createLogger('CustomToolsOperations')
 
@@ -44,7 +44,7 @@ export async function upsertCustomTools(params: {
    * the tools that preceded the unstorable one.
    */
   for (const tool of tools) {
-    assertStorableCustomToolSchema(tool.schema)
+    assertValidCustomToolDeclaration(tool.schema)
   }
 
   return await db.transaction(async (tx) => {

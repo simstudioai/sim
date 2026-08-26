@@ -17,6 +17,7 @@ import {
   trackChatUpload,
   WorkspaceFileKeyOwnershipError,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { getWorkspaceFileSize } from '@/lib/uploads/shared/types'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('StageLocalFileUploadAPI')
@@ -52,7 +53,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         displayName: workspaceFiles.displayName,
         originalName: workspaceFiles.originalName,
         contentType: workspaceFiles.contentType,
-        size: workspaceFiles.size,
+        sizeBytes: workspaceFiles.sizeBytes,
       })
       .from(workspaceFiles)
       .where(
@@ -87,7 +88,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
               key,
               file.originalName,
               file.contentType,
-              file.size
+              getWorkspaceFileSize(file)
             )
           ).displayName
 

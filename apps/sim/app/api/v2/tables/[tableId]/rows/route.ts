@@ -44,12 +44,15 @@ export const GET = defineV2JsonRoute({
     assertedWorkspaceId: query.workspaceId,
     limit: query.limit,
     cursor: readScopedCursor(query.cursor, tableRowCursorScope(params.tableId)),
+    includeRunState: query.includeRunState,
   }),
   useCase: listTableRows,
-  present: ({ table, rows, nextCursor }, { params }) => {
+  present: ({ table, rows, nextCursor }, { params, query }) => {
     const toNamedRow = namedRowMapper(table.schema.columns)
     return {
-      data: rows.map((row) => toApiRow(row, toNamedRow)),
+      data: rows.map((row) =>
+        toApiRow(row, toNamedRow, query.includeRunState ? row.executions : undefined)
+      ),
       nextCursor: nextCursor
         ? encodeScopedCursor(tableRowCursorScope(params.tableId), nextCursor)
         : null,

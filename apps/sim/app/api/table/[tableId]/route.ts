@@ -4,7 +4,6 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { getTableQuerySchema, updateTableContract } from '@/lib/api/contracts/tables'
 import { isZodError, parseRequest, validationErrorResponse } from '@/lib/api/server/validation'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
-import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { findActiveFolder } from '@/lib/folders/queries'
@@ -17,9 +16,7 @@ import {
   performRenameTable,
   performUpdateTableLocks,
 } from '@/lib/table/orchestration'
-import { TABLE_LOCK_FLAGS, TABLE_LOCK_KINDS } from '@/lib/table/types'
 import { normalizeColumn } from '@/lib/table/wire'
-import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 import {
   accessError,
   checkAccess,
@@ -146,32 +143,6 @@ export const PATCH = withRouteHandler(
       }
 
       if (validated.locks !== undefined) {
-        // With the flag off you may still CLEAR locks — otherwise flipping the
-        // kill switch would strand an already-locked table with no way to
-        // unlock it, while enforcement of those stored locks keeps running.
-        // Only a lock actually transitioning off→on needs the feature enabled;
-        // comparing against the stored state (rather than "every value is
-        // false") is what lets the settings UI, which always submits the full
-        // four-flag draft, clear one lock while another stays on.
-        const enablesALock = TABLE_LOCK_KINDS.some((kind) => {
-          const flag = TABLE_LOCK_FLAGS[kind]
-          return validated.locks?.[flag] === true && !table.locks[flag]
-        })
-        if (enablesALock) {
-          // Resolve with the same context the page uses to decide whether to
-          // show the panel — keyed on the workspace's host organization, not
-          // the viewer's active one. Without it an org- or user-targeted
-          // rollout would open the panel and then 403 on save. Looked up only
-          // on the enabling path, so an unlock never pays for it.
-          const workspace = await getWorkspaceWithOwner(table.workspaceId)
-          const enabled = await isFeatureEnabled('table-locks', {
-            userId: authResult.userId,
-            orgId: workspace?.organizationId ?? undefined,
-          })
-          if (!enabled) {
-            return NextResponse.json({ error: 'Table locks are not enabled' }, { status: 403 })
-          }
-        }
         const adminResult = await checkAccess(tableId, authResult.userId, 'admin')
         if (!adminResult.ok) {
           return NextResponse.json(

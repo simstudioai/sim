@@ -51,8 +51,11 @@ vi.mock('@sim/platform-authz/workflow', () => ({
   WorkflowLockedError: class WorkflowLockedError extends Error {},
 }))
 
-vi.mock('@/lib/workflows/application/context', () => ({
+vi.mock('@/lib/workspaces/application/workspace-context', () => ({
   resolveActiveWorkspaceApplicationContext: mocks.resolveWorkspaceContext,
+}))
+
+vi.mock('@/lib/workflows/application/context', () => ({
   resolveActiveWorkflowApplicationContext: mocks.resolveWorkflowContext,
 }))
 

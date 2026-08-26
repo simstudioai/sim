@@ -55,6 +55,7 @@ export const agiloftUpdateRecordTool: ToolConfig<AgiloftUpdateRecordParams, Agil
     },
 
     request: {
+      internal: true,
       url: () => '/api/tools/agiloft/update_record',
       method: 'POST',
       headers: () => ({ 'Content-Type': 'application/json' }),

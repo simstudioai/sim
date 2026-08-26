@@ -4,11 +4,11 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { truncate } from '@sim/utils/string'
 import { and, eq, isNull } from 'drizzle-orm'
-import { KNOWLEDGE_DOCUMENT_PROCESSING_STALE_THRESHOLD_MS } from '@/lib/knowledge/constants'
+import { DOCUMENT_PROCESSING_STALE_THRESHOLD_MS } from '@/lib/knowledge/documents/processing-timeouts.server'
 
 const logger = createLogger('KnowledgeDocumentProcessingClaim')
 
-export { KNOWLEDGE_DOCUMENT_PROCESSING_STALE_THRESHOLD_MS } from '@/lib/knowledge/constants'
+export { DOCUMENT_PROCESSING_STALE_THRESHOLD_MS as KNOWLEDGE_DOCUMENT_PROCESSING_STALE_THRESHOLD_MS } from '@/lib/knowledge/documents/processing-timeouts.server'
 
 interface ReclaimStaleDocumentProcessingClaimParams {
   knowledgeBaseId: string
@@ -18,6 +18,7 @@ interface ReclaimStaleDocumentProcessingClaimParams {
 }
 
 interface FailStaleDocumentProcessingClaimParams {
+  knowledgeBaseId: string
   documentId: string
   processingStartedAt: Date
   now?: Date
@@ -35,8 +36,7 @@ export async function reclaimStaleDocumentProcessingClaim({
 }: ReclaimStaleDocumentProcessingClaimParams): Promise<boolean> {
   if (
     processingStartedAt &&
-    now.getTime() - processingStartedAt.getTime() <=
-      KNOWLEDGE_DOCUMENT_PROCESSING_STALE_THRESHOLD_MS
+    now.getTime() - processingStartedAt.getTime() <= DOCUMENT_PROCESSING_STALE_THRESHOLD_MS
   ) {
     return false
   }
@@ -48,6 +48,8 @@ export async function reclaimStaleDocumentProcessingClaim({
     .update(document)
     .set({
       processingStatus: 'pending',
+      processingQueueToken: null,
+      processingQueuedAt: null,
       processingStartedAt: null,
       processingCompletedAt: null,
       processingError: null,
@@ -70,6 +72,7 @@ export async function reclaimStaleDocumentProcessingClaim({
 
 /** Marks only the abandoned processing attempt identified by its start-time token as failed. */
 export async function failStaleDocumentProcessingClaim({
+  knowledgeBaseId,
   documentId,
   processingStartedAt,
   now = new Date(),
@@ -78,7 +81,7 @@ export async function failStaleDocumentProcessingClaim({
   processingDuration: number
 }> {
   const processingDuration = now.getTime() - processingStartedAt.getTime()
-  if (processingDuration <= KNOWLEDGE_DOCUMENT_PROCESSING_STALE_THRESHOLD_MS) {
+  if (processingDuration <= DOCUMENT_PROCESSING_STALE_THRESHOLD_MS) {
     throw new Error('Document has not been processing long enough to be considered dead')
   }
 
@@ -87,13 +90,18 @@ export async function failStaleDocumentProcessingClaim({
     .set({
       processingStatus: 'failed',
       processingError: 'Processing timed out. Please retry or re-sync the connector.',
+      processingDeferredUntil: null,
       processingCompletedAt: now,
     })
     .where(
       and(
         eq(document.id, documentId),
+        eq(document.knowledgeBaseId, knowledgeBaseId),
         eq(document.processingStatus, 'processing'),
-        eq(document.processingStartedAt, processingStartedAt)
+        eq(document.processingStartedAt, processingStartedAt),
+        eq(document.userExcluded, false),
+        isNull(document.archivedAt),
+        isNull(document.deletedAt)
       )
     )
     .returning({ id: document.id })
@@ -104,6 +112,7 @@ export async function failStaleDocumentProcessingClaim({
 interface FailUndispatchedDocumentProcessingParams {
   documentId: string
   knowledgeBaseId: string
+  processingQueueToken: string
   error: string
   now?: Date
 }
@@ -118,14 +127,16 @@ interface FailUndispatchedDocumentProcessingParams {
  * as any other processing failure: visible in the document list with its error,
  * and re-queueable.
  *
- * Guarded on `pending` so it cannot overwrite a document a worker has already
- * claimed — the dispatch may have been accepted and only its acknowledgement
- * lost. A worker that starts late still moves the row to `processing`
- * unconditionally, so this write never strands a job that does run.
+ * Guarded on active `pending` state and the dispatch generation so it cannot
+ * overwrite a worker that already claimed the row, a newer queued pass, or a
+ * recent pre-token pass that may still start. A failed dispatch retains its
+ * generation token while withdrawing the live queue timestamp, so finalization
+ * can use one exact compare-and-set instead of matching an ambiguous blank row.
  */
 export async function failUndispatchedDocumentProcessing({
   documentId,
   knowledgeBaseId,
+  processingQueueToken,
   error,
   now = new Date(),
 }: FailUndispatchedDocumentProcessingParams): Promise<boolean> {
@@ -134,6 +145,7 @@ export async function failUndispatchedDocumentProcessing({
     .set({
       processingStatus: 'failed',
       processingError: error,
+      processingDeferredUntil: null,
       processingCompletedAt: now,
     })
     .where(
@@ -141,6 +153,10 @@ export async function failUndispatchedDocumentProcessing({
         eq(document.id, documentId),
         eq(document.knowledgeBaseId, knowledgeBaseId),
         eq(document.processingStatus, 'pending'),
+        eq(document.userExcluded, false),
+        eq(document.processingQueueToken, processingQueueToken),
+        isNull(document.processingQueuedAt),
+        isNull(document.archivedAt),
         isNull(document.deletedAt)
       )
     )
@@ -189,6 +205,7 @@ export async function recordUndispatchedDocumentFailure({
     await failUndispatchedDocumentProcessing({
       documentId,
       knowledgeBaseId,
+      processingQueueToken: requestId,
       error: truncate(failureMessage, DISPATCH_FAILURE_MESSAGE_MAX_LENGTH),
     })
   } catch (markError) {

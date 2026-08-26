@@ -3,20 +3,24 @@ import type { CursorKey } from '@/lib/api/list-query'
 import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 import { loadActiveFolderPathIndex, resolveFolderPathFilter } from '@/lib/folders/queries'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
-import { resolveActiveWorkspaceApplicationContext } from '@/lib/workflows/application/context'
 import { workflowOperations } from '@/lib/workflows/application/operations'
-import { workflowFolderPathForId } from '@/lib/workflows/application/workflow-folders'
+import {
+  archivableWorkflowFolderPath,
+  workflowFolderPathForId,
+} from '@/lib/workflows/application/workflow-folders'
 import {
   listWorkspaceWorkflows,
   type WorkflowSortBy,
   type WorkflowSortOrder,
 } from '@/lib/workflows/queries'
+import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
 
 const logger = createLogger('ListWorkflows')
 
 export interface ListWorkflowsInput {
   workspaceId: string
   folderPath?: string
+  scope: 'active' | 'archived'
   deployedOnly: boolean
   search?: string
   sortBy: WorkflowSortBy
@@ -49,6 +53,7 @@ export const listWorkflows = defineAuthorizedWorkflowUseCase({
     const page = await listWorkspaceWorkflows({
       workspaceId: context.workspaceId,
       folderId: folderFilter.kind === 'folder' ? folderFilter.folderId : undefined,
+      scope: input.scope,
       deployedOnly: input.deployedOnly,
       search: input.search,
       sortBy: input.sortBy,
@@ -66,7 +71,10 @@ export const listWorkflows = defineAuthorizedWorkflowUseCase({
       workflows: page.data.map((workflow) => ({
         ...workflow,
         workspaceId: workflow.workspaceId ?? context.workspaceId,
-        folderPath: workflowFolderPathForId(folderIndex, workflow.folderId),
+        folderPath:
+          input.scope === 'archived'
+            ? archivableWorkflowFolderPath(folderIndex, workflow.folderId)
+            : workflowFolderPathForId(folderIndex, workflow.folderId),
       })),
       nextCursorKeys: page.nextCursorKeys,
       sortBy: input.sortBy,

@@ -58,7 +58,7 @@ export interface BulkImportBatch {
  * Inserts one batch of rows for an async import in a single committed statement.
  *
  * Differs from {@link batchInsertRowsWithTx} for the bulk-load case: caller-supplied
- * contiguous positions (no `acquireTablePositionLock` / `nextAutoPosition` scan — an
+ * contiguous order keys (no `acquireRowOrderLock` scan — an
  * import owns its hidden table as the sole writer), no `RETURNING`, and **no
  * `fireTableTrigger` / `runWorkflowColumn`** (a 1M-row import must not dispatch a
  * workflow run per row). `row_count` is maintained set-based by the statement-level

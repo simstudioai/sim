@@ -1539,14 +1539,7 @@ export function useUpdateTableMetadata({ workspaceId, tableId }: RowMutationCont
  * is rendered client-side, so this list contains only user-created views and is
  * legitimately empty for a table nobody has saved a view on.
  */
-export function useTableViews({
-  workspaceId,
-  tableId,
-  enabled = true,
-}: RowMutationContext & {
-  /** Carries the `table-views` flag, so a gated-off table never fetches. */
-  enabled?: boolean
-}) {
+export function useTableViews({ workspaceId, tableId }: RowMutationContext) {
   // rq-lint-allow: tableId is a globally-unique id; workspaceId is only an authz scope on the fetch and cannot collide across workspaces
   return useQuery({
     queryKey: tableKeys.views(tableId),
@@ -1558,7 +1551,7 @@ export function useTableViews({
       })
       return response.data.views
     },
-    enabled: enabled && Boolean(workspaceId && tableId),
+    enabled: Boolean(workspaceId && tableId),
     staleTime: TABLE_VIEWS_STALE_TIME,
   })
 }

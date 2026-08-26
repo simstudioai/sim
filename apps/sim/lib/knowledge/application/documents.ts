@@ -865,7 +865,10 @@ export const updateKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
   async execute({ principal, input, context }) {
     if (input.markFailedDueToTimeout || input.retryProcessing) {
       const outcome = input.markFailedDueToTimeout
-        ? await performMarkKnowledgeDocumentTimedOut({ document: context.document })
+        ? await performMarkKnowledgeDocumentTimedOut({
+            knowledgeBaseId: context.knowledgeBaseId,
+            document: context.document,
+          })
         : await performRetryKnowledgeDocumentProcessing({
             knowledgeBaseId: context.knowledgeBaseId,
             document: context.document,

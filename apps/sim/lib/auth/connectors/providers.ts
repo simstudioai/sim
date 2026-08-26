@@ -768,6 +768,23 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
       },
     },
     {
+      providerId: 'microsoft-word',
+      clientId: env.MICROSOFT_CLIENT_ID as string,
+      clientSecret: env.MICROSOFT_CLIENT_SECRET as string,
+      authorizationUrl: 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize',
+      tokenUrl: 'https://login.microsoftonline.com/common/oauth2/v2.0/token',
+      userInfoUrl: 'https://graph.microsoft.com/v1.0/me',
+      scopes: getCanonicalScopesForProvider('microsoft-word'),
+      responseType: 'code',
+      accessType: 'offline',
+      authentication: 'basic',
+      pkce: true,
+      redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/microsoft-word`,
+      getUserInfo: async (tokens) => {
+        return getMicrosoftUserInfoFromIdToken(tokens, 'microsoft-word')
+      },
+    },
+    {
       providerId: 'microsoft-dataverse',
       clientId: env.MICROSOFT_CLIENT_ID as string,
       clientSecret: env.MICROSOFT_CLIENT_SECRET as string,
@@ -1373,6 +1390,7 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
       accessType: 'offline',
       authentication: 'basic',
       prompt: 'consent',
+      authorizationUrlParams: { audience: 'api.atlassian.com' },
       redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/confluence`,
       getUserInfo: async (tokens) => {
         try {
@@ -1424,6 +1442,7 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
       accessType: 'offline',
       authentication: 'basic',
       prompt: 'consent',
+      authorizationUrlParams: { audience: 'api.atlassian.com' },
       redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/jira`,
       getUserInfo: async (tokens) => {
         try {

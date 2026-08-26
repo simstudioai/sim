@@ -25,6 +25,7 @@ const mocks = vi.hoisted(() => ({
   runDetached: vi.fn(),
   signal: vi.fn(),
   validateMapping: vi.fn(),
+  coerceRows: vi.fn(),
   CsvImportValidationError: class extends Error {},
 }))
 
@@ -48,7 +49,7 @@ vi.mock('@/lib/core/utils/background', () => ({ runDetached: mocks.runDetached }
 vi.mock('@/lib/table', () => ({
   batchInsertRows: mocks.batchInsert,
   buildAutoMapping: vi.fn(() => ({ name: 'name' })),
-  coerceRowsForTable: (rows: unknown[]) => rows,
+  coerceRowsForTable: mocks.coerceRows,
   CsvImportValidationError: mocks.CsvImportValidationError,
   CSV_ASYNC_IMPORT_THRESHOLD_BYTES: 8 * 1024 * 1024,
   CSV_MAX_BATCH_SIZE: 1000,
@@ -105,6 +106,8 @@ const table: TableDefinition = {
   createdAt: new Date('2026-08-01T00:00:00.000Z'),
   updatedAt: new Date('2026-08-01T00:00:00.000Z'),
 }
+const rejectedSample = { code: 'CSV_QUOTE_NOT_CLOSED', line: 3, message: 'Quote Not Closed' }
+
 const sourceFile = {
   id: 'file-1',
   workspaceId: 'workspace-1',
@@ -147,7 +150,11 @@ describe('workspace-file Table application commands', () => {
     mocks.loadFileContext.mockResolvedValue(sourceFile)
     mocks.provenance.mockResolvedValue({ status: 'exact', entries: [] })
     mocks.fetchFile.mockResolvedValue(Buffer.from('name\nAda'))
-    mocks.parseRows.mockResolvedValue({ headers: ['name'], rows: [{ name: 'Ada' }] })
+    mocks.parseRows.mockResolvedValue({
+      headers: ['name'],
+      rows: [{ name: 'Ada' }],
+      rejections: { rowsRejected: 0, rejectedSamples: [] },
+    })
     mocks.inferSchema.mockReturnValue({
       columns: [{ name: 'name', type: 'string' }],
       headerToColumn: new Map([['name', 'name']]),
@@ -160,6 +167,7 @@ describe('workspace-file Table application commands', () => {
     mocks.replaceRows.mockResolvedValue({ insertedCount: 1, deletedCount: 2 })
     mocks.markJob.mockResolvedValue(true)
     mocks.releaseJob.mockResolvedValue(true)
+    mocks.coerceRows.mockImplementation((rows: unknown[]) => rows)
     mocks.validateMapping.mockReturnValue({
       effectiveMap: new Map([['name', 'name']]),
       mappedHeaders: ['name'],
@@ -187,6 +195,37 @@ describe('workspace-file Table application commands', () => {
     expect(mocks.batchInsert).toHaveBeenCalledTimes(1)
     expect(mocks.audit).toHaveBeenCalledTimes(1)
     expect(mocks.signal).toHaveBeenCalledWith(table.id)
+  })
+
+  /**
+   * The parse dropped these records silently, so an inline import used to finish
+   * with a smaller table and nothing distinguishing it from a clean one.
+   */
+  it('surfaces the records the parse dropped', async () => {
+    mocks.parseRows.mockResolvedValueOnce({
+      headers: ['name'],
+      rows: [{ name: 'Ada' }],
+      rejections: { rowsRejected: 2, rejectedSamples: [rejectedSample] },
+    })
+
+    const result = await createTableFromWorkspaceFile.execute({
+      principal,
+      input: { workspaceId: 'workspace-1', fileReference: 'files/people.csv' },
+    })
+
+    expect(result).toMatchObject({
+      kind: 'inline',
+      rejections: { rowsRejected: 2, cellsRejected: 0, rejectedSamples: [rejectedSample] },
+    })
+  })
+
+  it('omits the accounting entirely from a clean import', async () => {
+    const result = await createTableFromWorkspaceFile.execute({
+      principal,
+      input: { workspaceId: 'workspace-1', fileReference: 'files/people.csv' },
+    })
+
+    expect(result).not.toHaveProperty('rejections')
   })
 
   it('conceals cross-workspace files before parsing or table mutation', async () => {
@@ -282,6 +321,41 @@ describe('workspace-file Table application commands', () => {
     expect(events).toEqual(['claim', 'load', 'mutate', 'release'])
   })
 
+  it('surfaces dropped records and uncoercible cells on an inline append', async () => {
+    mocks.parseRows.mockResolvedValueOnce({
+      headers: ['name'],
+      rows: [{ name: 'Ada' }],
+      rejections: { rowsRejected: 1, rejectedSamples: [rejectedSample] },
+    })
+    mocks.coerceRows.mockImplementationOnce(
+      (
+        rows: unknown[],
+        _schema: unknown,
+        _map: unknown,
+        _options: unknown,
+        onValueRejected?: (columnName: string) => void
+      ) => {
+        onValueRejected?.('name')
+        return rows
+      }
+    )
+
+    const result = await importWorkspaceFileIntoTable.execute({
+      principal: tablePrincipal,
+      input: {
+        tableId: table.id,
+        assertedWorkspaceId: table.workspaceId,
+        fileReference: 'files/people.csv',
+        mode: 'append',
+      },
+    })
+
+    expect(result).toMatchObject({
+      kind: 'inline',
+      rejections: { rowsRejected: 1, cellsRejected: 1, rejectedSamples: [rejectedSample] },
+    })
+  })
+
   it('rejects a concurrent import claim before buffering or mutating rows', async () => {
     mocks.markJob.mockResolvedValueOnce(false)
 
@@ -306,6 +380,7 @@ describe('workspace-file Table application commands', () => {
     mocks.parseRows.mockResolvedValueOnce({
       headers: ['name'],
       rows: Array.from({ length: 1001 }, (_, index) => ({ name: `Person ${index}` })),
+      rejections: { rowsRejected: 0, rejectedSamples: [] },
     })
     const stopped = new Error('stopped')
     let checks = 0

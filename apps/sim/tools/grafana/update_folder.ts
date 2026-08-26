@@ -41,6 +41,7 @@ export const updateFolderTool: ToolConfig<GrafanaUpdateFolderParams, ToolRespons
   },
 
   request: {
+    internal: true,
     url: () => '/api/tools/grafana/update_folder',
     method: 'POST',
     headers: () => ({ 'Content-Type': 'application/json' }),

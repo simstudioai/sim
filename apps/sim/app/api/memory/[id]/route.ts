@@ -238,6 +238,14 @@ export const PUT = withRouteHandler(async (request: NextRequest, context: Memory
       return memoryEnvelopeError(`Invalid agent memory data: ${errorMessage}`, 400)
     }
 
+    /**
+     * POST stores memory data as an array (`route.ts`), and its `onConflictDoUpdate` relies on
+     * jsonb append semantics that require an array on both sides. Every persisted row is therefore
+     * an array, and `tools/memory/types.ts` declares `data: AgentMemoryData[]`. Wrap here so an
+     * update never leaves behind a bare object that reads like `data[0]` would break on.
+     */
+    const nextData = Array.isArray(validatedData) ? validatedData : [validatedData]
+
     const now = new Date()
     const writeProvenance = resolveMemoryWriteSecretProvenance({
       request,
@@ -251,7 +259,7 @@ export const PUT = withRouteHandler(async (request: NextRequest, context: Memory
       const [updated] = await tx
         .update(memory)
         .set({
-          data: validatedData,
+          data: nextData,
           secretProvenanceVersion: writeProvenance.provenance
             ? 1
             : existingMemories[0].secretProvenanceVersion,
@@ -270,7 +278,7 @@ export const PUT = withRouteHandler(async (request: NextRequest, context: Memory
         await replaceMemorySecretProvenanceInTx(
           tx,
           updated.id,
-          validatedData,
+          nextData,
           writeProvenance.provenance
         )
       }

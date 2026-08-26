@@ -109,6 +109,7 @@ describe('resolveEnterpriseEntitlement', () => {
       expect(ENTERPRISE_FEATURE_LEGACY_DEFAULTS.dataDrains).toBe(false)
       expect(ENTERPRISE_FEATURE_LEGACY_DEFAULTS.forking).toBe(false)
       expect(ENTERPRISE_FEATURE_LEGACY_DEFAULTS.accessControl).toBe(false)
+      expect(ENTERPRISE_FEATURE_LEGACY_DEFAULTS.customBlocks).toBe(false)
       expect(ENTERPRISE_FEATURE_LEGACY_DEFAULTS.organizations).toBe(false)
       expect(ENTERPRISE_FEATURE_LEGACY_DEFAULTS.sso).toBe(false)
       expect(ENTERPRISE_FEATURE_LEGACY_DEFAULTS.sandboxes).toBe(false)

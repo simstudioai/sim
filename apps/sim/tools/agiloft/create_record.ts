@@ -49,6 +49,7 @@ export const agiloftCreateRecordTool: ToolConfig<AgiloftCreateRecordParams, Agil
     },
 
     request: {
+      internal: true,
       url: () => '/api/tools/agiloft/create_record',
       method: 'POST',
       headers: () => ({ 'Content-Type': 'application/json' }),

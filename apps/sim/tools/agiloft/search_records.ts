@@ -77,6 +77,7 @@ export const agiloftSearchRecordsTool: ToolConfig<
   },
 
   request: {
+    internal: true,
     url: () => '/api/tools/agiloft/search_records',
     method: 'POST',
     headers: () => ({ 'Content-Type': 'application/json' }),

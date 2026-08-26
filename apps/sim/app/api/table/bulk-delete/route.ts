@@ -18,8 +18,9 @@ export const POST = defineInternalJsonRoute({
   errorPolicy: internalTableErrorPolicies.bulk,
   mapInput: ({ body }) => ({
     assertedWorkspaceId: body.workspaceId,
+    folderKeying: 'ids' as const,
     tableIds: body.tableIds,
-    folderIds: body.folderIds,
+    folders: body.folderIds,
   }),
   useCase: bulkDeleteTables,
   present: ({ deleted, skipped, notFound, failed, deletedItems }) => ({

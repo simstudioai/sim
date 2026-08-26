@@ -5,7 +5,13 @@
 
 import { randomBytes } from 'crypto'
 import { db } from '@sim/db'
-import { uploadSession, workspace, workspaceFiles } from '@sim/db/schema'
+import {
+  uploadSession,
+  type WorkspaceFileRow,
+  workspace,
+  workspaceFileColumns,
+  workspaceFiles,
+} from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import {
   describeError,
@@ -14,6 +20,7 @@ import {
   getPostgresErrorCode,
 } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
+import { omit } from '@sim/utils/object'
 import { and, eq, inArray, isNotNull, isNull, or, type SQL, sql } from 'drizzle-orm'
 import type { ShareRecord } from '@/lib/api/contracts/public-shares'
 import type { V2FileSortBy } from '@/lib/api/contracts/v2/files'
@@ -69,7 +76,7 @@ import {
   headObject,
   uploadFile,
 } from '@/lib/uploads/core/storage-service'
-import { MAX_WORKSPACE_FILE_SIZE, toLegacyWorkspaceFileSize } from '@/lib/uploads/shared/types'
+import { getWorkspaceFileSize, MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
 import { isMarkdownFile } from '@/lib/uploads/utils/file-utils'
 import { SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
 import {
@@ -238,12 +245,6 @@ interface WorkspaceFileMetadataInsert {
   size: number
 }
 
-function workspaceFileSize(
-  file: Pick<typeof workspaceFiles.$inferSelect, 'size' | 'sizeBytes'>
-): number {
-  return file.sizeBytes ?? file.size
-}
-
 /**
  * Attempts one active workspace-file insert and reports the row that this call
  * created. Conflict losers receive `undefined` and must inspect the active key
@@ -252,12 +253,11 @@ function workspaceFileSize(
 async function insertWorkspaceFileMetadataInTx(
   tx: DbOrTx,
   metadata: WorkspaceFileMetadataInsert
-): Promise<typeof workspaceFiles.$inferSelect | undefined> {
+): Promise<WorkspaceFileRow | undefined> {
   const [inserted] = await tx
     .insert(workspaceFiles)
     .values({
-      ...metadata,
-      size: toLegacyWorkspaceFileSize(metadata.size),
+      ...omit(metadata, ['size']),
       sizeBytes: metadata.size,
       context: 'workspace',
       displayName: metadata.originalName,
@@ -268,7 +268,7 @@ async function insertWorkspaceFileMetadataInTx(
       contentUpdatedAt: new Date(),
     })
     .onConflictDoNothing()
-    .returning()
+    .returning(workspaceFileColumns)
   return inserted
 }
 
@@ -284,9 +284,9 @@ class WorkspaceFileRegistrationConflictError extends Error {
 async function findWorkspaceFileByRegistrationKey(
   executor: DbOrTx,
   key: string
-): Promise<typeof workspaceFiles.$inferSelect | undefined> {
+): Promise<WorkspaceFileRow | undefined> {
   const files = await executor
-    .select()
+    .select(workspaceFileColumns)
     .from(workspaceFiles)
     .where(eq(workspaceFiles.key, key))
     .orderBy(sql`${workspaceFiles.deletedAt} IS NULL DESC`)
@@ -301,9 +301,9 @@ async function findWorkspaceFileForLifecycle(
   executor: DbOrTx,
   workspaceId: string,
   fileId: string
-): Promise<typeof workspaceFiles.$inferSelect | undefined> {
+): Promise<WorkspaceFileRow | undefined> {
   const [file] = await executor
-    .select()
+    .select(workspaceFileColumns)
     .from(workspaceFiles)
     .where(
       and(
@@ -322,7 +322,7 @@ async function findWorkspaceFileForLifecycle(
  * ownership and object attributes prevent unrelated callers from reusing it.
  */
 function isSameWorkspaceFileRegistration(
-  file: typeof workspaceFiles.$inferSelect,
+  file: WorkspaceFileRow,
   params: {
     workspaceId: string
     userId: string
@@ -337,7 +337,7 @@ function isSameWorkspaceFileRegistration(
     file.userId === params.userId &&
     file.context === 'workspace' &&
     file.contentType === params.contentType &&
-    workspaceFileSize(file) === params.size
+    getWorkspaceFileSize(file) === params.size
   )
 }
 
@@ -470,7 +470,7 @@ export async function uploadWorkspaceFile(
       logger.info(`Upload returned key: ${uploadResult.key}`)
 
       let finalized: {
-        inserted: typeof workspaceFiles.$inferSelect
+        inserted: WorkspaceFileRow
         updatedUsage: number | undefined
       }
       try {
@@ -723,7 +723,7 @@ export async function registerUploadedWorkspaceFile(params: {
       file: {
         id: existing.id,
         name: existing.originalName,
-        size: workspaceFileSize(existing),
+        size: getWorkspaceFileSize(existing),
         type: existing.contentType,
         url: `${pathPrefix}${encodeURIComponent(existing.key)}?context=workspace`,
         key: existing.key,
@@ -809,7 +809,7 @@ export async function registerUploadedWorkspaceFile(params: {
       file: {
         id: finalized.file.id,
         name: finalized.file.originalName,
-        size: workspaceFileSize(finalized.file),
+        size: getWorkspaceFileSize(finalized.file),
         type: finalized.file.contentType,
         url: `${pathPrefix}${encodeURIComponent(finalized.file.key)}?context=workspace`,
         key: finalized.file.key,
@@ -845,7 +845,7 @@ async function markUploadSessionFileRegistered(
   if (!marked) throw new Error('Workspace upload registration marker could not be persisted')
 }
 
-function assertActiveWorkspaceFileRegistration(file: typeof workspaceFiles.$inferSelect): void {
+function assertActiveWorkspaceFileRegistration(file: WorkspaceFileRow): void {
   if (file.deletedAt) {
     throw new OrchestrationError('conflict', 'Upload result was deleted')
   }
@@ -1057,7 +1057,7 @@ export async function trackChatUpload(
             originalName: fileName,
             displayName: candidate,
             contentType,
-            size,
+            sizeBytes: size,
           })
           .returning({ id: workspaceFiles.id })
 
@@ -1115,7 +1115,7 @@ function mapWorkspaceFileRecord(
     name: file.originalName,
     key: file.key,
     path: `${pathPrefix}${encodeURIComponent(file.key)}?context=workspace`,
-    size: workspaceFileSize(file),
+    size: getWorkspaceFileSize(file),
     type: file.contentType,
     width: file.width,
     height: file.height,
@@ -1130,7 +1130,7 @@ function mapWorkspaceFileRecord(
 }
 
 function mapUploadedWorkspaceFileRecord(
-  file: typeof workspaceFiles.$inferSelect,
+  file: WorkspaceFileRow,
   workspaceId: string,
   folderPath: string | null
 ): UploadedWorkspaceFileRecord {
@@ -1150,7 +1150,7 @@ function mapUploadedWorkspaceFileRecord(
 }
 
 async function mapSingleWorkspaceFileRecord(
-  file: typeof workspaceFiles.$inferSelect,
+  file: WorkspaceFileRow,
   workspaceId: string
 ): Promise<WorkspaceFileRecord> {
   if (!file.folderId) {
@@ -1211,7 +1211,7 @@ export async function getWorkspaceFileByName(
 ): Promise<WorkspaceFileRecord | null> {
   const folderId = options?.folderId ?? null
   const files = await db
-    .select()
+    .select(workspaceFileColumns)
     .from(workspaceFiles)
     .where(
       and(
@@ -1253,7 +1253,6 @@ const workspaceFileListColumns = {
   folderId: workspaceFiles.folderId,
   originalName: workspaceFiles.originalName,
   contentType: workspaceFiles.contentType,
-  size: workspaceFiles.size,
   sizeBytes: workspaceFiles.sizeBytes,
   width: workspaceFiles.width,
   height: workspaceFiles.height,
@@ -1264,10 +1263,7 @@ const workspaceFileListColumns = {
 } as const
 
 /** A row carrying exactly the columns {@link mapWorkspaceFileRecord} needs; a full row satisfies it. */
-type WorkspaceFileListRow = Pick<
-  typeof workspaceFiles.$inferSelect,
-  keyof typeof workspaceFileListColumns
->
+type WorkspaceFileListRow = Pick<WorkspaceFileRow, keyof typeof workspaceFileListColumns>
 
 /** Resolves `folderPath` for a page of rows, reading the folder tree only if any row needs it. */
 async function hydrateWorkspaceFilePaths(
@@ -1322,10 +1318,7 @@ const fileId = textKey<WorkspaceFileRecord>(workspaceFiles.id, (row) => row.id)
 const WORKSPACE_FILE_SORTS = {
   name: [textKey(workspaceFiles.originalName, (row) => row.name), fileId],
   size: [
-    numberKey(
-      sql<number>`coalesce(${workspaceFiles.sizeBytes}, ${workspaceFiles.size})`.mapWith(Number),
-      (row) => row.size
-    ),
+    numberKey(sql<number>`${workspaceFiles.sizeBytes}`.mapWith(Number), (row) => row.size),
     fileId,
   ],
   uploadedAt: [timestampKey(workspaceFiles.uploadedAt, (row) => row.uploadedAt), fileId],
@@ -1617,7 +1610,7 @@ export async function getWorkspaceFile(
   try {
     const { includeDeleted = false } = options ?? {}
     const files = await db
-      .select()
+      .select(workspaceFileColumns)
       .from(workspaceFiles)
       .where(
         includeDeleted
@@ -1789,7 +1782,7 @@ export async function updateWorkspaceFileContent(
     })
 
     let finalized: {
-      file: typeof workspaceFiles.$inferSelect
+      file: WorkspaceFileRow
       oldKey: string
       sizeDiff: number
       updatedUsage: number | undefined
@@ -1797,7 +1790,7 @@ export async function updateWorkspaceFileContent(
     try {
       finalized = await db.transaction(async (tx) => {
         const [currentFile] = await tx
-          .select()
+          .select(workspaceFileColumns)
           .from(workspaceFiles)
           .where(
             and(
@@ -1827,7 +1820,7 @@ export async function updateWorkspaceFileContent(
           throw new ContentVersionConflictError(fileId)
         }
 
-        const sizeDiff = content.length - workspaceFileSize(currentFile)
+        const sizeDiff = content.length - getWorkspaceFileSize(currentFile)
         const now = new Date()
         // `contentUpdatedAt` is the persist If-Match token, so it MUST be strictly monotonic per file — a
         // bare `new Date()` is not: cross-instance clock skew can stamp a later write with an earlier time,
@@ -1842,7 +1835,6 @@ export async function updateWorkspaceFileContent(
           .update(workspaceFiles)
           .set({
             key: uploadResult.key,
-            size: toLegacyWorkspaceFileSize(content.length),
             sizeBytes: content.length,
             contentType: nextContentType,
             // Replaced bytes: drop the old image's dimensions so the row never describes stale content.
@@ -1863,7 +1855,7 @@ export async function updateWorkspaceFileContent(
               isNull(workspaceFiles.deletedAt)
             )
           )
-          .returning()
+          .returning(workspaceFileColumns)
         if (!updatedFile) {
           throw new OrchestrationError('not_found', 'File not found or could not be updated')
         }
@@ -1957,7 +1949,7 @@ export async function updateWorkspaceFileContent(
       name: finalized.file.originalName,
       key: finalized.file.key,
       path: `${pathPrefix}${encodeURIComponent(finalized.file.key)}?context=workspace`,
-      size: workspaceFileSize(finalized.file),
+      size: getWorkspaceFileSize(finalized.file),
       type: finalized.file.contentType,
       uploadedBy: finalized.file.userId,
       folderId: finalized.file.folderId,
@@ -2140,7 +2132,7 @@ export async function deleteWorkspaceFile(workspaceId: string, fileId: string): 
           isNull(workspaceFiles.deletedAt)
         )
       )
-      .returning()
+      .returning(workspaceFileColumns)
     if (!archived) return
 
     logger.info(`Successfully archived workspace file: ${archived.originalName}`)
@@ -2186,7 +2178,6 @@ export async function purgeCreatedWorkspaceFile(params: {
       .select({
         id: workspaceFiles.id,
         key: workspaceFiles.key,
-        size: workspaceFiles.size,
         sizeBytes: workspaceFiles.sizeBytes,
       })
       .from(workspaceFiles)
@@ -2204,7 +2195,7 @@ export async function purgeCreatedWorkspaceFile(params: {
     await decrementStorageUsageForBillingContextInTx(
       tx,
       storageBillingContext,
-      workspaceFileSize(lockedFile)
+      getWorkspaceFileSize(lockedFile)
     )
     return enqueueWorkspaceFileStorageCleanup(tx, { key: lockedFile.key })
   })
@@ -2234,6 +2225,17 @@ export async function purgeCreatedWorkspaceFile(params: {
 /**
  * Restore a soft-deleted workspace file.
  */
+export interface PermanentlyDeleteWorkspaceFileResult {
+  /** The record as it stood before its row was removed. */
+  file: WorkspaceFileRecord
+  /**
+   * Whether the stored object was removed. `false` means the row is gone but
+   * the object outlived it and is now an orphan for the storage sweep, which is
+   * a recoverable state; the reverse never happens by construction.
+   */
+  objectDeleted: boolean
+}
+
 export async function restoreWorkspaceFile(workspaceId: string, fileId: string): Promise<void> {
   logger.info(`Restoring workspace file: ${fileId}`)
 
@@ -2279,7 +2281,7 @@ export async function restoreWorkspaceFile(workspaceId: string, fileId: string):
             isNotNull(workspaceFiles.deletedAt)
           )
         )
-        .returning()
+        .returning(workspaceFileColumns)
       if (!restored) return
 
       logger.info(`Successfully restored workspace file: ${newName}`)

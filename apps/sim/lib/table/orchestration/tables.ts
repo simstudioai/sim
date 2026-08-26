@@ -10,13 +10,7 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { TableLockedError } from '@/lib/table/mutation-locks'
 import { deleteRow } from '@/lib/table/rows/service'
-import {
-  deleteTable,
-  moveTableToFolder,
-  renameTable,
-  updateTableDescription,
-  updateTableLocks,
-} from '@/lib/table/service'
+import { deleteTable, moveTableToFolder, renameTable, updateTableLocks } from '@/lib/table/service'
 import {
   TABLE_LOCK_FLAGS,
   TABLE_LOCK_KINDS,
@@ -196,48 +190,6 @@ export async function performRenameTable(
       resourceName: renamed.name,
       description: `Renamed table to "${renamed.name}"`,
       metadata: { op: 'rename', previousName: table.name },
-      ...(request ? { request } : {}),
-    })
-    return { success: true }
-  } catch (error) {
-    return classifyTableMutation(error, requestId, table.id)
-  }
-}
-
-export interface PerformUpdateTableDescriptionParams {
-  table: TableDefinition
-  description: string | null
-  userId: string
-  requestId?: string
-  request?: OrchestrationRequestContext
-}
-
-/** Updates a table description and records the metadata change. */
-export async function performUpdateTableDescription(
-  params: PerformUpdateTableDescriptionParams
-): Promise<PerformTableMutationResult> {
-  const { table, description, userId, request } = params
-  const requestId = params.requestId ?? generateRequestId()
-  if (!table.workspaceId) {
-    return { success: false, error: 'Table is not in a workspace', errorCode: 'validation' }
-  }
-
-  try {
-    const updated = await updateTableDescription(
-      table.id,
-      table.workspaceId,
-      description,
-      requestId
-    )
-    recordAudit({
-      workspaceId: table.workspaceId,
-      actorId: userId,
-      action: AuditAction.TABLE_UPDATED,
-      resourceType: AuditResourceType.TABLE,
-      resourceId: table.id,
-      resourceName: updated.name,
-      description: `Updated description for table "${updated.name}"`,
-      metadata: { op: 'description' },
       ...(request ? { request } : {}),
     })
     return { success: true }

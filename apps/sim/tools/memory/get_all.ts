@@ -10,6 +10,7 @@ export const memoryGetAllTool: ToolConfig<any, MemoryResponse> = {
   params: {},
 
   request: {
+    internal: true,
     url: (params) => {
       const workspaceId = params._context?.workspaceId
       if (!workspaceId) {

@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { VercelGetEnvVarsParams, VercelGetEnvVarsResponse } from '@/tools/vercel/types'
 
 export const vercelGetEnvVarsTool: ToolConfig<VercelGetEnvVarsParams, VercelGetEnvVarsResponse> = {
@@ -55,7 +56,7 @@ export const vercelGetEnvVarsTool: ToolConfig<VercelGetEnvVarsParams, VercelGetE
       if (params.teamId) query.set('teamId', params.teamId.trim())
       if (params.slug) query.set('slug', params.slug.trim())
       const qs = query.toString()
-      return `https://api.vercel.com/v10/projects/${params.projectId.trim()}/env${qs ? `?${qs}` : ''}`
+      return `https://api.vercel.com/v10/projects/${safeUrlPathSegment(params.projectId, 'projectId')}/env${qs ? `?${qs}` : ''}`
     },
     method: 'GET',
     headers: (params: VercelGetEnvVarsParams) => ({

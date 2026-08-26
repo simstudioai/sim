@@ -5,14 +5,14 @@ import { createLogger } from '@sim/logger'
 import { isFolderInWorkspace } from '@sim/platform-authz/workflow'
 import { getPostgresConstraintName, getPostgresErrorCode, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, eq, isNull, min, ne } from 'drizzle-orm'
+import { and, eq, isNull, ne } from 'drizzle-orm'
 import type { OrchestrationErrorCode } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import type { DbOrTx } from '@/lib/db/types'
-import { captureServerEvent } from '@/lib/posthog/server'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import { archiveWorkflow, restoreWorkflow } from '@/lib/workflows/lifecycle'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
+import { nextWorkflowSortOrder } from '@/lib/workflows/sort-order'
 import { deduplicateWorkflowName } from '@/lib/workflows/utils'
 
 const logger = createLogger('WorkflowLifecycle')
@@ -125,51 +125,6 @@ export interface PerformRestoreWorkflowResult {
   error?: string
   errorCode?: OrchestrationErrorCode
   workflow?: Awaited<ReturnType<typeof restoreWorkflow>>['workflow']
-}
-
-async function nextWorkflowSortOrder(
-  workspaceId: string,
-  folderId: string | null | undefined
-): Promise<number> {
-  const workflowParentCondition = folderId
-    ? eq(workflow.folderId, folderId)
-    : isNull(workflow.folderId)
-  const folderParentCondition = folderId
-    ? eq(folderTable.parentId, folderId)
-    : isNull(folderTable.parentId)
-
-  const [[workflowMinResult], [folderMinResult]] = await Promise.all([
-    db
-      .select({ minOrder: min(workflow.sortOrder) })
-      .from(workflow)
-      .where(
-        and(
-          eq(workflow.workspaceId, workspaceId),
-          workflowParentCondition,
-          isNull(workflow.archivedAt)
-        )
-      ),
-    db
-      .select({ minOrder: min(folderTable.sortOrder) })
-      .from(folderTable)
-      .where(
-        and(
-          eq(folderTable.workspaceId, workspaceId),
-          eq(folderTable.resourceType, 'workflow'),
-          folderParentCondition
-        )
-      ),
-  ])
-
-  const minSortOrder = [workflowMinResult?.minOrder, folderMinResult?.minOrder].reduce<
-    number | null
-  >((currentMin, candidate) => {
-    if (candidate == null) return currentMin
-    if (currentMin == null) return candidate
-    return Math.min(currentMin, candidate)
-  }, null)
-
-  return minSortOrder != null ? minSortOrder - 1 : 0
 }
 
 async function workflowNameExistsInFolder(params: {
@@ -441,78 +396,6 @@ export async function updateWorkflowRecord(
   })
 
   return { success: true, workflow: updatedWorkflow }
-}
-
-export async function performUpdateWorkflow(
-  params: PerformUpdateWorkflowParams
-): Promise<PerformUpdateWorkflowResult> {
-  const requestId = params.requestId ?? generateRequestId()
-
-  try {
-    const result = await updateWorkflowRecord({ ...params, requestId })
-    const updatedWorkflow = result.workflow
-    if (!result.success || !updatedWorkflow) return result
-
-    if (params.locked !== undefined && params.locked !== (params.currentLocked ?? false)) {
-      const workspaceId = updatedWorkflow.workspaceId
-      recordAudit({
-        workspaceId: workspaceId ?? null,
-        actorId: params.userId,
-        action: params.locked ? AuditAction.WORKFLOW_LOCKED : AuditAction.WORKFLOW_UNLOCKED,
-        resourceType: AuditResourceType.WORKFLOW,
-        resourceId: params.workflowId,
-        resourceName: updatedWorkflow.name,
-        description: `${params.locked ? 'Locked' : 'Unlocked'} workflow "${updatedWorkflow.name}"`,
-        metadata: { locked: params.locked },
-      })
-
-      captureServerEvent(
-        params.userId,
-        'workflow_lock_toggled',
-        {
-          workflow_id: params.workflowId,
-          ...(workspaceId ? { workspace_id: workspaceId } : {}),
-          locked: params.locked,
-        },
-        workspaceId ? { groups: { workspace: workspaceId } } : undefined
-      )
-    }
-
-    if (
-      params.forkSyncExcluded !== undefined &&
-      params.forkSyncExcluded !== (params.currentForkSyncExcluded ?? false)
-    ) {
-      const workspaceId = updatedWorkflow.workspaceId
-      recordAudit({
-        workspaceId: workspaceId ?? null,
-        actorId: params.userId,
-        action: params.forkSyncExcluded
-          ? AuditAction.WORKFLOW_FORK_SYNC_EXCLUDED
-          : AuditAction.WORKFLOW_FORK_SYNC_INCLUDED,
-        resourceType: AuditResourceType.WORKFLOW,
-        resourceId: params.workflowId,
-        resourceName: updatedWorkflow.name,
-        description: `${params.forkSyncExcluded ? 'Excluded' : 'Included'} workflow "${updatedWorkflow.name}" ${params.forkSyncExcluded ? 'from' : 'in'} fork sync`,
-        metadata: { forkSyncExcluded: params.forkSyncExcluded },
-      })
-
-      captureServerEvent(
-        params.userId,
-        'workflow_fork_sync_exclusion_toggled',
-        {
-          workflow_id: params.workflowId,
-          ...(workspaceId ? { workspace_id: workspaceId } : {}),
-          fork_sync_excluded: params.forkSyncExcluded,
-        },
-        workspaceId ? { groups: { workspace: workspaceId } } : undefined
-      )
-    }
-
-    return result
-  } catch (error) {
-    logger.error(`[${requestId}] Failed to update workflow ${params.workflowId}`, { error })
-    return { success: false, error: toError(error).message, errorCode: 'internal' }
-  }
 }
 
 export async function deleteWorkflowRecord(

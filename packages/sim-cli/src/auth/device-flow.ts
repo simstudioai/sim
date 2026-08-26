@@ -43,6 +43,17 @@ const POLL_PATH = '/api/cli/auth/poll'
  */
 const RETRYABLE_POLL_STATUSES = new Set([409, 429, 500, 502, 503, 504])
 
+/**
+ * Consecutive transport failures before the poll says so on stderr.
+ *
+ * Three at the 2s interval is about six seconds: past any single DNS, TLS, or
+ * connection-reset blip, and far short of the point where someone starts
+ * wondering whether their approval registered. An endpoint that nothing is
+ * listening on fails every attempt, so it trips this within seconds instead of
+ * looking exactly like a slow approval for the full 15 minutes.
+ */
+const TRANSPORT_FAILURES_BEFORE_WARNING = 3
+
 export type CliAuthScope = 'copilot' | 'platform'
 
 export interface AuthRequest {
@@ -156,6 +167,12 @@ function toRedirectError(endpoint: string, response: Response): SimApiError {
  * wait are all recoverable, and the approval sits in Redis with its own TTL. A
  * non-2xx *response*, by contrast, is the server refusing on purpose and is
  * surfaced immediately.
+ *
+ * Retried is not the same as unreported: once
+ * {@link TRANSPORT_FAILURES_BEFORE_WARNING} attempts in a row fail to reach the
+ * endpoint at all, the reason is printed once to stderr and the poll carries on.
+ * Without it a typo'd endpoint was indistinguishable from a slow approval for
+ * the entire 15-minute timeout.
  */
 export async function pollForKey(
   endpoint: string,
@@ -163,6 +180,8 @@ export async function pollForKey(
   signal?: AbortSignal
 ): Promise<MintedKey> {
   const deadline = Date.now() + POLL_TIMEOUT_MS
+  let consecutiveTransportFailures = 0
+  let warnedAboutTransport = false
 
   while (Date.now() < deadline) {
     if (signal?.aborted) throw new SimApiError('Login cancelled.', 0)
@@ -180,11 +199,23 @@ export async function pollForKey(
         signal,
         redirect: 'manual',
       })
-    } catch {
+    } catch (cause) {
       response = null
+      consecutiveTransportFailures++
+      if (
+        !warnedAboutTransport &&
+        consecutiveTransportFailures >= TRANSPORT_FAILURES_BEFORE_WARNING
+      ) {
+        warnedAboutTransport = true
+        process.stderr.write(
+          `Still waiting: ${endpoint} is not answering the login poll (${(cause as Error).message}). Check the endpoint; retrying until you approve or the login times out.\n`
+        )
+      }
     }
 
     if (response) {
+      consecutiveTransportFailures = 0
+
       if (REDIRECT_STATUSES.has(response.status)) throw toRedirectError(endpoint, response)
 
       const raw = await response.text()

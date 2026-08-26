@@ -19,9 +19,23 @@ function normalizeType(type: string): string {
   return type.replace(/-/g, '_')
 }
 
+/**
+ * Reads a registry entry by its own key only.
+ *
+ * `BLOCK_REGISTRY` is an object literal with an intact prototype, so a bare
+ * bracket lookup answers `constructor`, `toString`, `valueOf` and friends with
+ * an inherited function. Those are truthy and carry no `type`, so every
+ * consumer downstream treats them as a block and throws on the first field it
+ * reads — a caller-supplied string turning into a 500. `getToolMetadata` guards
+ * the same way for the same reason.
+ */
+function ownBlock(type: string): BlockConfig | undefined {
+  return Object.hasOwn(BLOCK_REGISTRY, type) ? BLOCK_REGISTRY[type] : undefined
+}
+
 /** Get the block config for a single block type. Falls back to the custom-block overlay. */
 export function getBlock(type: string): BlockConfig | undefined {
-  return BLOCK_REGISTRY[type] ?? BLOCK_REGISTRY[normalizeType(type)] ?? resolveOverlayBlock(type)
+  return ownBlock(type) ?? ownBlock(normalizeType(type)) ?? resolveOverlayBlock(type)
 }
 
 /**
@@ -94,9 +108,82 @@ export function getAllBlocks(): BlockConfig[] {
   return all.map((block) => projectBlock(block, vis))
 }
 
+/**
+ * The newest version of a block type, projected through the viewer's visibility.
+ *
+ * The detail-read counterpart of {@link getAllBlocks}, and the two must agree.
+ * {@link getBlock} is a pure key lookup: it answers `confluence` with the
+ * superseded v1 (which carries `hideFromToolbar`, so a catalog read of it 404s
+ * while the list contains `confluence_v2`), and it never applies the
+ * " (Preview)" display suffix a revealed preview block carries in the list. This
+ * resolves the version the way {@link getLatestBlock} does and projects the
+ * result the way {@link getAllBlocks} does, so a detail read can never
+ * contradict the list it came from. Execution paths keep using the pure
+ * {@link getBlock}.
+ */
+export function getLatestBlockForViewer(type: string): BlockConfig | undefined {
+  const vis = overlayVisibility()
+  const overlay = resolveOverlayBlock(type)
+
+  for (const candidate of versionCandidates(type)) {
+    if (!effectiveHidden(candidate, vis)) {
+      return visibilityInert(vis) ? candidate : projectBlock(candidate, vis)
+    }
+  }
+
+  if (overlay && !effectiveHidden(overlay, vis)) {
+    return visibilityInert(vis) ? overlay : projectBlock(overlay, vis)
+  }
+  return undefined
+}
+
+/**
+ * Every registered version of a base type, newest first.
+ *
+ * The detail read walks these rather than taking `getLatestBlock` and hiding
+ * the result, because "newest" and "visible to this viewer" are different
+ * questions. `slack_v2` is `preview`-gated while `slack` v1 deliberately stays
+ * in the toolbar so the workspace has a Slack block at all — so resolving to
+ * the newest and then hiding it answers `404` for a type the list is
+ * simultaneously publishing. Walking down to the newest *visible* version is
+ * what makes the two agree.
+ */
+function versionCandidates(type: string): BlockConfig[] {
+  const normalized = normalizeType(type)
+  const prefix = `${normalized}_v`
+  const versioned: Array<{ version: number; config: BlockConfig }> = []
+  for (const key of Object.keys(BLOCK_REGISTRY)) {
+    if (!key.startsWith(prefix)) continue
+    const version = parseVersionSuffix(key.slice(prefix.length))
+    if (version !== undefined) versioned.push({ version, config: BLOCK_REGISTRY[key]! })
+  }
+  versioned.sort((left, right) => right.version - left.version)
+
+  const candidates = versioned.map((entry) => entry.config)
+  const base = ownBlock(normalized)
+  if (base) candidates.push(base)
+  return candidates
+}
+
 /** Find the block whose `tools.access` contains the given tool id. */
 export function getBlockByToolName(toolName: string): BlockConfig | undefined {
   return Object.values(BLOCK_REGISTRY).find((b) => b.tools?.access?.includes(toolName))
+}
+
+/**
+ * The digits of a `_vN` suffix, or `undefined` when the remainder is not a
+ * version.
+ *
+ * Matched by string comparison rather than a `RegExp` built from the caller's
+ * type: `GET /api/v2/blocks/{blockId}` accepts any string, so `[`, `(`, `*` or
+ * `a{2,1}` would be interpolated into the pattern and throw a `SyntaxError`
+ * during compilation — an unclassified 500 on a well-formed request.
+ * `tools/tool-ids.ts` resolves the same `_vN` convention the same way.
+ */
+function parseVersionSuffix(suffix: string): number | undefined {
+  if (!suffix || !/^\d+$/.test(suffix)) return undefined
+  const version = Number.parseInt(suffix, 10)
+  return Number.isSafeInteger(version) ? version : undefined
 }
 
 /**
@@ -108,20 +195,19 @@ export function getBlockByToolName(toolName: string): BlockConfig | undefined {
  */
 function resolveLatest(baseType: string): { type: string; config: BlockConfig } | undefined {
   const normalized = normalizeType(baseType)
-  const versionPattern = new RegExp(`^${normalized}_v(\\d+)$`)
+  const prefix = `${normalized}_v`
   let latestKey: string | undefined
   let latestVersion = -1
   for (const key of Object.keys(BLOCK_REGISTRY)) {
-    const match = key.match(versionPattern)
-    if (!match) continue
-    const version = Number.parseInt(match[1]!, 10)
-    if (version > latestVersion) {
+    if (!key.startsWith(prefix)) continue
+    const version = parseVersionSuffix(key.slice(prefix.length))
+    if (version !== undefined && version > latestVersion) {
       latestVersion = version
       latestKey = key
     }
   }
   if (latestKey) return { type: latestKey, config: BLOCK_REGISTRY[latestKey]! }
-  const config = BLOCK_REGISTRY[normalized]
+  const config = ownBlock(normalized)
   return config ? { type: normalized, config } : undefined
 }
 

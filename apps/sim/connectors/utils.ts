@@ -1,4 +1,9 @@
+import { isPlainRecord } from '@sim/utils/object'
 import type { SecureFetchResponse } from '@/lib/core/security/input-validation.server'
+import {
+  isPayloadSizeLimitError,
+  readResponseToBufferWithLimit,
+} from '@/lib/core/utils/stream-limits'
 import { MAX_FILE_SIZE as KB_DOCUMENT_MAX_BYTES } from '@/lib/uploads/utils/validation'
 import type { ExternalDocument } from '@/connectors/types'
 
@@ -13,6 +18,223 @@ import type { ExternalDocument } from '@/connectors/types'
  * silently, so raising the limit stays memory-safe and visible.
  */
 export const CONNECTOR_MAX_FILE_BYTES = KB_DOCUMENT_MAX_BYTES
+
+/** Maximum number of Microsoft Graph folders retained between connector pages. */
+export const MICROSOFT_GRAPH_MAX_PENDING_FOLDERS = 10_000
+
+/**
+ * Graph IDs are opaque strings with no documented maximum. This ceiling is far
+ * above ordinary identifiers while making the traversal's string working set
+ * provably bounded even if a provider response or stored cursor is malformed.
+ */
+export const MICROSOFT_GRAPH_MAX_ITEM_ID_BYTES = 512
+
+/** Maximum server-issued continuation URL accepted into a traversal cursor. */
+export const MICROSOFT_GRAPH_MAX_NEXT_LINK_BYTES = 16 * 1024
+
+/** Maximum serialized traversal state, before and after base64 encoding. */
+export const MICROSOFT_GRAPH_MAX_CURSOR_JSON_BYTES = 8 * 1024 * 1024
+export const MICROSOFT_GRAPH_MAX_CURSOR_ENCODED_BYTES = 12 * 1024 * 1024
+
+/** Parses an optional connector limit where zero or omission means unlimited. */
+export function parseOptionalUnlimitedSafeInteger(value: unknown, errorMessage: string): number {
+  if (value === undefined || value === null) return 0
+  if (typeof value !== 'string' && typeof value !== 'number') {
+    throw new Error(errorMessage)
+  }
+
+  const normalized = typeof value === 'string' ? value.trim() : value
+  if (normalized === '') return 0
+  if (typeof normalized === 'string' && !/^\d+$/.test(normalized)) {
+    throw new Error(errorMessage)
+  }
+
+  const parsed = Number(normalized)
+  if (!Number.isSafeInteger(parsed) || parsed < 0) {
+    throw new Error(errorMessage)
+  }
+  return parsed
+}
+
+const MICROSOFT_GRAPH_ORIGIN = 'https://graph.microsoft.com'
+
+export interface MicrosoftGraphTraversalState {
+  nextLink?: string
+  currentFolder?: string
+  folderStack: string[]
+}
+
+export interface MicrosoftGraphDriveItemShape {
+  id: string
+  name: string
+  file?: Record<string, unknown>
+  folder?: Record<string, unknown>
+  package?: Record<string, unknown>
+  remoteItem?: Record<string, unknown>
+}
+
+export function isMicrosoftGraphDriveItem(value: unknown): value is MicrosoftGraphDriveItemShape {
+  return (
+    isPlainRecord(value) &&
+    typeof value.id === 'string' &&
+    value.id.length > 0 &&
+    typeof value.name === 'string' &&
+    value.name.length > 0 &&
+    (isPlainRecord(value.file) ||
+      isPlainRecord(value.folder) ||
+      isPlainRecord(value.package) ||
+      isPlainRecord(value.remoteItem))
+  )
+}
+
+export function parseMicrosoftGraphDriveItemList(
+  value: unknown,
+  label: string
+): { value: MicrosoftGraphDriveItemShape[]; nextLink?: string } {
+  if (!isPlainRecord(value) || !Array.isArray(value.value)) {
+    throw new Error(`Microsoft Graph returned malformed ${label} list metadata`)
+  }
+  if (!value.value.every(isMicrosoftGraphDriveItem)) {
+    throw new Error(`Microsoft Graph returned malformed ${label} item metadata`)
+  }
+  const nextLink =
+    value['@odata.nextLink'] === undefined
+      ? undefined
+      : assertMicrosoftGraphNextLink(value['@odata.nextLink'])
+  return { value: value.value, nextLink }
+}
+
+function assertBoundedGraphString(
+  value: unknown,
+  maxBytes: number,
+  field: string,
+  allowEmpty = false
+): asserts value is string {
+  if (typeof value !== 'string' || (!allowEmpty && value.length === 0)) {
+    throw new Error(`Invalid Microsoft Graph traversal cursor: ${field} must be a string`)
+  }
+  if (Buffer.byteLength(value, 'utf8') > maxBytes) {
+    throw new Error(`Invalid Microsoft Graph traversal cursor: ${field} exceeds its size limit`)
+  }
+}
+
+/** Validates a Graph continuation URL before a bearer token can be sent to it. */
+export function assertMicrosoftGraphNextLink(value: unknown): string {
+  assertBoundedGraphString(value, MICROSOFT_GRAPH_MAX_NEXT_LINK_BYTES, 'nextLink')
+  const url = new URL(value.trim())
+  if (url.origin !== MICROSOFT_GRAPH_ORIGIN) {
+    throw new Error('Refusing to follow a non-Microsoft Graph @odata.nextLink')
+  }
+  return url.toString()
+}
+
+function validateMicrosoftGraphTraversalState(
+  value: unknown,
+  label: string
+): MicrosoftGraphTraversalState {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error(`Invalid ${label} pagination cursor`)
+  }
+
+  const candidate = value as Record<string, unknown>
+  if (!Array.isArray(candidate.folderStack)) {
+    throw new Error(`Invalid ${label} pagination cursor: folderStack must be an array`)
+  }
+  if (candidate.folderStack.length > MICROSOFT_GRAPH_MAX_PENDING_FOLDERS) {
+    throw new Error(
+      `${label} folder traversal exceeds the safe limit of ${MICROSOFT_GRAPH_MAX_PENDING_FOLDERS.toLocaleString()} pending folders. Narrow the connector to a document library or subfolder and retry.`
+    )
+  }
+
+  const folderStack = candidate.folderStack.map((folderId, index) => {
+    assertBoundedGraphString(folderId, MICROSOFT_GRAPH_MAX_ITEM_ID_BYTES, `folderStack[${index}]`)
+    return folderId
+  })
+
+  let currentFolder: string | undefined
+  if (candidate.currentFolder !== undefined) {
+    assertBoundedGraphString(
+      candidate.currentFolder,
+      MICROSOFT_GRAPH_MAX_ITEM_ID_BYTES,
+      'currentFolder'
+    )
+    currentFolder = candidate.currentFolder
+  }
+
+  const nextLink =
+    candidate.nextLink === undefined ? undefined : assertMicrosoftGraphNextLink(candidate.nextLink)
+
+  return { folderStack, currentFolder, nextLink }
+}
+
+/**
+ * Encodes bounded Graph traversal state. Base64 is canonical; decoding also
+ * accepts the former OneDrive raw-JSON cursor so in-flight syncs survive rollout.
+ */
+export function encodeMicrosoftGraphTraversalCursor(
+  state: MicrosoftGraphTraversalState,
+  label: string
+): string {
+  const validated = validateMicrosoftGraphTraversalState(state, label)
+  const json = JSON.stringify(validated)
+  if (Buffer.byteLength(json, 'utf8') > MICROSOFT_GRAPH_MAX_CURSOR_JSON_BYTES) {
+    throw new Error(`Invalid ${label} pagination cursor: serialized state exceeds its size limit`)
+  }
+  const encoded = Buffer.from(json).toString('base64')
+  if (Buffer.byteLength(encoded, 'utf8') > MICROSOFT_GRAPH_MAX_CURSOR_ENCODED_BYTES) {
+    throw new Error(`Invalid ${label} pagination cursor: encoded state exceeds its size limit`)
+  }
+  return encoded
+}
+
+export function decodeMicrosoftGraphTraversalCursor(
+  cursor: string,
+  label: string
+): MicrosoftGraphTraversalState {
+  if (Buffer.byteLength(cursor, 'utf8') > MICROSOFT_GRAPH_MAX_CURSOR_ENCODED_BYTES) {
+    throw new Error(`Invalid ${label} pagination cursor: encoded state exceeds its size limit`)
+  }
+
+  let json: string
+  try {
+    json = cursor.trimStart().startsWith('{')
+      ? cursor
+      : Buffer.from(cursor, 'base64').toString('utf8')
+  } catch {
+    throw new Error(`Invalid ${label} pagination cursor`)
+  }
+  if (Buffer.byteLength(json, 'utf8') > MICROSOFT_GRAPH_MAX_CURSOR_JSON_BYTES) {
+    throw new Error(`Invalid ${label} pagination cursor: serialized state exceeds its size limit`)
+  }
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(json)
+  } catch {
+    throw new Error(`Invalid ${label} pagination cursor`)
+  }
+  return validateMicrosoftGraphTraversalState(parsed, label)
+}
+
+export function appendPendingMicrosoftGraphFolders(
+  pendingFolders: string[],
+  discoveredFolders: string[],
+  label: string
+): void {
+  if (pendingFolders.length + discoveredFolders.length > MICROSOFT_GRAPH_MAX_PENDING_FOLDERS) {
+    throw new Error(
+      `${label} folder traversal exceeds the safe limit of ${MICROSOFT_GRAPH_MAX_PENDING_FOLDERS.toLocaleString()} pending folders. Narrow the connector to a document library or subfolder and retry.`
+    )
+  }
+  for (let index = 0; index < discoveredFolders.length; index++) {
+    assertBoundedGraphString(
+      discoveredFolders[index],
+      MICROSOFT_GRAPH_MAX_ITEM_ID_BYTES,
+      `discoveredFolders[${index}]`
+    )
+  }
+  pendingFolders.push(...discoveredFolders)
+}
 
 /** The named entities connector markup actually carries, decoded to their character. */
 const NAMED_ENTITIES: Record<string, string> = {
@@ -369,25 +591,15 @@ export async function readBodyWithLimit(
   response: Response | SecureFetchResponse,
   maxBytes: number
 ): Promise<Buffer | null> {
-  if (!response.body) {
-    const buffer = Buffer.from(await response.arrayBuffer())
-    return buffer.byteLength > maxBytes ? null : buffer
+  try {
+    return await readResponseToBufferWithLimit(response, {
+      maxBytes,
+      label: 'Connector file download',
+    })
+  } catch (error) {
+    if (isPayloadSizeLimitError(error)) return null
+    throw error
   }
-
-  const reader = response.body.getReader()
-  const chunks: Uint8Array[] = []
-  let total = 0
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
-    total += value.byteLength
-    if (total > maxBytes) {
-      await reader.cancel().catch(() => {})
-      return null
-    }
-    chunks.push(value)
-  }
-  return Buffer.concat(chunks)
 }
 
 /**

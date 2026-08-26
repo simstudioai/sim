@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Sim API v2 — Workspace Resources",
-    "description": "Version 2 of the Sim REST API for workspace metadata, members, MCP servers, skills, custom tools, credentials, and write-only secrets.",
+    "description": "Version 2 of the Sim REST API for workspace metadata, members, MCP servers, skills, custom tools, credentials, write-only secrets, and the block, tool, and connector-type catalogs.",
     "version": "2.0.0",
     "contact": {
       "name": "Sim Support",
@@ -21,6 +21,10 @@
     }
   ],
   "tags": [
+    {
+      "name": "Meta",
+      "description": "Discover what the calling API key can reach."
+    },
     {
       "name": "Workspaces",
       "description": "Read workspace metadata and its effective member roster."
@@ -44,6 +48,10 @@
     {
       "name": "Secrets",
       "description": "Set and manage write-only workspace and personal secret values."
+    },
+    {
+      "name": "Catalog",
+      "description": "Discover the blocks, tools, and connector types this workspace can build with."
     }
   ],
   "security": [
@@ -314,7 +322,7 @@
       "get": {
         "operationId": "listMcpServers",
         "summary": "List MCP Servers",
-        "description": "List MCP servers registered in a workspace. Request-header values and OAuth client secrets are never returned. The discovery fields stay at their registration defaults until `GET /api/v2/mcp-servers/{id}/tools` runs a discovery.",
+        "description": "List MCP servers registered in a workspace. Request-header values and OAuth client secrets are never returned. The discovery fields stay at their registration defaults until `GET /api/v2/mcp-servers/{mcpServerId}/tools` runs a discovery.",
         "tags": ["MCP Servers"],
         "parameters": [
           {
@@ -438,7 +446,7 @@
       "post": {
         "operationId": "createMcpServer",
         "summary": "Create MCP Server",
-        "description": "Register an MCP server in a workspace. The endpoint URL is the server identity, so a URL already registered here is a `409` — reconfigure that server with `PATCH /api/v2/mcp-servers/{id}` instead. Registration never connects to the endpoint: the server comes back `disconnected` and stays unavailable until `GET /api/v2/mcp-servers/{id}/tools` succeeds.",
+        "description": "Register an MCP server in a workspace. The endpoint URL is the server identity, so a URL already registered here is a `409` — reconfigure that server with `PATCH /api/v2/mcp-servers/{mcpServerId}` instead. Registration never connects to the endpoint: the server comes back `disconnected` and stays unavailable until `GET /api/v2/mcp-servers/{mcpServerId}/tools` succeeds.",
         "tags": ["MCP Servers"],
         "requestBody": {
           "required": true,
@@ -491,6 +499,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -503,7 +514,7 @@
         }
       }
     },
-    "/api/v2/mcp-servers/{id}": {
+    "/api/v2/mcp-servers/{mcpServerId}": {
       "get": {
         "operationId": "getMcpServer",
         "summary": "Get MCP Server",
@@ -511,7 +522,7 @@
         "tags": ["MCP Servers"],
         "parameters": [
           {
-            "name": "id",
+            "name": "mcpServerId",
             "in": "path",
             "required": true,
             "description": "Unique MCP server identifier.",
@@ -586,7 +597,7 @@
         "tags": ["MCP Servers"],
         "parameters": [
           {
-            "name": "id",
+            "name": "mcpServerId",
             "in": "path",
             "required": true,
             "description": "Unique MCP server identifier.",
@@ -645,6 +656,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -663,7 +677,7 @@
         "tags": ["MCP Servers"],
         "parameters": [
           {
-            "name": "id",
+            "name": "mcpServerId",
             "in": "path",
             "required": true,
             "description": "Unique MCP server identifier.",
@@ -732,7 +746,7 @@
         }
       }
     },
-    "/api/v2/mcp-servers/{id}/tools": {
+    "/api/v2/mcp-servers/{mcpServerId}/tools": {
       "get": {
         "operationId": "listMcpServerTools",
         "summary": "List MCP Server Tools",
@@ -740,7 +754,7 @@
         "tags": ["MCP Servers"],
         "parameters": [
           {
-            "name": "id",
+            "name": "mcpServerId",
             "in": "path",
             "required": true,
             "description": "Unique MCP server identifier.",
@@ -1003,6 +1017,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -1015,7 +1032,7 @@
         }
       }
     },
-    "/api/v2/skills/{id}": {
+    "/api/v2/skills/{skillId}": {
       "get": {
         "operationId": "getSkill",
         "summary": "Get Skill",
@@ -1023,7 +1040,7 @@
         "tags": ["Skills"],
         "parameters": [
           {
-            "name": "id",
+            "name": "skillId",
             "in": "path",
             "required": true,
             "description": "Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`.",
@@ -1098,7 +1115,7 @@
         "tags": ["Skills"],
         "parameters": [
           {
-            "name": "id",
+            "name": "skillId",
             "in": "path",
             "required": true,
             "description": "Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`.",
@@ -1160,6 +1177,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -1178,7 +1198,7 @@
         "tags": ["Skills"],
         "parameters": [
           {
-            "name": "id",
+            "name": "skillId",
             "in": "path",
             "required": true,
             "description": "Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`.",
@@ -1247,7 +1267,7 @@
         }
       }
     },
-    "/api/v2/skills/{id}/editors": {
+    "/api/v2/skills/{skillId}/editors": {
       "get": {
         "operationId": "listSkillEditors",
         "summary": "List Skill Editors",
@@ -1255,7 +1275,7 @@
         "tags": ["Skills"],
         "parameters": [
           {
-            "name": "id",
+            "name": "skillId",
             "in": "path",
             "required": true,
             "description": "Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`.",
@@ -1378,7 +1398,7 @@
         "tags": ["Skills"],
         "parameters": [
           {
-            "name": "id",
+            "name": "skillId",
             "in": "path",
             "required": true,
             "description": "Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`.",
@@ -1458,6 +1478,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -1476,7 +1499,7 @@
         "tags": ["Skills"],
         "parameters": [
           {
-            "name": "id",
+            "name": "skillId",
             "in": "path",
             "required": true,
             "description": "Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`.",
@@ -1738,6 +1761,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -1750,7 +1776,7 @@
         }
       }
     },
-    "/api/v2/custom-tools/{id}": {
+    "/api/v2/custom-tools/{customToolId}": {
       "get": {
         "operationId": "getCustomTool",
         "summary": "Get Custom Tool",
@@ -1758,7 +1784,7 @@
         "tags": ["Custom Tools"],
         "parameters": [
           {
-            "name": "id",
+            "name": "customToolId",
             "in": "path",
             "required": true,
             "description": "Unique custom tool identifier.",
@@ -1833,7 +1859,7 @@
         "tags": ["Custom Tools"],
         "parameters": [
           {
-            "name": "id",
+            "name": "customToolId",
             "in": "path",
             "required": true,
             "description": "Unique custom tool identifier.",
@@ -1895,6 +1921,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -1913,7 +1942,7 @@
         "tags": ["Custom Tools"],
         "parameters": [
           {
-            "name": "id",
+            "name": "customToolId",
             "in": "path",
             "required": true,
             "description": "Unique custom tool identifier.",
@@ -2206,6 +2235,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -2353,6 +2385,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -2430,6 +2465,102 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateCredential",
+        "summary": "Update Credential",
+        "description": "Rotate a service-account credential's secret material, or rename it. Send only the fields to change: an omitted field is left unchanged, and `description: null` clears the stored description. Secret fields are write-only and are never returned, and only a service-account credential has any: sending one for a credential of another type answers `400` rather than dropping it. The provider re-verifies replacement secret material before it replaces the stored secret, so a rejected secret leaves the stored one untouched and answers `400` with the provider's code in `error.details.providerErrorCode`; a provider that cannot be reached answers `503`. The credential ID is preserved, so every workflow, deployment, paused run, knowledge connector, and webhook that references it keeps working — which disconnecting and re-creating does not. Credential admin access is required. A workspace API key is rejected with `403`; use a personal API key.",
+        "tags": ["Credentials"],
+        "parameters": [
+          {
+            "name": "credentialId",
+            "in": "path",
+            "required": true,
+            "description": "Credential to update.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255,
+              "description": "Credential to update."
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace expected to own the credential.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "Workspace expected to own the credential."
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Replacement display metadata and the write-only fields declared by provider discovery.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCredentialRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated credential without secret material.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateCredentialResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -2670,6 +2801,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -2742,6 +2876,1219 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/DeleteSecretResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/meta": {
+      "get": {
+        "operationId": "getApiMeta",
+        "summary": "Get API Capabilities",
+        "description": "Report whether v2 is available, whether the calling API key is personal or workspace-scoped, and when it expires. Requires a valid key.",
+        "tags": ["Meta"],
+        "responses": {
+          "200": {
+            "description": "Availability and lifecycle facts about the calling key.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetApiMetaResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/workflow-mcp-servers": {
+      "get": {
+        "operationId": "listWorkflowMcpServers",
+        "summary": "List Workflow MCP Servers",
+        "description": "List the MCP servers a workspace *publishes*. These serve deployed workflows as tools to outside MCP clients, which is the opposite direction from `GET /api/v2/mcp-servers` — that lists external servers Sim calls. Each entry carries the endpoint clients connect to and the tool names it exposes; those names are gathered under a 2,000-tool budget shared across the page, so on a page of unusually large servers the trailing entries can list fewer names than they publish. Read one server's full inventory with `GET /api/v2/workflow-mcp-servers/{serverId}/tools`. A workspace API key is rejected with `403`; use a personal API key.",
+        "tags": ["MCP Servers"],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace whose published MCP servers to list.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "Workspace whose published MCP servers to list."
+            }
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "required": false,
+            "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
+            "schema": {
+              "default": "createdAt",
+              "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
+              "type": "string",
+              "enum": ["name", "createdAt", "updatedAt"]
+            }
+          },
+          {
+            "name": "sortOrder",
+            "in": "query",
+            "required": false,
+            "description": "Sort direction.",
+            "schema": {
+              "default": "desc",
+              "description": "Sort direction.",
+              "type": "string",
+              "enum": ["asc", "desc"]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum workflow-MCP servers to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+            "schema": {
+              "default": 50,
+              "description": "Maximum workflow-MCP servers to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
+            "schema": {
+              "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of published MCP servers.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListWorkflowMcpServersResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createWorkflowMcpServer",
+        "summary": "Create Workflow MCP Server",
+        "description": "Publish a new MCP server for a workspace, optionally seeding it with workflows to expose as tools. Every workflow named in `workflowIds` must already be deployed. Setting `isPublic` lets any MCP client holding the server URL execute the workflows it publishes without a Sim API key. A workspace API key is rejected with `403`; use a personal API key.",
+        "tags": ["MCP Servers"],
+        "requestBody": {
+          "required": true,
+          "description": "A new workspace-published MCP server and the workflows it exposes.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateWorkflowMcpServerRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The published MCP server.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateWorkflowMcpServerResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/workflow-mcp-servers/{serverId}": {
+      "get": {
+        "operationId": "getWorkflowMcpServer",
+        "summary": "Get Workflow MCP Server",
+        "description": "Read one published MCP server. The list is the only other place this state is published, so a caller holding a server id would otherwise have to page the collection and filter client-side. The tools it publishes are on its `tools` sub-resource. A workspace API key is rejected with `403`; use a personal API key.",
+        "tags": ["MCP Servers"],
+        "parameters": [
+          {
+            "name": "serverId",
+            "in": "path",
+            "required": true,
+            "description": "Unique workflow-MCP server identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique workflow-MCP server identifier."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The MCP server.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetWorkflowMcpServerResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateWorkflowMcpServer",
+        "summary": "Update Workflow MCP Server",
+        "description": "Rename, re-describe, or change the public visibility of a published MCP server. Merge-patch shaped: an omitted key is unchanged and `description: null` clears the description. Publishing and unpublishing the workflows it serves are separate operations on its `tools` sub-resource. A workspace API key is rejected with `403`; use a personal API key.",
+        "tags": ["MCP Servers"],
+        "parameters": [
+          {
+            "name": "serverId",
+            "in": "path",
+            "required": true,
+            "description": "Unique workflow-MCP server identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique workflow-MCP server identifier."
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Merge-patch body for a published MCP server.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateWorkflowMcpServerRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated MCP server.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateWorkflowMcpServerResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteWorkflowMcpServer",
+        "summary": "Delete Workflow MCP Server",
+        "description": "Unpublish an MCP server. Every tool it served stops answering and connected clients lose the endpoint. The workflows themselves are untouched — their own deployments stay live and executable through the workflow API. A workspace API key is rejected with `403`; use a personal API key.",
+        "tags": ["MCP Servers"],
+        "parameters": [
+          {
+            "name": "serverId",
+            "in": "path",
+            "required": true,
+            "description": "Unique workflow-MCP server identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique workflow-MCP server identifier."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The MCP server was unpublished.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteWorkflowMcpServerResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/workflow-mcp-servers/{serverId}/tools": {
+      "get": {
+        "operationId": "listWorkflowMcpTools",
+        "summary": "List Workflow MCP Tools",
+        "description": "Every tool a server publishes, tool-name ordered. The server list reports tool *names* only, so this is where a caller reads the `workflowId` that `DELETE /api/v2/workflow-mcp-servers/{serverId}/tools/{workflowId}` addresses. Returned in one page rather than paged — so `nextCursor` is always null — and capped at 2,000 tools, which is far above any real server's inventory. A workspace API key is rejected with `403`; use a personal API key.",
+        "tags": ["MCP Servers"],
+        "parameters": [
+          {
+            "name": "serverId",
+            "in": "path",
+            "required": true,
+            "description": "Unique workflow-MCP server identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique workflow-MCP server identifier."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The tools this server publishes.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListWorkflowMcpToolsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "post": {
+        "operationId": "deployWorkflowMcpTool",
+        "summary": "Publish Workflow As MCP Tool",
+        "description": "Publish a deployed workflow as a tool on an MCP server. The tool's input schema is generated from the deployed workflow's input format, so the workflow must already be deployed. Idempotent per workflow: a server carries at most one tool per workflow, so a repeat call replaces the existing tool and answers `200` with `updated: true` rather than conflicting. A workspace API key is rejected with `403`; use a personal API key.",
+        "tags": ["MCP Servers"],
+        "parameters": [
+          {
+            "name": "serverId",
+            "in": "path",
+            "required": true,
+            "description": "Unique workflow-MCP server identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique workflow-MCP server identifier."
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "The workflow to publish and the tool metadata MCP clients see.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeployWorkflowMcpToolRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The published tool.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeployWorkflowMcpToolResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/workflow-mcp-servers/{serverId}/tools/{workflowId}": {
+      "delete": {
+        "operationId": "undeployWorkflowMcpTool",
+        "summary": "Unpublish Workflow MCP Tool",
+        "description": "Remove a workflow from an MCP server. Addressed by workflow rather than by tool identifier, because a server carries at most one live tool per workflow. The workflow's own deployment is untouched. A workspace API key is rejected with `403`; use a personal API key.",
+        "tags": ["MCP Servers"],
+        "parameters": [
+          {
+            "name": "serverId",
+            "in": "path",
+            "required": true,
+            "description": "Unique workflow-MCP server identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique workflow-MCP server identifier."
+            }
+          },
+          {
+            "name": "workflowId",
+            "in": "path",
+            "required": true,
+            "description": "Workflow published as a tool on this server.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Workflow published as a tool on this server."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The tool was removed.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UndeployWorkflowMcpToolResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/blocks": {
+      "get": {
+        "operationId": "listBlocks",
+        "summary": "List Blocks",
+        "description": "List the blocks available in a workspace, built-in and workspace-deployed alike, discriminated by `source`. Availability is caller-specific: the workspace’s integration allowlist, the organization’s revealed preview blocks, and the deployment’s allowlist all narrow the result. Use `capability=trigger` for the blocks that can start a workflow. Summaries name their tools and operations by id — resolve one with Get Block or Get Tool.",
+        "tags": ["Catalog"],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace whose integration allowlist, revealed preview blocks, and deployed custom blocks decide what this catalog contains.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "Workspace whose integration allowlist, revealed preview blocks, and deployed custom blocks decide what this catalog contains."
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "description": "Case-insensitive substring match against the block id, name, and description.",
+            "schema": {
+              "description": "Case-insensitive substring match against the block id, name, and description.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "required": false,
+            "description": "Restrict to one toolbar category.",
+            "schema": {
+              "description": "Restrict to one toolbar category.",
+              "type": "string",
+              "enum": ["blocks", "tools", "triggers"]
+            }
+          },
+          {
+            "name": "capability",
+            "in": "query",
+            "required": false,
+            "description": "Restrict to blocks that can start a workflow — the `triggers` category, blocks declaring `triggerAllowed`, and blocks with trigger-mode fields.",
+            "schema": {
+              "description": "Restrict to blocks that can start a workflow — the `triggers` category, blocks declaring `triggerAllowed`, and blocks with trigger-mode fields.",
+              "type": "string",
+              "enum": ["trigger"]
+            }
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "required": false,
+            "description": "Restrict to shipped blocks or to this workspace’s deployed custom blocks.",
+            "schema": {
+              "description": "Restrict to shipped blocks or to this workspace’s deployed custom blocks.",
+              "type": "string",
+              "enum": ["builtin", "custom"]
+            }
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "required": false,
+            "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
+            "schema": {
+              "default": "id",
+              "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
+              "type": "string",
+              "enum": ["id", "name", "category"]
+            }
+          },
+          {
+            "name": "sortOrder",
+            "in": "query",
+            "required": false,
+            "description": "Sort direction.",
+            "schema": {
+              "default": "asc",
+              "description": "Sort direction.",
+              "type": "string",
+              "enum": ["asc", "desc"]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum blocks to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+            "schema": {
+              "default": 50,
+              "description": "Maximum blocks to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
+            "schema": {
+              "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of blocks available in the workspace.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListBlocksResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/blocks/{blockId}": {
+      "get": {
+        "operationId": "getBlock",
+        "summary": "Get Block",
+        "description": "Read one block’s full configuration shape: its fields and their conditions, its operations with the tool each runs, every tool’s parameters and outputs, and its triggers. An unversioned base type resolves to the newest version this caller can see — `confluence` answers with `confluence_v2` — and the returned `id` is always the resolved one, matching Get Tool. A block this caller cannot see answers 404, identically to one that does not exist.",
+        "tags": ["Catalog"],
+        "parameters": [
+          {
+            "name": "blockId",
+            "in": "path",
+            "required": true,
+            "description": "Block type identifier. An unversioned base type resolves to the newest version, and the response echoes the resolved id.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255,
+              "description": "Block type identifier. An unversioned base type resolves to the newest version, and the response echoes the resolved id."
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace whose integration allowlist, revealed preview blocks, and deployed custom blocks decide what this catalog contains.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "Workspace whose integration allowlist, revealed preview blocks, and deployed custom blocks decide what this catalog contains."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The block.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetBlockResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/tools": {
+      "get": {
+        "operationId": "listTools",
+        "summary": "List Tools",
+        "description": "List the built-in tools available in a workspace. Built-in tools only: a workspace’s MCP tools are discovered per server on List MCP Server Tools, and its code-backed custom tools are on List Custom Tools. A tool is available when a block the caller can see exposes it, so the same allowlist and visibility rules as List Blocks apply.",
+        "tags": ["Catalog"],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace whose integration allowlist, revealed preview blocks, and deployed custom blocks decide what this catalog contains.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "Workspace whose integration allowlist, revealed preview blocks, and deployed custom blocks decide what this catalog contains."
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "description": "Case-insensitive substring match against the tool id, name, and description.",
+            "schema": {
+              "description": "Case-insensitive substring match against the tool id, name, and description.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "hostedApiKey",
+            "in": "query",
+            "required": false,
+            "description": "Restrict to tools by how their API key is supplied.",
+            "schema": {
+              "description": "Restrict to tools by how their API key is supplied.",
+              "type": "string",
+              "enum": ["always", "conditional", "none"]
+            }
+          },
+          {
+            "name": "oauthProvider",
+            "in": "query",
+            "required": false,
+            "description": "Restrict to tools that authenticate against this OAuth service.",
+            "schema": {
+              "description": "Restrict to tools that authenticate against this OAuth service.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255
+            }
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "required": false,
+            "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
+            "schema": {
+              "default": "id",
+              "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
+              "type": "string",
+              "enum": ["id", "name"]
+            }
+          },
+          {
+            "name": "sortOrder",
+            "in": "query",
+            "required": false,
+            "description": "Sort direction.",
+            "schema": {
+              "default": "asc",
+              "description": "Sort direction.",
+              "type": "string",
+              "enum": ["asc", "desc"]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum tools to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+            "schema": {
+              "default": 50,
+              "description": "Maximum tools to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
+            "schema": {
+              "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of built-in tools available in the workspace.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListToolsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/tools/{toolId}": {
+      "get": {
+        "operationId": "getTool",
+        "summary": "Get Tool",
+        "description": "Read one built-in tool’s declared parameters and outputs. A name that is itself a registered id answers as that exact tool; a name that is not resolves to the newest version of its family. The returned `id` is always the one that answered, so a caller can see which version it got. A tool the workspace’s visible blocks do not expose answers `404`, identically to one that does not exist.",
+        "tags": ["Catalog"],
+        "parameters": [
+          {
+            "name": "toolId",
+            "in": "path",
+            "required": true,
+            "description": "Tool identifier. An unversioned name resolves to the newest version, and the response echoes the resolved id.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255,
+              "description": "Tool identifier. An unversioned name resolves to the newest version, and the response echoes the resolved id."
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace whose integration allowlist, revealed preview blocks, and deployed custom blocks decide what this catalog contains.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "Workspace whose integration allowlist, revealed preview blocks, and deployed custom blocks decide what this catalog contains."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The tool.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetToolResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/connector-types": {
+      "get": {
+        "operationId": "listConnectorTypes",
+        "summary": "List Connector Types",
+        "description": "List every knowledge-base connector type and the source configuration each accepts. Two properties of a config field decide how its value is sent and are not inferable from the rest: a field with `multi: true` stores a `string[]` rather than a `string`, and a `canonicalParamId` links a picker field to a manual-entry field that write the SAME configuration key — send exactly one of the pair, keyed by `canonicalParamId` rather than by the field's own `id`. The bounded set is returned in one page; `nextCursor` is always null.",
+        "tags": ["Catalog"],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace whose integration allowlist, revealed preview blocks, and deployed custom blocks decide what this catalog contains.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "Workspace whose integration allowlist, revealed preview blocks, and deployed custom blocks decide what this catalog contains."
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "description": "Case-insensitive substring match against the connector name.",
+            "schema": {
+              "description": "Case-insensitive substring match against the connector name.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The connector-type catalog.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListConnectorTypesResponse"
                 }
               }
             }
@@ -2931,6 +4278,22 @@
           }
         }
       },
+      "UnsupportedMediaType": {
+        "description": "The request uses an unsupported media type.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "UNSUPPORTED_MEDIA_TYPE",
+                "message": "Request body must be sent as application/json"
+              }
+            }
+          }
+        }
+      },
       "RateLimited": {
         "description": "The caller exceeded the request rate limit.",
         "headers": {
@@ -3009,7 +4372,7 @@
                 "description": "Human-readable explanation of the error."
               },
               "details": {
-                "description": "Structured error details. On a `403` whose cause a caller can act on, this carries a `code` from a closed set:\n- `INSUFFICIENT_WORKSPACE_ROLE` — The caller has access to the workspace but its role is below the one this operation requires.\n- `PERSONAL_API_KEYS_DISABLED` — The workspace's organization does not allow personal API keys. Use a workspace API key.\n- `WORKSPACE_KEY_OPERATION_NOT_PERMITTED` — This operation is not available to a workspace-scoped API key. Use a personal API key.\n- `PRINCIPAL_KIND_NOT_PERMITTED` — This operation does not accept the caller’s kind of API key.\n- `ORGANIZATION_MEMBERSHIP_REQUIRED` — The caller is not a member of the organization it named.\n- `ORGANIZATION_ADMIN_REQUIRED` — The caller is a member of the organization but not an admin or owner.\n- `ENTERPRISE_PLAN_REQUIRED` — The organization has no active enterprise subscription.\n- `ORGANIZATION_PLAN_REQUIRED` — The organization has no active organization subscription (Pro for Teams, Max for Teams, or Enterprise).\n- `AUDIT_LOGS_DISABLED` — Audit logging is not enabled for this deployment.\n- `SKILL_EDITOR_ACCESS_REQUIRED` — The caller can write in the workspace but is not an editor of this skill.\n- `SECRET_ADMIN_ACCESS_REQUIRED` — The caller can write in the workspace but is not an admin of this secret. Ask a workspace admin, or someone holding admin on the secret, to grant access or set the value.\n- `WORKSPACE_RESOURCE_LIMIT_REACHED` — The workspace already holds the maximum number of resources of this kind. Delete one, or contact Sim to raise the limit; the message names the ceiling.\n- `PUBLIC_SHARING_NOT_ALLOWED` — The workspace's organization does not permit sharing this resource publicly. An organization admin controls the policy.\n- `CREDENTIAL_ADMIN_ACCESS_REQUIRED` — The caller can reach the workspace but cannot administer this credential.\n- `MCP_SERVER_URL_NOT_ALLOWED` — The supplied MCP server URL is outside the allowed domains or resolves to an internal address."
+                "description": "Structured error details. On a `403` whose cause a caller can act on, this carries a `code` from a closed set:\n- `INSUFFICIENT_WORKSPACE_ROLE` — The caller has access to the workspace but its role is below the one this operation requires.\n- `PERSONAL_API_KEYS_DISABLED` — The workspace's organization does not allow personal API keys. Use a workspace API key.\n- `WORKSPACE_KEY_OPERATION_NOT_PERMITTED` — This operation is not available to a workspace-scoped API key. Use a personal API key.\n- `PRINCIPAL_KIND_NOT_PERMITTED` — This operation does not accept the caller’s kind of API key.\n- `ORGANIZATION_MEMBERSHIP_REQUIRED` — The caller is not a member of the organization it named.\n- `ORGANIZATION_ADMIN_REQUIRED` — The caller is a member of the organization but not an admin or owner.\n- `ENTERPRISE_PLAN_REQUIRED` — The organization has no active enterprise subscription.\n- `ORGANIZATION_PLAN_REQUIRED` — The organization has no active organization subscription (Pro for Teams, Max for Teams, or Enterprise).\n- `AUDIT_LOGS_DISABLED` — Audit logging is not enabled for this deployment.\n- `SKILL_EDITOR_ACCESS_REQUIRED` — The caller can write in the workspace but is not an editor of this skill.\n- `SECRET_ADMIN_ACCESS_REQUIRED` — The caller can write in the workspace but is not an admin of this secret. Ask a workspace admin, or someone holding admin on the secret, to grant access or set the value.\n- `WORKSPACE_RESOURCE_LIMIT_REACHED` — The workspace already holds the maximum number of resources of this kind. Delete one, or contact Sim to raise the limit; the message names the ceiling.\n- `PUBLIC_SHARING_NOT_ALLOWED` — The workspace's organization does not permit sharing this resource publicly. An organization admin controls the policy.\n- `CREDENTIAL_ADMIN_ACCESS_REQUIRED` — The caller can reach the workspace but cannot administer this credential.\n- `MCP_SERVER_URL_NOT_ALLOWED` — The supplied MCP server URL is outside the allowed domains or resolves to an internal address.\n- `WORKSPACE_PLAN_CAPABILITY_REQUIRED` — The workspace's plan does not include a capability this request depends on. The message names the capability; upgrading the workspace's plan is the remedy.\n- `CHAT_AUTH_MODE_NOT_PERMITTED` — The workspace's permission group does not allow the chat authentication mode the request selected. A mode already saved on the deployment may still be re-saved; changing to a disallowed one cannot.\n- `CONNECTOR_MANAGED_RESOURCE_READ_ONLY` — This resource is managed by a knowledge base connector and cannot be edited directly. Change it at the source and re-sync, or exclude the document from the connector."
               }
             },
             "required": ["code", "message"],
@@ -5881,6 +7244,2523 @@
               "scope": "workspace",
               "deleted": true
             }
+          }
+        ]
+      },
+      "V2Meta": {
+        "type": "object",
+        "properties": {
+          "v2Enabled": {
+            "type": "boolean",
+            "description": "Whether this API version is available. This is true when the endpoint is served."
+          },
+          "keyType": {
+            "type": "string",
+            "enum": ["personal", "workspace"],
+            "description": "Whether the calling key carries the full authority of its owner across their workspaces, or is scoped to one workspace."
+          },
+          "expiresAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp when the calling key expires, or null when it never does."
+          }
+        },
+        "required": ["v2Enabled", "keyType", "expiresAt"],
+        "additionalProperties": false,
+        "title": "API capabilities",
+        "description": "API availability and lifecycle facts about the calling API key."
+      },
+      "GetApiMetaResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2Meta"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "API capabilities response",
+        "description": "API availability, key type, and expiry for the calling key.",
+        "examples": [
+          {
+            "data": {
+              "v2Enabled": true,
+              "keyType": "personal",
+              "expiresAt": null
+            }
+          }
+        ]
+      },
+      "WorkflowMcpServerListItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique workflow-MCP server identifier."
+          },
+          "name": {
+            "type": "string",
+            "description": "Server display name, shown to connecting MCP clients."
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional server description, or null when unset."
+          },
+          "isPublic": {
+            "type": "boolean",
+            "description": "Whether the server answers MCP clients without a Sim API key."
+          },
+          "mcpServerUrl": {
+            "type": "string",
+            "description": "Endpoint an MCP client connects to. Published here so callers never build it.",
+            "examples": ["https://www.sim.ai/api/mcp/serve/wfmcp_01J8ZK3QW4M6X2R9T7B5C0V2"]
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "ISO 8601 timestamp when the server was created.",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "ISO 8601 timestamp when the server was last modified.",
+            "format": "date-time"
+          },
+          "toolCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Number of workflows published as tools."
+          },
+          "toolNames": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Tool names this server publishes, alphabetically ordered."
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "isPublic",
+          "mcpServerUrl",
+          "createdAt",
+          "updatedAt",
+          "toolCount",
+          "toolNames"
+        ],
+        "additionalProperties": false,
+        "title": "Workflow MCP server list item",
+        "description": "A published MCP server together with the tool names it exposes."
+      },
+      "ListWorkflowMcpServersResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowMcpServerListItem"
+            },
+            "description": "Items in the current page."
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself."
+          },
+          "toolNamesTruncated": {
+            "type": "boolean",
+            "description": "Whether `toolCount` and `toolNames` under-report. The names are gathered for the whole page under one ceiling, so a page whose servers publish more tools than that ceiling between them reports only part of each server's inventory. Read `GET /api/v2/workflow-mcp-servers/{serverId}/tools` for one server's inventory and check that response's own `truncated`, which reports the same ceiling applied to a single server — only an untruncated response is the authoritative set. Unrelated to `nextCursor`, which is how this list says there are further servers."
+          }
+        },
+        "required": ["data", "nextCursor", "toolNamesTruncated"],
+        "additionalProperties": false,
+        "title": "List workflow MCP servers response",
+        "description": "A cursor-paginated page of published MCP servers.",
+        "examples": [
+          {
+            "data": [
+              {
+                "id": "wfmcp_01J8ZK3QW4M6X2R9T7B5C0V2",
+                "name": "Support agents",
+                "description": "Ticket triage and escalation workflows.",
+                "isPublic": false,
+                "mcpServerUrl": "https://www.sim.ai/api/mcp/serve/wfmcp_01J8ZK3QW4M6X2R9T7B5C0V2",
+                "createdAt": "2026-06-12T10:30:00.000Z",
+                "updatedAt": "2026-06-12T10:30:00.000Z",
+                "toolCount": 1,
+                "toolNames": ["triage_ticket"]
+              }
+            ],
+            "nextCursor": null,
+            "toolNamesTruncated": false
+          }
+        ]
+      },
+      "WorkflowMcpServer": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique workflow-MCP server identifier."
+          },
+          "name": {
+            "type": "string",
+            "description": "Server display name, shown to connecting MCP clients."
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional server description, or null when unset."
+          },
+          "isPublic": {
+            "type": "boolean",
+            "description": "Whether the server answers MCP clients without a Sim API key."
+          },
+          "mcpServerUrl": {
+            "type": "string",
+            "description": "Endpoint an MCP client connects to. Published here so callers never build it.",
+            "examples": ["https://www.sim.ai/api/mcp/serve/wfmcp_01J8ZK3QW4M6X2R9T7B5C0V2"]
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "ISO 8601 timestamp when the server was created.",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "ISO 8601 timestamp when the server was last modified.",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "isPublic",
+          "mcpServerUrl",
+          "createdAt",
+          "updatedAt"
+        ],
+        "additionalProperties": false,
+        "title": "Workflow MCP server",
+        "description": "A workspace-published MCP server exposing deployed workflows as tools."
+      },
+      "CreateWorkflowMcpServerResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/WorkflowMcpServer"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Create workflow MCP server response",
+        "description": "The published MCP server.",
+        "examples": [
+          {
+            "data": {
+              "id": "wfmcp_01J8ZK3QW4M6X2R9T7B5C0V2",
+              "name": "Support agents",
+              "description": "Ticket triage and escalation workflows.",
+              "isPublic": false,
+              "mcpServerUrl": "https://www.sim.ai/api/mcp/serve/wfmcp_01J8ZK3QW4M6X2R9T7B5C0V2",
+              "createdAt": "2026-06-12T10:30:00.000Z",
+              "updatedAt": "2026-06-12T10:30:00.000Z"
+            }
+          }
+        ]
+      },
+      "CreateWorkflowMcpServerRequest": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Workspace in which to publish the server."
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "description": "Server display name, shown to connecting MCP clients."
+          },
+          "description": {
+            "description": "Optional server description.",
+            "type": "string",
+            "maxLength": 2000
+          },
+          "isPublic": {
+            "description": "Whether the server answers MCP clients without a Sim API key. Defaults to false — a public server executes the workflows it publishes for anyone holding its URL.",
+            "default": false,
+            "type": "boolean"
+          },
+          "workflowIds": {
+            "description": "Deployed workflows to publish as tools on the new server.",
+            "maxItems": 100,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "required": ["workspaceId", "name"],
+        "additionalProperties": false,
+        "title": "Create workflow MCP server request",
+        "description": "A new workspace-published MCP server and the workflows it exposes.",
+        "examples": [
+          {
+            "workspaceId": "9f4c2a10-3b7e-4d58-8f6a-2c1d0e5b7a94",
+            "name": "Support agents",
+            "workflowIds": ["3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36"]
+          }
+        ]
+      },
+      "GetWorkflowMcpServerResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/WorkflowMcpServer"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Get workflow MCP server response",
+        "description": "A single published MCP server.",
+        "examples": [
+          {
+            "data": {
+              "id": "wfmcp_01J8ZK3QW4M6X2R9T7B5C0V2",
+              "name": "Support agents",
+              "description": "Ticket triage and escalation workflows.",
+              "isPublic": false,
+              "mcpServerUrl": "https://www.sim.ai/api/mcp/serve/wfmcp_01J8ZK3QW4M6X2R9T7B5C0V2",
+              "createdAt": "2026-06-12T10:30:00.000Z",
+              "updatedAt": "2026-06-12T10:30:00.000Z"
+            }
+          }
+        ]
+      },
+      "WorkflowMcpToolListItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique tool identifier."
+          },
+          "serverId": {
+            "type": "string",
+            "description": "Server that publishes this tool."
+          },
+          "workflowId": {
+            "type": "string",
+            "description": "Workflow this tool executes."
+          },
+          "toolName": {
+            "type": "string",
+            "description": "Name an MCP client calls. Derived from the supplied name or the workflow name, normalized to the MCP tool-name grammar."
+          },
+          "toolDescription": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Description shown to MCP clients."
+          },
+          "mcpServerUrl": {
+            "type": "string",
+            "description": "Endpoint an MCP client connects to."
+          },
+          "apiEndpoint": {
+            "type": "string",
+            "description": "Sim execution endpoint this tool calls through."
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "ISO 8601 timestamp when the tool was created.",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "ISO 8601 timestamp when the tool was last modified.",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "serverId",
+          "workflowId",
+          "toolName",
+          "toolDescription",
+          "mcpServerUrl",
+          "apiEndpoint",
+          "createdAt",
+          "updatedAt"
+        ],
+        "additionalProperties": false,
+        "title": "Workflow MCP tool list item",
+        "description": "A tool a server publishes, as returned by a read."
+      },
+      "ListWorkflowMcpToolsResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowMcpToolListItem"
+            },
+            "description": "Items in the current page."
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Always `null` — this list has no `cursor` or `limit` param and returns its whole bounded set in one page. Present so the list can gain pages later without a shape change."
+          },
+          "truncated": {
+            "type": "boolean",
+            "description": "Whether this inventory was cut short by the server-side ceiling on how many tools one response may carry. `nextCursor` is null either way — this list takes no `cursor`, so a truncated set cannot be paged past and this flag is the only way to tell a partial inventory from a complete one. A reconciling caller must not treat a truncated set as the full published inventory."
+          }
+        },
+        "required": ["data", "nextCursor", "truncated"],
+        "additionalProperties": false,
+        "title": "List workflow MCP tools response",
+        "description": "The tools a published MCP server exposes.",
+        "examples": [
+          {
+            "data": [
+              {
+                "id": "wfmcptool_01J8ZK3QW4M6X2R9T7B5C0V3",
+                "serverId": "wfmcp_01J8ZK3QW4M6X2R9T7B5C0V2",
+                "workflowId": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
+                "toolName": "triage_ticket",
+                "toolDescription": "Execute Ticket triage workflow",
+                "mcpServerUrl": "https://www.sim.ai/api/mcp/serve/wfmcp_01J8ZK3QW4M6X2R9T7B5C0V2",
+                "apiEndpoint": "https://www.sim.ai/api/v2/workflows/3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36/execute",
+                "createdAt": "2026-06-12T10:30:00.000Z",
+                "updatedAt": "2026-06-12T10:30:00.000Z"
+              }
+            ],
+            "nextCursor": null,
+            "truncated": false
+          }
+        ]
+      },
+      "UpdateWorkflowMcpServerResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/WorkflowMcpServer"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Update workflow MCP server response",
+        "description": "The updated MCP server.",
+        "examples": [
+          {
+            "data": {
+              "id": "wfmcp_01J8ZK3QW4M6X2R9T7B5C0V2",
+              "name": "Support agents",
+              "description": "Ticket triage and escalation workflows.",
+              "isPublic": true,
+              "mcpServerUrl": "https://www.sim.ai/api/mcp/serve/wfmcp_01J8ZK3QW4M6X2R9T7B5C0V2",
+              "createdAt": "2026-06-12T10:30:00.000Z",
+              "updatedAt": "2026-06-12T10:30:00.000Z"
+            }
+          }
+        ]
+      },
+      "UpdateWorkflowMcpServerRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "description": "Server display name, shown to connecting MCP clients."
+          },
+          "description": {
+            "description": "New server description, or null to clear it.",
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "isPublic": {
+            "description": "Whether the server answers MCP clients without a Sim API key.",
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false,
+        "title": "Update workflow MCP server request",
+        "description": "Merge-patch body for a published MCP server.",
+        "examples": [
+          {
+            "isPublic": true
+          }
+        ]
+      },
+      "DeleteWorkflowMcpServerResult": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Identifier of the unpublished server."
+          },
+          "deleted": {
+            "type": "boolean",
+            "const": true,
+            "description": "Whether the server was unpublished."
+          }
+        },
+        "required": ["id", "deleted"],
+        "additionalProperties": false,
+        "title": "Delete workflow MCP server result",
+        "description": "Unpublish acknowledgement."
+      },
+      "DeleteWorkflowMcpServerResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/DeleteWorkflowMcpServerResult"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Delete workflow MCP server response",
+        "description": "Acknowledgement that the MCP server was unpublished.",
+        "examples": [
+          {
+            "data": {
+              "id": "wfmcp_01J8ZK3QW4M6X2R9T7B5C0V2",
+              "deleted": true
+            }
+          }
+        ]
+      },
+      "WorkflowMcpTool": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique tool identifier."
+          },
+          "serverId": {
+            "type": "string",
+            "description": "Server that publishes this tool."
+          },
+          "workflowId": {
+            "type": "string",
+            "description": "Workflow this tool executes."
+          },
+          "toolName": {
+            "type": "string",
+            "description": "Name an MCP client calls. Derived from the supplied name or the workflow name, normalized to the MCP tool-name grammar."
+          },
+          "toolDescription": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Description shown to MCP clients."
+          },
+          "mcpServerUrl": {
+            "type": "string",
+            "description": "Endpoint an MCP client connects to."
+          },
+          "apiEndpoint": {
+            "type": "string",
+            "description": "Sim execution endpoint this tool calls through."
+          },
+          "updated": {
+            "type": "boolean",
+            "description": "False when the workflow was newly published on this server, true when an existing tool was replaced. Publishing is idempotent per workflow, so a repeat call answers 200 with true rather than conflicting."
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "ISO 8601 timestamp when the tool was created.",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "ISO 8601 timestamp when the tool was last modified.",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "serverId",
+          "workflowId",
+          "toolName",
+          "toolDescription",
+          "mcpServerUrl",
+          "apiEndpoint",
+          "updated",
+          "createdAt",
+          "updatedAt"
+        ],
+        "additionalProperties": false,
+        "title": "Workflow MCP tool",
+        "description": "A deployed workflow published as a tool on a workflow-MCP server."
+      },
+      "DeployWorkflowMcpToolResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/WorkflowMcpTool"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Publish workflow as MCP tool response",
+        "description": "The published tool.",
+        "examples": [
+          {
+            "data": {
+              "id": "wfmcptool_01J8ZK3QW4M6X2R9T7B5C0V3",
+              "serverId": "wfmcp_01J8ZK3QW4M6X2R9T7B5C0V2",
+              "workflowId": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
+              "toolName": "triage_ticket",
+              "toolDescription": "Execute Ticket triage workflow",
+              "mcpServerUrl": "https://www.sim.ai/api/mcp/serve/wfmcp_01J8ZK3QW4M6X2R9T7B5C0V2",
+              "apiEndpoint": "https://www.sim.ai/api/v2/workflows/3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36/execute",
+              "updated": false,
+              "createdAt": "2026-06-12T10:30:00.000Z",
+              "updatedAt": "2026-06-12T10:30:00.000Z"
+            }
+          }
+        ]
+      },
+      "DeployWorkflowMcpToolRequest": {
+        "type": "object",
+        "properties": {
+          "workflowId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Deployed workflow to publish. The workflow must already be deployed."
+          },
+          "toolName": {
+            "description": "Name MCP clients call. Normalized to the MCP tool-name grammar, and derived from the workflow name when omitted.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "toolDescription": {
+            "description": "Description shown to MCP clients. Derived from the workflow name when omitted.",
+            "type": "string",
+            "maxLength": 2000
+          },
+          "parameterDescriptions": {
+            "description": "Per-field description overrides applied to the schema generated from the deployed workflow inputs. A name matching no input field is ignored.",
+            "maxItems": 100,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Input field of the deployed workflow to describe."
+                },
+                "description": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 2000,
+                  "description": "Text MCP clients see for that field."
+                }
+              },
+              "required": ["name", "description"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["workflowId"],
+        "additionalProperties": false,
+        "title": "Publish workflow as MCP tool request",
+        "description": "The workflow to publish and the tool metadata MCP clients see.",
+        "examples": [
+          {
+            "workflowId": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
+            "toolName": "triage_ticket"
+          }
+        ]
+      },
+      "UndeployWorkflowMcpToolResult": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Identifier of the removed tool."
+          },
+          "serverId": {
+            "type": "string",
+            "description": "Server the tool was removed from."
+          },
+          "workflowId": {
+            "type": "string",
+            "description": "Workflow that is no longer published."
+          },
+          "deleted": {
+            "type": "boolean",
+            "const": true,
+            "description": "Whether the tool was removed."
+          }
+        },
+        "required": ["id", "serverId", "workflowId", "deleted"],
+        "additionalProperties": false,
+        "title": "Unpublish workflow MCP tool result",
+        "description": "Tool removal acknowledgement."
+      },
+      "UndeployWorkflowMcpToolResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/UndeployWorkflowMcpToolResult"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Unpublish workflow MCP tool response",
+        "description": "Acknowledgement that the tool was removed.",
+        "examples": [
+          {
+            "data": {
+              "id": "wfmcptool_01J8ZK3QW4M6X2R9T7B5C0V3",
+              "serverId": "wfmcp_01J8ZK3QW4M6X2R9T7B5C0V2",
+              "workflowId": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
+              "deleted": true
+            }
+          }
+        ]
+      },
+      "UpdateCredentialResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2Credential"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Update credential response",
+        "description": "Updated credential metadata without secret material.",
+        "examples": [
+          {
+            "data": {
+              "id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+              "type": "service_account",
+              "displayName": "Zoom service account",
+              "description": null,
+              "providerId": "zoom-service-account",
+              "accountId": null,
+              "hasServiceAccountKey": true,
+              "role": "admin",
+              "createdAt": "2026-06-01T09:14:00.000Z",
+              "updatedAt": "2026-06-20T14:02:11.000Z"
+            }
+          }
+        ]
+      },
+      "UpdateCredentialRequest": {
+        "type": "object",
+        "properties": {
+          "displayName": {
+            "description": "New name shown for the credential in Sim.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "description": {
+            "description": "New credential description. Send null to clear the stored one.",
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "serviceAccountJson": {
+            "description": "Write-only Google service-account JSON key.",
+            "writeOnly": true,
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 65536
+          },
+          "apiToken": {
+            "description": "Write-only provider API token.",
+            "writeOnly": true,
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8192
+          },
+          "domain": {
+            "description": "Provider account domain.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048
+          },
+          "signingSecret": {
+            "description": "Write-only webhook signing secret.",
+            "writeOnly": true,
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8192
+          },
+          "botToken": {
+            "description": "Write-only bot token.",
+            "writeOnly": true,
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8192
+          },
+          "clientId": {
+            "description": "OAuth client identifier.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          },
+          "clientSecret": {
+            "description": "Write-only OAuth client secret.",
+            "writeOnly": true,
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+          },
+          "certificateId": {
+            "description": "Provider certificate mapping identifier.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          },
+          "orgId": {
+            "description": "Provider organization ID.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "dataCenter": {
+            "description": "Provider data center.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32
+          },
+          "authMethod": {
+            "description": "Provider authentication method.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "privateKey": {
+            "description": "Write-only PEM private key.",
+            "writeOnly": true,
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8192
+          },
+          "username": {
+            "description": "Provider run-as username.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          }
+        },
+        "additionalProperties": false,
+        "title": "Update credential request",
+        "description": "Replacement display metadata and the write-only fields declared by provider discovery.",
+        "examples": [
+          {
+            "clientSecret": "YOUR_ROTATED_CLIENT_SECRET"
+          }
+        ]
+      },
+      "V2BlockSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Block type identifier, used as a workflow block’s `type`."
+          },
+          "name": {
+            "type": "string",
+            "description": "Display name."
+          },
+          "description": {
+            "type": "string",
+            "description": "One-line summary of what the block does."
+          },
+          "longDescription": {
+            "description": "Extended explanation, when the block has one.",
+            "type": "string"
+          },
+          "category": {
+            "type": "string",
+            "description": "Toolbar category: `blocks`, `tools`, or `triggers`."
+          },
+          "integrationType": {
+            "description": "Integration category, e.g. `communication`, `databases`.",
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "enum": ["builtin", "custom"],
+            "description": "Where the block comes from: `builtin` is the shipped registry, `custom` is a workflow this workspace deployed as a block."
+          },
+          "authMode": {
+            "description": "How the block authenticates: `oauth`, `api_key`, or `bot_token`.",
+            "type": "string"
+          },
+          "triggerAllowed": {
+            "type": "boolean",
+            "description": "Whether the block declares itself usable as a trigger."
+          },
+          "triggerCapable": {
+            "type": "boolean",
+            "description": "Whether the block can start a workflow — a trigger-category block, one declaring `triggerAllowed`, or one with trigger-mode fields."
+          },
+          "triggerIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Identifiers of the triggers this block supports."
+          },
+          "toolIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Built-in tools this block can run. Resolve one with `GET /api/v2/tools/{toolId}`."
+          },
+          "operationIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Operations this block exposes. Their fields and tools are on `GET /api/v2/blocks/{blockId}`."
+          },
+          "preview": {
+            "type": "boolean",
+            "description": "Whether the block is unreleased and revealed only to this caller."
+          },
+          "sunset": {
+            "description": "Post-release lifecycle state. Absent for a block in normal support.",
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": ["legacy", "deprecated"],
+                "description": "`legacy` is superseded but supported; `deprecated` is slated for removal."
+              },
+              "replacedBy": {
+                "description": "Block type to migrate to, when one exists.",
+                "type": "string"
+              }
+            },
+            "required": ["status"],
+            "additionalProperties": false
+          },
+          "docsLink": {
+            "description": "Sim documentation page for the integration.",
+            "type": "string"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Catalog tags, e.g. `messaging`, `version-control`."
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "category",
+          "source",
+          "triggerAllowed",
+          "triggerCapable",
+          "triggerIds",
+          "toolIds",
+          "operationIds",
+          "preview",
+          "tags"
+        ],
+        "additionalProperties": false,
+        "title": "Block summary",
+        "description": "List view of a block: what it is and what it references, by id."
+      },
+      "ListBlocksResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V2BlockSummary"
+            },
+            "description": "Items in the current page."
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself."
+          }
+        },
+        "required": ["data", "nextCursor"],
+        "additionalProperties": false,
+        "title": "List blocks response",
+        "description": "Blocks available in the workspace.",
+        "examples": [
+          {
+            "data": [
+              {
+                "id": "slack",
+                "name": "Slack",
+                "description": "Send messages and read channels in Slack.",
+                "category": "tools",
+                "integrationType": "communication",
+                "source": "builtin",
+                "authMode": "oauth",
+                "triggerAllowed": true,
+                "triggerCapable": true,
+                "triggerIds": ["slack_webhook"],
+                "toolIds": ["slack_message", "slack_canvas_read"],
+                "operationIds": ["send", "read"],
+                "preview": false,
+                "docsLink": "https://docs.sim.ai/tools/slack",
+                "tags": ["messaging"]
+              }
+            ],
+            "nextCursor": null
+          }
+        ]
+      },
+      "V2BlockField": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Field identifier, and the key its value is stored under."
+          },
+          "type": {
+            "type": "string",
+            "description": "Editor control the field renders as, e.g. `short-input`."
+          },
+          "title": {
+            "description": "Human-readable label.",
+            "type": "string"
+          },
+          "required": {
+            "description": "Whether a value must be supplied. A conditionally required field reports `true` and carries `requiredWhen`.",
+            "type": "boolean"
+          },
+          "requiredWhen": {
+            "description": "Condition under which the field is required.",
+            "$ref": "#/components/schemas/V2CatalogCondition"
+          },
+          "description": {
+            "description": "Authored explanation of the field.",
+            "type": "string"
+          },
+          "placeholder": {
+            "description": "Placeholder shown in the editor.",
+            "type": "string"
+          },
+          "mode": {
+            "description": "Where the field renders: `basic`, `advanced`, `both`, `trigger`, or `trigger-advanced`.",
+            "type": "string"
+          },
+          "hidden": {
+            "description": "Whether the field is hidden in the editor.",
+            "type": "boolean"
+          },
+          "condition": {
+            "description": "Condition under which the field applies at all.",
+            "$ref": "#/components/schemas/V2CatalogCondition"
+          },
+          "options": {
+            "description": "Selectable options. Absent on fields whose options are fetched per workspace at edit time.",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "Value stored when this option is selected."
+                },
+                "label": {
+                  "description": "Human-readable option label.",
+                  "type": "string"
+                },
+                "hasIcon": {
+                  "description": "Whether the option renders with an icon. The icon itself is not published.",
+                  "type": "boolean"
+                }
+              },
+              "required": ["id"],
+              "additionalProperties": false
+            }
+          },
+          "min": {
+            "description": "Minimum accepted numeric value.",
+            "type": "number"
+          },
+          "max": {
+            "description": "Maximum accepted numeric value.",
+            "type": "number"
+          },
+          "step": {
+            "description": "Increment for numeric controls.",
+            "type": "number"
+          },
+          "integer": {
+            "description": "Whether the numeric value must be a whole number.",
+            "type": "boolean"
+          },
+          "rows": {
+            "description": "Visible row count for multi-line text.",
+            "type": "number"
+          },
+          "password": {
+            "description": "Whether the stored value is masked in the editor.",
+            "type": "boolean"
+          },
+          "multiSelect": {
+            "description": "Whether more than one option may be selected.",
+            "type": "boolean"
+          },
+          "language": {
+            "description": "Language of a code field.",
+            "type": "string"
+          },
+          "generationType": {
+            "description": "Kind of content AI assistance generates here.",
+            "type": "string"
+          },
+          "serviceId": {
+            "description": "OAuth service this credential field authenticates.",
+            "type": "string"
+          },
+          "requiredScopes": {
+            "description": "OAuth scopes the credential selected here must carry.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "mimeType": {
+            "description": "MIME type filter applied to a file picker.",
+            "type": "string"
+          },
+          "acceptedTypes": {
+            "description": "Accepted file extensions for an upload field.",
+            "type": "string"
+          },
+          "multiple": {
+            "description": "Whether more than one file may be supplied.",
+            "type": "boolean"
+          },
+          "maxSize": {
+            "description": "Maximum upload size in megabytes.",
+            "type": "number"
+          },
+          "connectionDroppable": {
+            "description": "Whether another block’s output can be dropped onto this field.",
+            "type": "boolean"
+          },
+          "columns": {
+            "description": "Column headings for a table field.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "dependsOn": {
+            "description": "Sibling fields this field is cleared by when they change.",
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "all": {
+                    "description": "Every listed field must hold a value.",
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "any": {
+                    "description": "At least one listed field must hold a value.",
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "additionalProperties": false
+              }
+            ]
+          },
+          "canonicalParamId": {
+            "description": "Shared key for a picker/manual-entry pair. Both fields write the same value, so supply exactly one of the pair.",
+            "type": "string"
+          },
+          "defaultValue": {
+            "description": "Value used when the field is left unset.",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "description": "Member of an object-valued default. Shape varies by field type."
+                }
+              },
+              {
+                "type": "array",
+                "items": {
+                  "description": "Element of an array-valued default. Shape varies by field type."
+                }
+              }
+            ]
+          },
+          "hasComputedDefault": {
+            "description": "Whether the field derives its value from the block’s other values. The deriving function is not published.",
+            "type": "boolean"
+          }
+        },
+        "required": ["id", "type"],
+        "additionalProperties": false,
+        "title": "Block field",
+        "description": "One configuration field on a block."
+      },
+      "V2CatalogCondition": {
+        "type": "object",
+        "properties": {
+          "field": {
+            "type": "string",
+            "description": "Sibling field id whose value decides this condition."
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "boolean"
+                    }
+                  ]
+                }
+              }
+            ],
+            "description": "Value, or set of accepted values, the named field must hold."
+          },
+          "not": {
+            "description": "Invert the match: every value EXCEPT `value`.",
+            "type": "boolean"
+          },
+          "and": {
+            "description": "A second clause that must hold as well.",
+            "type": "object",
+            "properties": {
+              "field": {
+                "type": "string",
+                "description": "Sibling field id for the second clause."
+              },
+              "value": {
+                "description": "Value the second clause matches. Absent means \"holds any value\".",
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "boolean"
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              "not": {
+                "description": "Invert the second clause.",
+                "type": "boolean"
+              }
+            },
+            "required": ["field"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["field", "value"],
+        "additionalProperties": false,
+        "title": "Catalog condition",
+        "description": "When a configuration field applies, expressed against a sibling field."
+      },
+      "V2OperationInput": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "Value type."
+          },
+          "required": {
+            "description": "Whether the value must be supplied.",
+            "type": "boolean"
+          },
+          "visibility": {
+            "description": "Who may supply the value: `user-or-llm`, `user-only`, `llm-only`, or `hidden`.",
+            "type": "string"
+          },
+          "description": {
+            "description": "What the value means.",
+            "type": "string"
+          },
+          "default": {
+            "description": "Value used when this input is omitted."
+          },
+          "items": {
+            "description": "JSON-Schema-shaped constraints declared by the tool parameter."
+          },
+          "schema": {
+            "description": "JSON-Schema-shaped structure declared by the block input."
+          }
+        },
+        "required": ["type"],
+        "additionalProperties": false,
+        "title": "Operation input",
+        "description": "One value a block operation needs, from its tool or its block-level inputs."
+      },
+      "V2ToolOutput": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "Value type of the output field."
+          },
+          "description": {
+            "description": "What the field holds.",
+            "type": "string"
+          },
+          "optional": {
+            "description": "Whether the field may be absent.",
+            "type": "boolean"
+          },
+          "nullable": {
+            "description": "Whether the field may be null.",
+            "type": "boolean"
+          },
+          "properties": {
+            "description": "Members of an object-typed output, keyed by field name.",
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "description": "Nested output field, in this same shape."
+            }
+          },
+          "items": {
+            "description": "Element shape of an array-typed output.",
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "description": "Element value type."
+              },
+              "description": {
+                "description": "What an element holds.",
+                "type": "string"
+              },
+              "properties": {
+                "description": "Members of an object-typed element, keyed by field name.",
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "description": "Nested output field, in this same shape."
+                }
+              }
+            },
+            "required": ["type"],
+            "additionalProperties": false
+          },
+          "fileConfig": {
+            "description": "File metadata for a file-typed output.",
+            "type": "object",
+            "properties": {
+              "mimeType": {
+                "description": "MIME type of the produced file.",
+                "type": "string"
+              },
+              "extension": {
+                "description": "File extension of the produced file.",
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "required": ["type"],
+        "additionalProperties": false,
+        "title": "Tool output",
+        "description": "One declared output field of a built-in tool."
+      },
+      "V2ToolDetail": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Registered tool identifier, including its version suffix."
+          },
+          "name": {
+            "type": "string",
+            "description": "Display name."
+          },
+          "description": {
+            "type": "string",
+            "description": "What the tool does."
+          },
+          "version": {
+            "description": "Tool version.",
+            "type": "string"
+          },
+          "hostedApiKey": {
+            "type": "string",
+            "enum": ["always", "conditional", "none"],
+            "description": "Whether Sim supplies the API key on THIS deployment: `always`, `conditional` (only for some parameter combinations), or `none` (bring your own). Self-hosted deployments supply no hosted keys, so every tool reports `none` there regardless of what it declares."
+          },
+          "oauth": {
+            "description": "OAuth requirement, when the tool has one.",
+            "type": "object",
+            "properties": {
+              "required": {
+                "type": "boolean",
+                "description": "Whether the tool cannot run without an OAuth credential."
+              },
+              "provider": {
+                "type": "string",
+                "description": "OAuth service the credential must authenticate."
+              },
+              "requiredScopes": {
+                "description": "Scopes the credential must carry.",
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": ["required", "provider"],
+            "additionalProperties": false
+          },
+          "params": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "$ref": "#/components/schemas/V2ToolParam"
+            },
+            "description": "Parameters the tool accepts."
+          },
+          "outputs": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "$ref": "#/components/schemas/V2ToolOutput"
+            },
+            "description": "Fields the tool produces."
+          }
+        },
+        "required": ["id", "name", "description", "hostedApiKey", "params", "outputs"],
+        "additionalProperties": false,
+        "title": "Tool",
+        "description": "A built-in tool with its declared parameters and outputs."
+      },
+      "V2ToolParam": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "Parameter value type."
+          },
+          "required": {
+            "description": "Whether the parameter must be supplied.",
+            "type": "boolean"
+          },
+          "visibility": {
+            "description": "Who may supply the value: `user-or-llm`, `user-only`, `llm-only`, or `hidden`.",
+            "type": "string"
+          },
+          "description": {
+            "description": "What the parameter means.",
+            "type": "string"
+          },
+          "default": {
+            "description": "Value used when the parameter is omitted."
+          },
+          "items": {
+            "description": "JSON-Schema-shaped constraints for structured params."
+          }
+        },
+        "required": ["type"],
+        "additionalProperties": false,
+        "title": "Tool parameter",
+        "description": "One declared parameter of a built-in tool."
+      },
+      "V2BlockDetail": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Block type identifier, used as a workflow block’s `type`."
+          },
+          "name": {
+            "type": "string",
+            "description": "Display name."
+          },
+          "description": {
+            "type": "string",
+            "description": "One-line summary of what the block does."
+          },
+          "longDescription": {
+            "description": "Extended explanation, when the block has one.",
+            "type": "string"
+          },
+          "category": {
+            "type": "string",
+            "description": "Toolbar category: `blocks`, `tools`, or `triggers`."
+          },
+          "integrationType": {
+            "description": "Integration category, e.g. `communication`, `databases`.",
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "enum": ["builtin", "custom"],
+            "description": "Where the block comes from: `builtin` is the shipped registry, `custom` is a workflow this workspace deployed as a block."
+          },
+          "authMode": {
+            "description": "How the block authenticates: `oauth`, `api_key`, or `bot_token`.",
+            "type": "string"
+          },
+          "triggerAllowed": {
+            "type": "boolean",
+            "description": "Whether the block declares itself usable as a trigger."
+          },
+          "triggerCapable": {
+            "type": "boolean",
+            "description": "Whether the block can start a workflow — a trigger-category block, one declaring `triggerAllowed`, or one with trigger-mode fields."
+          },
+          "triggerIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Identifiers of the triggers this block supports."
+          },
+          "toolIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Built-in tools this block can run. Resolve one with `GET /api/v2/tools/{toolId}`."
+          },
+          "operationIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Operations this block exposes. Their fields and tools are on `GET /api/v2/blocks/{blockId}`."
+          },
+          "preview": {
+            "type": "boolean",
+            "description": "Whether the block is unreleased and revealed only to this caller."
+          },
+          "sunset": {
+            "description": "Post-release lifecycle state. Absent for a block in normal support.",
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": ["legacy", "deprecated"],
+                "description": "`legacy` is superseded but supported; `deprecated` is slated for removal."
+              },
+              "replacedBy": {
+                "description": "Block type to migrate to, when one exists.",
+                "type": "string"
+              }
+            },
+            "required": ["status"],
+            "additionalProperties": false
+          },
+          "docsLink": {
+            "description": "Sim documentation page for the integration.",
+            "type": "string"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Catalog tags, e.g. `messaging`, `version-control`."
+          },
+          "bestPractices": {
+            "description": "Authored guidance on using the block correctly.",
+            "type": "string"
+          },
+          "inputSchema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V2BlockField"
+            },
+            "description": "Configuration fields that apply regardless of the selected operation."
+          },
+          "operationInputSchema": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/V2BlockField"
+              }
+            },
+            "description": "Configuration fields keyed by the operation that reveals them."
+          },
+          "inputDefinitions": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "description": "Value type: `string`, `number`, `boolean`, `json`, `array`, or `file`."
+                },
+                "description": {
+                  "description": "What the input means.",
+                  "type": "string"
+                },
+                "schema": {
+                  "description": "JSON-Schema-shaped structure for object and array inputs."
+                }
+              },
+              "required": ["type"],
+              "additionalProperties": false
+            },
+            "description": "Block-level input definitions, keyed by parameter name."
+          },
+          "operations": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "toolId": {
+                  "description": "Built-in tool that performs this operation.",
+                  "type": "string"
+                },
+                "toolName": {
+                  "description": "Display name of that tool.",
+                  "type": "string"
+                },
+                "description": {
+                  "description": "What the operation does.",
+                  "type": "string"
+                },
+                "inputs": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {
+                    "$ref": "#/components/schemas/V2OperationInput"
+                  },
+                  "description": "Values this operation needs, excluding the ones the block supplies from its own block-level inputs."
+                },
+                "outputs": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {
+                    "$ref": "#/components/schemas/V2ToolOutput"
+                  },
+                  "description": "Fields the operation produces."
+                },
+                "inputSchema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/V2BlockField"
+                  },
+                  "description": "Configuration fields that appear when this operation is selected."
+                }
+              },
+              "required": ["inputs", "outputs", "inputSchema"],
+              "additionalProperties": false
+            },
+            "description": "Operations the block exposes, keyed by operation id."
+          },
+          "tools": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V2ToolDetail"
+            },
+            "description": "Every built-in tool the block can run, with parameters and outputs."
+          },
+          "triggers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "Trigger identifier."
+                },
+                "outputs": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "description": "Value type of the output."
+                      },
+                      "description": {
+                        "description": "What the output holds.",
+                        "type": "string"
+                      }
+                    },
+                    "required": ["type"],
+                    "additionalProperties": false
+                  },
+                  "description": "Top-level fields the trigger event delivers."
+                },
+                "configFields": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "description": "Editor control the field renders as."
+                      },
+                      "required": {
+                        "type": "boolean",
+                        "description": "Whether a value must be supplied."
+                      },
+                      "title": {
+                        "description": "Human-readable label.",
+                        "type": "string"
+                      },
+                      "description": {
+                        "description": "Authored explanation of the field.",
+                        "type": "string"
+                      },
+                      "placeholder": {
+                        "description": "Placeholder shown in the editor.",
+                        "type": "string"
+                      },
+                      "default": {
+                        "description": "Value used when the field is left unset."
+                      },
+                      "options": {
+                        "description": "Selectable options.",
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "description": "Value stored when this option is selected."
+                            },
+                            "label": {
+                              "type": "string",
+                              "description": "Human-readable option label."
+                            }
+                          },
+                          "required": ["id", "label"],
+                          "additionalProperties": false
+                        }
+                      },
+                      "condition": {
+                        "description": "Condition under which the field applies.",
+                        "$ref": "#/components/schemas/V2CatalogCondition"
+                      }
+                    },
+                    "required": ["type", "required"],
+                    "additionalProperties": false
+                  },
+                  "description": "Fields that configure the trigger, keyed by field id."
+                }
+              },
+              "required": ["id", "outputs", "configFields"],
+              "additionalProperties": false
+            },
+            "description": "Triggers the block can run on."
+          },
+          "outputs": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "description": "Value type of the output."
+                },
+                "description": {
+                  "description": "What the output holds.",
+                  "type": "string"
+                }
+              },
+              "required": ["type"],
+              "additionalProperties": false
+            },
+            "description": "Fields the block produces."
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "category",
+          "source",
+          "triggerAllowed",
+          "triggerCapable",
+          "triggerIds",
+          "toolIds",
+          "operationIds",
+          "preview",
+          "tags",
+          "inputSchema",
+          "operationInputSchema",
+          "inputDefinitions",
+          "operations",
+          "tools",
+          "triggers",
+          "outputs"
+        ],
+        "additionalProperties": false,
+        "title": "Block",
+        "description": "A block with its configuration fields, operations, tools, and triggers."
+      },
+      "GetBlockResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2BlockDetail"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Get block response",
+        "description": "One block with its fields, operations, tools, and triggers.",
+        "examples": [
+          {
+            "data": {
+              "id": "slack",
+              "name": "Slack",
+              "description": "Send messages and read channels in Slack.",
+              "category": "tools",
+              "integrationType": "communication",
+              "source": "builtin",
+              "authMode": "oauth",
+              "triggerAllowed": true,
+              "triggerCapable": true,
+              "triggerIds": ["slack_webhook"],
+              "toolIds": ["slack_message", "slack_canvas_read"],
+              "operationIds": ["send", "read"],
+              "preview": false,
+              "docsLink": "https://docs.sim.ai/tools/slack",
+              "tags": ["messaging"],
+              "inputSchema": [
+                {
+                  "id": "operation",
+                  "type": "dropdown",
+                  "title": "Operation",
+                  "required": true,
+                  "options": [
+                    {
+                      "id": "send",
+                      "label": "Send message"
+                    },
+                    {
+                      "id": "read",
+                      "label": "Read messages"
+                    }
+                  ]
+                }
+              ],
+              "operationInputSchema": {
+                "send": [
+                  {
+                    "id": "text",
+                    "type": "long-input",
+                    "title": "Message",
+                    "required": true
+                  }
+                ]
+              },
+              "inputDefinitions": {
+                "channel": {
+                  "type": "string",
+                  "description": "Channel to post into."
+                }
+              },
+              "operations": {
+                "send": {
+                  "toolId": "slack_message",
+                  "toolName": "Slack Send Message",
+                  "description": "Send a message to a Slack channel.",
+                  "inputs": {
+                    "text": {
+                      "type": "string",
+                      "required": true,
+                      "description": "Message body."
+                    }
+                  },
+                  "outputs": {
+                    "ts": {
+                      "type": "string",
+                      "description": "Message timestamp."
+                    }
+                  },
+                  "inputSchema": [
+                    {
+                      "id": "text",
+                      "type": "long-input",
+                      "title": "Message",
+                      "required": true
+                    }
+                  ]
+                }
+              },
+              "tools": [
+                {
+                  "id": "slack_message",
+                  "name": "Slack Send Message",
+                  "description": "Send a message to a Slack channel.",
+                  "version": "1.0.0",
+                  "hostedApiKey": "none",
+                  "oauth": {
+                    "required": true,
+                    "provider": "slack",
+                    "requiredScopes": ["chat:write"]
+                  },
+                  "params": {
+                    "text": {
+                      "type": "string",
+                      "required": true,
+                      "description": "Message body."
+                    }
+                  },
+                  "outputs": {
+                    "ts": {
+                      "type": "string",
+                      "description": "Message timestamp."
+                    }
+                  }
+                }
+              ],
+              "triggers": [
+                {
+                  "id": "slack_webhook",
+                  "outputs": {
+                    "text": {
+                      "type": "string",
+                      "description": "Message text."
+                    }
+                  },
+                  "configFields": {
+                    "channels": {
+                      "type": "short-input",
+                      "required": false,
+                      "title": "Channels"
+                    }
+                  }
+                }
+              ],
+              "outputs": {
+                "ts": {
+                  "type": "string",
+                  "description": "Message timestamp."
+                }
+              }
+            }
+          }
+        ]
+      },
+      "V2ToolSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Registered tool identifier, including its version suffix."
+          },
+          "name": {
+            "type": "string",
+            "description": "Display name."
+          },
+          "description": {
+            "type": "string",
+            "description": "What the tool does."
+          },
+          "version": {
+            "description": "Tool version.",
+            "type": "string"
+          },
+          "hostedApiKey": {
+            "type": "string",
+            "enum": ["always", "conditional", "none"],
+            "description": "Whether Sim supplies the API key on THIS deployment: `always`, `conditional` (only for some parameter combinations), or `none` (bring your own). Self-hosted deployments supply no hosted keys, so every tool reports `none` there regardless of what it declares."
+          },
+          "oauth": {
+            "description": "OAuth requirement, when the tool has one.",
+            "type": "object",
+            "properties": {
+              "required": {
+                "type": "boolean",
+                "description": "Whether the tool cannot run without an OAuth credential."
+              },
+              "provider": {
+                "type": "string",
+                "description": "OAuth service the credential must authenticate."
+              },
+              "requiredScopes": {
+                "description": "Scopes the credential must carry.",
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": ["required", "provider"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["id", "name", "description", "hostedApiKey"],
+        "additionalProperties": false,
+        "title": "Tool summary",
+        "description": "List view of a built-in tool: identity, auth, and key hosting."
+      },
+      "ListToolsResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V2ToolSummary"
+            },
+            "description": "Items in the current page."
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself."
+          }
+        },
+        "required": ["data", "nextCursor"],
+        "additionalProperties": false,
+        "title": "List tools response",
+        "description": "Built-in tools available in the workspace.",
+        "examples": [
+          {
+            "data": [
+              {
+                "id": "slack_message",
+                "name": "Slack Send Message",
+                "description": "Send a message to a Slack channel.",
+                "version": "1.0.0",
+                "hostedApiKey": "none",
+                "oauth": {
+                  "required": true,
+                  "provider": "slack",
+                  "requiredScopes": ["chat:write"]
+                }
+              }
+            ],
+            "nextCursor": null
+          }
+        ]
+      },
+      "GetToolResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2ToolDetail"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Get tool response",
+        "description": "One built-in tool with its parameters and outputs.",
+        "examples": [
+          {
+            "data": {
+              "id": "slack_message",
+              "name": "Slack Send Message",
+              "description": "Send a message to a Slack channel.",
+              "version": "1.0.0",
+              "hostedApiKey": "none",
+              "oauth": {
+                "required": true,
+                "provider": "slack",
+                "requiredScopes": ["chat:write"]
+              },
+              "params": {
+                "channel": {
+                  "type": "string",
+                  "required": true,
+                  "description": "Channel ID to post into."
+                },
+                "text": {
+                  "type": "string",
+                  "required": true,
+                  "description": "Message body."
+                }
+              },
+              "outputs": {
+                "ts": {
+                  "type": "string",
+                  "description": "Message timestamp."
+                }
+              }
+            }
+          }
+        ]
+      },
+      "V2ConnectorType": {
+        "type": "object",
+        "properties": {
+          "connectorType": {
+            "type": "string",
+            "description": "Exact identifier to send when creating a connector of this type."
+          },
+          "name": {
+            "type": "string",
+            "description": "Display name."
+          },
+          "description": {
+            "type": "string",
+            "description": "What the connector syncs."
+          },
+          "version": {
+            "type": "string",
+            "description": "Connector version."
+          },
+          "auth": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "mode": {
+                    "type": "string",
+                    "const": "oauth",
+                    "description": "Authenticates with an OAuth credential."
+                  },
+                  "provider": {
+                    "type": "string",
+                    "description": "OAuth service the credential must authenticate."
+                  },
+                  "requiredScopes": {
+                    "description": "Scopes the credential must carry.",
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": ["mode", "provider"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "mode": {
+                    "type": "string",
+                    "const": "apiKey",
+                    "description": "Authenticates with a stored API key."
+                  },
+                  "label": {
+                    "description": "Label shown above the key field.",
+                    "type": "string"
+                  },
+                  "placeholder": {
+                    "description": "Placeholder shown in the key field.",
+                    "type": "string"
+                  },
+                  "optional": {
+                    "type": "boolean",
+                    "description": "Whether the key may be left blank, for a source reachable without authentication."
+                  }
+                },
+                "required": ["mode", "optional"],
+                "additionalProperties": false
+              }
+            ],
+            "description": "How the connector authenticates against its source."
+          },
+          "configFields": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V2ConnectorConfigField"
+            },
+            "description": "Fields that make up the connector’s `sourceConfig`."
+          },
+          "supportsIncrementalSync": {
+            "type": "boolean",
+            "description": "Whether syncs after the first fetch only what changed."
+          },
+          "tagDefinitions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "Semantic tag identifier the connector populates."
+                },
+                "displayName": {
+                  "type": "string",
+                  "description": "Human-readable tag name."
+                },
+                "fieldType": {
+                  "type": "string",
+                  "enum": ["text", "number", "date", "boolean"],
+                  "description": "Value type, which decides the tag slot pool it draws from."
+                }
+              },
+              "required": ["id", "displayName", "fieldType"],
+              "additionalProperties": false
+            },
+            "description": "Tags this connector writes onto the documents it syncs."
+          }
+        },
+        "required": [
+          "connectorType",
+          "name",
+          "description",
+          "version",
+          "auth",
+          "configFields",
+          "supportsIncrementalSync",
+          "tagDefinitions"
+        ],
+        "additionalProperties": false,
+        "title": "Connector type",
+        "description": "A knowledge-base connector type and the configuration it accepts."
+      },
+      "V2ConnectorConfigField": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Field identifier."
+          },
+          "title": {
+            "type": "string",
+            "description": "Human-readable label."
+          },
+          "type": {
+            "type": "string",
+            "enum": ["short-input", "dropdown", "selector"],
+            "description": "Control the field renders as. A `selector` fetches its options from the connected account."
+          },
+          "placeholder": {
+            "description": "Placeholder shown in the editor.",
+            "type": "string"
+          },
+          "required": {
+            "description": "Whether a value must be supplied.",
+            "type": "boolean"
+          },
+          "description": {
+            "description": "Authored explanation of the field.",
+            "type": "string"
+          },
+          "options": {
+            "description": "Static options, for a `dropdown` field.",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "Value stored when this option is selected."
+                },
+                "label": {
+                  "type": "string",
+                  "description": "Human-readable option label."
+                }
+              },
+              "required": ["id", "label"],
+              "additionalProperties": false
+            }
+          },
+          "selectorKey": {
+            "description": "Names the picker a `selector` field renders. Its options are fetched per workspace.",
+            "type": "string"
+          },
+          "mimeType": {
+            "description": "MIME type filter applied to the picker.",
+            "type": "string"
+          },
+          "dependsOn": {
+            "description": "Sibling fields this field is cleared by when they change.",
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "all": {
+                    "description": "Every listed field must hold a value.",
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "any": {
+                    "description": "At least one listed field must hold a value.",
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "additionalProperties": false
+              }
+            ]
+          },
+          "mode": {
+            "description": "Which half of a canonical pair this field is: `basic` is the picker, `advanced` the manual entry.",
+            "type": "string",
+            "enum": ["basic", "advanced"]
+          },
+          "canonicalParamId": {
+            "description": "Shared `sourceConfig` key for a picker/manual-entry pair. Send exactly one of the pair, keyed by this value rather than by the field’s own `id`.",
+            "type": "string"
+          },
+          "multi": {
+            "description": "When true the stored `sourceConfig` value is a `string[]`, not a `string`: a `selector` renders a multi-select picker and a `short-input` accepts a comma-separated list.",
+            "type": "boolean"
+          }
+        },
+        "required": ["id", "title", "type"],
+        "additionalProperties": false,
+        "title": "Connector config field",
+        "description": "One field of a knowledge-base connector’s source configuration."
+      },
+      "ListConnectorTypesResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V2ConnectorType"
+            },
+            "description": "Items in the current page."
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Always `null` — this list has no `cursor` or `limit` param and returns its whole bounded set in one page. Present so the list can gain pages later without a shape change."
+          }
+        },
+        "required": ["data", "nextCursor"],
+        "additionalProperties": false,
+        "title": "List connector types response",
+        "description": "Knowledge-base connector types and their configuration fields.",
+        "examples": [
+          {
+            "data": [
+              {
+                "connectorType": "google_drive",
+                "name": "Google Drive",
+                "description": "Sync documents from a Google Drive folder.",
+                "version": "1.0.0",
+                "auth": {
+                  "mode": "oauth",
+                  "provider": "google-drive",
+                  "requiredScopes": ["https://www.googleapis.com/auth/drive.readonly"]
+                },
+                "configFields": [
+                  {
+                    "id": "folderSelector",
+                    "title": "Folder",
+                    "type": "selector",
+                    "selectorKey": "google-drive-folder",
+                    "mimeType": "application/vnd.google-apps.folder",
+                    "mode": "basic",
+                    "canonicalParamId": "folderId",
+                    "required": true
+                  },
+                  {
+                    "id": "manualFolderId",
+                    "title": "Folder ID",
+                    "type": "short-input",
+                    "placeholder": "Enter the folder ID",
+                    "mode": "advanced",
+                    "canonicalParamId": "folderId"
+                  }
+                ],
+                "supportsIncrementalSync": true,
+                "tagDefinitions": [
+                  {
+                    "id": "owner",
+                    "displayName": "Owner",
+                    "fieldType": "text"
+                  }
+                ]
+              }
+            ],
+            "nextCursor": null
           }
         ]
       }

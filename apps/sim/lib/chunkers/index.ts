@@ -1,3 +1,4 @@
+export { ChunkBudget, ChunkLimitExceededError } from './chunk-budget'
 export { DocsChunker } from './docs-chunker'
 export { JsonYamlChunker } from './json-yaml-chunker'
 export { RecursiveChunker } from './recursive-chunker'

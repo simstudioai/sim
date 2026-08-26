@@ -222,4 +222,16 @@ describe('knowledge documents upload', () => {
     ).rejects.toThrow(/missing required argument 'knowledgeBaseId'/)
     expect(mockRequest).not.toHaveBeenCalled()
   })
+
+  it('rejects an extra positional instead of silently dropping the file it names', async () => {
+    const first = join(dir, 'alpha.txt')
+    const second = join(dir, 'beta.md')
+    writeFileSync(first, 'hello')
+    writeFileSync(second, 'world')
+
+    await expect(
+      program().parseAsync(['node', 'sim', 'kb', 'documents', 'upload', 'kb_1', first, second])
+    ).rejects.toThrow(/too many arguments/)
+    expect(mockRequest).not.toHaveBeenCalled()
+  })
 })

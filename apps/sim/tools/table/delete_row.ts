@@ -23,8 +23,10 @@ export const tableDeleteRowTool: ToolConfig<TableRowDeleteParams, TableDeleteRes
   },
 
   request: {
+    internal: true,
     internalAuth: 'executor_delegation',
-    url: (params: TableRowDeleteParams) => `/api/table/${params.tableId}/rows/${params.rowId}`,
+    url: (params: TableRowDeleteParams) =>
+      `/api/table/${encodeURIComponent(params.tableId)}/rows/${encodeURIComponent(params.rowId)}`,
     method: 'DELETE',
     headers: () => ({
       'Content-Type': 'application/json',

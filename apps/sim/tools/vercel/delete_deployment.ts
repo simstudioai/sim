@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type {
   VercelDeleteDeploymentParams,
   VercelDeleteDeploymentResponse,
@@ -50,7 +51,7 @@ export const vercelDeleteDeploymentTool: ToolConfig<
         query.set('url', id)
       }
       const qs = query.toString()
-      return `https://api.vercel.com/v13/deployments/${id}${qs ? `?${qs}` : ''}`
+      return `https://api.vercel.com/v13/deployments/${safeUrlPathSegment(id, 'deploymentId')}${qs ? `?${qs}` : ''}`
     },
     method: 'DELETE',
     headers: (params: VercelDeleteDeploymentParams) => ({

@@ -533,7 +533,11 @@ Examples:
         triggers: options.trigger?.length ? options.trigger.join(',') : undefined,
         level: options.level,
         details: options.details,
-        order: 'desc',
+        // Newest first is what the follow loop depends on: the seed page's last
+        // row becomes the floor and every poll reads back from the newest page.
+        // `listLogs` names these `sortBy`/`sortOrder` and rejects any other key.
+        sortBy: 'startedAt',
+        sortOrder: 'desc',
       }
 
       const write = createWriter(profile.output)

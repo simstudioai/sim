@@ -23,6 +23,7 @@ export const tableGetRowTool: ToolConfig<TableRowGetParams, TableRowResponse> = 
   },
 
   request: {
+    internal: true,
     internalAuth: 'executor_delegation',
     secretProvenance: { response: { incomplete: 'propagate' } },
     url: (params: TableRowGetParams) => {
@@ -31,7 +32,7 @@ export const tableGetRowTool: ToolConfig<TableRowGetParams, TableRowResponse> = 
         throw new Error('Workspace ID is required in execution context')
       }
 
-      return `/api/table/${params.tableId}/rows/${params.rowId}?workspaceId=${encodeURIComponent(workspaceId)}`
+      return `/api/table/${encodeURIComponent(params.tableId)}/rows/${encodeURIComponent(params.rowId)}?workspaceId=${encodeURIComponent(workspaceId)}`
     },
     method: 'GET',
     headers: () => ({

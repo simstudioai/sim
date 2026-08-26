@@ -75,6 +75,7 @@ export const confluenceAddLabelTool: ToolConfig<
   },
 
   request: {
+    internal: true,
     url: () => '/api/tools/confluence/labels',
     method: 'POST',
     headers: (params: ConfluenceAddLabelParams) => ({

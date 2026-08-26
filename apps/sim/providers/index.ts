@@ -22,6 +22,11 @@ import {
   type ProviderRuntimeContext,
   runWithProviderRuntimeContext,
 } from '@/providers/runtime-context'
+import {
+  assignProviderToolIdentities,
+  projectProviderResponseToolIdentities,
+  projectStreamingExecutionToolIdentities,
+} from '@/providers/tool-identity'
 import type { ProviderId, ProviderRequest, ProviderResponse } from '@/providers/types'
 import {
   generateStructuredOutputInstructions,
@@ -218,6 +223,17 @@ export async function executeProviderRequest(
 
   const provenanceSafeRequest = await omitUnsafeProviderFileAttachments(sanitizedRequest)
   const modelSafeRequest = provenanceSafeRequest
+  const toolIdentities = assignProviderToolIdentities(modelSafeRequest.tools)
+  const requestRuntimeContext =
+    toolIdentities.toolIdByWireId.size > 0
+      ? {
+          ...runtimeContext,
+          toolIdByWireId: new Map([
+            ...(runtimeContext?.toolIdByWireId ?? []),
+            ...toolIdentities.toolIdByWireId,
+          ]),
+        }
+      : runtimeContext
 
   if (modelSafeRequest.responseFormat) {
     const structuredOutputInstructions = generateStructuredOutputInstructions(
@@ -230,7 +246,7 @@ export async function executeProviderRequest(
     }
   }
 
-  const response = await runWithProviderRuntimeContext(runtimeContext, async () => {
+  const response = await runWithProviderRuntimeContext(requestRuntimeContext, async () => {
     await attachLargeFileRemoteUrls(modelSafeRequest, providerId)
     await uploadLargeFilesToProvider(modelSafeRequest, providerId)
     return provider.executeRequest(modelSafeRequest)
@@ -239,6 +255,7 @@ export async function executeProviderRequest(
   if (isStreamingExecution(response)) {
     logger.info('Provider returned StreamingExecution', { isBYOK })
     applyStreamingCostPolicy(response, resolveModelCostPolicy(sanitizedRequest.model, isBYOK))
+    projectStreamingExecutionToolIdentities(response, toolIdentities)
     return response
   }
 
@@ -248,6 +265,7 @@ export async function executeProviderRequest(
   }
 
   const costPolicy = resolveModelCostPolicy(response.model, isBYOK)
+  projectProviderResponseToolIdentities(response, toolIdentities)
 
   if (response.tokens) {
     const { input: promptTokens = 0, output: completionTokens = 0 } = response.tokens

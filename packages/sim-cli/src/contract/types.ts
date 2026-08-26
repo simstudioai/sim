@@ -59,6 +59,18 @@ export interface FlagSpec {
   list?: boolean
   /** Take a JSON string. Implied for object/array/unknown fields. */
   json?: boolean
+  /**
+   * Accept a plain whole number and send the route's `{ type: 'rows', max: n }`.
+   *
+   * A deliberate one-off for `tables dispatches create --max-rows`: the only
+   * request field in the CLI whose object shape holds exactly one free value,
+   * because its `type` is a `z.literal('rows')`. Left as JSON, the flag made a
+   * caller type `{"type":"rows","max":100}` — four tokens of ceremony to say
+   * `100`, in a shape nothing in the terminal spells out. Not a general
+   * value-transform hook: no second field wants one, and a second one arriving
+   * is the point at which this should become one.
+   */
+  rowCap?: true
   /** Overrides the help text otherwise taken from the OpenAPI description. */
   describe?: string
   /**
@@ -73,8 +85,30 @@ export interface FlagSpec {
   requestDefault?: string
   /** Accepted values when the generated descriptor cannot recover an enum. */
   choices?: readonly string[]
-  /** Expose a string-backed API boolean as a conventional terminal toggle. */
+  /**
+   * Expose a string-backed API boolean as a conventional terminal toggle.
+   *
+   * A toggle declared here carries no generated `--no-<name>` twin by default,
+   * because sending false is usually either meaningless — the server already
+   * defaults the field to false — or rejected outright, as on a field the API
+   * declares as `z.literal(true)`. {@link negatable} asks for the twin back on
+   * the one kind of field where false is a real request.
+   */
   boolean?: true
+  /**
+   * Give a {@link boolean} toggle its `--no-<name>` twin after all.
+   *
+   * Withholding the twin is right for a one-way switch: most string-backed
+   * toggles sit on a field the server already defaults to false, so a negation
+   * would only restate the default, and on a `z.literal(true)` field it would
+   * send a request the route rejects. `files list --recursive` is neither — the
+   * API turns it on by itself as soon as a search is set, so without a spelling
+   * for false there is no way to search one folder without descending into it.
+   * Declared per flag rather than derived from the union's false spellings,
+   * which every one of these toggles publishes whether or not sending one means
+   * anything.
+   */
+  negatable?: true
   /**
    * This field carries a folder path, so percent-encode each of its segments.
    *
@@ -96,6 +130,8 @@ export interface FlagSpec {
    * owns that instead.
    */
   omit?: boolean
+  /** Accept and send this generated field, but hide its low-level flag from help. */
+  hidden?: boolean
 }
 
 /** How a route path parameter is exposed as a required named option. */
@@ -209,6 +245,19 @@ export interface CommandSpec {
   expandedTrace?: boolean
   /** Dot path to a nested result array rendered as the command's human list. */
   itemsPath?: string
+  /**
+   * A page-envelope field that qualifies the whole list, stated once for the
+   * human formats.
+   *
+   * `billing logs` answers a different question depending on the kind of API
+   * key that asked — a personal key sees the caller's own events, a workspace
+   * key the whole workspace ledger — and the response says which. The value
+   * belongs to the query rather than to any row, so it is not a column; it goes
+   * to stderr so that a `--output text` consumer cutting tab-separated fields
+   * still reads only rows. The machine formats print the envelope whole and
+   * carry it already.
+   */
+  pageNote?: { path: string; label: string }
   /** Allow an optional workspaceId field to omit the configured workspace filter. */
   allWorkspaces?: boolean
   /**

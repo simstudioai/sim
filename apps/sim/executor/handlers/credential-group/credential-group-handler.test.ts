@@ -10,11 +10,16 @@ import type { SerializedBlock } from '@/serializer/types'
 const mocks = vi.hoisted(() => ({
   authenticate: vi.fn(),
   buildHeaders: vi.fn(),
+  createInviteLink: vi.fn(),
   enforceInviteRateLimit: vi.fn(),
   listCredentials: vi.fn(),
   listGroups: vi.fn(),
   listPeople: vi.fn(),
   sendInvite: vi.fn(),
+}))
+
+vi.mock('@/lib/credential-groups/application/create-invite-link', () => ({
+  createCredentialGroupInviteLink: { execute: mocks.createInviteLink },
 }))
 
 vi.mock('@/lib/credential-groups/application/delegation', () => ({
@@ -165,6 +170,44 @@ describe('CredentialGroupBlockHandler', () => {
     expect(mocks.sendInvite).toHaveBeenCalledWith({
       principal,
       input: { credentialGroupId: 'group-1', email: 'person@example.com' },
+    })
+  })
+
+  it('issues a fresh invitation link without routing through email delivery', async () => {
+    mocks.createInviteLink.mockResolvedValue({
+      enrollment: {
+        id: 'enrollment-1',
+        email: 'person@example.com',
+        status: 'invited',
+        invitedAt: '2026-08-13T12:00:00.000Z',
+        expiresAt: '2026-08-20T12:00:00.000Z',
+      },
+      invitationLink: 'https://sim.ai/credential-groups/enroll/token-1',
+    })
+
+    const result = await new CredentialGroupBlockHandler().execute(context, block, {
+      operation: 'get_invite_link',
+      credentialGroupId: ' group-1 ',
+      email: ' person@example.com ',
+    })
+
+    expect(mocks.authenticate).toHaveBeenCalledWith('Bearer executor-token', 'group-1')
+    expect(mocks.enforceInviteRateLimit).toHaveBeenCalledWith('workspace-1')
+    expect(mocks.enforceInviteRateLimit.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.createInviteLink.mock.invocationCallOrder[0]!
+    )
+    expect(mocks.createInviteLink).toHaveBeenCalledWith({
+      principal,
+      input: { credentialGroupId: 'group-1', email: 'person@example.com' },
+    })
+    expect(mocks.sendInvite).not.toHaveBeenCalled()
+    expect(result).toEqual({
+      enrollmentId: 'enrollment-1',
+      email: 'person@example.com',
+      status: 'invited',
+      invitedAt: '2026-08-13T12:00:00.000Z',
+      expiresAt: '2026-08-20T12:00:00.000Z',
+      invitationLink: 'https://sim.ai/credential-groups/enroll/token-1',
     })
   })
 

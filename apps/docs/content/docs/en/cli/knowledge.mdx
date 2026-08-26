@@ -9,6 +9,392 @@ import { CommandTable } from '@/components/ui/command-table'
 
 Every command below also accepts the [global options](/cli/commands#global-options).
 
+## Index files the workspace already stores
+
+```bash
+sim knowledge from-workspace-files create <knowledgeBaseId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--file <value...>` | Yes | Workspace file ID or key (repeatable) (space-separated, or @path / @- with one value per line). |
+
+</CommandTable>
+
+## Declare the tag definitions a knowledge base needs
+
+```bash
+sim knowledge tags save <knowledgeBaseId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--definitions <json\|@file>` | Yes | Tag definitions: [&#123;"tagSlot":"tag1","displayName":"category","fieldType":"text"&#125;] (JSON, or @path / @- to read a file or stdin). |
+
+</CommandTable>
+
+## Create tag
+
+```bash
+sim knowledge tags create <knowledgeBaseId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--display-name <value>` | Yes | Name tag filters and document reads use for this tag. |
+| `--field-type <value>` | No | Value type stored in the slot; it decides which slots are usable and which filter operators apply. Defaults to text, so a number, date, or boolean slot must name its type here. Slot capacity per type: text 7, number 5, date 2, boolean 3. Accepted values: `text`, `number`, `date`, `boolean`. |
+| `--tag-slot <value>` | No | Slot to store the tag in. Omit to take the next free slot for the field type; a slot that does not belong to the field type, or one already in use, is rejected. Accepted values: `tag1`, `tag2`, `tag3`, `tag4`, `tag5`, `tag6`, `tag7`, `number1`, `number2`, `number3`, `number4`, `number5`, `date1`, `date2`, `boolean1`, `boolean2`, `boolean3`. |
+
+</CommandTable>
+
+## Delete tag
+
+```bash
+sim knowledge tags delete <knowledgeBaseId> <tagId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+| `tagId` | Yes | Unique tag definition identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-y, --yes` | Yes | Confirm this destructive operation. |
+
+</CommandTable>
+
+## Remove tag definitions no document still uses
+
+```bash
+sim knowledge tags cleanup <knowledgeBaseId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--unused` | No | Whether to remove only the tag definitions no document in the knowledge base still carries a value for. Defaults to true. Pass --no-unused to delete every definition on the knowledge base, which also clears its slot on every document and chunk and is not recoverable. |
+| `--no-unused` | No | Send --unused as false. |
+| `-y, --yes` | Yes | Confirm this destructive operation. |
+
+</CommandTable>
+
+## Show which tag slot a create would take for a field type
+
+```bash
+sim knowledge tags next-slot <knowledgeBaseId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--field-type <value>` | Yes | Value type stored in the slot; it decides which slots are usable and which filter operators apply. Slot capacity per type: text 7, number 5, date 2, boolean 3. Accepted values: `text`, `number`, `date`, `boolean`. |
+
+</CommandTable>
+
+## List tags
+
+```bash
+sim knowledge tags list <knowledgeBaseId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+
+</CommandTable>
+
+## Show how many documents and chunks carry each tag
+
+```bash
+sim knowledge tags usage <knowledgeBaseId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+
+</CommandTable>
+
+## Update tag
+
+```bash
+sim knowledge tags update <knowledgeBaseId> <tagId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+| `tagId` | Yes | Unique tag definition identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--display-name <value>` | No | New tag display name. |
+| `--field-type <value>` | No | New value type for the tag. Accepted values: `text`, `number`, `date`, `boolean`. |
+
+</CommandTable>
+
+## Enable, disable, or delete many chunks at once
+
+```bash
+sim knowledge chunks batch-update <knowledgeBaseId> <documentId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+| `documentId` | Yes | Unique knowledge document identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--operation <value>` | Yes | What to do with the selected chunks. Accepted values: `enable`, `disable`, `delete`. |
+| `--chunk <value...>` | Yes | Chunks to operate on, by identifier. Ids outside the document are ignored. (space-separated, or @path / @- with one value per line). |
+| `-y, --yes` | Yes | Confirm this destructive operation. |
+
+</CommandTable>
+
+## Create chunk
+
+```bash
+sim knowledge chunks create <knowledgeBaseId> <documentId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+| `documentId` | Yes | Unique knowledge document identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--content <value>` | Yes | Text to embed. It is embedded on write, so the chunk is searchable immediately. |
+| `--enabled` | No | Whether the new chunk participates in search. |
+| `--no-enabled` | No | Send --enabled as false. |
+
+</CommandTable>
+
+## Delete chunk
+
+```bash
+sim knowledge chunks delete <knowledgeBaseId> <documentId> <chunkId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+| `documentId` | Yes | Unique knowledge document identifier. |
+| `chunkId` | Yes | Unique chunk identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-y, --yes` | Yes | Confirm this destructive operation. |
+
+</CommandTable>
+
+## Get chunk
+
+```bash
+sim knowledge chunks get <knowledgeBaseId> <documentId> <chunkId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+| `documentId` | Yes | Unique knowledge document identifier. |
+| `chunkId` | Yes | Unique chunk identifier. |
+
+</CommandTable>
+
+## List chunks
+
+```bash
+sim knowledge chunks list <knowledgeBaseId> <documentId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+| `documentId` | Yes | Unique knowledge document identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--search <value>` | No | Case-insensitive substring match against chunk content. |
+| `--enabled <value>` | No | Restrict to enabled or disabled chunks. `all` returns both. Accepted values: `true`, `false`, `all`. |
+| `--sort-by <value>` | No | Field used to sort the result. Accepted values: `chunkIndex`, `tokenCount`, `enabled`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+
+</CommandTable>
+
+## Update chunk
+
+```bash
+sim knowledge chunks update <knowledgeBaseId> <documentId> <chunkId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+| `documentId` | Yes | Unique knowledge document identifier. |
+| `chunkId` | Yes | Unique chunk identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--content <value>` | No | Replacement text. Changing it re-embeds the chunk and re-derives its token and character counts. |
+| `--enabled` | No | Whether the chunk participates in search. Disabling keeps it indexed. |
+| `--no-enabled` | No | Send --enabled as false. |
+
+</CommandTable>
+
 ## Enable or disable every matching document
 
 ```bash
@@ -160,7 +546,6 @@ sim knowledge documents update <knowledgeBaseId> <documentId> [options]
 | `--boolean3` | No | New value for boolean tag slot 3. |
 | `--no-boolean3` | No | Send --boolean3 as false. |
 | `--retry-processing` | No | Requeue a failed or stuck document for processing. Send it alone — no other field may accompany it — and it answers with a queue acknowledgement rather than the document. |
-| `--no-retry-processing` | No | Send --retry-processing as false. |
 
 </CommandTable>
 
@@ -517,7 +902,7 @@ Also available as `sim knowledge folders mv`.
 ## Delete knowledge base
 
 ```bash
-sim knowledge delete <id> [options]
+sim knowledge delete <knowledgeBaseId> [options]
 ```
 
 **Arguments**
@@ -526,7 +911,7 @@ sim knowledge delete <id> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `id` | Yes | Unique knowledge base identifier. |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
 
 </CommandTable>
 
@@ -543,7 +928,7 @@ sim knowledge delete <id> [options]
 ## Get knowledge base
 
 ```bash
-sim knowledge get <id>
+sim knowledge get <knowledgeBaseId>
 ```
 
 **Arguments**
@@ -552,7 +937,7 @@ sim knowledge get <id>
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `id` | Yes | Unique knowledge base identifier. |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
 
 </CommandTable>
 
@@ -568,6 +953,7 @@ sim knowledge list [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
+| `--scope <value>` | No | Which lifecycle set to list: `active` (default) for live knowledge bases, `archived` for knowledge bases a `DELETE` archived and `POST /knowledge/&#123;knowledgeBaseId&#125;/restore` can bring back. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too. Accepted values: `active`, `archived`. |
 | `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
 | `--search <value>` | No | Case-insensitive substring match against the resource name. |
 | `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `createdAt`, `updatedAt`. |
@@ -576,10 +962,10 @@ sim knowledge list [options]
 
 </CommandTable>
 
-## List tags
+## Restore an archived knowledge base
 
 ```bash
-sim knowledge tags list <knowledgeBaseId>
+sim knowledge restore <knowledgeBaseId>
 ```
 
 **Arguments**
@@ -619,7 +1005,7 @@ sim knowledge search [options]
 ## Update knowledge base
 
 ```bash
-sim knowledge update <id> [options]
+sim knowledge update <knowledgeBaseId> [options]
 ```
 
 **Arguments**
@@ -628,7 +1014,7 @@ sim knowledge update <id> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `id` | Yes | Unique knowledge base identifier. |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
 
 </CommandTable>
 
@@ -648,7 +1034,7 @@ sim knowledge update <id> [options]
 ## Move a knowledge base to a folder
 
 ```bash
-sim knowledge mv <id> <folder>
+sim knowledge mv <knowledgeBaseId> <folder>
 ```
 
 **Arguments**
@@ -657,7 +1043,7 @@ sim knowledge mv <id> <folder>
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `id` | Yes | Unique knowledge base identifier. |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
 | `folder` | Yes | Folder path as shown in the app; the leading / is optional |
 
 </CommandTable>

@@ -7,6 +7,7 @@ const { mockFetchWithRetry } = vi.hoisted(() => ({ mockFetchWithRetry: vi.fn() }
 
 vi.mock('@/lib/knowledge/documents/utils', () => ({
   fetchWithRetry: mockFetchWithRetry,
+  readBoundedHttpErrorBody: async (response: Response) => response.text(),
   VALIDATE_RETRY_OPTIONS: {},
 }))
 vi.mock('@/components/icons', () => ({ MicrosoftSharepointIcon: () => null }))
@@ -17,6 +18,11 @@ import {
   serverRelativePathFromUrl,
   sharepointConnector,
 } from '@/connectors/sharepoint/sharepoint'
+import {
+  appendPendingMicrosoftGraphFolders,
+  encodeMicrosoftGraphTraversalCursor,
+  MICROSOFT_GRAPH_MAX_PENDING_FOLDERS,
+} from '@/connectors/utils'
 
 const GRAPH = 'https://graph.microsoft.com/v1.0'
 const SITE_ID = 'contoso.sharepoint.com,site-guid,web-guid'
@@ -46,14 +52,17 @@ function mockGraph(routes: Record<string, GraphRoute>) {
     requested.push(url)
     const route = routes[url] ?? { status: 404 }
     const status = route.status ?? 200
+    const responseBytes = Buffer.from(
+      route.raw ? String(route.body ?? '') : JSON.stringify(route.body ?? {})
+    )
     return {
       ok: status >= 200 && status < 300,
       status,
+      headers: new Headers({ 'content-length': String(responseBytes.byteLength) }),
       json: async () => route.body,
       text: async () => JSON.stringify(route.body ?? {}),
       /** `readBodyWithLimit` falls back to this when there is no stream body. */
-      arrayBuffer: async () =>
-        Buffer.from(route.raw ? String(route.body ?? '') : JSON.stringify(route.body ?? {})),
+      arrayBuffer: async () => responseBytes,
     } as unknown as Response
   })
   return requested
@@ -339,7 +348,7 @@ describe('resolveFolderTarget', () => {
 })
 
 const ITEM_SELECT =
-  'id,name,webUrl,size,file,folder,lastModifiedDateTime,createdDateTime,createdBy,parentReference'
+  'id,name,webUrl,size,file,folder,package,remoteItem,lastModifiedDateTime,createdDateTime,createdBy,parentReference'
 
 /** File-shaped drive item for children listings. */
 function file(id: string, name: string) {
@@ -416,6 +425,33 @@ describe('listDocuments', () => {
     expect(syncContext.listingCapped).toBeUndefined()
   })
 
+  it('does not retain irrelevant folders after maxFiles has stopped traversal', async () => {
+    mockGraph(
+      childrenRoute(DEFAULT_DRIVE_ID, null, [file('f1', 'a.txt'), folder('overflow', 'Overflow')])
+    )
+    const cursor = encodeMicrosoftGraphTraversalCursor(
+      {
+        folderStack: Array.from(
+          { length: MICROSOFT_GRAPH_MAX_PENDING_FOLDERS },
+          (_, index) => `pending-${index}`
+        ),
+      },
+      'SharePoint'
+    )
+    const syncContext = listContext()
+
+    const result = await sharepointConnector.listDocuments(
+      'token',
+      { siteUrl: SITE_URL, maxFiles: '1' },
+      cursor,
+      syncContext
+    )
+
+    expect(result.documents.map((document) => document.externalId)).toEqual(['f1'])
+    expect(result.hasMore).toBe(false)
+    expect(syncContext.listingCapped).toBe(true)
+  })
+
   /**
    * The reported failure: a document library of Office SOPs synced as
    * "success, 0 documents" because the listing filter accepted only plain text,
@@ -465,6 +501,78 @@ describe('listDocuments', () => {
     expect(result.documents[0].contentHash).toBe('sharepoint:f1:2026-01-01T00:00:00Z')
     expect(result.documents[0].contentDeferred).toBe(true)
   })
+
+  it.each(['1.5', 'Infinity'])(
+    'rejects invalid maxFiles %s before calling Graph',
+    async (maxFiles) => {
+      const requested = mockGraph({})
+
+      await expect(
+        sharepointConnector.listDocuments(
+          'token',
+          { siteUrl: SITE_URL, maxFiles },
+          undefined,
+          listContext()
+        )
+      ).rejects.toThrow(/positive safe integer/)
+      expect(requested).toHaveLength(0)
+    }
+  )
+})
+
+describe('validateConfig', () => {
+  it.each(['1.5', 'Infinity'])(
+    'rejects invalid maxFiles %s without calling Graph',
+    async (maxFiles) => {
+      const requested = mockGraph({})
+
+      await expect(
+        sharepointConnector.validateConfig!('token', { siteUrl: SITE_URL, maxFiles })
+      ).resolves.toEqual({
+        valid: false,
+        error: 'Max files must be a positive safe integer, or 0 for unlimited',
+      })
+      expect(requested).toHaveLength(0)
+    }
+  )
+
+  it('accepts a valid integer maxFiles', async () => {
+    const siteRoute = `${GRAPH}/sites/${SITE_URL}`
+    const requested = mockGraph({
+      [siteRoute]: { body: { id: SITE_ID, displayName: 'Contoso' } },
+      ...defaultDriveRoute,
+    })
+
+    await expect(
+      sharepointConnector.validateConfig!('token', { siteUrl: SITE_URL, maxFiles: '25' })
+    ).resolves.toEqual({ valid: true })
+    expect(requested).toEqual([siteRoute, Object.keys(defaultDriveRoute)[0]])
+  })
+})
+
+describe('SharePoint traversal working-set bound', () => {
+  it('accepts discovered folders up to the pending-folder ceiling', () => {
+    const pending = Array.from(
+      { length: MICROSOFT_GRAPH_MAX_PENDING_FOLDERS - 2 },
+      (_, index) => `pending-${index}`
+    )
+
+    appendPendingMicrosoftGraphFolders(pending, ['last-1', 'last-2'], 'SharePoint')
+
+    expect(pending).toHaveLength(MICROSOFT_GRAPH_MAX_PENDING_FOLDERS)
+  })
+
+  it('stops before retaining a folder page beyond the ceiling', () => {
+    const pending = Array.from(
+      { length: MICROSOFT_GRAPH_MAX_PENDING_FOLDERS },
+      (_, index) => `pending-${index}`
+    )
+
+    expect(() => appendPendingMicrosoftGraphFolders(pending, ['overflow'], 'SharePoint')).toThrow(
+      /Narrow the connector/
+    )
+    expect(pending).toHaveLength(MICROSOFT_GRAPH_MAX_PENDING_FOLDERS)
+  })
 })
 
 describe('getDocument content extraction', () => {
@@ -491,6 +599,21 @@ describe('getDocument content extraction', () => {
       listContext()
     )
   }
+
+  it.each([{}, { id: 'f1', name: 'Missing facet' }, file('different', 'a.txt')])(
+    'rejects malformed metadata instead of replacing retained content',
+    async (metadata) => {
+      mockGraph({
+        [`${GRAPH}/drives/${DEFAULT_DRIVE_ID}/items/f1?$select=${ITEM_SELECT}`]: {
+          body: metadata,
+        },
+      })
+
+      await expect(get('f1')).rejects.toThrow(
+        'Microsoft Graph returned malformed SharePoint item metadata'
+      )
+    }
+  )
 
   /**
    * The connector hands an Office document over untouched so the shared pipeline
@@ -531,6 +654,40 @@ describe('getDocument content extraction', () => {
     expect(doc?.content).toBe('plain notes')
     expect(doc?.sourceFile).toBeUndefined()
     expect(doc?.mimeType).toBe('text/plain')
+  })
+
+  it('authoritatively skips a listed file that changed to a folder', async () => {
+    mockGraph({
+      [`${GRAPH}/drives/${DEFAULT_DRIVE_ID}/items/folder?$select=${ITEM_SELECT}`]: {
+        body: folder('folder', 'Former document'),
+      },
+    })
+
+    await expect(get('folder')).resolves.toMatchObject({
+      content: '',
+      skippedReason: 'File is no longer an indexable document',
+      skippedExistingDisposition: 'replace',
+    })
+  })
+
+  it('marks an empty file as an authoritative skip', async () => {
+    const item = file('empty', 'empty.txt')
+    mockFetchWithRetry.mockImplementation(async (url: string) => {
+      if (url.endsWith('/content')) return new Response(new Uint8Array(0))
+      return new Response(JSON.stringify(item), {
+        headers: { 'content-type': 'application/json' },
+      })
+    })
+
+    const document = await get('empty')
+
+    expect(document).toMatchObject({
+      externalId: 'empty',
+      content: '',
+      contentDeferred: false,
+      skippedReason: 'Document contains no extractable text',
+      skippedExistingDisposition: 'replace',
+    })
   })
 })
 

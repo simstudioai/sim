@@ -320,24 +320,9 @@ describe('Socket Server Index Integration', () => {
       expect(getWorkflowState).toBeTypeOf('function')
       expect(WorkflowOperationSchema).toBeDefined()
     })
-
-    it.concurrent('should maintain all original functionality after refactoring', async () => {
-      expect(httpServer).toBeDefined()
-      expect(io).toBeDefined()
-      expect(roomManager).toBeDefined()
-
-      expect(typeof roomManager.addUserToRoom).toBe('function')
-      expect(typeof roomManager.removeUserFromRoom).toBe('function')
-      expect(typeof roomManager.removeSocketFromAllRooms).toBe('function')
-      expect(typeof roomManager.broadcastPresenceUpdate).toBe('function')
-    })
   })
 
   describe('Error Handling', () => {
-    it('should have global error handlers configured', () => {
-      expect(typeof process.on).toBe('function')
-    })
-
     it('should handle server setup', () => {
       expect(httpServer).toBeDefined()
       expect(io).toBeDefined()

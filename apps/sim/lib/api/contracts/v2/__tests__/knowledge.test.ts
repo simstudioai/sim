@@ -180,3 +180,104 @@ describe('v2 knowledge document list query', () => {
     expect(issueMessages(parsed as never)).toContain(message)
   })
 })
+
+/**
+ * The write used to accept only `maxSize`/`minSize`/`overlap` while the read
+ * projected five keys, so a `strategy` the workflow builder set was readable and
+ * unwritable — and a three-key update replaced the stored object wholesale and
+ * dropped it.
+ */
+describe('v2 knowledge chunking configuration', () => {
+  const body = v2CreateKnowledgeBaseContract.body
+
+  function parseChunkingConfig(chunkingConfig: unknown) {
+    return body?.safeParse({ workspaceId: 'ws-1', name: 'Docs', chunkingConfig })
+  }
+
+  it('accepts the strategy and strategy options the read projects', () => {
+    const parsed = parseChunkingConfig({
+      maxSize: 1024,
+      minSize: 100,
+      overlap: 200,
+      strategy: 'regex',
+      strategyOptions: { pattern: '\\n\\n', strictBoundaries: true },
+    })
+
+    expect(parsed?.success).toBe(true)
+  })
+
+  it('still accepts a body naming only one of the numbers', () => {
+    expect(parseChunkingConfig({ maxSize: 2048 })?.success).toBe(true)
+  })
+
+  it('requires a pattern for the regex strategy', () => {
+    const parsed = parseChunkingConfig({ maxSize: 1024, minSize: 100, strategy: 'regex' })
+
+    expect(parsed?.success).toBe(false)
+    expect(issueMessages(parsed as never)).toContain(
+      'Regex pattern is required when using the regex chunking strategy'
+    )
+  })
+
+  it('rejects strict boundaries outside the regex strategy', () => {
+    const parsed = parseChunkingConfig({
+      maxSize: 1024,
+      strategy: 'recursive',
+      strategyOptions: { strictBoundaries: true },
+    })
+
+    expect(parsed?.success).toBe(false)
+    expect(issueMessages(parsed as never)).toContain(
+      'strictBoundaries is only valid for the regex chunking strategy'
+    )
+  })
+
+  /**
+   * The bound is load-bearing rather than cosmetic: the recursive chunker
+   * rescans the whole document once per separator, synchronously, so an
+   * unbounded list turns one persisted config into seconds of uninterruptible
+   * CPU on every later upload.
+   */
+  it('bounds the separator list the recursive chunker rescans per entry', () => {
+    const parsed = parseChunkingConfig({
+      maxSize: 1024,
+      strategyOptions: { separators: Array.from({ length: 200 }, () => '\n') },
+    })
+
+    expect(parsed?.success).toBe(false)
+    expect(issueMessages(parsed as never).join(' ')).toContain('separators')
+  })
+
+  it('rejects an unknown chunking key rather than dropping it', () => {
+    expect(parseChunkingConfig({ maxSize: 1024, mode: 'fast' })?.success).toBe(false)
+  })
+
+  /**
+   * The response stays lenient in both directions. `knowledge_base.chunking_config`
+   * is schemaless JSONB, so a legacy row carrying a retired key would fail a
+   * strict response parse and reach the caller as a 500.
+   */
+  it('keeps the response tolerant of a stored key the input rejects', () => {
+    const response = v2CreateKnowledgeBaseContract.response.schema.safeParse({
+      data: {
+        id: 'kb-1',
+        webUrl: 'https://test.sim.ai/workspace/workspace-1/knowledge/kb-1',
+        name: 'Docs',
+        description: null,
+        tokenCount: 0,
+        embeddingModel: 'text-embedding-3-small',
+        embeddingDimension: 1536,
+        chunkingConfig: { maxSize: 1024, minSize: 100, overlap: 200, retiredKnob: true },
+        docCount: 0,
+        connectorTypes: [],
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+        ownerEmail: 'owner@example.com',
+        folderPath: '/',
+        deletedAt: null,
+      },
+    })
+
+    expect(response.success).toBe(true)
+  })
+})

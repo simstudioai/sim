@@ -1,13 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { describe, expect, it, vi } from 'vitest'
-
-vi.mock('@/lib/workflows/subblocks/options', () => ({
-  fetchTriggerTypeOptions: vi.fn(),
-  fetchWorkspaceWorkflowOptions: vi.fn(),
-}))
-
+import { describe, expect, it } from 'vitest'
 import { LogsV2Block } from '@/blocks/blocks/logs'
 
 function buildQueryParams(params: Record<string, unknown>) {

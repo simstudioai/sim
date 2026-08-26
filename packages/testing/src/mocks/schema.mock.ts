@@ -15,6 +15,28 @@
  * predicate's operands are observable at all.
  */
 
+const workspaceFilesMock = {
+  id: 'workspaceFiles.id',
+  key: 'workspaceFiles.key',
+  userId: 'workspaceFiles.userId',
+  workspaceId: 'workspaceFiles.workspaceId',
+  folderId: 'workspaceFiles.folderId',
+  context: 'workspaceFiles.context',
+  chatId: 'workspaceFiles.chatId',
+  messageId: 'workspaceFiles.messageId',
+  originalName: 'workspaceFiles.originalName',
+  displayName: 'workspaceFiles.displayName',
+  contentType: 'workspaceFiles.contentType',
+  sizeBytes: 'workspaceFiles.sizeBytes',
+  width: 'workspaceFiles.width',
+  height: 'workspaceFiles.height',
+  deletedAt: 'workspaceFiles.deletedAt',
+  uploadedAt: 'workspaceFiles.uploadedAt',
+  updatedAt: 'workspaceFiles.updatedAt',
+  contentUpdatedAt: 'workspaceFiles.contentUpdatedAt',
+  secretProvenanceVersion: 'workspaceFiles.secretProvenanceVersion',
+}
+
 export const schemaMock = {
   user: {
     id: 'user.id',
@@ -520,6 +542,7 @@ export const schemaMock = {
     trialStart: 'subscription.trialStart',
     trialEnd: 'subscription.trialEnd',
     metadata: 'subscription.metadata',
+    lastClosedPeriodStart: 'subscription.lastClosedPeriodStart',
   },
   rateLimitBucket: {
     key: 'rateLimitBucket.key',
@@ -639,22 +662,8 @@ export const schemaMock = {
     deletedAt: 'workspaceFile.deletedAt',
     uploadedAt: 'workspaceFile.uploadedAt',
   },
-  workspaceFiles: {
-    id: 'workspaceFiles.id',
-    key: 'workspaceFiles.key',
-    userId: 'workspaceFiles.userId',
-    workspaceId: 'workspaceFiles.workspaceId',
-    context: 'workspaceFiles.context',
-    chatId: 'workspaceFiles.chatId',
-    originalName: 'workspaceFiles.originalName',
-    contentType: 'workspaceFiles.contentType',
-    size: 'workspaceFiles.size',
-    deletedAt: 'workspaceFiles.deletedAt',
-    uploadedAt: 'workspaceFiles.uploadedAt',
-    updatedAt: 'workspaceFiles.updatedAt',
-    contentUpdatedAt: 'workspaceFiles.contentUpdatedAt',
-    secretProvenanceVersion: 'workspaceFiles.secretProvenanceVersion',
-  },
+  workspaceFiles: workspaceFilesMock,
+  workspaceFileColumns: workspaceFilesMock,
   workspaceFileSecretProvenance: {
     fileId: 'workspaceFileSecretProvenance.fileId',
     contentUpdatedAt: 'workspaceFileSecretProvenance.contentUpdatedAt',
@@ -762,7 +771,9 @@ export const schemaMock = {
     processingStatus: 'document.processingStatus',
     processingAttempts: 'document.processingAttempts',
     processingQueuedAt: 'document.processingQueuedAt',
+    processingQueueToken: 'document.processingQueueToken',
     processingStartedAt: 'document.processingStartedAt',
+    processingDeferredUntil: 'document.processingDeferredUntil',
     processingCompletedAt: 'document.processingCompletedAt',
     processingError: 'document.processingError',
     enabled: 'document.enabled',

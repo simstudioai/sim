@@ -177,7 +177,7 @@ export const v2McpServerDeleteDataSchema = z
 export type V2McpServerDeleteData = z.output<typeof v2McpServerDeleteDataSchema>
 
 export const v2McpServerParamsSchema = z.object({
-  id: nonEmptyIdSchema.describe('Unique MCP server identifier.'),
+  mcpServerId: nonEmptyIdSchema.describe('Unique MCP server identifier.'),
 })
 export type V2McpServerParams = z.output<typeof v2McpServerParamsSchema>
 
@@ -404,7 +404,7 @@ export const v2CreateMcpServerContract = defineRouteContract({
 
 export const v2GetMcpServerContract = defineRouteContract({
   method: 'GET',
-  path: '/api/v2/mcp-servers/[id]',
+  path: '/api/v2/mcp-servers/[mcpServerId]',
   params: v2McpServerParamsSchema,
   query: v2McpServerWorkspaceQuerySchema,
   response: {
@@ -415,7 +415,7 @@ export const v2GetMcpServerContract = defineRouteContract({
 
 export const v2UpdateMcpServerContract = defineRouteContract({
   method: 'PATCH',
-  path: '/api/v2/mcp-servers/[id]',
+  path: '/api/v2/mcp-servers/[mcpServerId]',
   query: noInputSchema,
   params: v2McpServerParamsSchema,
   body: v2UpdateMcpServerBodySchema,
@@ -427,7 +427,7 @@ export const v2UpdateMcpServerContract = defineRouteContract({
 
 export const v2DeleteMcpServerContract = defineRouteContract({
   method: 'DELETE',
-  path: '/api/v2/mcp-servers/[id]',
+  path: '/api/v2/mcp-servers/[mcpServerId]',
   params: v2McpServerParamsSchema,
   query: v2McpServerWorkspaceQuerySchema,
   response: {
@@ -444,7 +444,7 @@ export const v2DeleteMcpServerContract = defineRouteContract({
  */
 export const v2ListMcpServerToolsContract = defineRouteContract({
   method: 'GET',
-  path: '/api/v2/mcp-servers/[id]/tools',
+  path: '/api/v2/mcp-servers/[mcpServerId]/tools',
   params: v2McpServerParamsSchema,
   query: v2ListMcpServerToolsQuerySchema,
   response: {

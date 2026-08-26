@@ -45,7 +45,7 @@ function makeRow(overrides: Partial<Record<string, unknown>> = {}) {
     originalName: 'image.png',
     displayName: 'image.png',
     contentType: 'image/png',
-    size: 1024,
+    sizeBytes: 1024,
     deletedAt: null,
     uploadedAt: NOW,
     updatedAt: NOW,
@@ -194,7 +194,7 @@ describe('readChatUpload', () => {
       id: 'wf_z',
       displayName: 'huge.zip',
       contentType: 'application/zip',
-      size: 50 * 1024 * 1024,
+      sizeBytes: 50 * 1024 * 1024,
     })
     mockOrderByThenLimit([row])
 

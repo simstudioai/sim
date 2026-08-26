@@ -111,6 +111,31 @@ describe('token service-account error helpers', () => {
       }
     )
 
+    /**
+     * `provider_unavailable` renders as `503 + Retry-After`, so classifying a
+     * permanently-wrong `domain`, `orgId`, or `clientId` as an outage tells a
+     * conforming client to retry input that can never succeed.
+     */
+    it.each([400, 404, 409, 422])(
+      'maps the non-transient %i to invalid_credentials, never an outage',
+      async (status) => {
+        const res = new Response('bad request', { status })
+
+        const error = await expectValidationError(throwForProviderResponse(res, 'self'))
+
+        expect(error.code).toBe('invalid_credentials')
+        expect(error.status).toBe(status)
+      }
+    )
+
+    it.each([408, 429])('keeps the transient %i an outage', async (status) => {
+      const res = new Response('slow down', { status })
+
+      const error = await expectValidationError(throwForProviderResponse(res, 'self'))
+
+      expect(error.code).toBe('provider_unavailable')
+    })
+
     it('returns without throwing on a 2xx response', async () => {
       const res = new Response('ok', { status: 200 })
 

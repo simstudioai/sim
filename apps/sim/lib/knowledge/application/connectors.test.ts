@@ -619,4 +619,46 @@ describe('knowledge connector application use cases', () => {
       })
     )
   })
+
+  it.each([
+    { operation: 'exclude' as const, matchesUserExcluded: false, setsUserExcluded: true },
+    { operation: 'restore' as const, matchesUserExcluded: true, setsUserExcluded: false },
+  ])(
+    'targets rows in the opposite state for $operation',
+    async ({ operation, matchesUserExcluded, setsUserExcluded }) => {
+      const sameWorkspaceContext = {
+        ...connectorContext,
+        workspaceId: 'workspace-a',
+        knowledgeBaseId: 'knowledge-a',
+        knowledgeBase: { id: 'knowledge-a', name: 'Workspace A docs' },
+        connector: { ...connectorContext.connector, knowledgeBaseId: 'knowledge-a' },
+      }
+      mocks.resolveConnector.mockResolvedValueOnce(sameWorkspaceContext)
+      dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'document-1' }])
+
+      await updateKnowledgeConnectorDocuments.execute({
+        principal: delegatedPrincipal,
+        input: {
+          knowledgeBaseId: 'knowledge-a',
+          connectorId: 'connector-b',
+          assertedWorkspaceId: 'workspace-a',
+          operation,
+          documentIds: ['document-1'],
+        },
+      })
+
+      expect(dbChainMockFns.set).toHaveBeenCalledWith({
+        userExcluded: setsUserExcluded,
+        enabled: !setsUserExcluded,
+      })
+      const where = dbChainMockFns.where.mock.calls.at(-1)?.[0]
+      expect(where).toEqual(
+        expect.objectContaining({
+          conditions: expect.arrayContaining([
+            { type: 'eq', left: document.userExcluded, right: matchesUserExcluded },
+          ]),
+        })
+      )
+    }
+  )
 })

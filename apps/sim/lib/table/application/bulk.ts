@@ -10,7 +10,8 @@ import {
   foldFolderPlan,
   planFolderSelection,
 } from '@/lib/folders/bulk'
-import { findActiveFolder } from '@/lib/folders/queries'
+import { ROOT_FOLDER_PATH } from '@/lib/folders/paths'
+import { findActiveFolder, resolveFolderPathFromIndex } from '@/lib/folders/queries'
 import { notifyWorkspaceTablesChanged } from '@/lib/realtime/notify'
 import { deleteTable, moveTableToFolder } from '@/lib/table'
 import { authorizeTableOperation } from '@/lib/table/application/authorization'
@@ -29,6 +30,7 @@ import {
   resolveTableWorkspaceContext,
   type TableWorkspaceContext,
 } from '@/lib/table/application/context'
+import { resolveTableFolderPath } from '@/lib/table/application/folder-paths'
 import { tableOperations } from '@/lib/table/application/operations'
 import { signalTableSchemaChanged } from '@/lib/table/events'
 import { TableLockedError } from '@/lib/table/mutation-locks'
@@ -55,20 +57,55 @@ export interface BulkTableMissing {
   id: string
 }
 
-interface BulkTablesContext extends TableWorkspaceContext, BoundedTableSelection {}
-
-export interface BulkMoveTablesInput {
-  assertedWorkspaceId: string
-  tableIds: string[]
-  folderIds: string[]
-  targetFolderId: string | null
+interface BulkTablesContext extends TableWorkspaceContext, BoundedTableSelection {
+  /**
+   * Projects a folder id back to the canonical path the caller named it by, for
+   * a path-keyed selection. Absent for an id-keyed one, whose caller already
+   * speaks ids.
+   */
+  folderPathById?: ReadonlyMap<string, string>
+  /**
+   * Path-keyed entries that resolved to no active folder, carried forward as
+   * `notFound` rather than failing the batch — the same disposition an id that
+   * resolves to nothing gets.
+   */
+  unresolvedFolders: string[]
+  /** Resolves a destination folder reference under the same keying. */
+  resolveTargetFolderId: (target: string | null) => string | null | undefined
 }
 
-export interface BulkDeleteTablesInput {
+/**
+ * How a caller names the folders in a bulk selection.
+ *
+ * The internal Tables list holds folder ids, so it addresses them directly.
+ * The v2 surface addresses folders by canonical PATH everywhere, so it names
+ * them that way here too and never sees an id. Resolving a path is an
+ * authorization-sensitive lookup against the workspace's active folder tree, so
+ * it happens inside the use case's context resolution, never at a route.
+ *
+ * Required on every input so a new surface must choose, in the same shape as
+ * the row surfaces' `dataKeying`.
+ */
+export type TableFolderKeying = 'ids' | 'paths'
+
+interface BulkTablesSelectionInput {
   assertedWorkspaceId: string
+  /** See {@link TableFolderKeying}. */
+  folderKeying: TableFolderKeying
   tableIds: string[]
-  folderIds: string[]
+  /** Folder identifiers or canonical folder paths, per {@link folderKeying}. */
+  folders: string[]
 }
+
+export interface BulkMoveTablesInput extends BulkTablesSelectionInput {
+  /**
+   * Destination folder identifier or canonical path, per `folderKeying`.
+   * `null` — and, for a path-keyed caller, `'/'` — is the workspace root.
+   */
+  targetFolder: string | null
+}
+
+export type BulkDeleteTablesInput = BulkTablesSelectionInput
 
 interface BulkTablesOutcome {
   skipped: BulkTableItem[]
@@ -86,19 +123,128 @@ export interface BulkDeleteTablesResult extends BulkTablesOutcome {
   deletedItems: { tables: number; folders: number }
 }
 
-interface BulkMoveTablesExecutionResult extends BulkMoveTablesResult, TableBatchExecutionResult {}
+interface BulkMoveTablesExecutionResult extends BulkMoveTablesResult, TableBatchExecutionResult {
+  /** Canonical destination, resolved once in `execute` so audit reads it rather than re-deriving it. */
+  targetFolderId: string | null
+}
 interface BulkDeleteTablesExecutionResult
   extends BulkDeleteTablesResult,
-    TableBatchExecutionResult {}
+    TableBatchExecutionResult {
+  /**
+   * Every deletion keyed by canonical id, for the audit projection only. The
+   * published `deleted` is keyed the way the caller addressed the batch, which
+   * on the path-keyed route is a display path.
+   */
+  auditedDeletions: BulkTableItem[]
+}
 
 async function resolveBulkTablesContext(
-  input: { assertedWorkspaceId: string; tableIds: string[]; folderIds: string[] },
+  input: BulkTablesSelectionInput,
   maxItems: number
 ): Promise<BulkTablesContext> {
-  const selection = requireBoundedTableSelection(input.tableIds, input.folderIds, maxItems)
+  const selection = requireBoundedTableSelection(input.tableIds, input.folders, maxItems)
+  const workspace = await resolveTableWorkspaceContext(input.assertedWorkspaceId)
+  if (input.folderKeying === 'ids') {
+    return {
+      ...workspace,
+      ...selection,
+      unresolvedFolders: [],
+      resolveTargetFolderId: (target) => target,
+    }
+  }
+
+  /**
+   * One index for the whole batch. `resolveTableFolderPath` takes the folder
+   * tree lock per call, so resolving 100 paths through it would be 100 lock
+   * acquisitions of the same tree; taking it once and resolving from the
+   * returned index is the same read under one lock.
+   */
+  const resolution = await resolveTableFolderPath(workspace.workspaceId, ROOT_FOLDER_PATH)
+  if (!resolution) throw new OrchestrationError('not_found', 'Folder not found in this workspace')
+
+  const folderIds: string[] = []
+  const unresolvedFolders: string[] = []
+  const folderPathById = new Map<string, string>()
+  for (const folderPath of selection.folderIds) {
+    const folderId = resolveFolderPathFromIndex(resolution.index, folderPath)
+    /**
+     * `undefined` names no folder; `null` is the workspace root, which is not a
+     * folder row and cannot be moved or deleted. Both are reported as an entry
+     * the batch could not resolve rather than failing the whole selection.
+     */
+    if (!folderId) {
+      unresolvedFolders.push(folderPath)
+      continue
+    }
+    /**
+     * The selection deduplicates PATHS, but two distinct spellings of the same
+     * folder resolve to one id — so the batch would carry that id twice while
+     * `folderPathById` is last-wins, leaving one of the two paths unreportable.
+     * Deduplicate after resolution, keeping the first path that named the
+     * folder so the reported spelling matches the first one the caller sent.
+     */
+    if (folderPathById.has(folderId)) continue
+    folderIds.push(folderId)
+    folderPathById.set(folderId, folderPath)
+  }
+
   return {
-    ...(await resolveTableWorkspaceContext(input.assertedWorkspaceId)),
-    ...selection,
+    ...workspace,
+    tableIds: selection.tableIds,
+    folderIds,
+    unresolvedFolders,
+    folderPathById,
+    resolveTargetFolderId: (target) =>
+      target === null ? null : resolveFolderPathFromIndex(resolution.index, target),
+  }
+}
+
+/**
+ * Presents one batch item under the caller's own folder keying: a path-keyed
+ * caller gets back the canonical path it named, never an id it has no way to
+ * use.
+ */
+function projectFolderItem(item: BulkTableItem, context: BulkTablesContext): BulkTableItem {
+  if (item.kind !== 'folder' || !context.folderPathById) return item
+  const path = context.folderPathById.get(item.id) ?? item.id
+  return { kind: 'folder', id: path, name: path }
+}
+
+/**
+ * Folds path-keyed entries that named no active folder into `notFound`, where
+ * an unresolvable id already lands.
+ */
+function withUnresolvedFolders<T extends BulkTablesOutcome>(
+  outcome: T,
+  context: BulkTablesContext
+): T {
+  if (context.unresolvedFolders.length === 0) return outcome
+  return {
+    ...outcome,
+    notFound: [
+      ...outcome.notFound,
+      ...context.unresolvedFolders.map((id) => ({ kind: 'folder' as const, id })),
+    ],
+  }
+}
+
+function projectBulkOutcome<T extends BulkTablesOutcome>(
+  outcome: T,
+  context: BulkTablesContext
+): T {
+  if (!context.folderPathById) return outcome
+  return {
+    ...outcome,
+    skipped: outcome.skipped.map((item) => projectFolderItem(item, context)),
+    notFound: outcome.notFound.map((item) =>
+      item.kind === 'folder'
+        ? { kind: 'folder' as const, id: context.folderPathById?.get(item.id) ?? item.id }
+        : item
+    ),
+    failed: outcome.failed.map((item) => ({
+      ...projectFolderItem(item, context),
+      reason: item.reason,
+    })),
   }
 }
 
@@ -208,6 +354,11 @@ export const bulkMoveTables = defineAuthorizedTableUseCase({
   resolveContext: ({ input }: { input: BulkMoveTablesInput }) =>
     resolveBulkTablesContext(input, BULK_MOVE_TABLES_COST_POLICY.maxItems),
   async execute({ principal, input, context }): Promise<BulkMoveTablesExecutionResult> {
+    const targetFolderId = context.resolveTargetFolderId(input.targetFolder)
+    if (targetFolderId === undefined) {
+      throw new OrchestrationError('not_found', 'Folder not found in this workspace')
+    }
+
     /**
      * The destination check and the folder plan read different rows and share
      * no data, so they overlap rather than serialize. Both still complete
@@ -215,7 +366,7 @@ export const bulkMoveTables = defineAuthorizedTableUseCase({
      * rather than leave half the selection moved.
      */
     const [, plan] = await Promise.all([
-      requireTableFolder(context.workspaceId, input.targetFolderId),
+      requireTableFolder(context.workspaceId, targetFolderId),
       planFolderSelection(context.workspaceId, TABLE_FOLDER_RESOURCE_TYPE, context.folderIds),
     ])
 
@@ -232,7 +383,7 @@ export const bulkMoveTables = defineAuthorizedTableUseCase({
      * created. Losing that race costs a reported per-folder `failed` alongside resources that
      * did move, which is the batch's documented `sequential_best_effort` outcome, not corruption.
      */
-    if (input.targetFolderId !== null && plan.covered.has(input.targetFolderId)) {
+    if (targetFolderId !== null && plan.covered.has(targetFolderId)) {
       throw new OrchestrationError(
         'validation',
         'Cannot move a folder into itself or one of its own subfolders'
@@ -254,7 +405,7 @@ export const bulkMoveTables = defineAuthorizedTableUseCase({
             await moveTableToFolder(
               canonical.table.id,
               context.workspaceId,
-              input.targetFolderId,
+              targetFolderId,
               generateRequestId(),
               { notify: false }
             )
@@ -271,7 +422,7 @@ export const bulkMoveTables = defineAuthorizedTableUseCase({
             workspaceBillingOwnerUserId: context.billedAccountUserId,
           }).attributedUserId,
           folders: plan.selected,
-          targetParentId: input.targetFolderId,
+          targetParentId: targetFolderId,
         })
         for (const folder of folders.succeeded) moved.push({ kind: 'folder', ...folder })
         for (const folder of folders.failed) outcome.failed.push({ kind: 'folder', ...folder })
@@ -285,15 +436,16 @@ export const bulkMoveTables = defineAuthorizedTableUseCase({
         failed: outcome.failed.length,
       })
       return {
-        moved,
-        ...outcome,
+        moved: moved.map((item) => projectFolderItem(item, context)),
+        targetFolderId,
+        ...withUnresolvedFolders(projectBulkOutcome(outcome, context), context),
         ...(terminalError !== undefined && { terminalFailure: { error: terminalError } }),
       }
     } finally {
       await notifyBatchedTableChanges(context.workspaceId, moved)
     }
   },
-  projectAudit: ({ input, result }) =>
+  projectAudit: ({ result }) =>
     result.moved.map((item) =>
       item.kind === 'folder'
         ? {
@@ -302,12 +454,12 @@ export const bulkMoveTables = defineAuthorizedTableUseCase({
             resourceId: item.id,
             resourceName: item.name,
             description:
-              input.targetFolderId === null
+              result.targetFolderId === null
                 ? `Moved table folder "${item.name}" to the workspace root`
                 : `Moved table folder "${item.name}" into another folder`,
             metadata: {
               folderResourceType: TABLE_FOLDER_RESOURCE_TYPE,
-              parentId: input.targetFolderId,
+              parentId: result.targetFolderId,
               bulk: true,
             },
           }
@@ -317,10 +469,10 @@ export const bulkMoveTables = defineAuthorizedTableUseCase({
             resourceId: item.id,
             resourceName: item.name,
             description:
-              input.targetFolderId === null
+              result.targetFolderId === null
                 ? `Moved table "${item.name}" to the workspace root`
                 : `Moved table "${item.name}" into a folder`,
-            metadata: { op: 'move', folderId: input.targetFolderId, bulk: true },
+            metadata: { op: 'move', folderId: result.targetFolderId, bulk: true },
           }
     ),
   afterSuccess: ({ result }) => {
@@ -393,9 +545,21 @@ export const bulkDeleteTables = defineAuthorizedTableUseCase({
         deletedItems,
       })
       return {
-        deleted,
+        deleted: deleted.map((item) => projectFolderItem(item, context)),
+        /**
+         * The same deletions still keyed by canonical id.
+         *
+         * `deleted` above is keyed for the caller, and on the path-keyed v2
+         * route `projectFolderItem` replaces a folder's id with its display
+         * path. Auditing from that list wrote the path into
+         * `FOLDER_DELETED.resourceId`, so the same action recorded a path here
+         * and an id from `DELETE /api/folders/[id]` — two spellings of one
+         * resource that no query could join. The projection stays a
+         * presentation concern; the audit reads the canonical ids.
+         */
+        auditedDeletions: deleted.map((item) => ({ ...item })),
         deletedItems,
-        ...outcome,
+        ...withUnresolvedFolders(projectBulkOutcome(outcome, context), context),
         ...(terminalError !== undefined && { terminalFailure: { error: terminalError } }),
       }
     } finally {
@@ -410,7 +574,7 @@ export const bulkDeleteTables = defineAuthorizedTableUseCase({
    * thousands of audit rows.
    */
   projectAudit: ({ result }) =>
-    result.deleted.map((item) =>
+    result.auditedDeletions.map((item) =>
       item.kind === 'folder'
         ? {
             action: AuditAction.FOLDER_DELETED,
