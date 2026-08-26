@@ -7002,7 +7002,7 @@
         },
         {
           "name": "Get Index Info",
-          "description": "Retrieve index information including settings, mappings, and aliases."
+          "description": "Retrieve index information including settings, mappings, and aliases. Accepts a comma-separated list of indices, data streams, and aliases, and supports wildcards."
         },
         {
           "name": "List Indices",

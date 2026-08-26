@@ -65,7 +65,6 @@ Search documents in Elasticsearch using Query DSL. Returns matching documents wi
 | `took` | number | Time in milliseconds the search took |
 | `timed_out` | boolean | Whether the search timed out |
 | `hits` | object | Search results with total count and matching documents |
-| `aggregations` | json | Aggregation results if any |
 
 ### Elasticsearch Index Document
 
@@ -287,7 +286,7 @@ Delete an index and all its documents. This operation is irreversible.
 
 ### Elasticsearch Get Index
 
-Retrieve index information including settings, mappings, and aliases.
+Retrieve index information including settings, mappings, and aliases. Accepts a comma-separated list of indices, data streams, and aliases, and supports wildcards.
 
 #### Input
 
@@ -300,7 +299,7 @@ Retrieve index information including settings, mappings, and aliases.
 | `apiKey` | string | No | Elasticsearch API key |
 | `username` | string | No | Username for basic auth |
 | `password` | string | No | Password for basic auth |
-| `index` | string | Yes | Index name to retrieve info for \(e.g., "products", "logs-2024"\) |
+| `index` | string | Yes | Index, data stream, or alias to retrieve info for. Accepts a comma-separated list and wildcards \(e.g., "products", "logs-2024", "logs-*", "a,b"\). |
 
 #### Output
 
@@ -310,6 +309,8 @@ Retrieve index information including settings, mappings, and aliases.
 | `aliases` | json | Aliases defined on the index |
 | `mappings` | json | Field mappings for the index |
 | `settings` | json | Index settings |
+| `indices` | json | Every matched index keyed by its resolved name, each with its aliases, mappings, settings, and any data_stream or lifecycle. Populated for single- and multi-target requests alike. |
+| `matchedCount` | number | How many indices, data streams, or aliases the target matched |
 
 ### Elasticsearch Cluster Health
 
@@ -327,7 +328,7 @@ Get the health status of the Elasticsearch cluster.
 | `username` | string | No | Username for basic auth |
 | `password` | string | No | Password for basic auth |
 | `waitForStatus` | string | No | Wait until cluster reaches this status: green, yellow, or red |
-| `esTimeout` | string | No | Elasticsearch wait timeout as a duration string \(e.g., 30s, 1m\). Named esTimeout because the executor reserves "timeout" for the transport deadline in milliseconds. |
+| `esTimeout` | string | No | Elasticsearch wait timeout as a duration string \(e.g., 30s, 1m\). A bare number is read as seconds. Named esTimeout because the executor reserves "timeout" for the transport deadline in milliseconds. |
 
 #### Output
 

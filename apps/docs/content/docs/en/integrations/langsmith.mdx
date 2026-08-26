@@ -149,10 +149,10 @@ Attach a score, correction, or comment to a LangSmith run.
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | LangSmith API key |
 | `runId` | string | Yes | ID of the run to attach feedback to |
-| `sessionId` | string | No | ID of the tracing project \(session\) the feedback belongs to. Optional today: LangSmith warns when it is omitted and will reject the request from 31 Jan 2027 on cloud \(self-hosted: deprecated in v0.16, removed in v0.18\). |
+| `sessionId` | string | No | UUID of the tracing project \(session\) the feedback belongs to. LangSmith documents this as required: "POST /api/v1/feedback now requires a session_id field in the request body. It was previously optional." Never guess it — supply the sessionId reported by a preceding langsmith_get_run for the same run, or look the project up with GET /api/v1/sessions. A wrong UUID is not validated against the run and mis-files the feedback silently. |
 | `key` | string | Yes | Feedback metric name \(e.g. "correctness", "user_score"\) |
 | `score` | number | No | Numeric score for the feedback metric |
-| `value` | json | No | Categorical value for the feedback metric. Accepts a string \("good"\), number, boolean, or JSON object. |
+| `value` | string | No | Categorical value for the feedback metric, e.g. "good". A JSON scalar or object typed here \("1", "true", \'\{"label":"good"\}\'\) is sent with its JSON type; anything else is sent as a string. |
 | `comment` | string | No | Free-text comment explaining the feedback |
 | `correction` | json | No | Corrected output for the run |
 | `feedbackSourceType` | string | No | Origin of the feedback \(api, app, or model\) |
@@ -165,7 +165,7 @@ Attach a score, correction, or comment to a LangSmith run.
 | `key` | string | Feedback metric name |
 | `runId` | string | ID of the run the feedback was attached to |
 | `score` | number | Score recorded for the feedback |
-| `value` | json | Categorical value recorded for the feedback \(string, number, boolean, or JSON object\) |
+| `value` | json | Categorical value recorded for the feedback. Declared as json because the response echoes LangSmith's own union — string, number, boolean, or JSON object — even though the input is typed as a string. |
 | `comment` | string | Comment recorded for the feedback |
 | `createdAt` | string | When the feedback was created \(ISO\) |
 

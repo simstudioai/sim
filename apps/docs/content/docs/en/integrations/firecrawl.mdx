@@ -159,8 +159,8 @@ Search for information on the web using Firecrawl
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `query` | string | Yes | The search query to use |
-| `limit` | number | No | Maximum number of results to return \(Firecrawl default: 10\) |
-| `sources` | array | No | Result sources to search. Defaults to \["web"\]. Results from every requested source are flattened into `data` in web, news, images order. |
+| `limit` | number | No | Maximum number of results to return per source type, not in total \(Firecrawl default: 10, maximum: 100\). Requesting three sources at limit 100 can return up to 300 results. |
+| `sources` | array | No | Result sources to search: "web", "news", and/or "images". Defaults to \["web"\]. Each requested source is returned as its own array under `data` — `data.web`, `data.news`, `data.images` — with its own item fields. |
 | `categories` | array | No | Restrict web results to these categories: "github", "research", or "pdf" |
 | `tbs` | string | No | Time-based search filter \(e.g. "qdr:d" for the past day, "qdr:w" for the past week\) |
 | `location` | string | No | Location to search from \(e.g. "Germany", "San Francisco, California"\) |
@@ -174,21 +174,13 @@ Search for information on the web using Firecrawl
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `data` | array | Search results data with scraped content and metadata |
-|   ↳ `title` | string | Search result title from search engine |
-|   ↳ `description` | string | Search result description/snippet from search engine |
+| `data` | object | Search results, grouped by the sources requested |
+|   ↳ `title` | string | Title from the search result |
+|   ↳ `description` | string | Description from the search result |
 |   ↳ `url` | string | URL of the search result |
-|   ↳ `markdown` | string | Page content in markdown \(when scrapeOptions.formats includes "markdown"\) |
-|   ↳ `html` | string | Processed HTML content \(when scrapeOptions.formats includes "html"\) |
-|   ↳ `rawHtml` | string | Unprocessed raw HTML \(when scrapeOptions.formats includes "rawHtml"\) |
-|   ↳ `links` | array | Links found on the page \(when scrapeOptions.formats includes "links"\) |
-|   ↳ `screenshot` | string | Screenshot URL \(expires after 24 hours, when scrapeOptions.formats includes "screenshot"\) |
-|   ↳ `metadata` | object | Metadata about the search result page |
-|     ↳ `title` | string | Page title |
-|     ↳ `description` | string | Page meta description |
-|     ↳ `sourceURL` | string | Original source URL |
-|     ↳ `statusCode` | number | HTTP status code |
-|     ↳ `error` | string | Error message if scrape failed |
+| `warning` | string | Warning message if any issues occurred during the search |
+| `id` | string | ID of the search job |
+| `creditsUsed` | number | Number of credits the search consumed |
 
 ### Firecrawl Crawl
 

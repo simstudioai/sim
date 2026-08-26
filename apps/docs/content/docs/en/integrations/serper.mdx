@@ -35,7 +35,7 @@ Integrate Serper into the workflow. Can search the web.
 
 ### Web Search
 
-Search Google through the Serper.dev API. Supports the web, news, places, images, videos, shopping, scholar, and patents verticals, and returns a flat list of results for the requested vertical with its type-specific metadata (date and source for news, rating, review count, address, category, phone, and website for places, image URLs for images, duration for videos, price for shopping).
+Search Google through the Serper.dev API. Supports the web, news, places, images, videos, shopping, scholar, and patents verticals, and returns a flat list of results for the requested vertical with its type-specific metadata (date and source for news, rating, review count, address, coordinates, category, phone, and website for places, image and thumbnail URLs for images, duration and channel for videos, price, delivery, and rating for shopping). The web vertical additionally returns the knowledge graph, "people also ask", and related searches when Google renders them.
 
 #### Input
 
@@ -52,21 +52,42 @@ Search Google through the Serper.dev API. Supports the web, news, places, images
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `searchResults` | array | Results for the requested vertical, with titles, links, snippets, and type-specific metadata \(date/source for news, rating/ratingCount/address/category/phoneNumber/website for places, imageUrl for images, duration/source for videos, price/source for shopping\). Places results have no link. |
+| `searchResults` | array | Results for the requested vertical, with titles, links, snippets, and type-specific metadata \(date/source for news, rating/ratingCount/address/latitude/longitude/category/phoneNumber/website for places, imageUrl/thumbnailUrl/source for images, duration/channel/source for videos, price/delivery/rating/ratingCount/source for shopping\). Places, images, and shopping results have no snippet; places results have no link. |
 |   ↳ `title` | string | Result title |
 |   ↳ `link` | string | Result URL. Absent for places results, which have no result URL |
-|   ↳ `snippet` | string | Result description/snippet \(the business description for places\) |
+|   ↳ `snippet` | string | Result description/snippet \(search/news/videos/scholar/patents\). The images, shopping, and places endpoints return no snippet |
 |   ↳ `position` | number | Position in search results |
 |   ↳ `date` | string | Publication date \(news/videos\) |
-|   ↳ `imageUrl` | string | Image URL \(images/news/shopping\) |
-|   ↳ `source` | string | Source name \(news/videos/shopping\) |
-|   ↳ `rating` | number | Average rating, 1-5 \(places\) |
-|   ↳ `ratingCount` | number | Number of ratings/reviews \(places\) |
+|   ↳ `imageUrl` | string | Image URL \(images/news/videos/shopping\) |
+|   ↳ `thumbnailUrl` | string | Thumbnail image URL \(images\) |
+|   ↳ `source` | string | Source name \(images/news/videos/shopping\) |
+|   ↳ `channel` | string | Publishing channel \(videos\) |
+|   ↳ `rating` | number | Average rating, 1-5 \(places/shopping\) |
+|   ↳ `ratingCount` | number | Number of ratings/reviews \(places/shopping\) |
 |   ↳ `address` | string | Address \(places\) |
+|   ↳ `latitude` | number | Latitude of the place \(places\) |
+|   ↳ `longitude` | number | Longitude of the place \(places\) |
 |   ↳ `category` | string | Primary category, e.g. "Coffee shop" \(places\) |
 |   ↳ `phoneNumber` | string | Contact phone number \(places\) |
 |   ↳ `website` | string | Business website URL \(places\) |
 |   ↳ `price` | string | Price \(shopping\) |
+|   ↳ `delivery` | string | Delivery/shipping cost as Google reports it \(shopping\) |
 |   ↳ `duration` | string | Duration \(videos\) |
+| `knowledgeGraph` | object | Google knowledge panel for the query. Only returned by the web search vertical, and only when Google renders a panel. |
+|   ↳ `title` | string | Entity name |
+|   ↳ `type` | string | Entity type, e.g. "Website" |
+|   ↳ `website` | string | Entity website URL |
+|   ↳ `imageUrl` | string | Entity image URL |
+|   ↳ `description` | string | Entity description |
+|   ↳ `descriptionSource` | string | Publication the description was taken from, e.g. "Wikipedia" |
+|   ↳ `descriptionLink` | string | URL of the description source |
+|   ↳ `attributes` | object | Key/value facts Google lists in the panel |
+| `peopleAlsoAsk` | array | Google "People also ask" entries. Only returned by the web search vertical, and only when Google renders the block. |
+|   ↳ `question` | string | The question asked |
+|   ↳ `snippet` | string | Answer snippet |
+|   ↳ `title` | string | Title of the answering page |
+|   ↳ `link` | string | URL of the answering page |
+| `relatedSearches` | array | Google "Related searches" queries. Only returned by the web search vertical, and only when Google renders the block. |
+|   ↳ `query` | string | The related query text |
 
 

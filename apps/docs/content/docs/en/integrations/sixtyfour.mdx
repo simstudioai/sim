@@ -101,7 +101,7 @@ Enrich lead information with contact details, social profiles, and company data 
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Sixtyfour API key |
 | `leadInfo` | string | Yes | Lead information as JSON object with key-value pairs \(e.g. name, company, title, linkedin\) |
-| `struct` | string | No | Optional fields to collect as JSON object. Keys are field names, values are descriptions \(e.g. \{"email": "The individual\'s email address", "phone": "Phone number"\}\). Omit to let Sixtyfour choose the fields. |
+| `struct` | string | No | Optional fields to collect as JSON object. Keys are field names, values are descriptions \(e.g. \{"email": "The individual\'s email address", "phone": "Phone number"\}\). Only the fields listed here are returned in structured_data — there is no default field set, so omitting this returns an empty structured_data and only the research notes, references, and confidence score. |
 | `researchPlan` | string | No | Optional research plan to guide enrichment strategy |
 | `tier` | string | No | Research depth and credit spend: micro, low, medium, high, or xhigh. Defaults to low when omitted; micro is cheaper than the default. |
 | `timeout` | number | No | Outbound request deadline in milliseconds. Defaults to SIXTYFOUR_ENRICH_TIMEOUT_MS because this endpoint is synchronous and long-running. |
