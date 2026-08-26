@@ -199,7 +199,7 @@ describe('presentV2TableDispatch', () => {
 
   /**
    * Withholding the filter must not also withhold the fact that there was one.
-   * A select-all dispatch has no `rowIds` either, so without `selectAll` the
+   * A filtered dispatch has no `rowIds` either, so without `filtered` the
    * response described it exactly like a run over every eligible row.
    */
   it('says a filtered scope is a filtered scope', () => {
@@ -208,11 +208,39 @@ describe('presentV2TableDispatch', () => {
         ...stored,
         scope: { groupIds: ['group-1'], filter: { status: 'open' }, excludeRowIds: ['row-9'] },
       }).scope
-    ).toEqual({ groupIds: ['group-1'], selectAll: true, excludeRowIds: ['row-9'] })
+    ).toEqual({ groupIds: ['group-1'], filtered: true, excludeRowIds: ['row-9'] })
   })
 
-  /** An unfiltered run is the one shape that really does mean every eligible row. */
-  it('leaves an unfiltered scope unmarked', () => {
+  /**
+   * The run rejects only `rowIds` *with* `excludeRowIds`, so exclusions with no
+   * filter are a scope a caller can really create, and the walk applies them.
+   * Reporting it as filtered would be false; reporting it bare would be the
+   * original bug, since it targets every eligible row *except* these.
+   */
+  it('reports exclusions that narrow an otherwise unfiltered run', () => {
+    expect(
+      presentV2TableDispatch({
+        ...stored,
+        scope: { groupIds: ['group-1'], excludeRowIds: ['row-9'] },
+      }).scope
+    ).toEqual({ groupIds: ['group-1'], excludeRowIds: ['row-9'] })
+  })
+
+  /**
+   * The walk ignores exclusions once a row list is given, so publishing them
+   * beside `rowIds` would describe a narrowing that never happens.
+   */
+  it('withholds exclusions the walk would ignore', () => {
+    expect(
+      presentV2TableDispatch({
+        ...stored,
+        scope: { groupIds: ['group-1'], rowIds: ['row-1'], excludeRowIds: ['row-9'] },
+      }).scope
+    ).toEqual({ groupIds: ['group-1'], rowIds: ['row-1'] })
+  })
+
+  /** Nothing narrowing it is the one shape that really does mean every eligible row. */
+  it('leaves an unnarrowed scope unmarked', () => {
     const scope = presentV2TableDispatch({ ...stored, scope: { groupIds: ['group-1'] } }).scope
     expect(scope).toEqual({ groupIds: ['group-1'] })
   })

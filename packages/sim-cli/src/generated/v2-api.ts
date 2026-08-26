@@ -752,7 +752,7 @@ type CancelTableDispatchResponseRef0 = {
   scope: {
     groupIds: Array<string>
     rowIds?: Array<string>
-    selectAll?: boolean
+    filtered?: boolean
     excludeRowIds?: Array<string>
   }
   limit: {
@@ -4268,7 +4268,7 @@ type GetTableDispatchResponseRef0 = {
   scope: {
     groupIds: Array<string>
     rowIds?: Array<string>
-    selectAll?: boolean
+    filtered?: boolean
     excludeRowIds?: Array<string>
   }
   limit: {
@@ -5871,7 +5871,7 @@ type ListTableDispatchesResponseRef0 = {
   scope: {
     groupIds: Array<string>
     rowIds?: Array<string>
-    selectAll?: boolean
+    filtered?: boolean
     excludeRowIds?: Array<string>
   }
   limit: {

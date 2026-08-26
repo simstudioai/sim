@@ -62,25 +62,32 @@ export function presentV2TableDispatch(dispatch: DispatchRow): V2TableRunDispatc
     status: dispatch.status === 'cancelled' ? 'canceled' : dispatch.status,
     mode: dispatch.mode,
     /**
-     * A select-all dispatch carries a compiled filter and an exclusion set
-     * instead of a row list, and the dispatcher runs both. Publishing only
-     * `groupIds` and `rowIds` described a filtered run exactly like an
-     * unfiltered one, so `rowIds: undefined` read as "every eligible row" for
-     * two scopes that target very different sets — and `POST` on this same path
-     * accepts `filter` and `excludeRowIds`, so a caller could create a scope
-     * this resource then denied having.
+     * A dispatch with no row list narrows what it walks by a compiled filter,
+     * an exclusion set, or both, and the dispatcher applies each independently.
+     * Publishing only `groupIds` and `rowIds` described all of those exactly
+     * like a run over every eligible row — and `POST` on this same path accepts
+     * `filter` and `excludeRowIds`, so a caller could create a scope this
+     * resource then denied having.
      *
      * The filter itself stays unpublished, with the scheduler `cursor` and the
-     * internal identities: it is stored compiled, in a different grammar from
-     * the predicate the request was written in, so returning it would publish
-     * an internal artifact under a name callers would read as their own input.
-     * `selectAll` names the distinction without claiming to reproduce it.
+     * internal identities: it is held compiled, in a different grammar from the
+     * predicate the request was written in, so returning it would publish an
+     * internal artifact under a name callers would read back as their own
+     * input. `filtered` names the distinction without claiming to reproduce it.
+     *
+     * The two narrowings are reported separately because they are separate: the
+     * run rejects only `rowIds` *with* `excludeRowIds`, so an exclusion set with
+     * no filter is a scope a caller can really create, and one flag covering
+     * both would have to call it either filtered (it is not) or unnarrowed (it
+     * is not). `excludeRowIds` mirrors the walk's own condition and is withheld
+     * where `rowIds` would make the dispatcher ignore it, so the scope reports
+     * what will actually happen.
      */
     scope: {
       groupIds: dispatch.scope.groupIds,
       ...(dispatch.scope.rowIds ? { rowIds: dispatch.scope.rowIds } : {}),
-      ...(dispatch.scope.filter ? { selectAll: true as const } : {}),
-      ...(dispatch.scope.excludeRowIds?.length
+      ...(dispatch.scope.filter ? { filtered: true as const } : {}),
+      ...(!dispatch.scope.rowIds?.length && dispatch.scope.excludeRowIds?.length
         ? { excludeRowIds: dispatch.scope.excludeRowIds }
         : {}),
     },
