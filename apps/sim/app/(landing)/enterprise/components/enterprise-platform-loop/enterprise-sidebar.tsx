@@ -32,6 +32,8 @@ const WORKSPACE_NAV = [
   { label: 'Logs', icon: Library },
 ] as const
 
+export type SidebarItem = 'New chat' | 'Integrations' | (typeof WORKSPACE_NAV)[number]['label']
+
 interface IconRowProps {
   icon: React.ComponentType<{ className?: string }>
   label: string
@@ -81,18 +83,13 @@ export interface EnterpriseSidebarProps {
   chats?: readonly string[]
   /** Deployed-workflow entries - five fill the design height. Defaults enterprise. */
   workflows?: readonly string[]
-  /**
-   * Workspace-nav row to render active (e.g. `'Tables'`) - the platform pages
-   * highlight their own module instead of New chat. Unset keeps the enterprise
-   * default (New chat active).
-   */
-  activeNav?: (typeof WORKSPACE_NAV)[number]['label']
+  /** Sidebar row to render active. Defaults to New chat. */
+  activeItem?: SidebarItem
 }
 
 /**
- * The Brightwave workspace sidebar, rendered live (the homepage loop keeps its
- * baked-screenshot sidebar; the enterprise loop draws its own so the content
- * can read like a large tenured deployment): the workspace header, New chat /
+ * The Brightwave workspace sidebar, rendered live across landing previews so
+ * every surface stays aligned with the product: the workspace header, New chat /
  * Integrations, a filled-out Chats history, the Workspace nav, a full
  * Workflows section, and the profile / Help footer. Purely decorative -
  * hover/click behavior is owned by the parent's `pointer-events-none` frame.
@@ -107,7 +104,7 @@ export const EnterpriseSidebar = memo(function EnterpriseSidebar({
   profileName = 'Morgan',
   chats = SIDEBAR_CHATS,
   workflows = SIDEBAR_WORKFLOWS,
-  activeNav,
+  activeItem = 'New chat',
 }: EnterpriseSidebarProps = {}) {
   return (
     <div className='flex h-full w-[238px] flex-shrink-0 flex-col bg-[var(--surface-1)] pt-3'>
@@ -137,8 +134,8 @@ export const EnterpriseSidebar = memo(function EnterpriseSidebar({
       </div>
 
       <div className='mt-4 flex flex-shrink-0 flex-col gap-[1px] px-2'>
-        <IconRow icon={Home} label='New chat' active={!activeNav} />
-        <IconRow icon={Integration} label='Integrations' />
+        <IconRow icon={Home} label='New chat' active={activeItem === 'New chat'} />
+        <IconRow icon={Integration} label='Integrations' active={activeItem === 'Integrations'} />
       </div>
 
       <div className='mt-4 flex flex-shrink-0 flex-col'>
@@ -158,7 +155,7 @@ export const EnterpriseSidebar = memo(function EnterpriseSidebar({
               key={item.label}
               icon={item.icon}
               label={item.label}
-              active={item.label === activeNav}
+              active={item.label === activeItem}
             />
           ))}
         </div>

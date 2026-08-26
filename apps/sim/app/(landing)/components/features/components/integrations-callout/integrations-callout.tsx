@@ -1,14 +1,10 @@
-import Image from 'next/image'
 import { CalloutFrame } from '@/app/(landing)/components/features/components/callout-frame'
+import { CapturedPlatformSurface } from '@/app/(landing)/components/features/components/captured-platform-surface'
 
 /**
- * The Integrate beat's callout - the REAL platform Integrations page as one
- * floating window: a full capture of the workspace UI (sidebar + Integrations
- * tab with the showcase mosaic, search, and Featured sections) taken by
- * `exports/readme-banner/capture-integrations-ui.mjs` at the hero shot's card
- * geometry (1280x735 @2x), framed by the shared {@link CalloutFrame} so it
- * wears the hero platform window's exact chrome (10px radius + layered
- * shadow).
+ * The Integrate beat's callout - the platform Integrations page as one
+ * floating window. The detailed page capture is paired with the shared live
+ * landing sidebar so its navigation and footer stay aligned with the product.
  *
  * The window is oversized (125% of the media stage, ~82% of the capture's
  * native scale) and anchored with visually EQUAL top and left insets
@@ -37,12 +33,10 @@ export function IntegrationsCallout() {
         className='absolute top-[14.4%] left-[9.6%] w-[125%]'
         bodyClassName='aspect-[1280/735]'
       >
-        <Image
+        <CapturedPlatformSurface
           src='/landing/feature-integrate-ui.png'
-          alt=''
-          fill
           sizes='(max-width: 1023px) 114vw, (max-width: 1460px) 109vw, 1053px'
-          className='object-cover'
+          activeItem='Integrations'
         />
       </CalloutFrame>
     </div>
