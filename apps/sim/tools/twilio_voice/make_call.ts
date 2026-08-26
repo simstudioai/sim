@@ -74,7 +74,7 @@ export const makeCallTool: ToolConfig<TwilioMakeCallParams, TwilioCallOutput> = 
       visibility: 'user-only',
       description: 'Webhook URL for recording status updates',
     },
-    timeout: {
+    callTimeout: {
       type: 'number',
       required: false,
       visibility: 'user-only',
@@ -155,8 +155,8 @@ export const makeCallTool: ToolConfig<TwilioMakeCallParams, TwilioCallOutput> = 
       if (params.recordingStatusCallback) {
         formData.append('RecordingStatusCallback', params.recordingStatusCallback)
       }
-      if (params.timeout) {
-        formData.append('Timeout', Number(params.timeout).toString())
+      if (params.callTimeout) {
+        formData.append('Timeout', Number(params.callTimeout).toString())
       }
       if (params.machineDetection) {
         formData.append('MachineDetection', params.machineDetection)

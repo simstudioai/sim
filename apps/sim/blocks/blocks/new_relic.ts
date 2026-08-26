@@ -285,9 +285,15 @@ Return ONLY the numeric timestamp - no explanations, no extra text.`,
     config: {
       tool: (params) => String(params.operation || 'new_relic_nrql_query'),
       params: (params) => {
+        /**
+         * `timeout` is reserved by the tool request transport as the outbound fetch
+         * deadline in milliseconds, so the seconds-valued subBlock is remapped onto a
+         * tool-specific parameter and cleared here to keep it off the transport.
+         */
         const baseParams = {
           apiKey: params.apiKey,
           region: params.region || 'us',
+          timeout: undefined,
         }
 
         switch (params.operation) {
@@ -296,7 +302,7 @@ Return ONLY the numeric timestamp - no explanations, no extra text.`,
               ...baseParams,
               accountId: Number(params.accountId),
               nrql: params.nrql,
-              timeout: params.timeout ? Number(params.timeout) : undefined,
+              queryTimeout: params.timeout ? Number(params.timeout) : undefined,
             }
 
           case 'new_relic_search_entities':

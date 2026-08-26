@@ -46,7 +46,7 @@ export const daytonaExecuteCommandTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Environment variables to set for the command as key-value pairs',
     },
-    timeout: {
+    commandTimeout: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
@@ -68,7 +68,7 @@ export const daytonaExecuteCommandTool: ToolConfig<
       if (params.cwd) body.cwd = params.cwd
       const envs = transformTable(params.env ?? null)
       if (Object.keys(envs).length > 0) body.envs = envs
-      const timeout = toOptionalNumber(params.timeout)
+      const timeout = toOptionalNumber(params.commandTimeout)
       if (timeout !== undefined) body.timeout = timeout
       return body
     },

@@ -488,7 +488,7 @@ export interface TriggerDevExecuteQueryParams extends TriggerDevBaseParams {
 }
 
 export interface TriggerDevCreateWaitpointTokenParams extends TriggerDevBaseParams {
-  timeout?: string
+  tokenTimeout?: string
   idempotencyKey?: string
   idempotencyKeyTTL?: string
   tags?: string

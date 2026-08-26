@@ -27,7 +27,7 @@ export interface RunActorParams {
   waitForFinish?: number // For async tool: 0-60 seconds initial wait
   itemLimit?: number // For async tool: 1-250000 items, default 100
   memory?: number // Memory in MB (128-32768)
-  timeout?: number // Timeout in seconds
+  actorTimeout?: number // Timeout in seconds
   build?: string // Actor build to run (e.g., "latest", "beta", build tag/number)
 }
 
@@ -46,7 +46,7 @@ export interface RunTaskParams {
   taskId: string
   input?: string
   memory?: number
-  timeout?: number
+  taskTimeout?: number
   build?: string
   itemLimit?: number
 }

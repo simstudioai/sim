@@ -1006,6 +1006,13 @@ Return ONLY the valid JSON object - no explanations, no markdown.`,
           scoped(params.version, ['trigger_dev_list_runs']) ??
           scoped(params.deploymentVersion, ['trigger_dev_promote_deployment'])
         result.data = scoped(params.waitpointData, ['trigger_dev_complete_waitpoint_token'])
+        /**
+         * `timeout` is reserved by the tool request transport as the outbound fetch
+         * deadline in milliseconds, so the waitpoint duration subBlock is remapped onto a
+         * tool-specific parameter and cleared here to keep it off the transport.
+         */
+        result.timeout = undefined
+        result.tokenTimeout = scoped(params.timeout, ['trigger_dev_create_waitpoint_token'])
         result.period = scoped(params.period, CREATED_AT_FILTER_OPERATIONS)
         result.from = scoped(params.from, CREATED_AT_FILTER_OPERATIONS)
         result.to = scoped(params.to, CREATED_AT_FILTER_OPERATIONS)

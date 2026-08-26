@@ -455,6 +455,13 @@ export const DaytonaBlock: BlockConfig = {
 
         const baseParams: Record<string, unknown> = { apiKey }
 
+        /**
+         * `timeout` is reserved by the tool request transport as the outbound fetch
+         * deadline in milliseconds, so the seconds-valued subBlock is remapped onto a
+         * tool-specific parameter and cleared here to keep it off the transport.
+         */
+        baseParams.timeout = undefined
+
         if (SANDBOX_SCOPED_OPERATIONS.includes(operation)) {
           baseParams.sandboxId = rest.sandboxId
         }
@@ -488,7 +495,7 @@ export const DaytonaBlock: BlockConfig = {
             baseParams.language = rest.language
             if (rest.runEnv) baseParams.env = rest.runEnv
             if (rest.timeout !== undefined && rest.timeout !== '') {
-              baseParams.timeout = Number(rest.timeout)
+              baseParams.runTimeout = Number(rest.timeout)
             }
             break
           case 'execute_command':
@@ -496,7 +503,7 @@ export const DaytonaBlock: BlockConfig = {
             if (rest.cwd) baseParams.cwd = rest.cwd
             if (rest.runEnv) baseParams.env = rest.runEnv
             if (rest.timeout !== undefined && rest.timeout !== '') {
-              baseParams.timeout = Number(rest.timeout)
+              baseParams.commandTimeout = Number(rest.timeout)
             }
             break
           case 'upload_file': {

@@ -53,7 +53,7 @@ export const apifyRunActorAsyncTool: ToolConfig<RunActorParams, RunActorResult> 
       description:
         'Memory in megabytes allocated for the actor run (128-32768). Example: 1024 for 1GB, 2048 for 2GB',
     },
-    timeout: {
+    actorTimeout: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
@@ -81,8 +81,8 @@ export const apifyRunActorAsyncTool: ToolConfig<RunActorParams, RunActorResult> 
       if (params.memory) {
         queryParams.set('memory', params.memory.toString())
       }
-      if (params.timeout) {
-        queryParams.set('timeout', params.timeout.toString())
+      if (params.actorTimeout) {
+        queryParams.set('timeout', params.actorTimeout.toString())
       }
       if (params.build) {
         queryParams.set('build', params.build)

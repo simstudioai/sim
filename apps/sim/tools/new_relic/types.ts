@@ -10,7 +10,7 @@ export interface NewRelicBaseParams {
 export interface NewRelicNrqlQueryParams extends NewRelicBaseParams {
   accountId: number
   nrql: string
-  timeout?: number
+  queryTimeout?: number
 }
 
 export interface NewRelicNrqlQueryResponse extends ToolResponse {

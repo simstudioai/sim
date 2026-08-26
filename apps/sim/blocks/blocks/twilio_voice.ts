@@ -348,8 +348,15 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
 
         const baseParams = { ...rest }
 
+        /**
+         * `timeout` is reserved by the tool request transport as the outbound fetch
+         * deadline in milliseconds, so the seconds-valued subBlock is remapped onto a
+         * tool-specific parameter and cleared here to keep it off the transport.
+         */
+        baseParams.timeout = undefined
+
         if (operation === 'make_call' && timeout) {
-          baseParams.timeout = Number.parseInt(timeout, 10)
+          baseParams.callTimeout = Number.parseInt(timeout, 10)
         }
 
         if (operation === 'make_call' && record !== undefined && record !== null) {

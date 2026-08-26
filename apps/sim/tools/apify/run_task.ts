@@ -40,7 +40,7 @@ export const apifyRunTaskTool: ToolConfig<RunTaskParams, RunTaskResult> = {
       visibility: 'user-or-llm',
       description: 'Memory in megabytes allocated for the run (128-32768). Example: 1024 for 1GB',
     },
-    timeout: {
+    taskTimeout: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
@@ -67,8 +67,8 @@ export const apifyRunTaskTool: ToolConfig<RunTaskParams, RunTaskResult> = {
       if (params.memory) {
         queryParams.set('memory', params.memory.toString())
       }
-      if (params.timeout) {
-        queryParams.set('timeout', params.timeout.toString())
+      if (params.taskTimeout) {
+        queryParams.set('timeout', params.taskTimeout.toString())
       }
       if (params.build) {
         queryParams.set('build', params.build)

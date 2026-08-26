@@ -49,7 +49,7 @@ export const newRelicNrqlQueryTool: ToolConfig<NewRelicNrqlQueryParams, NewRelic
         visibility: 'user-or-llm',
         description: 'NRQL query to execute',
       },
-      timeout: {
+      queryTimeout: {
         type: 'number',
         required: false,
         visibility: 'user-or-llm',
@@ -62,7 +62,9 @@ export const newRelicNrqlQueryTool: ToolConfig<NewRelicNrqlQueryParams, NewRelic
       method: 'POST',
       headers: (params) => newRelicHeaders(params.apiKey),
       body: (params) => {
-        const timeout = params.timeout ? `, timeout: ${Math.trunc(Number(params.timeout))}` : ''
+        const timeout = params.queryTimeout
+          ? `, timeout: ${Math.trunc(Number(params.queryTimeout))}`
+          : ''
         return {
           query: `{
   actor {

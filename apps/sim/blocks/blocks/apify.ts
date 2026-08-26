@@ -231,7 +231,17 @@ Return ONLY the valid JSON object - no explanations, no markdown.`,
         if (rest.build) result.build = rest.build
         if (rest.fields) result.fields = rest.fields
         if (rest.memory) result.memory = Number(rest.memory)
-        if (rest.timeout) result.timeout = Number(rest.timeout)
+        /**
+         * `timeout` is reserved by the tool request transport as the outbound fetch
+         * deadline in milliseconds, so the seconds-valued subBlock is remapped onto a
+         * tool-specific parameter and cleared here to keep it off the transport.
+         */
+        result.timeout = undefined
+        if (rest.timeout) {
+          const timeoutSeconds = Number(rest.timeout)
+          if (operation === 'apify_run_task') result.taskTimeout = timeoutSeconds
+          else result.actorTimeout = timeoutSeconds
+        }
         if (rest.waitForFinish) result.waitForFinish = Number(rest.waitForFinish)
         if (rest.itemLimit) result.itemLimit = Number(rest.itemLimit)
         if (rest.offset !== undefined && rest.offset !== null && rest.offset !== '')

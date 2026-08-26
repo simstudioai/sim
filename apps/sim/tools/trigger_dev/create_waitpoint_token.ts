@@ -26,7 +26,7 @@ export const triggerDevCreateWaitpointTokenTool: ToolConfig<
       visibility: 'user-only',
       description: 'Trigger.dev secret API key (starts with tr_)',
     },
-    timeout: {
+    tokenTimeout: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
@@ -61,7 +61,7 @@ export const triggerDevCreateWaitpointTokenTool: ToolConfig<
     headers: (params) => buildTriggerDevHeaders(params.apiKey),
     body: (params) => {
       const body: Record<string, unknown> = {}
-      if (params.timeout) body.timeout = params.timeout
+      if (params.tokenTimeout) body.timeout = params.tokenTimeout
       if (params.idempotencyKey) body.idempotencyKey = params.idempotencyKey
       if (params.idempotencyKeyTTL) body.idempotencyKeyTTL = params.idempotencyKeyTTL
       if (params.tags) {
