@@ -2564,7 +2564,11 @@ export const document = pgTable(
      * this column existed.
      */
     processingQueuedAt: timestamp('processing_queued_at'),
+    /** Opaque dispatch generation; NULL identifies payloads created before token rollout. */
+    processingQueueToken: text('processing_queue_token'),
     processingStartedAt: timestamp('processing_started_at'),
+    /** Scheduled execution time of an accepted durable quota continuation. */
+    processingDeferredUntil: timestamp('processing_deferred_until'),
     processingCompletedAt: timestamp('processing_completed_at'),
     processingError: text('processing_error'),
 
@@ -4431,6 +4435,7 @@ export const knowledgeConnectorSyncLog = pgTable(
     docsUpdated: integer('docs_updated').notNull().default(0),
     docsDeleted: integer('docs_deleted').notNull().default(0),
     docsUnchanged: integer('docs_unchanged').notNull().default(0),
+    docsSkipped: integer('docs_skipped').notNull().default(0),
     docsFailed: integer('docs_failed').notNull().default(0),
     errorMessage: text('error_message'),
   },

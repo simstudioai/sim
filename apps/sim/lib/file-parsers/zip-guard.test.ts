@@ -3,7 +3,7 @@
  */
 import JSZip from 'jszip'
 import { describe, expect, it } from 'vitest'
-import { ZipBombError } from '@/lib/file-parsers/ooxml-limits'
+import { ArchiveIntegrityError, ZipBombError } from '@/lib/file-parsers/ooxml-limits'
 import { assertOoxmlArchiveWithinLimits, type OoxmlSizeLimits } from '@/lib/file-parsers/zip-guard'
 
 const HIGH_LIMITS: OoxmlSizeLimits = {
@@ -30,6 +30,24 @@ async function buildZip(
 
 const CENTRAL_DIRECTORY_HEADER_SIGNATURE = 0x02014b50
 const LOCAL_FILE_HEADER_SIGNATURE = 0x04034b50
+
+function buildCentralDirectoryOnly(entryCount: number, extraFieldBytesPerEntry = 0): Buffer {
+  const recordSize = 46 + extraFieldBytesPerEntry
+  const centralDirectory = Buffer.alloc(recordSize * entryCount)
+  for (let index = 0; index < entryCount; index++) {
+    const offset = index * recordSize
+    centralDirectory.writeUInt32LE(CENTRAL_DIRECTORY_HEADER_SIGNATURE, offset)
+    centralDirectory.writeUInt16LE(extraFieldBytesPerEntry, offset + 30)
+  }
+
+  const eocd = Buffer.alloc(22)
+  eocd.writeUInt32LE(0x06054b50, 0)
+  eocd.writeUInt16LE(entryCount, 8)
+  eocd.writeUInt16LE(entryCount, 10)
+  eocd.writeUInt32LE(centralDirectory.length, 12)
+  eocd.writeUInt32LE(0, 16)
+  return Buffer.concat([centralDirectory, eocd])
+}
 
 /**
  * Rewrite every declared uncompressed size — in both the central directory and
@@ -89,6 +107,22 @@ describe('assertOoxmlArchiveWithinLimits', () => {
   it('accepts a well-formed archive within limits', async () => {
     const buffer = await buildZip({ 'word/document.xml': '<xml>hello world</xml>' })
     expect(() => assertOoxmlArchiveWithinLimits(buffer, HIGH_LIMITS)).not.toThrow()
+  })
+
+  it('rejects a small archive with an excessive central-directory object count', () => {
+    const buffer = buildCentralDirectoryOnly(10_001)
+
+    expect(() => assertOoxmlArchiveWithinLimits(buffer)).toThrow(
+      /10001 entries, exceeding the maximum allowed 10000/
+    )
+  })
+
+  it('rejects excessive central-directory extra-field metadata', () => {
+    const buffer = buildCentralDirectoryOnly(65, 65_535)
+
+    expect(() => assertOoxmlArchiveWithinLimits(buffer)).toThrow(
+      /central-directory metadata .* exceeds the maximum allowed 4194304 bytes/
+    )
   })
 
   it('rejects an archive whose declared expanded size exceeds the absolute cap', async () => {
@@ -202,7 +236,7 @@ describe('assertOoxmlArchiveWithinLimits', () => {
   it('fails closed for a ZIP-shaped buffer whose central directory is unparseable', () => {
     const buffer = Buffer.alloc(64)
     buffer.writeUInt32LE(0x04034b50, 0) // local file header signature, no valid EOCD
-    expect(() => assertOoxmlArchiveWithinLimits(buffer)).toThrow(ZipBombError)
+    expect(() => assertOoxmlArchiveWithinLimits(buffer)).toThrow(ArchiveIntegrityError)
   })
 
   it('rejects a decoy EOCD signature that does not validate against the buffer tail', async () => {
@@ -213,7 +247,7 @@ describe('assertOoxmlArchiveWithinLimits', () => {
     const decoy = Buffer.alloc(64)
     decoy.writeUInt32LE(0x06054b50, 0)
     const tampered = Buffer.concat([realZip, decoy])
-    expect(() => assertOoxmlArchiveWithinLimits(tampered)).toThrow(ZipBombError)
+    expect(() => assertOoxmlArchiveWithinLimits(tampered)).toThrow(ArchiveIntegrityError)
   })
 
   it('rejects an archive that under-declares its uncompressed size', async () => {
@@ -222,7 +256,7 @@ describe('assertOoxmlArchiveWithinLimits', () => {
     const honest = await buildZip({ 'word/document.xml': 'A'.repeat(200_000) })
     const lying = underDeclareSizes(honest, 1000)
 
-    expect(() => assertOoxmlArchiveWithinLimits(lying, HIGH_LIMITS)).toThrow(ZipBombError)
+    expect(() => assertOoxmlArchiveWithinLimits(lying, HIGH_LIMITS)).toThrow(ArchiveIntegrityError)
     expect(() => assertOoxmlArchiveWithinLimits(lying, HIGH_LIMITS)).toThrow(
       /inflates beyond the 1000 bytes it declares/
     )
@@ -259,7 +293,7 @@ describe('assertOoxmlArchiveWithinLimits', () => {
     const honest = await buildZip({ 'xl/worksheets/sheet1.xml': 'A'.repeat(200_000) })
     const split = setCompressionMethod(honest, 0, 'central')
 
-    expect(() => assertOoxmlArchiveWithinLimits(split, HIGH_LIMITS)).toThrow(ZipBombError)
+    expect(() => assertOoxmlArchiveWithinLimits(split, HIGH_LIMITS)).toThrow(ArchiveIntegrityError)
     expect(() => assertOoxmlArchiveWithinLimits(split, HIGH_LIMITS)).toThrow(
       /compression method 0 centrally but 8 locally/
     )

@@ -1,6 +1,7 @@
 import fs from 'fs/promises'
 import path from 'path'
 import { createLogger } from '@sim/logger'
+import { ChunkBudget } from '@/lib/chunkers/chunk-budget'
 import { TextChunker } from '@/lib/chunkers/text-chunker'
 import type { DocChunk, DocsChunkerOptions } from '@/lib/chunkers/types'
 import { estimateTokens } from '@/lib/chunkers/utils'
@@ -64,9 +65,11 @@ export class DocsChunker {
   private readonly textChunker: TextChunker
   private readonly baseUrl: string
   private readonly chunkSize: number
+  private readonly maxChunks?: number
 
   constructor(options: DocsChunkerOptions = {}) {
     this.chunkSize = options.chunkSize ?? 300
+    this.maxChunks = options.maxChunks
     this.textChunker = new TextChunker({
       chunkSize: this.chunkSize,
       minCharactersPerChunk: options.minCharactersPerChunk ?? 1,
@@ -395,12 +398,17 @@ export class DocsChunker {
 
   private enforceSizeLimit(chunks: string[]): string[] {
     const finalChunks: string[] = []
+    const budget = new ChunkBudget(this.maxChunks)
+    const addFinalChunk = (chunk: string): void => {
+      const normalized = chunk.trim()
+      if (normalized.length > 100) budget.add(finalChunks, normalized)
+    }
 
     for (const chunk of chunks) {
       const tokens = estimateTokens(chunk)
 
       if (tokens <= this.chunkSize) {
-        finalChunks.push(chunk)
+        addFinalChunk(chunk)
       } else {
         const lines = chunk.split('\n')
         let currentChunk = ''
@@ -412,18 +420,18 @@ export class DocsChunker {
             currentChunk = testChunk
           } else {
             if (currentChunk.trim()) {
-              finalChunks.push(currentChunk.trim())
+              addFinalChunk(currentChunk)
             }
             currentChunk = line
           }
         }
 
         if (currentChunk.trim()) {
-          finalChunks.push(currentChunk.trim())
+          addFinalChunk(currentChunk)
         }
       }
     }
 
-    return finalChunks.filter((chunk) => chunk.trim().length > 100)
+    return finalChunks
   }
 }

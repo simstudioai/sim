@@ -208,6 +208,14 @@ describe('retryDocumentProcessing requeue guard', () => {
           node.values.join(',') === 'completed,failed'
       )
     ).toBe(true)
+    const reset = dbChainMockFns.set.mock.calls.find(
+      (call) => (call[0] as Record<string, unknown> | undefined)?.processingStatus === 'pending'
+    )
+    expect(reset?.[0]).toMatchObject({
+      processingQueuedAt: null,
+      processingQueueToken: null,
+    })
+    expect(reset?.[0]).not.toHaveProperty('processingAttempts')
   })
 
   it('also requeues a pending document whose dispatch is certainly lost', async () => {
@@ -257,6 +265,23 @@ describe('retryDocumentProcessing requeue guard', () => {
       expect((fragment.values[2] as { value: Date }).value).toEqual(
         new Date(now.getTime() - QUEUED_DISPATCH_GRACE_MS)
       )
+      expect(
+        hasBranch(
+          statusGuard(),
+          (node: MockCondition) =>
+            node.type === 'isNull' && node.column === schemaMock.document.processingDeferredUntil
+        )
+      ).toBe(true)
+      expect(
+        hasBranch(
+          statusGuard(),
+          (node: MockCondition) =>
+            node.type === 'lt' &&
+            node.left === schemaMock.document.processingDeferredUntil &&
+            node.right instanceof Date &&
+            node.right.getTime() === now.getTime() - QUEUED_DISPATCH_GRACE_MS
+        )
+      ).toBe(true)
     } finally {
       vi.useRealTimers()
     }
@@ -275,6 +300,8 @@ describe('retryDocumentProcessing requeue guard', () => {
       processingStatus: 'pending' as const,
       processingQueuedAt: null,
       processingStartedAt: null,
+      processingDeferredUntil: null,
+      processingCompletedAt: null,
       uploadedAt,
     }
 
@@ -294,7 +321,8 @@ describe('retryDocumentProcessing requeue guard', () => {
     // No dispatch means no queue stamp was written either.
     expect(
       dbChainMockFns.set.mock.calls.some(
-        (call) => (call[0] as Record<string, unknown> | undefined)?.processingQueuedAt !== undefined
+        (call) =>
+          (call[0] as Record<string, unknown> | undefined)?.processingQueuedAt instanceof Date
       )
     ).toBe(false)
   })
@@ -372,5 +400,22 @@ describe('retryDocumentProcessing dispatch unwind', () => {
     // never be indexed.
     expect(result.message).not.toContain('retry processing started')
     expect(result.status).toBe('failed')
+  })
+
+  it('records and reports a returned zero-acceptance queue-admission result', async () => {
+    dbChainMockFns.returning
+      .mockResolvedValueOnce([{ id: 'doc-1' }])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+    dbChainMockFns.limit.mockResolvedValue([{ userId: 'user-1', workspaceId: null }])
+
+    const result = await retryDocumentProcessing('kb-1', 'doc-1', DOC_DATA, 'req-1', undefined)
+
+    expect(result).toMatchObject({ success: false, status: 'failed' })
+    expect(result.message).toContain('was not accepted')
+    const failedWrite = dbChainMockFns.set.mock.calls.find(
+      (call) => (call[0] as Record<string, unknown> | undefined)?.processingStatus === 'failed'
+    )
+    expect(failedWrite).toBeDefined()
   })
 })

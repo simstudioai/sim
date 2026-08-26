@@ -90,7 +90,23 @@ const defaultOAuthResponse = {
  */
 function withMockFetch<T>(mockFetch: ReturnType<typeof vi.fn>, fn: () => Promise<T>): Promise<T> {
   const originalFetch = global.fetch
-  global.fetch = mockFetch
+  global.fetch = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+    const mocked = (await mockFetch(input, init)) as Partial<Response>
+    if (mocked instanceof Response && mocked.body) return mocked
+
+    let bodyText = ''
+    if (typeof mocked.text === 'function') {
+      bodyText = await mocked.text()
+    } else if (typeof mocked.json === 'function') {
+      bodyText = JSON.stringify(await mocked.json())
+    }
+
+    return new Response(bodyText, {
+      status: mocked.status ?? 200,
+      statusText: mocked.statusText,
+      headers: mocked.headers,
+    })
+  })
   return fn().finally(() => {
     global.fetch = originalFetch
   })
@@ -665,6 +681,62 @@ describe('OAuth Token Refresh', () => {
       }
     })
 
+    it.concurrent(
+      'should redact literal and encoded credentials echoed by a provider',
+      async () => {
+        const refreshToken = 'refresh/with space'
+        const formEncodedRefreshToken = new URLSearchParams({ value: refreshToken })
+          .toString()
+          .slice('value='.length)
+        const mockFetch = vi
+          .fn()
+          .mockResolvedValue(
+            new Response(
+              `provider echo: ${refreshToken}, ${encodeURIComponent(refreshToken)}, ${formEncodedRefreshToken}, and google_client_secret`,
+              { status: 400 }
+            )
+          )
+
+        const result = await withMockFetch(mockFetch, () =>
+          refreshOAuthToken('google', refreshToken)
+        )
+
+        expect(result.ok).toBe(false)
+        if (!result.ok) {
+          expect(result.message).not.toContain(refreshToken)
+          expect(result.message).not.toContain(encodeURIComponent(refreshToken))
+          expect(result.message).not.toContain(formEncodedRefreshToken)
+          expect(result.message).not.toContain('google_client_secret')
+        }
+      }
+    )
+
+    it.concurrent('should redact a secret from a successful HTTP body error', async () => {
+      const refreshToken = 'slack-refresh-secret'
+      const mockFetch = vi
+        .fn()
+        .mockResolvedValue(Response.json({ ok: false, error: `invalid_${refreshToken}` }))
+
+      const result = await withMockFetch(mockFetch, () => refreshOAuthToken('slack', refreshToken))
+
+      expect(result.ok).toBe(false)
+      if (!result.ok) {
+        expect(result.message).not.toContain(refreshToken)
+        expect(result.errorCode).toBeUndefined()
+      }
+    })
+
+    it.concurrent('uses canonical endpoints without following credential redirects', async () => {
+      const mockFetch = createMockFetch(defaultOAuthResponse)
+
+      await withMockFetch(mockFetch, () => refreshOAuthToken('google', 'test_refresh_token'))
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({ redirect: 'error' })
+      )
+    })
+
     it.concurrent('should return failure for network errors', async () => {
       const mockFetch = vi.fn().mockRejectedValue(new Error('Network error'))
       const refreshToken = 'test_refresh_token'
@@ -673,9 +745,40 @@ describe('OAuth Token Refresh', () => {
 
       expect(result.ok).toBe(false)
     })
+
+    it.concurrent(
+      'should reject oversized OAuth error responses without materializing them',
+      async () => {
+        const mockFetch = vi
+          .fn()
+          .mockResolvedValue(
+            new Response('x'.repeat(DEFAULT_MAX_ERROR_BODY_BYTES + 1), { status: 400 })
+          )
+
+        const result = await withMockFetch(mockFetch, () =>
+          refreshOAuthToken('google', 'test_refresh_token')
+        )
+
+        expect(result.ok).toBe(false)
+        if (!result.ok) expect(result.message).toContain('exceeds maximum size')
+      }
+    )
   })
 
   describe('Token Response Handling', () => {
+    it.concurrent('should bound successful token responses before parsing them', async () => {
+      const mockFetch = vi
+        .fn()
+        .mockResolvedValue(new Response('x'.repeat(DEFAULT_MAX_ERROR_BODY_BYTES + 1)))
+
+      const result = await withMockFetch(mockFetch, () =>
+        refreshOAuthToken('google', 'test_refresh_token')
+      )
+
+      expect(result.ok).toBe(false)
+      if (!result.ok) expect(result.message).toContain('exceeds maximum size')
+    })
+
     it.concurrent('should handle providers that return new refresh tokens', async () => {
       const refreshToken = 'old_refresh_token'
       const newRefreshToken = 'new_refresh_token'

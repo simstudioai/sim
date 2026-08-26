@@ -16,6 +16,7 @@ import {
 } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { FileParserError } from '@/lib/file-parsers/errors'
 
 const {
   mockVerifyFileAccess,
@@ -308,6 +309,30 @@ describe('File Parse API Route', () => {
     expect(response.status).toBe(200)
     expect(data.success).toBe(true)
     expect(data.output.content).toBe('plain text content')
+  })
+
+  it('should reject parser complexity limits instead of returning raw text', async () => {
+    setupFileApiMocks({
+      cloudEnabled: true,
+      storageProvider: 's3',
+      authenticated: true,
+    })
+    storageServiceMockFns.mockDownloadFile.mockResolvedValue(Buffer.from('{"value":true}'))
+    mockParseBuffer.mockRejectedValueOnce(
+      new FileParserError('complexity_limit', 'JSON document exceeds the complexity limit')
+    )
+
+    const req = createMockRequest('POST', {
+      filePath: '/api/files/serve/execution/workspace-1/workflow-1/execution-1/data.json',
+    })
+
+    const response = await POST(req)
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data.success).toBe(false)
+    expect(data.error).toContain('complexity limit')
+    expect(data).not.toHaveProperty('output')
   })
 
   it('should handle multiple files', async () => {

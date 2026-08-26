@@ -5278,6 +5278,13 @@
             "maximum": 9007199254740991,
             "description": "Documents unchanged."
           },
+          "docsSkipped": {
+            "default": 0,
+            "description": "Documents intentionally skipped because they could not be indexed safely.",
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
           "docsFailed": {
             "type": "integer",
             "minimum": 0,
@@ -5306,6 +5313,7 @@
           "docsUpdated",
           "docsDeleted",
           "docsUnchanged",
+          "docsSkipped",
           "docsFailed",
           "errorMessage"
         ],

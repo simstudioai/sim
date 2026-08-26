@@ -27,6 +27,8 @@ export interface EmbeddingModelInfo {
   pricingId: string
   /** Provider id for `estimateTokenCount` so token counts match the embedding provider's tokenization. */
   tokenizerProvider: TokenizerProviderId
+  /** Maximum tokens accepted for one embedding input by the selected model. */
+  maxInputTokens: number
 }
 
 export const SUPPORTED_EMBEDDING_MODELS: Partial<Record<string, EmbeddingModelInfo>> =
@@ -39,6 +41,7 @@ export const SUPPORTED_EMBEDDING_MODELS: Partial<Record<string, EmbeddingModelIn
           provider: info.provider,
           pricingId: info.pricingId,
           tokenizerProvider: info.tokenizerProvider,
+          maxInputTokens: info.maxInputTokens,
         },
       ]
     })
