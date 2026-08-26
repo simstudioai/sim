@@ -3,6 +3,7 @@ import type {
   AlgoliaDeleteByFilterResponse,
 } from '@/tools/algolia/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const deleteByFilterTool: ToolConfig<
   AlgoliaDeleteByFilterParams,
@@ -85,7 +86,7 @@ export const deleteByFilterTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://${params.applicationId}.algolia.net/1/indexes/${encodeURIComponent(params.indexName.trim())}/deleteByQuery`,
+      `https://${params.applicationId}.algolia.net/1/indexes/${safeUrlPathSegment(params.indexName, 'indexName')}/deleteByQuery`,
     method: 'POST',
     headers: (params) => ({
       'x-algolia-application-id': params.applicationId,

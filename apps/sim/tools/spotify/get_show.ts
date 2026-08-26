@@ -1,4 +1,5 @@
 import type { ToolConfig, ToolResponse } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 interface SpotifyGetShowParams {
   accessToken: string
@@ -49,7 +50,7 @@ export const spotifyGetShowTool: ToolConfig<SpotifyGetShowParams, SpotifyGetShow
 
   request: {
     url: (params) => {
-      let url = `https://api.spotify.com/v1/shows/${params.showId}`
+      let url = `https://api.spotify.com/v1/shows/${safeUrlPathSegment(params.showId, 'showId')}`
       if (params.market) url += `?market=${params.market}`
       return url
     },

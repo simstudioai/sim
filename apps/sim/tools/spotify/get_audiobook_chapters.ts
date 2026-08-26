@@ -1,4 +1,5 @@
 import type { ToolConfig, ToolResponse } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 interface SpotifyGetAudiobookChaptersParams {
   accessToken: string
@@ -71,7 +72,7 @@ export const spotifyGetAudiobookChaptersTool: ToolConfig<
     url: (params) => {
       const limit = Math.min(Math.max(params.limit || 20, 1), 50)
       const offset = params.offset || 0
-      let url = `https://api.spotify.com/v1/audiobooks/${params.audiobookId}/chapters?limit=${limit}&offset=${offset}`
+      let url = `https://api.spotify.com/v1/audiobooks/${safeUrlPathSegment(params.audiobookId, 'audiobookId')}/chapters?limit=${limit}&offset=${offset}`
       if (params.market) url += `&market=${params.market}`
       return url
     },

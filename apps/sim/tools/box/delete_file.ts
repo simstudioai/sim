@@ -1,4 +1,5 @@
 import type { ToolConfig, ToolResponse } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { BoxDeleteFileParams } from './types'
 
 export const boxDeleteFileTool: ToolConfig<BoxDeleteFileParams, ToolResponse> = {
@@ -28,7 +29,7 @@ export const boxDeleteFileTool: ToolConfig<BoxDeleteFileParams, ToolResponse> = 
   },
 
   request: {
-    url: (params) => `https://api.box.com/2.0/files/${params.fileId.trim()}`,
+    url: (params) => `https://api.box.com/2.0/files/${safeUrlPathSegment(params.fileId, 'fileId')}`,
     method: 'DELETE',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,

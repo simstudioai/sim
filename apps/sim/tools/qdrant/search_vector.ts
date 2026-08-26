@@ -4,6 +4,7 @@ import {
   SCORED_POINT_OUTPUT_PROPERTIES,
 } from '@/tools/qdrant/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const searchVectorTool: ToolConfig<QdrantSearchParams, QdrantResponse> = {
   id: 'qdrant_search_vector',
@@ -72,7 +73,7 @@ export const searchVectorTool: ToolConfig<QdrantSearchParams, QdrantResponse> = 
   request: {
     method: 'POST',
     url: (params) =>
-      `${params.url.replace(/\/$/, '')}/collections/${encodeURIComponent(params.collection)}/points/query`,
+      `${params.url.replace(/\/$/, '')}/collections/${safeUrlPathSegment(params.collection, 'collection')}/points/query`,
     headers: (params) => ({
       'Content-Type': 'application/json',
       ...(params.apiKey ? { 'api-key': params.apiKey } : {}),

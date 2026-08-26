@@ -3,6 +3,7 @@ import type {
   SpotifyAddTracksToPlaylistResponse,
 } from '@/tools/spotify/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const spotifyAddTracksToPlaylistTool: ToolConfig<
   SpotifyAddTracksToPlaylistParams,
@@ -41,7 +42,8 @@ export const spotifyAddTracksToPlaylistTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.spotify.com/v1/playlists/${params.playlistId}/tracks`,
+    url: (params) =>
+      `https://api.spotify.com/v1/playlists/${safeUrlPathSegment(params.playlistId, 'playlistId')}/tracks`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,

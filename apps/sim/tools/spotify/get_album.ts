@@ -4,6 +4,7 @@ import {
   SIMPLIFIED_ARTIST_OUTPUT_PROPERTIES,
 } from '@/tools/spotify/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const spotifyGetAlbumTool: ToolConfig<SpotifyGetAlbumParams, SpotifyGetAlbumResponse> = {
   id: 'spotify_get_album',
@@ -34,7 +35,7 @@ export const spotifyGetAlbumTool: ToolConfig<SpotifyGetAlbumParams, SpotifyGetAl
 
   request: {
     url: (params) => {
-      let url = `https://api.spotify.com/v1/albums/${params.albumId}`
+      let url = `https://api.spotify.com/v1/albums/${safeUrlPathSegment(params.albumId, 'albumId')}`
       if (params.market) {
         url += `?market=${params.market}`
       }

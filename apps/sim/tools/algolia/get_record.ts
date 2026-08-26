@@ -1,5 +1,6 @@
 import type { AlgoliaGetRecordParams, AlgoliaGetRecordResponse } from '@/tools/algolia/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const getRecordTool: ToolConfig<AlgoliaGetRecordParams, AlgoliaGetRecordResponse> = {
   id: 'algolia_get_record',
@@ -43,7 +44,7 @@ export const getRecordTool: ToolConfig<AlgoliaGetRecordParams, AlgoliaGetRecordR
   request: {
     method: 'GET',
     url: (params) => {
-      const base = `https://${params.applicationId}-dsn.algolia.net/1/indexes/${encodeURIComponent(params.indexName.trim())}/${encodeURIComponent(params.objectID.trim())}`
+      const base = `https://${params.applicationId}-dsn.algolia.net/1/indexes/${safeUrlPathSegment(params.indexName, 'indexName')}/${safeUrlPathSegment(params.objectID, 'objectID')}`
       if (params.attributesToRetrieve) {
         return `${base}?attributesToRetrieve=${encodeURIComponent(params.attributesToRetrieve)}`
       }

@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { XManageBlockParams, XManageBlockResponse } from '@/tools/x/types'
 
 const logger = createLogger('XManageBlockTool')
@@ -45,9 +46,9 @@ export const xManageBlockTool: ToolConfig<XManageBlockParams, XManageBlockRespon
   request: {
     url: (params) => {
       if (params.action === 'unblock') {
-        return `https://api.x.com/2/users/${params.userId.trim()}/blocking/${params.targetUserId.trim()}`
+        return `https://api.x.com/2/users/${safeUrlPathSegment(params.userId, 'userId')}/blocking/${safeUrlPathSegment(params.targetUserId, 'targetUserId')}`
       }
-      return `https://api.x.com/2/users/${params.userId.trim()}/blocking`
+      return `https://api.x.com/2/users/${safeUrlPathSegment(params.userId, 'userId')}/blocking`
     },
     method: (params) => (params.action === 'unblock' ? 'DELETE' : 'POST'),
     headers: (params) => ({

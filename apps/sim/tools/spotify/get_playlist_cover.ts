@@ -1,4 +1,5 @@
 import type { ToolConfig, ToolResponse } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 interface SpotifyGetPlaylistCoverParams {
   accessToken: string
@@ -40,7 +41,8 @@ export const spotifyGetPlaylistCoverTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.spotify.com/v1/playlists/${params.playlistId}/images`,
+    url: (params) =>
+      `https://api.spotify.com/v1/playlists/${safeUrlPathSegment(params.playlistId, 'playlistId')}/images`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,

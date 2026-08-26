@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { XGetTrendsByWoeidParams, XTrendListResponse } from '@/tools/x/types'
 import { transformTrend } from '@/tools/x/types'
 
@@ -49,7 +50,7 @@ export const xGetTrendsByWoeidTool: ToolConfig<XGetTrendsByWoeidParams, XTrendLi
         queryParams.append('max_trends', Number(params.maxTrends).toString())
       }
 
-      return `https://api.x.com/2/trends/by/woeid/${params.woeid.trim()}?${queryParams.toString()}`
+      return `https://api.x.com/2/trends/by/woeid/${safeUrlPathSegment(params.woeid, 'woeid')}?${queryParams.toString()}`
     },
     method: 'GET',
     headers: (params) => ({

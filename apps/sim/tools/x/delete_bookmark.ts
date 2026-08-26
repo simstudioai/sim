@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { XDeleteBookmarkParams, XDeleteBookmarkResponse } from '@/tools/x/types'
 
 const logger = createLogger('XDeleteBookmarkTool')
@@ -38,7 +39,7 @@ export const xDeleteBookmarkTool: ToolConfig<XDeleteBookmarkParams, XDeleteBookm
 
   request: {
     url: (params) =>
-      `https://api.x.com/2/users/${params.userId.trim()}/bookmarks/${params.tweetId.trim()}`,
+      `https://api.x.com/2/users/${safeUrlPathSegment(params.userId, 'userId')}/bookmarks/${safeUrlPathSegment(params.tweetId, 'tweetId')}`,
     method: 'DELETE',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,

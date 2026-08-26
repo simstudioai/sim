@@ -1,5 +1,6 @@
 import type { SpotifyGetArtistParams, SpotifyGetArtistResponse } from '@/tools/spotify/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const spotifyGetArtistTool: ToolConfig<SpotifyGetArtistParams, SpotifyGetArtistResponse> = {
   id: 'spotify_get_artist',
@@ -22,7 +23,8 @@ export const spotifyGetArtistTool: ToolConfig<SpotifyGetArtistParams, SpotifyGet
   },
 
   request: {
-    url: (params) => `https://api.spotify.com/v1/artists/${params.artistId}`,
+    url: (params) =>
+      `https://api.spotify.com/v1/artists/${safeUrlPathSegment(params.artistId, 'artistId')}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,

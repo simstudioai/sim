@@ -1,6 +1,7 @@
 import type { SpotifyGetPlaylistParams, SpotifyGetPlaylistResponse } from '@/tools/spotify/types'
 import { PLAYLIST_OWNER_OUTPUT_PROPERTIES } from '@/tools/spotify/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const spotifyGetPlaylistTool: ToolConfig<
   SpotifyGetPlaylistParams,
@@ -33,7 +34,7 @@ export const spotifyGetPlaylistTool: ToolConfig<
 
   request: {
     url: (params) => {
-      let url = `https://api.spotify.com/v1/playlists/${params.playlistId}`
+      let url = `https://api.spotify.com/v1/playlists/${safeUrlPathSegment(params.playlistId, 'playlistId')}`
       if (params.market) {
         url += `?market=${params.market}`
       }

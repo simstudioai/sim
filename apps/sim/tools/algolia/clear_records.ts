@@ -1,5 +1,6 @@
 import type { AlgoliaClearRecordsParams, AlgoliaClearRecordsResponse } from '@/tools/algolia/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const clearRecordsTool: ToolConfig<AlgoliaClearRecordsParams, AlgoliaClearRecordsResponse> =
   {
@@ -32,7 +33,7 @@ export const clearRecordsTool: ToolConfig<AlgoliaClearRecordsParams, AlgoliaClea
 
     request: {
       url: (params) =>
-        `https://${params.applicationId}.algolia.net/1/indexes/${encodeURIComponent(params.indexName.trim())}/clear`,
+        `https://${params.applicationId}.algolia.net/1/indexes/${safeUrlPathSegment(params.indexName, 'indexName')}/clear`,
       method: 'POST',
       headers: (params) => ({
         'x-algolia-application-id': params.applicationId,

@@ -1,5 +1,6 @@
 import type { AlgoliaDeleteIndexParams, AlgoliaDeleteIndexResponse } from '@/tools/algolia/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const deleteIndexTool: ToolConfig<AlgoliaDeleteIndexParams, AlgoliaDeleteIndexResponse> = {
   id: 'algolia_delete_index',
@@ -31,7 +32,7 @@ export const deleteIndexTool: ToolConfig<AlgoliaDeleteIndexParams, AlgoliaDelete
   request: {
     method: 'DELETE',
     url: (params) =>
-      `https://${params.applicationId}.algolia.net/1/indexes/${encodeURIComponent(params.indexName.trim())}`,
+      `https://${params.applicationId}.algolia.net/1/indexes/${safeUrlPathSegment(params.indexName, 'indexName')}`,
     headers: (params) => ({
       'x-algolia-application-id': params.applicationId,
       'x-algolia-api-key': params.apiKey,

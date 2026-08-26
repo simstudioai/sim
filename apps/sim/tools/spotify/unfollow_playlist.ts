@@ -1,4 +1,5 @@
 import type { ToolConfig, ToolResponse } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 interface SpotifyUnfollowPlaylistParams {
   accessToken: string
@@ -34,7 +35,8 @@ export const spotifyUnfollowPlaylistTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.spotify.com/v1/playlists/${params.playlistId}/followers`,
+    url: (params) =>
+      `https://api.spotify.com/v1/playlists/${safeUrlPathSegment(params.playlistId, 'playlistId')}/followers`,
     method: 'DELETE',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,

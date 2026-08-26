@@ -4,6 +4,7 @@ import {
   SIMPLIFIED_ARTIST_OUTPUT_PROPERTIES,
 } from '@/tools/spotify/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const spotifyGetTrackTool: ToolConfig<SpotifyGetTrackParams, SpotifyGetTrackResponse> = {
   id: 'spotify_get_track',
@@ -33,7 +34,7 @@ export const spotifyGetTrackTool: ToolConfig<SpotifyGetTrackParams, SpotifyGetTr
 
   request: {
     url: (params) => {
-      let url = `https://api.spotify.com/v1/tracks/${params.trackId}`
+      let url = `https://api.spotify.com/v1/tracks/${safeUrlPathSegment(params.trackId, 'trackId')}`
       if (params.market) {
         url += `?market=${params.market}`
       }

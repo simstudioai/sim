@@ -4,6 +4,7 @@ import {
   UPSERT_RESULT_OUTPUT_PROPERTIES,
 } from '@/tools/qdrant/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const upsertPointsTool: ToolConfig<QdrantUpsertParams, QdrantResponse> = {
   id: 'qdrant_upsert_points',
@@ -40,7 +41,8 @@ export const upsertPointsTool: ToolConfig<QdrantUpsertParams, QdrantResponse> = 
 
   request: {
     method: 'PUT',
-    url: (params) => `${params.url.replace(/\/$/, '')}/collections/${params.collection}/points`,
+    url: (params) =>
+      `${params.url.replace(/\/$/, '')}/collections/${safeUrlPathSegment(params.collection, 'collection')}/points`,
     headers: (params) => ({
       'Content-Type': 'application/json',
       ...(params.apiKey ? { 'api-key': params.apiKey } : {}),

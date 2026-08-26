@@ -3,6 +3,7 @@ import type {
   AlgoliaPartialUpdateRecordResponse,
 } from '@/tools/algolia/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const partialUpdateRecordTool: ToolConfig<
   AlgoliaPartialUpdateRecordParams,
@@ -55,7 +56,7 @@ export const partialUpdateRecordTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const base = `https://${params.applicationId}.algolia.net/1/indexes/${encodeURIComponent(params.indexName.trim())}/${encodeURIComponent(params.objectID.trim())}/partial`
+      const base = `https://${params.applicationId}.algolia.net/1/indexes/${safeUrlPathSegment(params.indexName, 'indexName')}/${safeUrlPathSegment(params.objectID, 'objectID')}/partial`
       if (params.createIfNotExists === false) {
         return `${base}?createIfNotExists=false`
       }

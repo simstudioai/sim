@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { XGetUserTimelineParams, XTweetListResponse } from '@/tools/x/types'
 import { transformTweet, transformUser } from '@/tools/x/types'
 
@@ -93,7 +94,7 @@ export const xGetUserTimelineTool: ToolConfig<XGetUserTimelineParams, XTweetList
       if (params.untilId) queryParams.append('until_id', params.untilId)
       if (params.exclude) queryParams.append('exclude', params.exclude)
 
-      return `https://api.x.com/2/users/${params.userId.trim()}/timelines/reverse_chronological?${queryParams.toString()}`
+      return `https://api.x.com/2/users/${safeUrlPathSegment(params.userId, 'userId')}/timelines/reverse_chronological?${queryParams.toString()}`
     },
     method: 'GET',
     headers: (params) => ({

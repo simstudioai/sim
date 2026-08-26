@@ -1,4 +1,5 @@
 import type { ToolConfig, ToolResponse } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 interface SpotifyGetUserProfileParams {
   accessToken: string
@@ -40,7 +41,8 @@ export const spotifyGetUserProfileTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.spotify.com/v1/users/${params.userId}`,
+    url: (params) =>
+      `https://api.spotify.com/v1/users/${safeUrlPathSegment(params.userId, 'userId')}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,

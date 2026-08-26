@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { BoxDownloadFileParams, BoxDownloadFileResponse } from './types'
 
 export const boxDownloadFileTool: ToolConfig<BoxDownloadFileParams, BoxDownloadFileResponse> = {
@@ -28,7 +29,8 @@ export const boxDownloadFileTool: ToolConfig<BoxDownloadFileParams, BoxDownloadF
   },
 
   request: {
-    url: (params) => `https://api.box.com/2.0/files/${params.fileId.trim()}/content`,
+    url: (params) =>
+      `https://api.box.com/2.0/files/${safeUrlPathSegment(params.fileId, 'fileId')}/content`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,

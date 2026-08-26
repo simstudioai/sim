@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { XManageLikeParams, XManageLikeResponse } from '@/tools/x/types'
 
 const logger = createLogger('XManageLikeTool')
@@ -45,9 +46,9 @@ export const xManageLikeTool: ToolConfig<XManageLikeParams, XManageLikeResponse>
   request: {
     url: (params) => {
       if (params.action === 'unlike') {
-        return `https://api.x.com/2/users/${params.userId.trim()}/likes/${params.tweetId.trim()}`
+        return `https://api.x.com/2/users/${safeUrlPathSegment(params.userId, 'userId')}/likes/${safeUrlPathSegment(params.tweetId, 'tweetId')}`
       }
-      return `https://api.x.com/2/users/${params.userId.trim()}/likes`
+      return `https://api.x.com/2/users/${safeUrlPathSegment(params.userId, 'userId')}/likes`
     },
     method: (params) => (params.action === 'unlike' ? 'DELETE' : 'POST'),
     headers: (params) => ({

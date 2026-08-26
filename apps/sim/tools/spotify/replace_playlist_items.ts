@@ -1,4 +1,5 @@
 import type { ToolConfig, ToolResponse } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 interface SpotifyReplacePlaylistItemsParams {
   accessToken: string
@@ -43,7 +44,8 @@ export const spotifyReplacePlaylistItemsTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.spotify.com/v1/playlists/${params.playlistId}/tracks`,
+    url: (params) =>
+      `https://api.spotify.com/v1/playlists/${safeUrlPathSegment(params.playlistId, 'playlistId')}/tracks`,
     method: 'PUT',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,

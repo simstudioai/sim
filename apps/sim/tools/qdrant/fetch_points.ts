@@ -1,6 +1,7 @@
 import type { QdrantFetchParams, QdrantResponse } from '@/tools/qdrant/types'
 import { POINT_OUTPUT_PROPERTIES, QDRANT_RESPONSE_OUTPUT_PROPERTIES } from '@/tools/qdrant/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const fetchPointsTool: ToolConfig<QdrantFetchParams, QdrantResponse> = {
   id: 'qdrant_fetch_points',
@@ -55,7 +56,8 @@ export const fetchPointsTool: ToolConfig<QdrantFetchParams, QdrantResponse> = {
 
   request: {
     method: 'POST',
-    url: (params) => `${params.url.replace(/\/$/, '')}/collections/${params.collection}/points`,
+    url: (params) =>
+      `${params.url.replace(/\/$/, '')}/collections/${safeUrlPathSegment(params.collection, 'collection')}/points`,
     headers: (params) => ({
       'Content-Type': 'application/json',
       ...(params.apiKey ? { 'api-key': params.apiKey } : {}),

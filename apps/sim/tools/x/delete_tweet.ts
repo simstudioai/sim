@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { XDeleteTweetParams, XDeleteTweetResponse } from '@/tools/x/types'
 
 const logger = createLogger('XDeleteTweetTool')
@@ -31,7 +32,7 @@ export const xDeleteTweetTool: ToolConfig<XDeleteTweetParams, XDeleteTweetRespon
   },
 
   request: {
-    url: (params) => `https://api.x.com/2/tweets/${params.tweetId.trim()}`,
+    url: (params) => `https://api.x.com/2/tweets/${safeUrlPathSegment(params.tweetId, 'tweetId')}`,
     method: 'DELETE',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,

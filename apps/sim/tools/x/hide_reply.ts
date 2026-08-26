@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { XHideReplyParams, XHideReplyResponse } from '@/tools/x/types'
 
 const logger = createLogger('XHideReplyTool')
@@ -37,7 +38,8 @@ export const xHideReplyTool: ToolConfig<XHideReplyParams, XHideReplyResponse> = 
   },
 
   request: {
-    url: (params) => `https://api.x.com/2/tweets/${params.tweetId.trim()}/hidden`,
+    url: (params) =>
+      `https://api.x.com/2/tweets/${safeUrlPathSegment(params.tweetId, 'tweetId')}/hidden`,
     method: 'PUT',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
