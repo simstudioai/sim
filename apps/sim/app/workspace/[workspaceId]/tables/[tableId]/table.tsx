@@ -1373,6 +1373,7 @@ export function Table({
   const canMutateSchema = userPermissions.canEdit && !tableData?.locks.schemaLocked
   const createTrigger = userPermissions.canEdit ? (
     <ColumnDropdown
+      columns={columns}
       trigger='header'
       disabled={false}
       blocked={!canMutateSchema}
@@ -1645,6 +1646,7 @@ export function Table({
       <ColumnConfigSidebar
         config={columnConfig}
         onClose={onCloseSlideout}
+        allColumns={columns}
         existingColumn={
           columnConfig?.mode === 'edit'
             ? (columns.find((c) => getColumnId(c) === columnConfig.columnName) ?? null)

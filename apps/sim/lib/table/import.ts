@@ -15,6 +15,7 @@ import type { Options as CsvParseOptions } from 'csv-parse'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { getColumnId } from '@/lib/table/column-keys'
 import type { ColumnType } from '@/lib/table/column-types'
+import { columnTypeById } from '@/lib/table/column-types'
 import { parseCurrencyInput } from '@/lib/table/currency'
 import { type NormalizeDateCellOptions, normalizeDateCellValue } from '@/lib/table/dates'
 import type { ColumnDefinition, RowData, TableSchema } from '@/lib/table/types'
@@ -481,6 +482,9 @@ export function coerceValue(
   options?: NormalizeDateCellOptions & { currencyCode?: string }
 ): string | number | boolean | null | Record<string, unknown> | unknown[] {
   if (value === null || value === undefined || value === '') return null
+  const definition = columnTypeById(colType)
+  if (definition.coerceImport) return definition.coerceImport(value, options)
+
   switch (colType) {
     case 'number': {
       const n = Number(value)

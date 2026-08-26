@@ -27,6 +27,7 @@ import {
   columnTypeOf,
   isValueCompatible,
   TYPE_SPECIFIC_COLUMN_KEYS,
+  valueForTypeConversion,
 } from '@/lib/table/column-types'
 import {
   migrationFrom,
@@ -767,17 +768,22 @@ export function applyPendingRename(
  */
 export function retypeCellRewrite(
   value: unknown,
-  target: ColumnDefinition
+  target: ColumnDefinition,
+  source?: ColumnDefinition
 ): { value: JsonValue } | null {
   if (value === null || value === undefined) return null
 
-  if (!isValueCompatibleWithColumn(value, target)) {
+  const effective = source
+    ? valueForTypeConversion(value as JsonValue, source, target)
+    : (value as JsonValue)
+
+  if (!isValueCompatibleWithColumn(effective, target)) {
     // Incompatible non-blanks never reach here: the compatibility scan already
     // refused the whole conversion for them.
-    return value === '' ? { value: null } : null
+    return effective === '' ? { value: null } : null
   }
 
-  const coerced = columnTypeById(target.type).coerce(value as JsonValue, target)
+  const coerced = columnTypeById(target.type).coerce(effective, target)
   if (coerced.ok && !Object.is(coerced.value, value)) return { value: coerced.value }
   return null
 }
@@ -944,6 +950,12 @@ export async function updateColumnType(
         isSelectType,
         targetMultiple: !!targetMultiple,
       })
+      const renamedColumns = schema.columns.map((c, i) => (i === columnIndex ? convertedColumn : c))
+      const updatedColumns = renamedColumns.map((c, i) =>
+        i === columnIndex ? applyPendingRename(renamedColumns, columnIndex, data.newName) : c
+      )
+      const updatedSchema: TableSchema = { ...schema, columns: updatedColumns }
+      assertValidSchema(updatedSchema, table.metadata?.columnOrder)
 
       let incompatibleCount = 0
       let blankCount = 0
@@ -972,7 +984,7 @@ export async function updateColumnType(
 
           const effective = convertingAwayFromSelect
             ? selectValueForConversion(column, value)
-            : value
+            : valueForTypeConversion(value as JsonValue, column, convertedColumn)
 
           if (!isValueCompatibleWithColumn(effective, convertedColumn)) {
             if (effective === null || effective === '') {
@@ -1000,11 +1012,6 @@ export async function updateColumnType(
         )
       }
 
-      const renamedColumns = schema.columns.map((c, i) => (i === columnIndex ? convertedColumn : c))
-      const updatedColumns = renamedColumns.map((c, i) =>
-        i === columnIndex ? applyPendingRename(renamedColumns, columnIndex, data.newName) : c
-      )
-
       const columnValidation = validateColumnDefinition(updatedColumns[columnIndex])
       if (!columnValidation.valid) {
         throw new OrchestrationError(
@@ -1013,7 +1020,6 @@ export async function updateColumnType(
         )
       }
 
-      const updatedSchema: TableSchema = { ...schema, columns: updatedColumns }
       const now = new Date()
 
       // Cell rewrites are owned by the column-type registry, keyed by direction.
@@ -1045,7 +1051,7 @@ export async function updateColumnType(
           if (rows.length === 0) break
           const coercedByRowId = new Map<string, JsonValue>()
           for (const row of rows) {
-            const rewrite = retypeCellRewrite(row.value, convertedColumn)
+            const rewrite = retypeCellRewrite(row.value, convertedColumn, column)
             if (rewrite) coercedByRowId.set(row.id, rewrite.value)
           }
           await writeBackCoercedCells(

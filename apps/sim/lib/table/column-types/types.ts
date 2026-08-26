@@ -20,6 +20,7 @@
  */
 
 import type React from 'react'
+import type { NormalizeDateCellOptions } from '@/lib/table/dates'
 import type { ColumnDefinition, JsonValue } from '@/lib/table/types'
 
 /**
@@ -67,11 +68,17 @@ export type TypeSpecificColumnKey = (typeof TYPE_SPECIFIC_COLUMN_KEYS)[number]
 /** Result of coercing a raw value toward a column's declared type. */
 export type CoerceResult = { ok: true; value: JsonValue } | { ok: false }
 
+export interface ColumnImportCoerceOptions extends NormalizeDateCellOptions {
+  currencyCode?: string
+}
+
 export interface ColumnTypeDefinition {
   readonly id: ColumnType
 
   /** Human label in the type picker, column header menu, and docs. */
   readonly label: string
+  /** Maximum columns of this type a table may contain. Omitted when unlimited. */
+  readonly maxPerTable?: number
   /** Type icon. A component reference only — never invoked server-side. */
   readonly icon: React.ComponentType<{ className?: string }>
   /**
@@ -157,7 +164,17 @@ export interface ColumnTypeDefinition {
    * implementation — the server calls it before persisting and the grid calls
    * it to fill the optimistic cache, so the two can no longer disagree.
    */
-  coerce(value: JsonValue, column: ColumnDefinition): CoerceResult
+  coerce(
+    value: JsonValue,
+    column: ColumnDefinition,
+    context?: NormalizeDateCellOptions
+  ): CoerceResult
+
+  /** CSV-specific coercion when invalid input must survive for row-level validation. */
+  coerceImport?(value: unknown, options?: ColumnImportCoerceOptions): Exclude<JsonValue, Date>
+
+  /** Source-owned normalization applied before checking or rewriting a type conversion. */
+  valueForConversion?(value: JsonValue, target: ColumnDefinition): JsonValue
 
   /** Validates a stored cell's shape. Returns an error message, or null when valid. */
   validateCell(value: JsonValue, column: ColumnDefinition): string | null
@@ -203,7 +220,11 @@ export interface ColumnTypeDefinition {
   formatForDisplay(value: unknown, column: ColumnDefinition): string
 
   /** Stored value → the text an editor input starts with. */
-  formatForInput(value: unknown, column: ColumnDefinition): string
+  formatForInput(
+    value: unknown,
+    column: ColumnDefinition,
+    context?: NormalizeDateCellOptions
+  ): string
 
   /**
    * Metadata stamped onto a newly created column of this type, so the schema
