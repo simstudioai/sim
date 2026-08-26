@@ -13,10 +13,6 @@ import {
 import { createRunSegment } from '@/lib/copilot/async-runs/repository'
 import { chatPubSub } from '@/lib/copilot/chat-status'
 import {
-  COPILOT_BILLING_PROTOCOL,
-  COPILOT_BILLING_PROTOCOL_HEADER,
-} from '@/lib/copilot/generated/billing-protocol-v1'
-import {
   MothershipStreamV1EventType,
   MothershipStreamV1SessionKind,
 } from '@/lib/copilot/generated/mothership-stream-v1'
@@ -52,7 +48,7 @@ import { SSE_RESPONSE_HEADERS } from '@/lib/copilot/request/session/sse'
 import { TraceCollector } from '@/lib/copilot/request/trace'
 import { getMothershipBaseURL, getMothershipSourceEnvHeaders } from '@/lib/copilot/server/agent-url'
 import { env } from '@/lib/core/config/env'
-import { isCopilotBillingAttributionV1Enabled, isHosted } from '@/lib/core/config/env-flags'
+import { isHosted } from '@/lib/core/config/env-flags'
 
 export { SSE_RESPONSE_HEADERS }
 
@@ -534,9 +530,7 @@ export async function requestChatTitle(params: {
   Object.assign(headers, getMothershipSourceEnvHeaders())
 
   try {
-    if (isHosted && !isCopilotBillingAttributionV1Enabled) {
-      headers[COPILOT_BILLING_PROTOCOL_HEADER] = COPILOT_BILLING_PROTOCOL.legacy
-    } else if (isHosted) {
+    if (isHosted) {
       if (!userId || !workspaceId) {
         throw new Error('Title generation requires a billing actor and workspace')
       }
