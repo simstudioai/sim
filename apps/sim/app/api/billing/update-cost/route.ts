@@ -229,11 +229,9 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
 
     let billingAttribution = suppliedBillingAttribution
     /**
-     * Old Go creates its random idempotency key after admission and returns no
-     * protocol or payer envelope. The markerless legacy-v0 path therefore
-     * re-resolves a locally known workspace at callback time. This mutable
-     * compatibility semantic is intentionally unreachable from modern
-     * attributed-v1/direct-v1 callbacks.
+     * Local self-hosted markerless callbacks have no immutable payer envelope,
+     * so they re-resolve a locally known workspace at callback time. Hosted
+     * attributed-v1/direct-v1 callbacks can never reach this mutable path.
      */
     if (isMarkerlessLegacy && workspaceId) {
       billingAttribution =
