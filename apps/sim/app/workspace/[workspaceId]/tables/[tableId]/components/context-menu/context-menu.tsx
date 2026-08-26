@@ -35,6 +35,8 @@ interface ContextMenuProps {
   onInsertAbove: () => void
   onInsertBelow: () => void
   onDuplicate: () => void
+  /** Copies the stable id of the row that opened the menu. Omit for an empty grid slot. */
+  onCopyRowId?: () => void
   onViewExecution?: () => void
   canViewExecution?: boolean
   canEditCell?: boolean
@@ -95,6 +97,7 @@ export function ContextMenu({
   onInsertAbove,
   onInsertBelow,
   onDuplicate,
+  onCopyRowId,
   onViewExecution,
   canViewExecution = false,
   canEditCell = true,
@@ -253,6 +256,12 @@ export function ContextMenu({
           <Duplicate />
           Duplicate row
         </DropdownMenuItem>
+        {onCopyRowId && (
+          <DropdownMenuItem onSelect={onCopyRowId}>
+            <Duplicate />
+            Copy Row Id
+          </DropdownMenuItem>
+        )}
         <DropdownMenuSeparator />
         <DropdownMenuItem disabled={disableDelete} onSelect={onDelete}>
           <Trash />

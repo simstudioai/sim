@@ -9,7 +9,7 @@ import type { TableCellSelection } from '@sim/realtime-protocol/table-presence'
 import { getErrorMessage } from '@sim/utils/errors'
 import { assessTextPaste, formatPasteLimit, PASTE_LIMITS } from '@sim/utils/paste'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import type { RunLimit, RunMode, TableFindMatch } from '@/lib/api/contracts/tables'
 import { attachSelectionContextToClipboard } from '@/lib/copilot/chat/selection-clipboard'
@@ -478,6 +478,7 @@ export function TableGrid({
   const params = useParams()
   const workspaceId = propWorkspaceId || (params.workspaceId as string)
   const tableId = propTableId || (params.tableId as string)
+  const router = useRouter()
   const workspaceIdRef = useRef(workspaceId)
   workspaceIdRef.current = workspaceId
   const tableIdRef = useRef(tableId)
@@ -1718,6 +1719,19 @@ export function TableGrid({
       }
     )
   }
+
+  function handleCopyRowId() {
+    const rowId = contextMenu.row?.id
+    if (!rowId) return
+    void navigator.clipboard.writeText(rowId).catch(() => {})
+  }
+
+  const handleGoToReferenceTable = useCallback(
+    (referenceTableId: string) => {
+      router.push(`/workspace/${workspaceId}/tables/${referenceTableId}`)
+    },
+    [router, workspaceId]
+  )
 
   const handleAppendRow = useCallback(async () => {
     if (isAppendingRowRef.current) return
@@ -4883,6 +4897,7 @@ export function TableGrid({
                             workflowGroups={tableWorkflowGroups}
                             sourceInfo={columnSourceInfo.get(column.key)}
                             onOpenConfig={handleConfigureColumn}
+                            onGoToReferenceTable={handleGoToReferenceTable}
                             onViewWorkflow={handleViewWorkflow}
                             onSortColumn={onSortColumn}
                             onClearSort={onClearSort}
@@ -5060,6 +5075,7 @@ export function TableGrid({
         onInsertAbove={handleInsertRowAbove}
         onInsertBelow={handleInsertRowBelow}
         onDuplicate={handleDuplicateRow}
+        onCopyRowId={contextMenu.row ? handleCopyRowId : undefined}
         onViewExecution={handleViewExecution}
         canViewExecution={
           (Boolean(contextMenuExecutionId) && contextMenuHasStartedRun) ||
