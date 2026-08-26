@@ -681,7 +681,10 @@ export const CLI_CONTRACT: CliContract = {
       // one place the terminal override was missed: `--recursive` alone read
       // as "argument missing" and only `--recursive yes` worked, on the flag
       // spelled as a bare switch everywhere else in the CLI.
-      recursive: { boolean: true },
+      // Unlike the folder deletes, this one is on unless told otherwise: the
+      // API turns it on as soon as `--search` is set, so the negation is the
+      // only way to search a folder without descending into it.
+      recursive: { boolean: true, negatable: true },
     },
     columns: [
       { header: 'id' },

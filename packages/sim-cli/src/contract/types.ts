@@ -88,12 +88,27 @@ export interface FlagSpec {
   /**
    * Expose a string-backed API boolean as a conventional terminal toggle.
    *
-   * A toggle declared here carries no generated `--no-<name>` twin, because the
-   * string union behind it has no agreed false spelling to send. That also
-   * makes it the way to withhold the negation from a field the API declares as
-   * `z.literal(true)`, where a sent `false` is a request the route rejects.
+   * A toggle declared here carries no generated `--no-<name>` twin by default,
+   * because sending false is usually either meaningless — the server already
+   * defaults the field to false — or rejected outright, as on a field the API
+   * declares as `z.literal(true)`. {@link negatable} asks for the twin back on
+   * the one kind of field where false is a real request.
    */
   boolean?: true
+  /**
+   * Give a {@link boolean} toggle its `--no-<name>` twin after all.
+   *
+   * Withholding the twin is right for a one-way switch: most string-backed
+   * toggles sit on a field the server already defaults to false, so a negation
+   * would only restate the default, and on a `z.literal(true)` field it would
+   * send a request the route rejects. `files list --recursive` is neither — the
+   * API turns it on by itself as soon as a search is set, so without a spelling
+   * for false there is no way to search one folder without descending into it.
+   * Declared per flag rather than derived from the union's false spellings,
+   * which every one of these toggles publishes whether or not sending one means
+   * anything.
+   */
+  negatable?: true
   /**
    * This field carries a folder path, so percent-encode each of its segments.
    *
