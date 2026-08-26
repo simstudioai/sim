@@ -1,14 +1,45 @@
 /**
  * @vitest-environment node
  */
-import type { Command } from 'commander'
-import { describe, expect, it } from 'vitest'
+
+import { Command } from 'commander'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { V2_OPERATIONS, type V2OperationName } from '../generated/v2-api'
 import { HELP_EPILOGUE } from '../program'
 import { buildGeneratedCommands } from '../runtime/build'
 import { flagNameFor, flagSpecFor } from '../runtime/request'
+import { renderPage } from '../runtime/result'
 import type { OperationSpec } from '../runtime/types'
 import { CLI_CONTRACT } from './commands'
+
+const { mockRequest } = vi.hoisted(() => ({ mockRequest: vi.fn() }))
+
+vi.mock('../context', () => ({
+  clientFrom: () => ({
+    client: { request: mockRequest, requireWorkspace: () => 'ws_local' },
+    profile: { workspaceId: 'ws_local', output: 'json', name: 'default', apiKey: 'k' },
+  }),
+}))
+
+/**
+ * Runs a leaf through commander, the way the terminal does.
+ *
+ * A `confirm` gate is enforced in `runtime/execute`, not by the contract, so
+ * asserting the string alone would only compare the constant with itself: the
+ * key could be renamed, or the gate could stop reading it, with the test still
+ * green. Parsing real argv is what proves the refusal reaches the caller and
+ * that nothing was sent.
+ */
+async function runLeaf(argv: string[]): Promise<void> {
+  const root = new Command('sim').exitOverride().option('--workspace <id>')
+  for (const group of buildGeneratedCommands()) root.addCommand(group)
+  const override = (command: Command) => {
+    command.exitOverride()
+    command.commands.forEach(override)
+  }
+  override(root)
+  await root.parseAsync(['node', 'sim', ...argv])
+}
 
 /** Every leaf command's full path, `tables rows count` style. */
 function leafPaths(options: { includeHidden?: boolean } = {}): string[] {
@@ -307,6 +338,19 @@ describe('confirm gates say what is actually at stake', () => {
     expect(CLI_CONTRACT.rollbackWorkflow?.confirm).toBeTruthy()
   })
 
+  it('gates the cancel that strands half a table, not the one that discards a file', () => {
+    // The import runner commits rows batch by batch and stops between batches,
+    // so a cancelled import keeps what it wrote; a `replace` has already
+    // emptied the table by then. The export only reads, so it stays ungated
+    // for the reason `workflows runs cancel` used to be.
+    const cancelImport = CLI_CONTRACT.cancelTableImport?.confirm ?? ''
+
+    expect(cancelImport).toContain('replace')
+    expect(cancelImport).toMatch(/empties the table/)
+    expect(cancelImport).not.toMatch(/not recoverable|cannot be undone/)
+    expect(CLI_CONTRACT.cancelTableExport?.confirm).toBeUndefined()
+  })
+
   it('does not promise irreversible loss for a recoverable delete', () => {
     // `tables restore`, `knowledge restore` and `workflows restore` all ship, so
     // these three archive rather than destroy — the wording `deleteFile`
@@ -348,6 +392,15 @@ describe('records show what the API actually returns', () => {
     // Credits and storage are both null for a workspace API key, so the record
     // has to say why it is showing em-dashes.
     expect(spec?.describe).toContain('personal API key')
+  })
+
+  it('says which ledger a billing-logs page answers', () => {
+    // The same workspace, window and flags return a strict subset of rows on a
+    // personal key, which reads as a bug beside `billing status`.
+    const summary = CLI_CONTRACT.listBillingLogs?.describe ?? ''
+
+    expect(summary).toContain('personal API key')
+    expect(summary).toContain('workspace API key')
   })
 
   it('describes a workspace with the fields the strict schema has', () => {
@@ -393,6 +446,69 @@ describe('list columns', () => {
     expect(toolPaths).not.toContain('mcpServerUrl')
     expect(toolPaths).not.toContain('apiEndpoint')
     expect(toolPaths).toContain('workflowId')
+  })
+
+  it('shows what a dispatch was asked to run', () => {
+    // A dispatch's `scope` is an object, and column inference drops those, so
+    // the filtered / select-all-minus / explicit-rows distinction the resource
+    // publishes had nowhere to appear.
+    const columns = CLI_CONTRACT.listTableDispatches?.columns ?? []
+    const paths = columns.map((column) => column.path ?? column.header)
+
+    expect(paths).toContain('scope.groupIds')
+    expect(paths).toContain('scope.rowIds')
+    expect(paths).toContain('scope.filtered')
+    expect(paths).toContain('scope.excludeRowIds')
+    // Kept from what inference used to show: the cap a dispatch ran under, and
+    // when it finished. `limit` is an object, so only its `max` is a column.
+    expect(paths).toContain('limit.max')
+    expect(paths).toContain('completedAt')
+    // Both are the command's own arguments, so neither earns a column.
+    expect(paths).not.toContain('tableId')
+    expect(paths).not.toContain('workspaceId')
+  })
+
+  it('renders the filtered and excluded distinction in the table it prints', () => {
+    const dispatch = {
+      id: 'disp-1',
+      tableId: 'tbl-1',
+      workspaceId: 'ws-1',
+      status: 'dispatching',
+      mode: 'incomplete',
+      scope: { groupIds: ['g1'], filtered: true, excludeRowIds: ['r9', 'r8'] },
+      limit: { type: 'rows', max: 500 },
+      processedCount: 12,
+      isManualRun: true,
+      requestedAt: '2026-08-25T10:00:00.000Z',
+      completedAt: null,
+      canceledAt: null,
+    }
+    const lines: string[] = []
+    const log = vi.spyOn(console, 'log').mockImplementation((line: unknown) => {
+      lines.push(String(line))
+    })
+
+    try {
+      renderPage('table', [dispatch], CLI_CONTRACT.listTableDispatches ?? {})
+    } finally {
+      log.mockRestore()
+    }
+
+    const [header, printed] = lines.join('\n').split('\n')
+    // Split on the two-space column gap, so a cell is compared by the column it
+    // landed under rather than by appearing anywhere in the row.
+    const headers = header.split(/\s{2,}/)
+    const cells = printed.split(/\s{2,}/)
+    const cellUnder = (label: string) => cells[headers.indexOf(label)]
+
+    expect(headers).toContain('FILTERED')
+    expect(headers).toContain('EXCLUDED')
+    expect(headers).not.toContain('WORKSPACE ID')
+    expect(cellUnder('FILTERED')).toBe('yes')
+    expect(cellUnder('EXCLUDED')).toBe('2')
+    expect(cellUnder('ROWS')).toBe('—')
+    expect(cellUnder('MAX ROWS')).toBe('500')
+    expect(cellUnder('COMPLETED')).toBe('—')
   })
 
   it('lists the audit-log id its own get command takes', () => {
@@ -570,6 +686,27 @@ describe('help and gates state what is actually true', () => {
     expect(confirm).toContain('--scope')
   })
 
+  it('names the flag its stream requirement, the way its siblings do', () => {
+    // `--include-thinking` and `--include-tool-calls` both say so; the flag
+    // that shares their server-side rule said nothing and spent a 400 to
+    // discover it.
+    const help = flatHelp('workflows', 'run')
+
+    expect(help).toContain('--select-output')
+    expect(help).toContain('requires --follow')
+  })
+
+  it('promises the dialect a finished run actually matches', () => {
+    // The same flag name on two resources: `workflows run` resolves block
+    // names against the live workflow, `workflows runs get` reads a recorded
+    // run and matches ids only. The help used to promise names on both.
+    const help = flatHelp('workflows', 'runs', 'get')
+
+    expect(help).toContain('--select-output <value...>')
+    expect(help).toContain('blockId')
+    expect(help).not.toMatch(/blockName|agent_1\.content/)
+  })
+
   it('offers no negation for the retry that must travel alone', () => {
     // `retryProcessing` is `z.literal(true)`, so `--no-retry-processing` sent
     // `retryProcessing: false` as the entire request — a body that asks for
@@ -578,5 +715,30 @@ describe('help and gates state what is actually true', () => {
 
     expect(help).toContain('--retry-processing')
     expect(help).not.toContain('--no-retry-processing')
+  })
+})
+
+describe('the import cancel refuses through commander, not just in the contract', () => {
+  beforeEach(() => {
+    mockRequest.mockReset()
+    mockRequest.mockResolvedValue({ data: {} })
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+  })
+
+  it('refuses an import cancellation without --yes and sends nothing', async () => {
+    await expect(runLeaf(['tables', 'imports', 'cancel', 'imp-1'])).rejects.toThrow(/--yes/)
+    expect(mockRequest).not.toHaveBeenCalled()
+  })
+
+  it('still lets an export cancellation through, since it discards no work', async () => {
+    await runLeaf(['tables', 'exports', 'cancel', 'tbl-1', 'exp-1'])
+    expect(mockRequest).toHaveBeenCalled()
+  })
+
+  it('offers --yes in the help of the one it now gates, and not its sibling', () => {
+    expect(flatHelp('tables', 'imports', 'cancel')).toContain(
+      'Confirm this destructive operation (required)'
+    )
+    expect(flatHelp('tables', 'exports', 'cancel')).not.toContain('--yes')
   })
 })

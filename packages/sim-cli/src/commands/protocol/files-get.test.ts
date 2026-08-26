@@ -3,6 +3,7 @@ import {
   existsSync,
   lstatSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   rmSync,
   symlinkSync,
@@ -14,7 +15,12 @@ import { Writable } from 'node:stream'
 import { Command } from 'commander'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildGeneratedCommands } from '../../runtime/build'
-import { isTerminalSafeContentType, saveToFile, streamToFile } from './files-get'
+import {
+  isTerminalSafeContentType,
+  removeStagingOnSignal,
+  saveToFile,
+  streamToFile,
+} from './files-get'
 import { attachProtocolCommands } from './index'
 
 const { output, requestRaw } = vi.hoisted(() => ({
@@ -88,6 +94,62 @@ function program(): Command {
   override(root)
   return root
 }
+
+describe('an interrupted download', () => {
+  /** Staging directories left beside a destination, as `ls -a` shows them. */
+  function stagingDirectories(): string[] {
+    return readdirSync(dir).filter((entry) => entry.startsWith('.sim-download-'))
+  }
+
+  it('removes the staging directory and re-raises when a signal arrives', () => {
+    const staging = mkdtempSync(join(dir, '.sim-download-'))
+    writeFileSync(join(staging, 'payload'), 'partial')
+    // Injected: the real termination re-raises the signal, which would take the
+    // test runner down with it.
+    const terminate = vi.fn()
+    const dispose = removeStagingOnSignal(() => staging, terminate)
+
+    process.emit('SIGINT')
+    dispose()
+
+    expect(existsSync(staging)).toBe(false)
+    expect(terminate).toHaveBeenCalledWith('SIGINT')
+  })
+
+  it('watches for signals only while a download is staged', async () => {
+    const before = { int: process.listenerCount('SIGINT'), term: process.listenerCount('SIGTERM') }
+    let observed = 0
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        observed = process.listenerCount('SIGINT')
+        controller.enqueue(new TextEncoder().encode('data'))
+        controller.close()
+      },
+    })
+
+    await saveToFile(body, join(dir, 'out.bin'), false)
+
+    expect(observed).toBe(before.int + 1)
+    expect(process.listenerCount('SIGINT')).toBe(before.int)
+    expect(process.listenerCount('SIGTERM')).toBe(before.term)
+  })
+
+  it('disposes the watch when the publish itself fails', async () => {
+    const target = join(dir, 'out.txt')
+    writeFileSync(target, 'precious')
+    const before = process.listenerCount('SIGINT')
+
+    await expect(saveToFile(bodyOf(['new']), target, false)).rejects.toThrow(/already exists/)
+
+    expect(process.listenerCount('SIGINT')).toBe(before)
+  })
+
+  it('leaves no staging directory behind on a completed download', async () => {
+    await saveToFile(bodyOf(['done']), join(dir, 'out.bin'), false)
+
+    expect(stagingDirectories()).toEqual([])
+  })
+})
 
 describe('streamToFile', () => {
   it('writes the body to disk', async () => {

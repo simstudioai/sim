@@ -76,7 +76,14 @@ function validateWorkspaceOnlyFlag<T>(
 }
 
 /**
- * Reads the secret, from the flag or the prompt.
+ * Reads the secret, from the flag or the prompt, or not at all.
+ *
+ * Nothing is read when the command carries a metadata flag and no `--value`:
+ * that invocation is changing the description or the redaction setting of a
+ * secret that already exists, and the API accepts a workspace body with no
+ * value. Prompting there hangs a CI job on stdin for a value it was never
+ * asked for — `sim secrets set NAME --no-unredacted` is the shape that has to
+ * work unattended.
  *
  * An abort at the prompt is reported here rather than thrown: Ctrl-C is the
  * user deciding not to run the command, and the shell's convention for that is
@@ -84,8 +91,9 @@ function validateWorkspaceOnlyFlag<T>(
  * exit is immediate for the same reason the handler's is — the prompt leaves
  * stdin listening, so a returning process would sit there instead of ending.
  */
-async function readSecretValue(options: SetSecretOptions): Promise<string> {
+async function readSecretValue(options: SetSecretOptions): Promise<string | undefined> {
   if (options.value !== undefined) return validateSecretValue(readValueArgument(options.value))
+  if (options.description !== undefined || options.unredacted !== undefined) return undefined
   try {
     return validateSecretValue(await promptSecret())
   } catch (error) {
@@ -95,7 +103,18 @@ async function readSecretValue(options: SetSecretOptions): Promise<string> {
   }
 }
 
-async function setSecret(name: string, options: SetSecretOptions, command: Command): Promise<void> {
+async function setSecret(
+  name: string,
+  options: SetSecretOptions,
+  command: Command,
+  redactionSpellings: ReadonlySet<string>
+): Promise<void> {
+  if (redactionSpellings.size > 1) {
+    throw new SimApiError(
+      'Pass either --unredacted or --no-unredacted, not both: they are one setting, and commander keeps only whichever came last.',
+      0
+    )
+  }
   const description = validateWorkspaceOnlyFlag('description', options.description, options.scope)
   const unredacted = validateWorkspaceOnlyFlag('unredacted', options.unredacted, options.scope)
   const value = await readSecretValue(options)
@@ -106,7 +125,7 @@ async function setSecret(name: string, options: SetSecretOptions, command: Comma
     body: {
       workspaceId: client.requireWorkspace(),
       scope: options.scope,
-      value,
+      ...(value === undefined ? {} : { value }),
       description,
       ...(unredacted === undefined ? {} : { unredacted }),
     },
@@ -120,12 +139,22 @@ export function attachSecretCommands(program: Command): void {
   const secrets = program.commands.find((command) => command.name() === 'secrets')
   if (!secrets) throw new Error('The generated secrets command group is missing')
 
+  /**
+   * Which of the two spellings of the redaction setting were typed.
+   *
+   * They share one commander attribute, so passing both silently keeps the last
+   * one — on the flag that decides whether the value is readable in plaintext.
+   * The parsed options cannot show that, so the occurrences are recorded as
+   * commander reports them.
+   */
+  const redactionSpellings = new Set<string>()
+
   secrets
     .command('set')
     .argument('<name>', 'Secret name, as referenced in workflows')
     .description('Create or replace a named secret')
     .addOption(
-      new Option('--scope <scope>', 'Secret ownership scope')
+      new Option('--scope <scope>', 'Secret ownership scope (required)')
         .choices([...SECRET_SCOPES])
         .makeOptionMandatory()
     )
@@ -142,7 +171,9 @@ export function attachSecretCommands(program: Command): void {
       `${V2_OPERATIONS.setSecret.body.unredacted.describe} Pass --no-unredacted to restore redaction`
     )
     .option('--no-unredacted', 'Send --unredacted as false')
+    .on('option:unredacted', () => redactionSpellings.add('--unredacted'))
+    .on('option:no-unredacted', () => redactionSpellings.add('--no-unredacted'))
     .action((name: string, options: SetSecretOptions, command: Command) =>
-      setSecret(name, options, command)
+      setSecret(name, options, command, redactionSpellings)
     )
 }

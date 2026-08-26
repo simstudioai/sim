@@ -274,6 +274,46 @@ describe('sim workflows run --follow', () => {
     expect(request).not.toHaveBeenCalled()
   })
 
+  it('refuses --select-output without --follow and sends nothing', async () => {
+    await expect(run('wf_1', '--select-output', 'agent_1.content')).rejects.toThrow(/add --follow/)
+    expect(request).not.toHaveBeenCalled()
+    expect(requestRaw).not.toHaveBeenCalled()
+  })
+
+  it('points a refused --select-output at the dialect the run resource takes', async () => {
+    // The caller just typed a block *name*, which is what this flag accepts and
+    // what `workflows runs get` rejects, so a hint that only repeated the flag
+    // would send them into a second 400.
+    await expect(run('wf_1', '--select-output', 'agent_1.content')).rejects.toThrow(
+      /workflows runs get .*--select-output <blockId>\[\.path\].*block ids, not the block names/s
+    )
+  })
+
+  it('tells --async --select-output that no stream is coming, rather than to follow', async () => {
+    // `--async --follow` is refused outright, so "add --follow" would be advice
+    // that cannot be taken.
+    const failure = await run('wf_1', '--async', '--select-output', 'agent_1.content').catch(
+      (error: Error) => error
+    )
+
+    expect(failure?.message).toContain('--async returns as soon as the run is queued')
+    expect(failure?.message).not.toContain('add --follow')
+    expect(request).not.toHaveBeenCalled()
+  })
+
+  it('sends the selection with the stream once --follow is passed', async () => {
+    requestRaw.mockResolvedValue(streamResponse(sse({ event: 'final', data: { success: true } })))
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+    vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
+
+    await run('wf_1', '--follow', '--select-output', 'agent_1.content')
+
+    expect(requestRaw.mock.calls[0][1].body).toEqual({
+      stream: true,
+      selectedOutputs: ['agent_1.content'],
+    })
+  })
+
   it('leaves the generated non-streaming path untouched', async () => {
     request.mockResolvedValue({ data: { success: true, output: {} } })
     vi.spyOn(console, 'log').mockImplementation(() => {})
