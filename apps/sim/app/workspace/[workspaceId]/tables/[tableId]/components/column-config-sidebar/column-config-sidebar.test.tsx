@@ -50,11 +50,7 @@ vi.mock('@sim/emcn', () => ({
   },
   ChipInput: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
   FieldDivider: () => <hr />,
-  Label: ({ children, ...props }: React.LabelHTMLAttributes<HTMLLabelElement>) => (
-    <label htmlFor={props.htmlFor ?? 'test-field'} {...props}>
-      {children}
-    </label>
-  ),
+  Label: ({ children }: { children: React.ReactNode }) => <span>{children}</span>,
   Switch: ({ checked }: { checked?: boolean }) => (
     <button type='button' aria-pressed={checked}>
       Toggle
