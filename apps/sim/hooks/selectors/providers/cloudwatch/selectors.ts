@@ -18,27 +18,32 @@ function ensureAwsSelectorCredentials(context: SelectorQueryArgs['context'], key
 export const cloudwatchSelectors = {
   'cloudwatch.logGroups': {
     key: 'cloudwatch.logGroups',
-    contracts: [selectorContracts.cloudwatchLogGroupsSelectorContract],
+    contracts: [selectorContracts.cloudwatchSelectorLogGroupsContract],
+    serverResolvedContextFields: ['awsAccessKeyId', 'awsSecretAccessKey', 'awsRegion'],
     staleTime: SELECTOR_STALE,
     getQueryKey: ({ context, search }: SelectorQueryArgs) => [
       'selectors',
       'cloudwatch.logGroups',
-      context.awsAccessKeyId ?? 'none',
-      context.awsRegion ?? 'none',
       search ?? '',
     ],
     enabled: ({ context }) =>
-      Boolean(context.awsAccessKeyId && context.awsSecretAccessKey && context.awsRegion),
+      Boolean(
+        context.awsAccessKeyId &&
+          context.awsSecretAccessKey &&
+          context.awsRegion &&
+          context.workflowId
+      ),
     fetchList: async ({ context, search, signal }: SelectorQueryArgs) => {
       const awsCredentials = ensureAwsSelectorCredentials(context, 'cloudwatch.logGroups')
-      const data = await requestJson(selectorContracts.cloudwatchLogGroupsSelectorContract, {
+      const data = await requestJson(selectorContracts.cloudwatchSelectorLogGroupsContract, {
         body: {
+          workflowId: context.workflowId!,
           ...awsCredentials,
           prefix: search,
         },
         signal,
       })
-      return (data.output?.logGroups || []).map((lg) => ({
+      return data.logGroups.map((lg) => ({
         id: lg.logGroupName,
         label: lg.logGroupName,
       }))
@@ -50,13 +55,12 @@ export const cloudwatchSelectors = {
   },
   'cloudwatch.logStreams': {
     key: 'cloudwatch.logStreams',
-    contracts: [selectorContracts.cloudwatchLogStreamsSelectorContract],
+    contracts: [selectorContracts.cloudwatchSelectorLogStreamsContract],
+    serverResolvedContextFields: ['awsAccessKeyId', 'awsSecretAccessKey', 'awsRegion'],
     staleTime: SELECTOR_STALE,
     getQueryKey: ({ context, search }: SelectorQueryArgs) => [
       'selectors',
       'cloudwatch.logStreams',
-      context.awsAccessKeyId ?? 'none',
-      context.awsRegion ?? 'none',
       context.logGroupName ?? 'none',
       search ?? '',
     ],
@@ -65,22 +69,24 @@ export const cloudwatchSelectors = {
         context.awsAccessKeyId &&
           context.awsSecretAccessKey &&
           context.awsRegion &&
-          context.logGroupName
+          context.logGroupName &&
+          context.workflowId
       ),
     fetchList: async ({ context, search, signal }: SelectorQueryArgs) => {
       const awsCredentials = ensureAwsSelectorCredentials(context, 'cloudwatch.logStreams')
       if (!context.logGroupName) {
         throw new Error('Missing log group name for cloudwatch.logStreams selector')
       }
-      const data = await requestJson(selectorContracts.cloudwatchLogStreamsSelectorContract, {
+      const data = await requestJson(selectorContracts.cloudwatchSelectorLogStreamsContract, {
         body: {
+          workflowId: context.workflowId!,
           ...awsCredentials,
           logGroupName: context.logGroupName,
           prefix: search,
         },
         signal,
       })
-      return (data.output?.logStreams || []).map((ls) => ({
+      return data.logStreams.map((ls) => ({
         id: ls.logStreamName,
         label: ls.logStreamName,
       }))

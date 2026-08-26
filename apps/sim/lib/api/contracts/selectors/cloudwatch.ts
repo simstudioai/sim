@@ -9,6 +9,8 @@ import { validateAwsRegion } from '@/lib/core/security/input-validation'
 
 const cloudwatchLogGroupSchema = z.object({ logGroupName: z.string() }).passthrough()
 const cloudwatchLogStreamSchema = z.object({ logStreamName: z.string() }).passthrough()
+const cloudwatchSelectorLogGroupSchema = z.object({ logGroupName: z.string() }).strict()
+const cloudwatchSelectorLogStreamSchema = z.object({ logStreamName: z.string() }).strict()
 
 /**
  * AWS region with format validation. Matches the route-level check via
@@ -30,6 +32,15 @@ const optionalLimitSchema = z.preprocess(
   z.coerce.number().int().positive().optional()
 )
 
+const cloudwatchSelectorBaseBodySchema = z.object({
+  workflowId: z.string().min(1, 'Workflow ID is required'),
+  accessKeyId: z.string().min(1, 'AWS access key ID is required'),
+  secretAccessKey: z.string().min(1, 'AWS secret access key is required'),
+  region: z.string().min(1, 'AWS region is required'),
+  prefix: optionalString,
+  limit: optionalLimitSchema.optional(),
+})
+
 export const cloudwatchLogGroupsBodySchema = z.object({
   accessKeyId: z.string().min(1, 'AWS access key ID is required'),
   secretAccessKey: z.string().min(1, 'AWS secret access key is required'),
@@ -39,6 +50,12 @@ export const cloudwatchLogGroupsBodySchema = z.object({
 })
 
 export const cloudwatchLogStreamsBodySchema = cloudwatchLogGroupsBodySchema.extend({
+  logGroupName: z.string().min(1, 'Log group name is required'),
+})
+
+export const cloudwatchSelectorLogGroupsBodySchema = cloudwatchSelectorBaseBodySchema
+
+export const cloudwatchSelectorLogStreamsBodySchema = cloudwatchSelectorBaseBodySchema.extend({
   logGroupName: z.string().min(1, 'Log group name is required'),
 })
 
@@ -64,9 +81,23 @@ export const cloudwatchLogStreamsSelectorContract = definePostSelector(
     .passthrough()
 )
 
+export const cloudwatchSelectorLogGroupsContract = definePostSelector(
+  '/api/tools/cloudwatch/selector-log-groups',
+  cloudwatchSelectorLogGroupsBodySchema,
+  z.object({ logGroups: z.array(cloudwatchSelectorLogGroupSchema) }).strict()
+)
+
+export const cloudwatchSelectorLogStreamsContract = definePostSelector(
+  '/api/tools/cloudwatch/selector-log-streams',
+  cloudwatchSelectorLogStreamsBodySchema,
+  z.object({ logStreams: z.array(cloudwatchSelectorLogStreamSchema) }).strict()
+)
+
 export const cloudwatchSelectorContractsByPath = {
   '/api/tools/cloudwatch/describe-log-groups': cloudwatchLogGroupsSelectorContract,
   '/api/tools/cloudwatch/describe-log-streams': cloudwatchLogStreamsSelectorContract,
+  '/api/tools/cloudwatch/selector-log-groups': cloudwatchSelectorLogGroupsContract,
+  '/api/tools/cloudwatch/selector-log-streams': cloudwatchSelectorLogStreamsContract,
 } as const
 
 export type CloudwatchLogGroupsSelectorResponse = ContractJsonResponse<

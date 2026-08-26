@@ -1,5 +1,6 @@
 import {
   CloudWatchLogsClient,
+  DescribeLogGroupsCommand,
   DescribeLogStreamsCommand,
   FilterLogEventsCommand,
   GetLogEventsCommand,
@@ -10,10 +11,20 @@ import { createLogger } from '@sim/logger'
 import { sleep } from '@sim/utils/helpers'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
 
+const logger = createLogger('CloudWatchUtils')
+
 interface AwsCredentials {
   region: string
   accessKeyId: string
   secretAccessKey: string
+}
+
+interface DescribedLogGroup {
+  logGroupName: string
+  arn: string
+  storedBytes: number
+  retentionInDays: number | undefined
+  creationTime: number | undefined
 }
 
 export function createCloudWatchLogsClient(config: AwsCredentials): CloudWatchLogsClient {
@@ -24,6 +35,60 @@ export function createCloudWatchLogsClient(config: AwsCredentials): CloudWatchLo
       secretAccessKey: config.secretAccessKey,
     },
   })
+}
+
+/** AWS DescribeLogGroups caps `limit` at 50 items per page. */
+const LOG_GROUPS_PAGE_SIZE = 50
+
+/** Upper bound on pages drained to avoid unbounded loops on very large accounts. */
+const MAX_LOG_GROUPS_PAGES = 20
+
+/** Lists CloudWatch log groups with the same bounded pagination used by tool and selector routes. */
+export async function describeLogGroups(
+  client: CloudWatchLogsClient,
+  options?: { prefix?: string; limit?: number }
+): Promise<{ logGroups: DescribedLogGroup[] }> {
+  const totalLimit = options?.limit
+  const logGroups: DescribedLogGroup[] = []
+  let nextToken: string | undefined
+
+  for (let page = 0; page < MAX_LOG_GROUPS_PAGES; page++) {
+    const pageLimit =
+      totalLimit !== undefined
+        ? Math.min(LOG_GROUPS_PAGE_SIZE, totalLimit - logGroups.length)
+        : LOG_GROUPS_PAGE_SIZE
+    const response = await client.send(
+      new DescribeLogGroupsCommand({
+        ...(options?.prefix && { logGroupNamePrefix: options.prefix }),
+        limit: pageLimit,
+        ...(nextToken && { nextToken }),
+      })
+    )
+
+    for (const logGroup of response.logGroups ?? []) {
+      logGroups.push({
+        logGroupName: logGroup.logGroupName ?? '',
+        arn: logGroup.arn ?? '',
+        storedBytes: logGroup.storedBytes ?? 0,
+        retentionInDays: logGroup.retentionInDays,
+        creationTime: logGroup.creationTime,
+      })
+    }
+
+    nextToken = response.nextToken
+    if (!nextToken) break
+    if (totalLimit !== undefined && logGroups.length >= totalLimit) break
+
+    if (page === MAX_LOG_GROUPS_PAGES - 1) {
+      logger.warn(
+        `DescribeLogGroups hit pagination cap of ${MAX_LOG_GROUPS_PAGES} pages; log group list may be incomplete`
+      )
+    }
+  }
+
+  return {
+    logGroups: totalLimit !== undefined ? logGroups.slice(0, totalLimit) : logGroups,
+  }
 }
 
 interface PollOptions {
@@ -103,8 +168,6 @@ const LOG_STREAMS_PAGE_SIZE = 50
 
 /** Upper bound on pages drained to avoid unbounded loops on log groups with many streams. */
 const MAX_LOG_STREAMS_PAGES = 20
-
-const logger = createLogger('CloudWatchUtils')
 
 interface DescribedLogStream {
   logStreamName: string
