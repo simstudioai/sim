@@ -300,7 +300,7 @@ Example 2 - Product Data:
       title: 'Ignore Invalid URLs',
       type: 'switch',
       mode: 'advanced',
-      condition: { field: 'operation', value: 'batch_scrape' },
+      condition: { field: 'operation', value: ['batch_scrape', 'search'] },
     },
     {
       id: 'waitFor',
@@ -554,6 +554,9 @@ Example 2 - Product Data:
             if (query) result.query = query
             if (timeout) result.timeout = Number.parseInt(timeout)
             if (limit) result.limit = Number.parseInt(limit)
+            if (params.ignoreInvalidURLs != null) {
+              result.ignoreInvalidURLs = params.ignoreInvalidURLs
+            }
             break
 
           case 'crawl':

@@ -3,47 +3,9 @@ import {
   applyFirecrawlScrapeOptionsModelInput,
   selectFirecrawlScrapeOptionsModelInput,
 } from '@/tools/firecrawl/model-input'
-import type { SearchParams, SearchResponse, SearchResultItem } from '@/tools/firecrawl/types'
-import { SEARCH_RESULT_OUTPUT_PROPERTIES } from '@/tools/firecrawl/types'
+import type { FirecrawlSearchData, SearchParams, SearchResponse } from '@/tools/firecrawl/types'
+import { SEARCH_DATA_OUTPUT } from '@/tools/firecrawl/types'
 import type { ToolConfig } from '@/tools/types'
-
-/**
- * Source keys Firecrawl documents for `POST /v2/search`, in the order their
- * results are concatenated. Listing them explicitly — rather than relying on
- * object key order — keeps the flattened output stable no matter what order
- * the API happens to serialize the envelope in.
- */
-const FIRECRAWL_SEARCH_SOURCE_ORDER = ['web', 'news', 'images'] as const
-
-/**
- * Flattens the source-keyed search envelope into the single result array this
- * tool declares.
- *
- * Firecrawl returns `data` keyed by source ("The arrays available will depend
- * on the sources you specified in the request. By default, the `web` array
- * will be returned."), so `data.data` is `{ web: [...], news: [...], images:
- * [...] }` — not the array `outputs.data` advertises. Known sources come first
- * in {@link FIRECRAWL_SEARCH_SOURCE_ORDER}, then any future source key in
- * alphabetical order; a plain array is passed through unchanged, and anything
- * else yields `[]`.
- */
-export const flattenFirecrawlSearchResults = (data: unknown): SearchResultItem[] => {
-  if (Array.isArray(data)) return data as SearchResultItem[]
-  if (data === null || typeof data !== 'object') return []
-
-  const envelope = data as Record<string, unknown>
-  const knownKeys = FIRECRAWL_SEARCH_SOURCE_ORDER as readonly string[]
-  const extraKeys = Object.keys(envelope)
-    .filter((key) => !knownKeys.includes(key))
-    .sort()
-
-  const flattened: SearchResultItem[] = []
-  for (const key of [...knownKeys, ...extraKeys]) {
-    const results = envelope[key]
-    if (Array.isArray(results)) flattened.push(...(results as SearchResultItem[]))
-  }
-  return flattened
-}
 
 export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
   id: 'firecrawl_search',
@@ -62,14 +24,15 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum number of results to return (Firecrawl default: 10)',
+      description:
+        'Maximum number of results to return per source type, not in total (Firecrawl default: 10, maximum: 100). Requesting three sources at limit 100 can return up to 300 results.',
     },
     sources: {
       type: 'array',
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Result sources to search. Defaults to ["web"]. Results from every requested source are flattened into `data` in web, news, images order.',
+        'Result sources to search: "web", "news", and/or "images". Defaults to ["web"]. Each requested source is returned as its own array under `data` — `data.web`, `data.news`, `data.images` — with its own item fields.',
       items: { type: 'string' },
     },
     categories: {
@@ -167,25 +130,35 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
   },
 
   transformResponse: async (response: Response) => {
-    const data = await response.json()
+    const payload = await response.json()
+    const data = payload?.data
 
     return {
       success: true,
       output: {
-        data: flattenFirecrawlSearchResults(data?.data),
-        creditsUsed: data?.creditsUsed,
+        data:
+          data && typeof data === 'object' && !Array.isArray(data)
+            ? (data as FirecrawlSearchData)
+            : {},
+        warning: payload?.warning ?? undefined,
+        id: payload?.id,
+        creditsUsed: payload?.creditsUsed,
       },
     }
   },
 
   outputs: {
-    data: {
-      type: 'array',
-      description: 'Search results data with scraped content and metadata',
-      items: {
-        type: 'object',
-        properties: SEARCH_RESULT_OUTPUT_PROPERTIES,
-      },
+    data: SEARCH_DATA_OUTPUT,
+    warning: {
+      type: 'string',
+      description: 'Warning message if any issues occurred during the search',
+      optional: true,
+    },
+    id: { type: 'string', description: 'ID of the search job', optional: true },
+    creditsUsed: {
+      type: 'number',
+      description: 'Number of credits the search consumed',
+      optional: true,
     },
   },
 }

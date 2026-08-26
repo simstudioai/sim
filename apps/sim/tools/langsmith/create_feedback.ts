@@ -5,7 +5,11 @@ import type {
   LangsmithCreateFeedbackResponse,
 } from '@/tools/langsmith/types'
 import type { LangsmithFeedbackValue } from '@/tools/langsmith/utils'
-import { LANGSMITH_API_BASE, truncateLangsmithErrorText } from '@/tools/langsmith/utils'
+import {
+  LANGSMITH_API_BASE,
+  parseLangsmithFeedbackValue,
+  truncateLangsmithErrorText,
+} from '@/tools/langsmith/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const langsmithCreateFeedbackTool: ToolConfig<
@@ -34,7 +38,7 @@ export const langsmithCreateFeedbackTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'ID of the tracing project (session) the feedback belongs to. Optional today: LangSmith warns when it is omitted and will reject the request from 31 Jan 2027 on cloud (self-hosted: deprecated in v0.16, removed in v0.18).',
+        'UUID of the tracing project (session) the feedback belongs to. LangSmith documents this as required: "POST /api/v1/feedback now requires a session_id field in the request body. It was previously optional." Never guess it — supply the sessionId reported by a preceding langsmith_get_run for the same run, or look the project up with GET /api/v1/sessions. A wrong UUID is not validated against the run and mis-files the feedback silently.',
     },
     key: {
       type: 'string',
@@ -49,11 +53,11 @@ export const langsmithCreateFeedbackTool: ToolConfig<
       description: 'Numeric score for the feedback metric',
     },
     value: {
-      type: 'json',
+      type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Categorical value for the feedback metric. Accepts a string ("good"), number, boolean, or JSON object.',
+        'Categorical value for the feedback metric, e.g. "good". A JSON scalar or object typed here ("1", "true", \'{"label":"good"}\') is sent with its JSON type; anything else is sent as a string.',
     },
     comment: {
       type: 'string',
@@ -88,7 +92,7 @@ export const langsmithCreateFeedbackTool: ToolConfig<
         session_id: params.sessionId?.trim() || undefined,
         key: params.key,
         score: params.score,
-        value: params.value,
+        value: parseLangsmithFeedbackValue(params.value),
         comment: params.comment,
         correction: params.correction,
         feedback_source: params.feedbackSourceType
@@ -134,7 +138,7 @@ export const langsmithCreateFeedbackTool: ToolConfig<
     value: {
       type: 'json',
       description:
-        'Categorical value recorded for the feedback (string, number, boolean, or JSON object)',
+        "Categorical value recorded for the feedback. Declared as json because the response echoes LangSmith's own union — string, number, boolean, or JSON object — even though the input is typed as a string.",
       optional: true,
     },
     comment: { type: 'string', description: 'Comment recorded for the feedback', optional: true },

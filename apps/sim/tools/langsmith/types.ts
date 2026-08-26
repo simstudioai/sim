@@ -113,7 +113,13 @@ export interface LangsmithCreateFeedbackParams {
   sessionId?: string
   key: string
   score?: number
-  value?: LangsmithFeedbackValue
+  /**
+   * Declared to the model as `type: 'string'`, but the block's param mapper may
+   * have already coerced it with `parseLangsmithFeedbackValue`, so the runtime
+   * value is any member of the union LangSmith stores — never `null`, which the
+   * parser drops. The response echoes the full union, `null` included.
+   */
+  value?: Exclude<LangsmithFeedbackValue, null>
   comment?: string
   correction?: Record<string, unknown>
   feedbackSourceType?: LangsmithFeedbackSourceType

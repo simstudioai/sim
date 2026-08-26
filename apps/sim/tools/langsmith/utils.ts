@@ -22,24 +22,48 @@ export type LangsmithFeedbackValue = string | number | boolean | Record<string, 
  * LangSmith actually stores.
  *
  * `FeedbackCreateSchema.value` accepts `number | integer | boolean | string |
- * object | null`, but the block surfaces it as a single-line text input, so a
- * user asking for the numeric value `1` or the boolean `true` would otherwise
- * post the strings `"1"` / `"true"` and get a differently-typed row back.
- * Anything that is not valid JSON — the common categorical case, `good` —
- * stays the string it was typed as.
+ * object | null`, but both surfaces hand this tool a string — the block renders
+ * a `short-input`, and the model tool schema declares `type: 'string'` because
+ * `buildParameterSchema` collapses `'json'` to `{"type":"object"}` and so has
+ * no way to express that union. Without this coercion a user or model asking
+ * for the numeric value `1` or the boolean `true` would post the strings `"1"`
+ * / `"true"` and get a differently-typed row back. Anything that is not valid
+ * JSON — the common categorical case, `good` — stays the string it was typed
+ * as.
+ *
+ * Three inputs are deliberately *not* taken at face value:
+ *
+ * - A bare `null` yields `undefined`, so the field is dropped rather than
+ *   posted. `filterUndefined` strips only `undefined`, so a categorical label
+ *   of `null` — or a template that rendered an unset variable — would
+ *   otherwise silently record null-valued feedback, which is indistinguishable
+ *   from feedback whose value was never set. No text field can express "store
+ *   JSON null" separately from "left blank", so the blank reading wins.
+ * - A number that does not survive `JSON.parse` → `JSON.stringify` unchanged
+ *   stays a string. `"1.0"` would become `1` and `"007"` would become `7`,
+ *   losing the exact label the user typed, and an id longer than 2^53 (say a
+ *   20-digit ticket number) would silently lose its low-order digits.
+ * - An array literal stays a string, since the schema has no array member.
+ *
+ * Idempotent: a value already coerced by the block layer is returned unchanged.
  */
 export const parseLangsmithFeedbackValue = (value: unknown): LangsmithFeedbackValue | undefined => {
   if (value === undefined || value === null) return undefined
   if (typeof value !== 'string') return value as LangsmithFeedbackValue
   const trimmed = value.trim()
   if (trimmed === '') return undefined
+
+  let parsed: unknown
   try {
-    const parsed: unknown = JSON.parse(trimmed)
-    if (Array.isArray(parsed)) return value
-    return parsed as LangsmithFeedbackValue
+    parsed = JSON.parse(trimmed)
   } catch {
     return value
   }
+
+  if (parsed === null) return undefined
+  if (Array.isArray(parsed)) return value
+  if (typeof parsed === 'number' && JSON.stringify(parsed) !== trimmed) return value
+  return parsed as LangsmithFeedbackValue
 }
 
 /** Ellipsis appended to an upstream error body that had to be cut short. */

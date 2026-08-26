@@ -501,7 +501,49 @@ describe('langsmith feedback value typing', () => {
     expect(body.value).toBe(0.5)
   })
 
-  it('does not narrow the feedback value to a string in the model tool schema', () => {
-    expect(langsmithCreateFeedbackTool.params.value.type).not.toBe('string')
+  it('drops a bare null literal instead of posting null-valued feedback', () => {
+    expect(parseLangsmithFeedbackValue('null')).toBeUndefined()
+    expect(parseLangsmithFeedbackValue(null)).toBeUndefined()
+  })
+
+  it('keeps a number that does not round-trip as the string it was typed as', () => {
+    expect(parseLangsmithFeedbackValue('1.0')).toBe('1.0')
+    expect(parseLangsmithFeedbackValue('007')).toBe('007')
+    expect(parseLangsmithFeedbackValue('12345678901234567890')).toBe('12345678901234567890')
+  })
+
+  it('coerces the feedback value on the tool path, not only the block path', () => {
+    const body = resolveBody(langsmithCreateFeedbackTool as never, {
+      ...createFeedbackParams,
+      value: '1',
+    } satisfies LangsmithCreateFeedbackParams)
+
+    expect(body.value).toBe(1)
+  })
+
+  it('omits a value that coerces away instead of sending null', () => {
+    const body = resolveBody(langsmithCreateFeedbackTool as never, {
+      ...createFeedbackParams,
+      value: 'null',
+    } satisfies LangsmithCreateFeedbackParams)
+
+    expect(body).not.toHaveProperty('value')
+  })
+
+  it('declares the feedback value as a string so the LLM schema stays scalar', () => {
+    expect(langsmithCreateFeedbackTool.params.value.type).toBe('string')
+  })
+})
+
+describe('langsmith feedback session_id documentation', () => {
+  const description = langsmithCreateFeedbackTool.params.sessionId.description ?? ''
+
+  it('does not invent a deprecation date for POST /api/v1/feedback', () => {
+    expect(description).not.toMatch(/2027|v0\.1[68]|deprecat/i)
+  })
+
+  it('tells the model where to obtain the project UUID instead of guessing one', () => {
+    expect(description).toMatch(/never guess|do not guess/i)
+    expect(description).toContain('/sessions')
   })
 })

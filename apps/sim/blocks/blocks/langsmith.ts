@@ -178,7 +178,7 @@ export const LangsmithBlock: BlockConfig<LangsmithResponse> = {
       id: 'session_id',
       title: 'Session ID',
       type: 'short-input',
-      placeholder: 'Session identifier',
+      placeholder: 'Tracing project (session) UUID, e.g. 018e4c7e-a9fb-7ef0-a5b6-6ea3a82e9327',
       condition: {
         field: 'operation',
         value: ['langsmith_create_run', 'langsmith_create_feedback'],
@@ -456,7 +456,8 @@ Common patch fields: outputs, end_time, status, error`,
     trace_id: { type: 'string', description: 'Trace ID' },
     session_id: {
       type: 'string',
-      description: 'Tracing project (session) ID for the run or the feedback',
+      description:
+        'UUID of the tracing project (session) the run or the feedback belongs to. Required by LangSmith when creating feedback.',
     },
     session_name: { type: 'string', description: 'Session name' },
     status: { type: 'string', description: 'Run status' },

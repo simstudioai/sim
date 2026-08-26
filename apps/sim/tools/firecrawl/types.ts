@@ -86,8 +86,28 @@ export const CRAWL_METADATA_OUTPUT: OutputProperty = {
 export const SEARCH_METADATA_OUTPUT_PROPERTIES = {
   title: { type: 'string', description: 'Page title', optional: true },
   description: { type: 'string', description: 'Page meta description', optional: true },
-  sourceURL: { type: 'string', description: 'Original source URL' },
+  sourceURL: {
+    type: 'string',
+    description: 'The originally requested URL, before any redirects were followed',
+  },
+  url: {
+    type: 'string',
+    description: 'The final URL of the page after all redirects were followed',
+    optional: true,
+  },
   statusCode: { type: 'number', description: 'HTTP status code', optional: true },
+  numPages: {
+    type: 'number',
+    description:
+      'For PDF inputs, the number of pages parsed (capped by the parser maxPages option)',
+    optional: true,
+  },
+  totalPages: {
+    type: 'number',
+    description:
+      "For PDF inputs, the document's true page count before maxPages capping; greater than numPages means the result was truncated",
+    optional: true,
+  },
   error: { type: 'string', description: 'Error message if scrape failed', optional: true },
 } as const satisfies Record<string, OutputProperty>
 
@@ -123,16 +143,13 @@ export const CRAWLED_PAGE_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Output properties for search result items
- * Based on POST /v2/search response data[] array items
+ * Content a `web` or `news` search result carries only when `scrapeOptions`
+ * asked Firecrawl to scrape the page behind it. `images` results are never
+ * scraped, so they share none of these fields.
+ *
+ * Based on the `data.web[]` / `data.news[]` items of POST /v2/search.
  */
-export const SEARCH_RESULT_OUTPUT_PROPERTIES = {
-  title: { type: 'string', description: 'Search result title from search engine' },
-  description: {
-    type: 'string',
-    description: 'Search result description/snippet from search engine',
-  },
-  url: { type: 'string', description: 'URL of the search result' },
+const SEARCH_SCRAPED_OUTPUT_PROPERTIES = {
   markdown: {
     type: 'string',
     description: 'Page content in markdown (when scrapeOptions.formats includes "markdown")',
@@ -160,16 +177,104 @@ export const SEARCH_RESULT_OUTPUT_PROPERTIES = {
       'Screenshot URL (expires after 24 hours, when scrapeOptions.formats includes "screenshot")',
     optional: true,
   },
-  metadata: SEARCH_METADATA_OUTPUT,
+  audio: {
+    type: 'string',
+    description:
+      'Signed URL to the extracted MP3 (when scrapeOptions.formats includes "audio"); expires after 1 hour',
+    optional: true,
+  },
+  video: {
+    type: 'string',
+    description:
+      'Signed URL to the extracted video (when scrapeOptions.formats includes "video"); expires after 1 hour',
+    optional: true,
+  },
+  metadata: { ...SEARCH_METADATA_OUTPUT, optional: true },
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Complete search result output definition
+ * Output properties for `data.web[]` items of POST /v2/search.
  */
-export const SEARCH_RESULT_OUTPUT: OutputProperty = {
+export const SEARCH_WEB_RESULT_OUTPUT_PROPERTIES = {
+  title: { type: 'string', description: 'Title from the search result' },
+  description: { type: 'string', description: 'Description from the search result' },
+  url: { type: 'string', description: 'URL of the search result' },
+  ...SEARCH_SCRAPED_OUTPUT_PROPERTIES,
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output properties for `data.news[]` items of POST /v2/search.
+ *
+ * News results carry `snippet`, not `description`, and `imageUrl` here is the
+ * article's thumbnail — unlike on an `images` result, where it is the image
+ * itself. `position` is 1-based *within this array*, not across sources.
+ */
+export const SEARCH_NEWS_RESULT_OUTPUT_PROPERTIES = {
+  title: { type: 'string', description: 'Title of the article' },
+  snippet: { type: 'string', description: 'Snippet from the article' },
+  url: { type: 'string', description: 'URL of the article' },
+  date: { type: 'string', description: 'Date of the article', optional: true },
+  imageUrl: { type: 'string', description: "URL of the article's image", optional: true },
+  position: {
+    type: 'number',
+    description: 'Rank of the article within the news results (1-based)',
+    optional: true,
+  },
+  ...SEARCH_SCRAPED_OUTPUT_PROPERTIES,
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output properties for `data.images[]` items of POST /v2/search.
+ *
+ * `url` is the page that *contains* the image; `imageUrl` is the image itself.
+ * Image results are never scraped, so they carry no content or metadata.
+ */
+export const SEARCH_IMAGE_RESULT_OUTPUT_PROPERTIES = {
+  title: { type: 'string', description: 'Title from the search result' },
+  imageUrl: { type: 'string', description: 'URL of the image itself' },
+  imageWidth: { type: 'number', description: 'Width of the image in pixels', optional: true },
+  imageHeight: { type: 'number', description: 'Height of the image in pixels', optional: true },
+  url: { type: 'string', description: 'URL of the page containing the image' },
+  position: {
+    type: 'number',
+    description: 'Rank of the result within the image results (1-based)',
+    optional: true,
+  },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * The `data` envelope of POST /v2/search.
+ *
+ * Firecrawl groups results by source rather than under one generic array:
+ * "The arrays available will depend on the sources you specified in the
+ * request. By default, the `web` array will be returned." Every array is
+ * therefore optional, and each keeps its own item shape — a news `snippet` and
+ * an image `imageUrl` have no equivalent on a web result and would be lost if
+ * the sources were merged.
+ */
+export const SEARCH_DATA_OUTPUT: OutputProperty = {
   type: 'object',
-  description: 'Search result item with optional scraped content',
-  properties: SEARCH_RESULT_OUTPUT_PROPERTIES,
+  description: 'Search results, grouped by the sources requested',
+  properties: {
+    web: {
+      type: 'array',
+      description: 'Web results (returned by default, or when "web" is in sources)',
+      optional: true,
+      items: { type: 'object', properties: SEARCH_WEB_RESULT_OUTPUT_PROPERTIES },
+    },
+    news: {
+      type: 'array',
+      description: 'News results (only when "news" is in sources)',
+      optional: true,
+      items: { type: 'object', properties: SEARCH_NEWS_RESULT_OUTPUT_PROPERTIES },
+    },
+    images: {
+      type: 'array',
+      description: 'Image results (only when "images" is in sources)',
+      optional: true,
+      items: { type: 'object', properties: SEARCH_IMAGE_RESULT_OUTPUT_PROPERTIES },
+    },
+  },
 }
 
 // Common types
@@ -343,27 +448,68 @@ export interface ScrapeResponse extends ToolResponse {
 }
 
 /** One result inside a Firecrawl search source array (`data.web`, `data.news`, ...). */
-export interface SearchResultItem {
+interface FirecrawlSearchMetadata {
+  title?: string
+  description?: string
+  sourceURL: string
+  url?: string
+  statusCode?: number
+  numPages?: number
+  totalPages?: number
+  error?: string | null
+}
+
+/** Fields present on a web or news result only when scrapeOptions were sent. */
+interface FirecrawlScrapedSearchFields {
+  markdown?: string | null
+  html?: string | null
+  rawHtml?: string | null
+  links?: string[]
+  screenshot?: string | null
+  audio?: string | null
+  video?: string | null
+  metadata?: FirecrawlSearchMetadata
+}
+
+export interface FirecrawlWebSearchResult extends FirecrawlScrapedSearchFields {
   title: string
   description: string
   url: string
-  markdown?: string
-  html?: string
-  rawHtml?: string
-  links?: string[]
-  screenshot?: string
-  metadata: {
-    title?: string
-    description?: string
-    sourceURL: string
-    statusCode?: number
-    error?: string
-  }
+}
+
+export interface FirecrawlNewsSearchResult extends FirecrawlScrapedSearchFields {
+  title: string
+  snippet: string
+  url: string
+  date?: string
+  imageUrl?: string
+  position?: number
+}
+
+export interface FirecrawlImageSearchResult {
+  title: string
+  imageUrl: string
+  imageWidth?: number
+  imageHeight?: number
+  url: string
+  position?: number
+}
+
+/**
+ * The source-keyed `data` envelope. Which arrays appear depends on the
+ * requested `sources`, so all three are optional.
+ */
+export interface FirecrawlSearchData {
+  web?: FirecrawlWebSearchResult[]
+  news?: FirecrawlNewsSearchResult[]
+  images?: FirecrawlImageSearchResult[]
 }
 
 export interface SearchResponse extends ToolResponse {
   output: {
-    data: SearchResultItem[]
+    data: FirecrawlSearchData
+    warning?: string
+    id?: string
     creditsUsed?: number
   }
 }
