@@ -186,8 +186,8 @@ function ToolbarChip({ icon, label }: { icon: ReactNode; label: string }) {
 
 /**
  * The files hero's platform loop - the workflows editor loop's architecture
- * (a fixed 1280x735 design-space layer scaled to the window via
- * ResizeObserver + `transform: scale`, a parent-owned clock, reduced-motion
+ * (a fixed 1280x735 HTML design surface fitted to the window via the shared
+ * responsive stage, a parent-owned clock, reduced-motion
  * showing the finished frame) with the same live {@link EnterpriseSidebar}
  * highlighting its Files nav row. The workspace pane is the Files library
  * itself: the 44px title bar (File icon, "Files", "Upload file"), the

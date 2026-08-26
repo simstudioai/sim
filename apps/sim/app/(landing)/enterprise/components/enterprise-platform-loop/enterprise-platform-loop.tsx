@@ -27,8 +27,8 @@ interface EnterprisePlatformLoopProps {
 
 /**
  * The enterprise hero's platform loop - a sibling of the homepage
- * `HeroPlatformLoop` that shares its architecture (fixed design-space layer
- * scaled to the window via ResizeObserver + `transform: scale`, a parent-owned
+ * `HeroPlatformLoop` that shares its architecture (fixed HTML design surface
+ * fitted to the window via the shared responsive stage, a parent-owned
  * timeline clock driving presentational stages, reduced-motion showing a
  * static finished frame) but diverges in content: where the homepage overlays
  * a live chat over a baked screenshot, this variant renders the WHOLE interior

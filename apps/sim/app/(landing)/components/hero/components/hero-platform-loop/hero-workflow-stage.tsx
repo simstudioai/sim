@@ -13,6 +13,7 @@ import {
   BLOCK_WIDTH,
   type BlockDef,
 } from '@/app/(landing)/components/hero/components/hero-visual/workflow-data'
+import { ResponsiveDesignStage } from '@/app/(landing)/components/shared/responsive-design-stage'
 
 /** Breathing room between the canvas bounds and the card edges, in card px. */
 const STAGE_MARGIN = 20
@@ -37,10 +38,12 @@ interface HeroWorkflowStageProps {
 
 /**
  * The hero window's live workflow canvas - the right-pane counterpart of the
- * chat loop. One stable SVG viewBox owns both the edge and block coordinate
- * systems, so drawing a line or revealing a block never changes the canvas's
- * measured scale. Blocks pop in one by one as `builtCount` advances and edges
- * stroke-draw once both endpoints exist.
+ * chat loop. A fixed HTML design surface owns both the edge and block
+ * coordinate systems, so drawing a line or revealing a block never changes
+ * the canvas's measured scale. SVG renders only the native edge paths; block
+ * cards stay in ordinary HTML to avoid WebKit's foreignObject compositing bugs.
+ * Blocks pop in one by one as `builtCount` advances and edges stroke-draw once
+ * both endpoints exist.
  *
  * Decorative and `aria-hidden` (via the parent frame), so blocks are NOT
  * draggable - `pointer-events-none`, matching the rest of the hero animation.
@@ -68,65 +71,70 @@ export function HeroWorkflowStage({
   )
 
   return (
-    <svg
-      aria-hidden='true'
-      className='size-full overflow-hidden'
-      viewBox={`${-STAGE_MARGIN / 2} ${-STAGE_MARGIN / 2} ${canvas.width + STAGE_MARGIN} ${canvas.height + STAGE_MARGIN}`}
-      preserveAspectRatio='xMidYMid meet'
-      fill='none'
+    <ResponsiveDesignStage
+      width={canvas.width}
+      height={canvas.height}
+      inset={STAGE_MARGIN}
+      className='size-full'
+      contentClassName='relative'
     >
-      {edges.map(([from, to]) => {
-        const source = blocksById.get(from)
-        const target = blocksById.get(to)
-        if (!source || !target) return null
-        const visible = builtIds.has(from) && builtIds.has(to)
-        const s = handleAnchors(source).out
-        const t = handleAnchors(target).in
-        return (
-          <path
-            key={`${from}-${to}`}
-            d={verticalSmoothStep(s.x, s.y, t.x, t.y)}
-            pathLength={1}
-            stroke='var(--workflow-edge)'
-            strokeWidth={2}
-            strokeLinecap='round'
-            className={cn(
-              'transition-[stroke-dashoffset] duration-500 [stroke-dasharray:1] [transition-timing-function:cubic-bezier(0.22,1,0.36,1)]',
-              visible ? '[stroke-dashoffset:0]' : '[stroke-dashoffset:1]'
-            )}
-          />
-        )
-      })}
+      <svg
+        aria-hidden='true'
+        className='pointer-events-none absolute inset-0 size-full overflow-visible'
+        viewBox={`0 0 ${canvas.width} ${canvas.height}`}
+        fill='none'
+      >
+        {edges.map(([from, to]) => {
+          const source = blocksById.get(from)
+          const target = blocksById.get(to)
+          if (!source || !target) return null
+          const visible = builtIds.has(from) && builtIds.has(to)
+          const s = handleAnchors(source).out
+          const t = handleAnchors(target).in
+          return (
+            <path
+              key={`${from}-${to}`}
+              d={verticalSmoothStep(s.x, s.y, t.x, t.y)}
+              pathLength={1}
+              stroke='var(--workflow-edge)'
+              strokeWidth={2}
+              strokeLinecap='round'
+              className={cn(
+                'transition-[stroke-dashoffset] duration-500 [stroke-dasharray:1] [transition-timing-function:cubic-bezier(0.22,1,0.36,1)]',
+                visible ? '[stroke-dashoffset:0]' : '[stroke-dashoffset:1]'
+              )}
+            />
+          )
+        })}
+      </svg>
 
       {blocks.map((block) => {
         const built = builtIds.has(block.id)
         return (
-          <foreignObject
+          <div
             key={block.id}
-            x={block.x}
-            y={block.y}
-            width={BLOCK_WIDTH}
-            height={blockHeight(block)}
-            overflow='visible'
+            className={cn(
+              'pointer-events-none absolute origin-center transition-[opacity,scale] duration-300 [transition-timing-function:cubic-bezier(0.22,1,0.36,1)]',
+              built ? 'scale-100 opacity-100' : 'scale-[0.94] opacity-0'
+            )}
+            style={{
+              left: block.x,
+              top: block.y,
+              width: BLOCK_WIDTH,
+              height: blockHeight(block),
+            }}
           >
-            <div
+            <StageBlockCard block={block} />
+            <span
+              aria-hidden
               className={cn(
-                'pointer-events-none relative size-full origin-center transition-[opacity,scale] duration-300 will-change-[opacity,transform] [transition-timing-function:cubic-bezier(0.22,1,0.36,1)]',
-                built ? 'scale-100 opacity-100' : 'scale-[0.94] opacity-0'
+                'pointer-events-none absolute inset-0 rounded-[13px] ring-[1.75px] ring-[var(--text-secondary)] transition-opacity duration-300 ease-out',
+                selectedId === block.id && built ? 'opacity-100' : 'opacity-0'
               )}
-            >
-              <StageBlockCard block={block} />
-              <span
-                aria-hidden
-                className={cn(
-                  'pointer-events-none absolute inset-0 rounded-[13px] ring-[1.75px] ring-[var(--text-secondary)] transition-opacity duration-300 ease-out',
-                  selectedId === block.id && built ? 'opacity-100' : 'opacity-0'
-                )}
-              />
-            </div>
-          </foreignObject>
+            />
+          </div>
         )
       })}
-    </svg>
+    </ResponsiveDesignStage>
   )
 }
