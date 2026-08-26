@@ -1761,7 +1761,7 @@ Create a Trigger.dev waitpoint token that a task can wait on until it is complet
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Trigger.dev secret API key \(starts with tr_\) |
-| `timeout` | string | No | How long before the token times out, as a duration \("30s", "1m", "2h", "3d"\) or an ISO 8601 date |
+| `tokenTimeout` | string | No | How long before the token times out, as a duration \("30s", "1m", "2h", "3d"\) or an ISO 8601 date |
 | `idempotencyKey` | string | No | Idempotency key; passing the same key before it expires returns the original token |
 | `idempotencyKeyTTL` | string | No | How long the idempotency key is valid, as a duration \("30s", "1m", "2h", "3d"\) |
 | `tags` | string | No | Comma-separated tags to attach to the waitpoint \(max 10, each under 128 characters\) |

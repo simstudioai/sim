@@ -159,6 +159,14 @@ Search for information on the web using Firecrawl
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `query` | string | Yes | The search query to use |
+| `limit` | number | No | Maximum number of results to return \(Firecrawl default: 10\) |
+| `sources` | array | No | Result sources to search. Defaults to \["web"\]. Results from every requested source are flattened into `data` in web, news, images order. |
+| `categories` | array | No | Restrict web results to these categories: "github", "research", or "pdf" |
+| `tbs` | string | No | Time-based search filter \(e.g. "qdr:d" for the past day, "qdr:w" for the past week\) |
+| `location` | string | No | Location to search from \(e.g. "Germany", "San Francisco, California"\) |
+| `country` | string | No | Two-letter country code to search from \(Firecrawl default: "US"\) |
+| `timeout` | number | No | Request timeout in milliseconds \(Firecrawl default: 60000\) |
+| `ignoreInvalidURLs` | boolean | No | Skip results whose URLs cannot be scraped instead of failing the search |
 | `scrapeOptions` | json | No | Advanced scrape options supplied by existing configurations |
 | `apiKey` | string | Yes | Firecrawl API key |
 

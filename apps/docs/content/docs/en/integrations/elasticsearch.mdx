@@ -123,7 +123,7 @@ Retrieve a document by ID from Elasticsearch.
 | `_index` | string | Index name |
 | `_id` | string | Document ID |
 | `_version` | number | Document version |
-| `found` | boolean | Whether the document was found |
+| `found` | boolean | Always true. A missing document fails the call with a 404 error rather than returning found: false. |
 | `_source` | json | Document content |
 
 ### Elasticsearch Update Document
@@ -181,7 +181,7 @@ Delete a document from Elasticsearch by ID.
 | `_index` | string | Index name |
 | `_id` | string | Document ID |
 | `_version` | number | Document version |
-| `result` | string | Operation result \(deleted or not_found\) |
+| `result` | string | Always "deleted". A missing document fails the call with a 404 error rather than returning "not_found". |
 
 ### Elasticsearch Bulk Operations
 
@@ -306,7 +306,10 @@ Retrieve index information including settings, mappings, and aliases.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `index` | json | Index information including aliases, mappings, and settings |
+| `index` | string | Resolved index name the information belongs to |
+| `aliases` | json | Aliases defined on the index |
+| `mappings` | json | Field mappings for the index |
+| `settings` | json | Index settings |
 
 ### Elasticsearch Cluster Health
 
@@ -324,7 +327,7 @@ Get the health status of the Elasticsearch cluster.
 | `username` | string | No | Username for basic auth |
 | `password` | string | No | Password for basic auth |
 | `waitForStatus` | string | No | Wait until cluster reaches this status: green, yellow, or red |
-| `timeout` | string | No | Timeout for the wait operation \(e.g., 30s, 1m\) |
+| `esTimeout` | string | No | Elasticsearch wait timeout as a duration string \(e.g., 30s, 1m\). Named esTimeout because the executor reserves "timeout" for the transport deadline in milliseconds. |
 
 #### Output
 

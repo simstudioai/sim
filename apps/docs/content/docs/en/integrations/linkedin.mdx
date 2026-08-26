@@ -56,10 +56,8 @@ Share a post to your personal LinkedIn feed
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `postId` | string | Created post ID |
-| `profile` | json | LinkedIn profile information |
-| `error` | string | Error message if operation failed |
+| `postId` | string | URN of the created share, read from the `x-restli-id` response header. Absent when LinkedIn omits that header. |
+| `postUrl` | string | LinkedIn URL of the created post. Viewable by an authorized LinkedIn member — not a guaranteed public permalink. Absent when no share URN was returned. |
 
 ### Get LinkedIn Profile
 
@@ -74,9 +72,10 @@ Retrieve your LinkedIn profile information
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `postId` | string | Created post ID |
-| `profile` | json | LinkedIn profile information |
-| `error` | string | Error message if operation failed |
+| `profile` | object | The authenticated LinkedIn member, from the OpenID Connect userinfo endpoint |
+|   ↳ `id` | string | LinkedIn member id \(the OpenID `sub` claim\) |
+|   ↳ `name` | string | Full display name |
+|   ↳ `email` | string | Primary email address. Present only when the `email` scope was granted |
+|   ↳ `picture` | string | URL of the profile picture, when the member has one |
 
 

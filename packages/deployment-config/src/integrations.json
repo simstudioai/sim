@@ -12643,7 +12643,7 @@
         },
         {
           "name": "Get Run",
-          "description": "Retrieve a single LangSmith run by ID."
+          "description": "Retrieve a single LangSmith run by ID. Uses the v1 run read, which LangSmith has deprecated and removes on 31 Jan 2027."
         },
         {
           "name": "Create Feedback",

@@ -101,8 +101,10 @@ Enrich lead information with contact details, social profiles, and company data 
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Sixtyfour API key |
 | `leadInfo` | string | Yes | Lead information as JSON object with key-value pairs \(e.g. name, company, title, linkedin\) |
-| `struct` | string | Yes | Fields to collect as JSON object. Keys are field names, values are descriptions \(e.g. \{"email": "The individual\'s email address", "phone": "Phone number"\}\) |
+| `struct` | string | No | Optional fields to collect as JSON object. Keys are field names, values are descriptions \(e.g. \{"email": "The individual\'s email address", "phone": "Phone number"\}\). Omit to let Sixtyfour choose the fields. |
 | `researchPlan` | string | No | Optional research plan to guide enrichment strategy |
+| `tier` | string | No | Research depth and credit spend: micro, low, medium, high, or xhigh. Defaults to low when omitted; micro is cheaper than the default. |
+| `timeout` | number | No | Outbound request deadline in milliseconds. Defaults to SIXTYFOUR_ENRICH_TIMEOUT_MS because this endpoint is synchronous and long-running. |
 
 #### Output
 
@@ -129,6 +131,8 @@ Enrich company data with additional information and find associated people using
 | `researchPlan` | string | No | Optional strategy describing how the agent should search for information |
 | `peopleFocusPrompt` | string | No | Description of people to find \(roles, responsibilities\) |
 | `leadStruct` | string | No | Custom schema for returned lead data as JSON object |
+| `tier` | string | No | Research depth and credit spend: micro, low, medium, or high. Defaults to low when omitted; micro is cheaper than the default. |
+| `timeout` | number | No | Outbound request deadline in milliseconds. Defaults to SIXTYFOUR_ENRICH_TIMEOUT_MS because this endpoint is synchronous and long-running. |
 
 #### Output
 

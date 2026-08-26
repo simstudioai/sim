@@ -172,7 +172,7 @@ Execute a shell command inside a Daytona sandbox
 | `command` | string | Yes | Shell command to execute |
 | `cwd` | string | No | Working directory for the command \(defaults to the sandbox working directory\) |
 | `env` | json | No | Environment variables to set for the command as key-value pairs |
-| `timeout` | number | No | Timeout in seconds \(defaults to 10 seconds\) |
+| `commandTimeout` | number | No | Timeout in seconds \(defaults to 10 seconds\) |
 
 #### Output
 
@@ -194,7 +194,7 @@ Run Python, JavaScript, or TypeScript code inside a Daytona sandbox
 | `code` | string | Yes | Code to run |
 | `language` | string | Yes | Language of the code: python, javascript, or typescript |
 | `env` | json | No | Environment variables to set for the run as key-value pairs |
-| `timeout` | number | No | Timeout in seconds \(defaults to 10 seconds\) |
+| `runTimeout` | number | No | Timeout in seconds \(defaults to 10 seconds\) |
 
 #### Output
 
