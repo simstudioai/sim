@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { workflow, workflowBlocks, workflowEdges, workflowSubflows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
 import { and, eq, inArray, isNull, ne } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx } from '@/lib/db/types'
@@ -151,20 +152,18 @@ const GRAPH_ID_CONSTRAINTS = [
  * row lock covers the target workflow, not the workflow that would claim an id,
  * so under READ COMMITTED two concurrent writes carrying the same fresh id can
  * both pass the check and one insert still faults. This keeps that race a 409.
+ *
+ * Read through the `cause` chain: Drizzle wraps every driver fault in a
+ * `DrizzleQueryError` whose own message is the SQL text and whose `code` is
+ * absent, so a top-level field read never sees the driver's SQLSTATE. The
+ * constraint name is compared exactly rather than searched for in a message,
+ * so an unrelated constraint merely containing one of these names is not
+ * misclassified.
  */
 function isGraphIdUniqueViolation(error: unknown): boolean {
-  if (!error || typeof error !== 'object') return false
-  const candidate = error as {
-    code?: unknown
-    constraint_name?: unknown
-    constraint?: unknown
-    message?: unknown
-  }
-  if (candidate.code !== UNIQUE_VIOLATION) return false
-  const parts = [candidate.constraint_name, candidate.constraint, candidate.message].filter(
-    (part): part is string => typeof part === 'string'
-  )
-  return parts.some((part) => GRAPH_ID_CONSTRAINTS.some((name) => part.includes(name)))
+  if (getPostgresErrorCode(error) !== UNIQUE_VIOLATION) return false
+  const constraint = getPostgresConstraintName(error)
+  return GRAPH_ID_CONSTRAINTS.some((name) => name === constraint)
 }
 
 export interface ReplaceWorkflowState {

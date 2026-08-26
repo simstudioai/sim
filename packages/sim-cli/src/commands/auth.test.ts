@@ -42,16 +42,20 @@ vi.mock('../auth/device-flow', () => ({
   pollForKey: mocks.pollForKey,
 }))
 /**
- * The two validators come from the real module rather than a copy: a duplicated
- * pattern here would keep passing if the shipped one were deleted, which is
- * exactly the regression these tests exist to catch. `../config/profile` is not
+ * The validators and the format list come from the real module rather than a
+ * copy: a duplicated pattern here would keep passing if the shipped one were
+ * deleted, which is exactly the regression these tests exist to catch. `../config/profile` is not
  * itself mocked, so this is the shipped implementation.
  */
 vi.mock('../config/index', async () => ({
-  ...(await import('../config/profile').then(({ normalizeWorkspaceId, validateProfileName }) => ({
-    normalizeWorkspaceId,
-    validateProfileName,
-  }))),
+  ...(await import('../config/profile').then(
+    ({ FORBIDDEN_IN_VALUE, normalizeWorkspaceId, OUTPUT_FORMATS, validateProfileName }) => ({
+      FORBIDDEN_IN_VALUE,
+      normalizeWorkspaceId,
+      OUTPUT_FORMATS,
+      validateProfileName,
+    })
+  )),
   configPath: () => '/tmp/sim-config',
   credentialsPath: () => '/tmp/sim-credentials',
   DEFAULT_PROFILE: 'default',
@@ -278,6 +282,27 @@ describe('login command', () => {
     setInteractive(false)
     mocks.pollForKey.mockResolvedValue({
       apiKey: '  ',
+      scope: 'platform',
+      workspaceBound: false,
+      workspaceId: 'ws_1',
+    })
+
+    await expect(login()).rejects.toThrow('malformed API key')
+
+    expect(mocks.writeConfigProfile).not.toHaveBeenCalled()
+    expect(mocks.writeCredentialsProfile).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['a C0 control character', 'sim-key\u0001rest'],
+    ['a Unicode line separator', 'sim-key\u2028rest'],
+  ])('stores nothing when the minted key carries %s', async (_label, apiKey) => {
+    // The pre-write check has to refuse exactly what the writer refuses. When it
+    // was the narrower of the two, the settings write landed and the credentials
+    // write threw — leaving the new endpoint on disk beside the previous key.
+    setInteractive(false)
+    mocks.pollForKey.mockResolvedValue({
+      apiKey,
       scope: 'platform',
       workspaceBound: false,
       workspaceId: 'ws_1',
@@ -590,6 +615,30 @@ describe('profiles command', () => {
     await profiles('list')
 
     expect(JSON.parse(vi.mocked(console.log).mock.calls.flat().join('\n'))).toEqual([])
+  })
+
+  it('lists a broken active profile instead of refusing to list at all', async () => {
+    // Resolving the active profile supplies the row marker and the format, but
+    // it throws for exactly the profile this command exists to show.
+    mocks.listProfiles.mockReturnValue(['broken', 'default'])
+    mocks.profileFrom.mockImplementation(() => {
+      throw new mocks.ProfileConfigError('Profile "broken" references missing auth_profile "gone".')
+    })
+    mocks.resolveAuthenticationProfileName.mockImplementation((profile) => {
+      if (profile === 'broken') {
+        throw new mocks.ProfileConfigError(
+          'Profile "broken" references missing auth_profile "gone".'
+        )
+      }
+      return profile
+    })
+
+    await profiles('list', '--profile', 'broken')
+
+    const output = vi.mocked(console.log).mock.calls.flat().join('\n')
+    expect(output).toContain('broken')
+    expect(output).toContain('default')
+    expect(output).toContain('references missing auth_profile "gone"')
   })
 
   it('marks a broken profile and still lists the rest', async () => {

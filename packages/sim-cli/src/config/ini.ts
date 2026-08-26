@@ -59,8 +59,13 @@ const KV_PATTERN = /^\s*([A-Za-z0-9_.-]+)\s*=\s*(.*?)\s*$/
  * silently vanishes on the next read although the write reported success, and
  * because the dead line no longer matches the key, the write after that appends
  * a duplicate.
+ *
+ * Exported because callers that refuse untrusted text *before* writing — so they
+ * can say which side produced it — have to refuse exactly this set. A second
+ * hand-kept copy drifted from this one once already, and the gap let a rejected
+ * write land after an accepted one.
  */
-const FORBIDDEN_IN_VALUE = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/
+export const FORBIDDEN_IN_VALUE = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/
 
 /** As {@link FORBIDDEN_IN_VALUE}, plus the brackets that would close or open a header. */
 const FORBIDDEN_IN_NAME = /[\u0000-\u001f\u007f-\u009f\u2028\u2029[\]]/
@@ -81,6 +86,15 @@ function assertWritable(text: string, what: string, forbidden: RegExp): void {
   if (forbidden.test(text)) {
     throw new ProfileConfigError(
       `Refusing to write ${what}: line breaks and control characters cannot be stored in the ~/.sim files, because the format has no way to escape them.`
+    )
+  }
+  // The reader trims both section names and values, so padded text comes back
+  // as something else: the read reports the setting missing although the write
+  // reported success, and the next write appends a second block or key instead
+  // of updating the one already there.
+  if (text !== text.trim()) {
+    throw new ProfileConfigError(
+      `Refusing to write ${what}: leading or trailing whitespace is not preserved by the ~/.sim files, so it would not read back as written.`
     )
   }
 }
@@ -192,12 +206,13 @@ export function setSectionValues(
       throw new ProfileConfigError(`Refusing to write an unreadable setting name "${key}".`)
     }
     if (value === null) continue
-    assertWritable(value, `a value for "${key}"`, FORBIDDEN_IN_VALUE)
     // A value that is only whitespace reads back as the empty string, so the
-    // key would look stored and resolve as unset.
+    // key would look stored and resolve as unset. Checked before the general
+    // rule below so it keeps its own, more specific message.
     if (value.trim() === '') {
       throw new ProfileConfigError(`Refusing to write a blank value for "${key}".`)
     }
+    assertWritable(value, `a value for "${key}"`, FORBIDDEN_IN_VALUE)
   }
 
   const matching = doc.sections.filter((s) => s.name === name)

@@ -121,6 +121,8 @@ describe.each(routes)('v2 $name workspace concealment', ({ spy, call }) => {
     const response = await call()
 
     expect(response.status).toBe(403)
-    expect(await response.json()).toMatchObject({ error: { code: 'FORBIDDEN' } })
+    expect(await response.json()).toMatchObject({
+      error: { code: 'FORBIDDEN', details: { code: 'INSUFFICIENT_WORKSPACE_ROLE' } },
+    })
   })
 })

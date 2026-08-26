@@ -3,6 +3,7 @@ export {
   DEFAULT_ENDPOINT,
   DEFAULT_PROFILE,
   deleteProfile,
+  FORBIDDEN_IN_VALUE,
   listAuthenticationDependents,
   listProfiles,
   normalizeEndpoint,

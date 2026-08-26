@@ -308,3 +308,55 @@ describe('a truncation note', () => {
     )
   })
 })
+
+describe('a truncation the response states inside its payload', () => {
+  /** Every note goes to stderr; stdout is asserted to be untouched by it. */
+  function captureStderr(): () => string {
+    const stderr = vi.spyOn(process.stderr, 'write').mockReturnValue(true)
+    return () => stderr.mock.calls.map(([chunk]) => String(chunk)).join('')
+  }
+
+  it('reports a clipped file body, which the envelope says nothing about', () => {
+    const read = captureStderr()
+    const payload = { fileId: 'wf_probe', name: 'a.txt', text: 'abc', truncated: true }
+
+    renderResult('readFileText', 'json', payload, {}, {}, { data: payload })
+
+    expect(read()).toContain('the server clipped this result')
+    expect(JSON.parse(logged.join('\n'))).toEqual(payload)
+  })
+
+  it('reports a clipped row search', () => {
+    const read = captureStderr()
+    const payload = { matches: [{ ordinal: 1, rowId: 'row_1', column: 'name' }], truncated: true }
+
+    renderResult('searchTableRows', 'json', payload, {}, {}, { data: payload })
+
+    expect(read()).toContain('the server clipped this result')
+  })
+
+  it('names the tool names, not the servers, on the server list', () => {
+    const read = captureStderr()
+
+    renderPage('json', [{ id: 'srv_1' }], {}, { data: [], toolNamesTruncated: true })
+
+    expect(read()).toContain('the server clipped the tool names it returned')
+  })
+
+  it('says nothing when a negated flag reports the answer was whole', () => {
+    const read = captureStderr()
+
+    renderResult('readFileText', 'json', {}, {}, {}, { data: { notTruncated: true } })
+
+    expect(read()).toBe('')
+  })
+
+  it('leaves yaml a bare payload, with the note on stderr', () => {
+    const read = captureStderr()
+
+    renderPage('yaml', [{ id: 'a' }], {}, { data: [], truncated: true })
+
+    expect(logged.join('\n')).not.toContain('clipped')
+    expect(read()).toContain('the server clipped this result')
+  })
+})

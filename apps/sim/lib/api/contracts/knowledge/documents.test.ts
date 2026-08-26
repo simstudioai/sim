@@ -3,8 +3,10 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
+  bulkCreateDocumentsBodySchema,
   listKnowledgeDocumentsQuerySchema,
   parseDocumentTagFiltersParam,
+  upsertDocumentBodySchema,
 } from '@/lib/api/contracts/knowledge/documents'
 
 describe('listKnowledgeDocumentsQuerySchema.tagFilters', () => {
@@ -141,5 +143,55 @@ describe('parseDocumentTagFiltersParam', () => {
       },
     ]
     expect(parseDocumentTagFiltersParam(JSON.stringify(filters))).toEqual(filters)
+  })
+})
+
+/**
+ * `recipe` and `lang` reach analytics and nothing else, so an unrecognised value
+ * was accepted with a 200 and silently discarded. Both internal write bodies
+ * reuse the upload boundary's validated shape, which is what every first-party
+ * caller already sends.
+ */
+describe('internal document processingOptions', () => {
+  const DOCUMENT = {
+    filename: 'notes.txt',
+    fileUrl: 'https://example.com/notes.txt',
+    fileSize: 12,
+    mimeType: 'text/plain',
+  }
+
+  const boundaries = [
+    {
+      name: 'bulk create',
+      parse: (processingOptions: unknown) =>
+        bulkCreateDocumentsBodySchema.safeParse({
+          documents: [DOCUMENT],
+          bulk: true,
+          processingOptions,
+        }),
+    },
+    {
+      name: 'upsert',
+      parse: (processingOptions: unknown) =>
+        upsertDocumentBodySchema.safeParse({ ...DOCUMENT, processingOptions }),
+    },
+  ] as const
+
+  describe.each(boundaries)('$name', ({ parse }) => {
+    it('accepts what the shipped first-party callers send', () => {
+      expect(parse({ recipe: 'default', lang: 'en' }).success).toBe(true)
+    })
+
+    it('rejects an unrecognised recipe instead of discarding it', () => {
+      const result = parse({ recipe: 'super-chunker-9000', lang: 'en' })
+      expect(result.success).toBe(false)
+      expect(result.error?.issues[0]?.path).toEqual(['processingOptions', 'recipe'])
+    })
+
+    it('rejects a lang that is not a BCP-47 tag', () => {
+      const result = parse({ recipe: 'default', lang: 'en_US' })
+      expect(result.success).toBe(false)
+      expect(result.error?.issues[0]?.path).toEqual(['processingOptions', 'lang'])
+    })
   })
 })

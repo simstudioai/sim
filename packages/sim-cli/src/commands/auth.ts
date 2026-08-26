@@ -13,9 +13,12 @@ import {
   credentialsPath,
   DEFAULT_PROFILE,
   deleteProfile,
+  FORBIDDEN_IN_VALUE,
   listAuthenticationDependents,
   listProfiles,
   normalizeWorkspaceId,
+  OUTPUT_FORMATS,
+  type OutputFormat,
   ProfileConfigError,
   type ResolvedProfile,
   readCredentialsProfile,
@@ -127,9 +130,13 @@ function validateNewProfileName(profileName: string): void {
  * whatever the endpoint names. A key carrying a line break would be written
  * verbatim into an escape-less format, so the writer refuses it — this refuses
  * it one step earlier, before anything is on disk, and says which side is wrong.
+ *
+ * It shares {@link FORBIDDEN_IN_VALUE} with the writer rather than copying it:
+ * a second spelling drifted once already, and a key this check accepted but the
+ * writer rejected stranded the new endpoint beside the previous key.
  */
 function requireStorableKey(apiKey: unknown): void {
-  if (typeof apiKey !== 'string' || !apiKey.trim() || /[\u0000-\u001f\u007f-\u009f]/.test(apiKey)) {
+  if (typeof apiKey !== 'string' || !apiKey.trim() || FORBIDDEN_IN_VALUE.test(apiKey)) {
     throw new SimApiError(
       'The server returned a malformed API key. Nothing was stored; check the endpoint.',
       0
@@ -659,6 +666,38 @@ function buildProfileRow(name: string, active: boolean): ProfileRow {
   }
 }
 
+/**
+ * The active profile's name and the format to render in, tolerating a profile
+ * that does not resolve.
+ *
+ * Resolving the active profile is what supplies both, but it can also throw —
+ * and `profiles` is the command someone runs *because* a profile is broken, so
+ * a broken active profile has to appear as a marked row like any other rather
+ * than abort the listing. An unknown *name* is still refused: `profiles
+ * --profile typo` must fail like every other command instead of listing under a
+ * name that means nothing.
+ */
+function profileListingContext(command: Command): { activeName: string; output: OutputFormat } {
+  try {
+    const profile = profileFrom(command)
+    return { activeName: profile.name, output: profile.output }
+  } catch (error) {
+    if (!(error instanceof ProfileConfigError)) throw error
+
+    const globals = globalsOf(command)
+    const named = globals.profile || process.env.SIM_PROFILE
+    if (named && named !== DEFAULT_PROFILE && !listProfiles().includes(named)) throw error
+
+    const requested = globals.output ?? process.env.SIM_OUTPUT
+    return {
+      activeName: named || DEFAULT_PROFILE,
+      output: (OUTPUT_FORMATS as readonly string[]).includes(requested as string)
+        ? (requested as OutputFormat)
+        : 'table',
+    }
+  }
+}
+
 export function profilesCommand(): Command {
   const command = new Command('profiles')
     .alias('profile')
@@ -668,18 +707,18 @@ export function profilesCommand(): Command {
     // Resolving is what makes `profiles --profile typo` fail like every other
     // command instead of listing happily under a name that resolves to nothing,
     // and it is also what supplies the output format the listing renders in.
-    const profile = profileFrom(actionCommand)
-    const rows = listProfiles().map((name) => buildProfileRow(name, name === profile.name))
+    const { activeName, output } = profileListingContext(actionCommand)
+    const rows = listProfiles().map((name) => buildProfileRow(name, name === activeName))
 
     if (rows.length === 0) {
       // The prose belongs to the human formats; a script asking for json must
       // get an empty list, not a sentence it cannot parse.
-      if (profile.output === 'table') console.log(chalk.dim('No profiles yet. Run: sim login'))
-      else printList(profile.output, rows, PROFILE_COLUMNS)
+      if (output === 'table') console.log(chalk.dim('No profiles yet. Run: sim login'))
+      else printList(output, rows, PROFILE_COLUMNS)
       return
     }
 
-    printList(profile.output, rows, PROFILE_COLUMNS)
+    printList(output, rows, PROFILE_COLUMNS)
   }
 
   command.action(printProfiles)

@@ -17,7 +17,6 @@ import {
   restoreTable,
   type TableDefinition,
   type TableSchema,
-  type TableScope,
   updateTableDescription,
 } from '@/lib/table'
 import { defineAuthorizedTableUseCase } from '@/lib/table/application/authorized-table-use-case'
@@ -36,8 +35,15 @@ import { signalTableSchemaChanged } from '@/lib/table/events'
 
 export interface ListTablesInput {
   workspaceId: string
-  /** Which lifecycle set to list. Omitted means `active`, matching every shipped caller. */
-  scope?: TableScope
+  /**
+   * Which lifecycle set to list. Omitted means `active`, matching every shipped
+   * caller. Deliberately narrower than the `TableScope` the query layer takes:
+   * its third value, `'all'`, would mix archived rows into a page projected by
+   * the strict folder-path resolver, which throws on the dangling `folderId` a
+   * folder archive leaves behind.
+   * Mirrors `ListWorkflowsInput['scope']`.
+   */
+  scope?: 'active' | 'archived'
   folderPath?: string
   search?: string
   sortBy: V2TableSortBy

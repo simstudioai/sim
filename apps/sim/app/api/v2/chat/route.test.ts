@@ -325,6 +325,42 @@ describe('POST /api/v2/chat', () => {
     expect(mockRunHeadlessCopilotLifecycle).not.toHaveBeenCalled()
   })
 
+  it('asks the resolver for a mothership conversation, so another type resolves to nothing', async () => {
+    await callChat({
+      workspaceId: 'workspace-1',
+      message: 'and then?',
+      conversationId: OWNED_CONVERSATION_ID,
+    })
+
+    expect(mockResolveOrCreateChat).toHaveBeenCalledWith(
+      expect.objectContaining({ chatId: OWNED_CONVERSATION_ID, type: 'mothership' })
+    )
+  })
+
+  it('titles a new conversation by its first message so the web Chat list has no blank row', async () => {
+    await callChat({ workspaceId: 'workspace-1', message: '  Summarize\n  last week   ' })
+
+    expect(mockResolveOrCreateChat).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'Summarize last week' })
+    )
+  })
+
+  it('truncates a long first message into a title instead of storing the whole message', async () => {
+    const message = 'a'.repeat(500)
+
+    await callChat({ workspaceId: 'workspace-1', message })
+
+    const title = (mockResolveOrCreateChat.mock.calls[0][0] as { title?: string }).title
+    expect(title).toBe(`${'a'.repeat(80)}...`)
+  })
+
+  it('leaves the title unset for a whitespace-only message rather than stamping an empty one', async () => {
+    await callChat({ workspaceId: 'workspace-1', message: '   \n  ' })
+
+    const resolverInput = mockResolveOrCreateChat.mock.calls[0][0] as Record<string, unknown>
+    expect(Object.hasOwn(resolverInput, 'title')).toBe(false)
+  })
+
   it('rejects a malformed conversation id before resolving anything', async () => {
     const response = await callChat({
       workspaceId: 'workspace-1',

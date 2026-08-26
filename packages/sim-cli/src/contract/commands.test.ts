@@ -338,19 +338,6 @@ describe('confirm gates say what is actually at stake', () => {
     expect(CLI_CONTRACT.rollbackWorkflow?.confirm).toBeTruthy()
   })
 
-  it('gates the cancel that strands half a table, not the one that discards a file', () => {
-    // The import runner commits rows batch by batch and stops between batches,
-    // so a cancelled import keeps what it wrote; a `replace` has already
-    // emptied the table by then. The export only reads, so it stays ungated
-    // for the reason `workflows runs cancel` used to be.
-    const cancelImport = CLI_CONTRACT.cancelTableImport?.confirm ?? ''
-
-    expect(cancelImport).toContain('replace')
-    expect(cancelImport).toMatch(/empties the table/)
-    expect(cancelImport).not.toMatch(/not recoverable|cannot be undone/)
-    expect(CLI_CONTRACT.cancelTableExport?.confirm).toBeUndefined()
-  })
-
   it('does not promise irreversible loss for a recoverable delete', () => {
     // `tables restore`, `knowledge restore` and `workflows restore` all ship, so
     // these three archive rather than destroy — the wording `deleteFile`
@@ -396,11 +383,13 @@ describe('records show what the API actually returns', () => {
 
   it('says which ledger a billing-logs page answers', () => {
     // The same workspace, window and flags return a strict subset of rows on a
-    // personal key, which reads as a bug beside `billing status`.
-    const summary = CLI_CONTRACT.listBillingLogs?.describe ?? ''
+    // personal key, which reads as a bug beside `billing status`. Read off the
+    // help the terminal prints, since a describe that never reached a command
+    // would answer nobody.
+    const help = flatHelp('billing', 'logs')
 
-    expect(summary).toContain('personal API key')
-    expect(summary).toContain('workspace API key')
+    expect(help).toContain('personal API key reports only your own events')
+    expect(help).toMatch(/workspace API key reports every member/)
   })
 
   it('describes a workspace with the fields the strict schema has', () => {
@@ -448,27 +437,13 @@ describe('list columns', () => {
     expect(toolPaths).toContain('workflowId')
   })
 
-  it('shows what a dispatch was asked to run', () => {
-    // A dispatch's `scope` is an object, and column inference drops those, so
-    // the filtered / select-all-minus / explicit-rows distinction the resource
-    // publishes had nowhere to appear.
-    const columns = CLI_CONTRACT.listTableDispatches?.columns ?? []
-    const paths = columns.map((column) => column.path ?? column.header)
-
-    expect(paths).toContain('scope.groupIds')
-    expect(paths).toContain('scope.rowIds')
-    expect(paths).toContain('scope.filtered')
-    expect(paths).toContain('scope.excludeRowIds')
-    // Kept from what inference used to show: the cap a dispatch ran under, and
-    // when it finished. `limit` is an object, so only its `max` is a column.
-    expect(paths).toContain('limit.max')
-    expect(paths).toContain('completedAt')
-    // Both are the command's own arguments, so neither earns a column.
-    expect(paths).not.toContain('tableId')
-    expect(paths).not.toContain('workspaceId')
-  })
-
-  it('renders the filtered and excluded distinction in the table it prints', () => {
+  /**
+   * A dispatch's `scope` and `limit` are objects, and column inference drops
+   * those, so the filtered / select-all-minus / explicit-rows distinction the
+   * resource publishes had nowhere to appear — while `tableId` and
+   * `workspaceId`, the command's own arguments, took two columns.
+   */
+  it('renders what a dispatch was asked to run, and drops its own arguments', () => {
     const dispatch = {
       id: 'disp-1',
       tableId: 'tbl-1',
@@ -504,8 +479,10 @@ describe('list columns', () => {
     expect(headers).toContain('FILTERED')
     expect(headers).toContain('EXCLUDED')
     expect(headers).not.toContain('WORKSPACE ID')
+    expect(headers).not.toContain('TABLE ID')
     expect(cellUnder('FILTERED')).toBe('yes')
     expect(cellUnder('EXCLUDED')).toBe('2')
+    expect(cellUnder('GROUPS')).toBe('1')
     expect(cellUnder('ROWS')).toBe('—')
     expect(cellUnder('MAX ROWS')).toBe('500')
     expect(cellUnder('COMPLETED')).toBe('—')
@@ -725,8 +702,20 @@ describe('the import cancel refuses through commander, not just in the contract'
     vi.spyOn(console, 'log').mockImplementation(() => {})
   })
 
-  it('refuses an import cancellation without --yes and sends nothing', async () => {
-    await expect(runLeaf(['tables', 'imports', 'cancel', 'imp-1'])).rejects.toThrow(/--yes/)
+  it('refuses an import cancellation without --yes, sends nothing, and says why', async () => {
+    // The runner commits rows batch by batch and stops between batches, so a
+    // cancelled import keeps what it wrote; a `replace` has already emptied the
+    // table by then. The refusal is where the caller reads that, so it is
+    // asserted through the error commander actually raises.
+    const refusal = await runLeaf(['tables', 'imports', 'cancel', 'imp-1']).then(
+      () => '',
+      (error: Error) => error.message
+    )
+
+    expect(refusal).toContain('--yes')
+    expect(refusal).toContain('replace')
+    expect(refusal).toMatch(/empties the table/)
+    expect(refusal).not.toMatch(/not recoverable|cannot be undone/)
     expect(mockRequest).not.toHaveBeenCalled()
   })
 

@@ -236,6 +236,28 @@ describe('ini write guards', () => {
     expect(() => setSectionValues(doc, 'default', { workspace: '   ' })).toThrow(/blank value/)
   })
 
+  /**
+   * The reader trims a section name and a value, so padded text would be stored
+   * as one thing and read back as another: the read reports it missing, and the
+   * next write appends a second block or key rather than updating the first.
+   */
+  it.each([' profile dev', 'profile dev ', '  profile dev  '])(
+    'refuses the padded section name %j',
+    (name) => {
+      const doc = parseIni(SAMPLE)
+      expect(() => setSectionValues(doc, name, { workspace: 'ws_1' })).toThrow(
+        /Refusing to write a section/
+      )
+    }
+  )
+
+  it.each([' ws_1', 'ws_1 ', '  ws_1  '])('refuses the padded value %j', (value) => {
+    const doc = parseIni(SAMPLE)
+    expect(() => setSectionValues(doc, 'default', { workspace: value })).toThrow(
+      /Refusing to write a value/
+    )
+  })
+
   it('leaves a legitimate value untouched', () => {
     const doc = parseIni(SAMPLE)
     setSectionValues(doc, 'profile staging-1.eu', { endpoint: 'https://staging.example' })

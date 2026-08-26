@@ -315,20 +315,49 @@ function writePageNote(spec: CommandSpec, envelope: unknown): void {
 }
 
 /**
- * Envelope fields that state the server itself clipped the list.
+ * Response fields that state the server itself clipped what it returned.
  *
  * Matched by shape rather than listed per command, so a flag added to a route
  * envelope is surfaced the day it lands: the CLI accumulates the rows and
  * prints those, so an envelope field reaches no output format on its own.
  */
-const TRUNCATION_FLAG = /^truncated$|Truncated$/
+const TRUNCATION_FLAG = /^truncated$|^[A-Za-z0-9]+Truncated$/
 
-/** The envelope flags a page raised, in the spelling the wire used. */
-function truncationFlags(envelope: unknown): string[] {
-  if (!envelope || typeof envelope !== 'object' || Array.isArray(envelope)) return []
-  return Object.entries(envelope)
-    .filter(([key, value]) => value === true && TRUNCATION_FLAG.test(key))
+/**
+ * Spellings whose `Truncated` suffix is negated, and so state the opposite.
+ *
+ * A bare `Truncated$` match also accepts `notTruncated` and `isNotTruncated`,
+ * where `true` means the answer is whole — the one thing this note must never
+ * turn into is a warning about a clip that did not happen.
+ */
+const NEGATED_TRUNCATION_FLAG = /^(?:not|un)Truncated$|(?:Not|Un)Truncated$/
+
+/** The flags one object raised, in the spelling the wire used. */
+function truncationFlags(container: unknown): string[] {
+  if (!container || typeof container !== 'object' || Array.isArray(container)) return []
+  return Object.entries(container)
+    .filter(
+      ([key, value]) =>
+        value === true && TRUNCATION_FLAG.test(key) && !NEGATED_TRUNCATION_FLAG.test(key)
+    )
     .map(([key]) => key)
+}
+
+/**
+ * The flags a whole response raised, on its envelope or inside its payload.
+ *
+ * Two responses state their clip one level down: `files text`, whose file body
+ * stops at `maxBytes`, and `tables rows search`, whose match list the server
+ * stops building. An envelope-only scan said nothing about either — silently
+ * handing back a partial file is the same defect the note exists to close, on a
+ * worse payload than a short list.
+ *
+ * Only `data` is descended, and only while it is an object: a page's `data` is
+ * the rows, and a row's keys are the user's rather than the API's, so a shape
+ * match there is a guess about a name somebody else chose.
+ */
+function responseTruncationFlags(envelope: unknown): string[] {
+  return [...truncationFlags(envelope), ...truncationFlags(at(envelope, 'data'))]
 }
 
 /**
@@ -357,6 +386,19 @@ function spellOut(flag: string): string {
 }
 
 /**
+ * What a flag says was clipped, read from the words before its suffix.
+ *
+ * `toolNamesTruncated` on `workflow-mcp-servers list` is a clip of each row's
+ * tool names, not of the servers, so one wording about "this list" named the
+ * wrong thing on the one endpoint whose subject is not the list. A bare
+ * `truncated` carries no subject and stands for the whole answer.
+ */
+function clippedSubject(flag: string): string {
+  const subject = flag.replace(/^truncated$|Truncated$/, '')
+  return subject ? `the ${spellOut(subject)} it returned` : 'this result'
+}
+
+/**
  * States a server-side clip once, on stderr, in every format.
  *
  * The API answers a clipped inventory with a flag on the envelope, and the CLI
@@ -365,9 +407,11 @@ function spellOut(flag: string): string {
  * `writePageNote` gives.
  */
 function writeEnvelopeTruncation(envelope: unknown): void {
-  for (const flag of truncationFlags(envelope)) {
+  for (const flag of responseTruncationFlags(envelope)) {
     process.stderr.write(
-      chalk.dim(`${spellOut(flag)}: the server clipped this list, so it is incomplete\n`)
+      chalk.dim(
+        `${spellOut(flag)}: the server clipped ${clippedSubject(flag)}, so the answer is incomplete\n`
+      )
     )
   }
 }

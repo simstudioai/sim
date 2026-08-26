@@ -213,7 +213,9 @@ export type V2BulkKnowledgeChunksBody = z.input<typeof v2BulkKnowledgeChunksBody
  * Bulk chunk outcome. Unlike the per-chunk operations this is best-effort: an
  * identifier naming no chunk in the document is reported in `errors` rather
  * than failing the request, and the same rule holds for all three operations.
- * `processed` counts only the chunks that actually changed.
+ * `processed` counts the chunks the operation matched in this document, which is
+ * not the same as the chunks it changed: enabling chunks that were already
+ * enabled still counts every one of them.
  */
 export const v2BulkKnowledgeChunksDataSchema = z
   .object({
@@ -222,7 +224,9 @@ export const v2BulkKnowledgeChunksDataSchema = z
       .number()
       .int()
       .nonnegative()
-      .describe('Number of chunks the operation changed.')
+      .describe(
+        'Number of chunks in this document the operation matched. Chunks already in the requested state are counted too, so this is not a count of changes.'
+      )
       .meta({ examples: [12] }),
     errors: z
       .array(z.string())

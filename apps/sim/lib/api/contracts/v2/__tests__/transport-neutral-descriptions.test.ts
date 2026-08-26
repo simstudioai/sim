@@ -3,6 +3,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { listContractFiles } from '@/lib/api/contracts/v2/__tests__/contract-sweep'
+import { MAX_SCHEMA_DEPTH } from '@/lib/api/contracts/v2/__tests__/schema-introspection'
 
 /**
  * Every v2 schema description is user-facing prose on two surfaces at once: the
@@ -24,58 +25,61 @@ import { listContractFiles } from '@/lib/api/contracts/v2/__tests__/contract-swe
 
 const ENDPOINT_SPELLING = /\b(GET|POST|PATCH|PUT|DELETE)\s+\//
 
-/** Depth cap so a self-referential `lazy` schema cannot spin the walk. */
-const MAX_DEPTH = 12
-
 /**
- * Descriptions still naming a transport. Every entry is a contract file owned by
- * another change in flight — none is a judgment that the spelling is correct.
+ * Descriptions still naming a transport, deferred rather than endorsed. Each one
+ * lives in a v2 contract file this change does not touch, and the reason names
+ * that file so a later pass knows where to go. The second test below fails as
+ * soon as one of these stops offending, so a fix elsewhere cannot leave a stale
+ * entry behind.
  */
 const ALLOWED = new Map<string, string>([
   [
     'Tag definition identifier. Published because `PATCH` and `DELETE /knowledge/{knowledgeBaseId}/tags/{tagId}` address a definition by it; without it those operations are unreachable from a list read.',
-    'knowledge tag contracts owned elsewhere',
+    'not touched here: lives in v2/knowledge.ts',
   ],
   [
     'Tag definition identifier. Published for the same reason the vocabulary read publishes it: `PATCH` and `DELETE /knowledge/{knowledgeBaseId}/tags/{tagId}` address a definition by id, so without it a usage row cannot be acted on without a second read and a slot join.',
-    'knowledge tag contracts owned elsewhere',
+    'not touched here: lives in v2/knowledge-tags.ts',
   ],
   [
     'Document tag values keyed by tag display name. Writes address the same tags by slot (`tag1`..`tag7`); resolve names to slots with GET /api/v2/knowledge/{knowledgeBaseId}/tags.',
-    'knowledge.ts owned elsewhere',
+    'not touched here: lives in v2/knowledge.ts',
   ],
   [
     'ISO 8601 timestamp when the knowledge base was archived by `DELETE /knowledge/{knowledgeBaseId}`, or null while the knowledge base is active. Only `GET /knowledge?scope=archived` returns knowledge bases with a non-null value.',
-    'knowledge.ts owned elsewhere',
+    'not touched here: lives in v2/knowledge.ts',
   ],
   [
     'Which lifecycle set to list: `active` (default) for live knowledge bases, `archived` for knowledge bases a `DELETE` archived and `POST /knowledge/{knowledgeBaseId}/restore` can bring back. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too.',
-    'knowledge.ts owned elsewhere',
+    'not touched here: lives in v2/knowledge.ts',
   ],
   [
     'Structured tag filters, at most 10 of them. Every filter must hold, including two that name the same tag: repeating one tag narrows the result rather than widening it, matching `GET /api/v2/knowledge/{knowledgeBaseId}/documents`. To match either of two values for one tag, issue a search per value. Each filtered tag must resolve to the same slot and field type in every knowledge base selected; one missing from any of them, or defined inconsistently across them, is rejected rather than ignored, and those knowledge bases must be searched separately. List the available names with `GET /api/v2/knowledge/{knowledgeBaseId}/tags`.',
-    'knowledge.ts owned elsewhere',
+    'not touched here: lives in v2/knowledge.ts',
   ],
   [
     'Runs that finished successfully. Failed, cancelled, and paused runs are not counted, and the counter is never reduced when a run ages out of log retention — so it does not match the size of `GET /api/v2/workflows/{workflowId}/runs`, in either direction.',
-    'workflows.ts owned elsewhere',
+    'not touched here: lives in v2/workflows.ts',
   ],
   [
     'The workflow was archived, not erased. Its schedules, webhooks, MCP tools, and chats were archived with it, and `POST /workflows/{workflowId}/restore` brings all of them back.',
-    'workflows.ts owned elsewhere',
+    'not touched here: lives in v2/workflows.ts',
   ],
   [
     'Whether the deployed workflow accepts unauthenticated public API execution. While true, anyone holding the execution URL can run the workflow — and be billed for it — without an API key, so this is the field an audit of what a deployment exposes reads. Changed with `PATCH /workflows/{workflowId}/deployment`.',
-    'workflows.ts owned elsewhere',
+    'not touched here: lives in v2/workflows.ts',
   ],
   [
     'Operation id from `GET /api/v2/blocks/{blockId}`. Required when the block exposes multiple operations; it may differ from the underlying tool id.',
-    'workflows.ts owned elsewhere',
+    'not touched here: lives in v2/workflows.ts',
   ],
-  ['Custom tool id returned by `GET /api/v2/custom-tools`.', 'workflows.ts owned elsewhere'],
+  [
+    'Custom tool id returned by `GET /api/v2/custom-tools`.',
+    'not touched here: lives in v2/workflows.ts',
+  ],
   [
     'Deployment attempt accepted for processing. Activation is asynchronous, and `latestDeploymentAttempt` is the attempt handle — returned by every deployment mutation as well as this read. Poll activation with `isDeployed` and `deployedAt` on the workflow, or `isActive` on `GET /workflows/{workflowId}/versions`.',
-    'workflows.ts owned elsewhere',
+    'not touched here: lives in v2/workflows.ts',
   ],
 ])
 
@@ -104,6 +108,16 @@ function collect(node: unknown, key: string, seen: Set<unknown>, out: Described[
   for (const wrapper of ['innerType', 'in', 'out', 'schema', 'element', 'valueType', 'keyType']) {
     if (def[wrapper]) collect(def[wrapper], key, seen, out, depth - 1)
   }
+  if (typeof def.getter === 'function') {
+    /**
+     * A `lazy` schema hides its shape behind a getter, and the depth cap is what
+     * keeps a self-referential one from spinning. A getter that throws is not
+     * this sweep's business, so it is skipped rather than failing the run.
+     */
+    try {
+      collect((def.getter as () => unknown)(), key, seen, out, depth - 1)
+    } catch {}
+  }
   for (const option of (def.options as unknown[] | undefined) ?? []) {
     collect(option, key, seen, out, depth - 1)
   }
@@ -130,7 +144,7 @@ async function sweepDescriptions(): Promise<Described[]> {
       const seen = new Set<unknown>()
       const key = `${name}#${exported}`
       if ('def' in value) {
-        collect(value, key, seen, out, MAX_DEPTH)
+        collect(value, key, seen, out, MAX_SCHEMA_DEPTH)
         continue
       }
       const contract = value as {
@@ -141,10 +155,10 @@ async function sweepDescriptions(): Promise<Described[]> {
         response?: { schema?: unknown }
       }
       for (const slot of ['params', 'query', 'body', 'headers'] as const) {
-        if (contract[slot]) collect(contract[slot], `${key}.${slot}`, seen, out, MAX_DEPTH)
+        if (contract[slot]) collect(contract[slot], `${key}.${slot}`, seen, out, MAX_SCHEMA_DEPTH)
       }
       if (contract.response?.schema) {
-        collect(contract.response.schema, `${key}.response`, seen, out, MAX_DEPTH)
+        collect(contract.response.schema, `${key}.response`, seen, out, MAX_SCHEMA_DEPTH)
       }
     }
   }

@@ -371,17 +371,20 @@ export const CLI_CONTRACT: CliContract = {
     },
     // The floors are for `logs follow`, which locks its widths on the first
     // batch and had nothing to measure at `-n 0`. Each is what the column's own
-    // rendering needs: an ISO timestamp trimmed to seconds, the longest status
-    // and core trigger type, a UUID run id, a duration in minutes, and a
+    // rendering needs beyond its header label: an ISO timestamp trimmed to
+    // seconds, the longest status and core trigger type, a UUID run id, and a
     // four-decimal cost above ten credits. `workflow` is free text with no
     // bound, so its floor is editorial — enough to tell two runs apart.
+    // `duration` carries none: a lock is never narrower than its own header,
+    // and `DURATION` is already the eight characters a floor would have asked
+    // for.
     columns: [
       { header: 'started', path: 'startedAt', format: 'timestamp', minWidth: 19 },
       { header: 'status', minWidth: 9 },
       { header: 'level' },
       { header: 'trigger', minWidth: 12 },
       { header: 'workflow', path: 'workflow.name', minWidth: 24 },
-      { header: 'duration', path: 'totalDurationMs', format: 'duration', minWidth: 8 },
+      { header: 'duration', path: 'totalDurationMs', format: 'duration' },
       { header: 'cost', path: 'cost.total', format: 'cost', minWidth: 8 },
       { header: 'run', path: 'runId', minWidth: 36 },
     ],
@@ -1492,11 +1495,12 @@ export const CLI_CONTRACT: CliContract = {
     // Not `confirm`-gated: the whole point is to stop something that is
     // already going wrong, and for an ordinary in-flight run `re-run it` is a
     // real recovery. It is NOT one for a run paused for input — cancelling
-    // completes the pause, so the context `workflows runs resume` needs is gone
-    // with the block outputs it held, and starting over repeats every side
-    // effect the run already performed. Gating it is a live proposal rather
-    // than an oversight; it is left ungated here because `confirm` is
-    // all-or-nothing and cancel is the command most likely to be automated.
+    // flips the paused row to `cancelled`, and nothing resumes from that
+    // status, so the snapshot is kept but `workflows runs resume` can never
+    // take it again and starting over repeats every side effect the run
+    // already performed. Gating it is a live proposal rather than an
+    // oversight; it is left ungated here because `confirm` is all-or-nothing
+    // and cancel is the command most likely to be automated.
   },
   resumeWorkflow: {
     command: 'workflows runs resume',

@@ -1,6 +1,7 @@
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
 import {
+  FORBIDDEN_IN_VALUE,
   getSection,
   type IniDocument,
   listSections,
@@ -36,7 +37,10 @@ export const DEFAULT_ENDPOINT = 'https://www.sim.ai'
 export const OUTPUT_FORMATS = ['table', 'json', 'yaml', 'text'] as const
 export type OutputFormat = (typeof OUTPUT_FORMATS)[number]
 
-export { ProfileConfigError } from './ini'
+export { FORBIDDEN_IN_VALUE, ProfileConfigError } from './ini'
+
+/** {@link FORBIDDEN_IN_VALUE}, for redacting every match out of an error message. */
+const FORBIDDEN_IN_VALUE_GLOBAL = new RegExp(FORBIDDEN_IN_VALUE.source, 'g')
 
 /**
  * The shape a newly created profile name has to have.
@@ -337,9 +341,9 @@ export function normalizeWorkspaceId(workspaceId: string, source: string): strin
   if (!trimmed) {
     throw new ProfileConfigError(`Empty workspace id from ${source}.`)
   }
-  if (/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/.test(trimmed)) {
+  if (FORBIDDEN_IN_VALUE.test(trimmed)) {
     throw new ProfileConfigError(
-      `Invalid workspace id "${trimmed.replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g, ' ')}" from ${source}. A workspace id cannot contain line breaks or control characters.`
+      `Invalid workspace id "${trimmed.replace(FORBIDDEN_IN_VALUE_GLOBAL, ' ')}" from ${source}. A workspace id cannot contain line breaks or control characters.`
     )
   }
   return trimmed

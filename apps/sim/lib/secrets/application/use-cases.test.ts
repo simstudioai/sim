@@ -512,6 +512,22 @@ describe('secret application use cases', () => {
     expect(mocks.setWorkspace).not.toHaveBeenCalled()
   })
 
+  it('refuses a workspace write that names none of the three writable fields', async () => {
+    await expect(
+      setSecretUseCase.execute({
+        principal: session,
+        input: {
+          workspaceId: workspace.workspaceId,
+          name: secret.envKey,
+          scope: 'workspace',
+        },
+      })
+    ).rejects.toThrow(/value, description, or unredacted is required/)
+
+    expect(mocks.updateWorkspaceMetadata).not.toHaveBeenCalled()
+    expect(mocks.setWorkspace).not.toHaveBeenCalled()
+  })
+
   it('refuses a value-less personal write in the use case, not just the contract', async () => {
     await expect(
       setSecretUseCase.execute({

@@ -81,9 +81,17 @@ function validateWorkspaceOnlyFlag<T>(
  * Nothing is read when the command carries a metadata flag and no `--value`:
  * that invocation is changing the description or the redaction setting of a
  * secret that already exists, and the API accepts a workspace body with no
- * value. Prompting there hangs a CI job on stdin for a value it was never
- * asked for — `sim secrets set NAME --no-unredacted` is the shape that has to
- * work unattended.
+ * value. Prompting there refused the invocation rather than losing anything:
+ * off a TTY {@link promptSecret} throws `Interactive secret input requires a
+ * terminal` before reading a byte, so `sim secrets set NAME --no-unredacted`
+ * exited 1 in CI for a value it was never asked for, and on a TTY it stopped
+ * to ask for one — a prompt that rejects an empty entry, so there was no way
+ * to answer "leave the stored value alone". Skipping the read is what lets a
+ * metadata-only edit run unattended and without a stored value to re-type.
+ *
+ * The knock-on, on a TTY: `sim secrets set NAME --description ...` used to
+ * prompt for a value and now updates the description alone. A value still
+ * travels by `--value`, or by the prompt when no metadata flag is passed.
  *
  * An abort at the prompt is reported here rather than thrown: Ctrl-C is the
  * user deciding not to run the command, and the shell's convention for that is

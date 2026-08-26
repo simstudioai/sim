@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { truncate } from '@sim/utils/string'
 import type { NextRequest } from 'next/server'
 import { v2ChatContract } from '@/lib/api/contracts/v2/chat'
 import { parseRequest } from '@/lib/api/server'
@@ -16,6 +17,7 @@ import { chatOperations } from '@/lib/copilot/application/operations'
 import { resolveOrCreateChat } from '@/lib/copilot/chat/lifecycle'
 import { buildIntegrationToolSchemas } from '@/lib/copilot/chat/payload'
 import { generateWorkspaceContext } from '@/lib/copilot/chat/workspace-context'
+import { MOTHERSHIP_CHAT_DEFAULT_MODEL } from '@/lib/copilot/constants'
 import { computeWorkspaceEntitlements } from '@/lib/copilot/entitlements'
 import {
   type CopilotEnvironmentContext,
@@ -50,10 +52,23 @@ const CHAT_HEARTBEAT_INTERVAL_MS = 15_000
 const ndjsonEncoder = new TextEncoder()
 
 /**
- * Model recorded on conversations this route creates, matching the model the
- * web Chat surface stamps on a new mothership conversation.
+ * Longest title derived from a first message. Well under the 200-character
+ * ceiling the rename contract enforces, and short enough to read as one line
+ * in the web Chat list.
  */
-const V2_CHAT_MODEL = 'claude-opus-4-8'
+const CHAT_TITLE_MAX_LENGTH = 80
+
+/**
+ * Title a conversation this route creates by its first message, so a `sim chat`
+ * turn does not leave a blank row at the top of the user's web Chat list.
+ * Returns undefined for a message that is only whitespace, leaving the title
+ * unset rather than stamping an empty one.
+ */
+function deriveConversationTitle(message: string): string | undefined {
+  const normalized = message.replace(/\s+/g, ' ').trim()
+  if (!normalized) return undefined
+  return truncate(normalized, CHAT_TITLE_MAX_LENGTH)
+}
 
 function isAbortError(error: unknown): boolean {
   return error instanceof Error && error.name === 'AbortError'
@@ -145,6 +160,8 @@ export const POST = withRouteHandler(
       const workspaceAccess = await assertActiveWorkspaceAccess(workspaceId, userId)
       const userPermission = workspaceAccess.permission
 
+      const conversationTitle = deriveConversationTitle(message)
+
       // A caller-supplied conversation id is a claim, not an identity: resolve
       // it through the same owner- and workspace-scoped loader the web Chat
       // surface uses, and refuse every id that does not resolve with the same
@@ -154,8 +171,9 @@ export const POST = withRouteHandler(
         ...(conversationId ? { chatId: conversationId } : {}),
         userId,
         workspaceId,
-        model: V2_CHAT_MODEL,
+        model: MOTHERSHIP_CHAT_DEFAULT_MODEL,
         type: 'mothership',
+        ...(conversationTitle ? { title: conversationTitle } : {}),
       })
       if (conversationId && !resolvedChat.chat) {
         return v2Error('NOT_FOUND', 'Conversation not found')

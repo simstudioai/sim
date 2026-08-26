@@ -321,6 +321,19 @@ export const setSecretUseCase = defineAuthorizedWorkspaceUseCase({
        * something it did not create.
        */
       if (input.value === undefined) {
+        /**
+         * A write that names none of the three writable fields would still issue
+         * the UPDATE, stamping `updatedAt` and dropping the workspace's env cache
+         * entry for nothing. The contract rejects it; this repeats the guard for
+         * every other surface that reaches the use case directly.
+         */
+        if (input.description === undefined && input.unredacted === undefined) {
+          throw new OrchestrationError(
+            'validation',
+            'value, description, or unredacted is required'
+          )
+        }
+
         const metadata = await updateWorkspaceSecretMetadata({
           workspaceId: context.workspaceId,
           name: input.name,

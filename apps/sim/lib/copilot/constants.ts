@@ -77,3 +77,10 @@ export const TOOL_RESULT_MAX_INLINE_CHARS =
 export const COPILOT_MODES = ['ask', 'build', 'plan'] as const
 
 export const COPILOT_REQUEST_MODES = ['ask', 'build', 'plan', 'agent'] as const
+
+/**
+ * Model stamped on a newly created mothership conversation, by the web Chat
+ * surface and by the `sim chat` API alike. Shared so the two creation paths
+ * cannot drift onto different models for the same conversation type.
+ */
+export const MOTHERSHIP_CHAT_DEFAULT_MODEL = 'claude-opus-4-8'

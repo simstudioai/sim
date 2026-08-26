@@ -350,5 +350,25 @@ describe('skill editor application use cases', () => {
         message: 'Built-in skills are read-only and cannot be modified',
       })
     })
+
+    /**
+     * The internal members route maps no workspace id, so the list used to fall
+     * through to the mutation resolver and answer a read with the read-only
+     * refusal — the same incoherence the empty roster was added to remove.
+     */
+    it('never answers a workspace-less list with the read-only refusal', async () => {
+      await expect(
+        listSkillEditorsUseCase.execute({
+          principal,
+          input: { skillId: BUILTIN_ID, sortBy: 'email', sortOrder: 'asc' },
+        })
+      ).rejects.toMatchObject({
+        code: 'validation',
+        message: 'workspaceId is required to list the editors of a built-in skill',
+      })
+
+      expect(mocks.loadWorkspace).not.toHaveBeenCalled()
+      expect(mocks.listEditors).not.toHaveBeenCalled()
+    })
   })
 })

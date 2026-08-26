@@ -105,7 +105,7 @@ export const v2LogStatsSchema = z
         end: v2TimestampSchema.describe('ISO 8601 end of the window.'),
       })
       .describe(
-        'The window the buckets span. `startDate` and `endDate` are used verbatim when supplied; an omitted edge falls back to the oldest matching run on the left and to the later of the newest matching run and now on the right. With no matching runs the window is 24 hours wide, measured back from that right edge — the trailing 24 hours when no `endDate` was supplied, and the 24 hours preceding `endDate` when one was supplied without a `startDate`.'
+        'The window the buckets span. `startDate` and `endDate` are used verbatim when supplied; an omitted edge falls back to the oldest matching run on the left and to the later of the newest matching run and now on the right. With no matching runs only the left edge falls back, to 24 hours before that right edge — the trailing 24 hours when neither edge was supplied, and the 24 hours preceding `endDate` when only `endDate` was supplied. A supplied `startDate` is still used verbatim, so a `startDate` without an `endDate` yields `[startDate, now]`, which can be any width.'
       ),
     segmentMs: z.number().describe('Width of one bucket in milliseconds.'),
   })

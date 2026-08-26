@@ -1,5 +1,6 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { type Principal, resolvePrincipalAttribution } from '@sim/auth/principal'
+import { db } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import type { BlockState, WorkflowState } from '@sim/workflow-types/workflow'
@@ -44,7 +45,12 @@ import {
   type ValidationError,
 } from '@/lib/workflows/editing/types'
 import { preValidateCredentialInputs } from '@/lib/workflows/editing/validation'
-import { replaceWorkflowNormalizedState } from '@/lib/workflows/persistence/replace-normalized-state'
+import { prepareWorkflowStateForPersistence } from '@/lib/workflows/persistence/prepare-state'
+import {
+  assertWorkflowGraphIdsUnclaimed,
+  collectWorkflowGraphIds,
+  replaceWorkflowNormalizedState,
+} from '@/lib/workflows/persistence/replace-normalized-state'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { validateWorkflowState } from '@/lib/workflows/sanitization/validation'
 import { withBlockVisibility } from '@/blocks/visibility/server-context'
@@ -358,6 +364,20 @@ export const applyWorkflowOperations = defineAuthorizedWorkflowUseCase({
      * dry run reports precisely what a committed apply of the same body would.
      */
     if (input.dryRun) {
+      /**
+       * The id check the committed write runs, on the ids that write would
+       * actually insert — the prepared graph, not the engine's output — so a
+       * dry run cannot report success for a body whose commit is refused with
+       * a conflict.
+       */
+      await assertWorkflowGraphIdsUnclaimed(
+        db,
+        context.workflowId,
+        collectWorkflowGraphIds(
+          prepareWorkflowStateForPersistence({ blocks: graph.blocks, edges: graph.edges }).state
+        )
+      )
+
       logger.info('Evaluated workflow operations without persisting', {
         workflowId: context.workflowId,
         workspaceId: context.workspaceId,

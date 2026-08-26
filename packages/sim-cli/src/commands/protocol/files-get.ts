@@ -98,10 +98,12 @@ const STAGE_SIGNALS: readonly NodeJS.Signals[] = ['SIGINT', 'SIGTERM']
  * Installing a listener suppresses Node's default termination, so the handler
  * has to terminate itself. Re-raising rather than `process.exit(130)` keeps the
  * process dying *by signal*, so a wrapping shell still sees 130/143 and a
- * `trap` still fires — the behaviour an interrupted download has today.
+ * `trap` still fires — the behaviour an interrupted download has today. Only
+ * our own listener is removed, by the handler itself before it calls this:
+ * `removeAllListeners` would take a caller's own handler with it, and nothing
+ * here needs one gone but ours.
  */
 function reRaise(signal: NodeJS.Signals): void {
-  process.removeAllListeners(signal)
   process.kill(process.pid, signal)
 }
 
@@ -123,6 +125,7 @@ export function removeStagingOnSignal(
 ): () => void {
   const installed = STAGE_SIGNALS.map((signal) => {
     const onSignal = () => {
+      process.off(signal, onSignal)
       const directory = stagingDirectory()
       if (directory) {
         try {
@@ -153,40 +156,44 @@ async function saveStagedFile(
   const disposeSignalCleanup = removeStagingOnSignal(() => temporaryDirectory)
 
   try {
-    const publicationTarget = force ? await forcedPublicationTarget(target) : target
-    temporaryDirectory = await mkdtemp(join(dirname(publicationTarget), '.sim-download-'))
-    const temporaryPath = join(temporaryDirectory, 'payload')
-    await streamToFile(body, createWriteStream(temporaryPath, { flags: 'wx' }), target)
-    if (force) {
-      await rename(temporaryPath, publicationTarget)
-    } else {
+    try {
+      const publicationTarget = force ? await forcedPublicationTarget(target) : target
+      temporaryDirectory = await mkdtemp(join(dirname(publicationTarget), '.sim-download-'))
+      const temporaryPath = join(temporaryDirectory, 'payload')
+      await streamToFile(body, createWriteStream(temporaryPath, { flags: 'wx' }), target)
+      if (force) {
+        await rename(temporaryPath, publicationTarget)
+      } else {
+        try {
+          await link(temporaryPath, publicationTarget)
+        } catch (error) {
+          throw unsupportedAtomicPublish(target, error) ?? error
+        }
+      }
+    } catch (error) {
+      failure = normalizedWriteFailure(target, error)
+    }
+
+    if (temporaryDirectory) {
       try {
-        await link(temporaryPath, publicationTarget)
-      } catch (error) {
-        throw unsupportedAtomicPublish(target, error) ?? error
+        await rm(temporaryDirectory, { recursive: true, force: true })
+      } catch (cleanupError) {
+        if (failure) throw combinedCleanupFailure(failure, temporaryDirectory, cleanupError)
+        throw new SimApiError(
+          `Saved ${target}, but could not remove temporary directory ${temporaryDirectory}: ${(cleanupError as Error).message}`,
+          0
+        )
       }
     }
-  } catch (error) {
-    failure = normalizedWriteFailure(target, error)
+
+    if (failure) throw failure
   } finally {
-    // Disposed on every path out, including the publish failure below: a
-    // handler left installed would outlive the directory it removes.
+    // Disposed on every path out, and only once the removal above has finished:
+    // an `rm` is asynchronous, so a handler disposed before it awaits leaves the
+    // staging directory behind for a signal arriving in exactly the window this
+    // watch exists for.
     disposeSignalCleanup()
   }
-
-  if (temporaryDirectory) {
-    try {
-      await rm(temporaryDirectory, { recursive: true, force: true })
-    } catch (cleanupError) {
-      if (failure) throw combinedCleanupFailure(failure, temporaryDirectory, cleanupError)
-      throw new SimApiError(
-        `Saved ${target}, but could not remove temporary directory ${temporaryDirectory}: ${(cleanupError as Error).message}`,
-        0
-      )
-    }
-  }
-
-  if (failure) throw failure
 }
 
 /** Publishes a complete staged body atomically, with overwrite requiring explicit force. */

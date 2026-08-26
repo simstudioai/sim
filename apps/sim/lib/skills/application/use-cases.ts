@@ -59,6 +59,24 @@ async function resolveSkillContext(workspaceId: string, skillId: string): Promis
 }
 
 /**
+ * Resolves a workspace-owned skill for any editor verb, deriving the scope from
+ * the skill's own row when the caller asserted none. Both the mutation and the
+ * list resolver build on it, so neither has to route through the other.
+ */
+async function resolveOwnedSkillEditorContext(
+  skillId: string,
+  assertedWorkspaceId?: string
+): Promise<SkillContext> {
+  const [row] = await db.select().from(skill).where(eq(skill.id, skillId)).limit(1)
+  if (!row?.workspaceId || (assertedWorkspaceId && row.workspaceId !== assertedWorkspaceId)) {
+    throw new OrchestrationError('not_found', 'Skill not found')
+  }
+
+  const workspace = await resolveWorkspaceContext(row.workspaceId)
+  return { ...workspace, skill: row }
+}
+
+/**
  * Resolves the skill an editor MUTATION addresses.
  *
  * A built-in skill exists — `getSkillById` materializes it from code — so
@@ -77,27 +95,33 @@ async function resolveSkillEditorContext(
     )
   }
 
-  const [row] = await db.select().from(skill).where(eq(skill.id, skillId)).limit(1)
-  if (!row?.workspaceId || (assertedWorkspaceId && row.workspaceId !== assertedWorkspaceId)) {
-    throw new OrchestrationError('not_found', 'Skill not found')
-  }
-
-  const workspace = await resolveWorkspaceContext(row.workspaceId)
-  return { ...workspace, skill: row }
+  return resolveOwnedSkillEditorContext(skillId, assertedWorkspaceId)
 }
 
 /**
  * Resolves the skill an editor LIST addresses.
  *
  * Listing is a read, so a built-in id is not a malformed request: the skill is
- * real and `skills get` returns it. It resolves through the workspace the
- * caller asserted, and the roster it reports is empty.
+ * real and `skills get` returns it. It never falls through to the mutation
+ * resolver, so the read can never answer that the caller tried to modify a
+ * read-only skill.
+ *
+ * A built-in skill owns no row, so there is no workspace to derive scope from
+ * and nothing to authorize the caller against. The read therefore requires the
+ * caller to name the workspace rather than guessing one: an inferred workspace
+ * would authorize against a scope the caller never asserted.
  */
 async function resolveSkillEditorListContext(input: ListSkillEditorsInput): Promise<SkillContext> {
-  if (isBuiltinSkillId(input.skillId) && input.workspaceId) {
+  if (isBuiltinSkillId(input.skillId)) {
+    if (!input.workspaceId) {
+      throw new OrchestrationError(
+        'validation',
+        'workspaceId is required to list the editors of a built-in skill'
+      )
+    }
     return resolveSkillContext(input.workspaceId, input.skillId)
   }
-  return resolveSkillEditorContext(input.skillId, input.workspaceId)
+  return resolveOwnedSkillEditorContext(input.skillId, input.workspaceId)
 }
 
 const authorizationOptions = { delegation: skillDelegationPolicy }

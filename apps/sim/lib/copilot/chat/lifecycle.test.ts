@@ -193,6 +193,47 @@ describe('lifecycle copilot chat reads (cutover to copilot_messages)', () => {
     expect(result.conversationHistory).toEqual([userMsg, asstMsg])
   })
 
+  it('resolveOrCreateChat refuses a resumed chat whose type is not the asserted one', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([{ ...chatRow, type: 'mothership' }])
+    dbChainMockFns.orderBy.mockResolvedValueOnce([])
+
+    const result = await resolveOrCreateChat({
+      chatId: CHAT_ID,
+      userId: USER_ID,
+      model: 'm',
+      type: 'copilot',
+    })
+
+    // Same shape an unknown id resolves to: the refusal carries no reason.
+    expect(result.chat).toBeNull()
+    expect(result.conversationHistory).toEqual([])
+    expect(result.isNew).toBe(false)
+  })
+
+  it('resolveOrCreateChat resumes a chat whose type matches the asserted one', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([{ ...chatRow, type: 'mothership' }])
+    dbChainMockFns.orderBy.mockResolvedValueOnce([{ content: userMsg }])
+
+    const result = await resolveOrCreateChat({
+      chatId: CHAT_ID,
+      userId: USER_ID,
+      model: 'm',
+      type: 'mothership',
+    })
+
+    expect(result.chat).not.toBeNull()
+    expect(result.conversationHistory).toEqual([userMsg])
+  })
+
+  it('resolveOrCreateChat stamps a supplied title on a newly created chat', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([chatRow])
+
+    await resolveOrCreateChat({ userId: USER_ID, model: 'm', title: 'First message' })
+
+    const insertValues = dbChainMockFns.values.mock.calls[0]?.[0] as Record<string, unknown>
+    expect(insertValues.title).toBe('First message')
+  })
+
   it('resolveOrCreateChat creates a new chat with an empty transcript', async () => {
     dbChainMockFns.returning.mockResolvedValueOnce([chatRow])
 

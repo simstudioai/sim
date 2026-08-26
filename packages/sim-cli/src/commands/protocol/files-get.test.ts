@@ -116,6 +116,33 @@ describe('an interrupted download', () => {
     expect(terminate).toHaveBeenCalledWith('SIGINT')
   })
 
+  /**
+   * The handler drops itself before terminating, rather than clearing the
+   * signal: the process has to die by that signal, and `removeAllListeners`
+   * bought that by taking every other handler on the process down with it.
+   */
+  it('clears only its own listener before terminating', () => {
+    const foreign = vi.fn()
+    process.on('SIGINT', foreign)
+    const baseline = process.listenerCount('SIGINT')
+    let remaining: unknown[] = []
+    const terminate = vi.fn(() => {
+      remaining = process.listeners('SIGINT')
+    })
+    const dispose = removeStagingOnSignal(() => null, terminate)
+
+    try {
+      process.emit('SIGINT')
+    } finally {
+      dispose()
+      process.off('SIGINT', foreign)
+    }
+
+    expect(terminate).toHaveBeenCalledWith('SIGINT')
+    expect(remaining).toContain(foreign)
+    expect(remaining).toHaveLength(baseline)
+  })
+
   it('watches for signals only while a download is staged', async () => {
     const before = { int: process.listenerCount('SIGINT'), term: process.listenerCount('SIGTERM') }
     let observed = 0
@@ -132,6 +159,50 @@ describe('an interrupted download', () => {
     expect(observed).toBe(before.int + 1)
     expect(process.listenerCount('SIGINT')).toBe(before.int)
     expect(process.listenerCount('SIGTERM')).toBe(before.term)
+  })
+
+  /** Resolves once the download has staged its directory beside the target. */
+  async function stagingDirectory(): Promise<string> {
+    for (let attempt = 0; attempt < 2000; attempt += 1) {
+      const [staged] = stagingDirectories()
+      if (staged) return join(dir, staged)
+      await new Promise((resolve) => setTimeout(resolve, 1))
+    }
+    throw new Error('the download staged no directory')
+  }
+
+  /**
+   * The removal of the staging directory is asynchronous, so it is a window the
+   * watch has to outlive: a handler disposed before it leaves the directory
+   * behind for exactly the interrupt the watch exists to catch. The directory is
+   * padded first so the removal spans enough turns to sample.
+   */
+  it('keeps watching for signals until the staging directory is gone', async () => {
+    const before = process.listenerCount('SIGINT')
+    const body = new ReadableStream<Uint8Array>({
+      async pull(controller) {
+        const staging = await stagingDirectory()
+        for (let index = 0; index < 2000; index += 1) {
+          writeFileSync(join(staging, `pad-${index}`), '')
+        }
+        controller.enqueue(new TextEncoder().encode('data'))
+        controller.close()
+      },
+    })
+    const samples: number[] = []
+    const poll = setInterval(() => {
+      if (stagingDirectories().length > 0) samples.push(process.listenerCount('SIGINT'))
+    })
+
+    try {
+      await saveToFile(body, join(dir, 'out.bin'), false)
+    } finally {
+      clearInterval(poll)
+    }
+
+    expect(samples.length).toBeGreaterThan(0)
+    expect(samples.filter((count) => count !== before + 1)).toEqual([])
+    expect(process.listenerCount('SIGINT')).toBe(before)
   })
 
   it('disposes the watch when the publish itself fails', async () => {

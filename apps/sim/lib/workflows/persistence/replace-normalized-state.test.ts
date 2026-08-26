@@ -3,6 +3,7 @@
  */
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { and, inArray, ne } from 'drizzle-orm'
+import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -51,6 +52,27 @@ function input(overrides: Record<string, unknown> = {}) {
     state: { blocks: { 'block-1': BLOCK }, edges: [] },
     ...overrides,
   } as Parameters<typeof replaceWorkflowNormalizedState>[0]
+}
+
+/**
+ * The shape production actually throws: Drizzle wraps every driver fault in a
+ * `DrizzleQueryError` whose own message is the SQL text and which carries no
+ * `code`, putting the driver error on `.cause`. A flat error object is a shape
+ * the database layer never produces.
+ */
+function wrapDriverError(cause: Error): Error {
+  return new DrizzleQueryError(
+    'insert into "workflow_edges" ("id", "workflow_id") values ($1, $2)',
+    ['edge-1', 'workflow-1'],
+    cause
+  )
+}
+
+function uniqueViolation(constraintName: string): Error {
+  return Object.assign(new Error('duplicate key value violates unique constraint'), {
+    code: '23505',
+    constraint_name: constraintName,
+  })
 }
 
 describe('replaceWorkflowNormalizedState', () => {
@@ -255,20 +277,29 @@ describe('replaceWorkflowNormalizedState', () => {
      * 409 rather than an unclassified 500.
      */
     it('re-classifies a 23505 that races past the pre-check', async () => {
-      mocks.save.mockRejectedValue(
-        Object.assign(new Error('duplicate key value violates unique constraint'), {
-          code: '23505',
-          constraint_name: 'workflow_edges_pkey',
-        })
-      )
+      mocks.save.mockRejectedValue(wrapDriverError(uniqueViolation('workflow_edges_pkey')))
 
       await expect(replaceWorkflowNormalizedState(input())).rejects.toMatchObject({
         code: 'conflict',
       })
     })
 
+    /**
+     * The constraint name is compared exactly: a unique index whose name merely
+     * contains one of the graph-id constraints belongs to some other table and
+     * must not be reported as a claimed graph id.
+     */
+    it('leaves a 23505 on an unrelated constraint unclassified', async () => {
+      const failure = wrapDriverError(uniqueViolation('archive_workflow_blocks_pkey_backup'))
+      mocks.save.mockRejectedValue(failure)
+
+      await expect(replaceWorkflowNormalizedState(input())).rejects.toBe(failure)
+    })
+
     it('leaves an unrelated database fault unclassified', async () => {
-      const failure = Object.assign(new Error('deadlock detected'), { code: '40P01' })
+      const failure = wrapDriverError(
+        Object.assign(new Error('deadlock detected'), { code: '40P01' })
+      )
       mocks.save.mockRejectedValue(failure)
 
       await expect(replaceWorkflowNormalizedState(input())).rejects.toBe(failure)
