@@ -41,7 +41,17 @@ vi.mock('../auth/device-flow', () => ({
   createAuthRequest: mocks.createAuthRequest,
   pollForKey: mocks.pollForKey,
 }))
-vi.mock('../config/index', () => ({
+/**
+ * The two validators come from the real module rather than a copy: a duplicated
+ * pattern here would keep passing if the shipped one were deleted, which is
+ * exactly the regression these tests exist to catch. `../config/profile` is not
+ * itself mocked, so this is the shipped implementation.
+ */
+vi.mock('../config/index', async () => ({
+  ...(await import('../config/profile').then(({ normalizeWorkspaceId, validateProfileName }) => ({
+    normalizeWorkspaceId,
+    validateProfileName,
+  }))),
   configPath: () => '/tmp/sim-config',
   credentialsPath: () => '/tmp/sim-credentials',
   DEFAULT_PROFILE: 'default',
@@ -230,6 +240,53 @@ describe('login command', () => {
 
     expect(mocks.createInterface).not.toHaveBeenCalled()
     expect(mocks.createAuthRequest).toHaveBeenCalledOnce()
+  })
+
+  it('writes the endpoint before the key, so a failed write cannot strand one', async () => {
+    // A key on disk with no endpoint beside it falls back to the default host
+    // on the next command, which would send a self-hosted key elsewhere.
+    setInteractive(false)
+    const order: string[] = []
+    mocks.writeConfigProfile.mockImplementation(() => {
+      order.push('config')
+    })
+    mocks.writeCredentialsProfile.mockImplementation(() => {
+      order.push('credentials')
+    })
+
+    await login()
+
+    expect(order).toEqual(['config', 'credentials'])
+  })
+
+  it('stores nothing when the server answers with an unstorable workspace id', async () => {
+    setInteractive(false)
+    mocks.pollForKey.mockResolvedValue({
+      apiKey: 'sim-key',
+      scope: 'platform',
+      workspaceBound: false,
+      workspaceId: 'ws_1\nendpoint = http://elsewhere.invalid',
+    })
+
+    await expect(login()).rejects.toThrow('Invalid workspace id')
+
+    expect(mocks.writeConfigProfile).not.toHaveBeenCalled()
+    expect(mocks.writeCredentialsProfile).not.toHaveBeenCalled()
+  })
+
+  it('stores nothing when the server answers with a malformed key', async () => {
+    setInteractive(false)
+    mocks.pollForKey.mockResolvedValue({
+      apiKey: '  ',
+      scope: 'platform',
+      workspaceBound: false,
+      workspaceId: 'ws_1',
+    })
+
+    await expect(login()).rejects.toThrow('malformed API key')
+
+    expect(mocks.writeConfigProfile).not.toHaveBeenCalled()
+    expect(mocks.writeCredentialsProfile).not.toHaveBeenCalled()
   })
 
   it('clears a stale workspace default when none is selected during login', async () => {
@@ -449,6 +506,13 @@ describe('profiles command', () => {
     expect(mocks.writeConfigProfile).not.toHaveBeenCalled()
   })
 
+  it('refuses a new profile name that would forge a config section', async () => {
+    await expect(profiles('add', 'evil]\n[default', '--workspace', 'ws_acme')).rejects.toThrow(
+      'Invalid profile name'
+    )
+    expect(mocks.writeConfigProfile).not.toHaveBeenCalled()
+  })
+
   it('does not overwrite an existing profile', async () => {
     mocks.listProfiles.mockReturnValue(['acme'])
 
@@ -467,8 +531,65 @@ describe('profiles command', () => {
     await profiles('list')
 
     const output = vi.mocked(console.log).mock.calls.flat().join('\n')
-    expect(output).toContain('acme  (auth: default)')
-    expect(output).not.toContain('acme  (no key)')
+    expect(output).toMatch(/acme\s+yes\s+default/)
+  })
+
+  it('refuses an unknown profile like every other command', async () => {
+    // `profiles list --profile typo` used to exit 0 on a name that resolves to
+    // nothing, alone among the commands, because it never resolved at all.
+    mocks.listProfiles.mockReturnValue(['default'])
+    mocks.profileFrom.mockImplementation(() => {
+      throw new mocks.ProfileConfigError('Unknown profile "bogus".')
+    })
+
+    await expect(profiles('list', '--profile', 'bogus')).rejects.toThrow('Unknown profile "bogus".')
+    expect(console.log).not.toHaveBeenCalled()
+  })
+
+  it('renders the listing in the resolved output format', async () => {
+    mocks.listProfiles.mockReturnValue(['acme', 'default'])
+    mocks.profileFrom.mockReturnValue({
+      name: 'default',
+      endpoint: 'https://sim.ai',
+      apiKey: 'stored-key',
+      workspaceId: 'ws_default',
+      output: 'json',
+      sources: {
+        endpoint: 'config',
+        apiKey: 'credentials',
+        workspaceId: 'config',
+        output: 'config',
+      },
+    })
+
+    await profiles('list')
+
+    const output = vi.mocked(console.log).mock.calls.flat().join('\n')
+    expect(JSON.parse(output)).toEqual([
+      { name: 'acme', active: false, hasKey: true, authProfile: 'acme', error: null },
+      { name: 'default', active: true, hasKey: true, authProfile: 'default', error: null },
+    ])
+  })
+
+  it('answers a machine format with an empty list rather than prose', async () => {
+    mocks.listProfiles.mockReturnValue([])
+    mocks.profileFrom.mockReturnValue({
+      name: 'default',
+      endpoint: 'https://sim.ai',
+      apiKey: null,
+      workspaceId: null,
+      output: 'json',
+      sources: {
+        endpoint: 'default',
+        apiKey: 'unset',
+        workspaceId: 'unset',
+        output: 'config',
+      },
+    })
+
+    await profiles('list')
+
+    expect(JSON.parse(vi.mocked(console.log).mock.calls.flat().join('\n'))).toEqual([])
   })
 
   it('marks a broken profile and still lists the rest', async () => {

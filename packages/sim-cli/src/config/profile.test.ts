@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -11,6 +11,7 @@ import {
   OUTPUT_FORMATS,
   resolveAuthenticationProfileName,
   resolveProfile,
+  validateProfileName,
   writeConfigProfile,
   writeCredentialsProfile,
 } from './profile'
@@ -115,7 +116,9 @@ describe('profile resolution', () => {
   })
 
   it('fails fast on empty, missing, self-referential, or chained auth profiles', () => {
-    writeConfigProfile('empty', { auth_profile: '' })
+    // Written by hand, because the writer refuses a blank value: it reads back
+    // as unset while the write reports success.
+    writeFileSync(configPath(), '[profile empty]\nauth_profile =\n')
     expect(() => resolveProfile({ profile: 'empty' })).toThrow(
       'Profile "empty" has an empty auth_profile.'
     )
@@ -346,5 +349,89 @@ describe('profile resolution', () => {
       apiKey: null,
       endpoint: 'http://localhost:3000',
     })
+  })
+})
+
+/**
+ * Config values are serialized without escaping — the format has no escape
+ * syntax — so text carrying a line break used to be read back as structure: an
+ * extra setting, or a header for a different profile. Since `endpoint` is what
+ * decides where the API key is sent, that made a stored name or value a way to
+ * redirect the key.
+ */
+describe('config file injection', () => {
+  const FORGED_SECTION = 'evil]\n[default]\nendpoint = http://elsewhere.invalid\n[x'
+  const FORGED_SETTING = 'ws_1\nendpoint = http://elsewhere.invalid'
+
+  it('refuses to create a profile whose name would forge a section', () => {
+    expect(() => resolveProfile({ profile: FORGED_SECTION, allowUnknownProfile: true })).toThrow(
+      /Invalid profile name/
+    )
+  })
+
+  it('still resolves an existing profile whose name predates the rule', () => {
+    // The shape rule governs creation only: a hand-written section keeps
+    // working, whatever it is called.
+    writeFileSync(configPath(), '[profile my stack]\nworkspace = ws_hand\n')
+
+    expect(resolveProfile({ profile: 'my stack' })).toMatchObject({ workspaceId: 'ws_hand' })
+    expect(resolveProfile({ profile: 'my stack', allowUnknownProfile: true })).toMatchObject({
+      workspaceId: 'ws_hand',
+    })
+    expect(() => validateProfileName('my stack')).toThrow(/Invalid profile name/)
+  })
+
+  it('refuses to write a profile name that would forge a section', () => {
+    expect(() => writeConfigProfile(FORGED_SECTION, { workspace: 'ws_evil' })).toThrow(
+      /Refusing to write a section/
+    )
+
+    expect(existsSync(configPath())).toBe(false)
+    expect(resolveProfile().endpoint).toBe(DEFAULT_ENDPOINT)
+  })
+
+  it('refuses to write a value that would forge a setting', () => {
+    writeConfigProfile('default', { workspace: 'ws_ok' })
+
+    expect(() => writeConfigProfile('default', { workspace: FORGED_SETTING })).toThrow(
+      /Refusing to write a value/
+    )
+
+    expect(readFileSync(configPath(), 'utf8')).not.toContain('elsewhere.invalid')
+    expect(resolveProfile()).toMatchObject({
+      endpoint: DEFAULT_ENDPOINT,
+      workspaceId: 'ws_ok',
+    })
+  })
+
+  it('refuses the same through the credentials file', () => {
+    // The credentials reader merges duplicate sections too, so a forged
+    // `[victim]` block there would be read as a real key.
+    expect(() => writeCredentialsProfile(FORGED_SECTION, 'key_evil')).toThrow(
+      /Refusing to write a section/
+    )
+    expect(() => writeCredentialsProfile('default', 'key\napi_key = other')).toThrow(
+      /Refusing to write a value/
+    )
+    expect(existsSync(credentialsPath())).toBe(false)
+  })
+
+  it('leaves an ordinary profile name and value writable', () => {
+    writeConfigProfile('staging-1.eu', { endpoint: 'https://staging.example' })
+    writeCredentialsProfile('staging-1.eu', 'sim_key')
+
+    expect(resolveProfile({ profile: 'staging-1.eu' })).toMatchObject({
+      endpoint: 'https://staging.example',
+      apiKey: 'sim_key',
+    })
+  })
+
+  it('does not conjure a profile out of an unset', () => {
+    // An empty section is not inert: `listProfiles` counts section names, so it
+    // made the unknown-profile guard accept the name from then on.
+    writeConfigProfile('phantom', { workspace: null })
+
+    expect(listProfiles()).not.toContain('phantom')
+    expect(() => resolveProfile({ profile: 'phantom' })).toThrow(/Unknown profile/)
   })
 })

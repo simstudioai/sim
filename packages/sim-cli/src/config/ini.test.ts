@@ -174,3 +174,84 @@ output = json
     )
   })
 })
+
+/**
+ * The format has no escape syntax, so anything that can end a line is structure
+ * rather than data. These pin the refusal at the writer — the single place
+ * untrusted text enters the document.
+ */
+describe('ini write guards', () => {
+  const INJECTIONS = [
+    'ws_1\nendpoint = http://elsewhere.invalid',
+    'ws_1\r\nendpoint = http://elsewhere.invalid',
+    'ws_1\u2028endpoint = http://elsewhere.invalid',
+    'ws_1\u2029endpoint = http://elsewhere.invalid',
+  ]
+
+  it('refuses a value that would be read back as a second setting', () => {
+    for (const value of INJECTIONS) {
+      const doc = parseIni(SAMPLE)
+      expect(() => setSectionValues(doc, 'default', { workspace: value })).toThrow(
+        /Refusing to write a value/
+      )
+    }
+  })
+
+  it('refuses a section name that would forge another section header', () => {
+    const doc = parseIni(SAMPLE)
+    expect(() =>
+      setSectionValues(doc, 'profile evil]\n[default', { workspace: 'ws_evil' })
+    ).toThrow(/Refusing to write a section/)
+    expect(() => setSectionValues(doc, 'profile evil]', { workspace: 'ws_evil' })).toThrow(
+      /Refusing to write a section/
+    )
+  })
+
+  /**
+   * The assertion that matters: whatever is written, reading the file back
+   * cannot produce a section or a setting nobody asked for.
+   */
+  it('cannot forge a section or a setting through a write-then-read cycle', () => {
+    for (const payload of [...INJECTIONS, 'ws]\n[default]\nendpoint = http://elsewhere.invalid']) {
+      const doc = parseIni(SAMPLE)
+      expect(() => setSectionValues(doc, `profile ${payload}`, { workspace: 'ws' })).toThrow()
+      expect(() => setSectionValues(doc, 'profile dev', { workspace: payload })).toThrow()
+
+      const reread = parseIni(serializeIni(doc))
+      expect(listSections(reread)).toEqual(['default', 'profile dev'])
+      expect(getSection(reread, 'default')).toEqual({
+        endpoint: 'https://sim.ai',
+        workspace: 'ws_1',
+      })
+      expect(getSection(reread, 'profile dev')).toEqual({ endpoint: 'http://localhost:3000' })
+    }
+  })
+
+  /**
+   * A whitespace-only value reads back as the empty string, so the key would
+   * look stored while resolving as unset.
+   */
+  it('refuses a blank value', () => {
+    const doc = parseIni(SAMPLE)
+    expect(() => setSectionValues(doc, 'default', { workspace: '   ' })).toThrow(/blank value/)
+  })
+
+  it('leaves a legitimate value untouched', () => {
+    const doc = parseIni(SAMPLE)
+    setSectionValues(doc, 'profile staging-1.eu', { endpoint: 'https://staging.example' })
+    expect(getSection(parseIni(serializeIni(doc)), 'profile staging-1.eu')).toEqual({
+      endpoint: 'https://staging.example',
+    })
+  })
+
+  /**
+   * `listProfiles` counts section names, so a section conjured by a removal made
+   * an unknown profile pass the "does this profile exist?" check for good.
+   */
+  it('does not create a section for a removal-only update', () => {
+    const doc = parseIni('')
+    setSectionValues(doc, 'profile fresh', { workspace: null })
+    expect(listSections(doc)).toEqual([])
+    expect(serializeIni(doc)).toBe('')
+  })
+})

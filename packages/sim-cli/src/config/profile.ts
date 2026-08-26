@@ -4,6 +4,7 @@ import {
   getSection,
   type IniDocument,
   listSections,
+  ProfileConfigError,
   parseIni,
   removeSection,
   serializeIni,
@@ -35,11 +36,31 @@ export const DEFAULT_ENDPOINT = 'https://www.sim.ai'
 export const OUTPUT_FORMATS = ['table', 'json', 'yaml', 'text'] as const
 export type OutputFormat = (typeof OUTPUT_FORMATS)[number]
 
-/** An invalid active profile setting that the user can correct. */
-export class ProfileConfigError extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = 'ProfileConfigError'
+export { ProfileConfigError } from './ini'
+
+/**
+ * The shape a newly created profile name has to have.
+ *
+ * Enforced only when a profile is being created. A name reaches the config file
+ * as part of a section header, and the file format has no escape syntax, so a
+ * name that carries a bracket or a line break would forge a header for another
+ * profile — the writer refuses that outright, and this pattern is the friendlier
+ * refusal that names the rule instead of the mechanism.
+ */
+export const PROFILE_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
+
+/**
+ * Refuses a name for a profile that does not exist yet.
+ *
+ * Creation only, deliberately: a hand-written `[profile my stack]` predates this
+ * rule and must keep resolving, so the read path stays governed by
+ * {@link requireKnownProfile} alone.
+ */
+export function validateProfileName(name: string): void {
+  if (!PROFILE_NAME_PATTERN.test(name)) {
+    throw new ProfileConfigError(
+      `Invalid profile name "${name}". Use letters, numbers, dots, underscores, or hyphens, starting with a letter or number.`
+    )
   }
 }
 
@@ -302,6 +323,29 @@ export function normalizeEndpoint(endpoint: string, source: string): string {
 }
 
 /**
+ * Validates a workspace id on its way into the config file.
+ *
+ * The sibling of {@link normalizeEndpoint}, and for the same reason: a stored
+ * setting is read back as a real setting, so a value that could carry a line
+ * break would come back as an extra setting the user never typed — including an
+ * `endpoint`, which decides where the API key is sent. Only structure is
+ * checked, not the id's shape: ids are server-minted and the CLI has no business
+ * deciding what one may look like.
+ */
+export function normalizeWorkspaceId(workspaceId: string, source: string): string {
+  const trimmed = workspaceId.trim()
+  if (!trimmed) {
+    throw new ProfileConfigError(`Empty workspace id from ${source}.`)
+  }
+  if (/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/.test(trimmed)) {
+    throw new ProfileConfigError(
+      `Invalid workspace id "${trimmed.replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g, ' ')}" from ${source}. A workspace id cannot contain line breaks or control characters.`
+    )
+  }
+  return trimmed
+}
+
+/**
  * Resolves one setting through the precedence chain, reporting where it landed.
  * Order is flags → environment → files → built-in default, the same order every
  * profile-based CLI uses: the more specific and more ephemeral the source, the
@@ -322,6 +366,12 @@ export function resolveProfile(overrides: ProfileOverrides = {}): ResolvedProfil
   const named = overrides.profile || process.env.SIM_PROFILE
   const name = named || DEFAULT_PROFILE
   if (named && !overrides.allowUnknownProfile) requireKnownProfile(named)
+  // `allowUnknownProfile` means "this profile is about to be created", which is
+  // the only moment the name shape is the CLI's to decide. An existing profile,
+  // however it was written, keeps resolving.
+  if (named && overrides.allowUnknownProfile && !listProfiles().includes(named)) {
+    validateProfileName(named)
+  }
 
   const config = readConfigProfile(name)
   const authProfile = resolveAuthenticationProfileName(name)

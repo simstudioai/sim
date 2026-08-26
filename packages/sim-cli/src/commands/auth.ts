@@ -15,11 +15,13 @@ import {
   deleteProfile,
   listAuthenticationDependents,
   listProfiles,
+  normalizeWorkspaceId,
   ProfileConfigError,
   type ResolvedProfile,
   readCredentialsProfile,
   resolveAuthenticationProfileName,
   type SettingSource,
+  validateProfileName,
   writeConfigProfile,
   writeCredentialsProfile,
 } from '../config/index'
@@ -31,11 +33,10 @@ import {
   V2_OPERATIONS,
 } from '../generated/v2-api'
 import { requestAllPages, resolvePath, SimApiError, type SimClient } from '../http/client'
-import { printRecord, safeOneLine } from '../output/render'
+import { type Column, printList, printRecord, safeOneLine, text } from '../output/render'
 
 type SelectableWorkspace = ListWorkspacesResponse['data'][number]
 
-const PROFILE_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
 const MAX_INTERACTIVE_WORKSPACES = 1000
 
 /**
@@ -108,15 +109,29 @@ function selectedProfileName(command: Command): string {
 }
 
 function validateNewProfileName(profileName: string): void {
-  if (!PROFILE_NAME_PATTERN.test(profileName)) {
-    throw new SimApiError(
-      `Invalid profile name "${profileName}". Use letters, numbers, dots, underscores, or hyphens, starting with a letter or number.`,
-      0
-    )
-  }
+  // The shape rule lives with the config writer, so `profiles add`, `login
+  // --profile`, and `configure --profile` cannot drift into three answers.
+  validateProfileName(profileName)
   if (listProfiles().includes(profileName)) {
     throw new SimApiError(
       `Profile "${profileName}" already exists. Remove it first with: sim logout --all --profile ${profileName}`,
+      0
+    )
+  }
+}
+
+/**
+ * Refuses a minted key the credentials file could not represent.
+ *
+ * The poll response is remote input, and the deployment answering it is
+ * whatever the endpoint names. A key carrying a line break would be written
+ * verbatim into an escape-less format, so the writer refuses it — this refuses
+ * it one step earlier, before anything is on disk, and says which side is wrong.
+ */
+function requireStorableKey(apiKey: unknown): void {
+  if (typeof apiKey !== 'string' || !apiKey.trim() || /[\u0000-\u001f\u007f-\u009f]/.test(apiKey)) {
+    throw new SimApiError(
+      'The server returned a malformed API key. Nothing was stored; check the endpoint.',
       0
     )
   }
@@ -290,17 +305,25 @@ export function loginCommand(): Command {
           )
         }
 
-        writeCredentialsProfile(profile.name, key.apiKey)
-
         // The workspace picked in the browser becomes the profile's default,
         // whether or not the key is scoped to it. The user chose it by name —
         // making them look up its id afterwards would waste the one moment the
-        // answer was already on screen.
+        // answer was already on screen. It arrives off the wire, so it is
+        // checked before either file is touched.
         const settings: Record<string, string | null> = {
           endpoint: profile.endpoint,
-          workspace: key.workspaceId ?? null,
+          workspace: key.workspaceId
+            ? normalizeWorkspaceId(key.workspaceId, 'the login response')
+            : null,
         }
+        requireStorableKey(key.apiKey)
+
+        // Config before credentials: the endpoint decides where the key is sent
+        // later. Storing the key first and then failing on the settings left a
+        // key on disk with no endpoint beside it, so the next command fell back
+        // to the default host — sending a self-hosted key somewhere else.
         writeConfigProfile(profile.name, settings)
+        writeCredentialsProfile(profile.name, key.apiKey)
 
         console.log(chalk.green(`\n✓ Logged in. Key stored in ${credentialsPath()}`))
         if (key.workspaceBound && key.workspaceId) {
@@ -597,38 +620,66 @@ export function whoamiCommand(): Command {
     })
 }
 
+interface ProfileRow {
+  name: string
+  active: boolean
+  hasKey: boolean
+  /** The profile whose stored login this one uses; itself unless it is an alias. */
+  authProfile: string | null
+  /** Why the row could not be resolved, for a profile with a broken `auth_profile`. */
+  error: string | null
+}
+
+const PROFILE_COLUMNS: Column<ProfileRow>[] = [
+  { header: '', value: (row) => (row.active ? chalk.green('*') : ' ') },
+  { header: 'profile', value: (row) => text(row.name) },
+  { header: 'key', value: (row) => (row.error ? text(null) : row.hasKey ? 'yes' : 'no') },
+  { header: 'auth', value: (row) => text(row.authProfile) },
+  { header: 'error', value: (row) => (row.error ? chalk.red(safeOneLine(row.error)) : text(null)) },
+]
+
+/**
+ * `profiles` is the command someone runs *because* a profile is broken, so a bad
+ * `auth_profile` marks its own row rather than aborting the listing and leaving
+ * them with nothing shown at all.
+ */
+function buildProfileRow(name: string, active: boolean): ProfileRow {
+  try {
+    const authProfile = resolveAuthenticationProfileName(name)
+    return {
+      name,
+      active,
+      hasKey: Boolean(readCredentialsProfile(authProfile).api_key),
+      authProfile,
+      error: null,
+    }
+  } catch (error) {
+    if (!(error instanceof ProfileConfigError)) throw error
+    return { name, active, hasKey: false, authProfile: null, error: error.message }
+  }
+}
+
 export function profilesCommand(): Command {
   const command = new Command('profiles')
     .alias('profile')
     .description('List profiles or add a workspace profile that shares a stored login')
 
   const printProfiles = (_options: unknown, actionCommand: Command): void => {
-    const profiles = listProfiles()
-    if (profiles.length === 0) {
-      console.log(chalk.dim('No profiles yet. Run: sim login'))
+    // Resolving is what makes `profiles --profile typo` fail like every other
+    // command instead of listing happily under a name that resolves to nothing,
+    // and it is also what supplies the output format the listing renders in.
+    const profile = profileFrom(actionCommand)
+    const rows = listProfiles().map((name) => buildProfileRow(name, name === profile.name))
+
+    if (rows.length === 0) {
+      // The prose belongs to the human formats; a script asking for json must
+      // get an empty list, not a sentence it cannot parse.
+      if (profile.output === 'table') console.log(chalk.dim('No profiles yet. Run: sim login'))
+      else printList(profile.output, rows, PROFILE_COLUMNS)
       return
     }
 
-    const active = selectedProfileName(actionCommand)
-    for (const name of profiles) {
-      const marker = name === active ? chalk.green('*') : ' '
-
-      // `profiles` is the command someone runs *because* a profile is broken,
-      // so one bad `auth_profile` must mark its own row rather than abort the
-      // listing and leave them with no profiles shown at all.
-      let authProfile: string
-      try {
-        authProfile = resolveAuthenticationProfileName(name)
-      } catch (error) {
-        if (!(error instanceof ProfileConfigError)) throw error
-        console.log(`${marker} ${name}${chalk.red(`  (${safeOneLine(error.message)})`)}`)
-        continue
-      }
-
-      const hasKey = Boolean(readCredentialsProfile(authProfile).api_key)
-      const authentication = authProfile === name ? '' : chalk.dim(`  (auth: ${authProfile})`)
-      console.log(`${marker} ${name}${hasKey ? '' : chalk.dim('  (no key)')}${authentication}`)
-    }
+    printList(profile.output, rows, PROFILE_COLUMNS)
   }
 
   command.action(printProfiles)

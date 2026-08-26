@@ -12,6 +12,21 @@
  * handful of flat string settings.
  */
 
+/**
+ * An invalid stored setting, or a value the config files cannot represent.
+ *
+ * Defined here rather than in `profile.ts` because the writer below is the
+ * lowest layer that rejects input, and `profile.ts` already imports this module.
+ * `profile.ts` re-exports it, so callers keep seeing one error type — the one
+ * the entrypoint renders as a message instead of a stack trace.
+ */
+export class ProfileConfigError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'ProfileConfigError'
+  }
+}
+
 type Entry = { kind: 'kv'; key: string; value: string } | { kind: 'raw'; text: string }
 
 interface Section {
@@ -27,6 +42,48 @@ export interface IniDocument {
 
 const SECTION_PATTERN = /^\s*\[([^\]]*)\]\s*$/
 const KV_PATTERN = /^\s*([A-Za-z0-9_.-]+)\s*=\s*(.*?)\s*$/
+
+/**
+ * Characters a stored value may not contain.
+ *
+ * The format has no escape syntax (see the module note), so text that can end a
+ * line is structure, not data: a value carrying a line break was written
+ * verbatim and read back on the next load as a *second* setting in the same
+ * section. That is the class of bug this closes — untrusted text reaching the
+ * serializer could add settings nobody typed.
+ *
+ * The set is every C0 and C1 control character plus U+2028 and U+2029, the two
+ * Unicode line separators. The separators matter for a second reason: they are
+ * not line breaks to the reader below, so {@link KV_PATTERN} (whose `.` never
+ * matches them) fails and the line is kept as opaque `raw` text — the key
+ * silently vanishes on the next read although the write reported success, and
+ * because the dead line no longer matches the key, the write after that appends
+ * a duplicate.
+ */
+const FORBIDDEN_IN_VALUE = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/
+
+/** As {@link FORBIDDEN_IN_VALUE}, plus the brackets that would close or open a header. */
+const FORBIDDEN_IN_NAME = /[\u0000-\u001f\u007f-\u009f\u2028\u2029[\]]/
+
+/** Keys have to round-trip through the reader's own key pattern. */
+const WRITABLE_KEY = /^[A-Za-z0-9_.-]+$/
+
+/**
+ * Refuses text that would not survive a write-then-read cycle as the same value.
+ *
+ * Rejecting rather than escaping is deliberate: the format has no escape
+ * syntax, these files are hand-edited and read by AWS-style tooling that would
+ * not decode one, and no legitimate profile name, workspace id, endpoint, or
+ * API key contains a line break or a bracket. Inventing an escape here would
+ * make the files unreadable to everything else that opens them.
+ */
+function assertWritable(text: string, what: string, forbidden: RegExp): void {
+  if (forbidden.test(text)) {
+    throw new ProfileConfigError(
+      `Refusing to write ${what}: line breaks and control characters cannot be stored in the ~/.sim files, because the format has no way to escape them.`
+    )
+  }
+}
 
 export function parseIni(text: string): IniDocument {
   const doc: IniDocument = { preamble: [], sections: [] }
@@ -116,16 +173,40 @@ export function listSections(doc: IniDocument): string[] {
  * {@link getSection}. A removal instead has to clear every block and every
  * repeat of the key within one: deleting only the first left a later duplicate
  * to win the merged read, so `--unset` reported success while the value stayed
- * in force.
+ * in force. A removal against a section that is not there writes nothing at all.
+ *
+ * This is the one place untrusted text enters the document, so it is where the
+ * write is refused: see {@link FORBIDDEN_IN_VALUE} for what cannot be stored
+ * and why the answer is a refusal rather than an escape.
  */
 export function setSectionValues(
   doc: IniDocument,
   name: string,
   values: Record<string, string | null>
 ): void {
+  // Everything is checked before anything is written, so a rejected write
+  // leaves the document exactly as it was rather than half-applied.
+  assertWritable(name, `a section named "${name}"`, FORBIDDEN_IN_NAME)
+  for (const [key, value] of Object.entries(values)) {
+    if (!WRITABLE_KEY.test(key)) {
+      throw new ProfileConfigError(`Refusing to write an unreadable setting name "${key}".`)
+    }
+    if (value === null) continue
+    assertWritable(value, `a value for "${key}"`, FORBIDDEN_IN_VALUE)
+    // A value that is only whitespace reads back as the empty string, so the
+    // key would look stored and resolve as unset.
+    if (value.trim() === '') {
+      throw new ProfileConfigError(`Refusing to write a blank value for "${key}".`)
+    }
+  }
+
   const matching = doc.sections.filter((s) => s.name === name)
   let section = matching[0]
   if (!section) {
+    // A removal has nothing to create the section for, and an empty section is
+    // not inert: `listProfiles` counts section names, so conjuring one made an
+    // unknown profile permanently pass the "does this profile exist?" check.
+    if (Object.values(values).every((value) => value === null)) return
     section = { name, entries: [] }
     doc.sections.push(section)
     matching.push(section)
