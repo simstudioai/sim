@@ -120,7 +120,7 @@ export interface ElasticsearchClusterStatsParams extends ElasticsearchBaseParams
 
 export interface ElasticsearchListIndicesParams extends ElasticsearchBaseParams {}
 
-interface ElasticsearchIndexInfo {
+interface ElasticsearchCatIndexRow {
   index: string
   health: string
   status: string
@@ -156,7 +156,6 @@ export interface ElasticsearchSearchResponse extends ToolResponse {
         _source: Record<string, unknown>
       }>
     }
-    aggregations?: Record<string, unknown>
   }
 }
 
@@ -193,12 +192,37 @@ export interface ElasticsearchIndexResponse extends ToolResponse {
   }
 }
 
+/**
+ * One entry of the index-keyed `GET /{target}` response.
+ *
+ * `data_stream` and `lifecycle` are present only for data streams and
+ * lifecycle-managed indices, and have no slot in the flattened output shape —
+ * they survive only under {@link ElasticsearchIndexInfoResponse.output.indices}.
+ */
+export interface ElasticsearchIndexInfo {
+  aliases?: Record<string, unknown>
+  mappings?: Record<string, unknown>
+  settings?: Record<string, unknown>
+  data_stream?: string
+  lifecycle?: Record<string, unknown>
+}
+
+/** The raw `GET /{target}` body: every matched target keyed by resolved name. */
+export type ElasticsearchIndexInfoMap = Record<string, ElasticsearchIndexInfo>
+
 export interface ElasticsearchIndexInfoResponse extends ToolResponse {
   output: {
     index: string
     aliases: Record<string, unknown>
     mappings: Record<string, unknown>
     settings: Record<string, unknown>
+    /**
+     * Every matched index, keyed by resolved name. A wildcard or
+     * comma-separated target matches more than one, which the flattened keys
+     * above cannot represent.
+     */
+    indices: ElasticsearchIndexInfoMap
+    matchedCount: number
   }
 }
 
@@ -283,7 +307,7 @@ interface ElasticsearchIndexStatsResponse extends ToolResponse {
 export interface ElasticsearchListIndicesResponse extends ToolResponse {
   output: {
     message: string
-    indices: ElasticsearchIndexInfo[]
+    indices: ElasticsearchCatIndexRow[]
   }
   error?: string
 }

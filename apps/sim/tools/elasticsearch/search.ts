@@ -2,9 +2,13 @@ import type {
   ElasticsearchSearchParams,
   ElasticsearchSearchResponse,
 } from '@/tools/elasticsearch/types'
-import { buildAuthHeaders, buildBaseUrl, optionalNumber } from '@/tools/elasticsearch/utils'
+import {
+  buildAuthHeaders,
+  buildBaseUrl,
+  optionalNumber,
+  safeIndexPathSegment,
+} from '@/tools/elasticsearch/utils'
 import type { ToolConfig } from '@/tools/types'
-import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const searchTool: ToolConfig<ElasticsearchSearchParams, ElasticsearchSearchResponse> = {
   id: 'elasticsearch_search',
@@ -106,7 +110,7 @@ export const searchTool: ToolConfig<ElasticsearchSearchParams, ElasticsearchSear
   request: {
     url: (params) => {
       const baseUrl = buildBaseUrl(params)
-      return `${baseUrl}/${safeUrlPathSegment(params.index, 'index')}/_search`
+      return `${baseUrl}/${safeIndexPathSegment(params.index, 'index')}/_search`
     },
     method: 'POST',
     headers: (params) => buildAuthHeaders(params),
@@ -175,7 +179,6 @@ export const searchTool: ToolConfig<ElasticsearchSearchParams, ElasticsearchSear
             _source: hit._source,
           })),
         },
-        aggregations: data.aggregations,
       },
     }
   },
@@ -192,11 +195,6 @@ export const searchTool: ToolConfig<ElasticsearchSearchParams, ElasticsearchSear
     hits: {
       type: 'object',
       description: 'Search results with total count and matching documents',
-    },
-    aggregations: {
-      type: 'json',
-      description: 'Aggregation results if any',
-      optional: true,
     },
   },
 }

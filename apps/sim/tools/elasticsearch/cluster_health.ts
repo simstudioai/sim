@@ -2,7 +2,7 @@ import type {
   ElasticsearchClusterHealthParams,
   ElasticsearchClusterHealthResponse,
 } from '@/tools/elasticsearch/types'
-import { buildAuthHeaders, buildBaseUrl } from '@/tools/elasticsearch/utils'
+import { buildAuthHeaders, buildBaseUrl, normalizeEsDuration } from '@/tools/elasticsearch/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const clusterHealthTool: ToolConfig<
@@ -63,8 +63,9 @@ export const clusterHealthTool: ToolConfig<
     esTimeout: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description:
-        'Elasticsearch wait timeout as a duration string (e.g., 30s, 1m). Named esTimeout because the executor reserves "timeout" for the transport deadline in milliseconds.',
+        'Elasticsearch wait timeout as a duration string (e.g., 30s, 1m). A bare number is read as seconds. Named esTimeout because the executor reserves "timeout" for the transport deadline in milliseconds.',
     },
   },
 
@@ -77,8 +78,9 @@ export const clusterHealthTool: ToolConfig<
       if (params.waitForStatus) {
         queryParams.push(`wait_for_status=${encodeURIComponent(params.waitForStatus)}`)
       }
-      if (params.esTimeout) {
-        queryParams.push(`timeout=${encodeURIComponent(params.esTimeout)}`)
+      const esTimeout = normalizeEsDuration(params.esTimeout)
+      if (esTimeout) {
+        queryParams.push(`timeout=${encodeURIComponent(esTimeout)}`)
       }
       if (queryParams.length > 0) {
         url += `?${queryParams.join('&')}`

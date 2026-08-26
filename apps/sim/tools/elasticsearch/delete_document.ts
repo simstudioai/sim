@@ -2,7 +2,7 @@ import type {
   ElasticsearchDeleteDocumentParams,
   ElasticsearchDocumentResponse,
 } from '@/tools/elasticsearch/types'
-import { buildAuthHeaders, buildBaseUrl } from '@/tools/elasticsearch/utils'
+import { buildAuthHeaders, buildBaseUrl, safeIndexPathSegment } from '@/tools/elasticsearch/utils'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
@@ -78,7 +78,7 @@ export const deleteDocumentTool: ToolConfig<
   request: {
     url: (params) => {
       const baseUrl = buildBaseUrl(params)
-      let url = `${baseUrl}/${safeUrlPathSegment(params.index, 'index')}/_doc/${safeUrlPathSegment(params.documentId, 'documentId')}`
+      let url = `${baseUrl}/${safeIndexPathSegment(params.index, 'index')}/_doc/${safeUrlPathSegment(params.documentId, 'documentId')}`
 
       if (params.refresh) {
         url += `?refresh=${encodeURIComponent(params.refresh)}`

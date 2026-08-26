@@ -2,9 +2,8 @@ import type {
   ElasticsearchBulkParams,
   ElasticsearchBulkResponse,
 } from '@/tools/elasticsearch/types'
-import { buildAuthHeaders, buildBaseUrl } from '@/tools/elasticsearch/utils'
+import { buildAuthHeaders, buildBaseUrl, safeIndexPathSegment } from '@/tools/elasticsearch/utils'
 import type { ToolConfig } from '@/tools/types'
-import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const bulkTool: ToolConfig<ElasticsearchBulkParams, ElasticsearchBulkResponse> = {
   id: 'elasticsearch_bulk',
@@ -78,7 +77,7 @@ export const bulkTool: ToolConfig<ElasticsearchBulkParams, ElasticsearchBulkResp
     url: (params) => {
       const baseUrl = buildBaseUrl(params)
       let url = params.index
-        ? `${baseUrl}/${safeUrlPathSegment(params.index, 'index')}/_bulk`
+        ? `${baseUrl}/${safeIndexPathSegment(params.index, 'index')}/_bulk`
         : `${baseUrl}/_bulk`
 
       if (params.refresh) {

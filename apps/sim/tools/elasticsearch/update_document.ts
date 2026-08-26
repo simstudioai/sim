@@ -2,7 +2,12 @@ import type {
   ElasticsearchDocumentResponse,
   ElasticsearchUpdateDocumentParams,
 } from '@/tools/elasticsearch/types'
-import { buildAuthHeaders, buildBaseUrl, optionalNumber } from '@/tools/elasticsearch/utils'
+import {
+  buildAuthHeaders,
+  buildBaseUrl,
+  optionalNumber,
+  safeIndexPathSegment,
+} from '@/tools/elasticsearch/utils'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
@@ -83,7 +88,7 @@ export const updateDocumentTool: ToolConfig<
   request: {
     url: (params) => {
       const baseUrl = buildBaseUrl(params)
-      let url = `${baseUrl}/${safeUrlPathSegment(params.index, 'index')}/_update/${safeUrlPathSegment(params.documentId, 'documentId')}`
+      let url = `${baseUrl}/${safeIndexPathSegment(params.index, 'index')}/_update/${safeUrlPathSegment(params.documentId, 'documentId')}`
 
       const retryOnConflict = optionalNumber(params.retryOnConflict, 'retryOnConflict')
       if (retryOnConflict !== undefined) {

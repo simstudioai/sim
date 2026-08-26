@@ -2,7 +2,7 @@ import type {
   ElasticsearchDocumentResponse,
   ElasticsearchIndexDocumentParams,
 } from '@/tools/elasticsearch/types'
-import { buildAuthHeaders, buildBaseUrl } from '@/tools/elasticsearch/utils'
+import { buildAuthHeaders, buildBaseUrl, safeIndexPathSegment } from '@/tools/elasticsearch/utils'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
@@ -83,7 +83,7 @@ export const indexDocumentTool: ToolConfig<
   request: {
     url: (params) => {
       const baseUrl = buildBaseUrl(params)
-      let url = `${baseUrl}/${safeUrlPathSegment(params.index, 'index')}/_doc`
+      let url = `${baseUrl}/${safeIndexPathSegment(params.index, 'index')}/_doc`
       if (params.documentId) {
         url += `/${safeUrlPathSegment(params.documentId, 'documentId')}`
       }

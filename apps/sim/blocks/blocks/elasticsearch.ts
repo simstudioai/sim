@@ -2,7 +2,7 @@ import { ElasticsearchIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { ElasticsearchResponse } from '@/tools/elasticsearch/types'
-import { optionalNumber } from '@/tools/elasticsearch/utils'
+import { normalizeEsDuration, optionalNumber } from '@/tools/elasticsearch/utils'
 
 export const ElasticsearchBlock: BlockConfig<ElasticsearchResponse> = {
   type: 'elasticsearch',
@@ -557,13 +557,16 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
         const retryOnConflict = optionalNumber(params.retryOnConflict, 'retryOnConflict')
         if (retryOnConflict !== undefined) result.retryOnConflict = retryOnConflict
 
-        const rawTimeout = typeof params.timeout === 'string' ? params.timeout.trim() : ''
-        if (rawTimeout) {
-          /**
-           * Only a bare number is given the implied `s` unit. A previous
-           * `endsWith('s')` test rewrote "1m" to "1ms" — one millisecond.
-           */
-          result.esTimeout = /^\d+$/.test(rawTimeout) ? `${rawTimeout}s` : rawTimeout
+        /**
+         * The unit coercion itself lives in `normalizeEsDuration` on the tool,
+         * not here: Copilot calls `executeAppTool` directly and never runs this
+         * mapping, so a normalization owned by the block would apply to one
+         * calling surface only. This call keeps the subBlock's raw value from
+         * being forwarded under a different name than the tool expects.
+         */
+        const esTimeout = normalizeEsDuration(params.timeout)
+        if (esTimeout) {
+          result.esTimeout = esTimeout
         }
 
         return result
@@ -607,7 +610,6 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
     hits: { type: 'json', description: 'Search results' },
     took: { type: 'number', description: 'Time taken in milliseconds' },
     timed_out: { type: 'boolean', description: 'Whether the operation timed out' },
-    aggregations: { type: 'json', description: 'Aggregation results' },
     // Document outputs
     _index: { type: 'string', description: 'Index name' },
     _id: { type: 'string', description: 'Document ID' },
@@ -616,12 +618,12 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
     result: {
       type: 'string',
       description:
-        'Operation result (created, updated, deleted, or noop). A missing document fails the call with a 404 error rather than returning "not_found".',
+        'Operation result (created, updated, deleted, or noop). On the single-document operations a missing document fails the call with a 404 rather than returning "not_found"; Bulk Operations instead reports a per-item "not_found" inside a successful response, under items.',
     },
     found: {
       type: 'boolean',
       description:
-        'Always true. A missing document fails the call with a 404 error rather than returning found: false.',
+        'Always true on Get Document — a missing document fails the call with a 404 rather than returning found: false.',
     },
     // Bulk outputs
     errors: { type: 'boolean', description: 'Whether any errors occurred' },
@@ -631,6 +633,10 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
     // Index outputs
     acknowledged: { type: 'boolean', description: 'Whether operation was acknowledged' },
     index: { type: 'string', description: 'Index name' },
+    matchedCount: {
+      type: 'number',
+      description: 'How many indices a Get Index target matched',
+    },
     aliases: { type: 'json', description: 'Aliases defined on the index' },
     mappings: { type: 'json', description: 'Field mappings for the index' },
     settings: { type: 'json', description: 'Index settings' },
@@ -638,7 +644,11 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
     cluster_name: { type: 'string', description: 'Cluster name' },
     status: { type: 'string', description: 'Cluster health status' },
     number_of_nodes: { type: 'number', description: 'Number of nodes' },
-    indices: { type: 'json', description: 'Index statistics' },
+    indices: {
+      type: 'json',
+      description:
+        'Every index the operation returned: the array of index rows from List Indices, the per-index map from Get Index (each entry carrying its aliases, mappings, settings, and any data_stream or lifecycle), or the cluster index statistics from Cluster Stats.',
+    },
     nodes: { type: 'json', description: 'Node statistics' },
   },
 }

@@ -83,3 +83,22 @@ describe('elasticsearch block outputs', () => {
     }
   })
 })
+
+describe('elasticsearch block declares no unreachable aggregations', () => {
+  it('does not advertise an aggregations output, since no subBlock or input feeds one', () => {
+    expect(ElasticsearchBlock.outputs).not.toHaveProperty('aggregations')
+    expect(ElasticsearchBlock.inputs).not.toHaveProperty('aggs')
+    expect(ElasticsearchBlock.subBlocks.some((b) => b.id === 'aggs')).toBe(false)
+  })
+
+  it('declares the get_index multi-target outputs so a wildcard result is reachable', () => {
+    expect(ElasticsearchBlock.outputs.matchedCount?.type).toBe('number')
+    expect(ElasticsearchBlock.outputs.indices?.type).toBe('json')
+  })
+
+  it('still maps a bare timeout to seconds via the shared tool-side normalizer', () => {
+    expect(transform({ timeout: '30' }).esTimeout).toBe('30s')
+    expect(transform({ timeout: '1m' }).esTimeout).toBe('1m')
+    expect(transform({ timeout: '45s' }).esTimeout).toBe('45s')
+  })
+})

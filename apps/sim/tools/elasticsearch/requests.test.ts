@@ -126,7 +126,7 @@ describe('elasticsearch URL construction', () => {
 })
 
 describe('elasticsearch_search size', () => {
-  it('sends a numeric size of 0, the aggregations-only idiom', () => {
+  it('sends a numeric size of 0, which asks for hits.total without any documents', () => {
     expect(searchBody({ size: 0 }).size).toBe(0)
   })
 
@@ -184,7 +184,7 @@ describe('elasticsearch_get_index transformResponse', () => {
       )
     )
 
-    expect(result.output).toEqual({
+    expect(result.output).toMatchObject({
       index: 'my-index',
       aliases: { live: {} },
       mappings: { properties: { title: { type: 'text' } } },
@@ -215,5 +215,191 @@ describe('unreachable non-ok outcomes are not advertised', () => {
 
   it('delete_document does not advertise "not_found" as a possible result', () => {
     expect(deleteDocumentTool.outputs?.result?.description).toMatch(/Always "deleted"/)
+  })
+})
+
+describe('date-math index targets', () => {
+  it("builds a search URL for Elasticsearch's canonical date-math index", () => {
+    const built = url(searchTool, {
+      ...SELF_HOSTED,
+      index: '<logstash-{now/d}>',
+    } as ElasticsearchSearchParams)
+
+    expect(built).toBe('https://es.example.com:9200/%3Clogstash-%7Bnow%2Fd%7D%3E/_search')
+  })
+
+  it('keeps the encoded date-math segment intact through the URL parser', () => {
+    const built = url(searchTool, {
+      ...SELF_HOSTED,
+      index: '<logstash-{now/d}>',
+    } as ElasticsearchSearchParams)
+
+    expect(new URL(built).pathname).toBe('/%3Clogstash-%7Bnow%2Fd%7D%3E/_search')
+  })
+
+  it('accepts a date-math index on a document write path too', () => {
+    const built = url(getDocumentTool, {
+      ...SELF_HOSTED,
+      index: '<logstash-{now/d}>',
+      documentId: 'abc',
+    } as ElasticsearchGetDocumentParams)
+
+    expect(built).toBe('https://es.example.com:9200/%3Clogstash-%7Bnow%2Fd%7D%3E/_doc/abc')
+  })
+
+  it('still rejects a bare dot-segment index', () => {
+    expect(() =>
+      url(searchTool, { ...SELF_HOSTED, index: '..' } as ElasticsearchSearchParams)
+    ).toThrow(/path traversal/)
+  })
+
+  it('still rejects a path separator in a document id, which is not a date-math parameter', () => {
+    expect(() =>
+      url(getDocumentTool, {
+        ...SELF_HOSTED,
+        index: 'products',
+        documentId: 'a/b',
+      } as ElasticsearchGetDocumentParams)
+    ).toThrow(/path separator/)
+  })
+})
+
+describe('elasticsearch_get_index multi-target responses', () => {
+  const transformIndex = getIndexTool.transformResponse
+
+  async function getIndex(body: unknown) {
+    if (!transformIndex) throw new Error('getIndexTool.transformResponse is not defined')
+    return transformIndex(new Response(JSON.stringify(body), { status: 200 }))
+  }
+
+  it('keeps every matched index instead of dropping all but one', async () => {
+    const result = await getIndex({
+      'logs-2024': { aliases: { live: {} }, mappings: {}, settings: {} },
+      'logs-2025': { aliases: {}, mappings: { properties: {} }, settings: { index: {} } },
+    })
+
+    expect(Object.keys(result.output.indices)).toEqual(['logs-2024', 'logs-2025'])
+  })
+
+  it('reports how many targets a wildcard or comma-separated request matched', async () => {
+    const result = await getIndex({
+      'logs-a': { aliases: {}, mappings: {}, settings: {} },
+      'logs-b': { aliases: {}, mappings: {}, settings: {} },
+      'logs-c': { aliases: {}, mappings: {}, settings: {} },
+    })
+
+    expect(result.output.matchedCount).toBe(3)
+  })
+
+  it('preserves data_stream and lifecycle, which the flattened shape has no slot for', async () => {
+    const result = await getIndex({
+      'logs-2024': {
+        aliases: {},
+        mappings: {},
+        settings: {},
+        data_stream: 'logs',
+        lifecycle: { data_retention: '7d' },
+      },
+    })
+
+    expect(result.output.indices['logs-2024']).toMatchObject({
+      data_stream: 'logs',
+      lifecycle: { data_retention: '7d' },
+    })
+  })
+
+  it('leaves the single-index flattened shape exactly as declared', async () => {
+    const result = await getIndex({
+      'my-index': {
+        aliases: { live: {} },
+        mappings: { properties: { title: { type: 'text' } } },
+        settings: { index: { number_of_shards: '1' } },
+      },
+    })
+
+    expect(result.output.index).toBe('my-index')
+    expect(result.output.aliases).toEqual({ live: {} })
+    expect(result.output.mappings).toEqual({ properties: { title: { type: 'text' } } })
+    expect(result.output.settings).toEqual({ index: { number_of_shards: '1' } })
+    expect(result.output.matchedCount).toBe(1)
+  })
+
+  it('declares indices and matchedCount as outputs so the flattening is not silently lossy', () => {
+    expect(getIndexTool.outputs?.indices?.type).toBe('json')
+    expect(getIndexTool.outputs?.matchedCount?.type).toBe('number')
+  })
+
+  it('survives an empty response without inventing an index name', async () => {
+    const result = await getIndex({})
+
+    expect(result.output.index).toBe('')
+    expect(result.output.matchedCount).toBe(0)
+    expect(result.output.indices).toEqual({})
+  })
+})
+
+describe('elasticsearch_cluster_health esTimeout normalization', () => {
+  function healthUrl(esTimeout: unknown): string {
+    return url(clusterHealthTool, {
+      ...SELF_HOSTED,
+      esTimeout,
+    } as ElasticsearchClusterHealthParams)
+  }
+
+  it('appends the implied seconds unit to a bare number, which Elasticsearch rejects unit-less', () => {
+    expect(healthUrl('30')).toContain('timeout=30s')
+  })
+
+  it('normalizes in the tool, so a Copilot call that never runs the block mapping is still valid', () => {
+    const built = healthUrl('30')
+
+    expect(built).not.toContain('timeout=30&')
+    expect(built.endsWith('timeout=30')).toBe(false)
+  })
+
+  it('leaves a minute duration alone rather than rewriting "1m" to "1ms"', () => {
+    expect(healthUrl('1m')).toContain('timeout=1m')
+  })
+
+  it('preserves an explicit seconds suffix', () => {
+    expect(healthUrl('45s')).toContain('timeout=45s')
+  })
+
+  it('passes the unit-less values Elasticsearch does accept through untouched', () => {
+    expect(healthUrl('0')).toContain('timeout=0')
+    expect(healthUrl('0')).not.toContain('timeout=0s')
+    expect(healthUrl('-1')).toContain('timeout=-1')
+  })
+
+  it('accepts a number that arrived unquoted from a resolved reference', () => {
+    expect(healthUrl(30)).toContain('timeout=30s')
+  })
+
+  it('omits the timeout entirely when unset or blank', () => {
+    expect(healthUrl(undefined)).not.toContain('timeout=')
+    expect(healthUrl('   ')).not.toContain('timeout=')
+  })
+
+  it('declares an explicit visibility so every surface agrees on who may set it', () => {
+    expect(clusterHealthTool.params.esTimeout.visibility).toBe('user-or-llm')
+  })
+})
+
+describe('elasticsearch_search declares no unreachable aggregations', () => {
+  it('does not advertise an aggregations output, since no aggs param exists to produce one', () => {
+    expect(searchTool.outputs).not.toHaveProperty('aggregations')
+  })
+
+  it('has no aggs param that would make aggregations reachable', () => {
+    expect(searchTool.params).not.toHaveProperty('aggs')
+    expect(searchTool.params).not.toHaveProperty('aggregations')
+  })
+
+  it('does not read aggregations off the response body', () => {
+    expect(searchTool.transformResponse?.toString()).not.toContain('aggregations')
+  })
+
+  it('builds a body with no aggregation key at any size', () => {
+    expect(Object.keys(searchBody({ size: 0 }))).toEqual(['size'])
   })
 })

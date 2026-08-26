@@ -7,6 +7,7 @@ import {
   buildBaseUrl,
   optionalNumber,
   parseCloudId,
+  safeIndexPathSegment,
 } from '@/tools/elasticsearch/utils'
 
 /**
@@ -207,5 +208,123 @@ describe('optionalNumber', () => {
 
   it('throws a named error instead of forwarding NaN', () => {
     expect(() => optionalNumber('ten', 'size')).toThrow(/size must be a number/)
+  })
+})
+
+/**
+ * Verbatim Cloud IDs from Elastic's own decoder fixtures
+ * (`beats/libbeat/cloudid/cloudid_test.go`), which are the authority on where
+ * a per-service port may appear in the decoded payload.
+ */
+const ELASTIC_FIXTURES = {
+  customPort:
+    'custom-port:dXMtY2VudHJhbDEuZ2NwLmNsb3VkLmVzLmlvOjkyNDMkYWMzMWViYjkwMjQxNzczMTU3MDQzYzM0ZmQyNmZkNDYkYTRjMDYyMzBlNDhjOGZjZTdiZTg4YTA3NGEzYmIzZTA=',
+  differentEsKbPort:
+    'different-es-kb-port:dXMtY2VudHJhbDEuZ2NwLmNsb3VkLmVzLmlvJGFjMzFlYmI5MDI0MTc3MzE1NzA0M2MzNGZkMjZmZDQ2OjkyNDMkYTRjMDYyMzBlNDhjOGZjZTdiZTg4YTA3NGEzYmIzZTA6OTI0NA==',
+  onlyKbSet:
+    'only-kb-set:dXMtY2VudHJhbDEuZ2NwLmNsb3VkLmVzLmlvJGFjMzFlYmI5MDI0MTc3MzE1NzA0M2MzNGZkMjZmZDQ2JGE0YzA2MjMwZTQ4YzhmY2U3YmU4OGEwNzRhM2JiM2UwOjkyNDQ=',
+  hostAndKbSet:
+    'host-and-kb-set:dXMtY2VudHJhbDEuZ2NwLmNsb3VkLmVzLmlvOjkyNDMkYWMzMWViYjkwMjQxNzczMTU3MDQzYzM0ZmQyNmZkNDYkYTRjMDYyMzBlNDhjOGZjZTdiZTg4YTA3NGEzYmIzZTA6OTI0NA==',
+  extraItems:
+    'extra-items:dXMtY2VudHJhbDEuZ2NwLmNsb3VkLmVzLmlvJGFjMzFlYmI5MDI0MTc3MzE1NzA0M2MzNGZkMjZmZDQ2JGE0YzA2MjMwZTQ4YzhmY2U3YmU4OGEwNzRhM2JiM2UwJGFub3RoZXJpZCRhbmRhbm90aGVy',
+} as const
+
+const GCP_ES_UUID = 'ac31ebb90241773157043c34fd26fd46'
+const GCP_PARENT_DN = 'us-central1.gcp.cloud.es.io'
+
+describe('parseCloudId per-service ports', () => {
+  it('strips a port carried by the Elasticsearch UUID instead of splicing it into the hostname', () => {
+    expect(parseCloudId(ELASTIC_FIXTURES.differentEsKbPort)).toBe(
+      `https://${GCP_ES_UUID}.${GCP_PARENT_DN}:9243`
+    )
+  })
+
+  it('never emits a port inside the hostname label', () => {
+    expect(parseCloudId(ELASTIC_FIXTURES.differentEsKbPort)).not.toContain(`${GCP_ES_UUID}:9243.`)
+  })
+
+  it('builds a parseable URL for a Cloud ID whose ES UUID carries a port', () => {
+    expect(() => new URL(parseCloudId(ELASTIC_FIXTURES.differentEsKbPort))).not.toThrow()
+  })
+
+  it("takes the parent domain's port when the Elasticsearch UUID has none", () => {
+    expect(parseCloudId(ELASTIC_FIXTURES.customPort)).toBe(
+      `https://${GCP_ES_UUID}.${GCP_PARENT_DN}:9243`
+    )
+  })
+
+  it("ignores Kibana's port entirely — it addresses a different service", () => {
+    expect(parseCloudId(ELASTIC_FIXTURES.onlyKbSet)).toBe(`https://${GCP_ES_UUID}.${GCP_PARENT_DN}`)
+    expect(parseCloudId(ELASTIC_FIXTURES.hostAndKbSet)).toBe(
+      `https://${GCP_ES_UUID}.${GCP_PARENT_DN}:9243`
+    )
+  })
+
+  it('lets the Elasticsearch UUID port override the parent domain port', () => {
+    const id = cloudId('mixed', `${GCP_PARENT_DN}:9243$${GCP_ES_UUID}:9244$${KIBANA_UUID}`)
+
+    expect(parseCloudId(id)).toBe(`https://${GCP_ES_UUID}.${GCP_PARENT_DN}:9244`)
+  })
+
+  it('omits an Elasticsearch UUID port of 443 that overrides a non-default parent port', () => {
+    const id = cloudId('mixed', `${GCP_PARENT_DN}:9243$${GCP_ES_UUID}:443$${KIBANA_UUID}`)
+
+    expect(parseCloudId(id)).toBe(`https://${GCP_ES_UUID}.${GCP_PARENT_DN}`)
+  })
+
+  it('rejects a non-numeric port on the Elasticsearch UUID rather than emitting NaN', () => {
+    const id = cloudId('bad', `${GCP_PARENT_DN}$${GCP_ES_UUID}:abc$${KIBANA_UUID}`)
+
+    expect(() => parseCloudId(id)).toThrow(/invalid host or port/)
+  })
+
+  it('tolerates a payload with more than three $-separated parts', () => {
+    expect(parseCloudId(ELASTIC_FIXTURES.extraItems)).toBe(
+      `https://${GCP_ES_UUID}.${GCP_PARENT_DN}`
+    )
+  })
+})
+
+describe('safeIndexPathSegment', () => {
+  it("encodes Elasticsearch's canonical date-math index instead of rejecting it", () => {
+    expect(safeIndexPathSegment('<logstash-{now/d}>', 'index')).toBe('%3Clogstash-%7Bnow%2Fd%7D%3E')
+  })
+
+  it('produces a path the URL parser leaves intact — %2F is not a separator', () => {
+    const built = new URL(
+      `https://es.example.com/${safeIndexPathSegment('<logstash-{now/d}>', 'index')}/_search`
+    )
+
+    expect(built.pathname).toBe('/%3Clogstash-%7Bnow%2Fd%7D%3E/_search')
+  })
+
+  it('keeps date math without a slash working, as it already did', () => {
+    expect(safeIndexPathSegment('<logstash-{now-1d}>', 'index')).toBe('%3Clogstash-%7Bnow-1d%7D%3E')
+  })
+
+  it('still rejects a bare dot segment, which no encoding neutralizes', () => {
+    expect(() => safeIndexPathSegment('..', 'index')).toThrow(/path traversal/)
+    expect(() => safeIndexPathSegment('.', 'index')).toThrow(/path traversal/)
+    expect(() => safeIndexPathSegment('  ..  ', 'index')).toThrow(/path traversal/)
+  })
+
+  it('leaves an embedded dot pair inert rather than popping a path segment', () => {
+    const built = new URL(
+      `https://es.example.com/v1/${safeIndexPathSegment('a/../..', 'index')}/_search`
+    )
+
+    expect(built.pathname).toBe('/v1/a%2F..%2F../_search')
+  })
+
+  it('rejects an empty index', () => {
+    expect(() => safeIndexPathSegment('   ', 'index')).toThrow(/index is required/)
+  })
+
+  it('percent-encodes a comma-separated multi-target, which Elasticsearch decodes back', () => {
+    expect(safeIndexPathSegment('logs-a,logs-b', 'index')).toBe('logs-a%2Clogs-b')
+  })
+
+  it('encodes a wildcard target', () => {
+    expect(safeIndexPathSegment('logs-*', 'index')).toBe('logs-*')
   })
 })
