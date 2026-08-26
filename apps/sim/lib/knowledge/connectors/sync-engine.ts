@@ -454,6 +454,13 @@ type DocClassification =
   | { type: 'unchanged' }
   | { type: 'drop' }
 
+export function shouldReplaceExistingWithSkippedDocument(
+  existing: { storageKey?: string | null },
+  skipped: Pick<ExternalDocument, 'skippedExistingDisposition'>
+): boolean {
+  return existing.storageKey === null || skipped.skippedExistingDisposition === 'replace'
+}
+
 /**
  * Decides what a listed external document becomes during reconciliation.
  *
@@ -487,7 +494,7 @@ export function classifyExternalDoc(
 ): DocClassification {
   if (extDoc.skippedReason) {
     if (!existing) return { type: 'skip' }
-    return existing.storageKey === null || extDoc.skippedExistingDisposition === 'replace'
+    return shouldReplaceExistingWithSkippedDocument(existing, extDoc)
       ? { type: 'skip', existingId: existing.id }
       : { type: 'unchanged' }
   }
@@ -2377,7 +2384,8 @@ export async function executeSync(
                   extDoc: mergeHydratedSkippedDocument(op.extDoc, fullDoc),
                 })
               } else if (op.type === 'update') {
-                if (fullDoc.skippedExistingDisposition === 'replace') {
+                const existing = priorByExternalId.get(op.extDoc.externalId)
+                if (existing && shouldReplaceExistingWithSkippedDocument(existing, fullDoc)) {
                   skipOps.push({
                     type: 'skip',
                     existingId: op.existingId,
