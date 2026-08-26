@@ -25,7 +25,7 @@ export interface ForkCopyBytesSelection {
 /**
  * Byte total a fork/sync copy selection would duplicate into the target: selected
  * workspace-file blobs plus the selected knowledge bases' stored document blobs. Sizes
- * come from the metadata rows (`workspace_files.size`, `document.file_size`) - no blob
+ * come from the metadata rows (`workspace_files.size_bytes`, `document.file_size`) - no blob
  * reads. Both sums scope to the source workspace with the same filters the copy itself
  * applies, so an id that is not actually copyable can only over-count (block), never
  * under-count.
@@ -48,7 +48,7 @@ export async function sumForkCopyBytes(
     fileSelectors.length === 0
       ? sql<number>`0`
       : sql<number>`(
-          SELECT coalesce(sum(coalesce(${workspaceFiles.sizeBytes}, ${workspaceFiles.size})), 0)
+          SELECT coalesce(sum(${workspaceFiles.sizeBytes}), 0)
           FROM ${workspaceFiles}
           WHERE ${and(
             fileSelectors.length === 1 ? fileSelectors[0] : or(...fileSelectors),

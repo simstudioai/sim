@@ -14,6 +14,7 @@ import {
   getPostgresErrorCode,
 } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
+import { omit } from '@sim/utils/object'
 import { and, eq, inArray, isNotNull, isNull, or, type SQL, sql } from 'drizzle-orm'
 import type { ShareRecord } from '@/lib/api/contracts/public-shares'
 import type { V2FileSortBy } from '@/lib/api/contracts/v2/files'
@@ -69,7 +70,7 @@ import {
   headObject,
   uploadFile,
 } from '@/lib/uploads/core/storage-service'
-import { MAX_WORKSPACE_FILE_SIZE, toLegacyWorkspaceFileSize } from '@/lib/uploads/shared/types'
+import { getWorkspaceFileSize, MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
 import { isMarkdownFile } from '@/lib/uploads/utils/file-utils'
 import { SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
 import {
@@ -238,12 +239,6 @@ interface WorkspaceFileMetadataInsert {
   size: number
 }
 
-function workspaceFileSize(
-  file: Pick<typeof workspaceFiles.$inferSelect, 'size' | 'sizeBytes'>
-): number {
-  return file.sizeBytes ?? file.size
-}
-
 /**
  * Attempts one active workspace-file insert and reports the row that this call
  * created. Conflict losers receive `undefined` and must inspect the active key
@@ -256,8 +251,7 @@ async function insertWorkspaceFileMetadataInTx(
   const [inserted] = await tx
     .insert(workspaceFiles)
     .values({
-      ...metadata,
-      size: toLegacyWorkspaceFileSize(metadata.size),
+      ...omit(metadata, ['size']),
       sizeBytes: metadata.size,
       context: 'workspace',
       displayName: metadata.originalName,
@@ -337,7 +331,7 @@ function isSameWorkspaceFileRegistration(
     file.userId === params.userId &&
     file.context === 'workspace' &&
     file.contentType === params.contentType &&
-    workspaceFileSize(file) === params.size
+    getWorkspaceFileSize(file) === params.size
   )
 }
 
@@ -723,7 +717,7 @@ export async function registerUploadedWorkspaceFile(params: {
       file: {
         id: existing.id,
         name: existing.originalName,
-        size: workspaceFileSize(existing),
+        size: getWorkspaceFileSize(existing),
         type: existing.contentType,
         url: `${pathPrefix}${encodeURIComponent(existing.key)}?context=workspace`,
         key: existing.key,
@@ -809,7 +803,7 @@ export async function registerUploadedWorkspaceFile(params: {
       file: {
         id: finalized.file.id,
         name: finalized.file.originalName,
-        size: workspaceFileSize(finalized.file),
+        size: getWorkspaceFileSize(finalized.file),
         type: finalized.file.contentType,
         url: `${pathPrefix}${encodeURIComponent(finalized.file.key)}?context=workspace`,
         key: finalized.file.key,
@@ -1057,7 +1051,7 @@ export async function trackChatUpload(
             originalName: fileName,
             displayName: candidate,
             contentType,
-            size,
+            sizeBytes: size,
           })
           .returning({ id: workspaceFiles.id })
 
@@ -1115,7 +1109,7 @@ function mapWorkspaceFileRecord(
     name: file.originalName,
     key: file.key,
     path: `${pathPrefix}${encodeURIComponent(file.key)}?context=workspace`,
-    size: workspaceFileSize(file),
+    size: getWorkspaceFileSize(file),
     type: file.contentType,
     width: file.width,
     height: file.height,
@@ -1253,7 +1247,6 @@ const workspaceFileListColumns = {
   folderId: workspaceFiles.folderId,
   originalName: workspaceFiles.originalName,
   contentType: workspaceFiles.contentType,
-  size: workspaceFiles.size,
   sizeBytes: workspaceFiles.sizeBytes,
   width: workspaceFiles.width,
   height: workspaceFiles.height,
@@ -1322,10 +1315,7 @@ const fileId = textKey<WorkspaceFileRecord>(workspaceFiles.id, (row) => row.id)
 const WORKSPACE_FILE_SORTS = {
   name: [textKey(workspaceFiles.originalName, (row) => row.name), fileId],
   size: [
-    numberKey(
-      sql<number>`coalesce(${workspaceFiles.sizeBytes}, ${workspaceFiles.size})`.mapWith(Number),
-      (row) => row.size
-    ),
+    numberKey(sql<number>`${workspaceFiles.sizeBytes}`.mapWith(Number), (row) => row.size),
     fileId,
   ],
   uploadedAt: [timestampKey(workspaceFiles.uploadedAt, (row) => row.uploadedAt), fileId],
@@ -1827,7 +1817,7 @@ export async function updateWorkspaceFileContent(
           throw new ContentVersionConflictError(fileId)
         }
 
-        const sizeDiff = content.length - workspaceFileSize(currentFile)
+        const sizeDiff = content.length - getWorkspaceFileSize(currentFile)
         const now = new Date()
         // `contentUpdatedAt` is the persist If-Match token, so it MUST be strictly monotonic per file — a
         // bare `new Date()` is not: cross-instance clock skew can stamp a later write with an earlier time,
@@ -1842,7 +1832,6 @@ export async function updateWorkspaceFileContent(
           .update(workspaceFiles)
           .set({
             key: uploadResult.key,
-            size: toLegacyWorkspaceFileSize(content.length),
             sizeBytes: content.length,
             contentType: nextContentType,
             // Replaced bytes: drop the old image's dimensions so the row never describes stale content.
@@ -1957,7 +1946,7 @@ export async function updateWorkspaceFileContent(
       name: finalized.file.originalName,
       key: finalized.file.key,
       path: `${pathPrefix}${encodeURIComponent(finalized.file.key)}?context=workspace`,
-      size: workspaceFileSize(finalized.file),
+      size: getWorkspaceFileSize(finalized.file),
       type: finalized.file.contentType,
       uploadedBy: finalized.file.userId,
       folderId: finalized.file.folderId,
@@ -2186,7 +2175,6 @@ export async function purgeCreatedWorkspaceFile(params: {
       .select({
         id: workspaceFiles.id,
         key: workspaceFiles.key,
-        size: workspaceFiles.size,
         sizeBytes: workspaceFiles.sizeBytes,
       })
       .from(workspaceFiles)
@@ -2204,7 +2192,7 @@ export async function purgeCreatedWorkspaceFile(params: {
     await decrementStorageUsageForBillingContextInTx(
       tx,
       storageBillingContext,
-      workspaceFileSize(lockedFile)
+      getWorkspaceFileSize(lockedFile)
     )
     return enqueueWorkspaceFileStorageCleanup(tx, { key: lockedFile.key })
   })

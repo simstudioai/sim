@@ -334,7 +334,7 @@ describe('executeMaterializeFile - save storage transition', () => {
       null
     )
     expect(dbChainMockFns.set).toHaveBeenCalledWith(
-      expect.objectContaining({ context: 'workspace', chatId: null, size: 250 })
+      expect.objectContaining({ context: 'workspace', chatId: null, sizeBytes: 250 })
     )
     expect(mockMaybeNotifyStorageLimitForBillingContext).toHaveBeenCalledWith(
       STORAGE_CONTEXT,
@@ -342,9 +342,7 @@ describe('executeMaterializeFile - save storage transition', () => {
     )
   })
 
-  it('writes an int4-representable legacy size and the exact byte count above the int4 ceiling', async () => {
-    // A row above the int4 ceiling must not be written raw to `size`: Postgres
-    // raises 22003 and the save becomes unrecoverable.
+  it('writes the exact byte count above the int4 ceiling without the legacy projection', async () => {
     mockHeadObject.mockResolvedValue({ size: OVERSIZED_BYTES, contentType: 'text/plain' })
 
     const result = await executeMaterializeFile(
@@ -354,7 +352,7 @@ describe('executeMaterializeFile - save storage transition', () => {
 
     expect(result.success).toBe(true)
     const [updateSet] = dbChainMockFns.set.mock.calls.at(-1) as [Record<string, unknown>]
-    expect(updateSet.size).toBe(POSTGRES_INT4_MAX)
+    expect(updateSet).not.toHaveProperty('size')
     expect(updateSet.sizeBytes).toBe(OVERSIZED_BYTES)
     expect(mockCheckStorageQuotaForBillingContext).toHaveBeenCalledWith(
       STORAGE_CONTEXT,
@@ -367,9 +365,7 @@ describe('executeMaterializeFile - save storage transition', () => {
     )
   })
 
-  it('falls back to the exact stored byte count, not the clamped legacy size', async () => {
-    // Without cloud storage a missing object does not short-circuit, so the row is
-    // the only size source — and its `size` is already clamped.
+  it('uses the exact stored byte count when object metadata is unavailable', async () => {
     mockHeadObject.mockResolvedValue(null)
     mockHasCloudStorage.mockReturnValue(false)
     mockFindUpload.mockResolvedValue({
@@ -386,7 +382,7 @@ describe('executeMaterializeFile - save storage transition', () => {
     expect(result.success).toBe(true)
     const [updateSet] = dbChainMockFns.set.mock.calls.at(-1) as [Record<string, unknown>]
     expect(updateSet.sizeBytes).toBe(OVERSIZED_BYTES)
-    expect(updateSet.size).toBe(POSTGRES_INT4_MAX)
+    expect(updateSet).not.toHaveProperty('size')
     expect(mockIncrementStorageUsageForBillingContextInTx).toHaveBeenCalledWith(
       expect.anything(),
       STORAGE_CONTEXT,
