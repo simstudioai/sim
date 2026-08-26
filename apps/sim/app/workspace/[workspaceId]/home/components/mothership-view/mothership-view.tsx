@@ -71,8 +71,6 @@ interface MothershipViewProps {
   previewSession?: FilePreviewSession | null
   isAgentResponding?: boolean
   genericResourceData?: GenericResourceData
-  /** Resolved server-side by the home page; forwarded to the embedded table. */
-  tableViewsEnabled?: boolean
   /** Claims the current resource selection after direct panel interaction. */
   onUserInteraction?: () => void
 }
@@ -91,7 +89,6 @@ export const MothershipView = memo(
       previewSession,
       isAgentResponding,
       genericResourceData,
-      tableViewsEnabled,
       onUserInteraction,
     }: MothershipViewProps,
     ref
@@ -247,7 +244,6 @@ export const MothershipView = memo(
                 isAgentResponding={isAgentResponding}
                 genericResourceData={active.type === 'generic' ? genericResourceData : undefined}
                 previewContextKey={chatId}
-                tableViewsEnabled={tableViewsEnabled}
                 onNotFound={(resourceId) => removeResource('log', resourceId)}
               />
             )}

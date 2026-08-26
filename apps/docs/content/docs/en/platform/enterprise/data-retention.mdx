@@ -186,17 +186,11 @@ Once enabled, retention settings are configurable through **Settings → Enterpr
 
 ### PII redaction
 
-PII redaction runs against a standalone [Presidio](https://microsoft.github.io/presidio/) service. Deploy it (see `apps/pii`) and point Sim at it, then enable the redaction surfaces:
+PII redaction runs against a standalone [Presidio](https://microsoft.github.io/presidio/) service. Deploy it (see `apps/pii`) and point Sim at it:
 
 ```bash
 # The Presidio service exposing /analyze and /anonymize
 PII_URL=http://localhost:5001
-
-# Expose the log-redaction stage and the Data Retention PII section
-PII_REDACTION=true
-
-# Additionally expose the execution-altering stages (Workflow input, Block outputs)
-PII_GRANULAR_REDACTION=true
 ```
 
-`PII_GRANULAR_REDACTION` layers on top of `PII_REDACTION` — with only `PII_REDACTION` enabled, just the **Logs** stage is configurable.
+All PII stages are configurable under **Settings → Enterprise → Data Retention**.

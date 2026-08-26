@@ -2,12 +2,7 @@
  * @vitest-environment node
  */
 import type { PersonalApiKeyPrincipal } from '@sim/auth/principal'
-import {
-  v2ApiKeyAuthModuleMock,
-  v2GateModuleMock,
-  v2RateLimiterModuleMock,
-  v2RouteMocks,
-} from '@sim/testing'
+import { v2ApiKeyAuthModuleMock, v2RateLimiterModuleMock, v2RouteMocks } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
@@ -17,7 +12,6 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
-vi.mock('@/app/api/v2/lib/gate', () => v2GateModuleMock)
 
 import { v2ApiKeyAuth, v2OrchestrationErrorPolicy, v2RateLimits } from '@/lib/api/server/routes'
 import type { V2ApiKeyAuthContext } from '@/lib/api/server/routes/v2-api-key-auth'
@@ -31,7 +25,6 @@ const principal: PersonalApiKeyPrincipal = {
 }
 const auth = {
   principal,
-  rolloutUserId: 'user-1',
   rateLimitSubjectIds: ['api-key:key-1', 'user:user-1'],
   rateLimitSubscription: null,
   keyType: 'personal',
@@ -92,7 +85,6 @@ describe('defineV2BinaryRoute', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(auth)
-    v2RouteMocks.gate.mockResolvedValue(null)
     v2RouteMocks.preauthRate.mockResolvedValue({ allowed: true, remaining: 599, resetAt })
     v2RouteMocks.operationRate.mockResolvedValue(allowedRate)
   })

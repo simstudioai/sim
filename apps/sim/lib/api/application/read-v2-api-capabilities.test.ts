@@ -2,14 +2,7 @@
  * @vitest-environment node
  */
 import type { Principal } from '@sim/auth/principal'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const mocks = vi.hoisted(() => ({
-  isFeatureEnabled: vi.fn(),
-}))
-
-vi.mock('@/lib/core/config/feature-flags', () => ({ isFeatureEnabled: mocks.isFeatureEnabled }))
-
+import { describe, expect, it } from 'vitest'
 import { v2MetaOperations } from '@/lib/api/application/operations'
 import { readV2ApiCapabilities } from '@/lib/api/application/read-v2-api-capabilities'
 
@@ -21,16 +14,10 @@ const workspaceKey: Principal = {
 }
 
 describe('readV2ApiCapabilities', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    mocks.isFeatureEnabled.mockResolvedValue(true)
-  })
-
-  it('reports the cohort of the rollout subject the authenticator resolved', async () => {
+  it('reports that v2 is available with the credential lifecycle facts', async () => {
     const result = await readV2ApiCapabilities.execute({
       principal: personalKey,
       input: {
-        rolloutUserId: 'user-1',
         keyType: 'personal',
         expiresAt: new Date('2027-01-01T00:00:00.000Z'),
       },
@@ -41,25 +28,15 @@ describe('readV2ApiCapabilities', () => {
       keyType: 'personal',
       expiresAt: new Date('2027-01-01T00:00:00.000Z'),
     })
-    expect(mocks.isFeatureEnabled).toHaveBeenCalledWith('v2-api', { userId: 'user-1' })
   })
 
-  /**
-   * The gate keys a workspace key on the workspace's billing owner as
-   * rollout-only context, and the authenticator has already resolved it —
-   * re-deriving it here would be the application layer reading billing to
-   * answer a question authentication already answered.
-   */
-  it('reports a workspace key against the billing owner the authenticator carried', async () => {
-    mocks.isFeatureEnabled.mockResolvedValue(false)
-
+  it('reports workspace key lifecycle facts', async () => {
     const result = await readV2ApiCapabilities.execute({
       principal: workspaceKey,
-      input: { rolloutUserId: 'owner-1', keyType: 'workspace', expiresAt: null },
+      input: { keyType: 'workspace', expiresAt: null },
     })
 
-    expect(result).toEqual({ v2Enabled: false, keyType: 'workspace', expiresAt: null })
-    expect(mocks.isFeatureEnabled).toHaveBeenCalledWith('v2-api', { userId: 'owner-1' })
+    expect(result).toEqual({ v2Enabled: true, keyType: 'workspace', expiresAt: null })
   })
 
   /**
@@ -74,14 +51,13 @@ describe('readV2ApiCapabilities', () => {
     const error = await readV2ApiCapabilities
       .execute({
         principal: session,
-        input: { rolloutUserId: 'user-1', keyType: 'personal', expiresAt: null },
+        input: { keyType: 'personal', expiresAt: null },
       })
       .catch((e: unknown) => e)
 
     expect(error).toBeInstanceOf(Error)
     expect((error as Error).message).toContain('meta.capabilities.read')
     expect(error).not.toHaveProperty('code', 'forbidden')
-    expect(mocks.isFeatureEnabled).not.toHaveBeenCalled()
   })
 
   it('declares its principal policy as frozen data rather than leaving it implicit', () => {

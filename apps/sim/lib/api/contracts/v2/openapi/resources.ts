@@ -1452,9 +1452,9 @@ const declaredRoutes = [
       operationId: 'getApiMeta',
       summary: 'Get API Capabilities',
       description:
-        'Report facts about the calling API key: whether it is in the v2 rollout cohort, whether it is personal or workspace-scoped, and when it expires. Every other v2 endpoint answers 404 both when the path does not exist and when your credential is not in the rollout cohort; call this endpoint to tell the two apart. It is the one v2 endpoint the rollout gate does not apply to, and it still requires a valid key.',
+        'Report whether v2 is available, whether the calling API key is personal or workspace-scoped, and when it expires. Requires a valid key.',
       errors: META_ERRORS,
-      success: { description: 'Rollout and lifecycle facts about the calling key.' },
+      success: { description: 'Availability and lifecycle facts about the calling key.' },
     }),
     {
       query: v2GetMetaContract.query,
@@ -1462,7 +1462,7 @@ const declaredRoutes = [
         v2GetMetaContract.response.schema,
         'GetApiMetaResponse',
         'API capabilities response',
-        'Rollout cohort, key type, and expiry for the calling key.',
+        'API availability, key type, and expiry for the calling key.',
         [{ data: { v2Enabled: true, keyType: 'personal', expiresAt: null } }]
       ),
     }

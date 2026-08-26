@@ -52,10 +52,6 @@ vi.mock('@/lib/core/rate-limiter', () => ({
   },
 }))
 
-vi.mock('@/app/api/v2/lib/gate', () => ({
-  v2ApiGateError: vi.fn().mockResolvedValue(null),
-}))
-
 vi.mock('@sim/utils/id', () => ({
   generateId: mockGenerateId,
   generateShortId: vi.fn(() => 'mock-short-id'),
@@ -110,7 +106,6 @@ import { POST } from '@/app/api/v2/chat/route'
 
 const personalAuth = {
   principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
-  rolloutUserId: 'user-1',
   rateLimitSubjectIds: ['api-key:key-1', 'user:user-1'],
   rateLimitSubscription: null,
   keyType: 'personal',

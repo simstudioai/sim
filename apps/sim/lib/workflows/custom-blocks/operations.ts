@@ -10,7 +10,6 @@ import { createLogger } from '@sim/logger'
 import { generateId, generateShortId } from '@sim/utils/id'
 import { and, eq, isNull, sql } from 'drizzle-orm'
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing/core/subscription'
-import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { extractInputFieldsFromBlocks, type WorkflowInputField } from '@/lib/workflows/input-format'
 import { loadDeployedWorkflowState } from '@/lib/workflows/persistence/utils'
@@ -22,39 +21,25 @@ const logger = createLogger('CustomBlocksOperations')
 const CUSTOM_BLOCK_HYDRATION_CONCURRENCY = 10
 
 /**
- * Resolve a workspace's organization ONLY when custom blocks are enabled for it —
- * the same gate the REST list/publish routes apply (`deploy-as-block` flag +
- * enterprise plan). Applying it in every org-scoped resolver keeps execution, the
- * copilot VFS, and workspace context from surfacing blocks the API withholds (e.g.
- * after an org drops off the enterprise plan). Returns `null` when ineligible.
- *
- * Pass `userId` when the caller acts for a specific user so per-user flag
- * targeting matches the REST routes; workspace-scoped resolvers (VFS, context,
- * executor overlay) omit it and evaluate at org level.
+ * Resolve a workspace's organization only when it is eligible for custom blocks.
+ * Applying the Enterprise-plan check in every org-scoped resolver keeps execution,
+ * the Copilot VFS, and workspace context from surfacing blocks the API withholds
+ * after an organization loses eligibility. Returns `null` when ineligible.
  */
-async function eligibleOrgForWorkspace(
-  workspaceId: string,
-  userId?: string
-): Promise<string | null> {
+async function eligibleOrgForWorkspace(workspaceId: string): Promise<string | null> {
   const ws = await getWorkspaceWithOwner(workspaceId, { includeArchived: true })
   if (!ws?.organizationId) return null
-  if (!(await isFeatureEnabled('deploy-as-block', { userId, orgId: ws.organizationId }))) {
-    return null
-  }
   if (!(await isOrganizationOnEnterprisePlan(ws.organizationId))) return null
   return ws.organizationId
 }
 
 /**
- * Whether the workspace's org may use custom blocks (`deploy-as-block` flag +
- * enterprise plan). Feeds the 'custom-blocks' entitlement in
+ * Whether the workspace's organization may use custom blocks. Feeds the
+ * `custom-blocks` entitlement in
  * `@/lib/copilot/entitlements` and matches the REST route gates.
  */
-export async function isCustomBlocksEligible(
-  workspaceId: string,
-  userId?: string
-): Promise<boolean> {
-  return (await eligibleOrgForWorkspace(workspaceId, userId)) !== null
+export async function isCustomBlocksEligible(workspaceId: string): Promise<boolean> {
+  return (await eligibleOrgForWorkspace(workspaceId)) !== null
 }
 
 /** A persisted custom block plus its live-derived Start input fields. */

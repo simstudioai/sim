@@ -5,7 +5,6 @@ import type { PersonalApiKeyPrincipal } from '@sim/auth/principal'
 import {
   MockV2ApiKeyUnauthenticatedError,
   v2ApiKeyAuthModuleMock,
-  v2GateModuleMock,
   v2RateLimiterModuleMock,
   v2RouteMocks,
 } from '@sim/testing'
@@ -28,14 +27,11 @@ class TestLockedError extends HttpError {
 
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
-vi.mock('@/app/api/v2/lib/gate', () => v2GateModuleMock)
 
 import type { V2ApiKeyAuthContext } from '@/lib/api/server/routes/v2-api-key-auth'
 import {
-  admitV2Request,
   defineV2JsonRoute,
   type V2ErrorPolicy,
-  type V2RolloutGatePolicy,
   v2ApiKeyAuth,
   v2HeadAuthorizationResponse,
   v2OrchestrationErrorPolicy,
@@ -50,7 +46,6 @@ const principal: PersonalApiKeyPrincipal = {
 }
 const auth = {
   principal,
-  rolloutUserId: 'user-1',
   rateLimitSubjectIds: ['api-key:key-1', 'user:user-1'],
   rateLimitSubscription: null,
   keyType: 'personal',
@@ -97,7 +92,6 @@ interface HandlerOverrides {
   present?: (result: Result) => { data: { value: string } } | Promise<{ data: { value: string } }>
   statusForResult?: (result: Result) => number
   parseOptions?: Omit<ParseRequestOptions, 'validationErrorResponse'>
-  gate?: V2RolloutGatePolicy
 }
 
 function createHandler(overrides: HandlerOverrides = {}) {
@@ -122,44 +116,6 @@ function createHandler(overrides: HandlerOverrides = {}) {
     onSuccess: overrides.onSuccess,
     statusForResult: overrides.statusForResult,
     parseOptions: overrides.parseOptions,
-    gate: overrides.gate,
-  })
-}
-
-/**
- * A handler on the one contract path the rollout exemption is reserved for.
- * `createHandler`'s `/api/v2/widgets` contract cannot carry `gate: 'exempt'` —
- * the builder refuses it — which is the property the sweep below pins.
- */
-const metaContract = defineRouteContract({
-  method: 'GET',
-  path: '/api/v2/meta',
-  query: z.object({}).strict(),
-  response: {
-    mode: 'json',
-    status: 200,
-    schema: z.object({ data: z.object({ value: z.string() }) }),
-  },
-})
-
-function createMetaHandler(gate: V2RolloutGatePolicy) {
-  return defineV2JsonRoute({
-    contract: metaContract,
-    auth: v2ApiKeyAuth,
-    operation,
-    rateLimit: v2RateLimits.publicApi,
-    errorPolicy: v2OrchestrationErrorPolicy,
-    mapInput: () => ({ value: 'meta' }),
-    useCase: { operation, execute: async ({ input }) => input },
-    present: (result) => ({ data: result }),
-    gate,
-  })
-}
-
-function metaRequest(): NextRequest {
-  return new NextRequest('http://localhost/api/v2/meta', {
-    method: 'GET',
-    headers: { 'x-api-key': 'secret' },
   })
 }
 
@@ -192,7 +148,6 @@ describe('defineV2JsonRoute', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(auth)
-    v2RouteMocks.gate.mockResolvedValue(null)
     v2RouteMocks.preauthRate.mockResolvedValue({ allowed: true, remaining: 599, resetAt })
     v2RouteMocks.operationRate.mockResolvedValue(allowedRate)
   })
@@ -206,10 +161,6 @@ describe('defineV2JsonRoute', () => {
     v2RouteMocks.authenticate.mockImplementation(async () => {
       events.push('authenticate')
       return { ...auth, rateLimitSubjectIds: ['api-key:key-1'] as const }
-    })
-    v2RouteMocks.gate.mockImplementation(async () => {
-      events.push('rollout')
-      return null
     })
     v2RouteMocks.operationRate.mockImplementation(async () => {
       events.push('operation-limit')
@@ -243,7 +194,6 @@ describe('defineV2JsonRoute', () => {
     expect(events).toEqual([
       'ip-limit',
       'authenticate',
-      'rollout',
       'operation-limit',
       'before-parse',
       'parse-and-map',
@@ -271,7 +221,6 @@ describe('defineV2JsonRoute', () => {
       { failClosed: true }
     )
     expect(v2RouteMocks.authenticate).not.toHaveBeenCalled()
-    expect(v2RouteMocks.gate).not.toHaveBeenCalled()
     expect(v2RouteMocks.operationRate).not.toHaveBeenCalled()
   })
 
@@ -286,23 +235,7 @@ describe('defineV2JsonRoute', () => {
     await expect(response.json()).resolves.toEqual({
       error: { code: 'UNAUTHORIZED', message: 'API key required' },
     })
-    expect(v2RouteMocks.gate).not.toHaveBeenCalled()
     expect(v2RouteMocks.operationRate).not.toHaveBeenCalled()
-  })
-
-  it('short-circuits parsing and operation rate limiting when rollout denies admission', async () => {
-    const mapInput = vi.fn<(input: ParsedRequest<typeof contract>) => Input>()
-    const execute = vi.fn<Execute>()
-    v2RouteMocks.gate.mockResolvedValueOnce(
-      NextResponse.json({ error: { code: 'NOT_FOUND', message: 'Not found' } }, { status: 404 })
-    )
-
-    const response = await createHandler({ mapInput, execute })(request())
-
-    expect(response.status).toBe(404)
-    expect(v2RouteMocks.operationRate).not.toHaveBeenCalled()
-    expect(mapInput).not.toHaveBeenCalled()
-    expect(execute).not.toHaveBeenCalled()
   })
 
   it.each([
@@ -310,10 +243,6 @@ describe('defineV2JsonRoute', () => {
       stage: 'authentication',
       fail: () =>
         v2RouteMocks.authenticate.mockRejectedValueOnce(new Error('auth store unavailable')),
-    },
-    {
-      stage: 'rollout gate',
-      fail: () => v2RouteMocks.gate.mockRejectedValueOnce(new Error('gate store unavailable')),
     },
     {
       stage: 'operation rate limit',
@@ -393,7 +322,7 @@ describe('defineV2JsonRoute', () => {
     expect(response.headers.get('X-RateLimit-Remaining')).toBe('99')
   })
 
-  it('authenticates, gates, and rate-limits before parse rejection, then stops', async () => {
+  it('authenticates and rate-limits before parse rejection, then stops', async () => {
     const execute = vi.fn<Execute>()
     const present = vi.fn<(result: Result) => { data: { value: string } }>()
     const onSuccess = vi.fn()
@@ -402,7 +331,6 @@ describe('defineV2JsonRoute', () => {
 
     expect(response.status).toBe(400)
     expect(v2RouteMocks.authenticate).toHaveBeenCalledOnce()
-    expect(v2RouteMocks.gate).toHaveBeenCalledOnce()
     expect(v2RouteMocks.operationRate).toHaveBeenCalledTimes(2)
     expect(mapInput).not.toHaveBeenCalled()
     expect(execute).not.toHaveBeenCalled()
@@ -553,7 +481,6 @@ describe('defineV2JsonRoute unreadable body classification', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(auth)
-    v2RouteMocks.gate.mockResolvedValue(null)
     v2RouteMocks.preauthRate.mockResolvedValue({ allowed: true, remaining: 599, resetAt })
     v2RouteMocks.operationRate.mockResolvedValue(allowedRate)
   })
@@ -711,7 +638,6 @@ describe('defineV2JsonRoute HEAD on a route that is not head-safe', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(auth)
-    v2RouteMocks.gate.mockResolvedValue(null)
     v2RouteMocks.preauthRate.mockResolvedValue({ allowed: true, remaining: 599, resetAt })
     v2RouteMocks.operationRate.mockResolvedValue(allowedRate)
   })
@@ -826,7 +752,6 @@ describe('defineV2JsonRoute presentation', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(auth)
-    v2RouteMocks.gate.mockResolvedValue(null)
     v2RouteMocks.preauthRate.mockResolvedValue({ allowed: true, remaining: 599, resetAt })
     v2RouteMocks.operationRate.mockResolvedValue(allowedRate)
   })
@@ -870,95 +795,5 @@ describe('defineV2JsonRoute presentation', () => {
         body: { value: 'ok' },
       })
     )
-  })
-})
-
-/**
- * The rollout gate is centralized on the builder so a route cannot invent its
- * own rollout policy. `gate: 'exempt'` is the single typed hole in that, and it
- * exists for `GET /api/v2/meta` alone — the endpoint whose whole job is to
- * report the gate's decision, which a gated version could never do.
- */
-describe('defineV2JsonRoute rollout gate policy', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    v2RouteMocks.authenticate.mockResolvedValue(auth)
-    v2RouteMocks.gate.mockResolvedValue(null)
-    v2RouteMocks.preauthRate.mockResolvedValue({ allowed: true, remaining: 599, resetAt })
-    v2RouteMocks.operationRate.mockResolvedValue(allowedRate)
-  })
-
-  it('enforces the gate by default', async () => {
-    await createHandler()(request())
-
-    expect(v2RouteMocks.gate).toHaveBeenCalledWith(auth.rolloutUserId)
-  })
-
-  it('skips the gate entirely when the route declares itself exempt', async () => {
-    v2RouteMocks.gate.mockResolvedValue(
-      NextResponse.json({ error: { code: 'NOT_FOUND', message: 'Not found' } }, { status: 404 })
-    )
-
-    const response = await createMetaHandler('exempt')(metaRequest())
-
-    expect(response.status).toBe(200)
-    expect(v2RouteMocks.gate).not.toHaveBeenCalled()
-  })
-
-  it('still authenticates and rate-limits an exempt route', async () => {
-    v2RouteMocks.authenticate.mockRejectedValueOnce(
-      new MockV2ApiKeyUnauthenticatedError('API key required')
-    )
-
-    const unauthenticated = await createMetaHandler('exempt')(metaRequest())
-    expect(unauthenticated.status).toBe(401)
-
-    v2RouteMocks.operationRate.mockResolvedValue({ allowed: false, remaining: 0, resetAt })
-    const limited = await createMetaHandler('exempt')(metaRequest())
-    expect(limited.status).toBe(429)
-  })
-})
-
-/**
- * The exemption is a hole in the rollout concealment, justified only for the one
- * endpoint that reports the concealed fact to the caller it is about. A second
- * exempt route would be a silent widening.
- *
- * This used to be a source-text sweep of the route tree for the literal
- * `gate: 'exempt'`, which both over- and under-approximated: `admitV2Request`
- * took the gate as an optional trailing positional, so any raw special route
- * could un-gate itself without the literal ever appearing, and a
- * `const GATE = 'exempt'` evaded it anyway. The property is now enforced where
- * it cannot be written around — at definition time, on the only door that
- * accepts the option, against the one contract path it is reserved for.
- */
-describe('v2 rollout-gate exemptions', () => {
-  it('refuses gate: exempt on any contract but GET /api/v2/meta', () => {
-    expect(() => createHandler({ gate: 'exempt' })).toThrow(
-      "Route POST /api/v2/widgets declares gate: 'exempt', which is reserved for /api/v2/meta"
-    )
-  })
-
-  it('accepts gate: exempt on the meta contract', () => {
-    expect(() => createMetaHandler('exempt')).not.toThrow()
-  })
-
-  /**
-   * The raw-route door. `admitV2Request` used to take the gate as an optional
-   * trailing positional, so `admitV2Request(..., 'exempt')` from any special
-   * route un-gated it with nothing for a reviewer to see. A stray extra
-   * argument must now change nothing.
-   */
-  it('gates a raw special route no matter what a caller appends', async () => {
-    vi.clearAllMocks()
-    v2RouteMocks.authenticate.mockResolvedValue(auth)
-    v2RouteMocks.gate.mockResolvedValue(null)
-    v2RouteMocks.preauthRate.mockResolvedValue({ allowed: true, remaining: 599, resetAt })
-    v2RouteMocks.operationRate.mockResolvedValue(allowedRate)
-
-    const admit = admitV2Request as unknown as (...args: unknown[]) => Promise<unknown>
-    await admit(metaRequest(), operation, v2ApiKeyAuth, v2RateLimits.publicApi, 'exempt')
-
-    expect(v2RouteMocks.gate).toHaveBeenCalledWith(auth.rolloutUserId)
   })
 })

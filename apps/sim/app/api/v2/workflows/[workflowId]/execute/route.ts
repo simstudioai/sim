@@ -51,7 +51,6 @@ import {
   clientAcceptsAgentStreamProtocol,
   hasAgentStreamPolicy,
 } from '@/lib/workflows/streaming/agent-stream-protocol'
-import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import { v2Data, v2Error } from '@/app/api/v2/lib/response'
 import {
   PublicApiNotAllowedError,
@@ -142,7 +141,7 @@ export const POST = withRouteHandler(
     const requestId = generateRequestId()
     const { workflowId } = await context.params
 
-    let userId: string
+    let publicApiUserId: string | undefined
     let isPublicApiAccess = false
     let apiKeyPrincipal: V2ApiKeyPrincipal | undefined
 
@@ -169,7 +168,6 @@ export const POST = withRouteHandler(
 
     if (admission.auth) {
       apiKeyPrincipal = admission.auth.principal
-      userId = admission.auth.rolloutUserId
     } else {
       const [wf] = await db
         .select({
@@ -193,13 +191,8 @@ export const POST = withRouteHandler(
         }
         throw err
       }
-      userId = wf.userId
+      publicApiUserId = wf.userId
       isPublicApiAccess = true
-    }
-
-    if (isPublicApiAccess) {
-      const gate = await v2ApiGateError(userId)
-      if (gate) return gate
     }
 
     const ticket = tryAdmit()
@@ -336,9 +329,12 @@ export const POST = withRouteHandler(
           })
         }
       } else {
+        if (!publicApiUserId) {
+          throw new Error('Public workflow execution is missing its owner')
+        }
         const workflowAuthorization = await authorizeWorkflowByWorkspacePermission({
           workflowId,
-          userId,
+          userId: publicApiUserId,
           action: 'read',
         })
         if (!workflowAuthorization.allowed || !workflowAuthorization.workflow) {
@@ -356,7 +352,7 @@ export const POST = withRouteHandler(
         }
         result = await executeWorkflowService({
           workflowId,
-          userId,
+          userId: publicApiUserId,
           isPublicApiAccess,
           input: body.input ?? {},
           triggerType: 'api',

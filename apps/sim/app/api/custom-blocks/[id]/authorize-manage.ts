@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server'
-import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { getCustomBlockManageContext } from '@/lib/workflows/custom-blocks/operations'
 import { hasWorkspaceAdminAccess } from '@/lib/workspaces/permissions/utils'
 
@@ -19,12 +18,6 @@ export async function authorizeManage(
   const ctx = await getCustomBlockManageContext(id)
   if (!ctx) return { error: NextResponse.json({ error: 'Not found' }, { status: 404 }), ctx: null }
 
-  if (!(await isFeatureEnabled('deploy-as-block', { userId, orgId: ctx.organizationId }))) {
-    return {
-      error: NextResponse.json({ error: 'Deploy as block is not enabled' }, { status: 403 }),
-      ctx: null,
-    }
-  }
   if (!ctx.sourceWorkspaceId || !(await hasWorkspaceAdminAccess(userId, ctx.sourceWorkspaceId))) {
     return {
       error: NextResponse.json({ error: 'Admin permissions required' }, { status: 403 }),

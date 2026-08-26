@@ -15,7 +15,6 @@ const { mocks, MockV2ApiKeyUnauthenticatedError } = vi.hoisted(() => {
       authenticate: vi.fn(),
       preauthRate: vi.fn(),
       operationRate: vi.fn(),
-      gate: vi.fn(),
       get: vi.fn(),
       update: vi.fn(),
       remove: vi.fn(),
@@ -47,7 +46,6 @@ vi.mock('@/lib/core/utils/request', () => ({
   generateRequestId: vi.fn().mockReturnValue('request-1'),
   getClientIp: vi.fn().mockReturnValue('127.0.0.1'),
 }))
-vi.mock('@/app/api/v2/lib/gate', () => ({ v2ApiGateError: mocks.gate }))
 vi.mock('@/lib/custom-tools/application/use-cases', () => ({
   getWorkspaceCustomToolUseCase: { operation: { id: 'custom_tools.read' }, execute: mocks.get },
   updateWorkspaceCustomToolUseCase: {
@@ -66,7 +64,6 @@ const WORKSPACE_ID = 'workspace-1'
 const PRINCIPAL = { kind: 'workspace_api_key' as const, workspaceId: WORKSPACE_ID, keyId: 'key-1' }
 const AUTH = {
   principal: PRINCIPAL,
-  rolloutUserId: 'owner-1',
   rateLimitSubjectIds: ['workspace:workspace-1'] as const,
   rateLimitSubscription: null,
   keyType: 'workspace' as const,
@@ -117,7 +114,6 @@ describe('/api/v2/custom-tools/[customToolId]', () => {
     mocks.authenticate.mockResolvedValue(AUTH)
     mocks.preauthRate.mockResolvedValue(RATE_LIMIT_OK)
     mocks.operationRate.mockResolvedValue(RATE_LIMIT_OK)
-    mocks.gate.mockResolvedValue(null)
     mocks.get.mockResolvedValue({ tool })
     mocks.update.mockResolvedValue({ tool })
     mocks.remove.mockResolvedValue({ tool })

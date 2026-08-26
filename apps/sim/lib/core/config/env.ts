@@ -180,8 +180,6 @@ export const env = createEnv({
     BILLING_CONCURRENCY_LIMIT_TEAM:         z.string().optional(),                  // In-flight executions per Max-tier billing account (Max and Max for Teams)
     BILLING_CONCURRENCY_LIMIT_ENTERPRISE:   z.string().optional(),                  // In-flight executions per Enterprise billing account (metadata-overridable)
     BILLING_ENABLED:                       z.boolean().optional(),                 // Enable billing enforcement and usage tracking
-    PII_REDACTION:                         z.boolean().optional(),                 // Redact PII from workflow logs via configurable Data Retention rules (Presidio at the logger persist choke point) and expose the Data Retention config UI
-    PII_GRANULAR_REDACTION:                z.boolean().optional(),                 // Expose the execution-altering PII redaction stages (redact workflow input + block outputs in-flight) in the Data Retention config; layered on top of PII_REDACTION
     TRIGGER_EU_REGION:                     z.boolean().optional(),                 // Route Trigger.dev runs to eu-central-1 instead of the default us-east-1 (fallback for the trigger-eu-region flag when AppConfig is not the source of truth)
     DURABLE_SECRET_PROVENANCE_ENFORCED_SURFACES: z.string().optional(),            // Durable surfaces where unrecorded secret provenance fails the run instead of logging a warning: "all", or a comma-separated subset of memory,table-row,knowledge,workspace-file (default: none enforced)
 
@@ -590,11 +588,7 @@ export const env = createEnv({
     DATA_DRAINS_ENABLED:                  z.boolean().optional(),                 // Enable data drains on self-hosted (bypasses hosted requirements)
     SESSION_POLICIES_ENABLED:             z.boolean().optional(),                 // Enable org session policies on self-hosted (bypasses hosted requirements)
     FORKING_ENABLED:                      z.boolean().optional(),                 // Enable workspace forking on self-hosted (bypasses hosted requirements)
-    DEPLOY_AS_BLOCK:                      z.boolean().optional(),                 // Enable deploy-as-block (publish a workflow as a reusable org-wide custom block)
-    V2_API:                               z.boolean().optional(),                 // Enable the /api/v2 HTTP surface (all v2 routes 404 when off)
     TABLES_V2_API:                        z.boolean().optional(),                 // Enable the v2 tables HTTP API (public /api/v2/tables + internal /api/table/[tableId]/query predicate-grammar route)
-    TABLE_LOCKS:                          z.boolean().optional(),                 // Enable per-table mutation locks (schema/insert/update/delete toggles)
-    TABLE_VIEWS:                          z.boolean().optional(),                 // Enable saved table views (named filter/sort/column-visibility presets) and the column show/hide menu
     CREDENTIAL_GROUPS:                    z.boolean().optional(),                 // Enable enterprise Credential Groups globally
 
     // Organizations - for self-hosted deployments
@@ -700,7 +694,6 @@ export const env = createEnv({
     NEXT_PUBLIC_SSO_ENABLED:               z.boolean().optional(),                   // Enable SSO login UI components
     NEXT_PUBLIC_ACCESS_CONTROL_ENABLED:    z.boolean().optional(),                   // Enable access control (permission groups) on self-hosted
     NEXT_PUBLIC_SLACK_EXTENDED_SCOPES:     z.boolean().optional(),                   // Client twin of SLACK_EXTENDED_SCOPES — set both together
-    NEXT_PUBLIC_CUSTOM_BLOCKS_ENABLED:     z.boolean().optional(),                   // Enable custom blocks (deploy-as-block) settings on self-hosted
     NEXT_PUBLIC_WHITELABELING_ENABLED:     z.boolean().optional(),                   // Enable whitelabeling on self-hosted (bypasses hosted requirements)
     NEXT_PUBLIC_AUDIT_LOGS_ENABLED:        z.boolean().optional(),                   // Enable audit logs on self-hosted (bypasses hosted requirements)
     NEXT_PUBLIC_DATA_RETENTION_ENABLED:   z.boolean().optional(),                   // Enable data retention settings on self-hosted (bypasses hosted requirements)
@@ -744,7 +737,6 @@ export const env = createEnv({
     NEXT_PUBLIC_SSO_ENABLED: process.env.NEXT_PUBLIC_SSO_ENABLED,
     NEXT_PUBLIC_ACCESS_CONTROL_ENABLED: process.env.NEXT_PUBLIC_ACCESS_CONTROL_ENABLED,
     NEXT_PUBLIC_SLACK_EXTENDED_SCOPES: process.env.NEXT_PUBLIC_SLACK_EXTENDED_SCOPES,
-    NEXT_PUBLIC_CUSTOM_BLOCKS_ENABLED: process.env.NEXT_PUBLIC_CUSTOM_BLOCKS_ENABLED,
     NEXT_PUBLIC_WHITELABELING_ENABLED: process.env.NEXT_PUBLIC_WHITELABELING_ENABLED,
     NEXT_PUBLIC_AUDIT_LOGS_ENABLED: process.env.NEXT_PUBLIC_AUDIT_LOGS_ENABLED,
     NEXT_PUBLIC_DATA_RETENTION_ENABLED: process.env.NEXT_PUBLIC_DATA_RETENTION_ENABLED,

@@ -10,7 +10,6 @@ import {
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing'
-import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   CustomBlockValidationError,
@@ -64,10 +63,6 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     return NextResponse.json({ enabled: false, customBlocks: [] })
   }
 
-  if (!(await isFeatureEnabled('deploy-as-block', { userId, orgId: organizationId }))) {
-    return NextResponse.json({ enabled: false, customBlocks: [] })
-  }
-
   const enabled = await isOrganizationOnEnterprisePlan(organizationId)
   const blocks = enabled ? await listCustomBlocksWithInputs(organizationId) : []
   return NextResponse.json({ enabled, customBlocks: blocks.map(toWire) })
@@ -105,10 +100,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       { error: 'Publishing a block requires the workspace to belong to an organization' },
       { status: 400 }
     )
-  }
-
-  if (!(await isFeatureEnabled('deploy-as-block', { userId, orgId: organizationId }))) {
-    return NextResponse.json({ error: 'Deploy as block is not enabled' }, { status: 403 })
   }
 
   if (!(await isOrganizationOnEnterprisePlan(organizationId))) {

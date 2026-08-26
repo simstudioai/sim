@@ -7,7 +7,6 @@ import {
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
   v2ApiKeyAuthModuleMock,
-  v2GateModuleMock,
   v2RateLimiterModuleMock,
   v2RouteMocks,
 } from '@sim/testing'
@@ -18,7 +17,6 @@ const mocks = vi.hoisted(() => ({ restore: vi.fn() }))
 
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
-vi.mock('@/app/api/v2/lib/gate', () => v2GateModuleMock)
 vi.mock('@/lib/table/application/folders', () => ({
   restoreTableFolderUseCase: {
     operation: { id: 'tables.folders.restore' },
@@ -37,7 +35,6 @@ const PRINCIPAL = {
 }
 const AUTH = {
   principal: PRINCIPAL,
-  rolloutUserId: 'owner-1',
   rateLimitSubjectIds: ['api-key:key-1', `workspace:${WORKSPACE_ID}`],
   rateLimitSubscription: null,
   keyType: 'workspace' as const,
@@ -81,7 +78,6 @@ describe('POST /api/v2/tables/folders/restore', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(AUTH)
-    v2RouteMocks.gate.mockResolvedValue(null)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
     mocks.restore.mockResolvedValue(restored('Reports', '/Reports'))

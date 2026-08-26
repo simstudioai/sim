@@ -25,7 +25,6 @@ import type { ApplicationOperation, OperationUseCase } from '@/lib/core/applicat
 import { getRateLimit, RateLimiter, type SubscriptionPlan } from '@/lib/core/rate-limiter'
 import { getClientIp } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import {
   v2CaughtOrchestrationError,
   v2Error,
@@ -43,7 +42,7 @@ const V2_PREAUTH_IP_LIMIT = {
 } as const
 
 export class V2RouteInfrastructureError extends Error {
-  constructor(stage: 'authentication' | 'rollout_gate' | 'rate_limit', cause: unknown) {
+  constructor(stage: 'authentication' | 'rate_limit', cause: unknown) {
     super(`V2 ${stage} infrastructure failed`, { cause })
     this.name = 'V2RouteInfrastructureError'
   }
@@ -301,46 +300,11 @@ async function enforceV2PreAuthIpLimit(request: NextRequest): Promise<NextRespon
     : v2RateLimitError({ ...abuseLimit, limit: V2_PREAUTH_IP_LIMIT.maxTokens })
 }
 
-/**
- * Whether the `v2-api` rollout gate runs for a route.
- *
- * `'enforced'` is the default and the only correct answer for a route that
- * serves workspace data. `'exempt'` exists for the one route whose purpose is to
- * *report* the gate's decision — see the `gate` option on
- * {@link defineV2JsonRoute}.
- */
-export type V2RolloutGatePolicy = 'enforced' | 'exempt'
-
-/** The one contract path whose purpose justifies skipping the rollout gate. */
-const V2_GATE_EXEMPT_PATH = '/api/v2/meta'
-
-/**
- * Refuses `gate: 'exempt'` on any contract but `GET /api/v2/meta`, at module
- * load rather than in review.
- *
- * The exemption's justification is not "some route needs it" but "this endpoint
- * reports the gate's own decision, and a gated version could never do that", so
- * it is a property of one path. Checked here because the alternative — sweeping
- * route sources for the literal `gate: 'exempt'` — reads text, and text is
- * evaded by a `const GATE = 'exempt'` or by any indirection at all.
- */
-function requireGateExemptionIsMeta(
-  contract: JsonApiRouteContract,
-  gate: V2RolloutGatePolicy | undefined
-): void {
-  if (gate === 'exempt' && contract.path !== V2_GATE_EXEMPT_PATH) {
-    throw new Error(
-      `Route ${contract.method} ${contract.path} declares gate: 'exempt', which is reserved for ${V2_GATE_EXEMPT_PATH}`
-    )
-  }
-}
-
 async function admitAuthenticatedV2Request(
   request: NextRequest,
   operation: ApplicationOperation,
   authPolicy: typeof v2ApiKeyAuth,
-  rateLimitPolicy: V2RateLimitPolicy,
-  gatePolicy: V2RolloutGatePolicy = 'enforced'
+  rateLimitPolicy: V2RateLimitPolicy
 ): Promise<
   { success: true; auth: V2ApiKeyAuthContext } | { success: false; response: NextResponse }
 > {
@@ -354,44 +318,24 @@ async function admitAuthenticatedV2Request(
     throw new V2RouteInfrastructureError('authentication', error)
   }
 
-  if (gatePolicy === 'enforced') {
-    let gate
-    try {
-      gate = await v2ApiGateError(auth.rolloutUserId)
-    } catch (error) {
-      throw new V2RouteInfrastructureError('rollout_gate', error)
-    }
-    if (gate) return { success: false, response: gate }
-  }
-
   const limited = await rateLimitPolicy.enforce(request, auth, operation)
   return limited ? { success: false, response: limited } : { success: true, auth }
 }
 
-async function admitGatedV2Request(
+async function admitRateLimitedV2Request(
   request: NextRequest,
   operation: ApplicationOperation,
   authPolicy: typeof v2ApiKeyAuth,
-  rateLimitPolicy: V2RateLimitPolicy,
-  gatePolicy: V2RolloutGatePolicy
+  rateLimitPolicy: V2RateLimitPolicy
 ): Promise<
   { success: true; auth: V2ApiKeyAuthContext } | { success: false; response: NextResponse }
 > {
   const preAuthResponse = await enforceV2PreAuthIpLimit(request)
   if (preAuthResponse) return { success: false, response: preAuthResponse }
-  return admitAuthenticatedV2Request(request, operation, authPolicy, rateLimitPolicy, gatePolicy)
+  return admitAuthenticatedV2Request(request, operation, authPolicy, rateLimitPolicy)
 }
 
-/**
- * Admission for a v2 route the builders do not cover — a documented special
- * route such as the resume leg.
- *
- * It takes no gate argument, and that omission is the point: with one, any raw
- * route could pass `'exempt'` and un-gate itself without ever writing the
- * builder option a reviewer looks for. The rollout exemption therefore has
- * exactly one door, {@link defineV2JsonRoute}'s `gate`, which in turn accepts it
- * for exactly one contract path.
- */
+/** Admission for a v2 route the builders do not cover, such as the resume leg. */
 export async function admitV2Request(
   request: NextRequest,
   operation: ApplicationOperation,
@@ -400,7 +344,7 @@ export async function admitV2Request(
 ): Promise<
   { success: true; auth: V2ApiKeyAuthContext } | { success: false; response: NextResponse }
 > {
-  return admitGatedV2Request(request, operation, authPolicy, rateLimitPolicy, 'enforced')
+  return admitRateLimitedV2Request(request, operation, authPolicy, rateLimitPolicy)
 }
 
 export async function admitOptionalV2Request(
@@ -422,17 +366,14 @@ export async function admitOptionalV2Request(
  *
  * Deliberately not the whole {@link V2ApiKeyAuthContext}: it carries the
  * principal, and a route mapping identity into use-case input would be routing
- * an authorization decision around the application boundary. These three are
- * facts about the credential rather than about who holds it —
- * `rolloutUserId` is the subject the `v2-api` gate is keyed on and is rollout
- * context only, never an authorization principal.
+ * an authorization decision around the application boundary. These are facts
+ * about the credential rather than about who holds it.
  *
  * One route reads it: `GET /api/v2/meta`, whose resource *is* the calling key.
  */
 export interface V2CredentialFacts {
   readonly keyType: 'personal' | 'workspace'
   readonly keyExpiresAt: Date | null
-  readonly rolloutUserId: string
 }
 
 interface V2JsonRouteOptions<C extends JsonApiRouteContract, O extends ApplicationOperation, I, R>
@@ -458,23 +399,6 @@ interface V2JsonRouteOptions<C extends JsonApiRouteContract, O extends Applicati
    * {@link requireHeadAuthorizableUseCase}.
    */
   headSafe?: boolean
-  /**
-   * Whether the `v2-api` rollout gate runs. Defaults to `'enforced'`, which is
-   * correct for every route that serves workspace data.
-   *
-   * `'exempt'` is for the one route that exists to *report* the gate's decision:
-   * `GET /api/v2/meta`. The gate and the unknown-path catch-all answer
-   * byte-identical 404s so an ungated caller cannot tell "not in the rollout
-   * cohort" from "no such endpoint", and a gated `/api/v2/meta` would inherit
-   * exactly that ambiguity — leaving a caller no way to learn why every other
-   * endpoint is answering 404. Exempting it does not weaken the concealment:
-   * authentication still runs first, so the fact is disclosed only to a caller
-   * who has already proved it holds the credential the fact is about. That is
-   * the whole justification, and it is why the exemption is a typed option on
-   * this builder — the sweep in `v2-json-route.test.ts` asserts exactly one
-   * route uses it — rather than a route-local rollout policy.
-   */
-  gate?: V2RolloutGatePolicy
   parseOptions?: Omit<ParseRequestOptions, 'validationErrorResponse'>
   beforeParse?(args: {
     request: NextRequest
@@ -500,7 +424,6 @@ export function defineV2JsonRoute<
     options.operation,
     options.useCase.operation
   )
-  requireGateExemptionIsMeta(options.contract, options.gate)
   requireHeadAuthorizableUseCase(options.contract, options.headSafe, options.useCase)
 
   const wrapped = withRouteHandler<JsonRouteContext | undefined>(
@@ -511,12 +434,11 @@ export function defineV2JsonRoute<
         )
       }
 
-      const admission = await admitGatedV2Request(
+      const admission = await admitRateLimitedV2Request(
         request,
         options.operation,
         options.auth,
-        options.rateLimit,
-        options.gate ?? 'enforced'
+        options.rateLimit
       )
       if (!admission.success) return admission.response
       const { auth } = admission
@@ -543,7 +465,6 @@ export function defineV2JsonRoute<
       const credentialFacts: V2CredentialFacts = {
         keyType: auth.keyType,
         keyExpiresAt: auth.keyExpiresAt,
-        rolloutUserId: auth.rolloutUserId,
       }
 
       if (request.method === 'HEAD' && options.headSafe === false) {

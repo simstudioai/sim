@@ -9,7 +9,6 @@ import type { ExecutionContext } from '@/lib/copilot/request/types'
 const {
   ensureWorkflowAccessMock,
   getWorkspaceWithOwnerMock,
-  isFeatureEnabledMock,
   isOrganizationOnEnterprisePlanMock,
   publishCustomBlockMock,
   updateCustomBlockMock,
@@ -21,7 +20,6 @@ const {
 } = vi.hoisted(() => ({
   ensureWorkflowAccessMock: vi.fn(),
   getWorkspaceWithOwnerMock: vi.fn(),
-  isFeatureEnabledMock: vi.fn(),
   isOrganizationOnEnterprisePlanMock: vi.fn(),
   publishCustomBlockMock: vi.fn(),
   updateCustomBlockMock: vi.fn(),
@@ -41,10 +39,6 @@ vi.mock('../access', () => ({
 
 vi.mock('@/lib/workspaces/permissions/utils', () => ({
   getWorkspaceWithOwner: getWorkspaceWithOwnerMock,
-}))
-
-vi.mock('@/lib/core/config/feature-flags', () => ({
-  isFeatureEnabled: isFeatureEnabledMock,
 }))
 
 vi.mock('@/lib/billing', () => ({
@@ -117,7 +111,6 @@ describe('executeDeployCustomBlock', () => {
       workflow: { id: 'wf-1', workspaceId: 'ws-1', name: 'Test Workflow', isDeployed: true },
     })
     getWorkspaceWithOwnerMock.mockResolvedValue({ id: 'ws-1', organizationId: 'org-1' })
-    isFeatureEnabledMock.mockResolvedValue(true)
     isOrganizationOnEnterprisePlanMock.mockResolvedValue(true)
     getCustomBlockWithInputsByWorkflowIdMock.mockResolvedValue(null)
   })
@@ -336,15 +329,6 @@ describe('executeDeployCustomBlock', () => {
 
     expect(result.success).toBe(false)
     expect(deleteCustomBlockMock).not.toHaveBeenCalled()
-  })
-
-  it('fails when the feature flag is off', async () => {
-    isFeatureEnabledMock.mockResolvedValue(false)
-
-    const result = await executeDeployCustomBlock({ name: 'Enrich Lead' }, context)
-
-    expect(result.success).toBe(false)
-    expect(result.error).toContain('not enabled')
   })
 
   it('fails when the org is not on the enterprise plan', async () => {

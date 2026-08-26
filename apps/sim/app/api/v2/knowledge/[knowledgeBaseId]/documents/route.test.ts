@@ -5,7 +5,6 @@ import {
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
   v2ApiKeyAuthModuleMock,
-  v2GateModuleMock,
   v2RateLimiterModuleMock,
   v2RouteMocks,
 } from '@sim/testing'
@@ -36,7 +35,6 @@ const {
 
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
-vi.mock('@/app/api/v2/lib/gate', () => v2GateModuleMock)
 
 vi.mock('@/lib/knowledge/application/documents', () => ({
   listKnowledgeDocuments: {
@@ -93,12 +91,10 @@ describe('POST /api/v2/knowledge/[knowledgeBaseId]/documents', () => {
     vi.clearAllMocks()
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
-    v2RouteMocks.gate.mockResolvedValue(null)
     mockIsPayloadSizeLimitError.mockReturnValue(false)
     mockIsMultipartFieldValidationError.mockReturnValue(false)
     v2RouteMocks.authenticate.mockResolvedValue({
       principal: PRINCIPAL,
-      rolloutUserId: 'user-1',
       rateLimitSubjectIds: ['api-key:key-1', 'user:user-1'],
       rateLimitSubscription: null,
       keyType: 'personal',
@@ -198,7 +194,6 @@ describe('POST /api/v2/knowledge/[knowledgeBaseId]/documents', () => {
   it('does not create human analytics for a workspace key', async () => {
     v2RouteMocks.authenticate.mockResolvedValue({
       principal: { kind: 'workspace_api_key', workspaceId: WORKSPACE_ID, keyId: 'key-2' },
-      rolloutUserId: 'billing-owner',
       rateLimitSubjectIds: ['api-key:key-2', `workspace:${WORKSPACE_ID}`],
       rateLimitSubscription: null,
       keyType: 'workspace',
@@ -381,10 +376,8 @@ describe('GET /api/v2/knowledge/[knowledgeBaseId]/documents', () => {
     vi.clearAllMocks()
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
-    v2RouteMocks.gate.mockResolvedValue(null)
     v2RouteMocks.authenticate.mockResolvedValue({
       principal: PRINCIPAL,
-      rolloutUserId: 'user-1',
       rateLimitSubjectIds: ['api-key:key-1', 'user:user-1'],
       rateLimitSubscription: null,
       keyType: 'personal',
