@@ -205,6 +205,13 @@ export interface ReadWorkspaceUploadSessionResult {
    * Still null when a completed session's file has since been deleted, which is
    * the same shape as "not finalized yet" and needs no separate signal: in both
    * cases there is no file to address.
+   *
+   * A failed *read*, though, is not that shape. `getWorkspaceFile` logs and
+   * returns null by default, which would let a transient database error present
+   * a finalized upload as fileless to the one caller polling to learn what it
+   * created — and they would stop, having been told there was nothing. It is
+   * read with `throwOnError` so the failure surfaces and the poll can retry,
+   * matching how `readWorkspaceFileRecord` loads the same record.
    */
   file: WorkspaceFileRecord | null
 }
@@ -218,7 +225,9 @@ export async function readWorkspaceUploadSession(
   if (session.status !== 'completed' || !session.completedFileId || !session.workspaceId) {
     return { session, file: null }
   }
-  const file = await getWorkspaceFile(session.workspaceId, session.completedFileId)
+  const file = await getWorkspaceFile(session.workspaceId, session.completedFileId, {
+    throwOnError: true,
+  })
   return { session, file: file ?? null }
 }
 

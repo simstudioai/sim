@@ -356,7 +356,7 @@ export const v2ListWorkflowMcpServersContract = defineRouteContract({
       toolNamesTruncated: z
         .boolean()
         .describe(
-          "Whether `toolCount` and `toolNames` under-report. The names are gathered for the whole page under one ceiling, so a page whose servers publish more tools than that ceiling between them reports only part of each server's inventory. Read `GET /api/v2/workflow-mcp-servers/{serverId}/tools` for a server's authoritative set. Unrelated to `nextCursor`, which is how this list says there are further servers."
+          "Whether `toolCount` and `toolNames` under-report. The names are gathered for the whole page under one ceiling, so a page whose servers publish more tools than that ceiling between them reports only part of each server's inventory. Read `GET /api/v2/workflow-mcp-servers/{serverId}/tools` for one server's inventory and check that response's own `truncated`, which reports the same ceiling applied to a single server — only an untruncated response is the authoritative set. Unrelated to `nextCursor`, which is how this list says there are further servers."
         ),
     }),
   },
