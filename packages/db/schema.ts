@@ -1377,6 +1377,20 @@ export const subscription = pgTable(
       table.referenceId,
       table.status
     ),
+    /**
+     * Partial index for the cycle-close sweep's keyset iteration: exactly the
+     * entitled subscriptions whose close marker lags the current period. The
+     * predicate must mirror the sweep query in `lib/billing/cycle-close.ts`
+     * (status list = ENTITLED_SUBSCRIPTION_STATUSES, hardcoded here because
+     * packages cannot import from apps); a drifted predicate degrades to a
+     * seq scan, never a wrong result. The index stays tiny — closes remove
+     * rows from it — so the candidate scan is O(lagging), not O(fleet).
+     */
+    cycleCloseLaggingIdx: index('subscription_cycle_close_lagging_idx')
+      .on(table.id)
+      .where(
+        sql`${table.status} in ('active', 'past_due') and ${table.periodStart} is not null and (${table.lastClosedPeriodStart} is null or ${table.lastClosedPeriodStart} < ${table.periodStart})`
+      ),
     enterpriseMetadataCheck: check(
       'check_enterprise_metadata',
       sql`plan != 'enterprise' OR metadata IS NOT NULL`
