@@ -29,7 +29,11 @@ export interface RequestTrustViolation {
   file: string
   line: number
   toolId?: string
-  reason: 'missing-internal-policy' | 'internal-policy-without-internal-route'
+  reason:
+    | 'missing-internal-policy'
+    | 'internal-policy-without-internal-route'
+    | 'mixed-route-requires-conditional-policy'
+    | 'unsafe-internal-path-interpolation'
 }
 
 export interface RequestTrustAudit {
@@ -160,6 +164,35 @@ function isInternalPathExpression(expression: SyntaxNode): boolean {
       (isSyntaxNode(current.right) && isInternalPathExpression(current.right))
     )
   }
+  if (current.type === 'BinaryExpression' && current.operator === '+') {
+    return (
+      (isSyntaxNode(current.left) && isInternalPathExpression(current.left)) ||
+      (isSyntaxNode(current.right) && isInternalPathExpression(current.right))
+    )
+  }
+  return false
+}
+
+function isExternalUrlExpression(expression: SyntaxNode): boolean {
+  const current = unwrapExpression(expression)
+  const prefix = getStringPrefix(current)
+  if (prefix && /^https?:\/\//.test(prefix)) return true
+
+  if (current.type === 'ConditionalExpression') {
+    return (
+      (isSyntaxNode(current.consequent) && isExternalUrlExpression(current.consequent)) ||
+      (isSyntaxNode(current.alternate) && isExternalUrlExpression(current.alternate))
+    )
+  }
+  if (
+    current.type === 'LogicalExpression' ||
+    (current.type === 'BinaryExpression' && current.operator === '+')
+  ) {
+    return (
+      (isSyntaxNode(current.left) && isExternalUrlExpression(current.left)) ||
+      (isSyntaxNode(current.right) && isExternalUrlExpression(current.right))
+    )
+  }
   return false
 }
 
@@ -212,6 +245,133 @@ function functionContainsInternalRoute(fn: SyntaxNode): boolean {
   return found
 }
 
+function functionContainsExternalRoute(fn: SyntaxNode): boolean {
+  const current = unwrapExpression(fn)
+  if (
+    !['ArrowFunctionExpression', 'FunctionExpression', 'FunctionDeclaration'].includes(current.type)
+  ) {
+    return false
+  }
+  if (current.type === 'ArrowFunctionExpression' && isSyntaxNode(current.body)) {
+    const body = unwrapExpression(current.body)
+    if (body.type !== 'BlockStatement' && isExternalUrlExpression(body)) return true
+  }
+
+  let found = false
+  const visit = (node: SyntaxNode) => {
+    if (found) return
+    if (
+      node.type === 'ReturnStatement' &&
+      isSyntaxNode(node.argument) &&
+      isExternalUrlExpression(node.argument)
+    ) {
+      found = true
+      return
+    }
+    for (const child of getChildNodes(node)) visit(child)
+  }
+  visit(current)
+  return found
+}
+
+function containsParamsReference(expression: SyntaxNode): boolean {
+  const current = unwrapExpression(expression)
+  if (current.type === 'Identifier' && current.name === 'params') return true
+  return getChildNodes(current).some((child) => containsParamsReference(child))
+}
+
+function isEncodedPathExpression(expression: SyntaxNode): boolean {
+  const current = unwrapExpression(expression)
+  return (
+    current.type === 'CallExpression' &&
+    isSyntaxNode(current.callee) &&
+    current.callee.type === 'Identifier' &&
+    current.callee.name === 'encodeURIComponent'
+  )
+}
+
+function getConcatenationParts(expression: SyntaxNode): SyntaxNode[] {
+  const current = unwrapExpression(expression)
+  if (
+    current.type !== 'BinaryExpression' ||
+    current.operator !== '+' ||
+    !isSyntaxNode(current.left) ||
+    !isSyntaxNode(current.right)
+  ) {
+    return [current]
+  }
+  return [...getConcatenationParts(current.left), ...getConcatenationParts(current.right)]
+}
+
+function functionContainsUnsafeInternalPathInterpolation(fn: SyntaxNode): boolean {
+  const current = unwrapExpression(fn)
+  let found = false
+
+  const visit = (node: SyntaxNode) => {
+    if (found) return
+    if (
+      node.type === 'BinaryExpression' &&
+      node.operator === '+' &&
+      isInternalPathExpression(node)
+    ) {
+      let queryStarted = false
+      for (const part of getConcatenationParts(node)) {
+        const prefix = getStringPrefix(part)
+        if (prefix?.includes('?')) queryStarted = true
+        if (
+          !queryStarted &&
+          unwrapExpression(part).type !== 'TemplateLiteral' &&
+          containsParamsReference(part) &&
+          !isEncodedPathExpression(part)
+        ) {
+          found = true
+          return
+        }
+      }
+    }
+    if (
+      node.type === 'TemplateLiteral' &&
+      Array.isArray(node.quasis) &&
+      Array.isArray(node.expressions) &&
+      node.quasis.length > 0 &&
+      isSyntaxNode(node.quasis[0]) &&
+      getStringPrefix(node)?.startsWith('/api/')
+    ) {
+      let queryStarted = false
+      for (let index = 0; index < node.expressions.length; index++) {
+        const quasi = node.quasis[index]
+        if (isSyntaxNode(quasi)) {
+          const value = quasi.value
+          if (
+            typeof value === 'object' &&
+            value !== null &&
+            (('cooked' in value &&
+              typeof value.cooked === 'string' &&
+              value.cooked.includes('?')) ||
+              ('raw' in value && typeof value.raw === 'string' && value.raw.includes('?')))
+          ) {
+            queryStarted = true
+          }
+        }
+        const expression = node.expressions[index]
+        if (
+          !queryStarted &&
+          isSyntaxNode(expression) &&
+          containsParamsReference(expression) &&
+          !isEncodedPathExpression(expression)
+        ) {
+          found = true
+          return
+        }
+      }
+    }
+    for (const child of getChildNodes(node)) visit(child)
+  }
+
+  visit(current)
+  return found
+}
+
 function getToolId(object: SyntaxNode): string | undefined {
   const idProperty = getObjectProperty(object, 'id')
   if (!idProperty || !isSyntaxNode(idProperty.value)) return undefined
@@ -248,10 +408,26 @@ export function auditToolRequestTrust(source: string, file = 'source.ts'): Reque
           ['ArrowFunctionExpression', 'FunctionExpression'].includes(unwrapExpression(url).type)
         if (isDynamic && isSyntaxNode(url)) {
           const hasInternalRoute = functionContainsInternalRoute(url)
+          const hasExternalRoute = functionContainsExternalRoute(url)
           const hasInternalPolicy = internalProperty !== undefined
+          const internalPolicyValue = internalProperty?.value
+          const hasConditionalInternalPolicy =
+            isSyntaxNode(internalPolicyValue) &&
+            !(
+              unwrapExpression(internalPolicyValue).type === 'BooleanLiteral' &&
+              unwrapExpression(internalPolicyValue).value === true
+            )
+          const hasUnsafeInternalPathInterpolation =
+            functionContainsUnsafeInternalPathInterpolation(url)
           if (hasInternalRoute) dynamicInternalRoutes += 1
           if (hasInternalPolicy) dynamicInternalPolicies += 1
-          if (hasInternalRoute !== hasInternalPolicy) {
+          if (
+            (hasInternalRoute && !hasInternalPolicy) ||
+            (hasInternalPolicy &&
+              hasExternalRoute &&
+              !hasInternalRoute &&
+              !hasConditionalInternalPolicy)
+          ) {
             const location = (hasInternalPolicy ? internalProperty : urlProperty)?.loc?.start.line
             violations.push({
               file,
@@ -260,6 +436,27 @@ export function auditToolRequestTrust(source: string, file = 'source.ts'): Reque
               reason: hasInternalRoute
                 ? 'missing-internal-policy'
                 : 'internal-policy-without-internal-route',
+            })
+          }
+          if (
+            hasInternalPolicy &&
+            hasInternalRoute &&
+            hasExternalRoute &&
+            !hasConditionalInternalPolicy
+          ) {
+            violations.push({
+              file,
+              line: internalProperty?.loc?.start.line ?? requestProperty.loc?.start.line ?? 1,
+              toolId: getToolId(node),
+              reason: 'mixed-route-requires-conditional-policy',
+            })
+          }
+          if (hasInternalRoute && hasUnsafeInternalPathInterpolation) {
+            violations.push({
+              file,
+              line: urlProperty?.loc?.start.line ?? requestProperty.loc?.start.line ?? 1,
+              toolId: getToolId(node),
+              reason: 'unsafe-internal-path-interpolation',
             })
           }
         }
@@ -451,12 +648,16 @@ function main(): void {
   }
 
   if (requestTrustViolations.length > 0) {
-    console.error('Dynamic internal tool routes must have an exact internal trust declaration:')
+    console.error('Dynamic tool routes have an invalid internal trust declaration:')
     for (const violation of requestTrustViolations) {
       const description =
         violation.reason === 'missing-internal-policy'
           ? 'dynamic /api route is missing request.internal'
-          : 'request.internal is declared but the URL builder has no /api route'
+          : violation.reason === 'internal-policy-without-internal-route'
+            ? 'request.internal is declared but the URL builder has no /api route'
+            : violation.reason === 'mixed-route-requires-conditional-policy'
+              ? 'mixed internal/external URL builder requires a predicate request.internal policy'
+              : 'dynamic /api path parameter must use encodeURIComponent'
       console.error(
         `  ${relative(ROOT, violation.file)}:${violation.line}  ${violation.toolId ?? 'unknown tool'}: ${description}`
       )
@@ -469,8 +670,12 @@ function main(): void {
     (total, audit) => total + audit.dynamicInternalRoutes,
     0
   )
+  const dynamicInternalPolicies = requestTrustAudits.reduce(
+    (total, audit) => total + audit.dynamicInternalPolicies,
+    0
+  )
   console.log(
-    `✓ ${dynamicInternalRoutes} dynamic internal tool routes declare exact trust policies`
+    `✓ ${dynamicInternalRoutes} directly detectable dynamic internal routes declare trust (${dynamicInternalPolicies} explicit dynamic policies)`
   )
 }
 

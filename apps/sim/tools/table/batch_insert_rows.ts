@@ -40,7 +40,8 @@ export const tableBatchInsertRowsTool: ToolConfig<
       request: (params) => selectTableRowSecretProvenance(params.rows, 'rows'),
       response: { incomplete: 'propagate' },
     },
-    url: (params: TableBatchInsertParams) => `/api/table/${params.tableId}/rows`,
+    url: (params: TableBatchInsertParams) =>
+      `/api/table/${encodeURIComponent(params.tableId)}/rows`,
     method: 'POST',
     headers: () => ({
       'Content-Type': 'application/json',

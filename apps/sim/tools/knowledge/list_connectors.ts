@@ -20,7 +20,7 @@ export const knowledgeListConnectorsTool: ToolConfig<any, KnowledgeListConnector
   request: {
     internal: true,
     internalAuth: 'executor_delegation',
-    url: (params) => `/api/knowledge/${params.knowledgeBaseId}/connectors`,
+    url: (params) => `/api/knowledge/${encodeURIComponent(params.knowledgeBaseId)}/connectors`,
     method: 'GET',
     headers: () => ({
       'Content-Type': 'application/json',

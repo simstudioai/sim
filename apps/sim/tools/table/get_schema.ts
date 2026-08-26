@@ -26,7 +26,7 @@ export const tableGetSchemaTool: ToolConfig<TableGetSchemaParams, TableGetSchema
         throw new Error('Workspace ID is required in execution context')
       }
 
-      return `/api/table/${params.tableId}?workspaceId=${encodeURIComponent(workspaceId)}`
+      return `/api/table/${encodeURIComponent(params.tableId)}?workspaceId=${encodeURIComponent(workspaceId)}`
     },
     method: 'GET',
     headers: () => ({

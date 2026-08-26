@@ -37,7 +37,7 @@ export const tableInsertRowTool: ToolConfig<TableRowInsertParams, TableRowRespon
       request: (params) => selectTableRowSecretProvenance([params.data]),
       response: { incomplete: 'propagate' },
     },
-    url: (params: TableRowInsertParams) => `/api/table/${params.tableId}/rows`,
+    url: (params: TableRowInsertParams) => `/api/table/${encodeURIComponent(params.tableId)}/rows`,
     method: 'POST',
     headers: () => ({
       'Content-Type': 'application/json',

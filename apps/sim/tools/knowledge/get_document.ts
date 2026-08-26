@@ -26,7 +26,8 @@ export const knowledgeGetDocumentTool: ToolConfig<any, KnowledgeGetDocumentRespo
   request: {
     internal: true,
     internalAuth: 'executor_delegation',
-    url: (params) => `/api/knowledge/${params.knowledgeBaseId}/documents/${params.documentId}`,
+    url: (params) =>
+      `/api/knowledge/${encodeURIComponent(params.knowledgeBaseId)}/documents/${encodeURIComponent(params.documentId)}`,
     method: 'GET',
     secretProvenance: { response: { incomplete: 'reject' } },
     headers: () => ({

@@ -19,6 +19,7 @@ const PRIVATE_SECRET_PROVENANCE_EXTERNAL_URL_ERROR_MESSAGE =
   'Private secret provenance is only supported for internal routes'
 const EXTERNAL_REQUEST_URL_ERROR_MESSAGE = 'External tool requests require an absolute HTTP(S) URL'
 const INTERNAL_REQUEST_URL_ERROR_MESSAGE = 'Internal tool requests must target a Sim API route'
+const INTERNAL_REQUEST_BASE_URL = 'http://sim.internal'
 
 export interface PreparedToolRequest {
   url: string
@@ -235,7 +236,25 @@ function isInternalRequestDefinition(tool: ToolConfig, params: Record<string, an
 
 function assertRequestUrlMatchesTrust(url: string, isInternalRoute: boolean): void {
   if (isInternalRoute) {
-    if (!url.startsWith('/api/')) throw new Error(INTERNAL_REQUEST_URL_ERROR_MESSAGE)
+    const pathEnd = url.search(/[?#]/)
+    const rawPathname = pathEnd === -1 ? url : url.slice(0, pathEnd)
+    let parsedUrl: URL
+    try {
+      parsedUrl = new URL(url, INTERNAL_REQUEST_BASE_URL)
+    } catch {
+      throw new Error(INTERNAL_REQUEST_URL_ERROR_MESSAGE)
+    }
+    const rawSearch = parsedUrl.search.startsWith('?') ? parsedUrl.search.slice(1) : ''
+    const canonicalSearch = new URLSearchParams(parsedUrl.search).toString()
+    if (
+      !url.startsWith('/api/') ||
+      parsedUrl.origin !== INTERNAL_REQUEST_BASE_URL ||
+      parsedUrl.pathname !== rawPathname ||
+      rawSearch !== canonicalSearch ||
+      parsedUrl.hash
+    ) {
+      throw new Error(INTERNAL_REQUEST_URL_ERROR_MESSAGE)
+    }
     return
   }
 

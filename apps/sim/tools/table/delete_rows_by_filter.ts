@@ -43,7 +43,8 @@ export const tableDeleteRowsByFilterTool: ToolConfig<
 
   request: {
     internal: true,
-    url: (params: TableDeleteByFilterParams) => `/api/table/${params.tableId}/rows`,
+    url: (params: TableDeleteByFilterParams) =>
+      `/api/table/${encodeURIComponent(params.tableId)}/rows`,
     method: 'DELETE',
     headers: () => ({
       'Content-Type': 'application/json',

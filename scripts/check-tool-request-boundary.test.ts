@@ -21,7 +21,7 @@ describe('tool request trust audit', () => {
   })
 
   it('rejects an unmarked dynamic internal URL', () => {
-    const audit = auditRequest(`url: (params) => \`/api/tools/${PARAM_TEMPLATE_EXPRESSION}\``)
+    const audit = auditRequest(`url: (params) => \`/api/tools/\${encodeURIComponent(params.id)}\``)
 
     expect(audit.dynamicInternalRoutes).toBe(1)
     expect(audit.violations).toEqual([
@@ -34,11 +34,50 @@ describe('tool request trust audit', () => {
 
   it('accepts a marked dynamic internal URL', () => {
     const audit = auditRequest(
-      `internal: true, url: (params) => \`/api/tools/${PARAM_TEMPLATE_EXPRESSION}\``
+      `internal: true, url: (params) => \`/api/tools/\${encodeURIComponent(params.id)}\``
     )
 
     expect(audit.dynamicInternalRoutes).toBe(1)
     expect(audit.dynamicInternalPolicies).toBe(1)
+    expect(audit.violations).toEqual([])
+  })
+
+  it('rejects an unencoded internal path parameter', () => {
+    const audit = auditRequest(
+      `internal: true, url: (params) => \`/api/tools/${PARAM_TEMPLATE_EXPRESSION}\``
+    )
+
+    expect(audit.violations).toEqual([
+      expect.objectContaining({
+        toolId: 'test_tool',
+        reason: 'unsafe-internal-path-interpolation',
+      }),
+    ])
+  })
+
+  it('detects a concatenated dynamic internal URL', () => {
+    const audit = auditRequest("url: (params) => '/api/tools/' + encodeURIComponent(params.id)")
+
+    expect(audit.dynamicInternalRoutes).toBe(1)
+    expect(audit.violations[0]?.reason).toBe('missing-internal-policy')
+  })
+
+  it('rejects an unencoded concatenated internal path parameter', () => {
+    const audit = auditRequest("internal: true, url: (params) => '/api/tools/' + params.id")
+
+    expect(audit.violations).toEqual([
+      expect.objectContaining({
+        toolId: 'test_tool',
+        reason: 'unsafe-internal-path-interpolation',
+      }),
+    ])
+  })
+
+  it('accepts an encoded concatenated internal path parameter', () => {
+    const audit = auditRequest(
+      "internal: true, url: (params) => '/api/tools/' + encodeURIComponent(params.id)"
+    )
+
     expect(audit.violations).toEqual([])
   })
 
@@ -51,6 +90,20 @@ describe('tool request trust audit', () => {
     expect(audit.dynamicInternalRoutes).toBe(1)
     expect(audit.dynamicInternalPolicies).toBe(1)
     expect(audit.violations).toEqual([])
+  })
+
+  it('rejects static trust for a mixed internal and external URL builder', () => {
+    const audit = auditRequest(`
+      internal: true,
+      url: (params) => params.internal ? '/api/tools/test' : 'https://example.com/test'
+    `)
+
+    expect(audit.violations).toEqual([
+      expect.objectContaining({
+        toolId: 'test_tool',
+        reason: 'mixed-route-requires-conditional-policy',
+      }),
+    ])
   })
 
   it('detects internal paths constructed through URL', () => {
@@ -70,6 +123,14 @@ describe('tool request trust audit', () => {
     const audit = auditRequest("internal: true, url: () => 'https://example.com/test'")
 
     expect(audit.violations[0]?.reason).toBe('internal-policy-without-internal-route')
+  })
+
+  it('allows an explicit policy when a helper owns the internal route construction', () => {
+    const audit = auditRequest('internal: true, url: (params) => buildInternalRoute(params.id)')
+
+    expect(audit.dynamicInternalRoutes).toBe(0)
+    expect(audit.dynamicInternalPolicies).toBe(1)
+    expect(audit.violations).toEqual([])
   })
 
   it('does not mistake a provider-relative helper argument for a Sim API route', () => {

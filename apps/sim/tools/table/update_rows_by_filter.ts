@@ -53,7 +53,8 @@ export const tableUpdateRowsByFilterTool: ToolConfig<
     secretProvenance: {
       request: (params) => selectTableRowSecretProvenance([params.data]),
     },
-    url: (params: TableUpdateByFilterParams) => `/api/table/${params.tableId}/rows`,
+    url: (params: TableUpdateByFilterParams) =>
+      `/api/table/${encodeURIComponent(params.tableId)}/rows`,
     method: 'PUT',
     headers: () => ({
       'Content-Type': 'application/json',

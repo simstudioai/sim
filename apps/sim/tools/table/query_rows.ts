@@ -75,7 +75,7 @@ export const tableQueryRowsTool: ToolConfig<TableRowQueryParams, TableQueryRespo
         searchParams.append('offset', String(params.offset))
       }
 
-      return `/api/table/${params.tableId}/rows?${searchParams.toString()}`
+      return `/api/table/${encodeURIComponent(params.tableId)}/rows?${searchParams.toString()}`
     },
     method: 'GET',
     headers: () => ({

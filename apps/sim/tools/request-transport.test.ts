@@ -16,84 +16,57 @@ vi.unmock('@/tools/registry')
 const privateProvenanceTools = Object.entries(tools).filter(
   ([, tool]) => tool.request.modelInput?.mode === 'private-provenance'
 )
-const DYNAMIC_INTERNAL_ROUTE_PATTERN = /(?:=>|return)\s*\(?\s*[`'"]\/api\/|new URL\(\s*[`'"]\/api\//
-const dynamicInternalRouteTools = Object.entries(tools).filter(
-  ([, tool]) =>
-    typeof tool.request.url === 'function' &&
-    DYNAMIC_INTERNAL_ROUTE_PATTERN.test(tool.request.url.toString())
+const dynamicRouteTools = Object.entries(tools).filter(
+  ([, tool]) => typeof tool.request.url === 'function' && !tool.directExecution
 )
-const declaredDynamicInternalRouteTools = Object.entries(tools).filter(
-  ([, tool]) => typeof tool.request.url === 'function' && tool.request.internal !== undefined
-)
-const declaredDynamicInternalRouteToolIds = declaredDynamicInternalRouteTools
-  .map(([toolId]) => toolId)
-  .sort()
-
-function createProbeValue(): unknown {
-  const probe: () => unknown = new Proxy((): unknown => probe, {
-    get: (_target, property) => {
-      if (property === Symbol.toPrimitive) return () => 'probe'
-      if (property === Symbol.iterator)
-        return function* iterator() {
-          yield 'probe'
-        }
-      if (property === 'valueOf') return () => 1
-      if (property === 'length') return 1
-      if (
-        ['toString', 'trim', 'toLowerCase', 'toUpperCase', 'replace', 'slice'].includes(
-          String(property)
-        )
-      ) {
-        return () => 'probe'
-      }
-      if (['includes', 'startsWith', 'endsWith'].includes(String(property))) return () => false
-      if (['map', 'filter', 'flatMap'].includes(String(property))) {
-        return (callback: (value: string, index: number) => unknown) => [callback('probe', 0)]
-      }
-      if (property === 'join') return () => 'probe'
-      return probe
-    },
-    apply: () => probe,
-  })
-  return probe
-}
-
-function createProbeParams(overrides: Record<string, unknown>): Record<string, unknown> {
-  const fallback = createProbeValue()
-  return new Proxy(overrides, {
-    get: (target, property) =>
-      typeof property === 'string' && property in target ? target[property] : fallback,
-  })
-}
-
-const BASE_INTERNAL_ROUTE_PROBE = {
-  _context: {
-    workflowId: 'workflow-probe',
-    workspaceId: 'workspace-probe',
-    userId: 'user-probe',
-    executionId: 'execution-probe',
-  },
+const PROBE_CONTEXT = {
   workflowId: 'workflow-probe',
   workspaceId: 'workspace-probe',
   userId: 'user-probe',
   executionId: 'execution-probe',
-  id: 'id-probe',
-  query: 'query-probe',
-  json: '{}',
-  body: {},
-  headers: {},
-  params: {},
-  pathParams: {},
-  messages: [],
-  files: [],
-  rows: [],
-  data: {},
-  content: 'Plain text',
-  url: 'https://example.com',
-  baseUrl: 'https://example.com',
-  apiBaseUrl: 'https://example.com',
-  method: 'GET',
 } as const
+const PROBE_FILE = {
+  name: 'probe.txt',
+  mimeType: 'text/plain',
+  data: 'data:text/plain;base64,cHJvYmU=',
+} as const
+const EXCEL_MIME_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+
+function createSchemaProbeParams(
+  tool: ToolConfig,
+  includeOptional: boolean,
+  adversarialStrings = false
+) {
+  const params: Record<string, unknown> = {
+    _context: PROBE_CONTEXT,
+    ...PROBE_CONTEXT,
+  }
+
+  for (const [name, schema] of Object.entries(tool.params)) {
+    if (!includeOptional && !schema.required) continue
+
+    let value: unknown
+    if (name === 'mimeType') value = includeOptional ? EXCEL_MIME_TYPE : undefined
+    else if (name === 'content') value = includeOptional ? '<at>Probe User</at>' : 'Plain text'
+    else if (/(?:url|host)$/i.test(name)) {
+      value = 'https://example.com'
+    } else if (name === 'method') value = 'GET'
+    else if (schema.type === 'file')
+      value = includeOptional || schema.required ? PROBE_FILE : undefined
+    else if (schema.type === 'file[]') value = includeOptional ? [PROBE_FILE] : []
+    else if (schema.type === 'array') value = includeOptional ? [{ id: 'item-probe' }] : []
+    else if (schema.type === 'object') value = {}
+    else if (schema.type === 'json') value = includeOptional ? [{ id: 'item-probe' }] : {}
+    else if (schema.type === 'number') value = 1
+    else if (schema.type === 'boolean') value = includeOptional
+    else if (adversarialStrings) value = '../probe?next=/api'
+    else value = name.toLowerCase().includes('id') ? 'id-probe' : 'probe'
+
+    if (value !== undefined) params[name] = value
+  }
+
+  return params
+}
 
 function isAbsoluteHttpUrl(url: string): boolean {
   try {
@@ -148,6 +121,30 @@ describe('request URL trust', () => {
     )
   })
 
+  it.each([
+    '/api/tools/probe/../auth/oauth/token',
+    '/api/tools/probe/%2e%2e/auth/oauth/token',
+    '/api/tools/probe\\..\\auth/oauth/token',
+    '/api/tools/probe value',
+    '/api/tools/probe?next=/auth/oauth/token',
+  ])('rejects a non-canonical internal route: %s', (url) => {
+    expect(() =>
+      prepareToolRequest(
+        createRequestTool(() => url, true),
+        {}
+      )
+    ).toThrow('Internal tool requests must target a Sim API route')
+  })
+
+  it('allows encoded path segments and query values on internal routes', () => {
+    const request = prepareToolRequest(
+      createRequestTool(() => '/api/tools/probe/probe%20value?next=..%2Fsafe', true),
+      {}
+    )
+
+    expect(request.isInternalRoute).toBe(true)
+  })
+
   it('supports definition-owned trust for a conditional URL builder', () => {
     const tool = createRequestTool(
       (params) => (params.useInternal === true ? '/api/tools/probe' : 'https://example.com/probe'),
@@ -195,32 +192,23 @@ describe('request URL trust', () => {
 })
 
 describe('dynamic internal route registry invariant', () => {
-  it('covers every declared dynamic internal route', () => {
-    expect(dynamicInternalRouteTools.length).toBeGreaterThan(0)
-    expect(declaredDynamicInternalRouteToolIds).toEqual(
-      dynamicInternalRouteTools.map(([toolId]) => toolId).sort()
-    )
+  it('covers every dynamic registry URL, with explicit declarations as the trust policy', () => {
+    expect(dynamicRouteTools.length).toBeGreaterThan(0)
   })
 
-  it.each(dynamicInternalRouteTools)('%s declares its internal route trust', (_toolId, tool) => {
-    expect(tool.request.internal).toBeDefined()
-  })
+  it('probes every dynamic registry URL against its declared trust policy', () => {
+    let exercisedTools = 0
 
-  it('probes every declared policy against its dynamic URL branches', () => {
-    const scenarios = [
-      createProbeParams({ ...BASE_INTERNAL_ROUTE_PROBE }),
-      createProbeParams({
-        ...BASE_INTERNAL_ROUTE_PROBE,
-        content: '<at>Probe User</at>',
-        files: [{ id: 'file-probe' }],
-      }),
-    ]
-
-    for (const [toolId, tool] of declaredDynamicInternalRouteTools) {
+    for (const [toolId, tool] of dynamicRouteTools) {
       const urlBuilder = tool.request.url
       if (typeof urlBuilder !== 'function') throw new Error(`${toolId} must have a dynamic URL`)
       const policy = tool.request.internal
       const observations: Array<{ internal: boolean; url: string }> = []
+      const scenarios = [
+        createSchemaProbeParams(tool, false),
+        createSchemaProbeParams(tool, true),
+        createSchemaProbeParams(tool, true, true),
+      ]
 
       for (const params of scenarios) {
         let url: string
@@ -232,27 +220,56 @@ describe('dynamic internal route registry invariant', () => {
           continue
         }
 
+        if (!url && policy === undefined) continue
         observations.push({ internal, url })
         expect(
           internal ? url.startsWith('/api/') : isAbsoluteHttpUrl(url),
           `${toolId} resolved ${url} outside its declared request trust`
         ).toBe(true)
+        expect(() =>
+          prepareToolRequest(
+            createRequestTool(() => url, internal ? true : undefined),
+            {}
+          )
+        ).not.toThrow()
       }
 
-      expect(
-        observations.length,
-        `${toolId} could not be exercised by the route probe`
-      ).toBeGreaterThan(0)
-      expect(
-        observations.some((observation) => observation.internal),
-        `${toolId} did not exercise its internal route`
-      ).toBe(true)
+      if (observations.length === 0) {
+        expect(
+          policy,
+          `${toolId} declares internal trust but could not be exercised by the route probe`
+        ).toBeUndefined()
+        continue
+      }
+      exercisedTools += 1
+      if (policy !== undefined) {
+        expect(
+          observations.some((observation) => observation.internal),
+          `${toolId} did not exercise its internal route`
+        ).toBe(true)
+      }
       if (typeof policy === 'function') {
         expect(
           observations.some((observation) => !observation.internal),
           `${toolId} did not exercise its external route`
         ).toBe(true)
       }
+    }
+
+    expect(exercisedTools).toBeGreaterThan(0)
+  })
+
+  it('validates every literal internal registry route', () => {
+    const literalInternalRoutes = Object.entries(tools).filter(
+      ([, tool]) => typeof tool.request.url === 'string' && tool.request.url.startsWith('/api/')
+    )
+
+    expect(literalInternalRoutes.length).toBeGreaterThan(0)
+    for (const [toolId, tool] of literalInternalRoutes) {
+      expect(
+        () => prepareToolRequest(createRequestTool(tool.request.url as string), {}),
+        `${toolId} has a non-canonical literal internal route`
+      ).not.toThrow()
     }
   })
 })

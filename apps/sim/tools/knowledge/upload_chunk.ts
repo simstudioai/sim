@@ -32,7 +32,7 @@ export const knowledgeUploadChunkTool: ToolConfig<any, KnowledgeUploadChunkRespo
     internal: true,
     internalAuth: 'executor_delegation',
     url: (params) =>
-      `/api/knowledge/${params.knowledgeBaseId}/documents/${params.documentId}/chunks`,
+      `/api/knowledge/${encodeURIComponent(params.knowledgeBaseId)}/documents/${encodeURIComponent(params.documentId)}/chunks`,
     method: 'POST',
     secretProvenance: {
       request: () => [{ key: 'chunk-content', inputPaths: [['content']] }],

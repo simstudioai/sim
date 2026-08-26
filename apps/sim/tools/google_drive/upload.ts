@@ -10,6 +10,10 @@ import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('GoogleDriveUploadTool')
 
+function usesInternalUploadRoute(params: GoogleDriveToolParams): boolean {
+  return Boolean(params.file)
+}
+
 export const uploadTool: ToolConfig<GoogleDriveToolParams, GoogleDriveUploadResponse> = {
   id: 'google_drive_upload',
   name: 'Upload to Google Drive',
@@ -67,10 +71,10 @@ export const uploadTool: ToolConfig<GoogleDriveToolParams, GoogleDriveUploadResp
   },
 
   request: {
-    internal: true,
+    internal: usesInternalUploadRoute,
     url: (params) => {
       // Use custom API route if file is provided, otherwise use Google Drive API directly
-      if (params.file) {
+      if (usesInternalUploadRoute(params)) {
         return '/api/tools/google_drive/upload'
       }
       return 'https://www.googleapis.com/drive/v3/files?supportsAllDrives=true'
