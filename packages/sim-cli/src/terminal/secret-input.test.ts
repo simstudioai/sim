@@ -8,11 +8,11 @@ const ESCAPE = '\u001b'
 class FakeInput extends EventEmitter {
   isTTY = true
   isRaw = false
-  paused = true
+  readableFlowing: boolean | null = null
   readonly rawStates: boolean[] = []
 
   isPaused(): boolean {
-    return this.paused
+    return this.readableFlowing === false
   }
 
   setRawMode(value: boolean): this {
@@ -22,12 +22,12 @@ class FakeInput extends EventEmitter {
   }
 
   resume(): this {
-    this.paused = false
+    this.readableFlowing = true
     return this
   }
 
   pause(): this {
-    this.paused = true
+    this.readableFlowing = false
     return this
   }
 }
@@ -42,9 +42,11 @@ class FakeOutput {
 }
 
 describe('promptSecret', () => {
-  it('masks input and restores the terminal before returning it', async () => {
+  it('masks input and pauses an initially idle terminal before returning', async () => {
     const input = new FakeInput()
     const output = new FakeOutput()
+    expect(input.isPaused()).toBe(false)
+
     const result = promptSecret(input as unknown as ReadStream, output)
 
     input.emit('keypress', 'hunter2', { name: 'h' })
@@ -53,7 +55,7 @@ describe('promptSecret', () => {
     await expect(result).resolves.toBe('hunter2')
     expect(output.value).toBe('Secret value: *******\n')
     expect(input.rawStates).toEqual([true, false])
-    expect(input.paused).toBe(true)
+    expect(input.isPaused()).toBe(true)
   })
 
   it('handles backspace without revealing the value', async () => {
@@ -88,6 +90,7 @@ describe('promptSecret', () => {
     await expect(result).rejects.toThrow('Secret input cancelled.')
     await expect(result).rejects.toBeInstanceOf(SecretInputCancelledError)
     expect(input.rawStates).toEqual([true, false])
+    expect(input.isPaused()).toBe(true)
   })
 
   it('keeps the character following a pasted escape byte', async () => {

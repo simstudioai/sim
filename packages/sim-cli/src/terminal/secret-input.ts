@@ -45,7 +45,6 @@ export function promptSecret(
     throw new SimApiError('Interactive secret input requires a terminal. Pass --value instead.', 0)
   }
 
-  const wasPaused = input.isPaused()
   const wasRaw = input.isRaw
   let value = ''
   let settled = false
@@ -59,7 +58,7 @@ export function promptSecret(
     const cleanup = () => {
       input.removeListener('keypress', onKeypress)
       input.setRawMode(wasRaw)
-      if (wasPaused) input.pause()
+      input.pause()
     }
 
     const finish = (complete: () => void) => {
