@@ -12,6 +12,7 @@ import {
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Writable } from 'node:stream'
+import { setTimeout as sleep } from 'node:timers/promises'
 import { Command } from 'commander'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildGeneratedCommands } from '../../runtime/build'
@@ -166,7 +167,7 @@ describe('an interrupted download', () => {
     for (let attempt = 0; attempt < 2000; attempt += 1) {
       const [staged] = stagingDirectories()
       if (staged) return join(dir, staged)
-      await new Promise((resolve) => setTimeout(resolve, 1))
+      await sleep(1)
     }
     throw new Error('the download staged no directory')
   }
