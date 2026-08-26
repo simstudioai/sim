@@ -109,6 +109,8 @@ const REQUIRED_API_REFERENCE_GROUPS = [
   '(generated)/custom-tools',
   '(generated)/credentials',
   '(generated)/secrets',
+  '(generated)/catalog',
+  '(generated)/meta',
 ] as const
 const REMOVED_API_REFERENCE_GROUPS = [
   '(generated)/execution',
