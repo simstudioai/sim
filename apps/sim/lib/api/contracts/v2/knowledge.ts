@@ -59,7 +59,10 @@ import {
   rerankerModelSchema,
   rerankerStatusSchema,
 } from '@/lib/knowledge/reranker-models'
-import { knowledgeDocumentUploadMetadataSchema } from '@/lib/knowledge/upload-metadata'
+import {
+  KNOWLEDGE_DOCUMENT_UPLOAD_RECIPES,
+  knowledgeDocumentUploadMetadataSchema,
+} from '@/lib/knowledge/upload-metadata'
 import { MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE } from '@/lib/uploads/shared/types'
 
 /**
@@ -481,10 +484,14 @@ const v2KnowledgeDocumentProcessingOptionsSchema =
     .extend({
       recipe: knowledgeDocumentUploadMetadataSchema.shape.processingOptions
         .unwrap()
-        .shape.recipe.describe('Optional document processing recipe.'),
+        .shape.recipe.describe(
+          `Optional document processing recipe. One of: ${KNOWLEDGE_DOCUMENT_UPLOAD_RECIPES.join(', ')}.`
+        ),
       lang: knowledgeDocumentUploadMetadataSchema.shape.processingOptions
         .unwrap()
-        .shape.lang.describe('Optional document language code.'),
+        .shape.lang.describe(
+          'Optional document language, as a BCP-47 tag such as `en` or `en-US`.'
+        ),
     })
     .strict()
 
