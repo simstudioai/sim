@@ -242,6 +242,38 @@ describe('internal chat deployment routes', () => {
       expect(response.status).toBe(404)
     })
 
+    /**
+     * Both tests above assert only the status, which is what let the two 404s
+     * drift apart: the domain answered an absent deployment with its own
+     * wording while the concealment policy rewrote an unreachable one, so the
+     * body — and the `code` derived from it — told a caller which of the two it
+     * had hit. Comparing the responses is the assertion that keeps them one
+     * answer.
+     */
+    it('answers a missing and an unreachable deployment identically', async () => {
+      mocks.getChatDeploymentWithWorkspace.mockResolvedValue(null)
+      const missing = await GET(
+        new NextRequest(`http://localhost:3000/api/chat/manage/${CHAT_ID}`),
+        params
+      )
+      const missingBody = await missing.json()
+
+      mocks.getChatDeploymentWithWorkspace.mockResolvedValue({
+        chat: chatRow(),
+        workspaceId: WORKSPACE_ID,
+      })
+      mocks.resolvePermission.mockResolvedValue(null)
+      const unreachable = await GET(
+        new NextRequest(`http://localhost:3000/api/chat/manage/${CHAT_ID}`),
+        params
+      )
+      const unreachableBody = await unreachable.json()
+
+      expect(missing.status).toBe(unreachable.status)
+      expect(missingBody).toEqual(unreachableBody)
+      expect(missingBody.error).toBe('Chat not found or access denied')
+    })
+
     it('refuses a workspace member below admin the gate configuration', async () => {
       mocks.resolvePermission.mockResolvedValue('read')
 
