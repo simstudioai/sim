@@ -1,0 +1,97 @@
+---
+title: Desktop App
+description: Point the macOS desktop app at your own Sim deployment
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Steps, Step } from 'fumadocs-ui/components/steps'
+
+The Sim desktop app is a native macOS shell around a Sim deployment. It is **not** tied to sim.ai — the build bakes in only a *default* server, and every runtime boundary (navigation, content security policy, cookie storage, the update feed) is derived from the server you point it at.
+
+So self-hosting the desktop app takes no build of your own: install the same signed, notarized app everyone else installs, then point it at your deployment.
+
+<Callout>
+  The desktop app is macOS-only today. The web app works in any browser on any platform.
+</Callout>
+
+## Your deployment already serves the installer
+
+Every Sim deployment exposes two public endpoints:
+
+| Endpoint | What it does |
+|---|---|
+| `/api/desktop/update/download` | Redirects to the newest stable installer for your deployment's channel |
+| `/api/desktop/update/latest-mac.yml` | The update manifest installed apps poll |
+
+Both resolve against public GitHub release assets. Nothing is built, signed, or hosted by you — your deployment only decides *which* release its clients are offered, and installed apps then update from your server instead of from sim.ai.
+
+The Sim server needs outbound access to `api.github.com` and `github.com` for these to resolve. Unauthenticated GitHub API requests are capped at 60/hour per IP; set `GITHUB_TOKEN` on the Sim server to raise that to 5000/hour.
+
+## Install and connect
+
+<Steps>
+
+<Step>
+
+### Get the installer link
+
+```bash
+npx sim-setup desktop
+```
+
+This reads your deployment URL from your configuration, checks that the installer and update feed both resolve, and prints the download link plus the server URL to enter. Pass `--url https://sim.example.com` when running the CLI somewhere that reaches Sim at a different address.
+
+Without the CLI, open `https://your-sim-url/api/desktop/update/download` in a browser.
+
+</Step>
+
+<Step>
+
+### Install it
+
+Open the `.dmg` and drag Sim to Applications. The build is signed and notarized by Sim, so Gatekeeper accepts it with no override.
+
+</Step>
+
+<Step>
+
+### Point it at your server
+
+Launch Sim, then choose **Sim → Server…** in the menu bar. Enter your deployment URL and press **Connect**.
+
+The app relaunches against your server and stays there — the setting persists across updates, and every later update is fetched from your deployment's feed.
+
+</Step>
+
+</Steps>
+
+<Callout type="warn">
+  Enter the origin your server actually **serves**, not one that redirects to it. If your load balancer redirects `sim.example.com` to `www.sim.example.com`, use the `www` form. The app compares origins exactly, so a redirecting origin leaves every page off-origin and strands sign-in.
+</Callout>
+
+## Requirements for the server URL
+
+- **HTTPS is required**, except for `localhost` and `127.0.0.1`, which may use HTTP for local testing.
+- No credentials in the URL.
+- Paths are ignored — only scheme, host, and port are stored.
+
+Each server gets its own isolated cookie and storage partition, so you can move between deployments without either one seeing the other's session.
+
+## Recovering from a wrong server URL
+
+If the app is pointed at a server it cannot reach, it shows its **Can't connect** page. That page has a **Change server** button that opens the same picker, so a typo is always recoverable without touching the filesystem.
+
+## Building your own shell
+
+You almost certainly do not need this. It is worth it only if you need your own bundle identity or your own signing identity — for example, to distribute through MDM under your organization's Developer ID.
+
+```bash
+cd apps/desktop
+SIM_DESKTOP_DEFAULT_ORIGIN=https://sim.example.com bun run package:share
+```
+
+This bakes your origin in as the default for fresh installs, so users never see the server picker. Artifacts land in `apps/desktop/release/`.
+
+<Callout type="warn">
+  A build packaged this way is signed with whatever identity is on the build machine and is **not** notarized, so macOS quarantines it on download. Supply `CSC_LINK` and `CSC_KEY_PASSWORD` with your own Developer ID, and notarize it yourself, before distributing it.
+</Callout>

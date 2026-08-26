@@ -15,6 +15,8 @@ export interface MenuDeps {
   getMainWindow: () => BrowserWindow | null
   allowHttpLocalhost: () => boolean
   openSettings: () => void
+  /** Opens the native server picker (see main/server-window.ts). */
+  openServerSettings: () => void
   newWindow: () => void
   newChat: () => void
   /**
@@ -155,6 +157,7 @@ export function buildMenuTemplate(deps: MenuDeps): MenuItemConstructorOptions[] 
       submenu: [
         { role: 'about' },
         { label: 'Settings…', accelerator: 'CmdOrCtrl+,', click: deps.openSettings },
+        { label: 'Server…', click: deps.openServerSettings },
         { label: 'Check for Updates…', click: deps.checkForUpdates },
         { label: 'Sign Out', click: deps.signOut },
         { type: 'separator' },

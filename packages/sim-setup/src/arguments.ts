@@ -20,6 +20,7 @@ export type SetupInvocation =
   | { kind: 'config' }
   | { kind: 'add'; feature: string; args: string[] }
   | { kind: 'doctor'; fix: boolean; json: boolean }
+  | { kind: 'desktop'; url?: string; noOpen: boolean }
   | { kind: 'lifecycle'; command: LifecycleCommand }
 
 export class SetupArgumentError extends Error {
@@ -134,6 +135,26 @@ function parseCore(
       fail(`add ${feature} does not accept: ${featureArgs.join(' ')}`)
     }
     return { kind: 'add', feature, args: featureArgs }
+  }
+
+  if (command === 'desktop') {
+    const noOpen = oneFlag(commandArgs, '--no-open')
+    let url: string | undefined
+    const remaining: string[] = []
+    for (let index = 0; index < commandArgs.length; index += 1) {
+      const arg = commandArgs[index]
+      if (arg === '--no-open') continue
+      if (arg !== '--url' && !arg.startsWith('--url=')) {
+        remaining.push(arg)
+        continue
+      }
+      if (url) fail('--url may only be provided once')
+      const value = arg === '--url' ? commandArgs[++index] : arg.slice('--url='.length)
+      if (!value || value.startsWith('-')) fail('--url requires a deployment URL')
+      url = value
+    }
+    if (remaining.length > 0) fail(`Unknown desktop option: ${remaining[0]}`)
+    return { kind: 'desktop', noOpen, ...(url ? { url } : {}) }
   }
 
   if (command === 'doctor') {

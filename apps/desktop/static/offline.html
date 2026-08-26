@@ -191,6 +191,7 @@
         <div class="actions">
           <button class="primary" id="retry"><span class="label">Retry</span></button>
           <button class="secondary" id="status"><span class="label">Check status</span></button>
+          <button class="secondary" id="server"><span class="label">Change server</span></button>
         </div>
         <div id="detail" role="status"></div>
       </div>
@@ -231,6 +232,10 @@
       document
         .getElementById('status')
         .addEventListener('click', () => bridge?.openExternal('https://status.sim.ai'))
+      // The recovery path for a shell pointed at a server it cannot reach —
+      // a mistyped self-hosted origin strands the app here with nothing else
+      // to click.
+      document.getElementById('server').addEventListener('click', () => bridge?.server?.open())
     </script>
   </body>
 </html>

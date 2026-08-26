@@ -51,6 +51,7 @@ import { openExternalSafe } from '@/main/navigation'
 import { createEventLog } from '@/main/observability'
 import { ScopedEventRouter } from '@/main/scoped-event-router'
 import { installGlobalGuards } from '@/main/security-guards'
+import { createServerWindow, relaunchApp } from '@/main/server-window'
 import {
   createSessionLifecycleCoordinator,
   decideStartRoute,
@@ -474,6 +475,20 @@ function main(): void {
   })
 
   /**
+   * The native server picker. Self-hosted operators install the same signed
+   * build as everyone else and repoint it here — the bundle bakes only a
+   * DEFAULT origin, and every runtime guard reads the configured one.
+   */
+  const serverWindow = createServerWindow({
+    config,
+    defaultOrigin: DEFAULT_ORIGIN,
+    preloadPath,
+    isPackaged: app.isPackaged,
+    getParentWindow: getMainWindow,
+    relaunch: relaunchApp,
+  })
+
+  /**
    * Routes through the coordinator rather than tearing down directly: the
    * coordinator holds the in-progress guard, clears the same handoff and grant
    * state, and reloads every window to /login. Doing it here instead meant the
@@ -659,6 +674,11 @@ function main(): void {
         check: () => updater?.check(),
         install: () => updater?.install(),
       },
+      server: {
+        open: () => serverWindow.open(),
+        getConfiguration: () => serverWindow.getConfiguration(),
+        setOrigin: (origin) => serverWindow.setOrigin(origin),
+      },
     })
     await ensureMainWindow()
     installApplicationMenu({
@@ -666,6 +686,7 @@ function main(): void {
       getMainWindow,
       allowHttpLocalhost,
       openSettings,
+      openServerSettings: () => serverWindow.open(),
       newWindow: () => void createAndLoadAppWindow(),
       newChat: () => void openMainWindowAt(newChatRoute(config.get('lastRoute'))),
       handleFocusedResourceShortcut: (win, shortcut) =>

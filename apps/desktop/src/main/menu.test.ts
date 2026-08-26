@@ -18,6 +18,7 @@ function makeDeps(): MenuDeps {
     getMainWindow: vi.fn(() => null),
     allowHttpLocalhost: vi.fn(() => false),
     openSettings: vi.fn(),
+    openServerSettings: vi.fn(),
     newWindow: vi.fn(),
     newChat: vi.fn(),
     handleFocusedResourceShortcut: vi.fn(() => false),
@@ -51,6 +52,7 @@ describe('buildMenuTemplate', () => {
     expect(submenu(template, 'Sim').map((item) => item.label ?? item.role ?? item.type)).toEqual([
       'about',
       'Settings…',
+      'Server…',
       'Check for Updates…',
       'Sign Out',
       'separator',
