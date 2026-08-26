@@ -21,7 +21,7 @@ export function SolutionsCardRowHeader({ row, headingId }: SolutionsCardRowHeade
     <div className='flex flex-col items-start gap-3 text-left'>
       <h2
         id={headingId}
-        className='max-w-[540px] text-balance font-medium text-[22px] text-[var(--text-primary)] leading-[1.3] max-sm:text-[20px]'
+        className='max-w-[540px] text-balance text-[22px] text-[var(--text-primary)] leading-[1.3] max-sm:text-[20px]'
       >
         {row.title}
       </h2>
