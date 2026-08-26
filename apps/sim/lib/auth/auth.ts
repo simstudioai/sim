@@ -70,7 +70,6 @@ import { handleAbandonedCheckout } from '@/lib/billing/webhooks/checkout'
 import { handleChargeDispute, handleDisputeClosed } from '@/lib/billing/webhooks/disputes'
 import { handleManualEnterpriseSubscription } from '@/lib/billing/webhooks/enterprise'
 import {
-  handleInvoiceFinalized,
   handleInvoicePaymentFailed,
   handleInvoicePaymentSucceeded,
 } from '@/lib/billing/webhooks/invoices'
@@ -1500,10 +1499,6 @@ export const auth = betterAuth({
                   }
                   case 'invoice.payment_failed': {
                     await handleInvoicePaymentFailed(event)
-                    break
-                  }
-                  case 'invoice.finalized': {
-                    await handleInvoiceFinalized(event)
                     break
                   }
                   case 'customer.subscription.created':

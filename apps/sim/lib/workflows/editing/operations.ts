@@ -12,6 +12,7 @@ import {
   applyBlockRetry,
   applyTriggerConfigToBlockSubblocks,
   createBlockFromParams,
+  createSubBlockInputGate,
   filterDisallowedTools,
   normalizeConditionRouterIds,
   normalizeResponseFormat,
@@ -28,17 +29,6 @@ import {
 } from './validation'
 
 const logger = createLogger('EditWorkflowServerTool')
-
-/**
- * A parallel container's iteration count, under either key it arrives as.
- *
- * The read view (`sanitizeForCopilot`) exports `block.data.count` as
- * `iterations` for both container types, so a caller editing what it just read
- * sends `iterations` back. Reading only `count` dropped that write silently.
- */
-function parallelCountInput(inputs: Record<string, any> | undefined): any {
-  return inputs?.count ?? inputs?.iterations
-}
 
 /**
  * Applies loop/parallel container config from `inputs` onto a block state (data.loopType, etc.).
@@ -72,8 +62,7 @@ function applyLoopOrParallelContainerData(block: any, params: Record<string, any
       parallelType,
       ...(parallelType === 'collection' &&
         params.inputs?.collection && { collection: params.inputs.collection }),
-      ...(parallelType === 'count' &&
-        parallelCountInput(params.inputs) && { count: parallelCountInput(params.inputs) }),
+      ...(parallelType === 'count' && params.inputs?.count && { count: params.inputs.count }),
     }
   }
 }
@@ -177,8 +166,8 @@ function updateLoopOrParallelContainerData(block: any, params: Record<string, an
       }
     }
     const effectiveParallelType = params.inputs?.parallelType ?? block.data.parallelType ?? 'count'
-    if (parallelCountInput(params.inputs) && effectiveParallelType === 'count') {
-      block.data.count = parallelCountInput(params.inputs)
+    if (params.inputs?.count && effectiveParallelType === 'count') {
+      block.data.count = params.inputs.count
     }
     if (params.inputs?.collection && effectiveParallelType === 'collection') {
       block.data.collection = params.inputs.collection
@@ -222,8 +211,16 @@ function mergeNestedNodesForParent(
         )
         validationErrors.push(...childValidation.errors)
 
+        const isInputAllowed = createSubBlockInputGate({
+          blockType: existingBlock.type,
+          permissionConfig,
+          blockId: existingId,
+          operationType: 'edit',
+          skippedItems,
+        })
         Object.entries(childValidation.validInputs).forEach(([key, value]) => {
           if (TRIGGER_RUNTIME_SUBBLOCK_IDS.includes(key)) return
+          if (!isInputAllowed(key, value)) return
           let sanitizedValue = normalizeSubblockValue(key, value)
           sanitizedValue = normalizeConditionRouterIds(existingId, key, sanitizedValue)
           if (key === 'tools' && Array.isArray(value)) {
@@ -454,6 +451,14 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
     const validationResult = validateInputsForBlock(block.type, params.inputs, block_id)
     validationErrors.push(...validationResult.errors)
 
+    const isInputAllowed = createSubBlockInputGate({
+      blockType: block.type,
+      permissionConfig,
+      blockId: block_id,
+      operationType: 'edit',
+      skippedItems,
+    })
+
     Object.entries(validationResult.validInputs).forEach(([inputKey, value]) => {
       // Normalize common field name variations (LLM may use plural/singular inconsistently)
       let key = inputKey
@@ -464,6 +469,11 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
       if (TRIGGER_RUNTIME_SUBBLOCK_IDS.includes(key)) {
         return
       }
+
+      if (!isInputAllowed(key, value)) {
+        return
+      }
+
       explicitInputKeys.add(key)
       let sanitizedValue = normalizeSubblockValue(key, value)
 
@@ -504,7 +514,7 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
       block.subBlocks.triggerConfig &&
       isRecordLike(block.subBlocks.triggerConfig.value)
     ) {
-      applyTriggerConfigToBlockSubblocks(block, block.subBlocks.triggerConfig.value)
+      applyTriggerConfigToBlockSubblocks(block, block.subBlocks.triggerConfig.value, isInputAllowed)
       for (const key of Object.keys(block.subBlocks.triggerConfig.value)) {
         explicitInputKeys.add(key)
       }
@@ -551,8 +561,8 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
       }
       const effectiveParallelType = params.inputs.parallelType ?? block.data.parallelType ?? 'count'
       // count only valid for 'count' parallelType
-      if (parallelCountInput(params.inputs) !== undefined && effectiveParallelType === 'count') {
-        block.data.count = parallelCountInput(params.inputs)
+      if (params.inputs.count !== undefined && effectiveParallelType === 'count') {
+        block.data.count = params.inputs.count
       }
       // collection only valid for 'collection' parallelType
       if (params.inputs.collection !== undefined && effectiveParallelType === 'collection') {
@@ -951,9 +961,20 @@ export function handleInsertIntoSubflowOperation(
       const validationResult = validateInputsForBlock(existingBlock.type, params.inputs, block_id)
       validationErrors.push(...validationResult.errors)
 
+      const isInputAllowed = createSubBlockInputGate({
+        blockType: existingBlock.type,
+        permissionConfig,
+        blockId: block_id,
+        operationType: 'insert_into_subflow',
+        skippedItems,
+      })
       Object.entries(validationResult.validInputs).forEach(([key, value]) => {
         // Skip runtime subblock IDs (webhookId, triggerPath)
         if (TRIGGER_RUNTIME_SUBBLOCK_IDS.includes(key)) {
+          return
+        }
+
+        if (!isInputAllowed(key, value)) {
           return
         }
 

@@ -932,6 +932,33 @@ export async function updateKnowledgeBase(
 }
 
 /**
+ * Display names for knowledge bases that live in `workspaceId`, keyed by id.
+ *
+ * Scoped by workspace in the query rather than checked afterwards, so an id belonging to another
+ * tenant resolves to nothing at all. Deliberately narrower than {@link getKnowledgeBaseById}, which
+ * joins `document` and aggregates counts — far more than a name lookup needs.
+ */
+export async function getKnowledgeBaseNames(
+  knowledgeBaseIds: readonly string[],
+  workspaceId: string
+): Promise<Map<string, string>> {
+  if (knowledgeBaseIds.length === 0) return new Map()
+
+  const rows = await db
+    .select({ id: knowledgeBase.id, name: knowledgeBase.name })
+    .from(knowledgeBase)
+    .where(
+      and(
+        inArray(knowledgeBase.id, [...new Set(knowledgeBaseIds)]),
+        eq(knowledgeBase.workspaceId, workspaceId),
+        isNull(knowledgeBase.deletedAt)
+      )
+    )
+
+  return new Map(rows.map((row) => [row.id, row.name]))
+}
+
+/**
  * Get a single knowledge base by ID
  */
 export async function getKnowledgeBaseById(

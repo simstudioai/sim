@@ -388,6 +388,7 @@ type ApplyWorkflowOperationsResponseRef0 = {
     | 'block_not_found'
     | 'invalid_block_type'
     | 'block_not_allowed'
+    | 'model_not_allowed'
     | 'block_locked'
     | 'tool_not_allowed'
     | 'invalid_edge_target'

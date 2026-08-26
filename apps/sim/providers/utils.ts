@@ -50,6 +50,7 @@ import {
   supportsToolUsageControl as supportsToolUsageControlFromDefinitions,
   updateOllamaModels as updateOllamaModelsInDefinitions,
 } from '@/providers/models'
+import { collectToolResourceBindings, registerProviderToolBindings } from '@/providers/tool-binding'
 import {
   getProviderToolInputProvenance,
   getProviderToolModelInputRegistry,
@@ -514,7 +515,7 @@ export function extractAndParseJSON(content: string): any {
  *
  * Selector subblocks persist their value under the subblock id (e.g.
  * `tableSelector`), not the canonical id, so any lookup that keys off the
- * canonical id — like the unique-tool-id suffix below — must resolve it first.
+ * canonical id — like {@link collectToolResourceBindings} below — must resolve it first.
  * Mode selection mirrors {@link transformBlockTool}'s execution-time
  * `paramsTransform` so the resolved id matches the params the tool actually runs
  * with. When the active selector has no value, the original canonical value is
@@ -722,9 +723,8 @@ export async function transformBlockTool(
     }
     return {
       id: customToolConfig.id,
-      // Name/description come from the block itself — never the source workflow's
-      // metadata, which the consumer has no access to.
-      name: blockDef.name,
+      // The description comes from the block itself — never the source workflow's metadata,
+      // which the consumer has no access to.
       description: blockDef.description || customToolConfig.description,
       params: {
         blockType: block.type,
@@ -802,8 +802,8 @@ export async function transformBlockTool(
     modelBlockedParams,
   } = await createLLMToolSchema(toolConfig, resolvedResourceParams, enrichmentContext)
 
-  let toolName = toolConfig.name
   let toolDescription = enrichedDescription || toolConfig.description
+  let workflowLabel: string | undefined
 
   if (toolId === 'workflow_executor' && resolvedResourceParams.workflowId) {
     const workflowMetadata = await fetchWorkflowMetadata(
@@ -811,7 +811,7 @@ export async function transformBlockTool(
       enrichmentContext
     )
     if (workflowMetadata) {
-      toolName = workflowMetadata.name || toolConfig.name
+      workflowLabel = workflowMetadata.name
       if (
         workflowMetadata.description &&
         !isDefaultWorkflowDescription(workflowMetadata.description, workflowMetadata.name)
@@ -884,15 +884,35 @@ export async function transformBlockTool(
       }
     : undefined
 
-  return {
+  const providerTool: ProviderToolConfig = {
     id: toolConfig.id,
-    name: toolName,
     description: toolDescription,
     params: userProvidedParams,
     parameters: llmSchema,
     modelBlockedParams,
     paramsTransform,
   }
+
+  // A tool that rewrote its own description from a bound param already names that resource, so the
+  // duplicate labeller must not state it twice. Keyed off the declaration rather than the rendered
+  // text; the inequality catches an enricher that returned the description unchanged.
+  const selfDescribedParamId =
+    enrichedDescription && enrichedDescription !== toolConfig.description
+      ? toolConfig.toolEnrichment?.dependsOn
+      : undefined
+
+  registerProviderToolBindings(
+    providerTool,
+    collectToolResourceBindings({
+      subBlocks: blockDef?.subBlocks,
+      userProvidedParams,
+      resolvedResourceParams,
+      selfDescribedParamId,
+      workflowLabel,
+    })
+  )
+
+  return providerTool
 }
 
 /**

@@ -2,6 +2,8 @@
  * @vitest-environment node
  */
 import { describe, expect, it, vi } from 'vitest'
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/types'
+import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
 import { applyOperationsToWorkflowState } from './engine'
 
 vi.mock('@/blocks/registry', () => {
@@ -26,6 +28,29 @@ vi.mock('@/blocks/registry', () => {
       subBlocks: [
         { id: 'code', type: 'code' },
         { id: 'language', type: 'dropdown' },
+      ],
+    },
+    slack: {
+      type: 'slack',
+      name: 'Slack',
+      tools: {
+        access: ['slack_message', 'slack_canvas'],
+        config: {
+          tool: ({ operation }: { operation?: string }) =>
+            operation === 'canvas' ? 'slack_canvas' : 'slack_message',
+        },
+      },
+      subBlocks: [
+        {
+          id: 'operation',
+          type: 'dropdown',
+          options: [
+            { label: 'Send Message', id: 'send' },
+            { label: 'Create Canvas', id: 'canvas' },
+          ],
+        },
+        { id: 'channel', type: 'short-input' },
+        { id: 'triggerConfig', type: 'trigger-config' },
       ],
     },
     jira: {
@@ -411,15 +436,43 @@ describe('handleEditOperation container inputs', () => {
     expect(validationErrors[0]).toMatchObject({ blockId: 'loop-1', field: 'maxConcurrency' })
   })
 
-  it('accepts `iterations` on a parallel container, the key the read view exports', () => {
+  it('applies `count` on a parallel container, the key the read view exports', () => {
+    const workflow = makeParallelWorkflow()
+
+    const { state, validationErrors } = applyOperationsToWorkflowState(workflow, [
+      { operation_type: 'edit', block_id: 'loop-1', params: { inputs: { count: 3 } } },
+    ])
+
+    expect(validationErrors).toEqual([])
+    expect(state.blocks['loop-1'].data.count).toBe(3)
+  })
+
+  it('reports `iterations` on a parallel container and names `count` instead', () => {
     const workflow = makeParallelWorkflow()
 
     const { state, validationErrors } = applyOperationsToWorkflowState(workflow, [
       { operation_type: 'edit', block_id: 'loop-1', params: { inputs: { iterations: 3 } } },
     ])
 
+    expect(validationErrors).toHaveLength(1)
+    expect(validationErrors[0]).toMatchObject({ blockId: 'loop-1', field: 'iterations' })
+    expect(validationErrors[0].error).toContain('count')
+    expect(state.blocks['loop-1'].data.count).toBe(5)
+  })
+
+  it.each([
+    ['a count parallel', makeParallelWorkflow, 5],
+    ['a for loop', makeLoopWorkflow, 5],
+  ])("round-trips the read view's container inputs for %s", (_label, makeWorkflow, expected) => {
+    const workflow = makeWorkflow()
+    const readInputs = sanitizeForCopilot(workflow as any).blocks['loop-1'].inputs
+
+    const { state, validationErrors } = applyOperationsToWorkflowState(makeWorkflow(), [
+      { operation_type: 'edit', block_id: 'loop-1', params: { inputs: readInputs } },
+    ])
+
     expect(validationErrors).toEqual([])
-    expect(state.blocks['loop-1'].data.count).toBe(3)
+    expect(state.blocks['loop-1'].data.count).toBe(expected)
   })
 
   it('still applies a loop edit that uses the real input keys', () => {
@@ -840,5 +893,279 @@ describe('minted block ids', () => {
 
     expect(mintedBlockIds).toEqual({})
     expect(state.blocks[uuid]).toBeDefined()
+  })
+})
+
+describe('permission-group tool access', () => {
+  const denyCanvas = { ...DEFAULT_PERMISSION_GROUP_CONFIG, deniedTools: ['slack_canvas'] }
+
+  function emptyWorkflow() {
+    return { blocks: {}, edges: [], loops: {}, parallels: {} }
+  }
+
+  it('drops an operation whose tool the group denies, keeping the block', () => {
+    const { state, skippedItems } = applyOperationsToWorkflowState(
+      emptyWorkflow(),
+      [
+        {
+          operation_type: 'add',
+          block_id: '11111111-1111-4111-8111-111111111111',
+          params: {
+            type: 'slack',
+            name: 'Slack 1',
+            inputs: { operation: 'canvas', channel: '#general' },
+          },
+        },
+      ],
+      denyCanvas
+    )
+
+    const block = state.blocks['11111111-1111-4111-8111-111111111111']
+    expect(block).toBeDefined()
+    expect(block.subBlocks.operation.value).toBeNull()
+    expect(block.subBlocks.channel.value).toBe('#general')
+    expect(skippedItems).toContainEqual(
+      expect.objectContaining({
+        type: 'tool_not_allowed',
+        operationType: 'add',
+        details: { blockType: 'slack', operation: 'canvas' },
+      })
+    )
+  })
+
+  it('keeps an operation the group allows', () => {
+    const { state, skippedItems } = applyOperationsToWorkflowState(
+      emptyWorkflow(),
+      [
+        {
+          operation_type: 'add',
+          block_id: '22222222-2222-4222-8222-222222222222',
+          params: { type: 'slack', name: 'Slack 1', inputs: { operation: 'send' } },
+        },
+      ],
+      denyCanvas
+    )
+
+    expect(state.blocks['22222222-2222-4222-8222-222222222222'].subBlocks.operation.value).toBe(
+      'send'
+    )
+    expect(skippedItems).toEqual([])
+  })
+
+  it('leaves an existing operation untouched when an edit names a denied one', () => {
+    const blockId = '33333333-3333-4333-8333-333333333333'
+    const workflow = {
+      blocks: {
+        [blockId]: {
+          id: blockId,
+          type: 'slack',
+          name: 'Slack 1',
+          position: { x: 0, y: 0 },
+          enabled: true,
+          subBlocks: { operation: { id: 'operation', type: 'dropdown', value: 'send' } },
+          outputs: {},
+          data: {},
+        },
+      },
+      edges: [],
+      loops: {},
+      parallels: {},
+    }
+
+    const { state, skippedItems } = applyOperationsToWorkflowState(
+      workflow,
+      [
+        {
+          operation_type: 'edit',
+          block_id: blockId,
+          params: { inputs: { operation: 'canvas' } },
+        },
+      ],
+      denyCanvas
+    )
+
+    expect(state.blocks[blockId].subBlocks.operation.value).toBe('send')
+    expect(skippedItems).toContainEqual(
+      expect.objectContaining({ type: 'tool_not_allowed', operationType: 'edit' })
+    )
+  })
+
+  it('applies no operation gate when the group denies nothing', () => {
+    const { state, skippedItems } = applyOperationsToWorkflowState(
+      emptyWorkflow(),
+      [
+        {
+          operation_type: 'add',
+          block_id: '44444444-4444-4444-8444-444444444444',
+          params: { type: 'slack', name: 'Slack 1', inputs: { operation: 'canvas' } },
+        },
+      ],
+      DEFAULT_PERMISSION_GROUP_CONFIG
+    )
+
+    expect(state.blocks['44444444-4444-4444-8444-444444444444'].subBlocks.operation.value).toBe(
+      'canvas'
+    )
+    expect(skippedItems).toEqual([])
+  })
+
+  it('drops a model the group denies, keeping the block', () => {
+    const blockId = '66666666-6666-4666-8666-666666666666'
+    const { state, skippedItems } = applyOperationsToWorkflowState(
+      emptyWorkflow(),
+      [
+        {
+          operation_type: 'add',
+          block_id: blockId,
+          params: {
+            type: 'agent',
+            name: 'Agent 1',
+            inputs: { model: 'gpt-4o', systemPrompt: 'You are helpful' },
+          },
+        },
+      ],
+      { ...DEFAULT_PERMISSION_GROUP_CONFIG, deniedModels: ['GPT-4o'] }
+    )
+
+    expect(state.blocks[blockId].subBlocks.model.value).toBeNull()
+    expect(state.blocks[blockId].subBlocks.systemPrompt.value).toBe('You are helpful')
+    expect(skippedItems).toContainEqual(
+      expect.objectContaining({
+        type: 'model_not_allowed',
+        details: { blockType: 'agent', model: 'gpt-4o' },
+      })
+    )
+  })
+
+  it('leaves an existing model untouched when an edit names a denied one', () => {
+    const blockId = '77777777-7777-4777-8777-777777777777'
+    const workflow = {
+      blocks: {
+        [blockId]: {
+          id: blockId,
+          type: 'agent',
+          name: 'Agent 1',
+          position: { x: 0, y: 0 },
+          enabled: true,
+          subBlocks: { model: { id: 'model', type: 'combobox', value: 'claude-sonnet-4-5' } },
+          outputs: {},
+          data: {},
+        },
+      },
+      edges: [],
+      loops: {},
+      parallels: {},
+    }
+
+    const { state } = applyOperationsToWorkflowState(
+      workflow,
+      [{ operation_type: 'edit', block_id: blockId, params: { inputs: { model: 'gpt-4o' } } }],
+      { ...DEFAULT_PERMISSION_GROUP_CONFIG, deniedModels: ['gpt-4o'] }
+    )
+
+    expect(state.blocks[blockId].subBlocks.model.value).toBe('claude-sonnet-4-5')
+  })
+
+  it('keeps a model the group allows', () => {
+    const blockId = '88888888-8888-4888-8888-888888888888'
+    const { state, skippedItems } = applyOperationsToWorkflowState(
+      emptyWorkflow(),
+      [
+        {
+          operation_type: 'add',
+          block_id: blockId,
+          params: { type: 'agent', name: 'Agent 1', inputs: { model: 'gpt-4o' } },
+        },
+      ],
+      { ...DEFAULT_PERMISSION_GROUP_CONFIG, deniedModels: ['some-other-model'] }
+    )
+
+    expect(state.blocks[blockId].subBlocks.model.value).toBe('gpt-4o')
+    expect(skippedItems).toEqual([])
+  })
+
+  it('gates the trigger-config fan-out, which no input validation covers', () => {
+    const blockId = '99999999-9999-4999-8999-999999999999'
+    const workflow = {
+      blocks: {
+        [blockId]: {
+          id: blockId,
+          type: 'slack',
+          name: 'Slack 1',
+          position: { x: 0, y: 0 },
+          enabled: true,
+          subBlocks: {
+            operation: { id: 'operation', type: 'dropdown', value: 'send' },
+            channel: { id: 'channel', type: 'short-input', value: '#general' },
+            /* The persisted aggregate, from before the tool was denied. The
+               fan-out redistributes THIS onto sibling subBlocks; `inputs`
+               cannot supply it, because `triggerConfig` is a runtime id the
+               validated write path rejects outright. */
+            triggerConfig: {
+              id: 'triggerConfig',
+              type: 'trigger-config',
+              value: { operation: 'canvas', channel: '#random' },
+            },
+          },
+          outputs: {},
+          data: {},
+        },
+      },
+      edges: [],
+      loops: {},
+      parallels: {},
+    }
+
+    const { state, skippedItems } = applyOperationsToWorkflowState(
+      workflow,
+      [
+        {
+          operation_type: 'edit',
+          block_id: blockId,
+          params: { inputs: { triggerConfig: {} } },
+        },
+      ],
+      denyCanvas
+    )
+
+    const block = state.blocks[blockId]
+    expect(block.subBlocks.operation.value).toBe('send')
+    expect(block.subBlocks.channel.value).toBe('#random')
+    expect(skippedItems).toContainEqual(
+      expect.objectContaining({ type: 'tool_not_allowed', operationType: 'edit' })
+    )
+  })
+
+  it('drops an agent tool entry whose operation the group denies', () => {
+    const blockId = '55555555-5555-4555-8555-555555555555'
+    const { state, skippedItems } = applyOperationsToWorkflowState(
+      emptyWorkflow(),
+      [
+        {
+          operation_type: 'add',
+          block_id: blockId,
+          params: {
+            type: 'agent',
+            name: 'Agent 1',
+            inputs: {
+              tools: [
+                { type: 'slack', operation: 'canvas', title: 'Create Canvas' },
+                { type: 'slack', operation: 'send', title: 'Send Message' },
+              ],
+            },
+          },
+        },
+      ],
+      denyCanvas
+    )
+
+    const tools = state.blocks[blockId].subBlocks.tools.value
+    expect(tools.map((tool: { operation: string }) => tool.operation)).toEqual(['send'])
+    expect(skippedItems).toContainEqual(
+      expect.objectContaining({
+        type: 'tool_not_allowed',
+        details: { toolType: 'slack', operation: 'canvas' },
+      })
+    )
   })
 })

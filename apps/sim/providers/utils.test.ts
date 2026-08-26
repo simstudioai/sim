@@ -1993,7 +1993,6 @@ describe('workflow executor metadata delegation', () => {
     })
     expect(result).toMatchObject({
       id: 'workflow_executor',
-      name: 'Child Workflow',
       description: 'Child description',
     })
   })
@@ -2046,7 +2045,6 @@ describe('workflow executor metadata delegation', () => {
     expect(fetchMock).not.toHaveBeenCalled()
     expect(result).toMatchObject({
       id: 'workflow_executor',
-      name: 'Workflow Executor',
       description: 'Execute another workflow',
     })
   })

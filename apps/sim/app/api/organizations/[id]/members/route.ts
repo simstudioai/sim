@@ -101,7 +101,6 @@ export const GET = withRouteHandler(
               createdAt: member.createdAt,
               userName: user.name,
               userEmail: user.email,
-              currentPeriodCost: userStats.currentPeriodCost,
               currentUsageLimit: userStats.currentUsageLimit,
               usageLimitUpdatedAt: userStats.usageLimitUpdatedAt,
             })
@@ -115,19 +114,18 @@ export const GET = withRouteHandler(
           totalQuery,
         ])
 
-        const { billingPeriod, includeLegacyBaseline, usageByUser } =
-          await getOrganizationMemberUsageSnapshot(organizationId, {
+        const { billingPeriod, usageByUser } = await getOrganizationMemberUsageSnapshot(
+          organizationId,
+          {
             userIds: base.map((row) => row.userId),
-          })
+          }
+        )
         const billingPeriodStart = billingPeriod?.start ?? null
         const billingPeriodEnd = billingPeriod?.end ?? null
 
         const membersWithUsage = base.map((row) => ({
           ...row,
-          currentPeriodCost: (
-            (includeLegacyBaseline ? Number(row.currentPeriodCost ?? 0) : 0) +
-            (usageByUser.get(row.userId) ?? 0)
-          ).toString(),
+          currentPeriodCost: (usageByUser.get(row.userId) ?? 0).toString(),
           billingPeriodStart,
           billingPeriodEnd,
         }))

@@ -1,4 +1,5 @@
 import type { BlockVisibilityState } from '@/lib/core/config/block-visibility'
+import type { IsToolAllowed } from '@/lib/permission-groups/operation-access'
 import { BLOCK_REGISTRY } from '@/blocks/registry-maps'
 import { isHiddenUnder } from '@/blocks/visibility/context'
 import { tools as toolRegistry } from '@/tools/registry'
@@ -103,15 +104,21 @@ export function getExposedIntegrationTools(): ExposedIntegrationTool[] {
 /**
  * Per-viewer projection of the exposed set: drops tools whose owning block is
  * hidden under `vis` (unrevealed preview blocks — including with a null state —
- * and kill-switched types). Apply at every surface that hands the set to a
- * viewer: VFS stamping, the deferred tool payload, `list_integration_tools`.
+ * and kill-switched types), and tools the viewer's permission group denies
+ * outright. Both gates are required rather than defaulted: a surface that
+ * applied only one of them would advertise tools its viewer cannot use, so the
+ * omission is a compile error instead of a convention. Call
+ * {@link projectIntegrationToolsForViewer}, which resolves both from a
+ * permission config.
  */
 export function filterExposedIntegrationTools(
   tools: ExposedIntegrationTool[],
   vis: BlockVisibilityState | null,
-  isOwnerAllowed: (owner: ExposedIntegrationToolOwner) => boolean = () => true
+  isOwnerAllowed: (owner: ExposedIntegrationToolOwner) => boolean,
+  isToolAllowed: IsToolAllowed
 ): ExposedIntegrationTool[] {
   return tools.flatMap((tool) => {
+    if (!isToolAllowed(tool.toolId)) return []
     const owner = tool.owners.find(
       (candidate) =>
         !isHiddenUnder(vis, { type: candidate.blockType, preview: candidate.preview }) &&

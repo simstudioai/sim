@@ -68,8 +68,7 @@ export function findBlockWithDuplicateNormalizedName(
  */
 const CONTAINER_BLOCK_INPUT_FIELDS: Record<'loop' | 'parallel', ReadonlySet<string>> = {
   loop: new Set(['loopType', 'iterations', 'collection', 'condition']),
-  /** `iterations` is the key the read view exports for `count`; the engine accepts either. */
-  parallel: new Set(['parallelType', 'count', 'iterations', 'collection']),
+  parallel: new Set(['parallelType', 'count', 'collection']),
 }
 
 function isContainerBlockType(blockType: string): blockType is 'loop' | 'parallel' {

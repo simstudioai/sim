@@ -439,6 +439,7 @@ function reportStoredDisplayProvenanceFaults(
     if (parts.length === 0) continue
     logger[report.level](report.message, {
       ...details,
+      fault: kind,
       parts: parts.slice(0, MAX_REPORTED_PROVENANCE_FAULT_PARTS),
       partCount: parts.length,
     })

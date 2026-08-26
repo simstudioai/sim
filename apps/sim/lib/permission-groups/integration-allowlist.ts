@@ -15,3 +15,15 @@ export function intersectIntegrationAllowlists(
   const secondSet = new Set(normalizedSecond)
   return normalizedFirst.filter((integration) => secondSet.has(integration))
 }
+
+/**
+ * The lowercased block types an allowlist permits, indexed for membership tests.
+ * `null` stays `null` — unrestricted, not "nothing allowed".
+ */
+export function toAllowedIntegrationTypes(
+  allowedIntegrations: readonly string[] | null
+): ReadonlySet<string> | null {
+  return allowedIntegrations
+    ? new Set(allowedIntegrations.map((integration) => integration.toLowerCase()))
+    : null
+}
