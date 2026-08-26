@@ -766,12 +766,8 @@ export class ExecutionLogger implements IExecutionLoggerService {
       .limit(1)
     if (!row) return payload
 
-    // Resolve from stored rules UNCONDITIONALLY — deliberately NOT gated on the
-    // `pii-redaction` feature flag or the enterprise-plan check. Rules are only
-    // writable by entitled orgs (route-gated), so their presence is the source of
-    // truth; re-checking the flag/plan here returns false on a transient read and
-    // would silently skip masking, leaking PII (fail-open). Absence of rules
-    // yields the disabled default, so non-PII orgs incur only the lookup.
+    // Stored rules are the source of truth. Absence of rules yields the disabled
+    // default, so non-PII organizations incur only the lookup.
     const config = resolveEffectivePiiRedaction({ orgSettings: row.orgSettings, workspaceId }).logs
     if (!config.enabled) return payload
 

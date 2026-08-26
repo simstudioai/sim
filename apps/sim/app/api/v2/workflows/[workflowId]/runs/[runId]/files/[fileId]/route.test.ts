@@ -6,7 +6,6 @@ import {
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
   v2ApiKeyAuthModuleMock,
-  v2GateModuleMock,
   v2RateLimiterModuleMock,
   v2RouteMocks,
 } from '@sim/testing'
@@ -32,7 +31,6 @@ vi.mock('@/lib/workflows/application/download-workflow-run-file', () => ({
 
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
-vi.mock('@/app/api/v2/lib/gate', () => v2GateModuleMock)
 
 import { NoWorkspaceAccessError } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -53,7 +51,6 @@ const workspaceKeyAuth = {
     workspaceId: WORKSPACE_ID,
     keyId: 'key-1',
   },
-  rolloutUserId: 'billing-owner-1',
   rateLimitSubjectIds: ['api-key:key-1', `workspace:${WORKSPACE_ID}`] as const,
   rateLimitSubscription: null,
   keyType: 'workspace' as const,
@@ -65,7 +62,6 @@ const personalKeyAuth = {
     userId: 'user-1',
     keyId: 'key-2',
   },
-  rolloutUserId: 'user-1',
   rateLimitSubjectIds: ['api-key:key-2'] as const,
   rateLimitSubscription: null,
   keyType: 'personal' as const,
@@ -87,7 +83,6 @@ describe('GET /api/v2/workflows/[workflowId]/runs/[runId]/files/[fileId]', () =>
   beforeEach(() => {
     vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(workspaceKeyAuth)
-    v2RouteMocks.gate.mockResolvedValue(null)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
     mocks.authorizeDownload.mockResolvedValue(undefined)

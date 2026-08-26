@@ -42,8 +42,6 @@ vi.mock('@/lib/core/rate-limiter', () => ({
   },
 }))
 
-vi.mock('@/app/api/v2/lib/gate', () => ({ v2ApiGateError: vi.fn().mockResolvedValue(null) }))
-
 vi.mock('@/lib/knowledge/application/knowledge-bases', () => ({
   listKnowledgeBases: { operation: { id: 'knowledge.list' }, execute: mockList },
   createKnowledgeBase: { operation: { id: 'knowledge.create' }, execute: mockCreate },
@@ -100,7 +98,6 @@ describe('/api/v2/knowledge route composition', () => {
     mockCheckRateLimit.mockResolvedValue(RATE_LIMIT_OK)
     mockAuthenticate.mockResolvedValue({
       principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
-      rolloutUserId: 'user-1',
       rateLimitSubjectIds: ['api-key:key-1', 'user:user-1'],
       rateLimitSubscription: null,
       keyType: 'personal',
@@ -380,7 +377,6 @@ describe('/api/v2/knowledge route composition', () => {
   it('does not attribute workspace-key creation analytics to a billing owner', async () => {
     mockAuthenticate.mockResolvedValue({
       principal: { kind: 'workspace_api_key', workspaceId: WORKSPACE_ID, keyId: 'key-2' },
-      rolloutUserId: 'billing-owner',
       rateLimitSubjectIds: ['api-key:key-2', `workspace:${WORKSPACE_ID}`],
       rateLimitSubscription: null,
       keyType: 'workspace',

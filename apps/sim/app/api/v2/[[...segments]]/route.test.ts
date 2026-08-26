@@ -10,10 +10,7 @@ import { DELETE, GET, PATCH, POST, PUT } from '@/app/api/v2/[[...segments]]/rout
  * `not-found` page, so a mistyped URL handed an API client a full HTML document
  * — the one v2 response a JSON-parsing caller cannot read.
  *
- * The body must stay byte-identical to the rollout gate's 404
- * (`v2ApiGateError`), which answers 404 so an ungated caller cannot tell "not in
- * the cohort" from "no such endpoint". A different body here would give that
- * distinction straight back.
+ * The body must stay in the canonical v2 error envelope.
  */
 describe('unknown /api/v2 path', () => {
   const EXPECTED = { error: { code: 'NOT_FOUND', message: 'Not found' } }

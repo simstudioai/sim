@@ -13,10 +13,6 @@ vi.mock('@/lib/billing/core/subscription', () => ({
   isOrganizationOnEnterprisePlan: vi.fn(),
 }))
 
-vi.mock('@/lib/core/config/feature-flags', () => ({
-  isFeatureEnabled: vi.fn(),
-}))
-
 vi.mock('@/lib/workflows/input-format', () => ({
   extractInputFieldsFromBlocks,
 }))

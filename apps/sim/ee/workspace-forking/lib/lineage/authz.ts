@@ -1,6 +1,5 @@
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing/core/subscription'
-import { isAppConfigEnabled, isBillingEnabled, isForkingEnabled } from '@/lib/core/config/env-flags'
-import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
+import { isBillingEnabled, isForkingEnabled } from '@/lib/core/config/env-flags'
 import { HttpError } from '@/lib/core/utils/http-error'
 import { checkWorkspaceAccess, type WorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 import { getWorkspaceCreationPolicy, type WorkspaceCreationPolicy } from '@/lib/workspaces/policy'
@@ -16,10 +15,6 @@ export type PromoteDirection = 'push' | 'pull'
  * forking. Mirrors the data-drains gate - this repo gates EE features by plan + env
  * flag, not by directory.
  *
- * Layered on top is the runtime `workspace-forking` flag, a rollout switch enforced
- * ONLY where AppConfig is the source of truth (Sim Cloud). It lets us dark-launch
- * forking to specific orgs/users/admins without a redeploy; self-hosted/local
- * deployments have no AppConfig, so their behaviour is untouched by the flag.
  */
 async function assertForkingEnabled(organizationId: string | null, userId: string): Promise<void> {
   if (!isBillingEnabled && !isForkingEnabled) {
@@ -33,17 +28,11 @@ async function assertForkingEnabled(organizationId: string | null, userId: strin
       throw new ForkError('Workspace forking is available on Enterprise plans only', 403)
     }
   }
-  if (
-    isAppConfigEnabled &&
-    !(await isFeatureEnabled('workspace-forking', { userId, orgId: organizationId }))
-  ) {
-    throw new ForkError('Workspace forking is not enabled on this deployment', 404)
-  }
 }
 
 /**
  * Non-throwing availability verdict of the exact {@link assertForkingEnabled} gate
- * (env/plan + AppConfig rollout flag), for surfaces that show/hide fork UI. The
+ * (env/plan), for surfaces that show/hide fork UI. The
  * availability route serves this to the client so tab visibility can never drift
  * from what the fork routes actually enforce.
  */

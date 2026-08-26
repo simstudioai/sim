@@ -11,7 +11,6 @@ import {
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { requireCopilotWorkspace } from '@/lib/copilot/tools/server/workspace-scope'
 import { canonicalizeVfsPath } from '@/lib/copilot/vfs/path-utils'
-import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { buildStorageKeySegment } from '@/lib/uploads/core/storage-key'
 import { uploadFile } from '@/lib/uploads/core/storage-service'
 import { isImageFileType } from '@/lib/uploads/utils/file-utils'
@@ -166,15 +165,6 @@ export async function executeDeployCustomBlock(
         error: 'Publishing a block requires the workspace to belong to an organization',
       }
     }
-    if (
-      !(await isFeatureEnabled('deploy-as-block', {
-        userId: context.userId,
-        orgId: organizationId,
-      }))
-    ) {
-      return { success: false, error: 'Custom blocks are not enabled for this organization' }
-    }
-
     const existing = await getCustomBlockWithInputsByWorkflowId(workflowId)
 
     if (action === 'undeploy') {

@@ -10,7 +10,6 @@ const mocks = vi.hoisted(() => ({
   checkRateLimitDirect: vi.fn(),
   checkRateLimitDirectOrThrow: vi.fn(),
   completeUpload: vi.fn(),
-  gate: vi.fn(),
   platformEvent: vi.fn(),
 }))
 
@@ -42,7 +41,6 @@ vi.mock('@/lib/core/telemetry', () => ({
   PlatformEvents: { knowledgeBaseDocumentsUploaded: mocks.platformEvent },
 }))
 vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mocks.captureServerEvent }))
-vi.mock('@/app/api/v2/lib/gate', () => ({ v2ApiGateError: mocks.gate }))
 vi.mock('@/app/api/v2/knowledge/[knowledgeBaseId]/documents/uploads/utils', () => ({
   toV2KnowledgeDocumentUpload: (_session: unknown, document: { id: string } | null) => ({
     id: 'upload-1',
@@ -97,7 +95,6 @@ const RESULT = {
 function auth(principal: Record<string, unknown>) {
   return {
     principal,
-    rolloutUserId: 'user-1',
     rateLimitSubjectIds: ['api-key:key-1', 'user:user-1'] as const,
     rateLimitSubscription: null,
     keyType:
@@ -124,7 +121,6 @@ describe('POST knowledge-document upload completion', () => {
     mocks.authenticateV2ApiKey.mockResolvedValue(
       auth({ kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' })
     )
-    mocks.gate.mockResolvedValue(null)
     mocks.checkRateLimitDirect.mockResolvedValue({
       allowed: true,
       remaining: 599,
