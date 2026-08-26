@@ -3,6 +3,7 @@ import type {
   DiscordBulkDeleteMessagesResponse,
 } from '@/tools/discord/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const discordBulkDeleteMessagesTool: ToolConfig<
   DiscordBulkDeleteMessagesParams,
@@ -43,7 +44,7 @@ export const discordBulkDeleteMessagesTool: ToolConfig<
 
   request: {
     url: (params: DiscordBulkDeleteMessagesParams) => {
-      return `https://discord.com/api/v10/channels/${params.channelId.trim()}/messages/bulk-delete`
+      return `https://discord.com/api/v10/channels/${safeUrlPathSegment(params.channelId, 'channelId')}/messages/bulk-delete`
     },
     method: 'POST',
     headers: (params) => ({

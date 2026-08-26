@@ -3,6 +3,7 @@ import type {
   DiscordCreateChannelResponse,
 } from '@/tools/discord/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const discordCreateChannelTool: ToolConfig<
   DiscordCreateChannelParams,
@@ -54,7 +55,7 @@ export const discordCreateChannelTool: ToolConfig<
 
   request: {
     url: (params: DiscordCreateChannelParams) => {
-      return `https://discord.com/api/v10/guilds/${params.serverId.trim()}/channels`
+      return `https://discord.com/api/v10/guilds/${safeUrlPathSegment(params.serverId, 'serverId')}/channels`
     },
     method: 'POST',
     headers: (params) => ({

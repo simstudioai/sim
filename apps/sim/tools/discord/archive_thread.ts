@@ -3,6 +3,7 @@ import type {
   DiscordArchiveThreadResponse,
 } from '@/tools/discord/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const discordArchiveThreadTool: ToolConfig<
   DiscordArchiveThreadParams,
@@ -42,7 +43,7 @@ export const discordArchiveThreadTool: ToolConfig<
 
   request: {
     url: (params: DiscordArchiveThreadParams) => {
-      return `https://discord.com/api/v10/channels/${params.threadId.trim()}`
+      return `https://discord.com/api/v10/channels/${safeUrlPathSegment(params.threadId, 'threadId')}`
     },
     method: 'PATCH',
     headers: (params) => ({

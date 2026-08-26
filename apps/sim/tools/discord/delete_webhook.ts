@@ -3,6 +3,7 @@ import type {
   DiscordDeleteWebhookResponse,
 } from '@/tools/discord/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const discordDeleteWebhookTool: ToolConfig<
   DiscordDeleteWebhookParams,
@@ -36,7 +37,7 @@ export const discordDeleteWebhookTool: ToolConfig<
 
   request: {
     url: (params: DiscordDeleteWebhookParams) => {
-      return `https://discord.com/api/v10/webhooks/${params.webhookId.trim()}`
+      return `https://discord.com/api/v10/webhooks/${safeUrlPathSegment(params.webhookId, 'webhookId')}`
     },
     method: 'DELETE',
     headers: (params) => ({

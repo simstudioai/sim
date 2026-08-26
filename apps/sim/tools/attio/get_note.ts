@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { AttioGetNoteParams, AttioGetNoteResponse } from './types'
 import { mapNoteTags, NOTE_OUTPUT_PROPERTIES } from './types'
 
@@ -32,7 +33,8 @@ export const attioGetNoteTool: ToolConfig<AttioGetNoteParams, AttioGetNoteRespon
   },
 
   request: {
-    url: (params) => `https://api.attio.com/v2/notes/${params.noteId.trim()}`,
+    url: (params) =>
+      `https://api.attio.com/v2/notes/${safeUrlPathSegment(params.noteId, 'noteId')}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,

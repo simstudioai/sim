@@ -1,5 +1,6 @@
 import type { DiscordGetInviteParams, DiscordGetInviteResponse } from '@/tools/discord/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const discordGetInviteTool: ToolConfig<DiscordGetInviteParams, DiscordGetInviteResponse> = {
   id: 'discord_get_invite',
@@ -30,7 +31,7 @@ export const discordGetInviteTool: ToolConfig<DiscordGetInviteParams, DiscordGet
 
   request: {
     url: (params: DiscordGetInviteParams) => {
-      return `https://discord.com/api/v10/invites/${params.inviteCode.trim()}?with_counts=true`
+      return `https://discord.com/api/v10/invites/${safeUrlPathSegment(params.inviteCode, 'inviteCode')}?with_counts=true`
     },
     method: 'GET',
     headers: (params) => ({

@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { AttioUpdateListParams, AttioUpdateListResponse } from './types'
 import { LIST_OUTPUT_PROPERTIES } from './types'
 
@@ -58,7 +59,7 @@ export const attioUpdateListTool: ToolConfig<AttioUpdateListParams, AttioUpdateL
   },
 
   request: {
-    url: (params) => `https://api.attio.com/v2/lists/${params.list.trim()}`,
+    url: (params) => `https://api.attio.com/v2/lists/${safeUrlPathSegment(params.list, 'list')}`,
     method: 'PATCH',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
@@ -76,7 +77,7 @@ export const attioUpdateListTool: ToolConfig<AttioUpdateListParams, AttioUpdateL
               ? JSON.parse(params.workspaceMemberAccess)
               : params.workspaceMemberAccess
         } catch {
-          data.workspace_member_access = params.workspaceMemberAccess
+          throw new Error('Invalid JSON provided for workspace member access')
         }
       }
       return { data }

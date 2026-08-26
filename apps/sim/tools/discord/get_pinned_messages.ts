@@ -4,6 +4,7 @@ import type {
   DiscordMessage,
 } from '@/tools/discord/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const discordGetPinnedMessagesTool: ToolConfig<
   DiscordGetPinnedMessagesParams,
@@ -49,7 +50,7 @@ export const discordGetPinnedMessagesTool: ToolConfig<
       if (params.limit) query.set('limit', String(Math.min(Math.max(1, Number(params.limit)), 50)))
       if (params.before) query.set('before', params.before)
       const queryString = query.toString()
-      return `https://discord.com/api/v10/channels/${params.channelId.trim()}/messages/pins${queryString ? `?${queryString}` : ''}`
+      return `https://discord.com/api/v10/channels/${safeUrlPathSegment(params.channelId, 'channelId')}/messages/pins${queryString ? `?${queryString}` : ''}`
     },
     method: 'GET',
     headers: (params) => ({

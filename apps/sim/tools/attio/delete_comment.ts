@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { AttioDeleteCommentParams, AttioDeleteCommentResponse } from './types'
 
 const logger = createLogger('AttioDeleteComment')
@@ -34,7 +35,8 @@ export const attioDeleteCommentTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.attio.com/v2/comments/${params.commentId.trim()}`,
+    url: (params) =>
+      `https://api.attio.com/v2/comments/${safeUrlPathSegment(params.commentId, 'commentId')}`,
     method: 'DELETE',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,

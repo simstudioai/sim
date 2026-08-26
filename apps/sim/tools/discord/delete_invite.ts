@@ -1,5 +1,6 @@
 import type { DiscordDeleteInviteParams, DiscordDeleteInviteResponse } from '@/tools/discord/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const discordDeleteInviteTool: ToolConfig<
   DiscordDeleteInviteParams,
@@ -33,7 +34,7 @@ export const discordDeleteInviteTool: ToolConfig<
 
   request: {
     url: (params: DiscordDeleteInviteParams) => {
-      return `https://discord.com/api/v10/invites/${params.inviteCode.trim()}`
+      return `https://discord.com/api/v10/invites/${safeUrlPathSegment(params.inviteCode, 'inviteCode')}`
     },
     method: 'DELETE',
     headers: (params) => ({

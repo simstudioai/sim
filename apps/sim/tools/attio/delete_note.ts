@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { AttioDeleteNoteParams, AttioDeleteNoteResponse } from './types'
 
 const logger = createLogger('AttioDeleteNote')
@@ -31,7 +32,8 @@ export const attioDeleteNoteTool: ToolConfig<AttioDeleteNoteParams, AttioDeleteN
   },
 
   request: {
-    url: (params) => `https://api.attio.com/v2/notes/${params.noteId.trim()}`,
+    url: (params) =>
+      `https://api.attio.com/v2/notes/${safeUrlPathSegment(params.noteId, 'noteId')}`,
     method: 'DELETE',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,

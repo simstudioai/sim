@@ -1,5 +1,6 @@
 import type { DiscordPinMessageParams, DiscordPinMessageResponse } from '@/tools/discord/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const discordPinMessageTool: ToolConfig<DiscordPinMessageParams, DiscordPinMessageResponse> =
   {
@@ -37,7 +38,7 @@ export const discordPinMessageTool: ToolConfig<DiscordPinMessageParams, DiscordP
 
     request: {
       url: (params: DiscordPinMessageParams) => {
-        return `https://discord.com/api/v10/channels/${params.channelId.trim()}/pins/${params.messageId.trim()}`
+        return `https://discord.com/api/v10/channels/${safeUrlPathSegment(params.channelId, 'channelId')}/pins/${safeUrlPathSegment(params.messageId, 'messageId')}`
       },
       method: 'PUT',
       headers: (params) => ({

@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { AttioGetObjectParams, AttioGetObjectResponse } from './types'
 import { OBJECT_OUTPUT_PROPERTIES } from './types'
 
@@ -32,7 +33,8 @@ export const attioGetObjectTool: ToolConfig<AttioGetObjectParams, AttioGetObject
   },
 
   request: {
-    url: (params) => `https://api.attio.com/v2/objects/${params.object.trim()}`,
+    url: (params) =>
+      `https://api.attio.com/v2/objects/${safeUrlPathSegment(params.object, 'object')}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,

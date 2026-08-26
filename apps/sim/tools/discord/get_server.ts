@@ -4,6 +4,7 @@ import type {
   DiscordGuild,
 } from '@/tools/discord/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const discordGetServerTool: ToolConfig<DiscordGetServerParams, DiscordGetServerResponse> = {
   id: 'discord_get_server',
@@ -28,7 +29,7 @@ export const discordGetServerTool: ToolConfig<DiscordGetServerParams, DiscordGet
 
   request: {
     url: (params: DiscordGetServerParams) =>
-      `https://discord.com/api/v10/guilds/${params.serverId.trim()}?with_counts=true`,
+      `https://discord.com/api/v10/guilds/${safeUrlPathSegment(params.serverId, 'serverId')}?with_counts=true`,
     method: 'GET',
     headers: (params: DiscordGetServerParams) => {
       const headers: Record<string, string> = {

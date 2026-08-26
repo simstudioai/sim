@@ -1,5 +1,6 @@
 import type { DiscordEditMessageParams, DiscordEditMessageResponse } from '@/tools/discord/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const discordEditMessageTool: ToolConfig<
   DiscordEditMessageParams,
@@ -45,7 +46,7 @@ export const discordEditMessageTool: ToolConfig<
 
   request: {
     url: (params: DiscordEditMessageParams) => {
-      return `https://discord.com/api/v10/channels/${params.channelId.trim()}/messages/${params.messageId.trim()}`
+      return `https://discord.com/api/v10/channels/${safeUrlPathSegment(params.channelId, 'channelId')}/messages/${safeUrlPathSegment(params.messageId, 'messageId')}`
     },
     method: 'PATCH',
     headers: (params) => ({

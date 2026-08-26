@@ -3,6 +3,7 @@ import type {
   DiscordUpdateChannelResponse,
 } from '@/tools/discord/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const discordUpdateChannelTool: ToolConfig<
   DiscordUpdateChannelParams,
@@ -48,7 +49,7 @@ export const discordUpdateChannelTool: ToolConfig<
 
   request: {
     url: (params: DiscordUpdateChannelParams) => {
-      return `https://discord.com/api/v10/channels/${params.channelId.trim()}`
+      return `https://discord.com/api/v10/channels/${safeUrlPathSegment(params.channelId, 'channelId')}`
     },
     method: 'PATCH',
     headers: (params) => ({

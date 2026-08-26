@@ -75,7 +75,7 @@ export const attioCreateTaskTool: ToolConfig<AttioCreateTaskParams, AttioCreateT
               : params.linkedRecords
         }
       } catch {
-        linkedRecords = []
+        throw new Error('Invalid JSON provided for linked records')
       }
       try {
         if (params.assignees) {
@@ -83,7 +83,7 @@ export const attioCreateTaskTool: ToolConfig<AttioCreateTaskParams, AttioCreateT
             typeof params.assignees === 'string' ? JSON.parse(params.assignees) : params.assignees
         }
       } catch {
-        assignees = []
+        throw new Error('Invalid JSON provided for assignees')
       }
       return {
         data: {
