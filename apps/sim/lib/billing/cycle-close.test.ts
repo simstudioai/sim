@@ -14,10 +14,10 @@ const {
   mockComputeOrgOverageAmount,
   mockIsSubscriptionOrgScoped,
   mockGetStampedPeriodRangeUsageCostByUser,
-  mockComputeDailyRefreshConsumed,
+  mockComputeWeeklyRefreshConsumed,
   mockEnqueueOutboxEvent,
   mockGetPlanPricing,
-  mockGetPlanTierDollars,
+  mockGetPlanWeeklyRefreshDollars,
   mockResolveSubscriptionUsagePeriod,
   mockIsEnterprise,
   mockIsFree,
@@ -27,10 +27,10 @@ const {
   mockComputeOrgOverageAmount: vi.fn(),
   mockIsSubscriptionOrgScoped: vi.fn(),
   mockGetStampedPeriodRangeUsageCostByUser: vi.fn(),
-  mockComputeDailyRefreshConsumed: vi.fn(),
+  mockComputeWeeklyRefreshConsumed: vi.fn(),
   mockEnqueueOutboxEvent: vi.fn(),
   mockGetPlanPricing: vi.fn(),
-  mockGetPlanTierDollars: vi.fn(),
+  mockGetPlanWeeklyRefreshDollars: vi.fn(),
   mockResolveSubscriptionUsagePeriod: vi.fn(),
   mockIsEnterprise: vi.fn(),
   mockIsFree: vi.fn(),
@@ -58,12 +58,12 @@ vi.mock('@/lib/billing/core/usage-log', () => ({
   getStampedPeriodRangeUsageCostByUser: mockGetStampedPeriodRangeUsageCostByUser,
 }))
 
-vi.mock('@/lib/billing/credits/daily-refresh', () => ({
-  computeDailyRefreshConsumed: mockComputeDailyRefreshConsumed,
+vi.mock('@/lib/billing/credits/weekly-refresh', () => ({
+  computeWeeklyRefreshConsumed: mockComputeWeeklyRefreshConsumed,
 }))
 
 vi.mock('@/lib/billing/plan-helpers', () => ({
-  getPlanTierDollars: mockGetPlanTierDollars,
+  getPlanWeeklyRefreshDollars: mockGetPlanWeeklyRefreshDollars,
   isEnterprise: mockIsEnterprise,
   isFree: mockIsFree,
 }))
@@ -167,14 +167,14 @@ describe('closeElapsedBillingPeriod', () => {
     mockIsEnterprise.mockReturnValue(false)
     mockIsFree.mockReturnValue(false)
     mockResolveSubscriptionUsagePeriod.mockReturnValue(null)
-    mockGetPlanTierDollars.mockReturnValue(40)
+    mockGetPlanWeeklyRefreshDollars.mockReturnValue(10)
     mockGetPlanPricing.mockReturnValue({ basePrice: 40 })
-    mockComputeDailyRefreshConsumed.mockResolvedValue(0)
+    mockComputeWeeklyRefreshConsumed.mockResolvedValue(0)
     mockGetStampedPeriodRangeUsageCostByUser.mockResolvedValue(new Map([['owner-1', 150]]))
     mockComputeOrgOverageAmount.mockResolvedValue({
       effectiveUsage: 150,
       baseSubscriptionAmount: 80,
-      dailyRefreshDeduction: 0,
+      weeklyRefreshDeduction: 0,
       totalOverage: 70,
     })
     dbChainMockFns.returning.mockResolvedValue([{ id: 'sub-1' }])
@@ -513,14 +513,14 @@ describe('closeElapsedPeriodBeforeDeletion', () => {
     mockIsEnterprise.mockReturnValue(false)
     mockIsFree.mockReturnValue(false)
     mockResolveSubscriptionUsagePeriod.mockReturnValue(null)
-    mockGetPlanTierDollars.mockReturnValue(40)
+    mockGetPlanWeeklyRefreshDollars.mockReturnValue(10)
     mockGetPlanPricing.mockReturnValue({ basePrice: 40 })
-    mockComputeDailyRefreshConsumed.mockResolvedValue(0)
+    mockComputeWeeklyRefreshConsumed.mockResolvedValue(0)
     mockGetStampedPeriodRangeUsageCostByUser.mockResolvedValue(new Map([['owner-1', 150]]))
     mockComputeOrgOverageAmount.mockResolvedValue({
       effectiveUsage: 150,
       baseSubscriptionAmount: 80,
-      dailyRefreshDeduction: 0,
+      weeklyRefreshDeduction: 0,
       totalOverage: 70,
     })
     dbChainMockFns.returning.mockResolvedValue([{ id: 'sub-1' }])

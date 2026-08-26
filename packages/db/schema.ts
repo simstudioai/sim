@@ -3872,7 +3872,7 @@ export const usageLog = pgTable(
      * a heap fetch per matched row.
      *
      * `userId`/`createdAt` sit immediately after the shared equality prefix because
-     * the daily-refresh rollup filters on them and NOT on `billingPeriodEnd`;
+     * the weekly-refresh rollup filters on them and NOT on `billingPeriodEnd`;
      * putting `billingPeriodEnd` in that slot would end the usable prefix at
      * `billingPeriodStart` and leave that query scanning the whole period.
      * `billingPeriodEnd` is functionally determined by `billingPeriodStart`, so it

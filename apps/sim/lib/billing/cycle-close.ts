@@ -17,8 +17,8 @@ import {
   COPILOT_USAGE_SOURCES,
   getStampedPeriodRangeUsageCostByUser,
 } from '@/lib/billing/core/usage-log'
-import { computeDailyRefreshConsumed } from '@/lib/billing/credits/daily-refresh'
-import { getPlanTierDollars, isEnterprise, isFree } from '@/lib/billing/plan-helpers'
+import { computeWeeklyRefreshConsumed } from '@/lib/billing/credits/weekly-refresh'
+import { getPlanWeeklyRefreshDollars, isEnterprise, isFree } from '@/lib/billing/plan-helpers'
 import { ENTITLED_SUBSCRIPTION_STATUSES, getPlanPricing } from '@/lib/billing/subscriptions/utils'
 import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
 import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-handlers'
@@ -435,14 +435,14 @@ export async function closeElapsedBillingPeriod(
       })
       totalOverage = computed
     } else {
-      const planDollars = getPlanTierDollars(sub.plan)
+      const weeklyRefreshDollars = getPlanWeeklyRefreshDollars(sub.plan)
       let refreshConsumed = 0
-      if (planDollars > 0) {
-        refreshConsumed = await computeDailyRefreshConsumed({
+      if (weeklyRefreshDollars > 0) {
+        refreshConsumed = await computeWeeklyRefreshConsumed({
           billingEntity,
           periodStart: closeFrom,
           periodEnd: periodStart,
-          planDollars,
+          weeklyRefreshDollars,
         })
       }
       const { basePrice } = getPlanPricing(sub.plan)

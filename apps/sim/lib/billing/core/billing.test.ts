@@ -5,7 +5,7 @@ import { dbChainMock, dbChainMockFns, queueTableRows, schemaMock } from '@sim/te
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockComputeDailyRefreshConsumed,
+  mockComputeWeeklyRefreshConsumed,
   mockEnsureUserStatsExists,
   mockGetBillingPeriodUsageCost,
   mockGetBillingPeriodUsageCostWithSourceSubset,
@@ -13,7 +13,7 @@ const {
   mockGetHighestPrioritySubscription,
   mockResolveBillingInterval,
 } = vi.hoisted(() => ({
-  mockComputeDailyRefreshConsumed: vi.fn(),
+  mockComputeWeeklyRefreshConsumed: vi.fn(),
   mockEnsureUserStatsExists: vi.fn(),
   mockGetBillingPeriodUsageCost: vi.fn(),
   mockGetBillingPeriodUsageCostWithSourceSubset: vi.fn(),
@@ -40,8 +40,8 @@ vi.mock('@/lib/billing/core/usage-log', () => ({
   getBillingPeriodUsageCostWithSourceSubset: mockGetBillingPeriodUsageCostWithSourceSubset,
 }))
 
-vi.mock('@/lib/billing/credits/daily-refresh', () => ({
-  computeDailyRefreshConsumed: mockComputeDailyRefreshConsumed,
+vi.mock('@/lib/billing/credits/weekly-refresh', () => ({
+  computeWeeklyRefreshConsumed: mockComputeWeeklyRefreshConsumed,
 }))
 
 import { calculateSubscriptionOverage, getPersonalBillingSummary } from '@/lib/billing/core/billing'
@@ -51,7 +51,7 @@ describe('getPersonalBillingSummary', () => {
     vi.clearAllMocks()
     mockEnsureUserStatsExists.mockResolvedValue(undefined)
     mockResolveBillingInterval.mockReturnValue('year')
-    mockComputeDailyRefreshConsumed.mockResolvedValue(1)
+    mockComputeWeeklyRefreshConsumed.mockResolvedValue(1)
     mockGetBillingPeriodUsageCostWithSourceSubset.mockResolvedValue({ total: 4, subset: 1 })
     mockGetHighestPriorityPersonalSubscription.mockResolvedValue({
       id: 'personal-sub',
@@ -110,7 +110,7 @@ describe('getPersonalBillingSummary', () => {
       lastPeriodCost: 6,
       lastPeriodCopilotCost: 2,
     })
-    expect(mockComputeDailyRefreshConsumed).toHaveBeenCalledWith(
+    expect(mockComputeWeeklyRefreshConsumed).toHaveBeenCalledWith(
       expect.objectContaining({
         periodEnd: new Date('2026-08-01T00:00:00.000Z'),
         billingEntity: { type: 'user', id: 'viewer-a' },
@@ -123,7 +123,7 @@ describe('getPersonalBillingSummary', () => {
 describe('calculateSubscriptionOverage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockComputeDailyRefreshConsumed.mockResolvedValue(0)
+    mockComputeWeeklyRefreshConsumed.mockResolvedValue(0)
   })
 
   it('bills the pooled org ledger with entity-scoped refresh — no roster read', async () => {
@@ -149,11 +149,11 @@ describe('calculateSubscriptionOverage', () => {
     )
     // Refresh is scoped by the same entity stamps as the ledger sum — no
     // actor list, so departed members' rows participate identically.
-    expect(mockComputeDailyRefreshConsumed).toHaveBeenCalledWith({
+    expect(mockComputeWeeklyRefreshConsumed).toHaveBeenCalledWith({
       billingEntity: { type: 'organization', id: 'org-1' },
       periodStart: new Date('2026-07-01T00:00:00.000Z'),
       periodEnd: new Date('2026-08-01T00:00:00.000Z'),
-      planDollars: 40,
+      weeklyRefreshDollars: 10,
       seats: 2,
     })
     expect(overage).toBe(80)

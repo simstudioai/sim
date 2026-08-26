@@ -12,8 +12,14 @@ import {
   getBillingPeriodUsageCost,
   getBillingPeriodUsageCostWithSourceSubset,
 } from '@/lib/billing/core/usage-log'
-import { computeDailyRefreshConsumed } from '@/lib/billing/credits/daily-refresh'
-import { getPlanTierDollars, isEnterprise, isPaid, isPro, isTeam } from '@/lib/billing/plan-helpers'
+import { computeWeeklyRefreshConsumed } from '@/lib/billing/credits/weekly-refresh'
+import {
+  getPlanWeeklyRefreshDollars,
+  isEnterprise,
+  isPaid,
+  isPro,
+  isTeam,
+} from '@/lib/billing/plan-helpers'
 import {
   ENTITLED_SUBSCRIPTION_STATUSES,
   getFreeTierLimit,
@@ -111,7 +117,7 @@ export async function isSubscriptionOrgScoped(sub: { referenceId: string }): Pro
 
 /**
  * Compute an org's overage amount from an already-fetched pooled ledger sum.
- * Internally performs one daily-refresh DB read to subtract refresh credits;
+ * Internally performs one weekly-refresh DB read to subtract refresh credits;
  * callers pass the org-attributed ledger usage for the period (threshold
  * billing passes the current period; cycle close passes the closed period).
  * All callers route through this to keep the overage math in one place.
@@ -126,29 +132,29 @@ export async function computeOrgOverageAmount(params: {
 }): Promise<{
   effectiveUsage: number
   baseSubscriptionAmount: number
-  dailyRefreshDeduction: number
+  weeklyRefreshDeduction: number
   totalOverage: number
 }> {
   const totalUsage = params.pooledLedgerUsage
 
-  let dailyRefreshDeduction = 0
-  const planDollars = getPlanTierDollars(params.plan)
-  if (planDollars > 0 && params.periodStart) {
-    dailyRefreshDeduction = await computeDailyRefreshConsumed({
+  let weeklyRefreshDeduction = 0
+  const weeklyRefreshDollars = getPlanWeeklyRefreshDollars(params.plan)
+  if (weeklyRefreshDollars > 0 && params.periodStart) {
+    weeklyRefreshDeduction = await computeWeeklyRefreshConsumed({
       billingEntity: { type: 'organization', id: params.organizationId },
       periodStart: params.periodStart,
       periodEnd: params.periodEnd ?? null,
-      planDollars,
+      weeklyRefreshDollars,
       seats: params.seats || 1,
     })
   }
 
-  const effectiveUsage = Math.max(0, totalUsage - dailyRefreshDeduction)
+  const effectiveUsage = Math.max(0, totalUsage - weeklyRefreshDeduction)
   const { basePrice } = getPlanPricing(params.plan ?? '')
   const baseSubscriptionAmount = (params.seats || 1) * basePrice
   const totalOverage = Math.max(0, effectiveUsage - baseSubscriptionAmount)
 
-  return { effectiveUsage, baseSubscriptionAmount, dailyRefreshDeduction, totalOverage }
+  return { effectiveUsage, baseSubscriptionAmount, weeklyRefreshDeduction, totalOverage }
 }
 
 /**
@@ -219,15 +225,15 @@ export async function calculateSubscriptionOverage(sub: {
           )
         : 0
 
-    let dailyRefreshDeduction = 0
+    let weeklyRefreshDeduction = 0
     if (isPro(sub.plan)) {
-      const planDollars = getPlanTierDollars(sub.plan)
-      if (planDollars > 0 && sub.periodStart) {
-        dailyRefreshDeduction = await computeDailyRefreshConsumed({
+      const weeklyRefreshDollars = getPlanWeeklyRefreshDollars(sub.plan)
+      if (weeklyRefreshDollars > 0 && sub.periodStart) {
+        weeklyRefreshDeduction = await computeWeeklyRefreshConsumed({
           billingEntity: { type: 'user', id: sub.referenceId },
           periodStart: sub.periodStart,
           periodEnd: sub.periodEnd ?? null,
-          planDollars,
+          weeklyRefreshDollars,
         })
       }
     }
@@ -235,14 +241,14 @@ export async function calculateSubscriptionOverage(sub: {
     const { basePrice } = getPlanPricing(sub.plan || 'free')
     totalOverageDecimal = Decimal.max(
       0,
-      toDecimal(ledgerUsage).minus(toDecimal(dailyRefreshDeduction)).minus(basePrice)
+      toDecimal(ledgerUsage).minus(toDecimal(weeklyRefreshDeduction)).minus(basePrice)
     )
 
     logger.info('Calculated personal overage', {
       subscriptionId: sub.id,
       plan: sub.plan || 'free',
       ledgerUsage,
-      dailyRefreshDeduction,
+      weeklyRefreshDeduction,
       basePrice,
       totalOverage: toNumber(totalOverageDecimal),
     })
@@ -303,14 +309,14 @@ export async function getPersonalBillingSummary(userId: string, executor: DbClie
       hasPaidSubscriptionStatus(personalSubscription.status) &&
       personalSubscription.periodStart
     ) {
-      const planDollars = getPlanTierDollars(plan)
-      if (planDollars > 0) {
-        refreshDeduction = await computeDailyRefreshConsumed(
+      const weeklyRefreshDollars = getPlanWeeklyRefreshDollars(plan)
+      if (weeklyRefreshDollars > 0) {
+        refreshDeduction = await computeWeeklyRefreshConsumed(
           {
             billingEntity: { type: 'user', id: userId },
             periodStart: personalSubscription.periodStart,
             periodEnd: personalSubscription.periodEnd ?? null,
-            planDollars,
+            weeklyRefreshDollars,
           },
           executor
         )

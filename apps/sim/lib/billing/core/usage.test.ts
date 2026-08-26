@@ -58,8 +58,8 @@ vi.mock('@/lib/billing/core/usage-log', () => ({
   getBillingPeriodUsageCost: vi.fn(),
 }))
 
-vi.mock('@/lib/billing/credits/daily-refresh', () => ({
-  computeDailyRefreshConsumed: vi.fn(),
+vi.mock('@/lib/billing/credits/weekly-refresh', () => ({
+  computeWeeklyRefreshConsumed: vi.fn(),
 }))
 
 const {
