@@ -9,6 +9,7 @@ import {
   parseCloudId,
   safeIndexPathSegment,
 } from '@/tools/elasticsearch/utils'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 /**
  * Builds a Cloud ID from its decoded parts the way the Elastic Cloud console does.
@@ -454,5 +455,95 @@ describe('parseCloudId rejects URL-special characters in decoded components', ()
     const id = cloudId('ok', `es-prod.eu-west-1.aws.found.io$${ES_UUID}$${KIBANA_UUID}`)
 
     expect(parseCloudId(id)).toBe(`https://${ES_UUID}.es-prod.eu-west-1.aws.found.io`)
+  })
+})
+
+/**
+ * A self-hosted host without an explicit scheme stays *relative*, and the
+ * executor resolves the tool URL with `new URL(endpointUrl, getBaseUrl())` —
+ * Sim's own origin. `buildAuthHeaders` attaches the caller's Elasticsearch
+ * credential regardless, so the credential is sent to Sim, and the SSRF check
+ * passes because the resolved host is Sim itself.
+ */
+describe('buildBaseUrl requires an explicit http(s) scheme', () => {
+  const SIM_ORIGIN = 'https://sim.ai'
+
+  function selfHosted(host: string) {
+    return buildBaseUrl({ deploymentType: 'self_hosted', host, authMethod: 'api_key' })
+  }
+
+  it('rejects a bare hostname that would otherwise resolve against Sim’s own origin', () => {
+    expect(new URL('es.internal/products/_search', SIM_ORIGIN).origin).toBe(SIM_ORIGIN)
+
+    expect(() => selfHosted('es.internal')).toThrow(/must start with "http:\/\/" or "https:\/\//)
+  })
+
+  it('rejects a scheme-less host:port, which parses as a bogus "localhost:" scheme', () => {
+    expect(new URL('localhost:9200/products/_search', SIM_ORIGIN).protocol).toBe('localhost:')
+
+    expect(() => selfHosted('localhost:9200')).toThrow(/must start with "http:\/\/" or "https:\/\//)
+  })
+
+  it('rejects a protocol-relative host, which silently inherits Sim’s scheme', () => {
+    expect(new URL('//evil.example.com/x', SIM_ORIGIN).origin).toBe('https://evil.example.com')
+
+    expect(() => selfHosted('//evil.example.com')).toThrow(
+      /must start with "http:\/\/" or "https:\/\//
+    )
+  })
+
+  it('rejects a non-http scheme', () => {
+    expect(() => selfHosted('ftp://es.example.com')).toThrow(
+      /must start with "http:\/\/" or "https:\/\//
+    )
+    expect(() => selfHosted('file:///etc/passwd')).toThrow(
+      /must start with "http:\/\/" or "https:\/\//
+    )
+  })
+
+  it('rejects a scheme-ful host the URL parser cannot give an origin', () => {
+    expect(() => selfHosted('https://')).toThrow(/is not a valid URL/)
+  })
+
+  it('keeps every legitimate host shape working', () => {
+    expect(selfHosted('https://localhost:9200')).toBe('https://localhost:9200')
+    expect(selfHosted('http://localhost:9200')).toBe('http://localhost:9200')
+    expect(selfHosted('https://es.example.com')).toBe('https://es.example.com')
+    expect(selfHosted('https://es.example.com:9200///')).toBe('https://es.example.com:9200')
+    expect(selfHosted('  https://es.example.com  ')).toBe('https://es.example.com')
+    expect(selfHosted('HTTPS://es.example.com')).toBe('HTTPS://es.example.com')
+    expect(selfHosted('http://10.0.0.5:9200')).toBe('http://10.0.0.5:9200')
+    expect(selfHosted('https://user:pw@es.example.com:9200')).toBe(
+      'https://user:pw@es.example.com:9200'
+    )
+  })
+
+  it('produces an absolute URL that no longer resolves against Sim', () => {
+    const built = new URL(`${selfHosted('https://localhost:9200')}/products/_search`, SIM_ORIGIN)
+
+    expect(built.origin).toBe('https://localhost:9200')
+  })
+})
+
+/**
+ * `safeIndexPathSegment` is a local variant of the shared `safeUrlPathSegment`,
+ * whose `toGuardedString` deliberately abandoned the
+ * `typeof value === 'string' ? value.trim() : ''` form: a non-string became
+ * `''` and was then reported as *"is required"*, a confusing error for a value
+ * the caller did supply. The local variant only needed to drop the `/`
+ * rejection, not the number coercion.
+ */
+describe('safeIndexPathSegment coerces a non-string index', () => {
+  it('stringifies a numeric index emitted as a JSON number', () => {
+    expect(safeIndexPathSegment(2024, 'index')).toBe('2024')
+  })
+
+  it('matches the shared helper, which already accepts a numeric documentId', () => {
+    expect(safeIndexPathSegment(2024, 'index')).toBe(safeUrlPathSegment(2024, 'documentId'))
+  })
+
+  it('still reports null and undefined as missing rather than addressing "null"', () => {
+    expect(() => safeIndexPathSegment(null as never, 'index')).toThrow(/index is required/)
+    expect(() => safeIndexPathSegment(undefined as never, 'index')).toThrow(/index is required/)
   })
 })

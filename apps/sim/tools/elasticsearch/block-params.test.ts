@@ -102,3 +102,47 @@ describe('elasticsearch block declares no unreachable aggregations', () => {
     expect(transform({ timeout: '45s' }).esTimeout).toBe('45s')
   })
 })
+
+/**
+ * `_bulk` legitimately runs against `/_bulk` with a per-action `_index`, which
+ * the block's own `operations` placeholder demonstrates
+ * (`{"index":{"_index":"my-index","_id":"1"}}`). `bulk.ts` therefore declares
+ * `index` optional, and `bulk`'s URL builder branches on its absence — the
+ * block marking it `required: true` blocked a call the tool supports.
+ */
+describe('elasticsearch block index requirement agrees with the tools', () => {
+  const indexSubBlock = ElasticsearchBlock.subBlocks.find((b) => b.id === 'index')
+
+  it('does not require index for bulk', () => {
+    expect(indexSubBlock?.required).not.toBe(true)
+
+    const required = indexSubBlock?.required as { field: string; value: string[] }
+
+    expect(required.field).toBe('operation')
+    expect(required.value).not.toContain('elasticsearch_bulk')
+  })
+
+  it('still renders the index field for bulk, where it sets the default target', () => {
+    const condition = indexSubBlock?.condition as { field: string; value: string[] }
+
+    expect(condition.value).toContain('elasticsearch_bulk')
+  })
+
+  it('keeps requiring index for every operation that addresses one', () => {
+    const required = indexSubBlock?.required as { field: string; value: string[] }
+
+    for (const operation of [
+      'elasticsearch_search',
+      'elasticsearch_index_document',
+      'elasticsearch_get_document',
+      'elasticsearch_update_document',
+      'elasticsearch_delete_document',
+      'elasticsearch_count',
+      'elasticsearch_create_index',
+      'elasticsearch_delete_index',
+      'elasticsearch_get_index',
+    ]) {
+      expect(required.value).toContain(operation)
+    }
+  })
+})

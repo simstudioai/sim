@@ -3,9 +3,14 @@ import type { ElasticsearchBaseParams } from '@/tools/elasticsearch/types'
 /**
  * Right-partitions an optional `:<port>` suffix off one Cloud ID component.
  *
- * Mirrors `extractPortFromName` in Elastic's own decoder
- * (`beats/libbeat/cloudid/cloudid.go`), which is applied to the parent domain
- * **and** to each service UUID. A component with no `:` keeps `fallbackPort`.
+ * Mirrors `extractPortFromName` in Beats' decoder
+ * (`beats/libbeat/cloudid/cloudid.go`), which right-partitions at the last
+ * colon and is applied to the parent domain **and** to each service UUID. A
+ * component with no `:` keeps `fallbackPort`. (The .NET client resolves the
+ * same per-service ports but partitions at the *first* colon; the `:` entry in
+ * {@link CLOUD_ID_FORBIDDEN_CHARS} makes a two-colon component unreachable, so
+ * the two rules cannot disagree here. elastic-transport-python has no
+ * per-service port handling at all.)
  *
  * @param component - A decoded Cloud ID component, e.g. `es.io:9243` or `<uuid>:9244`.
  * @param fallbackPort - The port to use when the component carries none.
@@ -29,11 +34,16 @@ function splitCloudIdPort(component: string, fallbackPort: number): { name: stri
 /**
  * Characters that must never appear in a decoded Cloud ID component.
  *
- * `#@?/` is Elastic's own reject set, applied in `decodeCloudID`
- * (`beats/libbeat/cloudid/cloudid.go`) to the parent domain and each service
- * UUID, with the `inject-es`, `inject-host`, and `inject-kb` fixtures pinning
- * it. Each one lets a decoded component escape the authority it is supposed to
- * be part of, verified against the WHATWG parser `fetch` uses:
+ * `#@?/` is **Beats'** reject set — `strings.IndexAny(component, "#@?/")` in
+ * `decodeCloudID` (`beats/libbeat/cloudid/cloudid.go`), applied to the parent
+ * domain and each service UUID, with the `inject-es`, `inject-host`, and
+ * `inject-kb` fixtures pinning it. It is not a rule shared across the clients:
+ * `parse_cloud_id` in elastic-transport-python and `CloudNodePool` in the .NET
+ * client perform **no** character validation on decoded components at all, and
+ * even Beats only added the check on some branches. We take the strictest
+ * behavior of the three because each rejected character lets a decoded
+ * component escape the authority it is supposed to be part of, verified against
+ * the WHATWG parser `fetch` uses:
  *
  * ```
  * new URL('https://uuid@attacker.com.host').origin // => 'https://attacker.com.host'
@@ -87,33 +97,65 @@ function assertSafeCloudIdComponent(component: string, label: string): void {
  * `us-east-1.aws.found.io$cec6f261a74bf24ce33bb8811b84294f$c6c2ca6d…`, which
  * addresses `https://cec6f261a74bf24ce33bb8811b84294f.us-east-1.aws.found.io`.
  *
- * The parsing rules mirror `parse_cloud_id` in elastic-transport-python,
- * `CloudNodePool` in the .NET client, and `decodeCloudID` in Elastic's Go
- * implementation:
+ * Elastic's own clients do **not** agree on how a Cloud ID is parsed, so each
+ * rule below is attributed to the client it actually comes from rather than to
+ * "the Elastic clients" collectively. The three checked are `decodeCloudID` in
+ * `beats/libbeat/cloudid/cloudid.go`, `parse_cloud_id` in
+ * `elastic_transport/client_utils.py`, and `CloudNodePool` in
+ * `elastic-transport-net` (`src/Elastic.Transport/Components/NodePool/`).
  *
- * - The label is split off at the **first** colon only (`str.partition(':')`),
- *   so a label containing a colon cannot shift the payload slice. An empty or
- *   absent label is accepted — the base64 alphabet excludes `:`, so a value
- *   with no colon is unambiguously a bare payload.
- * - **Every** component may carry its own `:<port>`, not just the parent
- *   domain. Elastic's decoder fixtures include `different-es-kb-port`, whose
- *   payload is `us-central1.gcp.cloud.es.io$<es-uuid>:9243$<kb-uuid>:9244` and
- *   which must resolve to `https://<es-uuid>.us-central1.gcp.cloud.es.io:9243`.
- *   Using the raw component as the hostname label instead produced
- *   `https://<es-uuid>:9243.us-central1.gcp.cloud.es.io`, which `fetch` rejects
- *   as an invalid URL with no actionable message.
- * - **The Elasticsearch UUID's own port wins over the parent domain's.** Go
- *   resolves this as `host, port := extract(words[0], 443)` followed by
- *   `esID, esPort := extract(words[1], port)`: the parent port is only the
- *   *default* handed to the per-service extraction, so a port on the UUID
- *   overrides it. The `host-and-kb-set` fixture pins the other direction —
- *   parent `:9243` with a bare ES UUID resolves to `:9243`.
- * - Kibana's port (`words[2]`) is read by Elastic only to build the Kibana URL
- *   and never influences the Elasticsearch origin, which the `only-kb-set`
- *   fixture pins: a `:9244` on the Kibana UUID alone still yields ES on 443.
- * - We append `:<port>` to the origin only when the resolved port differs from
- *   443, since 443 is already the default for `https:` and emitting it would
- *   only make the URL noisier.
+ * - **The label is split off at the first colon only** — Python's
+ *   `cluster_name, _, cloud_id = cloud_id.partition(":")` and .NET's
+ *   `cloudId.Split(':', 2)`. Beats does the opposite: its code is
+ *   `idx := strings.LastIndex(cloudID, ":")`, so it keeps only what follows the
+ *   *last* colon — the comment above that line (`// 1. Ignore anything before
+ *   ':'`) reads like a first-colon split but the code is not one. We follow
+ *   Python/.NET **deliberately**: a first-colon split means a label containing
+ *   a colon cannot shift the payload slice, whereas Beats' last-colon rule
+ *   would silently decode a different substring. An empty or absent label is
+ *   accepted — the base64 alphabet excludes `:`, so a value with no colon is
+ *   unambiguously a bare payload.
+ * - **Every component may carry its own `:<port>`, not just the parent
+ *   domain** — this is **Beats and .NET**, not Python. Python strips a port
+ *   only from the parent DN (`parent_dn.rpartition(":")`) and then interpolates
+ *   the service UUID raw into `f"{es_uuid}.{parent_dn}"`, so a ported UUID
+ *   lands *inside* the hostname. Elastic's Go decoder fixtures include
+ *   `different-es-kb-port`, whose payload is
+ *   `us-central1.gcp.cloud.es.io$<es-uuid>:9243$<kb-uuid>:9244` and which must
+ *   resolve to `https://<es-uuid>.us-central1.gcp.cloud.es.io:9243`. Following
+ *   Python here produced `https://<es-uuid>:9243.us-central1.gcp.cloud.es.io`,
+ *   which `fetch` rejects as an invalid URL with no actionable message.
+ * - **The Elasticsearch UUID's own port wins over the parent domain's** —
+ *   again Beats and .NET, which resolve it identically. Go reads
+ *   `host, port := extractPortFromName(words[0], defaultCloudPort)` followed by
+ *   `esID, esPort := extractPortFromName(words[1], port)`; .NET reads
+ *   `var (host, defaultPort) = ExtractPortFromId(parts[0].Trim())` then
+ *   `ExtractPortFromId(parts[1].Trim(), defaultPort)`. Either way the parent
+ *   port is only the *default* handed to the per-service extraction, so a port
+ *   on the UUID overrides it. The `host-and-kb-set` fixture pins the other
+ *   direction — parent `:9243` with a bare ES UUID resolves to `:9243`.
+ *   ({@link splitCloudIdPort} matches Beats in right-partitioning at the *last*
+ *   colon; .NET partitions at the first. The reject set below makes the
+ *   difference unreachable, since a component with two colons is refused.)
+ * - Kibana's port (`words[2]`) never influences the Elasticsearch origin in any
+ *   of the three, which Go's `only-kb-set` fixture pins: a `:9244` on the
+ *   Kibana UUID alone still yields ES on 443.
+ * - **`:<port>` is appended only when the resolved port differs from 443** —
+ *   this is **.NET's** `BuildServiceUri`, which returns
+ *   `https://{serviceId}.{host}` unchanged on port 443. Beats always emits the
+ *   port. 443 is already the default for `https:`, so emitting it would only
+ *   make the URL noisier.
+ *
+ * Sim deliberately diverges from all three in two places:
+ *
+ * - **The Kibana component is not decoded or validated at all.** Beats requires
+ *   three `$`-separated parts and runs `kbID` through its character check;
+ *   Python and .NET decode Kibana but treat it as optional. We only ever build
+ *   the Elasticsearch origin, so a Cloud ID that works for search is accepted
+ *   even when its Kibana slot is missing or malformed. Two parts is the
+ *   minimum, matching .NET's two-part floor rather than Go's three-part one.
+ * - **`:` is added to the forbidden-character set.** See
+ *   {@link CLOUD_ID_FORBIDDEN_CHARS} — the `#@?/` set itself is Beats-only.
  *
  * There is deliberately no `try`/`catch` around the decode: `Buffer.from(x,
  * 'base64')` never throws — it silently drops characters outside the base64
@@ -211,13 +253,28 @@ export function parseCloudId(rawCloudId: string): string {
  * encoding neutralizes — stays closed by rejection, exactly as the shared
  * helper does. See the module note in `@/tools/url-path` for why.
  *
- * @param value - The raw index target, typically LLM- or user-supplied.
+ * The `null`/`undefined` rejection and `String(value)` coercion are taken from
+ * `toGuardedString` in the shared module rather than re-deriving them. A
+ * `typeof value === 'string' ? value.trim() : ''` normalization turns a
+ * legitimate non-string into `''` and then reports *"is required"* for a value
+ * the caller did supply — an LLM emitting `"index": 2024` as a JSON number is
+ * the ordinary case, and it already works for `documentId`, which goes through
+ * the shared helper on the very same URL. `null` and `undefined` are rejected
+ * *before* coercion, because `String(null)` is the truthy `'null'` and would
+ * silently address an index literally named `"null"`.
+ *
+ * @param value - The raw index target, typically LLM- or user-supplied. A number
+ *   is stringified, since an LLM can emit a numeric-looking index as a JSON number.
  * @param paramName - The parameter name, used to name the offender in errors.
  * @returns The trimmed, percent-encoded segment, safe to interpolate.
- * @throws If the value is empty or is a bare dot segment.
+ * @throws If the value is missing, empty, or is a bare dot segment.
  */
-export function safeIndexPathSegment(value: string, paramName: string): string {
-  const trimmed = typeof value === 'string' ? value.trim() : ''
+export function safeIndexPathSegment(value: string | number, paramName: string): string {
+  if (value === null || value === undefined) {
+    throw new Error(`${paramName} is required`)
+  }
+
+  const trimmed = String(value).trim()
 
   if (!trimmed) {
     throw new Error(`${paramName} is required`)
@@ -231,26 +288,93 @@ export function safeIndexPathSegment(value: string, paramName: string): string {
 }
 
 /**
+ * Matches the only two schemes a self-hosted host may carry.
+ *
+ * Tested before parsing so a scheme-less value gets a message naming the
+ * missing scheme, rather than the URL parser's unactionable "Invalid URL".
+ * Because it pins the scheme, the parsed `protocol` needs no second check.
+ */
+const SELF_HOSTED_SCHEME_PATTERN = /^https?:\/\//i
+
+/**
+ * Normalizes and validates a self-hosted host into an absolute origin.
+ *
+ * The scheme requirement is a credential-exposure control, not tidiness. A
+ * host without one stays a **relative** URL, and the executor resolves every
+ * tool URL as `new URL(endpointUrl, getBaseUrl())` — with Sim's own origin as
+ * the base:
+ *
+ * ```
+ * new URL('es.internal/products/_search', 'https://sim.ai')
+ * // => https://sim.ai/es.internal/products/_search
+ * new URL('//evil.example.com/x', 'https://sim.ai')
+ * // => https://evil.example.com/x   (protocol-relative, inherits the scheme)
+ * new URL('localhost:9200/products/_search', 'https://sim.ai')
+ * // => protocol "localhost:", origin null
+ * ```
+ *
+ * {@link buildAuthHeaders} attaches `Authorization: ApiKey …` or `Basic …`
+ * regardless, so the caller's Elasticsearch credential is sent to Sim's public
+ * origin — or, for the protocol-relative form, to an attacker's. The SSRF
+ * guard does not catch it either, because the resolved host really is Sim.
+ * Only a scheme makes the value absolute, so it is required rather than
+ * guessed at: prefixing `https://` ourselves would silently redirect a
+ * plaintext-only cluster and turn a typo into a different host.
+ *
+ * The parse that follows catches a scheme-ful value the URL parser still
+ * cannot resolve (`https://`, `http://[`). The original string — not the
+ * parser's normalized `href` — is what is returned, so a host is passed to
+ * Elasticsearch exactly as the user typed it, minus trailing slashes.
+ *
+ * @param rawHost - The host as configured on the block.
+ * @returns The trimmed, absolute host with trailing slashes removed.
+ * @throws If the host is missing, carries no `http://`/`https://` scheme, or
+ * does not parse as a URL.
+ */
+function normalizeSelfHostedHost(rawHost: unknown): string {
+  const host = typeof rawHost === 'string' ? rawHost.trim() : ''
+
+  if (!host) {
+    throw new Error('Host is required for self-hosted deployments')
+  }
+
+  if (!SELF_HOSTED_SCHEME_PATTERN.test(host)) {
+    throw new Error(
+      `Host must start with "http://" or "https://" (received "${host}"). ` +
+        'A host without a scheme is a relative URL and would send your Elasticsearch credential to Sim instead of your cluster.'
+    )
+  }
+
+  let parsed: URL
+
+  try {
+    parsed = new URL(host)
+  } catch {
+    throw new Error(`Host is not a valid URL (received "${host}")`)
+  }
+
+  if (!parsed.origin || parsed.origin === 'null') {
+    throw new Error(`Host is not a valid URL (received "${host}")`)
+  }
+
+  return host.replace(/\/+$/, '')
+}
+
+/**
  * Resolves the Elasticsearch base URL for either deployment type.
  *
- * Shared by every Elasticsearch tool so the Cloud ID decoding rules live in
- * exactly one place.
+ * Shared by every Elasticsearch tool so the Cloud ID decoding rules and the
+ * self-hosted scheme requirement live in exactly one place.
  *
  * @throws If the cloud deployment has no usable Cloud ID, or the self-hosted
- * deployment has no host.
+ * deployment has no host or a host that is not an absolute http(s) URL.
  */
 export function buildBaseUrl(params: ElasticsearchBaseParams): string {
   if (params.deploymentType === 'cloud') {
     return parseCloudId(params.cloudId ?? '')
   }
 
-  const host = typeof params.host === 'string' ? params.host.trim() : ''
-
-  if (!host) {
-    throw new Error('Host is required for self-hosted deployments')
-  }
-
-  return host.replace(/\/+$/, '')
+  return normalizeSelfHostedHost(params.host)
 }
 
 /**

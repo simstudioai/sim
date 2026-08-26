@@ -187,7 +187,28 @@ export const ElasticsearchBlock: BlockConfig<ElasticsearchResponse> = {
       title: 'Index Name',
       type: 'short-input',
       placeholder: 'my-index',
-      required: true,
+      /**
+       * Required for every operation that addresses an index, but *not* for
+       * `_bulk`. Bulk legitimately runs against `/_bulk` with a per-action
+       * `_index` — the `operations` placeholder below shows exactly that — so
+       * `bulk.ts` declares `index` optional and its URL builder branches on
+       * the absence. The field still renders for bulk, where it supplies the
+       * default target for actions that omit `_index`.
+       */
+      required: {
+        field: 'operation',
+        value: [
+          'elasticsearch_search',
+          'elasticsearch_index_document',
+          'elasticsearch_get_document',
+          'elasticsearch_update_document',
+          'elasticsearch_delete_document',
+          'elasticsearch_count',
+          'elasticsearch_create_index',
+          'elasticsearch_delete_index',
+          'elasticsearch_get_index',
+        ],
+      },
       condition: {
         field: 'operation',
         value: [
