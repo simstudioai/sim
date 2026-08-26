@@ -3,6 +3,7 @@ import { validateOktaDomain } from '@/lib/core/security/input-validation'
 import type { OktaActivateGroupRuleParams, OktaActivateGroupRuleResponse } from '@/tools/okta/types'
 import { oktaHeaders, throwOktaError } from '@/tools/okta/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('OktaActivateGroupRule')
 
@@ -40,7 +41,7 @@ export const oktaActivateGroupRuleTool: ToolConfig<
   request: {
     url: (params) => {
       const domain = validateOktaDomain(params.domain)
-      return `https://${domain}/api/v1/groups/rules/${encodeURIComponent(params.groupRuleId.trim())}/lifecycle/activate`
+      return `https://${domain}/api/v1/groups/rules/${safeUrlPathSegment(params.groupRuleId, 'groupRuleId')}/lifecycle/activate`
     },
     method: 'POST',
     headers: (params) => oktaHeaders(params.apiKey),

@@ -1,5 +1,6 @@
 import type { RipplingDeleteCustomAppParams } from '@/tools/rippling/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const ripplingDeleteCustomAppTool: ToolConfig<RipplingDeleteCustomAppParams> = {
   id: 'rippling_delete_custom_app',
@@ -22,7 +23,7 @@ export const ripplingDeleteCustomAppTool: ToolConfig<RipplingDeleteCustomAppPara
   },
   request: {
     url: (params) =>
-      `https://rest.ripplingapis.com/custom-apps/${encodeURIComponent(params.id.trim())}/`,
+      `https://rest.ripplingapis.com/custom-apps/${safeUrlPathSegment(params.id, 'id')}/`,
     method: 'DELETE',
     headers: (params) => ({ Authorization: `Bearer ${params.apiKey}`, Accept: 'application/json' }),
   },

@@ -1,5 +1,6 @@
 import type { RipplingUpdateObjectCategoryParams } from '@/tools/rippling/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const ripplingUpdateObjectCategoryTool: ToolConfig<RipplingUpdateObjectCategoryParams> = {
   id: 'rippling_update_object_category',
@@ -29,7 +30,7 @@ export const ripplingUpdateObjectCategoryTool: ToolConfig<RipplingUpdateObjectCa
   },
   request: {
     url: (params) =>
-      `https://rest.ripplingapis.com/object-categories/${encodeURIComponent(params.id.trim())}/`,
+      `https://rest.ripplingapis.com/object-categories/${safeUrlPathSegment(params.id, 'id')}/`,
     method: 'PATCH',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

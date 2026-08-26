@@ -1,5 +1,6 @@
 import type { RipplingUpdateSupergroupExclusionMembersParams } from '@/tools/rippling/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const ripplingUpdateSupergroupExclusionMembersTool: ToolConfig<RipplingUpdateSupergroupExclusionMembersParams> =
   {
@@ -29,7 +30,7 @@ export const ripplingUpdateSupergroupExclusionMembersTool: ToolConfig<RipplingUp
     },
     request: {
       url: (params) =>
-        `https://rest.ripplingapis.com/supergroups/${encodeURIComponent(params.groupId.trim())}/exclusion-members/`,
+        `https://rest.ripplingapis.com/supergroups/${safeUrlPathSegment(params.groupId, 'groupId')}/exclusion-members/`,
       method: 'PATCH',
       headers: (params) => ({
         Authorization: `Bearer ${params.apiKey}`,

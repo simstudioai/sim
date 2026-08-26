@@ -1,4 +1,5 @@
 import type { ToolConfig, ToolResponse } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { TailscaleBaseParams } from './types'
 
 interface TailscaleDeleteUserParams extends TailscaleBaseParams {
@@ -44,7 +45,7 @@ export const tailscaleDeleteUserTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.tailscale.com/api/v2/users/${encodeURIComponent(params.userId.trim())}/delete`,
+      `https://api.tailscale.com/api/v2/users/${safeUrlPathSegment(params.userId, 'userId')}/delete`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey.trim()}`,

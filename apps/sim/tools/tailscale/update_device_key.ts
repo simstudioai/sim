@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { TailscaleUpdateDeviceKeyParams, TailscaleUpdateDeviceKeyResponse } from './types'
 
 export const tailscaleUpdateDeviceKeyTool: ToolConfig<
@@ -39,7 +40,7 @@ export const tailscaleUpdateDeviceKeyTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.tailscale.com/api/v2/device/${encodeURIComponent(params.deviceId.trim())}/key`,
+      `https://api.tailscale.com/api/v2/device/${safeUrlPathSegment(params.deviceId, 'deviceId')}/key`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey.trim()}`,

@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { TailscaleDeviceParams, TailscaleGetDeviceResponse } from './types'
 
 export const tailscaleGetDeviceTool: ToolConfig<TailscaleDeviceParams, TailscaleGetDeviceResponse> =
@@ -31,7 +32,7 @@ export const tailscaleGetDeviceTool: ToolConfig<TailscaleDeviceParams, Tailscale
 
     request: {
       url: (params) =>
-        `https://api.tailscale.com/api/v2/device/${encodeURIComponent(params.deviceId.trim())}`,
+        `https://api.tailscale.com/api/v2/device/${safeUrlPathSegment(params.deviceId, 'deviceId')}`,
       method: 'GET',
       headers: (params) => ({
         Authorization: `Bearer ${params.apiKey.trim()}`,

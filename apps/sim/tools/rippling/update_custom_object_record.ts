@@ -1,6 +1,7 @@
 import type { RipplingUpdateCustomObjectRecordParams } from '@/tools/rippling/types'
 import { CUSTOM_OBJECT_RECORD_OUTPUT_PROPERTIES } from '@/tools/rippling/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const ripplingUpdateCustomObjectRecordTool: ToolConfig<RipplingUpdateCustomObjectRecordParams> =
   {
@@ -42,7 +43,7 @@ export const ripplingUpdateCustomObjectRecordTool: ToolConfig<RipplingUpdateCust
     },
     request: {
       url: (params) =>
-        `https://rest.ripplingapis.com/custom-objects/${encodeURIComponent(params.customObjectApiName.trim())}/records/${encodeURIComponent(params.codrId.trim())}/`,
+        `https://rest.ripplingapis.com/custom-objects/${safeUrlPathSegment(params.customObjectApiName, 'customObjectApiName')}/records/${safeUrlPathSegment(params.codrId, 'codrId')}/`,
       method: 'PATCH',
       headers: (params) => ({
         Authorization: `Bearer ${params.apiKey}`,

@@ -1,5 +1,6 @@
 import type { RipplingDeleteCustomSettingParams } from '@/tools/rippling/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const ripplingDeleteCustomSettingTool: ToolConfig<RipplingDeleteCustomSettingParams> = {
   id: 'rippling_delete_custom_setting',
@@ -22,7 +23,7 @@ export const ripplingDeleteCustomSettingTool: ToolConfig<RipplingDeleteCustomSet
   },
   request: {
     url: (params) =>
-      `https://rest.ripplingapis.com/custom-settings/${encodeURIComponent(params.id.trim())}/`,
+      `https://rest.ripplingapis.com/custom-settings/${safeUrlPathSegment(params.id, 'id')}/`,
     method: 'DELETE',
     headers: (params) => ({ Authorization: `Bearer ${params.apiKey}`, Accept: 'application/json' }),
   },

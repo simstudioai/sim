@@ -1,5 +1,6 @@
 import type { RipplingBulkCreateCustomObjectRecordsParams } from '@/tools/rippling/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const ripplingBulkCreateCustomObjectRecordsTool: ToolConfig<RipplingBulkCreateCustomObjectRecordsParams> =
   {
@@ -35,7 +36,7 @@ export const ripplingBulkCreateCustomObjectRecordsTool: ToolConfig<RipplingBulkC
     },
     request: {
       url: (params) =>
-        `https://rest.ripplingapis.com/custom-objects/${encodeURIComponent(params.customObjectApiName.trim())}/records/bulk/`,
+        `https://rest.ripplingapis.com/custom-objects/${safeUrlPathSegment(params.customObjectApiName, 'customObjectApiName')}/records/bulk/`,
       method: 'POST',
       headers: (params) => ({
         Authorization: `Bearer ${params.apiKey}`,

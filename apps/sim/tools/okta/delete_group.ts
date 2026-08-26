@@ -3,6 +3,7 @@ import { validateOktaDomain } from '@/lib/core/security/input-validation'
 import type { OktaDeleteGroupParams, OktaDeleteGroupResponse } from '@/tools/okta/types'
 import { oktaHeaders, throwOktaError } from '@/tools/okta/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('OktaDeleteGroup')
 
@@ -37,7 +38,7 @@ export const oktaDeleteGroupTool: ToolConfig<OktaDeleteGroupParams, OktaDeleteGr
   request: {
     url: (params) => {
       const domain = validateOktaDomain(params.domain)
-      return `https://${domain}/api/v1/groups/${encodeURIComponent(params.groupId.trim())}`
+      return `https://${domain}/api/v1/groups/${safeUrlPathSegment(params.groupId, 'groupId')}`
     },
     method: 'DELETE',
     headers: (params) => oktaHeaders(params.apiKey),

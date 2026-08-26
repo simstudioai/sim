@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { TailscaleAuthorizeDeviceParams, TailscaleAuthorizeDeviceResponse } from './types'
 
 export const tailscaleAuthorizeDeviceTool: ToolConfig<
@@ -39,7 +40,7 @@ export const tailscaleAuthorizeDeviceTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.tailscale.com/api/v2/device/${encodeURIComponent(params.deviceId.trim())}/authorized`,
+      `https://api.tailscale.com/api/v2/device/${safeUrlPathSegment(params.deviceId, 'deviceId')}/authorized`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey.trim()}`,

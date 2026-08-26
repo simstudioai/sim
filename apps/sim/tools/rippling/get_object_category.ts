@@ -1,5 +1,6 @@
 import type { RipplingGetObjectCategoryParams } from '@/tools/rippling/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const ripplingGetObjectCategoryTool: ToolConfig<RipplingGetObjectCategoryParams> = {
   id: 'rippling_get_object_category',
@@ -17,7 +18,7 @@ export const ripplingGetObjectCategoryTool: ToolConfig<RipplingGetObjectCategory
   },
   request: {
     url: (params) =>
-      `https://rest.ripplingapis.com/object-categories/${encodeURIComponent(params.id.trim())}/`,
+      `https://rest.ripplingapis.com/object-categories/${safeUrlPathSegment(params.id, 'id')}/`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

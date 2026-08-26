@@ -6,6 +6,7 @@ import type {
 } from '@/tools/okta/types'
 import { oktaHeaders, throwOktaError } from '@/tools/okta/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('OktaDeactivateGroupRule')
 
@@ -43,7 +44,7 @@ export const oktaDeactivateGroupRuleTool: ToolConfig<
   request: {
     url: (params) => {
       const domain = validateOktaDomain(params.domain)
-      return `https://${domain}/api/v1/groups/rules/${encodeURIComponent(params.groupRuleId.trim())}/lifecycle/deactivate`
+      return `https://${domain}/api/v1/groups/rules/${safeUrlPathSegment(params.groupRuleId, 'groupRuleId')}/lifecycle/deactivate`
     },
     method: 'POST',
     headers: (params) => oktaHeaders(params.apiKey),

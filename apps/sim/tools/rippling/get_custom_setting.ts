@@ -1,6 +1,7 @@
 import type { RipplingGetCustomSettingParams } from '@/tools/rippling/types'
 import { CUSTOM_SETTING_OUTPUT_PROPERTIES } from '@/tools/rippling/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const ripplingGetCustomSettingTool: ToolConfig<RipplingGetCustomSettingParams> = {
   id: 'rippling_get_custom_setting',
@@ -18,7 +19,7 @@ export const ripplingGetCustomSettingTool: ToolConfig<RipplingGetCustomSettingPa
   },
   request: {
     url: (params) =>
-      `https://rest.ripplingapis.com/custom-settings/${encodeURIComponent(params.id.trim())}/`,
+      `https://rest.ripplingapis.com/custom-settings/${safeUrlPathSegment(params.id, 'id')}/`,
     method: 'GET',
     headers: (params) => ({ Authorization: `Bearer ${params.apiKey}`, Accept: 'application/json' }),
   },

@@ -1,5 +1,6 @@
 import type { RipplingUpdateDepartmentParams } from '@/tools/rippling/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const ripplingUpdateDepartmentTool: ToolConfig<RipplingUpdateDepartmentParams> = {
   id: 'rippling_update_department',
@@ -35,7 +36,7 @@ export const ripplingUpdateDepartmentTool: ToolConfig<RipplingUpdateDepartmentPa
   },
   request: {
     url: (params) =>
-      `https://rest.ripplingapis.com/departments/${encodeURIComponent(params.id.trim())}/`,
+      `https://rest.ripplingapis.com/departments/${safeUrlPathSegment(params.id, 'id')}/`,
     method: 'PATCH',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

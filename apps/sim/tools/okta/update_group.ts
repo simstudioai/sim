@@ -3,6 +3,7 @@ import { validateOktaDomain } from '@/lib/core/security/input-validation'
 import type { OktaGroup, OktaUpdateGroupParams, OktaUpdateGroupResponse } from '@/tools/okta/types'
 import { mergeOktaGroupProfile, oktaHeaders, throwOktaError } from '@/tools/okta/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('OktaUpdateGroup')
 
@@ -80,7 +81,7 @@ export const oktaUpdateGroupTool: ToolConfig<OktaUpdateGroupParams, OktaUpdateGr
    */
   directExecution: async (params, signal): Promise<ToolResponse> => {
     const domain = validateOktaDomain(params.domain)
-    const url = `https://${domain}/api/v1/groups/${encodeURIComponent(params.groupId.trim())}`
+    const url = `https://${domain}/api/v1/groups/${safeUrlPathSegment(params.groupId, 'groupId')}`
     const headers = oktaHeaders(params.apiKey)
 
     const readResponse = await fetch(url, { headers, signal })
@@ -112,7 +113,7 @@ export const oktaUpdateGroupTool: ToolConfig<OktaUpdateGroupParams, OktaUpdateGr
   request: {
     url: (params) => {
       const domain = validateOktaDomain(params.domain)
-      return `https://${domain}/api/v1/groups/${encodeURIComponent(params.groupId.trim())}`
+      return `https://${domain}/api/v1/groups/${safeUrlPathSegment(params.groupId, 'groupId')}`
     },
     method: 'PUT',
     headers: (params) => oktaHeaders(params.apiKey),

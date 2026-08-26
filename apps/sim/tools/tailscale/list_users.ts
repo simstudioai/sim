@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { TailscaleBaseParams, TailscaleListUsersResponse } from './types'
 
 export const tailscaleListUsersTool: ToolConfig<TailscaleBaseParams, TailscaleListUsersResponse> = {
@@ -24,7 +25,7 @@ export const tailscaleListUsersTool: ToolConfig<TailscaleBaseParams, TailscaleLi
 
   request: {
     url: (params) =>
-      `https://api.tailscale.com/api/v2/tailnet/${encodeURIComponent(params.tailnet.trim())}/users`,
+      `https://api.tailscale.com/api/v2/tailnet/${safeUrlPathSegment(params.tailnet, 'tailnet')}/users`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey.trim()}`,

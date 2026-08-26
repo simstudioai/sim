@@ -1,6 +1,7 @@
 import type { RipplingListSupergroupInclusionMembersParams } from '@/tools/rippling/types'
 import { GROUP_MEMBER_OUTPUT_PROPERTIES } from '@/tools/rippling/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const ripplingListSupergroupInclusionMembersTool: ToolConfig<RipplingListSupergroupInclusionMembersParams> =
   {
@@ -40,7 +41,7 @@ export const ripplingListSupergroupInclusionMembersTool: ToolConfig<RipplingList
         if (params.expand != null) query.set('expand', params.expand)
         if (params.orderBy != null) query.set('order_by', params.orderBy)
         const qs = query.toString()
-        return `https://rest.ripplingapis.com/supergroups/${encodeURIComponent(params.groupId.trim())}/inclusion-members/${qs ? `?${qs}` : ''}`
+        return `https://rest.ripplingapis.com/supergroups/${safeUrlPathSegment(params.groupId, 'groupId')}/inclusion-members/${qs ? `?${qs}` : ''}`
       },
       method: 'GET',
       headers: (params) => ({

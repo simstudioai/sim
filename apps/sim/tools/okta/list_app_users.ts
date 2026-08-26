@@ -7,6 +7,7 @@ import type {
 } from '@/tools/okta/types'
 import { oktaHeaders, parseOktaPagination, throwOktaError } from '@/tools/okta/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('OktaListAppUsers')
 
@@ -67,7 +68,7 @@ export const oktaListAppUsersTool: ToolConfig<OktaListAppUsersParams, OktaListAp
       if (params.limit) queryParams.append('limit', params.limit.toString())
 
       const queryString = queryParams.toString()
-      const base = `https://${domain}/api/v1/apps/${encodeURIComponent(params.appId.trim())}/users`
+      const base = `https://${domain}/api/v1/apps/${safeUrlPathSegment(params.appId, 'appId')}/users`
       return queryString ? `${base}?${queryString}` : base
     },
     method: 'GET',

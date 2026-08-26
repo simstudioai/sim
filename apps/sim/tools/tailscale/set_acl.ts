@@ -1,4 +1,5 @@
 import type { ToolConfig, ToolResponse } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 interface TailscaleSetAclParams {
   apiKey: string
@@ -50,7 +51,7 @@ export const tailscaleSetAclTool: ToolConfig<TailscaleSetAclParams, TailscaleSet
 
   request: {
     url: (params) =>
-      `https://api.tailscale.com/api/v2/tailnet/${encodeURIComponent(params.tailnet.trim())}/acl`,
+      `https://api.tailscale.com/api/v2/tailnet/${safeUrlPathSegment(params.tailnet, 'tailnet')}/acl`,
     method: 'POST',
     headers: (params) => {
       const headers: Record<string, string> = {

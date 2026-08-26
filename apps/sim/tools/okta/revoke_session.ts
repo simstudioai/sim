@@ -3,6 +3,7 @@ import { validateOktaDomain } from '@/lib/core/security/input-validation'
 import type { OktaRevokeSessionParams, OktaRevokeSessionResponse } from '@/tools/okta/types'
 import { oktaHeaders, throwOktaError } from '@/tools/okta/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('OktaRevokeSession')
 
@@ -38,7 +39,7 @@ export const oktaRevokeSessionTool: ToolConfig<OktaRevokeSessionParams, OktaRevo
     request: {
       url: (params) => {
         const domain = validateOktaDomain(params.domain)
-        return `https://${domain}/api/v1/sessions/${encodeURIComponent(params.sessionId.trim())}`
+        return `https://${domain}/api/v1/sessions/${safeUrlPathSegment(params.sessionId, 'sessionId')}`
       },
       method: 'DELETE',
       headers: (params) => oktaHeaders(params.apiKey),

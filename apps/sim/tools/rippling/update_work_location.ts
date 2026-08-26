@@ -1,5 +1,6 @@
 import type { RipplingUpdateWorkLocationParams } from '@/tools/rippling/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const ripplingUpdateWorkLocationTool: ToolConfig<RipplingUpdateWorkLocationParams> = {
   id: 'rippling_update_work_location',
@@ -54,7 +55,7 @@ export const ripplingUpdateWorkLocationTool: ToolConfig<RipplingUpdateWorkLocati
   },
   request: {
     url: (params) =>
-      `https://rest.ripplingapis.com/work-locations/${encodeURIComponent(params.id.trim())}/`,
+      `https://rest.ripplingapis.com/work-locations/${safeUrlPathSegment(params.id, 'id')}/`,
     method: 'PATCH',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

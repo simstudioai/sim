@@ -1,4 +1,5 @@
 import type { ToolConfig, ToolResponse } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { TailscaleBaseParams } from './types'
 
 interface TailscaleGetDnsSearchpathsResponse extends ToolResponse {
@@ -33,7 +34,7 @@ export const tailscaleGetDnsSearchpathsTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.tailscale.com/api/v2/tailnet/${encodeURIComponent(params.tailnet.trim())}/dns/searchpaths`,
+      `https://api.tailscale.com/api/v2/tailnet/${safeUrlPathSegment(params.tailnet, 'tailnet')}/dns/searchpaths`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey.trim()}`,

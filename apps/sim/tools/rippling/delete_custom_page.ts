@@ -1,5 +1,6 @@
 import type { RipplingDeleteCustomPageParams } from '@/tools/rippling/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const ripplingDeleteCustomPageTool: ToolConfig<RipplingDeleteCustomPageParams> = {
   id: 'rippling_delete_custom_page',
@@ -22,7 +23,7 @@ export const ripplingDeleteCustomPageTool: ToolConfig<RipplingDeleteCustomPagePa
   },
   request: {
     url: (params) =>
-      `https://rest.ripplingapis.com/custom-pages/${encodeURIComponent(params.id.trim())}/`,
+      `https://rest.ripplingapis.com/custom-pages/${safeUrlPathSegment(params.id, 'id')}/`,
     method: 'DELETE',
     headers: (params) => ({ Authorization: `Bearer ${params.apiKey}`, Accept: 'application/json' }),
   },

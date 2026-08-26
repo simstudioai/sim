@@ -1,6 +1,7 @@
 import type { RipplingQueryCustomObjectRecordsParams } from '@/tools/rippling/types'
 import { CUSTOM_OBJECT_RECORD_OUTPUT_PROPERTIES } from '@/tools/rippling/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const ripplingQueryCustomObjectRecordsTool: ToolConfig<RipplingQueryCustomObjectRecordsParams> =
   {
@@ -42,7 +43,7 @@ export const ripplingQueryCustomObjectRecordsTool: ToolConfig<RipplingQueryCusto
     },
     request: {
       url: (params) =>
-        `https://rest.ripplingapis.com/custom-objects/${encodeURIComponent(params.customObjectApiName.trim())}/records/query/`,
+        `https://rest.ripplingapis.com/custom-objects/${safeUrlPathSegment(params.customObjectApiName, 'customObjectApiName')}/records/query/`,
       method: 'POST',
       headers: (params) => ({
         Authorization: `Bearer ${params.apiKey}`,

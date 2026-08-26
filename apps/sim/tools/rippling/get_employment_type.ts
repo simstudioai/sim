@@ -1,5 +1,6 @@
 import type { RipplingGetEmploymentTypeParams } from '@/tools/rippling/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const ripplingGetEmploymentTypeTool: ToolConfig<RipplingGetEmploymentTypeParams> = {
   id: 'rippling_get_employment_type',
@@ -17,7 +18,7 @@ export const ripplingGetEmploymentTypeTool: ToolConfig<RipplingGetEmploymentType
   },
   request: {
     url: (params) =>
-      `https://rest.ripplingapis.com/employment-types/${encodeURIComponent(params.id.trim())}/`,
+      `https://rest.ripplingapis.com/employment-types/${safeUrlPathSegment(params.id, 'id')}/`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

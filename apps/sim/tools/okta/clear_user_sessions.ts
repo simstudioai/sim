@@ -3,6 +3,7 @@ import { validateOktaDomain } from '@/lib/core/security/input-validation'
 import type { OktaClearUserSessionsParams, OktaClearUserSessionsResponse } from '@/tools/okta/types'
 import { isOktaFlagEnabled, oktaHeaders, throwOktaError } from '@/tools/okta/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('OktaClearUserSessions')
 
@@ -63,7 +64,7 @@ export const oktaClearUserSessionsTool: ToolConfig<
       }
 
       const queryString = queryParams.toString()
-      const base = `https://${domain}/api/v1/users/${encodeURIComponent(params.userId.trim())}/sessions`
+      const base = `https://${domain}/api/v1/users/${safeUrlPathSegment(params.userId, 'userId')}/sessions`
       return queryString ? `${base}?${queryString}` : base
     },
     method: 'DELETE',

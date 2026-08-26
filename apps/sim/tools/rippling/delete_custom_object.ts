@@ -1,5 +1,6 @@
 import type { RipplingDeleteCustomObjectParams } from '@/tools/rippling/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const ripplingDeleteCustomObjectTool: ToolConfig<RipplingDeleteCustomObjectParams> = {
   id: 'rippling_delete_custom_object',
@@ -22,7 +23,7 @@ export const ripplingDeleteCustomObjectTool: ToolConfig<RipplingDeleteCustomObje
   },
   request: {
     url: (params) =>
-      `https://rest.ripplingapis.com/custom-objects/${encodeURIComponent(params.customObjectApiName.trim())}/`,
+      `https://rest.ripplingapis.com/custom-objects/${safeUrlPathSegment(params.customObjectApiName, 'customObjectApiName')}/`,
     method: 'DELETE',
     headers: (params) => ({ Authorization: `Bearer ${params.apiKey}`, Accept: 'application/json' }),
   },

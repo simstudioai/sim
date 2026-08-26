@@ -1,5 +1,6 @@
 import type { RipplingGetTitleParams } from '@/tools/rippling/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const ripplingGetTitleTool: ToolConfig<RipplingGetTitleParams> = {
   id: 'rippling_get_title',
@@ -16,8 +17,7 @@ export const ripplingGetTitleTool: ToolConfig<RipplingGetTitleParams> = {
     id: { type: 'string', required: true, visibility: 'user-or-llm', description: 'Resource ID' },
   },
   request: {
-    url: (params) =>
-      `https://rest.ripplingapis.com/titles/${encodeURIComponent(params.id.trim())}/`,
+    url: (params) => `https://rest.ripplingapis.com/titles/${safeUrlPathSegment(params.id, 'id')}/`,
     method: 'GET',
     headers: (params) => ({ Authorization: `Bearer ${params.apiKey}`, Accept: 'application/json' }),
   },
