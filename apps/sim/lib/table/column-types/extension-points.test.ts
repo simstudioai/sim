@@ -8,18 +8,13 @@ import {
   valueForTypeConversion,
   wouldExceedColumnTypeLimit,
 } from '@/lib/table/column-types'
-import { coerceValue } from '@/lib/table/import'
 import type { ColumnDefinition } from '@/lib/table/types'
 
 const definition = COLUMN_TYPE_REGISTRY.string
 const originalMaxPerTable = definition.maxPerTable
-const originalCoerceImport = definition.coerceImport
 const originalValueForConversion = definition.valueForConversion
 
-function restoreOptionalProperty(
-  key: 'maxPerTable' | 'coerceImport' | 'valueForConversion',
-  value: unknown
-) {
+function restoreOptionalProperty(key: 'maxPerTable' | 'valueForConversion', value: unknown) {
   if (value === undefined) {
     Reflect.deleteProperty(definition, key)
     return
@@ -29,7 +24,6 @@ function restoreOptionalProperty(
 
 afterEach(() => {
   restoreOptionalProperty('maxPerTable', originalMaxPerTable)
-  restoreOptionalProperty('coerceImport', originalCoerceImport)
   restoreOptionalProperty('valueForConversion', originalValueForConversion)
 })
 
@@ -81,13 +75,5 @@ describe('column type extension points', () => {
         { name: 'target', type: 'number' }
       )
     ).toBeNull()
-  })
-
-  it('lets a type own CSV import coercion', () => {
-    Object.assign(definition, {
-      coerceImport: (value: unknown) => `imported:${String(value)}`,
-    })
-
-    expect(coerceValue('raw', 'string')).toBe('imported:raw')
   })
 })

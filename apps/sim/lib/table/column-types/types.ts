@@ -68,10 +68,6 @@ export type TypeSpecificColumnKey = (typeof TYPE_SPECIFIC_COLUMN_KEYS)[number]
 /** Result of coercing a raw value toward a column's declared type. */
 export type CoerceResult = { ok: true; value: JsonValue } | { ok: false }
 
-export interface ColumnImportCoerceOptions extends NormalizeDateCellOptions {
-  currencyCode?: string
-}
-
 export interface ColumnTypeDefinition {
   readonly id: ColumnType
 
@@ -169,9 +165,6 @@ export interface ColumnTypeDefinition {
     column: ColumnDefinition,
     context?: NormalizeDateCellOptions
   ): CoerceResult
-
-  /** CSV-specific coercion when invalid input must survive for row-level validation. */
-  coerceImport?(value: unknown, options?: ColumnImportCoerceOptions): Exclude<JsonValue, Date>
 
   /** Source-owned normalization applied before checking or rewriting a type conversion. */
   valueForConversion?(value: JsonValue, target: ColumnDefinition): JsonValue
