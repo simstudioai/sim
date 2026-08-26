@@ -81,7 +81,6 @@ export const GET = withRouteHandler(
             logo: organization.logo,
             orgUsageLimit: organization.orgUsageLimit,
             storageUsedBytes: organization.storageUsedBytes,
-            departedMemberUsage: organization.departedMemberUsage,
             createdAt: organization.createdAt,
             updatedAt: organization.updatedAt,
           })

@@ -464,8 +464,12 @@ export const workflowExecutionLogs = pgTable(
      * `materializeExecutionData`, which resolves the pointer.
      */
     executionData: jsonb('execution_data').notNull().default('{}'),
-    /** @deprecated Not written/read; cost lives in usage_log + the `cost_total` projection. Drop in a follow-up PR after the `cost_total` backfill. */
-    cost: jsonb('cost'),
+    // contract-pending(after #7134 is fully deployed to production): DROP COLUMN
+    // cost — cost lives in usage_log + the `cost_total` projection; the jsonb
+    // was unread before this change and its declaration is removed here.
+    // Verified on the prod replica 2026-08-26: 94 of 4.77M rows carry a cost
+    // json with no cost_total (71 zero/absent totals from Jul–Aug 2025, 22
+    // small non-zero totals from May 2026) — unread history the drop abandons.
     // Faithful, write-once projection of the run's usage_log ledger sum (dollars).
     // Backs list cost display/filter/sort without live aggregation; never an
     // independently-computed value (cost_total == SUM(usage_log) for the run).
@@ -1177,28 +1181,19 @@ export const userStats = pgTable('user_stats', {
     .notNull()
     .references(() => user.id, { onDelete: 'cascade' })
     .unique(), // One record per user
-  // Retired usage hot-path counters: no writers/readers; derive from usage_log.
-  // Drop via DROP COLUMN in a follow-up migration.
-  /** @deprecated Retired usage counter; derive from usage_log. */
-  totalManualExecutions: integer('total_manual_executions').notNull().default(0),
-  /** @deprecated Retired usage counter; derive from usage_log. */
-  totalApiCalls: integer('total_api_calls').notNull().default(0),
-  /** @deprecated Retired usage counter; derive from usage_log. */
-  totalWebhookTriggers: integer('total_webhook_triggers').notNull().default(0),
-  /** @deprecated Retired usage counter; derive from usage_log. */
-  totalScheduledExecutions: integer('total_scheduled_executions').notNull().default(0),
-  /** @deprecated Retired usage counter; derive from usage_log. */
-  totalChatExecutions: integer('total_chat_executions').notNull().default(0),
-  /** @deprecated Retired usage counter; derive from usage_log. */
-  totalMcpExecutions: integer('total_mcp_executions').notNull().default(0),
-  /** @deprecated Retired usage counter; derive from usage_log. */
-  totalTokensUsed: bigint('total_tokens_used', { mode: 'number' }).notNull().default(0),
-  /** @deprecated Not written (recordUsage appends to usage_log); legacy/admin reads only. Move readers to ledger aggregation. */
-  totalCost: decimal('total_cost').notNull().default('0'),
+  // contract-pending(after #7134 is fully deployed to production): DROP COLUMN
+  // total_manual_executions, total_api_calls, total_webhook_triggers,
+  // total_scheduled_executions, total_chat_executions, total_mcp_executions,
+  // total_tokens_used, total_cost, current_period_cost, pro_period_cost_snapshot,
+  // pro_period_cost_snapshot_at, total_copilot_cost, current_period_copilot_cost,
+  // total_copilot_tokens, total_copilot_calls, total_mcp_copilot_calls,
+  // total_mcp_copilot_cost, current_period_mcp_copilot_cost, last_active —
+  // retired usage counters superseded by the usage_log ledger. Semantic
+  // readers/writers were removed by the ledger cutover (#7078/#7113, shipped in
+  // v0.8.12); removing the declarations here takes them out of every generated
+  // SELECT list, so once this is the deployed app the DROP is invisible to it.
   currentUsageLimit: decimal('current_usage_limit').default(DEFAULT_FREE_CREDITS.toString()), // Default $5 (1,000 credits) for free plan, null for team/enterprise
   usageLimitUpdatedAt: timestamp('usage_limit_updated_at').defaultNow(),
-  /** @deprecated No readers or writers; usage is the attributed usage_log ledger. Drop via DROP COLUMN in a follow-up migration. */
-  currentPeriodCost: decimal('current_period_cost').notNull().default('0'),
   /** Previous-period usage; written by the cycle-close sweep from ledger sums. */
   lastPeriodCost: decimal('last_period_cost').default('0'),
   /**
@@ -1209,10 +1204,6 @@ export const userStats = pgTable('user_stats', {
    * by the ordinary per-usage ledger write path.
    */
   billedOverageThisPeriod: decimal('billed_overage_this_period').notNull().default('0'), // Amount of overage already billed via threshold billing
-  /** @deprecated No readers or writers; ledger entity stamps attribute pre/post-join usage. Drop via DROP COLUMN in a follow-up migration. */
-  proPeriodCostSnapshot: decimal('pro_period_cost_snapshot').default('0'),
-  /** @deprecated No readers or writers; see proPeriodCostSnapshot. Drop via DROP COLUMN in a follow-up migration. */
-  proPeriodCostSnapshotAt: timestamp('pro_period_cost_snapshot_at'),
   /**
    * Credit balance tracker.
    *
@@ -1220,22 +1211,8 @@ export const userStats = pgTable('user_stats', {
    * overage collection. It is not a per-usage aggregate counter.
    */
   creditBalance: decimal('credit_balance').notNull().default('0'),
-  /** @deprecated Not written; report Copilot cost from usage_log. Legacy/admin reads only. */
-  totalCopilotCost: decimal('total_copilot_cost').notNull().default('0'),
-  /** @deprecated No readers or writers; Copilot usage is the copilot-source usage_log ledger. Drop via DROP COLUMN in a follow-up migration. */
-  currentPeriodCopilotCost: decimal('current_period_copilot_cost').notNull().default('0'),
   /** Previous-period Copilot cost; written by the cycle-close sweep from copilot-source ledger sums. */
   lastPeriodCopilotCost: decimal('last_period_copilot_cost').default('0'),
-  /** @deprecated Not written; report Copilot tokens from usage_log. Legacy/admin reads only. */
-  totalCopilotTokens: bigint('total_copilot_tokens', { mode: 'number' }).notNull().default(0),
-  /** @deprecated Not written; report Copilot calls from usage_log. Legacy/admin reads only. */
-  totalCopilotCalls: integer('total_copilot_calls').notNull().default(0),
-  /** @deprecated Not written; report MCP Copilot calls from usage_log. Legacy/admin reads only. */
-  totalMcpCopilotCalls: integer('total_mcp_copilot_calls').notNull().default(0),
-  /** @deprecated Not written; report MCP Copilot cost from usage_log. Legacy/admin reads only. */
-  totalMcpCopilotCost: decimal('total_mcp_copilot_cost').notNull().default('0'),
-  /** @deprecated No writer (never incremented or reset). MCP copilot usage lives in usage_log (source 'mcp_copilot'); read it from there, not this column. */
-  currentPeriodMcpCopilotCost: decimal('current_period_mcp_copilot_cost').notNull().default('0'),
   /**
    * Storage upload/delete hot-path tracker for personal plans.
    *
@@ -1243,8 +1220,6 @@ export const userStats = pgTable('user_stats', {
    * org-scoped storage writes update `organization.storageUsedBytes`.
    */
   storageUsedBytes: bigint('storage_used_bytes', { mode: 'number' }).notNull().default(0),
-  /** @deprecated Not updated by execution (no user_stats write on completion); legacy/admin reads only. */
-  lastActive: timestamp('last_active').notNull().defaultNow(),
   billingBlocked: boolean('billing_blocked').notNull().default(false),
   billingBlockedReason: billingBlockedReasonEnum('billing_blocked_reason'),
   /**
@@ -1606,8 +1581,11 @@ export const organization = pgTable('organization', {
     .$type<Record<string, number>>()
     .notNull()
     .default({}),
-  /** @deprecated No readers or writers; a departed member's ledger rows stay stamped to the org's period, so nothing needs capturing. Drop via DROP COLUMN in a follow-up migration. */
-  departedMemberUsage: decimal('departed_member_usage').notNull().default('0'),
+  // contract-pending(after #7134 is fully deployed to production): DROP COLUMN
+  // departed_member_usage — a departed member's ledger rows stay stamped to the
+  // org's period, so nothing needs capturing. The last readers/writers (v1
+  // admin exposure, cycle-close resets) and this declaration were removed in
+  // the same change, so once this is the deployed app the DROP is invisible.
   /**
    * Organization credit balance tracker.
    *
