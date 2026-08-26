@@ -24,6 +24,7 @@ import {
   Pin,
   PinOff,
   PlayOutline,
+  SquareArrowUpRight,
   Trash,
   Workflow,
   X,
@@ -70,6 +71,8 @@ interface ColumnOptionsMenuProps {
    *  it leaves the group with siblings). */
   deleteLabel?: string
   onOpenConfig: (columnName: string) => void
+  /** Opens the table targeted by a Reference column. */
+  onGoToReferenceTable?: (tableId: string) => void
   onInsertLeft: (columnName: string) => void
   onInsertRight: (columnName: string) => void
   onDeleteColumn: (columnName: string) => void
@@ -122,6 +125,7 @@ export function ColumnOptionsMenu({
   column,
   deleteLabel,
   onOpenConfig,
+  onGoToReferenceTable,
   onInsertLeft,
   onInsertRight,
   onDeleteColumn,
@@ -142,6 +146,7 @@ export function ColumnOptionsMenu({
   const showRunActions = Boolean(onRunColumnAll && onRunColumnIncomplete)
   const showRunSelected = Boolean(onRunColumnSelected) && selectedRowCount > 0
   const runLabels = runMenuLabels(hasActiveFilter)
+  const referenceTableId = column.type === 'reference' ? column.referenceTableId : undefined
   return (
     <DropdownMenu open={open} onOpenChange={onOpenChange}>
       <DropdownMenuTrigger asChild>
@@ -226,6 +231,12 @@ export function ColumnOptionsMenu({
           <DropdownMenuItem onSelect={() => onViewWorkflow()}>
             <Eye />
             View workflow
+          </DropdownMenuItem>
+        )}
+        {referenceTableId && onGoToReferenceTable && (
+          <DropdownMenuItem onSelect={() => onGoToReferenceTable(referenceTableId)}>
+            <SquareArrowUpRight />
+            Go to Reference Table
           </DropdownMenuItem>
         )}
         <DropdownMenuItem onSelect={() => onOpenConfig(column.key)}>
