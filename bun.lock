@@ -610,7 +610,7 @@
     },
     "packages/sim-cli": {
       "name": "sim",
-      "version": "2.1.1",
+      "version": "2.1.2",
       "bin": {
         "sim": "dist/index.js",
       },

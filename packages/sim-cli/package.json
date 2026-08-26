@@ -1,6 +1,6 @@
 {
   "name": "sim",
-  "version": "2.1.1",
+  "version": "2.1.2",
   "description": "Sim CLI - talk to the Sim API from your terminal",
   "type": "module",
   "bin": {
