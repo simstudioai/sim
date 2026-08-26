@@ -51,7 +51,7 @@ function request() {
   return createMockRequest('GET', undefined, {}, `http://localhost:3000/api/files/export/${DOC_ID}`)
 }
 
-function assetRecord(id: string, size: number) {
+function assetRecord(id: string, size: number | null) {
   return {
     id,
     key: `workspace/ws-1/${id}`,
@@ -159,6 +159,21 @@ describe('markdown export bundling', () => {
     const zip = await JSZip.loadAsync(Buffer.from(await response.arrayBuffer()))
     expect(zip.file('assets/good.png')).not.toBeNull()
     expect(zip.file('assets/bad.png')).toBeNull()
+  })
+
+  it('drops an asset with missing canonical size metadata', async () => {
+    embeds('good', 'missing-size')
+    assetsResolveTo((id) => assetRecord(id, id === 'missing-size' ? null : 1 * MB))
+
+    const response = await GET(request(), context)
+
+    expect(response.status).toBe(200)
+    const zip = await JSZip.loadAsync(Buffer.from(await response.arrayBuffer()))
+    expect(zip.file('assets/good.png')).not.toBeNull()
+    expect(zip.file('assets/missing-size.png')).toBeNull()
+    expect(
+      mockDownloadFile.mock.calls.some(([options]) => options.key.endsWith('missing-size'))
+    ).toBe(false)
   })
 
   /**

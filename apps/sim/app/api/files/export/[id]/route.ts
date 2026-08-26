@@ -165,7 +165,7 @@ export const GET = withRouteHandler(
           const imgRecord = await getFileMetadataById(storedFileId(imageId))
           if (!imgRecord) return null
           if (!(await verifyFileAccess(imgRecord.key, userId))) return null
-          return { imageId, record: imgRecord }
+          return { imageId, record: imgRecord, size: getWorkspaceFileSize(imgRecord) }
         } catch (error) {
           logger.warn('Failed to resolve asset for export', {
             imageId,
@@ -178,9 +178,7 @@ export const GET = withRouteHandler(
 
     // The body counts against the same budget as its assets — the zip holds both, so a
     // limit that measured only the attachments would not describe the archive produced.
-    const bundleBytes =
-      mdBuffer.length +
-      assetTargets.reduce((sum, target) => sum + getWorkspaceFileSize(target.record), 0)
+    const bundleBytes = mdBuffer.length + assetTargets.reduce((sum, target) => sum + target.size, 0)
     if (bundleBytes > MAX_EXPORT_TOTAL_BYTES) {
       return NextResponse.json(
         {
