@@ -52,19 +52,11 @@ import {
 import { MODAL_REGISTRY } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/modal-registry'
 import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate'
 import type { SubBlockConfig } from '@/blocks/types'
+import { transformSlackSelectorContext } from '@/hooks/selectors/providers/slack/context'
 import { useWebhookManagement } from '@/hooks/use-webhook-management'
 
 const SLACK_OVERRIDES: SelectorOverrides = {
-  transformContext: (context, deps) => {
-    // v1 gates on authMethod (raw bot token vs OAuth); v2 has one merged
-    // credential field for actions and customBotCredential for triggers.
-    const authMethod = deps.authMethod as string
-    const oauthCredential =
-      authMethod === 'bot_token'
-        ? String(deps.botToken ?? '')
-        : String(deps.credential ?? deps.customBotCredential ?? '')
-    return { ...context, oauthCredential }
-  },
+  transformContext: transformSlackSelectorContext,
 }
 
 const FOLDER_OVERRIDES: SelectorOverrides = {

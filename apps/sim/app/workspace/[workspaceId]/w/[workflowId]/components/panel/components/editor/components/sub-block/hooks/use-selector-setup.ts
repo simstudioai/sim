@@ -105,5 +105,6 @@ export function useSelectorSetup(
     allowSearch: subBlock.selectorAllowSearch ?? true,
     disabled: finalDisabled || !subBlock.selectorKey,
     dependencyValues: resolvedDependencyValues,
+    rawDependencyValues: dependencyValues,
   }
 }

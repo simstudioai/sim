@@ -18,21 +18,23 @@ export const slackUsersBodySchema = credentialWorkflowBodySchema.extend({
   userId: z.string().optional(),
 })
 
+export const slackSelectorCredentialBodySchema = credentialWorkflowBodySchema
+
 export const slackChannelsSelectorContract = definePostSelector(
   '/api/tools/slack/channels',
-  credentialWorkflowBodySchema,
+  slackSelectorCredentialBodySchema,
   z.object({ channels: z.array(slackChannelSchema) })
 )
 
 export const slackUsersSelectorContract = definePostSelector(
   '/api/tools/slack/users',
-  credentialWorkflowBodySchema,
+  slackSelectorCredentialBodySchema,
   z.object({ users: z.array(slackUserSchema) })
 )
 
 export const slackUserSelectorContract = definePostSelector(
   '/api/tools/slack/users',
-  credentialWorkflowBodySchema.extend({ userId: z.string().min(1) }),
+  slackSelectorCredentialBodySchema.extend({ userId: z.string().min(1) }),
   z.object({ user: slackUserSchema })
 )
 

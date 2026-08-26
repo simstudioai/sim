@@ -42,11 +42,11 @@ export function SelectorInput({
     selectorContext: autoContext,
     allowSearch,
     disabled: selectorDisabled,
-    dependencyValues,
+    rawDependencyValues,
   } = useSelectorSetup(blockId, subBlock, { disabled, isPreview, previewContextValues })
 
   const selectorContext = overrides?.transformContext
-    ? overrides.transformContext(autoContext, dependencyValues)
+    ? overrides.transformContext(autoContext, rawDependencyValues)
     : autoContext
 
   useEffect(() => {
