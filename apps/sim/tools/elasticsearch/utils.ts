@@ -27,6 +27,56 @@ function splitCloudIdPort(component: string, fallbackPort: number): { name: stri
 }
 
 /**
+ * Characters that must never appear in a decoded Cloud ID component.
+ *
+ * `#@?/` is Elastic's own reject set, applied in `decodeCloudID`
+ * (`beats/libbeat/cloudid/cloudid.go`) to the parent domain and each service
+ * UUID, with the `inject-es`, `inject-host`, and `inject-kb` fixtures pinning
+ * it. Each one lets a decoded component escape the authority it is supposed to
+ * be part of, verified against the WHATWG parser `fetch` uses:
+ *
+ * ```
+ * new URL('https://uuid@attacker.com.host').origin // => 'https://attacker.com.host'
+ * new URL('https://uuid#attacker.com.host').origin // => 'https://uuid'
+ * new URL('https://uuid?x.host').origin            // => 'https://uuid'
+ * new URL('https://uuid/p.host').origin            // => 'https://uuid'
+ * ```
+ *
+ * `@` is the dangerous one: the UUID becomes userinfo and the origin becomes
+ * the attacker's host, which the caller's ApiKey or Basic credential is then
+ * sent to. The other three silently truncate the authority to a bare label.
+ *
+ * `:` is a deliberate addition to Elastic's set. {@link splitCloudIdPort}
+ * right-partitions only the *last* colon, so `a:b:9243` leaves `a:b` as a
+ * component and assembles an authority with two colons that the URL parser
+ * rejects outright — the same unactionable "Invalid URL" this module already
+ * fixes for ported UUIDs. A real parent domain is a hostname and a real
+ * service UUID is hex, so none of these five can occur in a legitimate value.
+ */
+const CLOUD_ID_FORBIDDEN_CHARS = ['#', '@', '?', '/', ':'] as const
+
+/**
+ * Rejects a decoded Cloud ID component that could escape the URL authority.
+ *
+ * Runs on the component **after** its port has been split off and **before**
+ * it is concatenated into the origin. Checking the assembled string instead
+ * would mean re-parsing the very URL whose parse is being subverted.
+ *
+ * @param component - A decoded, port-stripped Cloud ID component.
+ * @param label - Names the component in the error message.
+ * @throws If the component contains any of {@link CLOUD_ID_FORBIDDEN_CHARS}.
+ */
+function assertSafeCloudIdComponent(component: string, label: string): void {
+  for (const char of CLOUD_ID_FORBIDDEN_CHARS) {
+    if (component.includes(char)) {
+      throw new Error(
+        `Cloud ID is not properly formatted (${label} "${component}" contains the invalid character "${char}")`
+      )
+    }
+  }
+}
+
+/**
  * Decodes an Elastic Cloud ID into the Elasticsearch origin it addresses.
  *
  * A Cloud ID is `<label>:<base64>`, where the base64 payload decodes to
@@ -114,6 +164,15 @@ export function parseCloudId(rawCloudId: string): string {
   if (!parentDn || !esUuid || !Number.isInteger(port) || port <= 0 || port > 65535) {
     throw new Error('Cloud ID is not properly formatted (invalid host or port)')
   }
+
+  /**
+   * The Kibana UUID (`words[2]`) is deliberately not checked. Elastic validates
+   * it because it also builds a Kibana URL; we only ever build the
+   * Elasticsearch origin, so rejecting on a component that never reaches it
+   * would refuse a Cloud ID that works fine for search.
+   */
+  assertSafeCloudIdComponent(parentDn, 'host')
+  assertSafeCloudIdComponent(esUuid, 'Elasticsearch UUID')
 
   const origin = `https://${esUuid}.${parentDn}`
   return port === 443 ? origin : `${origin}:${port}`

@@ -328,3 +328,131 @@ describe('safeIndexPathSegment', () => {
     expect(safeIndexPathSegment('logs-*', 'index')).toBe('logs-*')
   })
 })
+
+/**
+ * The decoded payloads of Elastic's `inject-es`, `inject-host`, and `inject-kb`
+ * `TestDecodeError` fixtures, re-encoded under an ordinary label.
+ *
+ * Elastic writes those fixtures with a literal `#:` marker before the base64
+ * ("inject-es:#:<payload>"). Elastic's decoder splits the label at the LAST
+ * colon so the marker is discarded, while ours splits at the FIRST — a
+ * deliberate difference pinned by the "takes the payload as everything after
+ * the FIRST colon" test above, which the base64-alphabet check then rejects.
+ * Carrying the marker through would make these tests pass on the wrong error,
+ * so only the decoded payload is reused.
+ */
+const INJECTION_FIXTURES = {
+  injectEs: cloudId(
+    'inject-es',
+    'us-east-1.aws.found.io$cec6f261#attacker.com$c6c2ca6d042249af0cc7d7a9e9625743'
+  ),
+  injectHost: cloudId(
+    'inject-host',
+    'us-east-1.aws.found.io#attacker.com$cec6f261a74bf24ce33bb8811b84294f$c6c2ca6d042249af0cc7d7a9e9625743'
+  ),
+  injectKb: cloudId('inject-kb', `us-east-1.aws.found.io$${ES_UUID}$c6c2ca6d#attacker.com`),
+} as const
+
+describe('parseCloudId rejects URL-special characters in decoded components', () => {
+  it("rejects a '#' in the Elasticsearch UUID (Elastic's inject-es fixture)", () => {
+    expect(() => parseCloudId(INJECTION_FIXTURES.injectEs)).toThrow(/invalid character/)
+  })
+
+  it("rejects a '#' in the parent domain (Elastic's inject-host fixture)", () => {
+    expect(() => parseCloudId(INJECTION_FIXTURES.injectHost)).toThrow(/invalid character/)
+  })
+
+  it.each([
+    ['#', 'truncates the authority into a fragment'],
+    ['@', 'turns the UUID into userinfo and hands the origin to the rest'],
+    ['?', 'truncates the authority into a query'],
+    ['/', 'truncates the authority and turns the rest into a path'],
+  ])('rejects %j in the Elasticsearch UUID, which otherwise %s', (char) => {
+    const id = cloudId('evil', `${PARENT_DN}$${ES_UUID}${char}attacker.com$${KIBANA_UUID}`)
+
+    expect(() => parseCloudId(id)).toThrow(/invalid character/)
+  })
+
+  it.each(['#', '@', '?', '/'])('rejects %j in the parent domain', (char) => {
+    const id = cloudId('evil', `${PARENT_DN}${char}attacker.com$${ES_UUID}$${KIBANA_UUID}`)
+
+    expect(() => parseCloudId(id)).toThrow(/invalid character/)
+  })
+
+  /**
+   * A colon needs a companion to survive: `splitCloudIdPort` right-partitions
+   * the last one as a port, so a single trailing colon is already caught by
+   * the port guard (`:attacker.com` parses to NaN). Two colons leave one
+   * behind in the component, which assembles an authority the URL parser
+   * rejects outright — the case the reject set has to catch.
+   */
+  it('rejects a colon left in the Elasticsearch UUID after the port is split off', () => {
+    const id = cloudId('evil', `${PARENT_DN}$${ES_UUID}:attacker.com:9243$${KIBANA_UUID}`)
+
+    expect(() => parseCloudId(id)).toThrow(/invalid character/)
+  })
+
+  it('rejects a colon left in the parent domain after the port is split off', () => {
+    const id = cloudId('evil', `${PARENT_DN}:attacker.com:9243$${ES_UUID}$${KIBANA_UUID}`)
+
+    expect(() => parseCloudId(id)).toThrow(/invalid character/)
+  })
+
+  it('still catches a single trailing colon through the port guard', () => {
+    const id = cloudId('evil', `${PARENT_DN}$${ES_UUID}:attacker.com$${KIBANA_UUID}`)
+
+    expect(() => parseCloudId(id)).toThrow(/invalid host or port/)
+  })
+
+  it('names the offending component and character in the error', () => {
+    const id = cloudId('evil', `${PARENT_DN}$${ES_UUID}@attacker.com$${KIBANA_UUID}`)
+
+    expect(() => parseCloudId(id)).toThrow(/"@"/)
+    expect(() => parseCloudId(id)).toThrow(new RegExp(ES_UUID))
+  })
+
+  it('checks the decoded component, not the assembled URL', () => {
+    /**
+     * `<es-uuid>@attacker.com` assembles into
+     * `https://<es-uuid>@attacker.com.us-east-1.aws.found.io`, whose origin is
+     * `attacker.com.us-east-1.aws.found.io` — a different host, reached with
+     * the caller's ApiKey or Basic credential attached. An assembled-string
+     * check would have to re-parse that to notice.
+     */
+    const id = cloudId('evil', `${PARENT_DN}$${ES_UUID}@attacker.com$${KIBANA_UUID}`)
+
+    expect(() => parseCloudId(id)).toThrow()
+  })
+
+  it("accepts a '#' in the Kibana UUID, which never reaches an Elasticsearch URL", () => {
+    /**
+     * A deliberate divergence from Elastic's decoder, which validates the
+     * Kibana component because it also builds a Kibana URL. We only ever build
+     * the Elasticsearch origin from words[0] and words[1], so rejecting on
+     * words[2] would refuse a Cloud ID that is perfectly usable for search.
+     */
+    expect(parseCloudId(INJECTION_FIXTURES.injectKb)).toBe(`https://${ES_UUID}.${PARENT_DN}`)
+  })
+
+  it('is a no-op on every legitimate fixture, including the ported ones', () => {
+    expect(parseCloudId(ELASTIC_FIXTURES.customPort)).toBe(
+      `https://${GCP_ES_UUID}.${GCP_PARENT_DN}:9243`
+    )
+    expect(parseCloudId(ELASTIC_FIXTURES.differentEsKbPort)).toBe(
+      `https://${GCP_ES_UUID}.${GCP_PARENT_DN}:9243`
+    )
+    expect(parseCloudId(ELASTIC_FIXTURES.hostAndKbSet)).toBe(
+      `https://${GCP_ES_UUID}.${GCP_PARENT_DN}:9243`
+    )
+    expect(parseCloudId(ELASTIC_FIXTURES.onlyKbSet)).toBe(`https://${GCP_ES_UUID}.${GCP_PARENT_DN}`)
+    expect(parseCloudId(ELASTIC_FIXTURES.extraItems)).toBe(
+      `https://${GCP_ES_UUID}.${GCP_PARENT_DN}`
+    )
+  })
+
+  it('leaves the dots and hyphens a real hostname and hex UUID are made of alone', () => {
+    const id = cloudId('ok', `es-prod.eu-west-1.aws.found.io$${ES_UUID}$${KIBANA_UUID}`)
+
+    expect(parseCloudId(id)).toBe(`https://${ES_UUID}.es-prod.eu-west-1.aws.found.io`)
+  })
+})
