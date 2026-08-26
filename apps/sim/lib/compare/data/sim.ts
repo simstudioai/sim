@@ -792,19 +792,19 @@ export const simProfile: CompetitorProfile = {
       },
       freeTier: {
         value:
-          'Yes: Free plan with 1,000 monthly credits (worth $5, env-configurable), granted monthly with no daily refresh (daily refresh is a paid-plan feature)',
+          'Yes: Free plan with 1,000 monthly credits (worth $5, env-configurable), granted monthly with no weekly refresh (weekly refresh is a paid-plan feature)',
         shortValue: 'Free plan, 1,000 credits/month',
         confidence: 'verified',
         sources: [
           {
             url: 'https://www.sim.ai/pricing',
             label: 'Sim Pricing',
-            asOf: '2026-07-08',
+            asOf: '2026-08-26',
           },
           {
             url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/lib/billing/constants.ts',
             label: 'Sim codebase: DEFAULT_FREE_CREDITS',
-            asOf: '2026-07-08',
+            asOf: '2026-08-26',
           },
         ],
       },

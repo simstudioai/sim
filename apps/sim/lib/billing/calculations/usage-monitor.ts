@@ -15,12 +15,12 @@ import {
   type UsageQueryPeriod,
 } from '@/lib/billing/core/usage-log'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
-import { computeBillingPeriodUsageWithDailyRefresh } from '@/lib/billing/credits/daily-refresh'
+import { computeBillingPeriodUsageWithWeeklyRefresh } from '@/lib/billing/credits/weekly-refresh'
 import {
   getOrgMemberUsageForBillingPeriod,
   getOrgMemberUsageLimit,
 } from '@/lib/billing/organizations/member-limits'
-import { getPlanTierDollars, isPaid } from '@/lib/billing/plan-helpers'
+import { getPlanWeeklyRefreshDollars, isPaid } from '@/lib/billing/plan-helpers'
 import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
 import { isBillingEnabled, isHosted } from '@/lib/core/config/env-flags'
 
@@ -61,17 +61,17 @@ async function computePooledOrgUsage(
     return getBillingPeriodUsageCost({ type: 'organization', id: organizationId }, billingPeriod)
   }
 
-  const planDollars = getPlanTierDollars(sub.plan)
-  if (planDollars <= 0) {
+  const weeklyRefreshDollars = getPlanWeeklyRefreshDollars(sub.plan)
+  if (weeklyRefreshDollars <= 0) {
     return getBillingPeriodUsageCost({ type: 'organization', id: organizationId }, billingPeriod)
   }
 
-  const { ledgerUsage, refreshConsumed } = await computeBillingPeriodUsageWithDailyRefresh({
+  const { ledgerUsage, refreshConsumed } = await computeBillingPeriodUsageWithWeeklyRefresh({
     billingEntity: { type: 'organization', id: organizationId },
     billingPeriod,
     refreshPeriodStart: sub.periodStart,
     refreshPeriodEnd: sub.periodEnd ?? null,
-    planDollars,
+    weeklyRefreshDollars,
     seats: sub.seats || 1,
   })
 
@@ -134,20 +134,20 @@ export async function checkUsageStatus(
         : defaultBillingPeriod())
     let ledgerUsage: number
     let refreshConsumed = 0
-    let appliedDailyRefresh = false
+    let appliedWeeklyRefresh = false
     if (sub && isPaid(sub.plan) && sub.periodStart) {
-      const planDollars = getPlanTierDollars(sub.plan)
-      if (planDollars > 0) {
-        const usage = await computeBillingPeriodUsageWithDailyRefresh({
+      const weeklyRefreshDollars = getPlanWeeklyRefreshDollars(sub.plan)
+      if (weeklyRefreshDollars > 0) {
+        const usage = await computeBillingPeriodUsageWithWeeklyRefresh({
           billingEntity: { type: 'user', id: userId },
           billingPeriod,
           refreshPeriodStart: sub.periodStart,
           refreshPeriodEnd: sub.periodEnd ?? null,
-          planDollars,
+          weeklyRefreshDollars,
         })
         ledgerUsage = usage.ledgerUsage
         refreshConsumed = usage.refreshConsumed
-        appliedDailyRefresh = true
+        appliedWeeklyRefresh = true
       } else {
         ledgerUsage = await getBillingPeriodUsageCost({ type: 'user', id: userId }, billingPeriod)
       }
@@ -155,7 +155,7 @@ export async function checkUsageStatus(
       ledgerUsage = await getBillingPeriodUsageCost({ type: 'user', id: userId }, billingPeriod)
     }
     const usageBeforeRefresh = ledgerUsage - refreshConsumed
-    const currentUsage = appliedDailyRefresh ? Math.max(0, usageBeforeRefresh) : usageBeforeRefresh
+    const currentUsage = appliedWeeklyRefresh ? Math.max(0, usageBeforeRefresh) : usageBeforeRefresh
 
     return buildUsageData({ currentUsage, limit, scope, organizationId })
   } catch (error) {

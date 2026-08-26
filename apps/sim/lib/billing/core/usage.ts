@@ -23,8 +23,13 @@ import {
   resolveSubscriptionUsagePeriod,
 } from '@/lib/billing/core/reporting-period'
 import { type BillingEntity, getBillingPeriodUsageCost } from '@/lib/billing/core/usage-log'
-import { computeDailyRefreshConsumed } from '@/lib/billing/credits/daily-refresh'
-import { getPlanTierDollars, isEnterprise, isFree, isPaid } from '@/lib/billing/plan-helpers'
+import { computeWeeklyRefreshConsumed } from '@/lib/billing/credits/weekly-refresh'
+import {
+  getPlanWeeklyRefreshDollars,
+  isEnterprise,
+  isFree,
+  isPaid,
+} from '@/lib/billing/plan-helpers'
 import {
   canEditUsageLimit,
   getFreeTierLimit,
@@ -260,18 +265,18 @@ export async function getResolvedUserUsageData(
     const billingPeriodStart = billingPeriod.source === 'default' ? null : billingPeriod.start
     const billingPeriodEnd = billingPeriod.source === 'default' ? null : billingPeriod.end
 
-    let dailyRefreshConsumed = 0
+    let weeklyRefreshConsumed = 0
     if (subscription && isPaid(subscription.plan) && billingPeriodStart) {
-      const planDollars = getPlanTierDollars(subscription.plan)
-      if (planDollars > 0) {
-        dailyRefreshConsumed = await computeDailyRefreshConsumed(
+      const weeklyRefreshDollars = getPlanWeeklyRefreshDollars(subscription.plan)
+      if (weeklyRefreshDollars > 0) {
+        weeklyRefreshConsumed = await computeWeeklyRefreshConsumed(
           {
             billingEntity: orgScoped
               ? { type: 'organization', id: subscription.referenceId }
               : { type: 'user', id: userId },
             periodStart: billingPeriodStart,
             periodEnd: billingPeriodEnd,
-            planDollars,
+            weeklyRefreshDollars,
             seats: orgScoped ? subscription.seats || 1 : undefined,
           },
           executor
@@ -279,7 +284,7 @@ export async function getResolvedUserUsageData(
       }
     }
 
-    const effectiveUsage = Math.max(0, currentUsage - dailyRefreshConsumed)
+    const effectiveUsage = Math.max(0, currentUsage - weeklyRefreshConsumed)
     const percentUsed = limit > 0 ? Math.min((effectiveUsage / limit) * 100, 100) : 0
     const isWarning = percentUsed >= 80
     const isExceeded = effectiveUsage >= limit
@@ -628,7 +633,7 @@ export async function syncUsageLimitsFromSubscription(userId: string): Promise<v
 }
 
 /**
- * Returns the effective current period usage cost for a user, with daily
+ * Returns the effective current period usage cost for a user, with weekly
  * refresh credits deducted. Org-scoped subs return the pooled sum across
  * all org members; personally-scoped subs return this user's own cost.
  */
@@ -656,15 +661,15 @@ export async function getEffectiveCurrentPeriodCost(
     return rawCost
   }
 
-  const planDollars = getPlanTierDollars(subscription.plan)
-  if (planDollars <= 0) return rawCost
+  const weeklyRefreshDollars = getPlanWeeklyRefreshDollars(subscription.plan)
+  if (weeklyRefreshDollars <= 0) return rawCost
 
-  const refreshConsumed = await computeDailyRefreshConsumed(
+  const refreshConsumed = await computeWeeklyRefreshConsumed(
     {
       billingEntity,
       periodStart: subscription.periodStart,
       periodEnd: subscription.periodEnd ?? null,
-      planDollars,
+      weeklyRefreshDollars,
       seats: subscription.seats || 1,
     },
     executor
