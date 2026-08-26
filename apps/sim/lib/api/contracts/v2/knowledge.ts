@@ -490,7 +490,7 @@ const v2KnowledgeDocumentProcessingOptionsSchema =
       lang: knowledgeDocumentUploadMetadataSchema.shape.processingOptions
         .unwrap()
         .shape.lang.describe(
-          'Optional document language, as a BCP-47 tag such as `en` or `en-US`.'
+          'Optional document language: hyphen-separated letter and digit subtags such as `en`, `en-US`, or `zh-Hant-TW`. Only that shape is validated, not full BCP-47 conformance.'
         ),
     })
     .strict()

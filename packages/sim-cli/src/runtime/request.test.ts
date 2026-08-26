@@ -127,6 +127,10 @@ describe('buildRequest', () => {
     expect(buildRequest('updateWorkflow', ['wf_1'], { description: '' }, WORKSPACE).body).toEqual({
       description: '',
     })
+    // Blank-scoped to the query on both spellings: a body string is the value.
+    expect(buildRequest('updateWorkflow', ['wf_1'], { description: ' ' }, WORKSPACE).body).toEqual({
+      description: ' ',
+    })
   })
 
   describe('failures, all before any network call', () => {
@@ -173,13 +177,42 @@ describe('buildRequest', () => {
     })
 
     /**
+     * A quoted space is invisible in a shell and reached the wire as every
+     * blank the empty string did — `--max-cost " "` as a real `0` ceiling,
+     * `--deployed-only " "` as an explicit `false`, `--status " "` as the
+     * `%20` the route reads as blank and answers `400`.
+     */
+    it('rejects a whitespace-only query filter, which is blank on the wire too', () => {
+      expect(() => buildRequest('listLogs', [], { status: ' ' }, WORKSPACE)).toThrow(
+        '--status cannot be empty'
+      )
+      expect(() => buildRequest('listLogs', [], { maxCost: ' ' }, WORKSPACE)).toThrow(
+        '--max-cost cannot be empty'
+      )
+      expect(() => buildRequest('listLogs', [], { minDurationMs: '\t' }, WORKSPACE)).toThrow(
+        '--min-duration-ms cannot be empty'
+      )
+      expect(() => buildRequest('listWorkflows', [], { deployedOnly: '  ' }, WORKSPACE)).toThrow(
+        '--deployed-only cannot be empty'
+      )
+    })
+
+    /** Only an all-whitespace value is blank; the surrounding spaces are the caller's. */
+    it('still sends a query value that has content around its whitespace', () => {
+      expect(buildRequest('listLogs', [], { workflowName: ' q3 ' }, WORKSPACE).query).toMatchObject(
+        { workflowName: ' q3 ' }
+      )
+    })
+
+    /**
      * A paginating `limit` is the walk size, not a filter, and the pager reads
      * it from the flags itself — refusing a blank one in wording that says what
      * `0` means there. Left to it rather than pre-empted with a generic
-     * refusal.
+     * refusal, whitespace included: the pager trims before it decides.
      */
     it('leaves a blank paginating limit to the pager, which words it better', () => {
       expect(() => buildRequest('listWorkflows', [], { limit: '' }, WORKSPACE)).not.toThrow()
+      expect(() => buildRequest('listWorkflows', [], { limit: ' ' }, WORKSPACE)).not.toThrow()
     })
 
     it('rejects a missing required flag', () => {

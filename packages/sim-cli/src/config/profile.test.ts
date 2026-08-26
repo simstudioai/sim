@@ -256,6 +256,43 @@ describe('profile resolution', () => {
     ).not.toThrow()
   })
 
+  it('refuses an endpoint carrying a control character, from every source', () => {
+    // The URL parser deletes tabs and line breaks from anywhere in its input
+    // before parsing, so the host a reader sees in the string need not be the
+    // host the request reaches — and the request carries the API key. Trimming
+    // only reaches the ends, so the normalizer has to refuse the whole set.
+    for (const endpoint of [
+      'https://www.sim.ai\n@other.invalid',
+      'https://www.sim.ai\r@other.invalid',
+      'https://www.sim.ai\t@other.invalid',
+      'https://www.sim.ai\u0000@other.invalid',
+      'https://www.sim.ai\u2028@other.invalid',
+    ]) {
+      expect(() => resolveProfile({ endpoint })).toThrow(
+        'An endpoint cannot contain line breaks or control characters.'
+      )
+      // The rejected text is echoed back with the control characters redacted,
+      // so an error message cannot become an escape-sequence delivery vehicle.
+      expect(() => resolveProfile({ endpoint })).toThrow(
+        'Invalid endpoint "https://www.sim.ai @other.invalid" from flag.'
+      )
+    }
+
+    process.env.SIM_ENDPOINT = 'https://www.sim.ai\t@other.invalid'
+    expect(() => resolveProfile()).toThrow(
+      'Invalid endpoint "https://www.sim.ai @other.invalid" from env.'
+    )
+
+    Reflect.deleteProperty(process.env, 'SIM_ENDPOINT')
+    // A tab survives the config reader — `.` matches it, unlike a line break —
+    // so a hand-edited file can hold one even though the writer refuses to
+    // produce it, and the read path has to refuse it too.
+    writeFileSync(configPath(), '[default]\nendpoint = https://www.sim.ai\t@other.invalid\n')
+    expect(() => resolveProfile()).toThrow(
+      'Invalid endpoint "https://www.sim.ai @other.invalid" from config.'
+    )
+  })
+
   it('fails fast on an endpoint Node cannot parse, naming the source', () => {
     expect(() => resolveProfile({ endpoint: 'not-a-url' })).toThrow(
       'Invalid endpoint "not-a-url" from flag. Use an absolute URL, e.g. https://www.sim.ai or http://localhost:3000'

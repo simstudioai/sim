@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import { copilotChats, copilotMessages } from '@sim/db/schema'
-import { and, eq, notInArray, sql } from 'drizzle-orm'
+import { and, eq, isNull, notInArray, sql } from 'drizzle-orm'
 import { type PersistedMessage, stripToolResultOutput } from '@/lib/copilot/chat/persisted-message'
 import type { DbOrTx } from '@/lib/db/types'
 
@@ -87,8 +87,15 @@ export async function appendCopilotChatMessages(
  * turn run without that surface would leave a chat that opens to nothing.
  *
  * Both messages are written in a single transaction, so a failure leaves the
- * transcript untouched rather than showing a question with no answer. Does
- * nothing when the chat no longer exists; throws on a write failure.
+ * transcript untouched rather than showing a question with no answer.
+ *
+ * The chat row is claimed under the same liveness predicate the accessible-chat
+ * loaders use, so a chat soft-deleted while the turn was running receives
+ * nothing: the update matches no row and the transaction returns having written
+ * neither the transcript nor the recency bump. Dropping the turn is right here
+ * because the user deleted the conversation after asking — resurrecting it with
+ * a reply would undo that deletion, and the caller still has its reply in the
+ * response. Throws on a write failure.
  */
 export async function persistCopilotChatTurn(
   chatId: string,
@@ -98,7 +105,7 @@ export async function persistCopilotChatTurn(
     const [updated] = await tx
       .update(copilotChats)
       .set({ updatedAt: new Date() })
-      .where(eq(copilotChats.id, chatId))
+      .where(and(eq(copilotChats.id, chatId), isNull(copilotChats.deletedAt)))
       .returning({ model: copilotChats.model })
     if (!updated) return
     await appendCopilotChatMessages(chatId, messages, { chatModel: updated.model ?? null }, tx)

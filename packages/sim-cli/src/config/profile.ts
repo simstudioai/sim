@@ -318,6 +318,27 @@ export function normalizeEndpoint(endpoint: string, source: string): string {
   // `https://sim.ai//api/v2/...`, which some proxies 404 rather than normalize.
   const trimmed = endpoint.trim().replace(/\/+$/, '')
 
+  // Trimming only reaches the ends, and a control character in the middle is
+  // the one that matters: the URL parser deletes tabs and line breaks from
+  // anywhere in its input before parsing it, so a string whose visible text
+  // names one host can resolve to a different authority — and the resolved one
+  // is where the API key is sent. Refusing the whole forbidden set here means
+  // the endpoint this function blesses is the endpoint every later parse sees.
+  //
+  // A character check rather than parse-and-compare: comparing `trimmed`
+  // against `parsed.href` would also reject legitimate endpoints, because the
+  // parser rewrites percent-encoding, lowercases the scheme and host,
+  // punycodes an IDN, and drops a default port. The forbidden set is instead a
+  // strict superset of the characters the parser silently removes, so it is
+  // exact for this hazard — and it is `FORBIDDEN_IN_VALUE`, the same constant
+  // the config writer enforces, so a value accepted here can never be refused
+  // by the write that stores it.
+  if (FORBIDDEN_IN_VALUE.test(trimmed)) {
+    throw new ProfileConfigError(
+      `Invalid endpoint "${endpoint.replace(FORBIDDEN_IN_VALUE_GLOBAL, ' ')}" from ${source}. An endpoint cannot contain line breaks or control characters.`
+    )
+  }
+
   let parsed: URL
   try {
     parsed = new URL(trimmed)

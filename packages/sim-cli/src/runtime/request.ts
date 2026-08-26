@@ -523,8 +523,20 @@ export function buildRequest(
        * `0`, so `--max-cost ""` reached the wire as a real "costing at most
        * nothing" filter that a check on the coerced value cannot see. An
        * explicit `--max-cost 0` is a value the caller chose and is still sent.
+       *
+       * Blank is `trim()`-empty rather than exactly empty, matching both the
+       * route — `blankQueryValueValidationError` reads `?status=%20` as blank —
+       * and the list flag beside it, which trims each entry before refusing it.
+       * A quoted space is invisible in a shell and read as every blank the
+       * empty string did: `--max-cost " "` as `0`, `--deployed-only " "` as an
+       * explicit `false`, `--status " "` as a `%20` the server answers `400`.
        */
-      if (slot === 'query' && raw === '' && !(field === 'limit' && paginatedLimit)) {
+      if (
+        slot === 'query' &&
+        typeof raw === 'string' &&
+        raw.trim() === '' &&
+        !(field === 'limit' && paginatedLimit)
+      ) {
         throw new SimApiError(`--${flagName} cannot be empty`, 0)
       }
 

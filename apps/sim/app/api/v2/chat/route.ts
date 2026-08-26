@@ -198,11 +198,10 @@ export const POST = withRouteHandler(
        * resolved. Without it a `sim chat` turn leaves a titled conversation
        * that opens to an empty transcript in the web Chat list.
        *
-       * By the time this runs the turn has completed and been billed, and a
-       * streamed reply has already reached the caller, so a write failure is
-       * logged and the successful response still stands. The write is one
-       * transaction, so that failure leaves the transcript empty rather than
-       * showing the question without the answer.
+       * By the time this runs the turn has completed and been billed, so a
+       * write failure is logged and the response the caller gets is unchanged.
+       * The write is one transaction, so that failure leaves the transcript
+       * empty rather than showing the question without the answer.
        */
       const persistTurn = async (result: OrchestratorResult): Promise<void> => {
         try {
@@ -355,6 +354,13 @@ export const POST = withRouteHandler(
                 })
                 allowExplicitAbort = false
 
+                // Persist before the cancellation check: the turn ran and was
+                // billed, so the reply belongs in the transcript even when the
+                // caller stopped listening — that is the only place it survives.
+                if (result.success) {
+                  await persistTurn(result)
+                }
+
                 if (lifecycleAbortController.signal.aborted) {
                   send({ type: 'error', error: 'Chat request aborted' })
                   return
@@ -372,8 +378,6 @@ export const POST = withRouteHandler(
                   })
                   return
                 }
-
-                await persistTurn(result)
 
                 send({
                   type: 'final',
@@ -428,6 +432,14 @@ export const POST = withRouteHandler(
         const result = await runLifecycle()
         allowExplicitAbort = false
 
+        // Persist before the cancellation check: the turn ran and was billed,
+        // so the reply belongs in the transcript even when the caller stopped
+        // listening — that is the only place it survives. The cancellation
+        // check still decides the status the caller receives.
+        if (result.success) {
+          await persistTurn(result)
+        }
+
         if (lifecycleAbortController.signal.aborted || req.signal.aborted) {
           reqLogger.info('Chat request aborted after lifecycle completion')
           return v2Error('CLIENT_CLOSED_REQUEST', 'Chat request aborted')
@@ -437,8 +449,6 @@ export const POST = withRouteHandler(
           reqLogger.error('Chat request failed', { error: result.error, errors: result.errors })
           return v2Error('INTERNAL_ERROR', result.error || 'Chat request failed')
         }
-
-        await persistTurn(result)
 
         return v2Data(buildChatResultPayload(result, chatId, integrationTools))
       } finally {

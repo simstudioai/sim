@@ -332,11 +332,20 @@ export function loginCommand(): Command {
         // making them look up its id afterwards would waste the one moment the
         // answer was already on screen. It arrives off the wire, so it is
         // checked before either file is touched.
+        //
+        // Absence is the whole of "no workspace" here, and it is a legitimate
+        // outcome — a personal key with nothing selected in the browser. A
+        // *present* value is a workspace id, so every one of them goes to
+        // `normalizeWorkspaceId` to be accepted or refused by name. Testing
+        // truthiness instead let an empty string through the absent branch, so
+        // a malformed response was quietly stored as "no workspace" rather than
+        // reported.
         const settings: Record<string, string | null> = {
           endpoint: profile.endpoint,
-          workspace: key.workspaceId
-            ? normalizeWorkspaceId(key.workspaceId, 'the login response')
-            : null,
+          workspace:
+            key.workspaceId == null
+              ? null
+              : normalizeWorkspaceId(key.workspaceId, 'the login response'),
         }
         requireStorableKey(key.apiKey)
 

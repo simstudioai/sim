@@ -346,6 +346,33 @@ describe('login command', () => {
     })
     expect(console.log).toHaveBeenCalledWith(expect.stringContaining('no default workspace'))
   })
+
+  it('refuses an empty workspace id instead of storing it as no workspace', async () => {
+    setInteractive(false)
+    mocks.profileFrom.mockReturnValue({
+      name: 'default',
+      endpoint: 'https://sim.ai',
+      apiKey: null,
+      workspaceId: 'ws_old',
+      output: 'table',
+      sources: {
+        endpoint: 'default',
+        apiKey: 'unset',
+        workspaceId: 'config',
+        output: 'default',
+      },
+    })
+    mocks.pollForKey.mockResolvedValue({
+      apiKey: 'sim-key',
+      scope: 'platform',
+      workspaceBound: false,
+      workspaceId: '',
+    })
+
+    await expect(login()).rejects.toThrow('Empty workspace id from the login response.')
+    expect(mocks.writeConfigProfile).not.toHaveBeenCalled()
+    expect(mocks.writeCredentialsProfile).not.toHaveBeenCalled()
+  })
 })
 
 describe('profiles command', () => {
