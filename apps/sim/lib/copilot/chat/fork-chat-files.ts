@@ -2,13 +2,14 @@ import { workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
+import { omit } from '@sim/utils/object'
 import { and, eq, isNull } from 'drizzle-orm'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { generateWorkspaceFileKey } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { copyWorkspaceFileSecretProvenanceInTx } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { downloadFile, uploadFile } from '@/lib/uploads/core/storage-service'
-import type { StorageContext } from '@/lib/uploads/shared/types'
+import { getWorkspaceFileSize, type StorageContext } from '@/lib/uploads/shared/types'
 import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
 
 const logger = createLogger('ForkChatFiles')
@@ -120,11 +121,12 @@ export async function planChatFileCopies(params: {
     const copyId = `wf_${generateShortId()}`
     const targetKey = generateWorkspaceFileKey(row.workspaceId, row.originalName)
     copyRows.push({
-      ...row,
+      ...omit(row, ['size']),
       id: copyId,
       key: targetKey,
       chatId: newChatId,
       userId,
+      sizeBytes: getWorkspaceFileSize(row),
       deletedAt: null,
       uploadedAt: now,
       updatedAt: now,

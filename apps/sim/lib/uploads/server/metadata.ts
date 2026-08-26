@@ -6,9 +6,9 @@ import { and, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { inferContextFromKey } from '@/lib/uploads/utils/file-utils'
 import {
+  getWorkspaceFileSize,
   isWorkspaceScopedContext,
   type StorageContext,
-  toLegacyWorkspaceFileSize,
 } from '../shared/types'
 
 const logger = createLogger('FileMetadata')
@@ -48,7 +48,7 @@ function isSameFileMetadataInsert(
     existing.context === options.context &&
     existing.originalName === options.originalName &&
     existing.contentType === options.contentType &&
-    (existing.sizeBytes ?? existing.size) === options.size &&
+    getWorkspaceFileSize(existing) === options.size &&
     existing.deletedAt === null &&
     (options.id === undefined || existing.id === options.id)
   )
@@ -123,7 +123,6 @@ async function insertFileMetadataWithExecutor(
         originalName,
         displayName: originalName,
         contentType,
-        size: toLegacyWorkspaceFileSize(size),
         sizeBytes: size,
         deletedAt: null,
         uploadedAt: new Date(),
@@ -152,7 +151,6 @@ async function insertFileMetadataWithExecutor(
         originalName,
         displayName: originalName,
         contentType,
-        size: toLegacyWorkspaceFileSize(size),
         sizeBytes: size,
         deletedAt: null,
         uploadedAt: new Date(),
@@ -197,7 +195,6 @@ async function insertImmutableFileMetadataWithExecutor(
       originalName,
       displayName: originalName,
       contentType,
-      size: toLegacyWorkspaceFileSize(size),
       sizeBytes: size,
       deletedAt: null,
       uploadedAt: new Date(),
@@ -275,7 +272,6 @@ export async function insertFileMetadataMany(
         originalName: row.originalName,
         displayName: row.originalName,
         contentType: row.contentType,
-        size: toLegacyWorkspaceFileSize(row.size),
         sizeBytes: row.size,
         deletedAt: null,
         uploadedAt: new Date(),

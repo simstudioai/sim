@@ -82,7 +82,7 @@ async function getExactWorkspaceStorageBytes(tx: DbOrTx, workspaceId: string): P
   const [row] = await tx.execute<ExactWorkspaceStorageRow>(sql`
     SELECT
       COALESCE((
-        SELECT SUM(coalesce(${workspaceFiles.sizeBytes}, ${workspaceFiles.size}::bigint))
+        SELECT SUM(${workspaceFiles.sizeBytes})
         FROM ${workspaceFiles}
         WHERE ${workspaceFiles.workspaceId} = ${workspaceId}
           AND ${workspaceFiles.context} = 'workspace'
@@ -171,7 +171,7 @@ async function getExactWorkspaceStorageBytesBatch(
     FROM (
       SELECT
         ${workspaceFiles.workspaceId} AS workspace_id,
-        SUM(coalesce(${workspaceFiles.sizeBytes}, ${workspaceFiles.size}::bigint)) AS workspace_file_bytes,
+        SUM(${workspaceFiles.sizeBytes}) AS workspace_file_bytes,
         0::bigint AS document_bytes
       FROM ${workspaceFiles}
       WHERE ${inArray(workspaceFiles.workspaceId, workspaceIds)}

@@ -35,6 +35,7 @@ import type { StorageContext } from '@/lib/uploads'
 import { isUsingCloudStorage, StorageService } from '@/lib/uploads'
 import { allocateUniqueWorkspaceFileName } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { deleteFileMetadata } from '@/lib/uploads/server/metadata'
+import { getWorkspaceFileSize } from '@/lib/uploads/shared/types'
 import { deduplicateWorkflowName } from '@/lib/workflows/utils'
 
 const logger = createLogger('CleanupSoftDeletes')
@@ -113,9 +114,7 @@ async function selectExpiredWorkspaceFiles(
           key: workspaceFiles.key,
           workspaceId: workspaceFiles.workspaceId,
           context: workspaceFiles.context,
-          size: sql<number>`coalesce(${workspaceFiles.sizeBytes}, ${workspaceFiles.size})`.mapWith(
-            Number
-          ),
+          sizeBytes: workspaceFiles.sizeBytes,
         })
         .from(workspaceFiles)
         .where(
@@ -136,7 +135,7 @@ async function selectExpiredWorkspaceFiles(
       key: r.key,
       workspaceId: r.workspaceId,
       context: r.context as StorageContext,
-      size: r.size,
+      size: getWorkspaceFileSize(r),
     })),
   }
 }
@@ -329,9 +328,7 @@ async function deleteExpiredBillableWorkspaceFileRows(
             )
             .returning({
               id: workspaceFiles.id,
-              size: sql<number>`coalesce(${workspaceFiles.sizeBytes}, ${workspaceFiles.size})`.mapWith(
-                Number
-              ),
+              size: sql<number>`${workspaceFiles.sizeBytes}`.mapWith(Number),
             })
           if (deletedRows.some(({ size }) => size < 0)) {
             throw new Error('Cannot delete workspace files with negative stored-byte metadata')

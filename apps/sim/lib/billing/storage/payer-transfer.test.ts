@@ -52,7 +52,7 @@ vi.mock('@sim/db/schema', () => ({
     __table: 'workspaceFiles',
     context: 'workspaceFiles.context',
     deletedAt: 'workspaceFiles.deletedAt',
-    size: 'workspaceFiles.size',
+    sizeBytes: 'workspaceFiles.sizeBytes',
     workspaceId: 'workspaceFiles.workspaceId',
   },
 }))

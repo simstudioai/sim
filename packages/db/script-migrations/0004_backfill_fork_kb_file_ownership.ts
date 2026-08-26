@@ -133,7 +133,7 @@ export function createPostgresForkKnowledgeBaseOwnershipRepairStore(
             original_name,
             display_name,
             content_type,
-            size
+            size_bytes
           )
           SELECT
             gen_random_uuid()::text,

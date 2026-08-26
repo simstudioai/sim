@@ -2105,9 +2105,9 @@ export const workspaceFiles = pgTable(
      */
     displayName: text('display_name'),
     contentType: text('content_type').notNull(),
-    // contract-pending(after #6188 is fully deployed and sizeBytes is backfilled): drop size — new code dual-writes and reads sizeBytes first
-    size: integer('size').notNull(),
-    /** Exact byte size for files above PostgreSQL's int4 ceiling; legacy rows fall back to `size`. */
+    /** contract-pending(after #7112 is fully deployed): drop size, workspace_files_sync_size_columns, and the temporary dev cutover runner */
+    size: integer('size').notNull().default(0),
+    /** Exact byte size. The deploy migration backfills existing rows before this release serves traffic. */
     sizeBytes: bigint('size_bytes', { mode: 'number' }),
     /**
      * Intrinsic pixel dimensions of an image file, captured lazily on first view (and stored so later

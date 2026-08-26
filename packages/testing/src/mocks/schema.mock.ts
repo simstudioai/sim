@@ -649,7 +649,7 @@ export const schemaMock = {
     chatId: 'workspaceFiles.chatId',
     originalName: 'workspaceFiles.originalName',
     contentType: 'workspaceFiles.contentType',
-    size: 'workspaceFiles.size',
+    sizeBytes: 'workspaceFiles.sizeBytes',
     deletedAt: 'workspaceFiles.deletedAt',
     uploadedAt: 'workspaceFiles.uploadedAt',
     updatedAt: 'workspaceFiles.updatedAt',

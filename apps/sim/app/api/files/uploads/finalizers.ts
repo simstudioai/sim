@@ -14,7 +14,7 @@ import {
   registerUploadedWorkspaceFile,
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace'
-import { type StorageContext, toLegacyWorkspaceFileSize } from '@/lib/uploads/shared/types'
+import { getWorkspaceFileSize, type StorageContext } from '@/lib/uploads/shared/types'
 import { UploadSessionError, type UploadSessionRecord } from '@/lib/uploads/upload-session/service'
 import { toV2File } from '@/app/api/v2/files/utils'
 
@@ -364,7 +364,6 @@ async function insertOrLoadFileMetadata(
       originalName: input.originalName,
       displayName: input.originalName,
       contentType: input.contentType,
-      size: toLegacyWorkspaceFileSize(input.size),
       sizeBytes: input.size,
       deletedAt: null,
       uploadedAt: now,
@@ -396,7 +395,7 @@ async function findFileMetadataByKey(key: string): Promise<FileMetadataRecord | 
 }
 
 function assertMatchingMetadata(existing: FileMetadataRecord, input: FinalizedMetadataInput): void {
-  const existingSize = existing.sizeBytes ?? existing.size
+  const existingSize = getWorkspaceFileSize(existing)
   if (
     existing.key !== input.key ||
     existing.userId !== input.userId ||
