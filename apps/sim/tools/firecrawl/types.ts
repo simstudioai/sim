@@ -277,6 +277,17 @@ export const SEARCH_DATA_OUTPUT: OutputProperty = {
   },
 }
 
+/** Declared shape of one `MapDocument` entry in a map result. */
+export const MAP_DOCUMENT_OUTPUT_PROPERTIES: Record<string, OutputProperty> = {
+  url: { type: 'string', description: 'The discovered URL' },
+  title: { type: 'string', description: 'Page title, when Firecrawl resolved one', optional: true },
+  description: {
+    type: 'string',
+    description: 'Page description, when Firecrawl resolved one',
+    optional: true,
+  },
+}
+
 // Common types
 interface LocationConfig {
   country?: string
@@ -330,7 +341,7 @@ export interface ScrapeParams {
   waitFor?: number
   mobile?: boolean
   skipTlsVerification?: boolean
-  timeout?: number
+  firecrawlTimeout?: number
   parsers?: string[]
   actions?: Array<{
     type: string
@@ -344,16 +355,22 @@ export interface ScrapeParams {
   zeroDataRetention?: boolean
 }
 
+/** Values `searchRequestSchema.sources` accepts in its plain-string form. */
+export type FirecrawlSearchSource = 'web' | 'images' | 'news'
+
+/** Values `searchRequestSchema.categories` accepts in its plain-string form. */
+export type FirecrawlSearchCategory = 'github' | 'research' | 'pdf' | 'developer'
+
 export interface SearchParams {
   apiKey: string
   query: string
   limit?: number
-  sources?: ('web' | 'images' | 'news')[]
-  categories?: ('github' | 'research' | 'pdf')[]
+  sources?: FirecrawlSearchSource[]
+  categories?: FirecrawlSearchCategory[]
   tbs?: string
   location?: string
   country?: string
-  timeout?: number
+  firecrawlTimeout?: number
   ignoreInvalidURLs?: boolean
   scrapeOptions?: ScrapeOptions
 }
@@ -394,7 +411,7 @@ export interface MapParams {
   includeSubdomains?: boolean
   ignoreQueryParameters?: boolean
   limit?: number
-  timeout?: number
+  firecrawlTimeout?: number
   location?: LocationConfig
 }
 
@@ -537,10 +554,21 @@ export interface FirecrawlCrawlResponse extends ToolResponse {
   }
 }
 
+/**
+ * One entry in a Firecrawl v2 map result. The v2 endpoint returns objects, not
+ * bare URL strings — see `MapDocument` in
+ * `firecrawl/firecrawl@main:apps/api/src/controllers/v2/types.ts`.
+ */
+export interface MapDocument {
+  url: string
+  title?: string
+  description?: string
+}
+
 export interface MapResponse extends ToolResponse {
   output: {
     success: boolean
-    links: string[]
+    links: MapDocument[]
     creditsUsed?: number
   }
 }

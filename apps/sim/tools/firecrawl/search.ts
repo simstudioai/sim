@@ -33,14 +33,22 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
       visibility: 'user-or-llm',
       description:
         'Result sources to search: "web", "news", and/or "images". Defaults to ["web"]. Each requested source is returned as its own array under `data` — `data.web`, `data.news`, `data.images` — with its own item fields.',
-      items: { type: 'string' },
+      items: { anyOf: [{ const: 'web' }, { const: 'news' }, { const: 'images' }] },
     },
     categories: {
       type: 'array',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Restrict web results to these categories: "github", "research", or "pdf"',
-      items: { type: 'string' },
+      description:
+        'Restrict web results to these categories: "github", "research", "pdf", or "developer". "developer" cannot be combined with any other category.',
+      items: {
+        anyOf: [
+          { const: 'github' },
+          { const: 'research' },
+          { const: 'pdf' },
+          { const: 'developer' },
+        ],
+      },
     },
     tbs: {
       type: 'string',
@@ -59,13 +67,15 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Two-letter country code to search from (Firecrawl default: "US")',
+      description:
+        'Two-letter country code to search from. Firecrawl falls back to "us" only when `location` is also unset; setting `location` leaves the country unset instead.',
     },
-    timeout: {
+    firecrawlTimeout: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Request timeout in milliseconds (Firecrawl default: 60000)',
+      description:
+        "How long Firecrawl may spend on the search, in milliseconds (Firecrawl default: 60000). Sent as `timeout` in the request body; it does not bound Sim's own transport deadline.",
     },
     ignoreInvalidURLs: {
       type: 'boolean',
@@ -120,7 +130,7 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
       if (params.tbs) body.tbs = params.tbs
       if (params.location) body.location = params.location
       if (params.country) body.country = params.country
-      if (params.timeout) body.timeout = Number(params.timeout)
+      if (params.firecrawlTimeout) body.timeout = Number(params.firecrawlTimeout)
       if (typeof params.ignoreInvalidURLs === 'boolean')
         body.ignoreInvalidURLs = params.ignoreInvalidURLs
       if (params.scrapeOptions) body.scrapeOptions = params.scrapeOptions

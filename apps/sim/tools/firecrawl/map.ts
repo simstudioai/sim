@@ -1,5 +1,6 @@
 import { firecrawlHosting } from '@/tools/firecrawl/hosting'
 import type { MapParams, MapResponse } from '@/tools/firecrawl/types'
+import { MAP_DOCUMENT_OUTPUT_PROPERTIES } from '@/tools/firecrawl/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const mapTool: ToolConfig<MapParams, MapResponse> = {
@@ -47,11 +48,12 @@ export const mapTool: ToolConfig<MapParams, MapResponse> = {
       description:
         'Maximum number of links to return (e.g., 100, 1000, 5000). Max: 100,000, default: 5,000',
     },
-    timeout: {
+    firecrawlTimeout: {
       type: 'number',
       required: false,
       visibility: 'user-only',
-      description: 'Request timeout in milliseconds',
+      description:
+        "How long Firecrawl may spend on the map, in milliseconds. Sent as `timeout` in the request body; it does not bound Sim's own transport deadline.",
     },
     location: {
       type: 'json',
@@ -88,7 +90,7 @@ export const mapTool: ToolConfig<MapParams, MapResponse> = {
       if (typeof params.ignoreQueryParameters === 'boolean')
         body.ignoreQueryParameters = params.ignoreQueryParameters
       if (params.limit) body.limit = Number(params.limit)
-      if (params.timeout) body.timeout = Number(params.timeout)
+      if (params.firecrawlTimeout) body.timeout = Number(params.firecrawlTimeout)
       if (params.location) body.location = params.location
 
       return body
@@ -115,9 +117,11 @@ export const mapTool: ToolConfig<MapParams, MapResponse> = {
     },
     links: {
       type: 'array',
-      description: 'Array of discovered URLs from the website',
+      description:
+        'Discovered links. Each entry is an object with `url` and optional `title`/`description` — read `<firecrawl.links>[i].url` for the address, not the entry itself.',
       items: {
-        type: 'string',
+        type: 'object',
+        properties: MAP_DOCUMENT_OUTPUT_PROPERTIES,
       },
     },
   },

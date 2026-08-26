@@ -4,6 +4,7 @@
 import { describe, expect, it } from 'vitest'
 import { searchTool } from '@/tools/firecrawl/search'
 import type { SearchParams } from '@/tools/firecrawl/types'
+import { createUserToolSchema } from '@/tools/params'
 
 const jsonOk = (body: unknown) =>
   new Response(JSON.stringify(body), {
@@ -114,7 +115,7 @@ describe('firecrawl search request params', () => {
       'tbs',
       'location',
       'country',
-      'timeout',
+      'firecrawlTimeout',
       'ignoreInvalidURLs',
       'scrapeOptions',
     ]
@@ -142,7 +143,7 @@ describe('firecrawl search request params', () => {
       tbs: 'qdr:d',
       location: 'Germany',
       country: 'DE',
-      timeout: 30000,
+      firecrawlTimeout: 30000,
       ignoreInvalidURLs: true,
     })
 
@@ -179,5 +180,118 @@ describe('firecrawl block search wiring', () => {
     })
 
     expect(params.ignoreInvalidURLs).toBe(true)
+  })
+})
+
+describe('firecrawl search constrained enum params', () => {
+  const constValues = (paramId: string): string[] =>
+    (searchTool.params[paramId].items?.anyOf ?? []).map(
+      (member: { const?: unknown }) => member.const as string
+    )
+
+  it('constrains sources to the three literals the strict schema accepts', () => {
+    expect(constValues('sources').sort()).toEqual(['images', 'news', 'web'])
+  })
+
+  it('constrains categories to the four literals the strict schema accepts', () => {
+    expect(constValues('categories').sort()).toEqual(['developer', 'github', 'pdf', 'research'])
+  })
+
+  it('flows the const union into the model-visible tool schema', () => {
+    const schema = createUserToolSchema(searchTool)
+    const sources = schema.properties.sources as {
+      items?: { anyOf?: Array<{ const?: unknown }> }
+    }
+
+    expect(sources.items?.anyOf?.map((member) => member.const).sort()).toEqual([
+      'images',
+      'news',
+      'web',
+    ])
+  })
+})
+
+describe('firecrawl search country default', () => {
+  it('states that the "us" default only applies when location is unset', () => {
+    const description = searchTool.params.country.description ?? ''
+
+    expect(description).toMatch(/"us"/)
+    expect(description).not.toMatch(/"US"/)
+    expect(description).toMatch(/location/i)
+  })
+})
+
+describe('firecrawl search timeout is not the transport deadline', () => {
+  it('does not declare the transport-reserved `timeout` param', () => {
+    expect(searchTool.params.timeout).toBeUndefined()
+    expect(searchTool.params.firecrawlTimeout).toBeDefined()
+  })
+
+  it('maps firecrawlTimeout onto the request body as Firecrawl `timeout`', () => {
+    expect(resolveBody({ apiKey: 'k', query: 'sim', firecrawlTimeout: 45000 }).timeout).toBe(45000)
+  })
+})
+
+describe('firecrawl block timeout wiring', () => {
+  it('keeps the subBlock id `timeout` so saved workflow state is not orphaned', async () => {
+    const { FirecrawlBlock } = await import('@/blocks/blocks/firecrawl')
+    const subBlock = FirecrawlBlock.subBlocks.find((block) => block.id === 'timeout')
+
+    expect(subBlock).toBeDefined()
+    expect((subBlock?.condition as { value: string[] }).value).toEqual([
+      'scrape',
+      'search',
+      'parse',
+    ])
+  })
+
+  it.each(['scrape', 'search'])(
+    'remaps timeout off the transport for the external %s operation',
+    async (operation) => {
+      const { FirecrawlBlock } = await import('@/blocks/blocks/firecrawl')
+      const params = FirecrawlBlock.tools.config!.params!({
+        operation,
+        apiKey: 'k',
+        url: 'https://example.com',
+        query: 'sim',
+        timeout: '45000',
+      })
+
+      expect(params.firecrawlTimeout).toBe(45000)
+      expect(Object.hasOwn(params, 'timeout')).toBe(true)
+      expect(params.timeout).toBeUndefined()
+    }
+  )
+
+  it.each(['map', 'crawl', 'extract', 'agent'])(
+    'clears a stale timeout on %s, whose subBlock is hidden but whose saved value survives',
+    async (operation) => {
+      const { FirecrawlBlock } = await import('@/blocks/blocks/firecrawl')
+      const params = FirecrawlBlock.tools.config!.params!({
+        operation,
+        apiKey: 'k',
+        url: 'https://example.com',
+        urls: ['https://example.com'],
+        agentPrompt: 'go',
+        prompt: 'go',
+        timeout: '45000',
+      })
+
+      expect(Object.hasOwn(params, 'timeout')).toBe(true)
+      expect(params.timeout).toBeUndefined()
+    }
+  )
+
+  it('keeps timeout on the transport for parse, which posts to an internal route', async () => {
+    const { FirecrawlBlock } = await import('@/blocks/blocks/firecrawl')
+    const params = FirecrawlBlock.tools.config!.params!({
+      operation: 'parse',
+      apiKey: 'k',
+      file: { name: 'a.pdf', url: 'https://x/a.pdf', size: 1, type: 'application/pdf', key: 'k' },
+      timeout: '45000',
+    })
+
+    expect(params.timeout).toBe(45000)
+    expect(params.firecrawlTimeout).toBeUndefined()
   })
 })

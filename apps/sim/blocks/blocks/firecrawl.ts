@@ -527,7 +527,20 @@ Example 2 - Product Data:
           jobId,
         } = params
 
-        const result: Record<string, any> = { apiKey }
+        /**
+         * `timeout` is reserved by the tool request transport as the outbound fetch
+         * deadline. On the external branch it is passed through bare, arming Sim's
+         * abort at the exact budget Firecrawl was given, on a clock that starts
+         * earlier — so Sim always wins and the caller loses Firecrawl's structured
+         * 408. Clear it for every operation; the external tools carry the value as
+         * `firecrawlTimeout` instead, while `parse` posts to an internal route that
+         * wants the deadline propagated and sets it back below.
+         *
+         * Clearing it here rather than per-case also covers the operations whose
+         * `timeout` subBlock is hidden by `condition`: the saved value survives an
+         * operation switch and would otherwise still reach the transport.
+         */
+        const result: Record<string, any> = { apiKey, timeout: undefined }
 
         switch (operation) {
           case 'scrape':
@@ -544,7 +557,7 @@ Example 2 - Product Data:
                 }
               }
             }
-            if (timeout) result.timeout = Number.parseInt(timeout)
+            if (timeout) result.firecrawlTimeout = Number.parseInt(timeout)
             if (waitFor) result.waitFor = Number.parseInt(waitFor)
             if (onlyMainContent != null) result.onlyMainContent = onlyMainContent
             if (mobile != null) result.mobile = mobile
@@ -552,7 +565,7 @@ Example 2 - Product Data:
 
           case 'search':
             if (query) result.query = query
-            if (timeout) result.timeout = Number.parseInt(timeout)
+            if (timeout) result.firecrawlTimeout = Number.parseInt(timeout)
             if (limit) result.limit = Number.parseInt(limit)
             if (params.ignoreInvalidURLs != null) {
               result.ignoreInvalidURLs = params.ignoreInvalidURLs
@@ -795,7 +808,11 @@ Example 2 - Product Data:
     invalidURLs: { type: 'json', description: 'URLs skipped because they were invalid' },
     // Map output
     success: { type: 'boolean', description: 'Operation success status' },
-    links: { type: 'json', description: 'Discovered URLs array' },
+    links: {
+      type: 'json',
+      description:
+        'Discovered links, each an object with `url` and optional `title`/`description`. Reference `<firecrawl.links>[i].url` for the address — the entry itself is no longer a bare URL string.',
+    },
     // Extract output
     sources: { type: 'json', description: 'Data sources array' },
     tokensUsed: { type: 'number', description: 'Tokens consumed by the extract job' },

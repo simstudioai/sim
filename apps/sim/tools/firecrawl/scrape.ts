@@ -36,6 +36,13 @@ export const scrapeTool: ToolConfig<ScrapeParams, ScrapeResponse> = {
       visibility: 'hidden',
       description: 'Options for content scraping',
     },
+    firecrawlTimeout: {
+      type: 'number',
+      required: false,
+      visibility: 'user-only',
+      description:
+        "How long Firecrawl may spend on the scrape, in milliseconds. Sent as `timeout` in the request body; it does not bound Sim's own transport deadline.",
+    },
     apiKey: {
       type: 'string',
       required: true,
@@ -91,7 +98,7 @@ export const scrapeTool: ToolConfig<ScrapeParams, ScrapeResponse> = {
       if (typeof params.mobile === 'boolean') body.mobile = params.mobile
       if (typeof params.skipTlsVerification === 'boolean')
         body.skipTlsVerification = params.skipTlsVerification
-      if (params.timeout) body.timeout = Number(params.timeout)
+      if (params.firecrawlTimeout) body.timeout = Number(params.firecrawlTimeout)
       if (params.parsers) body.parsers = params.parsers
       if (params.actions) body.actions = params.actions
       if (params.location) body.location = params.location
@@ -113,13 +120,14 @@ export const scrapeTool: ToolConfig<ScrapeParams, ScrapeResponse> = {
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
+    const document = data.data ?? {}
 
     return {
       success: true,
       output: {
-        markdown: data.data.markdown,
-        html: data.data.html,
-        metadata: data.data.metadata,
+        markdown: document.markdown,
+        html: document.html,
+        metadata: document.metadata,
         creditsUsed: data.creditsUsed,
       },
     }
