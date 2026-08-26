@@ -7,8 +7,8 @@ import { ArrowUpDown, File, ListFilter, Plus, Search } from '@sim/emcn/icons'
 import { AgentIcon } from '@/components/icons'
 import { CsvIcon, DocxIcon, PdfIcon } from '@/components/icons/document-icons'
 import { HeroLoopShell } from '@/app/(landing)/components/shared/hero-loop-shell'
+import { PLATFORM_LOOP_RESET_FADE_MS } from '@/app/(landing)/components/shared/platform-loop-constants'
 import { ZipIcon } from '@/app/(landing)/components/shared/zip-icon'
-import { RESET_FADE_MS } from '@/app/(landing)/hooks/use-design-scale'
 import { useMotionSafeCycle } from '@/app/(landing)/hooks/use-motion-safe-cycle'
 
 /** Sidebar content for the files hero - a file-heavy team's workspace. */
@@ -222,7 +222,7 @@ export function FilesHeroLoop() {
             setTimeout(() => setRowCount(i + 1), IDLE_HOLD_MS + i * ROW_STEP_MS)
           ),
           setTimeout(() => setDropped(true), dropAt),
-          setTimeout(() => setFading(true), totalMs - RESET_FADE_MS),
+          setTimeout(() => setFading(true), totalMs - PLATFORM_LOOP_RESET_FADE_MS),
         ],
         totalMs,
       }
