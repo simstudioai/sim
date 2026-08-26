@@ -161,8 +161,7 @@ export const searchTool: ToolConfig<ElasticsearchSearchParams, ElasticsearchSear
         try {
           body.query = JSON.parse(params.query)
         } catch {
-          // If not valid JSON, treat as simple match query
-          body.query = { match_all: {} }
+          throw new Error('Invalid JSON provided for query')
         }
       }
 
@@ -173,7 +172,7 @@ export const searchTool: ToolConfig<ElasticsearchSearchParams, ElasticsearchSear
         try {
           body.sort = JSON.parse(params.sort)
         } catch {
-          // Ignore invalid sort
+          throw new Error('Invalid JSON provided for sort')
         }
       }
 

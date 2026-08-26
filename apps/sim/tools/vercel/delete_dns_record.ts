@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type {
   VercelDeleteDnsRecordParams,
   VercelDeleteDnsRecordResponse,
@@ -52,7 +53,7 @@ export const vercelDeleteDnsRecordTool: ToolConfig<
       if (params.teamId) query.set('teamId', params.teamId.trim())
       if (params.slug) query.set('slug', params.slug.trim())
       const qs = query.toString()
-      return `https://api.vercel.com/v2/domains/${params.domain.trim()}/records/${params.recordId.trim()}${qs ? `?${qs}` : ''}`
+      return `https://api.vercel.com/v2/domains/${safeUrlPathSegment(params.domain, 'domain')}/records/${safeUrlPathSegment(params.recordId, 'recordId')}${qs ? `?${qs}` : ''}`
     },
     method: 'DELETE',
     headers: (params: VercelDeleteDnsRecordParams) => ({

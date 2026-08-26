@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-08-25",
+  "updatedAt": "2026-08-26",
   "integrations": [
     {
       "type": "onepassword",
@@ -7418,11 +7418,11 @@
       "operations": [
         {
           "name": "Find Email",
-          "description": "Find a verified B2B email address from a full name and company domain or name. Uses the Enrow async finder — submits a search and polls until the result is ready. Costs 1 credit per valid email found. (https://enrow.readme.io/reference/find-single-email)"
+          "description": "Find a verified B2B email address from a full name and company domain or name. Uses the Enrow async finder — submits a search and polls until the result is ready. Costs 1 credit per valid email found. (https://docs.enrow.io/api-reference/email-finder/find-single)"
         },
         {
           "name": "Verify Email",
-          "description": "Verify the deliverability of an email address using the Enrow async verifier. Submits a verification request and polls until the result is ready. Costs 0.25 credits per verification. (https://enrow.readme.io/reference/verify-single-email)"
+          "description": "Verify the deliverability of an email address using the Enrow async verifier. Submits a verification request and polls until the result is ready. Costs 0.25 credits per verification. (https://docs.enrow.io/api-reference/email-verifier/verify-single)"
         }
       ],
       "operationCount": 2,

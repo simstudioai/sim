@@ -1,5 +1,6 @@
 import { filterUndefined } from '@sim/utils/object'
 import type { LangsmithUpdateRunParams, LangsmithUpdateRunResponse } from '@/tools/langsmith/types'
+import { LANGSMITH_API_BASE, truncateLangsmithErrorText } from '@/tools/langsmith/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const langsmithUpdateRunTool: ToolConfig<
@@ -73,7 +74,7 @@ export const langsmithUpdateRunTool: ToolConfig<
     },
   },
   request: {
-    url: (params) => `https://api.smith.langchain.com/runs/${params.runId.trim()}`,
+    url: (params) => `${LANGSMITH_API_BASE}/runs/${encodeURIComponent(params.runId.trim())}`,
     method: 'PATCH',
     headers: (params) => ({
       'X-Api-Key': params.apiKey,
@@ -104,7 +105,9 @@ export const langsmithUpdateRunTool: ToolConfig<
   transformResponse: async (response, params) => {
     if (!response.ok) {
       const errorText = await response.text()
-      throw new Error(`LangSmith update run failed (${response.status}): ${errorText}`)
+      throw new Error(
+        `LangSmith update run failed (${response.status}): ${truncateLangsmithErrorText(errorText)}`
+      )
     }
 
     const responseText = await response.text()
