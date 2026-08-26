@@ -34,7 +34,7 @@ import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { checkInternalApiKey } from '@/lib/copilot/request/http'
 import { withIncomingGoSpan } from '@/lib/copilot/request/otel'
-import { isBillingEnabled, isCopilotBillingProtocolRequired } from '@/lib/core/config/env-flags'
+import { isBillingEnabled, isHosted } from '@/lib/core/config/env-flags'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
@@ -163,7 +163,7 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
     const suppliedAttributionHeader = parsed.data.headers?.[BILLING_ATTRIBUTION_HEADER]
     const suppliedAccountDecisionHeader = parsed.data.headers?.[BILLING_ACCOUNT_DECISION_HEADER]
     const isMarkerlessLegacy = requestedProtocol === undefined
-    if (isMarkerlessLegacy && isCopilotBillingProtocolRequired) {
+    if (isMarkerlessLegacy && isHosted) {
       return invalidBillingProtocolResponse(requestId, span)
     }
     const protocol: CopilotBillingProtocol = requestedProtocol ?? COPILOT_BILLING_PROTOCOL.legacy

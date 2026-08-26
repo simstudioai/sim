@@ -669,14 +669,15 @@ export async function resolveBillingAttribution({
 }
 
 /**
- * Resolves markerless old-Go (`legacy-v0`) traffic from the workspace visible
- * at this request boundary, falling back to account billing when the workspace
- * is absent from this Sim deployment.
+ * Resolves legacy-v0 traffic from the workspace visible at this request
+ * boundary, falling back to account billing for markerless local self-hosted
+ * requests when the workspace is absent from this Sim deployment.
  *
  * Unlike modern attributed-v1/direct-v1 envelopes, this decision is mutable:
- * old Go allocates its callback billing ID after admission and returns no payer
- * material, so admission and callback must independently resolve current state.
- * Keep this compatibility semantic confined to markerless legacy-v0 paths.
+ * historical markerless Go allocated its callback billing ID after admission
+ * and returned no payer material, so admission and callback independently
+ * resolve current state. Hosted traffic may use this only for explicit
+ * legacy-v0 replay; markerless use is confined to local self-hosting.
  */
 export async function resolveLegacyV0BillingAttribution({
   actorUserId,

@@ -158,7 +158,6 @@ describe('runCopilotLifecycle', () => {
     mockEnv.MSHIP_SYSPROMPT_OVERRIDE = undefined
     setEnvFlags({
       isHosted: false,
-      isCopilotBillingAttributionV1Enabled: false,
       isCopilotToolPermissionsEnabled: false,
     })
     mockGetAutoAllowedTools.mockResolvedValue(new Set<string>())
@@ -1376,7 +1375,6 @@ describe('runCopilotLifecycle', () => {
       payerSubscription: null,
     }
     setEnvFlags({ isHosted: true })
-    setEnvFlags({ isCopilotBillingAttributionV1Enabled: true })
     mockEnv.COPILOT_API_KEY = 'sim-agent-key'
     mockRunStreamLoop.mockImplementationOnce(
       async (
@@ -1475,66 +1473,20 @@ describe('runCopilotLifecycle', () => {
     })
   })
 
-  it('runs legacy-v0 during Sim-first deployment without guessed billing aliases', async () => {
+  it('rejects hosted work without immutable billing attribution before egress', async () => {
     setEnvFlags({ isHosted: true })
-    mockEnv.COPILOT_API_KEY = 'sim-agent-key'
 
-    await runCopilotLifecycle(
-      { message: 'hello', messageId: 'message-1' },
-      {
-        userId: 'user-1',
-        workspaceId: 'ws-1',
-        chatId: 'chat-1',
-        executionId: 'execution-1',
-        runId: 'run-1',
-        simRequestId: 'request-1',
-        billingAttribution: {
-          actorUserId: 'user-1',
+    await expect(
+      runCopilotLifecycle(
+        { message: 'hello', messageId: 'message-1' },
+        {
+          userId: 'user-1',
           workspaceId: 'ws-1',
-          billedAccountUserId: 'owner-1',
-          organizationId: null,
-          billingEntity: { type: 'user', id: 'owner-1' },
-          billingPeriod: {
-            start: '2026-07-01T00:00:00.000Z',
-            end: '2026-08-01T00:00:00.000Z',
-          },
-          payerSubscription: null,
-        },
-      }
-    )
-
-    const headers = mockRunStreamLoop.mock.calls[0]?.[1].headers as Record<string, string>
-    expect(headers['x-sim-billing-protocol']).toBe('legacy-v0')
-    expect(headers['x-sim-billing-request-id']).toBeUndefined()
-    expect(headers['x-sim-billing-attribution']).toBeUndefined()
-  })
-
-  it('runs modern hosted work without legacy compatibility storage', async () => {
-    setEnvFlags({ isHosted: true })
-    setEnvFlags({ isCopilotBillingAttributionV1Enabled: true })
-
-    await runCopilotLifecycle(
-      { message: 'hello', messageId: 'message-1' },
-      {
-        userId: 'user-1',
-        workspaceId: 'ws-1',
-        chatId: 'chat-1',
-        billingAttribution: {
-          actorUserId: 'user-1',
-          workspaceId: 'ws-1',
-          billedAccountUserId: 'owner-1',
-          organizationId: null,
-          billingEntity: { type: 'user', id: 'owner-1' },
-          billingPeriod: {
-            start: '2026-07-01T00:00:00.000Z',
-            end: '2026-08-01T00:00:00.000Z',
-          },
-          payerSubscription: null,
-        },
-      }
-    )
-
-    expect(mockRunStreamLoop).toHaveBeenCalledTimes(1)
+          chatId: 'chat-1',
+        }
+      )
+    ).rejects.toThrow('Billing attribution is required for hosted Copilot execution')
+    expect(mockRunStreamLoop).not.toHaveBeenCalled()
   })
 
   it('does not emit trusted billing headers for a non-hosted lifecycle', async () => {
