@@ -386,11 +386,7 @@ export function useTableUndo({
                   type: action.columnType,
                   required: action.columnRequired,
                   unique: action.columnUnique,
-                  // A select column is rejected without its options, and the
-                  // cell data restored below is keyed by those option ids.
-                  ...(action.columnOptions ? { options: action.columnOptions } : {}),
-                  ...(action.columnMultiple ? { multiple: true } : {}),
-                  ...(action.columnCurrencyCode ? { currencyCode: action.columnCurrencyCode } : {}),
+                  ...action.columnTypeMetadata,
                   position: action.columnPosition,
                 },
                 {

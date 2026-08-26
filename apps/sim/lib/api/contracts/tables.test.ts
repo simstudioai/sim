@@ -9,6 +9,7 @@ import {
   tableRowsQuerySchema,
   updateTableColumnBodySchema,
 } from '@/lib/api/contracts/tables'
+import { MAX_REFERENCE_TABLE_ID_LENGTH } from '@/lib/table/constants'
 
 describe('reference column metadata', () => {
   const referenceColumn = {
@@ -43,6 +44,45 @@ describe('reference column metadata', () => {
 
   it('rejects reference metadata on another column type', () => {
     expect(tableColumnSchema.safeParse({ ...referenceColumn, type: 'string' }).success).toBe(false)
+  })
+
+  it('bounds reference table IDs at the standard identifier length', () => {
+    const maximumId = 't'.repeat(MAX_REFERENCE_TABLE_ID_LENGTH)
+    const oversizedId = 't'.repeat(MAX_REFERENCE_TABLE_ID_LENGTH + 1)
+
+    expect(
+      tableColumnSchema.safeParse({ ...referenceColumn, referenceTableId: maximumId }).success
+    ).toBe(true)
+    expect(
+      createTableColumnBodySchema.safeParse({
+        workspaceId: 'ws-1',
+        column: { ...referenceColumn, referenceTableId: maximumId },
+      }).success
+    ).toBe(true)
+    expect(
+      updateTableColumnBodySchema.safeParse({
+        workspaceId: 'ws-1',
+        columnName: 'account',
+        updates: { referenceTableId: maximumId },
+      }).success
+    ).toBe(true)
+
+    expect(
+      tableColumnSchema.safeParse({ ...referenceColumn, referenceTableId: oversizedId }).success
+    ).toBe(false)
+    expect(
+      createTableColumnBodySchema.safeParse({
+        workspaceId: 'ws-1',
+        column: { ...referenceColumn, referenceTableId: oversizedId },
+      }).success
+    ).toBe(false)
+    expect(
+      updateTableColumnBodySchema.safeParse({
+        workspaceId: 'ws-1',
+        columnName: 'account',
+        updates: { referenceTableId: oversizedId },
+      }).success
+    ).toBe(false)
   })
 })
 
