@@ -1,3 +1,4 @@
+import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { recordUndispatchedDocumentFailure } from '@/lib/knowledge/documents/processing-claim'
@@ -13,6 +14,37 @@ interface DispatchDocumentProcessingParams {
   processingOptions: ProcessingOptions
   requestId: string
   billingAttribution: BillingAttributionSnapshot | undefined
+}
+
+const logger = createLogger('DocumentProcessingDispatch')
+
+async function recordDispatchFailures({
+  documentIds,
+  knowledgeBaseId,
+  failureMessage,
+  requestId,
+}: {
+  documentIds: string[]
+  knowledgeBaseId: string
+  failureMessage: string
+  requestId: string
+}): Promise<void> {
+  for (const documentId of documentIds) {
+    try {
+      await recordUndispatchedDocumentFailure({
+        documentId,
+        knowledgeBaseId,
+        failureMessage,
+        requestId,
+      })
+    } catch (error) {
+      logger.error('Failed to record an undispatched knowledge document', {
+        documentId,
+        knowledgeBaseId,
+        error: getErrorMessage(error),
+      })
+    }
+  }
 }
 
 /**
@@ -37,23 +69,27 @@ export async function dispatchDocumentProcessing({
 }: DispatchDocumentProcessingParams): Promise<void> {
   if (documents.length === 0) return
 
+  let failedDocumentIds: string[]
+  let failureMessage: string
   try {
-    await processDocumentsWithQueue(
+    const dispatch = await processDocumentsWithQueue(
       documents,
       knowledgeBaseId,
       processingOptions,
       requestId,
       billingAttribution
     )
+    failedDocumentIds = dispatch.failedDocumentIds
+    failureMessage = 'Document processing dispatch was not accepted'
   } catch (error) {
-    const failureMessage = getErrorMessage(error, 'Document processing dispatch failed')
-    for (const doc of documents) {
-      await recordUndispatchedDocumentFailure({
-        documentId: doc.documentId,
-        knowledgeBaseId,
-        failureMessage,
-        requestId,
-      })
-    }
+    failedDocumentIds = documents.map((document) => document.documentId)
+    failureMessage = getErrorMessage(error, 'Document processing dispatch failed')
   }
+
+  await recordDispatchFailures({
+    documentIds: failedDocumentIds,
+    knowledgeBaseId,
+    failureMessage,
+    requestId,
+  })
 }

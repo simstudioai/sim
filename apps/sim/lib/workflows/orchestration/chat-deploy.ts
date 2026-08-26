@@ -6,8 +6,9 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
 import { chatDeploymentPasswordSchema } from '@/lib/api/contracts/chats'
+import { buildChatDeploymentUrl } from '@/lib/chat-deployments/urls'
+import type { OrchestrationErrorCode } from '@/lib/core/orchestration/types'
 import { encryptSecret } from '@/lib/core/security/encryption'
-import { getBaseUrl } from '@/lib/core/utils/urls'
 import { checkNeedsRedeployment } from '@/lib/workflows/deployment-status'
 import {
   getWorkflowDeploymentSummary,
@@ -54,6 +55,15 @@ export interface PerformChatDeployResult {
   version?: number
   isUpdate?: boolean
   error?: string
+  /**
+   * How a failure should be classified by its callers.
+   *
+   * Without it every refusal here reached the wire as a `400`, which told a
+   * caller waiting on an in-flight deployment — a genuine `409` — and a caller
+   * who tripped an internal invariant that their request was malformed. Mirrors
+   * `performFullDeploy`, whose own code is propagated rather than flattened.
+   */
+  errorCode?: OrchestrationErrorCode
 }
 
 /**
@@ -73,11 +83,22 @@ export async function performChatDeploy(
    * route contract, so a whitespace-only or over-long password would otherwise
    * be encrypted and stored — and neither can ever be submitted through the
    * chat login form, permanently locking visitors out of the deployment.
+   *
+   * `null` is not a password to validate, it is the absence of one, which the
+   * declared `password?: string | null` has always allowed. A replace-shaped
+   * caller sends it for every mode that owns no password — the default
+   * `public`, plus `email` and `sso` — and validating it rejected all three on
+   * a well-formed request. The stored value is cleared by `authType` below
+   * regardless, so `null` needs no validation of its own.
    */
-  if (password !== undefined) {
+  if (password !== undefined && password !== null) {
     const validatedPassword = chatDeploymentPasswordSchema.safeParse(password)
     if (!validatedPassword.success) {
-      return { success: false, error: validatedPassword.error.issues[0].message }
+      return {
+        success: false,
+        error: validatedPassword.error.issues[0].message,
+        errorCode: 'validation',
+      }
     }
   }
 
@@ -138,6 +159,23 @@ export async function performChatDeploy(
   }
 
   /**
+   * Refused before anything is deployed.
+   *
+   * The same condition is re-checked below once the password has been
+   * encrypted, but reaching that point costs a real workflow deployment
+   * version: a request that can never succeed would burn one and then answer
+   * `400`. Its two sibling gate guards (email and SSO allow-lists) already run
+   * ahead of the deploy; this one landed behind it.
+   */
+  if (authType === 'password' && !password && !existingDeployment?.password) {
+    return {
+      success: false,
+      error: 'Password is required when using password protection',
+      errorCode: 'validation',
+    }
+  }
+
+  /**
    * Only deploy when the draft drifted from the active version, and never
    * while another attempt is in flight — a blocked retry must not admit a
    * fresh deployment version on top of the pending one.
@@ -149,6 +187,7 @@ export async function performChatDeploy(
       success: false,
       error:
         'A workflow deployment is still preparing. Retry chat deployment after it becomes active.',
+      errorCode: 'conflict',
     }
   }
 
@@ -169,13 +208,18 @@ export async function performChatDeploy(
       captureAnalytics: params.captureDeploymentAnalytics,
     })
     if (!deployResult.success) {
-      return { success: false, error: deployResult.error || 'Failed to deploy workflow' }
+      return {
+        success: false,
+        error: deployResult.error || 'Failed to deploy workflow',
+        errorCode: deployResult.errorCode ?? 'internal',
+      }
     }
     if (deployResult.latestDeploymentAttempt?.isCurrent === false) {
       return {
         success: false,
         error:
           'The workflow deployment attempt is historical and no longer describes production. Retry chat deployment as a new tool call.',
+        errorCode: 'conflict',
       }
     }
     if (deployResult.latestDeploymentAttempt?.status !== 'active') {
@@ -184,12 +228,14 @@ export async function performChatDeploy(
         error:
           deployResult.warnings?.[0] ??
           'Workflow deployment is still preparing. Retry chat deployment after it becomes active.',
+        errorCode: 'conflict',
       }
     }
     if (!deployResult.activeDeployment) {
       return {
         success: false,
         error: 'Workflow deployment reported active without a live deployment version.',
+        errorCode: 'internal',
       }
     }
   }
@@ -207,7 +253,11 @@ export async function performChatDeploy(
    * login with an opaque "Authentication configuration error".
    */
   if (authType === 'password' && !encryptedPassword && !existingDeployment?.password) {
-    return { success: false, error: 'Password is required when using password protection' }
+    return {
+      success: false,
+      error: 'Password is required when using password protection',
+      errorCode: 'validation',
+    }
   }
 
   let chatId: string
@@ -259,18 +309,7 @@ export async function performChatDeploy(
     })
   }
 
-  const baseUrl = getBaseUrl()
-  let chatUrl: string
-  try {
-    const url = new URL(baseUrl)
-    let host = url.host
-    if (host.startsWith('www.')) {
-      host = host.substring(4)
-    }
-    chatUrl = `${url.protocol}//${host}/chat/${identifier}`
-  } catch {
-    chatUrl = `${baseUrl}/chat/${identifier}`
-  }
+  const chatUrl = buildChatDeploymentUrl(identifier)
 
   logger.info(`Chat "${title}" deployed successfully at ${chatUrl}`)
 
@@ -337,6 +376,12 @@ export interface PerformChatUndeployParams {
 export interface PerformChatUndeployResult {
   success: boolean
   error?: string
+  /**
+   * How a failure should be classified. Callers must not render an unclassified
+   * failure as a not-found: an infrastructure fault concealed as `404` tells the
+   * caller the deployment is gone when it is still serving.
+   */
+  errorCode?: OrchestrationErrorCode
 }
 
 /**
@@ -361,7 +406,7 @@ export async function performChatUndeploy(
     .limit(1)
 
   if (!chatRecord) {
-    return { success: false, error: 'Chat not found' }
+    return { success: false, error: 'Chat not found', errorCode: 'not_found' }
   }
 
   await db.delete(chat).where(eq(chat.id, chatId))

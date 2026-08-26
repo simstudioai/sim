@@ -218,7 +218,6 @@ export function usePromptEditor({
   const mentionMenu = useMentionMenu({
     message: value,
     selectedContexts: contextManagement.selectedContexts,
-    onContextSelect: addContextNotified,
     onMessageChange: commitValue,
   })
 

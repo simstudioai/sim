@@ -1,5 +1,6 @@
 import { db, webhook, workflowDeploymentVersion } from '@sim/db'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { and, eq, isNull, ne } from 'drizzle-orm'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type {
@@ -170,9 +171,7 @@ export const telegramHandler: WebhookProviderHandler = {
         error
       )
       throw new Error(
-        error instanceof Error
-          ? error.message
-          : 'Failed to create Telegram webhook. Please try again.'
+        getErrorMessage(error, 'Failed to create Telegram webhook. Please try again.')
       )
     }
   },

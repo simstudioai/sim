@@ -361,6 +361,12 @@ export const isAuditLogsEnabled = enterpriseFeatureEnabled(
   'NEXT_PUBLIC_AUDIT_LOGS_ENABLED'
 )
 
+export const isCustomBlocksEnabled = enterpriseFeatureEnabled(
+  'customBlocks',
+  env.CUSTOM_BLOCKS_ENABLED,
+  'NEXT_PUBLIC_CUSTOM_BLOCKS_ENABLED'
+)
+
 /**
  * Is retention *deletion* enabled.
  *

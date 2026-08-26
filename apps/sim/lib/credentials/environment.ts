@@ -251,6 +251,8 @@ interface AccessibleEnvCredential {
   envOwnerUserId: string | null
   /** Always null on `env_personal`: a mirror row cannot own a user-global secret's note. */
   description: string | null
+  /** Always false on `env_personal`: only workspace secrets can opt out of redaction. */
+  unredacted: boolean
   updatedAt: Date
 }
 
@@ -775,6 +777,7 @@ export async function getAccessibleEnvCredentials(
       envKey: credential.envKey,
       envOwnerUserId: credential.envOwnerUserId,
       description: credential.description,
+      unredacted: credential.unredacted,
       updatedAt: credential.updatedAt,
     })
     .from(credential)
@@ -808,6 +811,7 @@ export async function getAccessibleEnvCredentials(
       envKey: row.envKey,
       envOwnerUserId: row.envOwnerUserId,
       description: row.type === 'env_workspace' ? row.description : null,
+      unredacted: row.type === 'env_workspace' ? row.unredacted : false,
       updatedAt: row.updatedAt,
     }))
 }

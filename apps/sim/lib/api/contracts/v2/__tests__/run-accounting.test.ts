@@ -14,7 +14,7 @@ import type { OpenApiDocumentDefinition } from '@/lib/api/openapi/types'
  *
  * `runCount` is a monotonic column on the workflow row, incremented only for a
  * run that finished successfully and was not left paused, and never decremented
- * by log retention. `GET /workflows/{id}/runs` reads the execution-log table,
+ * by log retention. `GET /workflows/{workflowId}/runs` reads the execution-log table,
  * which lists every recorded run *and* is hard-deleted on the workspace's
  * retention window. The two therefore disagree in both directions, and each
  * operation has to say so where a caller reads it.

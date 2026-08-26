@@ -1,9 +1,6 @@
-import { createLogger } from '@sim/logger'
 import { HubspotIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { TriggerConfig } from '@/triggers/types'
-
-const logger = createLogger('HubSpotPollingTrigger')
 
 export const hubspotPollingTrigger: TriggerConfig = {
   id: 'hubspot_poller',

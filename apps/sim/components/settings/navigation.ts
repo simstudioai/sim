@@ -32,6 +32,7 @@ import { getEnv, isTruthy } from '@/lib/core/config/env'
 import {
   isAccessControlEnabled,
   isAuditLogsEnabled,
+  isCustomBlocksEnabled,
   isDataDrainsEnabled,
   isDataRetentionEnabled,
   isHosted,
@@ -208,13 +209,11 @@ export interface SettingsSectionRegistryEntry {
  * `NEXT_PUBLIC_*` vars here instead is what previously let nav and server
  * disagree — a feature could be reachable but hidden, or listed but rejected.
  *
- * `customBlocks` stays on its own var because its server gate runs through the
- * AppConfig-backed feature-flag service rather than the entitlement resolver.
  */
 const SETTINGS_SELF_HOSTED_OVERRIDES = {
   accessControl: isAccessControlEnabled,
   auditLogs: isAuditLogsEnabled,
-  customBlocks: isTruthy(getEnv('NEXT_PUBLIC_CUSTOM_BLOCKS_ENABLED')),
+  customBlocks: isCustomBlocksEnabled,
   dataDrains: isDataDrainsEnabled,
   dataRetention: isDataRetentionEnabled,
   inbox: isInboxEnabled,

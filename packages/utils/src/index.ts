@@ -42,3 +42,10 @@ export {
   sanitizeValueForJsonb,
   truncate,
 } from './string'
+export {
+  findWorkflowReferenceTokens,
+  isLikelyWorkflowReferenceSegment,
+  splitWorkflowReferenceSegment,
+  type WorkflowReferenceToken,
+  type WorkflowReferenceTokenKind,
+} from './workflow-references'

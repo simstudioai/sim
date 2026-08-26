@@ -2297,6 +2297,7 @@ export function Files() {
         open={Boolean(extractTarget)}
         onOpenChange={(open) => !open && setExtractTargetId(null)}
         title='Unzip archive?'
+        defaultAction='confirm'
         text={[
           'This will unzip ',
           { text: extractTarget?.name ?? 'this archive', bold: true },

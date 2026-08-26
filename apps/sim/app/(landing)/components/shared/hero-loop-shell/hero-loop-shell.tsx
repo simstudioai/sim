@@ -10,12 +10,14 @@ import { DESIGN, useDesignScale } from '@/app/(landing)/hooks/use-design-scale'
 interface HeroLoopShellProps {
   /** Workspace name in the sidebar header chip. */
   workspaceName?: string
+  /** Viewer name shown in the sidebar profile footer. */
+  profileName?: string
   /** Recent-chat entries in the sidebar - four fill the design height. */
   chats: readonly string[]
   /** Deployed-workflow entries in the sidebar - five fill the design height. */
   workflows: readonly string[]
-  /** Workspace-nav row to highlight; unset keeps New chat active. */
-  activeNav?: EnterpriseSidebarProps['activeNav']
+  /** Sidebar row to highlight; unset keeps New chat active. */
+  activeItem?: EnterpriseSidebarProps['activeItem']
   /** The workspace pane's contents, rendered inside the inset pane gutter. */
   children: ReactNode
 }
@@ -30,9 +32,10 @@ interface HeroLoopShellProps {
  */
 export function HeroLoopShell({
   workspaceName = 'Brightwave',
+  profileName = 'Morgan',
   chats,
   workflows,
-  activeNav,
+  activeItem,
   children,
 }: HeroLoopShellProps) {
   const { regionRef, scale } = useDesignScale()
@@ -49,9 +52,10 @@ export function HeroLoopShell({
       >
         <EnterpriseSidebar
           workspaceName={workspaceName}
+          profileName={profileName}
           chats={chats}
           workflows={workflows}
-          activeNav={activeNav}
+          activeItem={activeItem}
         />
         <div className='h-full min-w-0 flex-1 py-[7px] pr-[8px]'>{children}</div>
       </div>

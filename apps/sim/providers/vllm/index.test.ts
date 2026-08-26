@@ -104,7 +104,6 @@ function chatResponse(
 function makeTool(id: string): ProviderToolConfig {
   return {
     id,
-    name: id,
     description: '',
     params: {},
     parameters: { type: 'object', properties: {}, required: [] },
@@ -166,6 +165,18 @@ describe('vllmProvider', () => {
       expect(openAIArgs[0].fetch).toBeUndefined()
     })
 
+    it('does not duplicate an existing /v1 API prefix', async () => {
+      setEnv({ VLLM_BASE_URL: 'http://localhost:1234/v1', VLLM_API_KEY: undefined })
+      mockCreate.mockResolvedValueOnce(chatResponse('hi'))
+
+      await vllmProvider.executeRequest({
+        model: 'vllm/lmstudio-model',
+        messages: [{ role: 'user', content: 'hi' }],
+      })
+
+      expect(openAIArgs[0].baseURL).toBe('http://localhost:1234/v1')
+    })
+
     it('validates a user-supplied endpoint and pins the connection to the resolved IP', async () => {
       mockCreate.mockResolvedValueOnce(chatResponse('hi'))
 
@@ -181,6 +192,24 @@ describe('vllmProvider', () => {
         { allowHttp: true }
       )
       expect(mockCreatePinnedFetch).toHaveBeenCalledWith('203.0.113.10')
+      expect(openAIArgs[0].baseURL).toBe('https://my-vllm.example.com/v1')
+      expect(openAIArgs[0].fetch).toBe(pinnedFetchFn)
+    })
+
+    it('preserves an existing /v1 prefix on a user-supplied endpoint', async () => {
+      mockCreate.mockResolvedValueOnce(chatResponse('hi'))
+
+      await vllmProvider.executeRequest({
+        model: 'vllm/llama-3',
+        messages: [{ role: 'user', content: 'hi' }],
+        azureEndpoint: 'https://my-vllm.example.com/v1',
+      })
+
+      expect(mockValidateUrlWithDNS).toHaveBeenCalledWith(
+        'https://my-vllm.example.com/v1',
+        'vLLM endpoint',
+        { allowHttp: true }
+      )
       expect(openAIArgs[0].baseURL).toBe('https://my-vllm.example.com/v1')
       expect(openAIArgs[0].fetch).toBe(pinnedFetchFn)
     })
@@ -236,7 +265,8 @@ describe('vllmProvider', () => {
     const payload = createPayload(0)
     expect(payload.model).toBe('llama-3')
     expect(payload.temperature).toBe(0.7)
-    expect(payload.max_completion_tokens).toBe(256)
+    expect(payload.max_tokens).toBe(256)
+    expect(payload.max_completion_tokens).toBeUndefined()
     expect(payload.messages.map((m: { role: string }) => m.role)).toEqual([
       'system',
       'user',

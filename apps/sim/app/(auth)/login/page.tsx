@@ -12,8 +12,7 @@ export const metadata: Metadata = {
 export const dynamic = 'force-dynamic'
 
 export default async function LoginPage() {
-  const { githubAvailable, googleAvailable, microsoftAvailable, isProduction } =
-    await getOAuthProviderStatus()
+  const { githubAvailable, googleAvailable, microsoftAvailable } = await getOAuthProviderStatus()
 
   return (
     <Suspense fallback={<LoginLoading />}>
@@ -21,7 +20,6 @@ export default async function LoginPage() {
         githubAvailable={githubAvailable}
         googleAvailable={googleAvailable}
         microsoftAvailable={microsoftAvailable}
-        isProduction={isProduction}
         registrationDisabled={isRegistrationDisabled}
       />
     </Suspense>

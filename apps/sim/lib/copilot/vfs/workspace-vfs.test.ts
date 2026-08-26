@@ -15,6 +15,11 @@ const { findWorkspaceFileRecord, listAllWorkspaceFilesExecute, readWorkspaceFile
     readWorkspaceFileContentExecute: vi.fn(),
   }))
 
+const { isCustomBlocksEligible, listCustomBlocksWithInputsForWorkspace } = vi.hoisted(() => ({
+  isCustomBlocksEligible: vi.fn().mockResolvedValue(false),
+  listCustomBlocksWithInputsForWorkspace: vi.fn(),
+}))
+
 vi.mock('@/lib/copilot/tools/server/files/doc-render', () => ({
   // `odt` exposes the defensive missing-task branch independently from the extension guard.
   isRenderableDocExt: (ext: string) => ['docx', 'odt', 'pdf', 'pptx'].includes(ext.toLowerCase()),
@@ -33,11 +38,57 @@ vi.mock('@/lib/workspace-files/application/read-workspace-file-content', () => (
   readWorkspaceFileContent: { execute: readWorkspaceFileContentExecute },
 }))
 
+vi.mock('@/lib/workflows/custom-blocks/operations', () => ({
+  isCustomBlocksEligible,
+  listCustomBlocksWithInputsForWorkspace,
+}))
+
 import { WorkspaceVFS } from '@/lib/copilot/vfs/workspace-vfs'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 
 const MAX_DOC_READ_INPUT_BYTES = 50 * 1024 * 1024
 const MAX_DOCUMENT_PREVIEW_CODE_BYTES = 1024 * 1024
+
+interface TestableWorkspaceVFS {
+  loadCustomBlocks(workspaceId: string): Promise<unknown[]>
+}
+
+function customBlockLoader(vfs: WorkspaceVFS): TestableWorkspaceVFS {
+  return vfs as unknown as TestableWorkspaceVFS
+}
+
+describe('WorkspaceVFS custom block loading', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('shares a successful custom block load within one VFS instance', async () => {
+    const blocks = [{ id: 'custom-block-1' }]
+    listCustomBlocksWithInputsForWorkspace.mockResolvedValueOnce(blocks)
+    const loader = customBlockLoader(new WorkspaceVFS())
+
+    const [first, second] = await Promise.all([
+      loader.loadCustomBlocks('workspace-1'),
+      loader.loadCustomBlocks('workspace-1'),
+    ])
+
+    expect(first).toBe(blocks)
+    expect(second).toBe(blocks)
+    expect(listCustomBlocksWithInputsForWorkspace).toHaveBeenCalledTimes(1)
+  })
+
+  it('retries a custom block load after failure', async () => {
+    const blocks = [{ id: 'custom-block-1' }]
+    listCustomBlocksWithInputsForWorkspace
+      .mockRejectedValueOnce(new Error('temporary failure'))
+      .mockResolvedValueOnce(blocks)
+    const loader = customBlockLoader(new WorkspaceVFS())
+
+    await expect(loader.loadCustomBlocks('workspace-1')).rejects.toThrow('temporary failure')
+    await expect(loader.loadCustomBlocks('workspace-1')).resolves.toBe(blocks)
+    expect(listCustomBlocksWithInputsForWorkspace).toHaveBeenCalledTimes(2)
+  })
+})
 
 function arrangeRenderRead({
   name = 'brief.pdf',

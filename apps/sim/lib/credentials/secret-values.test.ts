@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockEncryptSecret,
+  mockDecryptSecret,
   mockCreateWorkspaceEnvCredentials,
   mockDeleteWorkspaceEnvCredentials,
   mockUpsertPersonalEnvCredentialForUser,
@@ -13,6 +14,7 @@ const {
   mockInvalidateEffectiveDecryptedEnvCache,
 } = vi.hoisted(() => ({
   mockEncryptSecret: vi.fn(),
+  mockDecryptSecret: vi.fn(),
   mockCreateWorkspaceEnvCredentials: vi.fn(),
   mockDeleteWorkspaceEnvCredentials: vi.fn(),
   mockUpsertPersonalEnvCredentialForUser: vi.fn(),
@@ -20,7 +22,10 @@ const {
   mockInvalidateEffectiveDecryptedEnvCache: vi.fn(),
 }))
 
-vi.mock('@/lib/core/security/encryption', () => ({ encryptSecret: mockEncryptSecret }))
+vi.mock('@/lib/core/security/encryption', () => ({
+  decryptSecret: mockDecryptSecret,
+  encryptSecret: mockEncryptSecret,
+}))
 vi.mock('@/lib/credentials/environment', () => ({
   createWorkspaceEnvCredentials: mockCreateWorkspaceEnvCredentials,
   deleteWorkspaceEnvCredentials: mockDeleteWorkspaceEnvCredentials,
@@ -34,6 +39,7 @@ vi.mock('@/lib/environment/utils', () => ({
 import {
   deletePersonalSecret,
   deleteWorkspaceSecret,
+  readWorkspaceSecretValues,
   setPersonalSecret,
   setWorkspaceSecret,
 } from '@/lib/credentials/secret-values'
@@ -104,6 +110,71 @@ describe('secret value storage', () => {
     expect(result.created).toBe(false)
   })
 
+  it('writes the unredacted flag onto the credential row without touching the description', async () => {
+    queueTableRows(schemaMock.workspaceEnvironment, [
+      {
+        id: 'env-1',
+        variables: { STRIPE_KEY: 'encrypted-existing-value' },
+        createdAt: new Date('2024-01-01T00:00:00Z'),
+      },
+    ])
+
+    await setWorkspaceSecret({
+      workspaceId: 'workspace-1',
+      name: 'STRIPE_KEY',
+      value: 'rotated',
+      userId: 'user-1',
+      unredacted: true,
+    })
+
+    const credentialUpdate = dbChainMockFns.set.mock.calls[0][0] as Record<string, unknown>
+    expect(credentialUpdate.unredacted).toBe(true)
+    expect(credentialUpdate).not.toHaveProperty('description')
+  })
+
+  it('leaves the stored unredacted flag alone when the caller omits it', async () => {
+    queueTableRows(schemaMock.workspaceEnvironment, [
+      {
+        id: 'env-1',
+        variables: { STRIPE_KEY: 'encrypted-existing-value' },
+        createdAt: new Date('2024-01-01T00:00:00Z'),
+      },
+    ])
+
+    await setWorkspaceSecret({
+      workspaceId: 'workspace-1',
+      name: 'STRIPE_KEY',
+      value: 'rotated',
+      userId: 'user-1',
+    })
+
+    const credentialUpdate = dbChainMockFns.set.mock.calls[0][0] as Record<string, unknown>
+    expect(credentialUpdate).not.toHaveProperty('unredacted')
+    expect(credentialUpdate).not.toHaveProperty('description')
+  })
+
+  it('carries a description without touching the unredacted flag', async () => {
+    queueTableRows(schemaMock.workspaceEnvironment, [
+      {
+        id: 'env-1',
+        variables: { STRIPE_KEY: 'encrypted-existing-value' },
+        createdAt: new Date('2024-01-01T00:00:00Z'),
+      },
+    ])
+
+    await setWorkspaceSecret({
+      workspaceId: 'workspace-1',
+      name: 'STRIPE_KEY',
+      value: 'rotated',
+      userId: 'user-1',
+      description: 'Prod billing key',
+    })
+
+    const credentialUpdate = dbChainMockFns.set.mock.calls[0][0] as Record<string, unknown>
+    expect(credentialUpdate.description).toBe('Prod billing key')
+    expect(credentialUpdate).not.toHaveProperty('unredacted')
+  })
+
   it('sets a personal value through caller-owned metadata only', async () => {
     queueTableRows(schemaMock.environment, [])
 
@@ -155,5 +226,58 @@ describe('secret value storage', () => {
     expect(deleted).toBe(false)
     expect(mockDeletePersonalEnvCredentialForUser).not.toHaveBeenCalled()
     expect(mockInvalidateEffectiveDecryptedEnvCache).not.toHaveBeenCalled()
+  })
+})
+
+describe('readWorkspaceSecretValues', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    mockDecryptSecret.mockImplementation(async (encrypted: string) => ({
+      decrypted: `decrypted:${encrypted}`,
+    }))
+  })
+
+  it('decrypts only the requested names and omits absent or undecryptable ones', async () => {
+    queueTableRows(schemaMock.workspaceEnvironment, [
+      {
+        id: 'env-1',
+        variables: {
+          VISIBLE_KEY: 'encrypted-visible',
+          BROKEN_KEY: 'encrypted-broken',
+          OTHER_KEY: 'encrypted-other',
+        },
+      },
+    ])
+    mockDecryptSecret.mockImplementation(async (encrypted: string) => {
+      if (encrypted === 'encrypted-broken') throw new Error('cannot decrypt')
+      return { decrypted: `decrypted:${encrypted}` }
+    })
+
+    await expect(
+      readWorkspaceSecretValues({
+        workspaceId: 'workspace-1',
+        names: ['VISIBLE_KEY', 'BROKEN_KEY', 'MISSING_KEY'],
+      })
+    ).resolves.toEqual({ VISIBLE_KEY: 'decrypted:encrypted-visible' })
+    expect(mockDecryptSecret).not.toHaveBeenCalledWith('encrypted-other')
+  })
+
+  it('reads nothing when no names are requested', async () => {
+    await expect(
+      readWorkspaceSecretValues({ workspaceId: 'workspace-1', names: [] })
+    ).resolves.toEqual({})
+    expect(mockDecryptSecret).not.toHaveBeenCalled()
+  })
+
+  it('never reads an inherited prototype member for a missing key', async () => {
+    queueTableRows(schemaMock.workspaceEnvironment, [
+      { id: 'env-1', variables: { OTHER_KEY: 'encrypted-other' } },
+    ])
+
+    await expect(
+      readWorkspaceSecretValues({ workspaceId: 'workspace-1', names: ['constructor', 'toString'] })
+    ).resolves.toEqual({})
+    expect(mockDecryptSecret).not.toHaveBeenCalled()
   })
 })

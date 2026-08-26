@@ -4,7 +4,7 @@ import { member, outboxEvent, user, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
 import { generateId } from '@sim/utils/id'
-import { normalizeEmail } from '@sim/utils/string'
+import { normalizeEmail, slugify } from '@sim/utils/string'
 import { and, count, desc, eq, or, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { getEmailSubject, renderEnterpriseOwnerInvitationEmail } from '@/components/emails'
@@ -855,11 +855,7 @@ function sameWorkspaceSet(left: string[], right: string[]): boolean {
 }
 
 function claimOrganizationSlug(name: string, claimId: string): string {
-  const base = name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '')
-    .slice(0, 80)
+  const base = slugify(name).slice(0, 80)
   return `${base || 'organization'}-${claimId.replace(/[^a-z0-9]/g, '')}`
 }
 

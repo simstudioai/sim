@@ -5,7 +5,10 @@ import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { HttpError } from '@/lib/core/utils/http-error'
 import { getCredentialActorContext } from '@/lib/credentials/access'
-import { defineAuthorizedCredentialUseCase } from '@/lib/credentials/application/authorized-credential-use-case'
+import {
+  defineAuthorizedCredentialUseCase,
+  requireManageableCredentialType,
+} from '@/lib/credentials/application/authorized-credential-use-case'
 import { resolveCredentialApplicationContext } from '@/lib/credentials/application/credential-context'
 import { credentialOperations } from '@/lib/credentials/application/operations'
 import {
@@ -145,18 +148,7 @@ export const deleteCredentialUseCase = defineAuthorizedCredentialUseCase({
       assertedWorkspaceId: input.workspaceId,
     }),
   async execute({ principal, context }): Promise<DeleteCredentialResult> {
-    const allowedTypes =
-      principal.kind === 'session'
-        ? ['oauth', 'env_workspace', 'env_personal', 'service_account']
-        : principal.kind === 'delegated'
-          ? ['oauth']
-          : ['oauth', 'service_account']
-    if (!allowedTypes.includes(context.credential.type)) {
-      throw new OrchestrationError(
-        'validation',
-        `Only ${allowedTypes.join(', ')} credentials can be managed by this caller`
-      )
-    }
+    requireManageableCredentialType(principal, context.credential)
     const reason = principal.kind === 'delegated' ? 'copilot_delete' : 'user_delete'
     const deleted = await deleteCredentialRecord({ credential: context.credential, reason })
     return { credential: context.credential, deleted }

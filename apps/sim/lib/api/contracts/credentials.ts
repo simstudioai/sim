@@ -31,6 +31,8 @@ export const workspaceCredentialSchema = z.object({
   type: workspaceCredentialTypeSchema,
   displayName: z.string(),
   description: z.string().nullable(),
+  /** True when an env_workspace secret opts out of redaction; always false for other types. */
+  unredacted: z.boolean(),
   providerId: z.string().nullable(),
   accountId: z.string().nullable(),
   envKey: z.string().nullable(),
@@ -222,6 +224,8 @@ export const updateCredentialByIdBodySchema = z
   .object({
     displayName: z.string().trim().min(1).max(255).optional(),
     description: z.string().trim().max(500).nullish(),
+    /** Workspace-secret redaction opt-out; rejected for every type but env_workspace. */
+    unredacted: z.boolean().optional(),
     serviceAccountJson: z.string().min(1).optional(),
     /** Slack custom-bot secret rotation (reconnect). */
     signingSecret: z.string().trim().min(1).optional(),
@@ -244,6 +248,7 @@ export const updateCredentialByIdBodySchema = z
     (data) =>
       data.displayName !== undefined ||
       data.description !== undefined ||
+      data.unredacted !== undefined ||
       data.serviceAccountJson !== undefined ||
       data.signingSecret !== undefined ||
       data.botToken !== undefined ||

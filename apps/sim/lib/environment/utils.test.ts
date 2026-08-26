@@ -100,6 +100,40 @@ describe('getPersonalAndWorkspaceEnv access filtering', () => {
     expect(encryptionMockFns.mockDecryptSecret).toHaveBeenCalledOnce()
   })
 
+  it('collects workspaceUnredactedKeys only from flagged env_workspace credential rows', async () => {
+    mockGetAccessibleEnvCredentials.mockResolvedValue([
+      {
+        type: 'env_workspace',
+        envKey: 'VISIBLE_KEY',
+        envOwnerUserId: null,
+        updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+        unredacted: true,
+      },
+      {
+        type: 'env_workspace',
+        envKey: 'HIDDEN_KEY',
+        envOwnerUserId: null,
+        updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+        unredacted: false,
+      },
+      {
+        type: 'env_personal',
+        envKey: 'PERSONAL_KEY',
+        envOwnerUserId: 'user-1',
+        updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+        unredacted: true,
+      },
+    ])
+    queueTableRows(environment, [{ variables: {} }])
+    queueTableRows(workspaceEnvironment, [
+      { variables: { VISIBLE_KEY: 'visible-cipher', HIDDEN_KEY: 'hidden-cipher' } },
+    ])
+
+    const snapshot = await getPersonalAndWorkspaceEnv('user-1', 'workspace-1')
+
+    expect(snapshot.workspaceUnredactedKeys).toEqual(['VISIBLE_KEY'])
+  })
+
   it('preserves shared-personal precedence when an accessible owner shares the same name', async () => {
     mockGetAccessibleEnvCredentials.mockResolvedValue([
       {
@@ -181,6 +215,49 @@ describe('getExecutionEnvironment', () => {
     expect(snapshot.personalDecrypted).toEqual({})
     expect(snapshot.personalEncrypted).toEqual({})
     expect(snapshot.workspaceDecrypted).toEqual({ WORKSPACE_KEY: 'plain:workspace-cipher' })
+  })
+
+  it('carries the ACTOR workspaceUnredactedKeys on a split-identity run', async () => {
+    grantAdminTo('actor-1')
+    mockGetAccessibleEnvCredentials.mockImplementation(
+      async (_workspaceId: string, userId: string) => [
+        {
+          type: 'env_workspace',
+          envKey: userId === 'actor-1' ? 'ACTOR_VISIBLE' : 'OWNER_VISIBLE',
+          envOwnerUserId: null,
+          updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+          unredacted: true,
+        },
+      ]
+    )
+    queueTableRows(environment, [{ variables: {} }])
+    queueTableRows(workspaceEnvironment, [{ variables: { WORKSPACE_KEY: 'workspace-cipher' } }])
+    queueTableRows(environment, [{ variables: {} }])
+    queueTableRows(workspaceEnvironment, [{ variables: { WORKSPACE_KEY: 'workspace-cipher' } }])
+
+    const snapshot = await getExecutionEnvironment('owner-1', 'actor-1', 'workspace-1')
+
+    expect(snapshot.workspaceUnredactedKeys).toEqual(['ACTOR_VISIBLE'])
+  })
+
+  it('keeps workspaceUnredactedKeys on an anonymous workspace-only run', async () => {
+    grantAdminTo('billing-account')
+    mockGetAccessibleEnvCredentials.mockResolvedValue([
+      {
+        type: 'env_workspace',
+        envKey: 'WORKSPACE_VISIBLE',
+        envOwnerUserId: null,
+        updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+        unredacted: true,
+      },
+    ])
+    queueTableRows(environment, [{ variables: {} }])
+    queueTableRows(workspaceEnvironment, [{ variables: { WORKSPACE_VISIBLE: 'workspace-cipher' } }])
+
+    const snapshot = await getExecutionEnvironment(undefined, 'billing-account', 'workspace-1')
+
+    expect(snapshot.personalDecrypted).toEqual({})
+    expect(snapshot.workspaceUnredactedKeys).toEqual(['WORKSPACE_VISIBLE'])
   })
 
   it('falls back to the personal identity when the actor cannot reach the workspace', async () => {

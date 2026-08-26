@@ -188,8 +188,6 @@ export const SUPPORTED_VIDEO_MIME_TYPES: Record<SupportedVideoExtension, string[
 }
 
 export const ACCEPTED_FILE_TYPES = Object.values(SUPPORTED_MIME_TYPES).flat()
-export const ACCEPTED_AUDIO_TYPES = Object.values(SUPPORTED_AUDIO_MIME_TYPES).flat()
-export const ACCEPTED_VIDEO_TYPES = Object.values(SUPPORTED_VIDEO_MIME_TYPES).flat()
 export const ACCEPTED_FILE_EXTENSIONS = SUPPORTED_DOCUMENT_EXTENSIONS.map((ext) => `.${ext}`)
 
 export const ACCEPT_ATTRIBUTE = [...ACCEPTED_FILE_TYPES, ...ACCEPTED_FILE_EXTENSIONS].join(',')

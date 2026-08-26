@@ -7,7 +7,7 @@ import { theme } from './theme'
 import { SETUP_VERSION } from './version'
 
 const SETUP_FEATURES =
-  'email | storage | sandbox | jobs | cache | knowledge | knowledge-embeddings | llm | integration <slug>'
+  'email | storage | sandbox | jobs | cache | knowledge | knowledge-embeddings | chat | llm | integration <slug>'
 
 const USAGE = `Usage:
   sim-setup [--quick] [--dir <path>] [--mode compose|dev|k8s]

@@ -1,6 +1,6 @@
 {
   "name": "sim-setup",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Set up and manage a self-hosted Sim installation",
   "type": "module",
   "bin": {

@@ -44,6 +44,8 @@ export interface CodeExecutionInput {
   secretScope?: 'all' | 'selected'
   /** Secret names visible to the code when {@link secretScope} is `'selected'`. */
   mountedSecrets?: string[]
+  /** Names the caller's registry certifies as redaction-exempt; exported files carrying only these values are not provenance-locked. */
+  unredactedSecretNames?: string[]
   envVars?: Record<string, string>
   workflowVariables?: Record<string, unknown>
   blockData?: Record<string, unknown>

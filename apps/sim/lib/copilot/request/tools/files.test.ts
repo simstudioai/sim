@@ -563,6 +563,13 @@ describe('maybeWriteOutputToFile', () => {
       .mockReturnValueOnce({ version: 1, complete: false, entries: [] })
     const registry = {
       exportCommittedProvenanceForValue,
+      /** Plaintext is in scope, so the incomplete export below is a taint, not an absence. */
+      getIncompletenessDiagnostics: vi.fn(() => ({
+        reasons: ['source-provenance-incomplete'],
+        origins: [],
+        incompleteInputPathCount: 0,
+        activeEntryCount: 1,
+      })),
     } as unknown as ResolvedSecretTraceRegistry
 
     const result = await maybeWriteOutputToFile(

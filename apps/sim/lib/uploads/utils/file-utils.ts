@@ -246,6 +246,16 @@ export function isGeneratedDocumentSourceType(contentType: string | undefined | 
  * orders of magnitude smaller than the document it produces, so the declared size is no
  * bound at all and the rendered bytes need a cap of their own.
  */
+/**
+ * Ceiling on the source bytes fed to a text-extraction parser.
+ *
+ * The parsers have a documented denial-of-service history, so a text read is
+ * bounded on its *input* before extraction rather than on its output after.
+ * The individual parsers keep their own guards; those must not be relaxed to
+ * make a larger ceiling usable.
+ */
+export const MAX_TEXT_EXTRACTION_BYTES = 25 * 1024 * 1024
+
 export const MAX_RENDERED_DOCUMENT_BYTES = 50 * 1024 * 1024
 
 /** True when `fileName` may be backed by a generation source rather than final bytes. */
@@ -1124,6 +1134,31 @@ export function extractWorkspaceIdFromExecutionKey(key: string): string | null {
   }
 
   return null
+}
+
+/**
+ * The workspace a storage key demonstrably belongs to, or `null` when the key's
+ * layout does not name one.
+ *
+ * Only two key layouts encode their tenant: `workspace/{workspaceId}/…` and
+ * `execution/{workspaceId}/{workflowId}/{executionId}/…`. Every other prefix
+ * (`kb/`, `chat/`, `copilot/`, the world-readable ones) carries no workspace
+ * segment, so no ownership can be proven from the key alone and this returns
+ * `null` rather than guessing.
+ *
+ * This is the only safe way to compare a key against an expected workspace when
+ * the key came from a caller: it reads the tenant out of the key's own layout
+ * instead of trusting an adjacent `context`, `workspaceId`, or URL field.
+ */
+export function extractWorkspaceIdFromStorageKey(key: string): string | null {
+  const segments = key.split('/')
+
+  if (segments[0] === 'workspace' && segments.length >= 3) {
+    const workspaceId = segments[1]
+    return workspaceId && isUuid(workspaceId) ? workspaceId : null
+  }
+
+  return extractWorkspaceIdFromExecutionKey(key)
 }
 
 /**

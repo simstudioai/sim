@@ -321,12 +321,6 @@ export function ThinkingLoader({
   const [retainMorphStages, setRetainMorphStages] = useState(cycling)
 
   useEffect(() => {
-    if (variant !== undefined) {
-      setCycleVariant(variant)
-    }
-  }, [variant])
-
-  useEffect(() => {
     if (!cycling) return
     // Settle: stop the cycle and melt to the terminal orb (goo handles the morph).
     if (settle) {

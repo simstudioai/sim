@@ -11,24 +11,6 @@ import { extractEmbeddedFileRef, extractImgSrcs } from '@/lib/uploads/utils/embe
 export const MAX_EMBEDDED_IMAGES = 50
 
 /**
- * The stored id behind the spelling a document used. {@link extractEmbeddedFileRefs} returns ids
- * exactly as the document writes them, because that is what the export bundler searches for when it
- * rewrites an embed — but storage is keyed by the decoded id. Every consumer that resolves one of
- * these ids goes through here, so a document's spelling and the stored id stay distinct without
- * either side re-deriving the other.
- *
- * Only for ids read out of document text. Ids arriving as request input are already constrained to
- * the plain id charset by their route contract, so they need no decoding.
- */
-export function storedFileId(spelledId: string): string {
-  try {
-    return decodeURIComponent(spelledId)
-  } catch {
-    return spelledId
-  }
-}
-
-/**
  * A parser of this module's own, not the `marked` singleton: the public share's referenced-by-doc
  * gate authorizes against what this returns, and a global `marked.use()` elsewhere in the process
  * must not be able to redefine an authorization boundary.

@@ -48,6 +48,7 @@ import {
   resolveCanvasSentence,
 } from '@/lib/workflows/blocks/canvas-sentence'
 import { resolveSelectedTriggerId } from '@/lib/workflows/blocks/canvas-trigger-sentence'
+import { resolveCanvasCodePreview } from '@/lib/workflows/blocks/code-preview'
 import { calculateWorkflowBlockDimensions } from '@/lib/workflows/blocks/deterministic-dimensions'
 import { getConditionRows, getRouterRows } from '@/lib/workflows/dynamic-handle-topology'
 import { getDependsOnFields } from '@/lib/workflows/subblocks/dependencies'
@@ -288,6 +289,9 @@ const areSubBlockRowPropsEqual = (
   const prevValue = subBlockId ? prevProps.allSubBlockValues?.[subBlockId]?.value : undefined
   const nextValue = subBlockId ? nextProps.allSubBlockValues?.[subBlockId]?.value : undefined
   const valueEqual = prevValue === nextValue || isEqual(prevValue, nextValue)
+  const codeLanguageEqual =
+    prevProps.subBlock?.type !== 'code' ||
+    prevProps.allSubBlockValues?.language?.value === nextProps.allSubBlockValues?.language?.value
 
   return (
     prevProps.title === nextProps.title &&
@@ -298,6 +302,7 @@ const areSubBlockRowPropsEqual = (
     prevProps.workflowId === nextProps.workflowId &&
     prevProps.blockId === nextProps.blockId &&
     valueEqual &&
+    codeLanguageEqual &&
     prevProps.displayAdvancedOptions === nextProps.displayAdvancedOptions &&
     prevProps.canonicalIndex === nextProps.canonicalIndex &&
     prevProps.canonicalModeOverrides === nextProps.canonicalModeOverrides &&
@@ -596,12 +601,15 @@ const SubBlockRow = memo(function SubBlockRow({
     webhookUrlDisplayValue ||
     selectorDisplayName
   const displayValue = maskedValue || hydratedName || (isSelectorType && value ? '-' : value)
+  const codePreview =
+    variant === 'inline-value' ? resolveCanvasCodePreview(subBlock, rawValue, rawValues) : undefined
 
   return (
     <SubBlockRowView
       title={title}
       displayValue={displayValue}
       isMonospace={isMonospaceField}
+      codePreview={codePreview}
       variant={variant}
       icon={icon}
     />
@@ -1240,7 +1248,6 @@ export const WorkflowBlock = memo(function WorkflowBlock({
       ringStyles={ringStyles}
       runPathStatus={runPathStatus}
       isRunning={isExecuting}
-      isWorkflowRunning={isWorkflowRunning}
       isExecutionHighlighted={isExecutionHighlighted}
       Icon={config.icon}
       iconBgColor={config.bgColor}

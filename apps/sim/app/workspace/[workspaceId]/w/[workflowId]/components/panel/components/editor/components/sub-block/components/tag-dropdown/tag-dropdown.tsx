@@ -376,7 +376,6 @@ const buildNestedTagTree = (tags: string[], blockName: string): NestedTag[] => {
 interface NestedTagRendererProps {
   nestedTag: NestedTag
   group: NestedBlockTagGroup
-  flatTagList: Array<{ tag: string; group?: BlockTagGroup }>
   /** Map from tag string to index for O(1) lookups */
   flatTagIndexMap: Map<string, number>
   selectedIndex: number
@@ -403,7 +402,6 @@ interface FolderContentsProps extends NestedTagRendererProps {
  */
 const FolderContentsInner: React.FC<FolderContentsProps> = ({
   group,
-  flatTagList,
   flatTagIndexMap,
   selectedIndex,
   setSelectedIndex,
@@ -565,7 +563,6 @@ const FolderContents: React.FC<Omit<NestedTagRendererProps, never>> = (props) =>
 const NestedTagRenderer: React.FC<NestedTagRendererProps> = ({
   nestedTag,
   group,
-  flatTagList,
   flatTagIndexMap,
   selectedIndex,
   setSelectedIndex,
@@ -612,7 +609,6 @@ const NestedTagRenderer: React.FC<NestedTagRendererProps> = ({
         <FolderContents
           nestedTag={nestedTag}
           group={group}
-          flatTagList={flatTagList}
           flatTagIndexMap={flatTagIndexMap}
           selectedIndex={selectedIndex}
           setSelectedIndex={setSelectedIndex}
@@ -1633,9 +1629,9 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
         </PopoverAnchor>
         <KeyboardNavigationHandler
           visible={visible}
+          flatTagList={flatTagList}
           selectedIndex={selectedIndex}
           setSelectedIndex={setSelectedIndex}
-          flatTagList={flatTagList}
           nestedBlockTagGroups={nestedBlockTagGroups}
           handleTagSelect={handleTagSelect}
           onFolderEnter={() => {
@@ -1720,7 +1716,6 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                             key={`${group.blockId}-${nestedTag.key}`}
                             nestedTag={nestedTag}
                             group={group}
-                            flatTagList={flatTagList}
                             flatTagIndexMap={flatTagIndexMap}
                             selectedIndex={selectedIndex}
                             setSelectedIndex={setSelectedIndex}

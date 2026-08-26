@@ -513,6 +513,7 @@ export class WorkflowBlockHandler implements BlockHandler {
           workspaceDecrypted: ownerEnv.workspaceDecrypted,
           decryptionFailures: ownerEnv.decryptionFailures,
           personalOwners: ownerEnv.personalOwners,
+          workspaceUnredactedKeys: ownerEnv.workspaceUnredactedKeys,
           scope: { userId: loadUserId, workspaceId: sourceWorkspaceId },
         })
         if (ctx.resolvedSecretTraceRegistry) {

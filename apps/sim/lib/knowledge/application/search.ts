@@ -15,6 +15,10 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { importDurableSecretProvenance } from '@/lib/execution/durable-secret-provenance'
+import {
+  isDurableSecretProvenanceEnforced,
+  reportUnrecordedDurableProvenance,
+} from '@/lib/execution/durable-secret-provenance-enforcement'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import {
   KnowledgeUsageLimitExceededError,
@@ -488,6 +492,8 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
       }
     })
     if (registry && provenanceSnapshot) {
+      const knowledgeEnforced = isDurableSecretProvenanceEnforced('knowledge')
+      let unrecordedCount = provenanceSnapshot.unrecordedCount
       for (const [documentId, document] of Object.entries(provenanceSnapshot.documentMetadata)) {
         const renderedMetadata = results
           .filter((result) => result.documentId === documentId)
@@ -496,17 +502,33 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
             sourceUrl: result.sourceUrl,
             metadata: result.metadata,
           }))
+        if (renderedMetadata.length === 0) continue
+        if (document.provenance.status === 'unknown' && !knowledgeEnforced) unrecordedCount += 1
         if (
-          renderedMetadata.length > 0 &&
           !(await importDurableSecretProvenance(
             registry,
             document.provenance,
             renderedMetadata,
-            'knowledge'
+            'knowledge',
+            { reportUnrecorded: false }
           ))
         ) {
           registry.markIncomplete('knowledge-result-provenance-unavailable')
         }
+      }
+      /**
+       * One entry for the whole search — chunks and rendered metadata are one read. Skipped when
+       * the registry latched: a latched read never reaches a model, and this entry exists to say a
+       * fail-open read went ahead unvouched.
+       */
+      if (unrecordedCount > 0 && !registry.isPermanentlyIncomplete()) {
+        reportUnrecordedDurableProvenance({
+          surface: 'knowledge',
+          cause: 'durable-provenance-unknown',
+          affectedCount: unrecordedCount,
+          workspaceId: context.workspaceId,
+          actorUserId: userId,
+        })
       }
     }
     const cost = baseCost

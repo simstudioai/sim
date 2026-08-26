@@ -79,6 +79,53 @@ function collectUserFileKeysInto(value: unknown, keys: Set<string>, seen: WeakSe
 }
 
 /**
+ * Collects the {@link UserFile} records embedded in a value, indexed by file id.
+ *
+ * The first occurrence of an id wins, matching `Array.prototype.find`, so a file
+ * echoed into several block outputs resolves to a single record. Callers use
+ * this to answer "which files did this value actually reference, and under which
+ * storage keys" without trusting an id-to-key mapping supplied from outside.
+ */
+export function collectUserFilesById(value: unknown): Map<string, UserFile> {
+  const files = new Map<string, UserFile>()
+  collectUserFilesInto(value, files, new WeakSet<object>())
+  return files
+}
+
+function collectUserFilesInto(
+  value: unknown,
+  files: Map<string, UserFile>,
+  seen: WeakSet<object>
+): void {
+  if (!value || typeof value !== 'object') {
+    return
+  }
+
+  if (seen.has(value)) {
+    return
+  }
+  seen.add(value)
+
+  if (isUserFileWithMetadata(value)) {
+    if (!files.has(value.id)) {
+      files.set(value.id, value)
+    }
+    return
+  }
+
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      collectUserFilesInto(item, files, seen)
+    }
+    return
+  }
+
+  for (const item of Object.values(value)) {
+    collectUserFilesInto(item, files, seen)
+  }
+}
+
+/**
  * Checks if a value matches the display-safe UserFile metadata shape after internal fields are stripped.
  */
 export function isUserFileDisplayMetadata(value: unknown): value is Record<string, unknown> {

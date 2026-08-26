@@ -85,9 +85,9 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
     [blocks, blockId]
   )
 
-  const publish = usePublishCustomBlock(workspaceId)
-  const update = useUpdateCustomBlock(workspaceId)
-  const remove = useDeleteCustomBlock(workspaceId)
+  const publish = usePublishCustomBlock()
+  const update = useUpdateCustomBlock()
+  const remove = useDeleteCustomBlock()
 
   // Needed in both modes: the source picker (create) and the manage gate (edit).
   const { data: workspaces = [] } = useWorkspacesQuery()
@@ -755,6 +755,7 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
         onOpenChange={() => setShowDelete(false)}
         srTitle='Delete custom block'
         title='Delete custom block'
+        defaultAction='none'
         text={[
           'Delete ',
           { text: existing?.name ?? 'this block', bold: true },

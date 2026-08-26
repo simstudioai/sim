@@ -15,6 +15,7 @@ import type { EnterpriseLoopContent } from '@/app/(landing)/enterprise/component
  */
 const ENGINEERING_LOOP_CONTENT: EnterpriseLoopContent = {
   workspaceName: 'Brightwave Engineering',
+  profileName: 'Alex',
   greeting: 'What should we get done, Alex?',
   placeholder: 'Ask Sim to automate a process.',
   prompt:

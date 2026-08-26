@@ -75,6 +75,24 @@ describe('file operation registry', () => {
     }
   })
 
+  /**
+   * Extraction was widened from `['session']` to both API-key kinds. Nothing
+   * else pins that, and the widening is only defensible while extraction grants
+   * no capability `files.create` does not — so a role increase or a delegated
+   * service added here has to be a deliberate edit.
+   */
+  it('keeps archive extraction at the write role for credential-bound principals', () => {
+    expect(fileOperations.extractArchive).toMatchObject({
+      id: 'files.extract_archive',
+      minimumRole: 'write',
+      workspaceApiKey: 'allow',
+      principalKinds: ['session', 'personal_api_key', 'workspace_api_key'],
+    })
+    expect(fileOperations.extractArchive.principalKinds).not.toContain('delegated')
+    expect(fileOperations.extractArchive.delegatedServices).toBeUndefined()
+    expect(Object.isFrozen(fileOperations.extractArchive)).toBe(true)
+  })
+
   it('restricts compiled checks to authenticated sessions', () => {
     expect(fileOperations.compiledCheck).toMatchObject({
       id: 'files.compiled_check',

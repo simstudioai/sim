@@ -1,6 +1,11 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
+import { isPlainRecord } from '@sim/utils/object'
+import {
+  fetchWithRetry,
+  readBoundedHttpErrorBody,
+  VALIDATE_RETRY_OPTIONS,
+} from '@/lib/knowledge/documents/utils'
 import { googleDocsConnectorMeta } from '@/connectors/google-docs/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import {
@@ -9,6 +14,7 @@ import {
   joinTagArray,
   markSkipped,
   parseMultiValue,
+  parseOptionalUnlimitedSafeInteger,
   parseTagDate,
   readBodyWithLimit,
   sizeLimitSkipReason,
@@ -30,6 +36,19 @@ const MAX_DOCS_RESPONSE_BYTES = 100 * 1024 * 1024
 const PAGE_SIZE = 100
 
 const GOOGLE_DOC_MIME_TYPE = 'application/vnd.google-apps.document'
+const MAX_DOCS_VALIDATION_ERROR =
+  'Max documents must be a positive safe integer, or 0 for unlimited'
+
+function parseMaxDocs(value: unknown): number {
+  return parseOptionalUnlimitedSafeInteger(value, MAX_DOCS_VALIDATION_ERROR)
+}
+
+/**
+ * `includeTabsContent=true` switches the Docs response to the tab representation.
+ * Request only that representation because the legacy top-level `body` is empty
+ * in tab mode. Google accepts `fields=tabs`.
+ */
+const GOOGLE_DOC_CONTENT_FIELDS = 'tabs'
 
 /**
  * Represents a Google Drive file entry returned by the Drive API.
@@ -44,6 +63,40 @@ interface DriveFile {
   owners?: { displayName?: string; emailAddress?: string }[]
 }
 
+function isDriveFileMetadata(
+  value: unknown,
+  expectedId: string
+): value is DriveFile & { trashed?: boolean } {
+  return (
+    isPlainRecord(value) &&
+    value.id === expectedId &&
+    typeof value.name === 'string' &&
+    typeof value.mimeType === 'string' &&
+    (value.trashed === undefined || typeof value.trashed === 'boolean')
+  )
+}
+
+function isDriveFileListItem(value: unknown): value is DriveFile {
+  return (
+    isPlainRecord(value) &&
+    typeof value.id === 'string' &&
+    value.id.length > 0 &&
+    typeof value.name === 'string' &&
+    typeof value.mimeType === 'string' &&
+    typeof value.modifiedTime === 'string'
+  )
+}
+
+function parseDriveFileMetadata(
+  value: unknown,
+  expectedId: string
+): DriveFile & { trashed?: boolean } {
+  if (!isDriveFileMetadata(value, expectedId)) {
+    throw new Error('Google Drive API returned malformed file metadata')
+  }
+  return value
+}
+
 /**
  * A single element inside a paragraph. Only the variants that carry readable
  * text are modeled — `pageBreak`, `columnBreak`, `horizontalRule`, `equation`,
@@ -53,6 +106,9 @@ interface DocsParagraphElement {
   textRun?: { content?: string }
   richLink?: { richLinkProperties?: { title?: string; uri?: string } }
   person?: { personProperties?: { name?: string; email?: string } }
+  dateElement?: { dateElementProperties?: { displayText?: string } }
+  equation?: Record<string, unknown>
+  inlineObjectElement?: { inlineObjectId?: string }
 }
 
 /**
@@ -81,27 +137,91 @@ interface DocsStructuralElement {
   }
 }
 
+interface DocsContentRegion {
+  content?: DocsStructuralElement[]
+}
+
 /**
- * A tab of a Google Doc. Tabs may nest arbitrarily deep via `childTabs`.
+ * A Google Doc tab. Tabs may nest through `childTabs`; non-text objects are
+ * tracked separately so an object-only document is not mistaken for empty text.
  */
 interface DocsTab {
   documentTab?: {
-    body?: { content?: DocsStructuralElement[] }
+    body?: DocsContentRegion
+    headers?: Record<string, DocsContentRegion>
+    footers?: Record<string, DocsContentRegion>
+    footnotes?: Record<string, DocsContentRegion>
+    inlineObjects?: Record<string, unknown>
+    positionedObjects?: Record<string, unknown>
   }
   childTabs?: DocsTab[]
 }
 
 /**
- * Represents the response from the Google Docs API for a single document. With
- * `includeTabsContent=true` the content lands in `tabs` and the legacy `body`
- * field is left empty; `body` is retained only as a fallback in case the request
- * is ever served without tab content.
+ * Represents the tab-based response from the Google Docs API for one document.
+ * With `includeTabsContent=true`, the legacy top-level text fields are empty.
  */
 interface DocsDocument {
-  body?: {
-    content?: DocsStructuralElement[]
-  }
   tabs?: DocsTab[]
+}
+
+function isDocsTab(value: unknown): value is DocsTab {
+  if (!isPlainRecord(value)) return false
+  if (value.childTabs !== undefined) {
+    if (!Array.isArray(value.childTabs) || !value.childTabs.every(isDocsTab)) return false
+  }
+  if (value.documentTab !== undefined) {
+    if (!isPlainRecord(value.documentTab)) return false
+    const body = value.documentTab.body
+    if (
+      body !== undefined &&
+      (!isPlainRecord(body) || (body.content !== undefined && !Array.isArray(body.content)))
+    ) {
+      return false
+    }
+    return true
+  }
+  return Array.isArray(value.childTabs) && value.childTabs.length > 0
+}
+
+function parseDriveFileListResponse(value: unknown): {
+  files: DriveFile[]
+  incompleteSearch: boolean
+  nextPageToken?: string
+} {
+  if (!isPlainRecord(value)) {
+    throw new Error('Google Drive API returned malformed file-list metadata')
+  }
+  const rawFiles = value.files
+  if (rawFiles === undefined && value.kind !== 'drive#fileList') {
+    throw new Error('Google Drive API returned malformed file-list metadata')
+  }
+  if (
+    rawFiles !== undefined &&
+    (!Array.isArray(rawFiles) || rawFiles.some((file) => !isDriveFileListItem(file)))
+  ) {
+    throw new Error('Google Drive API returned malformed file-list metadata')
+  }
+  if (
+    value.nextPageToken !== undefined &&
+    (typeof value.nextPageToken !== 'string' || value.nextPageToken.length === 0)
+  ) {
+    throw new Error('Google Drive API returned malformed file-list metadata')
+  }
+  if (value.incompleteSearch !== undefined && typeof value.incompleteSearch !== 'boolean') {
+    throw new Error('Google Drive API returned malformed file-list metadata')
+  }
+  return {
+    files: rawFiles ?? [],
+    incompleteSearch: value.incompleteSearch === true,
+    ...(typeof value.nextPageToken === 'string' ? { nextPageToken: value.nextPageToken } : {}),
+  }
+}
+
+/** Describes a Google API failure without leaking an unbounded response body. */
+async function describeGoogleApiFailure(response: Response): Promise<string> {
+  await readBoundedHttpErrorBody(response)
+  return String(response.status)
 }
 
 /**
@@ -140,6 +260,9 @@ function paragraphElementText(element: DocsParagraphElement): string {
   if (element.person?.personProperties) {
     const { name, email } = element.person.personProperties
     return name || email || ''
+  }
+  if (element.dateElement?.dateElementProperties?.displayText) {
+    return element.dateElement.dateElementProperties.displayText
   }
   return ''
 }
@@ -189,31 +312,99 @@ function extractTextFromStructuralElements(elements: DocsStructuralElement[]): s
  * Collects the text of a tab and every descendant tab, depth-first in the order
  * the Docs API returns them.
  */
-function extractTextFromTabs(tabs: DocsTab[]): string[] {
-  const parts: string[] = []
+interface DocsExtraction {
+  parts: string[]
+  hasUnresolvedContent: boolean
+}
 
-  for (const tab of tabs) {
-    const content = tab.documentTab?.body?.content
-    if (content) parts.push(...extractTextFromStructuralElements(content))
-    if (tab.childTabs?.length) parts.push(...extractTextFromTabs(tab.childTabs))
+function hasUnresolvedStructuralContent(elements: DocsStructuralElement[]): boolean {
+  for (const element of elements) {
+    if (
+      element.paragraph?.elements?.some(
+        (paragraphElement) =>
+          Boolean(paragraphElement.equation) || Boolean(paragraphElement.inlineObjectElement)
+      )
+    ) {
+      return true
+    }
+
+    for (const row of element.table?.tableRows ?? []) {
+      for (const cell of row.tableCells ?? []) {
+        if (cell.content && hasUnresolvedStructuralContent(cell.content)) return true
+      }
+    }
+
+    if (
+      element.tableOfContents?.content &&
+      hasUnresolvedStructuralContent(element.tableOfContents.content)
+    ) {
+      return true
+    }
   }
 
-  return parts
+  return false
+}
+
+function appendRegionText(parts: string[], regions?: Record<string, DocsContentRegion>): boolean {
+  if (!regions) return false
+  let hasUnresolvedContent = false
+  for (const region of Object.values(regions)) {
+    if (region.content) {
+      parts.push(...extractTextFromStructuralElements(region.content))
+      hasUnresolvedContent ||= hasUnresolvedStructuralContent(region.content)
+    }
+  }
+  return hasUnresolvedContent
+}
+
+function extractTextFromTabs(tabs: DocsTab[]): DocsExtraction {
+  const parts: string[] = []
+  let hasUnresolvedContent = false
+
+  for (const tab of tabs) {
+    const documentTab = tab.documentTab
+    const content = documentTab?.body?.content
+    if (content) {
+      parts.push(...extractTextFromStructuralElements(content))
+      hasUnresolvedContent ||= hasUnresolvedStructuralContent(content)
+    }
+    if (appendRegionText(parts, documentTab?.headers)) hasUnresolvedContent = true
+    if (appendRegionText(parts, documentTab?.footers)) hasUnresolvedContent = true
+    if (appendRegionText(parts, documentTab?.footnotes)) hasUnresolvedContent = true
+
+    if (
+      Object.keys(documentTab?.inlineObjects ?? {}).length > 0 ||
+      Object.keys(documentTab?.positionedObjects ?? {}).length > 0
+    ) {
+      hasUnresolvedContent = true
+    }
+
+    if (tab.childTabs?.length) {
+      const child = extractTextFromTabs(tab.childTabs)
+      parts.push(...child.parts)
+      hasUnresolvedContent ||= child.hasUnresolvedContent
+    }
+  }
+
+  return { parts, hasUnresolvedContent }
 }
 
 /**
  * Extracts plain text from a Google Docs API document response. `tabs` is the
  * source of truth because `includeTabsContent=true` moves all content there and
- * leaves `body` empty; `body` is read only when `tabs` yields nothing, so a
- * response served without tab content still indexes instead of coming back blank.
+ * leaves the legacy top-level fields empty. The unresolved-content bit prevents
+ * an image- or equation-only document from being mistaken for an empty one.
  */
-function extractTextFromDocument(doc: DocsDocument): string {
-  const parts = doc.tabs?.length ? extractTextFromTabs(doc.tabs) : []
-  if (parts.length === 0 && doc.body?.content) {
-    parts.push(...extractTextFromStructuralElements(doc.body.content))
+function extractTextFromDocument(doc: DocsDocument): {
+  content: string
+  hasUnresolvedContent: boolean
+} {
+  if (!doc.tabs?.length) return { content: '', hasUnresolvedContent: false }
+  const extracted = extractTextFromTabs(doc.tabs)
+  return {
+    content: extracted.parts.join('\n').trim(),
+    hasUnresolvedContent: extracted.hasUnresolvedContent,
   }
-
-  return parts.join('\n').trim()
 }
 
 /**
@@ -224,10 +415,13 @@ function extractTextFromDocument(doc: DocsDocument): string {
  * {@link MAX_DOCS_RESPONSE_BYTES} so it surfaces as a visible skipped row rather
  * than being buffered whole.
  */
-async function fetchDocContent(accessToken: string, documentId: string): Promise<string> {
+async function fetchDocContent(
+  accessToken: string,
+  documentId: string
+): Promise<{ content: string; hasUnresolvedContent: boolean }> {
   const params = new URLSearchParams({
     includeTabsContent: 'true',
-    fields: 'body.content,tabs',
+    fields: GOOGLE_DOC_CONTENT_FIELDS,
   })
   const url = `https://docs.googleapis.com/v1/documents/${encodeURIComponent(documentId)}?${params.toString()}`
 
@@ -240,14 +434,19 @@ async function fetchDocContent(accessToken: string, documentId: string): Promise
   })
 
   if (!response.ok) {
-    throw new Error(`Failed to fetch Google Doc content ${documentId}: ${response.status}`)
+    throw new Error(
+      `Failed to fetch Google Doc content ${documentId}: ${await describeGoogleApiFailure(response)}`
+    )
   }
 
   const buffer = await readBodyWithLimit(response, MAX_DOCS_RESPONSE_BYTES)
   if (!buffer) throw new ConnectorFileTooLargeError(MAX_DOCS_RESPONSE_BYTES)
 
-  const doc = JSON.parse(buffer.toString('utf8')) as DocsDocument
-  return extractTextFromDocument(doc)
+  const parsed: unknown = JSON.parse(buffer.toString('utf8'))
+  if (!isPlainRecord(parsed) || !Array.isArray(parsed.tabs) || !parsed.tabs.every(isDocsTab)) {
+    throw new Error('Google Docs API returned a malformed document response')
+  }
+  return extractTextFromDocument({ tabs: parsed.tabs })
 }
 
 /**
@@ -302,9 +501,14 @@ export const googleDocsConnector: ConnectorConfig = {
   ): Promise<ExternalDocumentList> => {
     const query = buildQuery(sourceConfig)
 
-    const maxDocs = sourceConfig.maxDocs ? Number(sourceConfig.maxDocs) : 0
+    const maxDocs = parseMaxDocs(sourceConfig.maxDocs)
     const previouslyFetched = (syncContext?.totalDocsFetched as number) ?? 0
-    const remaining = maxDocs > 0 ? maxDocs - previouslyFetched : 0
+    /** Last-page precision: never ask Drive for more files than the cap still allows. */
+    const remaining = maxDocs > 0 ? Math.max(0, maxDocs - previouslyFetched) : 0
+    if (maxDocs > 0 && remaining === 0) {
+      if (syncContext) syncContext.listingCapped = true
+      return { documents: [], hasMore: false }
+    }
     const pageSize = remaining > 0 ? Math.min(PAGE_SIZE, remaining) : PAGE_SIZE
 
     /**
@@ -322,7 +526,7 @@ export const googleDocsConnector: ConnectorConfig = {
       pageSize: String(pageSize),
       orderBy: 'modifiedTime desc',
       fields:
-        'nextPageToken,incompleteSearch,files(id,name,mimeType,modifiedTime,createdTime,webViewLink,owners)',
+        'kind,nextPageToken,incompleteSearch,files(id,name,mimeType,modifiedTime,createdTime,webViewLink,owners)',
       supportsAllDrives: 'true',
       includeItemsFromAllDrives: 'true',
     })
@@ -344,16 +548,16 @@ export const googleDocsConnector: ConnectorConfig = {
     })
 
     if (!response.ok) {
-      const errorText = await response.text()
+      const failure = await describeGoogleApiFailure(response)
       logger.error('Failed to list Google Docs', {
         status: response.status,
-        error: errorText,
+        error: failure,
       })
-      throw new Error(`Failed to list Google Docs: ${response.status}`)
+      throw new Error(`Failed to list Google Docs: ${failure}`)
     }
 
-    const data = await response.json()
-    const files = (data.files || []) as DriveFile[]
+    const data = parseDriveFileListResponse(await response.json())
+    const files = data.files
 
     /**
      * Drive sets `incompleteSearch` when it could not search every corpus (it
@@ -393,6 +597,7 @@ export const googleDocsConnector: ConnectorConfig = {
       documents,
       nextCursor: hitLimit ? undefined : nextPageToken,
       hasMore: hitLimit ? false : Boolean(nextPageToken),
+      reconciliationSafe: incompleteSearch ? false : undefined,
     }
   },
 
@@ -414,17 +619,35 @@ export const googleDocsConnector: ConnectorConfig = {
 
     if (!response.ok) {
       if (response.status === 404) return null
-      throw new Error(`Failed to get Google Doc metadata: ${response.status}`)
+      throw new Error(
+        `Failed to get Google Doc metadata: ${await describeGoogleApiFailure(response)}`
+      )
     }
 
-    const file = (await response.json()) as DriveFile & { trashed?: boolean }
+    const file = parseDriveFileMetadata(await response.json(), externalId)
 
     if (file.trashed) return null
-    if (file.mimeType !== GOOGLE_DOC_MIME_TYPE) return null
+    if (file.mimeType !== GOOGLE_DOC_MIME_TYPE) {
+      return {
+        ...markSkipped(fileToStub(file), 'File is no longer a Google Doc'),
+        skippedExistingDisposition: 'replace',
+      }
+    }
 
     try {
-      const content = await fetchDocContent(accessToken, file.id)
-      if (!content.trim()) return null
+      const { content, hasUnresolvedContent } = await fetchDocContent(accessToken, file.id)
+      if (!content.trim()) {
+        if (hasUnresolvedContent) {
+          return markSkipped(
+            fileToStub(file),
+            'Document contains non-text elements but no extractable text'
+          )
+        }
+        return {
+          ...markSkipped(fileToStub(file), 'Document contains no extractable text'),
+          skippedExistingDisposition: 'replace',
+        }
+      }
 
       return { ...fileToStub(file), content, contentDeferred: false }
     } catch (error) {
@@ -451,13 +674,10 @@ export const googleDocsConnector: ConnectorConfig = {
     sourceConfig: Record<string, unknown>
   ): Promise<{ valid: boolean; error?: string }> => {
     const folderIds = parseMultiValue(sourceConfig.folderId)
-    const maxDocs = sourceConfig.maxDocs as string | undefined
-
-    if (maxDocs && (Number.isNaN(Number(maxDocs)) || Number(maxDocs) <= 0)) {
-      return { valid: false, error: 'Max documents must be a positive number' }
-    }
 
     try {
+      parseMaxDocs(sourceConfig.maxDocs)
+
       if (folderIds.length > 0) {
         for (const folderId of folderIds) {
           const url = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(folderId)}?fields=id,name,mimeType&supportsAllDrives=true`
@@ -482,7 +702,7 @@ export const googleDocsConnector: ConnectorConfig = {
             }
             return {
               valid: false,
-              error: `Failed to access folder "${folderId}": ${response.status}`,
+              error: `Failed to access folder "${folderId}": ${await describeGoogleApiFailure(response)}`,
             }
           }
 
@@ -513,7 +733,10 @@ export const googleDocsConnector: ConnectorConfig = {
         )
 
         if (!response.ok) {
-          return { valid: false, error: `Failed to access Google Docs: ${response.status}` }
+          return {
+            valid: false,
+            error: `Failed to access Google Docs: ${await describeGoogleApiFailure(response)}`,
+          }
         }
       }
 

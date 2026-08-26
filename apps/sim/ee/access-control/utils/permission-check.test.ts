@@ -446,6 +446,22 @@ describe('validateBlockType', () => {
     it('always allows start_trigger', async () => {
       await validateBlockType(undefined, undefined, 'start_trigger')
     })
+
+    it('case-folds a stored allowlist so a mixed-case entry still matches', async () => {
+      setEnterpriseOrgWorkspace()
+      queueGroupResolution([{ config: { allowedIntegrations: ['Slack'] } }])
+
+      await validateBlockType('user-123', 'workspace-1', 'slack')
+    })
+
+    it('still rejects a block absent from a mixed-case stored allowlist', async () => {
+      setEnterpriseOrgWorkspace()
+      queueGroupResolution([{ config: { allowedIntegrations: ['Slack'] } }])
+
+      await expect(validateBlockType('user-123', 'workspace-1', 'discord')).rejects.toThrow(
+        IntegrationNotAllowedError
+      )
+    })
   })
 
   describe('when env allowlist is configured', () => {

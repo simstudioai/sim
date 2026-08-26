@@ -7,6 +7,7 @@ import {
   CONSENT_CATEGORIES,
   DEV_CONSENT_COUNTRY,
 } from '@/lib/consent/constants'
+import { GLOBAL_CONSENT_SCRIPTS } from '@/lib/consent/scripts'
 
 /**
  * Imported from `@c15t/nextjs/headless`, not the package root: the headless
@@ -26,19 +27,18 @@ const CONSENT_OPTIONS = {
   mode: 'hosted',
   backendURL: CONSENT_BACKEND_URL,
   consentCategories: [...CONSENT_CATEGORIES],
-  store: { iframeBlockerConfig: { disableAutomaticBlocking: true } },
+  scripts: [...GLOBAL_CONSENT_SCRIPTS],
+  store: {
+    reloadOnConsentRevoked: true,
+    iframeBlockerConfig: { disableAutomaticBlocking: true },
+  },
   ...(DEV_CONSENT_COUNTRY ? { overrides: { country: DEV_CONSENT_COUNTRY } } : {}),
 } satisfies ConsentManagerOptions
 
 /**
- * The consent store, for the two surfaces that read it: the banner on public
- * pages and the Privacy settings page inside the workspace.
- *
- * They mount separately — the banner sits behind an `ssr: false` boundary that
- * cannot wrap the app, so nothing reaches it through React context — yet share
- * one store, because `getOrCreateConsentRuntime` caches manager and store by
- * the option values. Keeping the options private to this component is what
- * makes that structural: two call sites cannot drift into two stores.
+ * The single consent store for hosted Sim. It wraps the entire application so
+ * script loading, the public banner, and workspace privacy settings cannot
+ * observe different consent state.
  */
 export function ConsentStoreProvider({ children }: { children: ReactNode }) {
   return <ConsentManagerProvider options={CONSENT_OPTIONS}>{children}</ConsentManagerProvider>

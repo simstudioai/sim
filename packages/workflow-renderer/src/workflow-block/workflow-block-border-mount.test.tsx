@@ -5,13 +5,13 @@
  * a knob-paint bug once threw only when a card had a coloured knob — invisible
  * on an idle canvas, fatal on node creation.
  */
-import { act } from 'react'
+import { act, Profiler, useLayoutEffect } from 'react'
 import {
   normalizeWorkflowEdgeSourceHandle,
   normalizeWorkflowEdgeTargetHandle,
 } from '@sim/workflow-types/workflow'
 import { createRoot, type Root } from 'react-dom/client'
-import { ReactFlowProvider } from 'reactflow'
+import { type Edge, ReactFlowProvider, useStoreApi as useReactFlowStoreApi } from 'reactflow'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { CONTAINER_DIMENSIONS } from '../dimensions'
 import {
@@ -81,6 +81,55 @@ function mount(element: React.ReactElement) {
     root.render(element)
   })
   return { host, root }
+}
+
+function SubflowMountFixture({
+  id,
+  kind,
+  parentId,
+  edges,
+  onRender,
+}: {
+  id: string
+  kind: 'loop' | 'parallel'
+  parentId?: string
+  edges?: Edge[]
+  onRender?: () => void
+}) {
+  const reactFlowStore = useReactFlowStoreApi()
+
+  useLayoutEffect(() => {
+    if (edges) reactFlowStore.setState({ edges })
+  }, [edges, reactFlowStore])
+
+  const view = (
+    <SubflowNodeView
+      id={id}
+      data={{ kind, name: kind === 'loop' ? 'Loop' : 'Parallel', parentId, isPreview: true }}
+      isEnabled
+      isLocked={false}
+      isFocused={false}
+      nestingLevel={parentId ? 1 : 0}
+      canEditWorkflow={false}
+      onSelect={() => undefined}
+    />
+  )
+
+  return onRender ? (
+    <Profiler id={id} onRender={onRender}>
+      {view}
+    </Profiler>
+  ) : (
+    view
+  )
+}
+
+function getSubflowSilhouette(host: HTMLElement, caseName: string) {
+  const path = host.querySelector<SVGPathElement>(
+    `[data-subflow-case="${caseName}"] [data-type="subflowNode"] > svg > path[fill="var(--border-1)"]`
+  )
+  expect(path).toBeTruthy()
+  return path?.getAttribute('d')
 }
 
 afterEach(() => {
@@ -978,6 +1027,100 @@ describe('WorkflowBlockBorder mount', () => {
       'ring-[var(--text-secondary)]',
       '[.subflow-node-drop-target_&]:opacity-100'
     )
+  })
+
+  it.each(['loop', 'parallel'] as const)(
+    'only paints the fixed %s end port when its topology needs it',
+    (kind) => {
+      const endHandleId = `${kind}-end-source`
+      const nestedConnectedEdges: Edge[] = [
+        {
+          id: `${kind}-end-edge`,
+          source: `${kind}-nested-connected`,
+          sourceHandle: endHandleId,
+          target: `${kind}-sibling`,
+          targetHandle: 'target',
+        },
+      ]
+      const { host } = mount(
+        <div>
+          <ReactFlowProvider>
+            <div data-subflow-case='top-level'>
+              <SubflowMountFixture id={`${kind}-top-level`} kind={kind} />
+            </div>
+          </ReactFlowProvider>
+          <ReactFlowProvider>
+            <div data-subflow-case='nested-idle'>
+              <SubflowMountFixture
+                id={`${kind}-nested-idle`}
+                kind={kind}
+                parentId={`${kind}-parent`}
+              />
+            </div>
+          </ReactFlowProvider>
+          <ReactFlowProvider>
+            <div data-subflow-case='nested-connected'>
+              <SubflowMountFixture
+                id={`${kind}-nested-connected`}
+                kind={kind}
+                parentId={`${kind}-parent`}
+                edges={nestedConnectedEdges}
+              />
+            </div>
+          </ReactFlowProvider>
+        </div>
+      )
+
+      const topLevelPath = getSubflowSilhouette(host, 'top-level')
+      const nestedIdlePath = getSubflowSilhouette(host, 'nested-idle')
+      const nestedConnectedPath = getSubflowSilhouette(host, 'nested-connected')
+
+      expect(nestedIdlePath).not.toBe(topLevelPath)
+      expect(nestedConnectedPath).toBe(topLevelPath)
+      for (const caseName of ['top-level', 'nested-idle', 'nested-connected']) {
+        const subflow = host.querySelector(`[data-subflow-case="${caseName}"]`)
+        expect(subflow?.querySelector('[data-handleid="target"]')).toBeTruthy()
+        expect(subflow?.querySelector(`[data-handleid="${endHandleId}"]`)).toBeTruthy()
+      }
+    }
+  )
+
+  it('does not rerender a nested subflow when unrelated edges change', () => {
+    const baselineRender = vi.fn()
+    const unrelatedEdgeRender = vi.fn()
+    const unrelatedEdges: Edge[] = [
+      {
+        id: 'unrelated-edge',
+        source: 'other-source',
+        sourceHandle: 'source',
+        target: 'other-target',
+        targetHandle: 'target',
+      },
+    ]
+
+    mount(
+      <div>
+        <ReactFlowProvider>
+          <SubflowMountFixture
+            id='baseline-nested-loop'
+            kind='loop'
+            parentId='parent-loop'
+            onRender={baselineRender}
+          />
+        </ReactFlowProvider>
+        <ReactFlowProvider>
+          <SubflowMountFixture
+            id='unrelated-edge-nested-loop'
+            kind='loop'
+            parentId='parent-loop'
+            edges={unrelatedEdges}
+            onRender={unrelatedEdgeRender}
+          />
+        </ReactFlowProvider>
+      </div>
+    )
+
+    expect(unrelatedEdgeRender).toHaveBeenCalledTimes(baselineRender.mock.calls.length)
   })
 
   it('retracts a selected loop action swell after hover ends', () => {

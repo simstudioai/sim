@@ -467,7 +467,22 @@ export const v2CreateServiceAccountCredentialContract = defineRouteContract({
   },
 })
 
-export const v2CredentialParamsSchema = z
+/**
+ * The credential a path addresses, named for what the route does to it.
+ *
+ * `PATCH` and `DELETE` sit on the same path but are not the same operation, and
+ * the OpenAPI document already publishes them as two components
+ * (`UpdateCredentialParams`, `DeleteCredentialParams`). One shared `describe()`
+ * forced both to read "update or disconnect", so the disconnect reference
+ * offered an update the route cannot perform.
+ */
+export const v2UpdateCredentialParamsSchema = z
+  .object({
+    credentialId: nonEmptyIdSchema.max(255).describe('Credential to update.'),
+  })
+  .strict()
+
+export const v2DeleteCredentialParamsSchema = z
   .object({
     credentialId: nonEmptyIdSchema.max(255).describe('Credential to disconnect.'),
   })
@@ -490,10 +505,147 @@ export const v2CredentialDeleteDataSchema = z
     description: 'Credential disconnection acknowledgement.',
   })
 
+export const v2UpdateCredentialQuerySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace expected to own the credential.'),
+  })
+  .strict()
+export type V2UpdateCredentialQuery = z.output<typeof v2UpdateCredentialQuerySchema>
+
+/**
+ * Merge-patch semantics: an absent field is left unchanged, and `description:
+ * null` clears the stored description. Deliberately `PATCH` rather than `PUT` —
+ * omitting a secret field leaves the stored secret in place rather than clearing
+ * it, so the body is never a complete representation of the credential.
+ *
+ * Reuses the create body's secret shape so a rotation cannot accept a field a
+ * creation rejects, and so every secret member keeps its `writeOnly` marking.
+ * `providerId` is deliberately absent: the provider is a property of the stored
+ * credential, and changing it would describe a different credential.
+ *
+ * Whether the secret fields are *applicable* cannot be decided here, and this
+ * schema deliberately does not try: only a service-account credential stores a
+ * rotatable secret, and the credential's type is known only once the row is
+ * loaded, so there is no discriminant in the request to key a union on. The
+ * refusal lives in `updateCredentialRecord`, which answers a `validation`
+ * failure — a `400` on every surface — rather than dropping the field.
+ */
+const v2ServiceAccountSecretFieldsShape = {
+  serviceAccountJson: z
+    .string()
+    .min(1)
+    .max(65_536)
+    .optional()
+    .describe('Write-only Google service-account JSON key.')
+    .meta({ writeOnly: true }),
+  apiToken: z
+    .string()
+    .trim()
+    .min(1)
+    .max(8192)
+    .optional()
+    .describe('Write-only provider API token.')
+    .meta({ writeOnly: true }),
+  domain: z.string().trim().min(1).max(2048).optional().describe('Provider account domain.'),
+  signingSecret: z
+    .string()
+    .trim()
+    .min(1)
+    .max(8192)
+    .optional()
+    .describe('Write-only webhook signing secret.')
+    .meta({ writeOnly: true }),
+  botToken: z
+    .string()
+    .trim()
+    .min(1)
+    .max(8192)
+    .optional()
+    .describe('Write-only bot token.')
+    .meta({ writeOnly: true }),
+  clientId: z.string().trim().min(1).max(512).optional().describe('OAuth client identifier.'),
+  clientSecret: z
+    .string()
+    .trim()
+    .min(1)
+    .max(1024)
+    .optional()
+    .describe('Write-only OAuth client secret.')
+    .meta({ writeOnly: true }),
+  certificateId: z
+    .string()
+    .trim()
+    .min(1)
+    .max(512)
+    .optional()
+    .describe('Provider certificate mapping identifier.'),
+  orgId: z.string().trim().min(1).max(255).optional().describe('Provider organization ID.'),
+  dataCenter: z.string().trim().min(1).max(32).optional().describe('Provider data center.'),
+  authMethod: z
+    .string()
+    .trim()
+    .min(1)
+    .max(64)
+    .optional()
+    .describe('Provider authentication method.'),
+  privateKey: z
+    .string()
+    .trim()
+    .min(1)
+    .max(8192)
+    .optional()
+    .describe('Write-only PEM private key.')
+    .meta({ writeOnly: true }),
+  username: z.string().trim().min(1).max(255).optional().describe('Provider run-as username.'),
+} as const
+
+export const v2UpdateCredentialBodySchema = z
+  .object({
+    displayName: z
+      .string()
+      .trim()
+      .min(1, 'displayName cannot be empty')
+      .max(255, 'displayName must be at most 255 characters')
+      .optional()
+      .describe('New name shown for the credential in Sim.'),
+    description: z
+      .string()
+      .trim()
+      .max(500, 'description must be at most 500 characters')
+      .nullable()
+      .optional()
+      .describe('New credential description. Send null to clear the stored one.'),
+    ...v2ServiceAccountSecretFieldsShape,
+  })
+  .strict()
+  .superRefine((body, ctx) => {
+    if (Object.values(body).every((value) => value === undefined)) {
+      ctx.addIssue({
+        code: 'custom',
+        message:
+          'Provide at least one of displayName, description, or a service-account secret field',
+      })
+    }
+  })
+export type V2UpdateCredentialBody = z.input<typeof v2UpdateCredentialBodySchema>
+
+/** Rotates secret material or renames a credential while preserving its ID. */
+export const v2UpdateCredentialContract = defineRouteContract({
+  method: 'PATCH',
+  path: '/api/v2/credentials/[credentialId]',
+  params: v2UpdateCredentialParamsSchema,
+  query: v2UpdateCredentialQuerySchema,
+  body: v2UpdateCredentialBodySchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2CredentialSchema),
+  },
+})
+
 export const v2DeleteCredentialContract = defineRouteContract({
   method: 'DELETE',
   path: '/api/v2/credentials/[credentialId]',
-  params: v2CredentialParamsSchema,
+  params: v2DeleteCredentialParamsSchema,
   query: v2DeleteCredentialQuerySchema,
   response: {
     mode: 'json',

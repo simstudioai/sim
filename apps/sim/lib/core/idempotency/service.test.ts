@@ -22,6 +22,7 @@ vi.mock('@/lib/core/storage', () => ({
   resetStorageMethod: () => {},
 }))
 
+import { RetryableSetupError } from '@/lib/core/errors/retryable-infrastructure'
 import {
   IdempotencyService,
   WEBHOOK_IN_PROGRESS_LEASE_SECONDS,
@@ -308,5 +309,45 @@ describe('IdempotencyService in-progress deadlines', () => {
     const condition = JSON.stringify(dbChainMockFns.where.mock.calls.at(-1)?.[0])
     expect(condition).toContain('retry me')
     expect(condition.match(/::jsonb/g)).toHaveLength(2)
+  })
+})
+
+describe('IdempotencyService retryable setup failures', () => {
+  it('releases the claim instead of memoizing when the operation throws a RetryableSetupError', async () => {
+    redisEvalMock.mockResolvedValueOnce([1, '']).mockResolvedValueOnce(1)
+
+    const setupError = new RetryableSetupError('Internal error while fetching workflow')
+    await expect(
+      webhookIdempotency.executeWithIdempotency(
+        'sim',
+        'wh_1:setup-failure',
+        vi.fn().mockRejectedValue(setupError)
+      )
+    ).rejects.toBe(setupError)
+
+    const claimSerialized = JSON.parse((redisEvalMock.mock.calls[0] as unknown[])[3] as string)
+    const followUpCall = redisEvalMock.mock.calls[1] as unknown[]
+    // The follow-up must be the owner-fenced DELETE (release), not the failed-result store.
+    expect(followUpCall[0]).toContain("return redis.call('DEL', KEYS[1])")
+    expect(followUpCall[3]).toBe(claimSerialized.claimToken)
+  })
+
+  it('memoizes plain operation failures so duplicate deliveries stay rejected', async () => {
+    redisEvalMock.mockResolvedValueOnce([1, '']).mockResolvedValueOnce(1)
+
+    await expect(
+      webhookIdempotency.executeWithIdempotency(
+        'sim',
+        'wh_1:plain-failure',
+        vi.fn().mockRejectedValue(new Error('handler blew up'))
+      )
+    ).rejects.toThrow('handler blew up')
+
+    const followUpCall = redisEvalMock.mock.calls[1] as unknown[]
+    expect(followUpCall[0]).toContain('SETEX')
+    expect(JSON.parse(followUpCall[5] as string)).toMatchObject({
+      success: false,
+      status: 'failed',
+    })
   })
 })

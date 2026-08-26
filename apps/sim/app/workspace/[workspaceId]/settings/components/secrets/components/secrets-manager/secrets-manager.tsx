@@ -795,9 +795,9 @@ export function SecretsManager() {
       }
     }
 
-    const validVariables = envVars
-      .filter((v) => v.key && v.value)
-      .reduce<Record<string, string>>((acc, { key, value }) => ({ ...acc, [key]: value }), {})
+    const validVariables = Object.fromEntries(
+      envVars.filter((v) => v.key && v.value).map(({ key, value }) => [key, value])
+    )
 
     const before = initialWorkspaceVarsRef.current
     const after = mergedWorkspaceVars

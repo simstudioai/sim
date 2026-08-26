@@ -11,27 +11,23 @@ const { mockToastError } = vi.hoisted(() => ({
 
 vi.mock('@sim/emcn', () => ({
   Loader: () => <span aria-hidden='true' />,
-  Modal: ({
+  ChipModal: ({
     children,
     open,
-    onOpenChange,
   }: {
     children: ReactNode
     open: boolean
     onOpenChange: (open: boolean) => void
-  }) =>
-    open ? (
-      <div>
-        {children}
-        <button type='button' onClick={() => onOpenChange(false)}>
-          Close
-        </button>
-      </div>
-    ) : null,
-  ModalBody: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  ModalContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  ModalDescription: ({ children }: { children: ReactNode }) => <p>{children}</p>,
-  ModalHeader: ({ children }: { children: ReactNode }) => <h2>{children}</h2>,
+  }) => (open ? <div>{children}</div> : null),
+  ChipModalBody: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  ChipModalHeader: ({ children, onClose }: { children: ReactNode; onClose: () => void }) => (
+    <h2>
+      {children}
+      <button type='button' onClick={onClose}>
+        Close
+      </button>
+    </h2>
+  ),
   toast: { error: mockToastError },
 }))
 

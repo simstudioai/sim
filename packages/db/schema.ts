@@ -78,7 +78,6 @@ export const session = pgTable(
   },
   (table) => ({
     userIdIdx: index('session_user_id_idx').on(table.userId),
-    tokenIdx: index('session_token_idx').on(table.token),
   })
 )
 
@@ -290,6 +289,9 @@ export const workflow = pgTable(
       .on(table.workspaceId, sql`coalesce(${table.folderId}, '')`, table.name)
       .where(sql`${table.archivedAt} IS NULL`),
     folderSortIdx: index('workflow_folder_sort_idx').on(table.folderId, table.sortOrder),
+    activeWorkspaceSortIdx: index('workflow_active_workspace_sort_idx')
+      .on(table.workspaceId, table.sortOrder, table.createdAt, table.id)
+      .where(sql`${table.archivedAt} IS NULL`),
     archivedAtIdx: index('workflow_archived_at_idx').on(table.archivedAt),
     workspaceArchivedAtPartialIdx: index('workflow_workspace_archived_partial_idx')
       .on(table.workspaceId, table.archivedAt)
@@ -1194,23 +1196,22 @@ export const userStats = pgTable('user_stats', {
   totalCost: decimal('total_cost').notNull().default('0'),
   currentUsageLimit: decimal('current_usage_limit').default(DEFAULT_FREE_CREDITS.toString()), // Default $5 (1,000 credits) for free plan, null for team/enterprise
   usageLimitUpdatedAt: timestamp('usage_limit_updated_at').defaultNow(),
-  /**
-   * Active per-period baseline (not a per-usage hot-path counter). Current usage
-   * = this baseline + attributed usage_log rows for the period; reset at rollover.
-   */
+  /** @deprecated No readers or writers; usage is the attributed usage_log ledger. Drop via DROP COLUMN in a follow-up migration. */
   currentPeriodCost: decimal('current_period_cost').notNull().default('0'),
-  lastPeriodCost: decimal('last_period_cost').default('0'), // Usage from previous billing period
+  /** Previous-period usage; written by the cycle-close sweep from ledger sums. */
+  lastPeriodCost: decimal('last_period_cost').default('0'),
   /**
    * Threshold/final billing tracker.
    *
-   * This is intentionally still written when threshold billing or invoice
-   * finalization serializes overage collection. It is not incremented by the
-   * ordinary per-usage ledger write path.
+   * Incremented when threshold billing collects overage mid-period; reset to
+   * zero by the cycle-close sweep at period rollover. It is not incremented
+   * by the ordinary per-usage ledger write path.
    */
   billedOverageThisPeriod: decimal('billed_overage_this_period').notNull().default('0'), // Amount of overage already billed via threshold billing
-  // Pro usage snapshot when joining a team (to prevent double-billing)
-  proPeriodCostSnapshot: decimal('pro_period_cost_snapshot').default('0'), // Snapshot of Pro usage when joining team
-  proPeriodCostSnapshotAt: timestamp('pro_period_cost_snapshot_at'), // When the snapshot was captured (= join moment). Used to cap daily-refresh computation so post-join refresh isn't deducted from pre-join personal Pro usage (and vice-versa for the org's pooled refresh).
+  /** @deprecated No readers or writers; ledger entity stamps attribute pre/post-join usage. Drop via DROP COLUMN in a follow-up migration. */
+  proPeriodCostSnapshot: decimal('pro_period_cost_snapshot').default('0'),
+  /** @deprecated No readers or writers; see proPeriodCostSnapshot. Drop via DROP COLUMN in a follow-up migration. */
+  proPeriodCostSnapshotAt: timestamp('pro_period_cost_snapshot_at'),
   /**
    * Credit balance tracker.
    *
@@ -1220,9 +1221,9 @@ export const userStats = pgTable('user_stats', {
   creditBalance: decimal('credit_balance').notNull().default('0'),
   /** @deprecated Not written; report Copilot cost from usage_log. Legacy/admin reads only. */
   totalCopilotCost: decimal('total_copilot_cost').notNull().default('0'),
-  /** Active per-period Copilot baseline; reset at rollover (not a per-usage counter). */
+  /** @deprecated No readers or writers; Copilot usage is the copilot-source usage_log ledger. Drop via DROP COLUMN in a follow-up migration. */
   currentPeriodCopilotCost: decimal('current_period_copilot_cost').notNull().default('0'),
-  /** Previous-period Copilot cost; set at rollover. */
+  /** Previous-period Copilot cost; written by the cycle-close sweep from copilot-source ledger sums. */
   lastPeriodCopilotCost: decimal('last_period_copilot_cost').default('0'),
   /** @deprecated Not written; report Copilot tokens from usage_log. Legacy/admin reads only. */
   totalCopilotTokens: bigint('total_copilot_tokens', { mode: 'number' }).notNull().default(0),
@@ -1328,22 +1329,16 @@ export const skillMember = pgTable(
   })
 )
 
-export const mothershipSettings = pgTable(
-  'mothership_settings',
-  {
-    workspaceId: text('workspace_id')
-      .primaryKey()
-      .references(() => workspace.id, { onDelete: 'cascade' }),
-    mcpToolRefs: jsonb('mcp_tool_refs').notNull().default(sql`'[]'::jsonb`),
-    customToolRefs: jsonb('custom_tool_refs').notNull().default(sql`'[]'::jsonb`),
-    skillRefs: jsonb('skill_refs').notNull().default(sql`'[]'::jsonb`),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-    updatedAt: timestamp('updated_at').notNull().defaultNow(),
-  },
-  (table) => ({
-    workspaceIdIdx: index('mothership_settings_workspace_id_idx').on(table.workspaceId),
-  })
-)
+export const mothershipSettings = pgTable('mothership_settings', {
+  workspaceId: text('workspace_id')
+    .primaryKey()
+    .references(() => workspace.id, { onDelete: 'cascade' }),
+  mcpToolRefs: jsonb('mcp_tool_refs').notNull().default(sql`'[]'::jsonb`),
+  customToolRefs: jsonb('custom_tool_refs').notNull().default(sql`'[]'::jsonb`),
+  skillRefs: jsonb('skill_refs').notNull().default(sql`'[]'::jsonb`),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
 
 export const subscription = pgTable(
   'subscription',
@@ -1366,12 +1361,36 @@ export const subscription = pgTable(
     billingInterval: text('billing_interval'),
     stripeScheduleId: text('stripe_schedule_id'),
     metadata: json('metadata'),
+    /**
+     * Durable cycle-close marker: the `periodStart` of the most recent period
+     * whose close (final overage collection, `billedOverageThisPeriod` reset,
+     * last-period bookkeeping) has been committed. The daily cycle-close sweep
+     * closes the previous period whenever this lags the row's `periodStart`,
+     * then advances it. Null = never initialized; the first sweep initializes
+     * it to the current `periodStart` without billing so historical periods
+     * are never retroactively closed.
+     */
+    lastClosedPeriodStart: timestamp('last_closed_period_start'),
   },
   (table) => ({
     referenceStatusIdx: index('subscription_reference_status_idx').on(
       table.referenceId,
       table.status
     ),
+    /**
+     * Partial index for the cycle-close sweep's keyset iteration: exactly the
+     * entitled subscriptions whose close marker lags the current period. The
+     * predicate must mirror the sweep query in `lib/billing/cycle-close.ts`
+     * (status list = ENTITLED_SUBSCRIPTION_STATUSES, hardcoded here because
+     * packages cannot import from apps); a drifted predicate degrades to a
+     * seq scan, never a wrong result. The index stays tiny — closes remove
+     * rows from it — so the candidate scan is O(lagging), not O(fleet).
+     */
+    cycleCloseLaggingIdx: index('subscription_cycle_close_lagging_idx')
+      .on(table.id)
+      .where(
+        sql`${table.status} in ('active', 'past_due') and ${table.periodStart} is not null and (${table.lastClosedPeriodStart} is null or ${table.lastClosedPeriodStart} < ${table.periodStart})`
+      ),
     enterpriseMetadataCheck: check(
       'check_enterprise_metadata',
       sql`plan != 'enterprise' OR metadata IS NOT NULL`
@@ -1586,6 +1605,7 @@ export const organization = pgTable('organization', {
     .$type<Record<string, number>>()
     .notNull()
     .default({}),
+  /** @deprecated No readers or writers; a departed member's ledger rows stay stamped to the org's period, so nothing needs capturing. Drop via DROP COLUMN in a follow-up migration. */
   departedMemberUsage: decimal('departed_member_usage').notNull().default('0'),
   /**
    * Organization credit balance tracker.
@@ -2044,7 +2064,6 @@ export const workspaceFile = pgTable(
   },
   (table) => ({
     workspaceIdIdx: index('workspace_file_workspace_id_idx').on(table.workspaceId),
-    keyIdx: index('workspace_file_key_idx').on(table.key),
     deletedAtIdx: index('workspace_file_deleted_at_idx').on(table.deletedAt),
     workspaceDeletedAtPartialIdx: index('workspace_file_workspace_deleted_partial_idx')
       .on(table.workspaceId, table.deletedAt)
@@ -2406,13 +2425,6 @@ export const permissions = pgTable(
       table.permissionType
     ),
 
-    // User + specific entity queries - get user's permissions for specific entity
-    userEntityIdx: index('permissions_user_entity_idx').on(
-      table.userId,
-      table.entityType,
-      table.entityId
-    ),
-
     // Uniqueness constraint - prevent duplicate permission rows (one permission per user/entity)
     uniquePermissionConstraint: uniqueIndex('permissions_unique_constraint').on(
       table.userId,
@@ -2566,7 +2578,11 @@ export const document = pgTable(
      * this column existed.
      */
     processingQueuedAt: timestamp('processing_queued_at'),
+    /** Opaque dispatch generation; NULL identifies payloads created before token rollout. */
+    processingQueueToken: text('processing_queue_token'),
     processingStartedAt: timestamp('processing_started_at'),
+    /** Scheduled execution time of an accepted durable quota continuation. */
+    processingDeferredUntil: timestamp('processing_deferred_until'),
     processingCompletedAt: timestamp('processing_completed_at'),
     processingError: text('processing_error'),
 
@@ -2633,6 +2649,11 @@ export const document = pgTable(
       .where(sql`${table.deletedAt} IS NULL`),
     // Sync engine: load all active docs for a connector
     connectorIdIdx: index('doc_connector_id_idx').on(table.connectorId),
+    activeKnowledgeBaseTokenCountIdx: index('doc_active_kb_token_count_idx')
+      .on(table.knowledgeBaseId, table.tokenCount)
+      .where(
+        sql`${table.userExcluded} = false AND ${table.archivedAt} IS NULL AND ${table.deletedAt} IS NULL`
+      ),
     // KB file-access liveness: exact lookup by canonical storage key
     storageKeyIdx: index('doc_storage_key_idx')
       .on(table.storageKey)
@@ -3229,7 +3250,6 @@ export const copilotAsyncToolCalls = pgTable(
   (table) => ({
     runIdIdx: index('copilot_async_tool_calls_run_id_idx').on(table.runId),
     checkpointIdIdx: index('copilot_async_tool_calls_checkpoint_id_idx').on(table.checkpointId),
-    toolCallIdIdx: index('copilot_async_tool_calls_tool_call_id_idx').on(table.toolCallId),
     statusIdx: index('copilot_async_tool_calls_status_idx').on(table.status),
     runStatusIdx: index('copilot_async_tool_calls_run_status_idx').on(table.runId, table.status),
     toolCallUnique: uniqueIndex('copilot_async_tool_calls_tool_call_id_unique').on(
@@ -3932,6 +3952,13 @@ export const credential = pgTable(
     type: credentialTypeEnum('type').notNull(),
     displayName: text('display_name').notNull(),
     description: text('description'),
+    /**
+     * Opts an env_workspace secret out of resolved-secret redaction: its value renders in
+     * plaintext across surfaces (logs, model-visible content, sandbox file exports) instead
+     * of `{{NAME}}`, and is not recorded into durable provenance. Meaningful only for
+     * type = 'env_workspace'; writes for other types are rejected in the orchestration layer.
+     */
+    unredacted: boolean('unredacted').notNull().default(false),
     providerId: text('provider_id'),
     accountId: text('account_id').references(() => account.id, { onDelete: 'cascade' }),
     envKey: text('env_key'),
@@ -4422,11 +4449,15 @@ export const knowledgeConnectorSyncLog = pgTable(
     docsUpdated: integer('docs_updated').notNull().default(0),
     docsDeleted: integer('docs_deleted').notNull().default(0),
     docsUnchanged: integer('docs_unchanged').notNull().default(0),
+    docsSkipped: integer('docs_skipped').notNull().default(0),
     docsFailed: integer('docs_failed').notNull().default(0),
     errorMessage: text('error_message'),
   },
   (table) => ({
-    connectorIdIdx: index('kcsl_connector_id_idx').on(table.connectorId),
+    connectorStartedAtIdx: index('kcsl_connector_started_at_idx').on(
+      table.connectorId,
+      sql`${table.startedAt} DESC`
+    ),
     /**
      * Serves the scheduler's five-minute sweep for orphaned `started` rows.
      *
@@ -4642,8 +4673,13 @@ export const tableViews = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
-    /** Covers the only read path: list a table's views in creation order. */
     tableCreatedIdx: index('table_views_table_created_idx').on(table.tableId, table.createdAt),
+    /** Covers workspace-scoped hydration without scanning every saved view. */
+    workspaceCreatedIdx: index('table_views_workspace_created_idx').on(
+      table.workspaceId,
+      table.createdAt,
+      table.id
+    ),
     /** At most one default view per table, enforced in the DB. */
     defaultViewUnique: uniqueIndex('table_views_table_default_unique')
       .on(table.tableId)
@@ -4913,7 +4949,6 @@ export const academyCertificate = pgTable(
       table.userId,
       table.courseId
     ),
-    certNumberIdx: index('academy_certificate_number_idx').on(table.certificateNumber),
     statusIdx: index('academy_certificate_status_idx').on(table.status),
   })
 )

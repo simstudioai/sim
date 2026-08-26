@@ -8,16 +8,16 @@ const {
   mockGetBillingPeriodUsageCost,
   mockGetOrgMemberUsageForBillingPeriod,
   mockGetOrgMemberUsageLimit,
-  mockGetPooledOrgCurrentPeriodCost,
   mockGetUserUsageLimit,
   mockIsOrganizationBillingBlocked,
+  mockComputeBillingPeriodUsageWithDailyRefresh,
 } = vi.hoisted(() => ({
   mockGetBillingPeriodUsageCost: vi.fn(),
   mockGetOrgMemberUsageForBillingPeriod: vi.fn(),
   mockGetOrgMemberUsageLimit: vi.fn(),
-  mockGetPooledOrgCurrentPeriodCost: vi.fn(),
   mockGetUserUsageLimit: vi.fn(),
   mockIsOrganizationBillingBlocked: vi.fn(),
+  mockComputeBillingPeriodUsageWithDailyRefresh: vi.fn(),
 }))
 
 vi.mock('@/lib/billing/organizations/member-limits', () => ({
@@ -29,10 +29,9 @@ vi.mock('@/lib/billing/core/access', () => ({
   isOrganizationBillingBlocked: mockIsOrganizationBillingBlocked,
 }))
 
-// core/usage pulls in the email-rendering chain at import; stub the two symbols
+// core/usage pulls in the email-rendering chain at import; stub the symbol
 // usage-monitor imports from it so the module loads in a node test env.
 vi.mock('@/lib/billing/core/usage', () => ({
-  getPooledOrgCurrentPeriodCost: mockGetPooledOrgCurrentPeriodCost,
   getUserUsageLimit: mockGetUserUsageLimit,
 }))
 
@@ -40,10 +39,15 @@ vi.mock('@/lib/billing/core/usage-log', () => ({
   getBillingPeriodUsageCost: mockGetBillingPeriodUsageCost,
 }))
 
+vi.mock('@/lib/billing/credits/daily-refresh', () => ({
+  computeBillingPeriodUsageWithDailyRefresh: mockComputeBillingPeriodUsageWithDailyRefresh,
+}))
+
 import {
   checkBillingBlocked,
   checkBillingEntityBlocked,
   checkOrganizationMemberUsageLimit,
+  checkServerSideUsageLimits,
   checkUsageStatus,
 } from '@/lib/billing/calculations/usage-monitor'
 
@@ -60,6 +64,10 @@ describe('checkUsageStatus', () => {
     setEnvFlags({ isHosted: true, isBillingEnabled: true })
     mockGetUserUsageLimit.mockResolvedValue(500)
     mockGetBillingPeriodUsageCost.mockResolvedValue(125)
+    mockComputeBillingPeriodUsageWithDailyRefresh.mockResolvedValue({
+      ledgerUsage: 125,
+      refreshConsumed: 25,
+    })
   })
 
   it('reads reporting-period organization usage without loading the member roster', async () => {
@@ -95,7 +103,170 @@ describe('checkUsageStatus', () => {
       { type: 'organization', id: 'org-1' },
       billingPeriod
     )
-    expect(mockGetPooledOrgCurrentPeriodCost).not.toHaveBeenCalled()
+  })
+
+  it('reads paid personal ledger usage and refresh from one snapshot', async () => {
+    const periodStart = new Date('2026-06-01T00:00:00.000Z')
+    const periodEnd = new Date('2026-07-01T00:00:00.000Z')
+    const subscription = {
+      referenceId: 'user-1',
+      plan: 'pro',
+      status: 'active',
+      seats: 1,
+      periodStart,
+      periodEnd,
+    }
+    await expect(checkUsageStatus('user-1', subscription)).resolves.toMatchObject({
+      currentUsage: 100,
+      scope: 'user',
+    })
+
+    expect(mockComputeBillingPeriodUsageWithDailyRefresh).toHaveBeenCalledWith({
+      billingEntity: { type: 'user', id: 'user-1' },
+      billingPeriod: { start: periodStart, end: periodEnd },
+      refreshPeriodStart: periodStart,
+      refreshPeriodEnd: periodEnd,
+      planDollars: 20,
+    })
+    expect(mockGetBillingPeriodUsageCost).not.toHaveBeenCalled()
+  })
+
+  it('preserves the paid daily-refresh clamp for negative effective usage', async () => {
+    const periodStart = new Date('2026-06-01T00:00:00.000Z')
+    const periodEnd = new Date('2026-07-01T00:00:00.000Z')
+    const subscription = {
+      referenceId: 'user-1',
+      plan: 'pro',
+      status: 'active',
+      seats: 1,
+      periodStart,
+      periodEnd,
+    }
+    mockComputeBillingPeriodUsageWithDailyRefresh.mockResolvedValueOnce({
+      ledgerUsage: -1,
+      refreshConsumed: 1,
+    })
+
+    await expect(checkUsageStatus('user-1', subscription)).resolves.toMatchObject({
+      currentUsage: 0,
+      scope: 'user',
+    })
+  })
+
+  it('keeps unpaid personal usage on the ledger-only query', async () => {
+    const periodStart = new Date('2026-06-01T00:00:00.000Z')
+    const periodEnd = new Date('2026-07-01T00:00:00.000Z')
+    const subscription = {
+      referenceId: 'user-1',
+      plan: 'free',
+      status: 'active',
+      seats: 1,
+      periodStart,
+      periodEnd,
+    }
+    await expect(checkUsageStatus('user-1', subscription)).resolves.toMatchObject({
+      currentUsage: 125,
+      scope: 'user',
+    })
+
+    expect(mockGetBillingPeriodUsageCost).toHaveBeenCalledWith(
+      { type: 'user', id: 'user-1' },
+      { start: periodStart, end: periodEnd }
+    )
+    expect(mockComputeBillingPeriodUsageWithDailyRefresh).not.toHaveBeenCalled()
+  })
+
+  it('preserves negative ledger-only personal usage', async () => {
+    const periodStart = new Date('2026-06-01T00:00:00.000Z')
+    const periodEnd = new Date('2026-07-01T00:00:00.000Z')
+    const subscription = {
+      referenceId: 'user-1',
+      plan: 'free',
+      status: 'active',
+      seats: 1,
+      periodStart,
+      periodEnd,
+    }
+    mockGetBillingPeriodUsageCost.mockResolvedValueOnce(-1)
+
+    await expect(checkUsageStatus('user-1', subscription)).resolves.toMatchObject({
+      currentUsage: -1,
+      scope: 'user',
+    })
+
+    expect(mockComputeBillingPeriodUsageWithDailyRefresh).not.toHaveBeenCalled()
+  })
+
+  it('combines paid organization ledger usage with entity-scoped refresh — no roster read', async () => {
+    const periodStart = new Date('2026-06-01T00:00:00.000Z')
+    const periodEnd = new Date('2026-07-01T00:00:00.000Z')
+    const subscription = {
+      referenceId: 'org-1',
+      plan: 'team',
+      status: 'active',
+      seats: 2,
+      periodStart,
+      periodEnd,
+    }
+    mockComputeBillingPeriodUsageWithDailyRefresh.mockResolvedValue({
+      ledgerUsage: 100,
+      refreshConsumed: 10,
+    })
+
+    await expect(checkUsageStatus('user-1', subscription)).resolves.toMatchObject({
+      currentUsage: 90,
+      scope: 'organization',
+      organizationId: 'org-1',
+    })
+
+    // Refresh is scoped by the entity stamps alone, so departed members'
+    // org-attributed rows participate identically to current members'.
+    expect(mockComputeBillingPeriodUsageWithDailyRefresh).toHaveBeenCalledWith({
+      billingEntity: { type: 'organization', id: 'org-1' },
+      billingPeriod: expect.objectContaining({
+        start: periodStart,
+        end: periodEnd,
+        source: 'stripe',
+      }),
+      refreshPeriodStart: periodStart,
+      refreshPeriodEnd: periodEnd,
+      planDollars: expect.any(Number),
+      seats: 2,
+    })
+    expect(mockGetBillingPeriodUsageCost).not.toHaveBeenCalled()
+  })
+})
+
+describe('checkServerSideUsageLimits', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    setEnvFlags({ isHosted: true, isBillingEnabled: true })
+    mockGetBillingPeriodUsageCost.mockResolvedValue(125)
+  })
+
+  it('keeps blocked accounts blocked while reporting their real ledger usage', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([{ blocked: true, blockedReason: 'payment_failed' }])
+    const subscription = {
+      referenceId: 'user-1',
+      plan: 'pro',
+      status: 'active',
+      seats: 1,
+      periodStart: new Date('2026-06-01T00:00:00.000Z'),
+      periodEnd: new Date('2026-07-01T00:00:00.000Z'),
+    }
+
+    const result = await checkServerSideUsageLimits('user-1', subscription)
+
+    expect(result).toMatchObject({ isExceeded: true, currentUsage: 125, limit: 0 })
+    expect(result.message).toBeTruthy()
+    expect(mockGetBillingPeriodUsageCost).toHaveBeenCalledWith(
+      { type: 'user', id: 'user-1' },
+      expect.objectContaining({
+        start: subscription.periodStart,
+        end: subscription.periodEnd,
+      })
+    )
   })
 })
 

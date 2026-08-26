@@ -6,6 +6,7 @@ import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { and, eq, lt, or, sql } from 'drizzle-orm'
 import { getRedisClient } from '@/lib/core/config/redis'
+import { isRetryableSetupError } from '@/lib/core/errors/retryable-infrastructure'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { getStorageMethod, type StorageMethod } from '@/lib/core/storage'
 import { extractProviderIdentifierFromBody } from '@/lib/webhooks/providers'
@@ -633,7 +634,13 @@ export class IdempotencyService {
     } catch (error) {
       const errorMessage = getErrorMessage(error, 'Unknown error')
 
-      if (this.config.retryFailures) {
+      /**
+       * A `RetryableSetupError` certifies the operation failed before any
+       * effect happened, so there is no outcome to memoize: release the claim
+       * so a re-attempt or provider redelivery can run instead of being
+       * rejected with the cached failure for the whole result TTL.
+       */
+      if (this.config.retryFailures || isRetryableSetupError(error)) {
         await this.deleteKey(
           claimResult.normalizedKey,
           claimResult.storageMethod,

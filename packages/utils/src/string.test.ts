@@ -9,9 +9,39 @@ import {
   projectEscapedMarkdownForSearch,
   sanitizeForJsonb,
   sanitizeValueForJsonb,
+  slugify,
   stripVersionSuffix,
   truncate,
 } from './string.js'
+
+describe('slugify', () => {
+  it('lowercases and hyphenates a display name', () => {
+    expect(slugify('Acme Corp')).toBe('acme-corp')
+  })
+
+  it('collapses each run of non-alphanumerics into a single hyphen', () => {
+    expect(slugify('Sim.ai <> RVTech')).toBe('sim-ai-rvtech')
+  })
+
+  it('drops leading and trailing separators', () => {
+    expect(slugify('  !!Hello World!!  ')).toBe('hello-world')
+  })
+
+  it('returns an empty string when nothing survives', () => {
+    expect(slugify('***')).toBe('')
+    expect(slugify('')).toBe('')
+  })
+
+  /* ASCII-only: the class drops non-Latin text rather than transliterating it. */
+  it('drops characters outside the ASCII alphanumerics', () => {
+    expect(slugify('Café')).toBe('caf')
+    expect(slugify('日本語')).toBe('')
+  })
+
+  it('preserves digits and hyphens already in the input', () => {
+    expect(slugify('workspace-2024')).toBe('workspace-2024')
+  })
+})
 
 describe('truncate', () => {
   it('appends the suffix when the string exceeds the slice length', () => {

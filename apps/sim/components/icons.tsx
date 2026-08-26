@@ -4885,6 +4885,155 @@ export function MicrosoftOneDriveIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function MicrosoftWordIcon(props: SVGProps<SVGSVGElement>) {
+  const id = useId()
+  const bodyId = `word_body_${id}`
+  const midId = `word_mid_${id}`
+  const midGlowId = `word_mid_glow_${id}`
+  const midShadeId = `word_mid_shade_${id}`
+  const topId = `word_top_${id}`
+  const topGlowId = `word_top_glow_${id}`
+  const tileId = `word_tile_${id}`
+  const tileGlowId = `word_tile_glow_${id}`
+
+  const midPath =
+    'M5,15.04c0-2.49,2.01-4.5,4.5-4.5h20.39l5.11-2.54v12.5c0,1.93-1.57,3.5-3.5,3.5H11c-3.31,0-6,2.69-6,6v-14.96Z'
+  const topPath =
+    'M5,6C5,2.69,7.69,0,11,0h20.5c1.93,0,3.5,1.57,3.5,3.5v5c0,1.93-1.57,3.5-3.5,3.5H11c-3.31,0-6,2.69-6,6V6Z'
+
+  return (
+    <svg {...props} viewBox='0 0 35 36' xmlns='http://www.w3.org/2000/svg'>
+      <defs>
+        <radialGradient
+          id={bodyId}
+          cx='-619.29'
+          cy='488.84'
+          fx='-619.29'
+          fy='488.84'
+          r='1'
+          gradientTransform='translate(29495.74 9885.89) scale(47.57 -20.15)'
+          gradientUnits='userSpaceOnUse'
+        >
+          <stop offset='.18' stopColor='#1657f4' />
+          <stop offset='.57' stopColor='#0036c4' />
+        </radialGradient>
+        <linearGradient
+          id={midId}
+          x1='5'
+          y1='97'
+          x2='27.97'
+          y2='97'
+          gradientTransform='translate(0 116) scale(1 -1)'
+          gradientUnits='userSpaceOnUse'
+        >
+          <stop offset='0' stopColor='#66c0ff' />
+          <stop offset='.26' stopColor='#0094f0' />
+        </linearGradient>
+        <radialGradient
+          id={midGlowId}
+          cx='-637.72'
+          cy='517.98'
+          fx='-637.72'
+          fy='517.98'
+          r='1'
+          gradientTransform='translate(-40017.96 -12225.34) rotate(133.55) scale(29.36 -72.32)'
+          gradientUnits='userSpaceOnUse'
+        >
+          <stop offset='.14' stopColor='#d471ff' />
+          <stop offset='.83' stopColor='#509df5' stopOpacity='0' />
+        </radialGradient>
+        <radialGradient
+          id={midShadeId}
+          cx='-611.76'
+          cy='514.18'
+          fx='-611.76'
+          fy='514.18'
+          r='1'
+          gradientTransform='translate(-52234.57 11411.47) rotate(90) scale(18.62 -101.65)'
+          gradientUnits='userSpaceOnUse'
+        >
+          <stop offset='.28' stopColor='#4f006f' stopOpacity='0' />
+          <stop offset='1' stopColor='#4f006f' />
+        </radialGradient>
+        <linearGradient
+          id={topId}
+          x1='5'
+          y1='107.22'
+          x2='35'
+          y2='106.72'
+          gradientTransform='translate(0 116) scale(1 -1)'
+          gradientUnits='userSpaceOnUse'
+        >
+          <stop offset='0' stopColor='#9deaff' />
+          <stop offset='.2' stopColor='#3bd5ff' />
+        </linearGradient>
+        <radialGradient
+          id={topGlowId}
+          cx='-650.27'
+          cy='515.34'
+          fx='-650.27'
+          fy='515.34'
+          r='1'
+          gradientTransform='translate(-26921.47 -31089.42) rotate(166.85) scale(29.49 -70.64)'
+          gradientUnits='userSpaceOnUse'
+        >
+          <stop offset='.06' stopColor='#e4a7fe' />
+          <stop offset='.54' stopColor='#e4a7fe' stopOpacity='0' />
+        </radialGradient>
+        <radialGradient
+          id={tileId}
+          cx='-600.8'
+          cy='515.58'
+          fx='-600.8'
+          fy='515.58'
+          r='1'
+          gradientTransform='translate(1363.5 17878.99) rotate(45) scale(22.63 -22.63)'
+          gradientUnits='userSpaceOnUse'
+        >
+          <stop offset='.08' stopColor='#367af2' />
+          <stop offset='.87' stopColor='#001a8f' />
+        </radialGradient>
+        <radialGradient
+          id={tileGlowId}
+          cx='-598.04'
+          cy='557.24'
+          fx='-598.04'
+          fy='557.24'
+          r='1'
+          gradientTransform='translate(-7105.12 6724.6) rotate(90) scale(11.2 -12.77)'
+          gradientUnits='userSpaceOnUse'
+        >
+          <stop offset='.59' stopColor='#2763e5' stopOpacity='0' />
+          <stop offset='.97' stopColor='#58aafe' />
+        </radialGradient>
+      </defs>
+      <path
+        d='M5,27.09l14-17.09,16,11.11v11.39c0,1.93-1.57,3.5-3.5,3.5H11c-3.31,0-6-2.69-6-6v-2.91Z'
+        fill={`url(#${bodyId})`}
+      />
+      <path d={midPath} fill={`url(#${midId})`} />
+      <path d={midPath} fill={`url(#${midGlowId})`} fillOpacity='.6' />
+      <path d={midPath} fill={`url(#${midShadeId})`} fillOpacity='.1' />
+      <path d={topPath} fill={`url(#${topId})`} />
+      <path d={topPath} fill={`url(#${topGlowId})`} fillOpacity='.8' />
+      <rect y='17' width='16' height='16' rx='3.25' ry='3.25' fill={`url(#${tileId})`} />
+      <rect
+        y='17'
+        width='16'
+        height='16'
+        rx='3.25'
+        ry='3.25'
+        fill={`url(#${tileGlowId})`}
+        fillOpacity='.65'
+      />
+      <path
+        d='M13.49,20.43l-1.97,9.14h-2.35s-1.16-5.48-1.16-5.48l-1.22,5.49h-2.38l-1.89-9.14h1.94l1.17,6.03,1.16-6.03h2.38l1.21,6.03,1.14-6.03h1.97Z'
+        fill='#fff'
+      />
+    </svg>
+  )
+}
+
 export function MicrosoftSharepointIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg {...props} fill='currentColor' viewBox='0 0 32 32' xmlns='http://www.w3.org/2000/svg'>
@@ -6838,6 +6987,17 @@ export function AgiloftIcon(props: SVGProps<SVGSVGElement>) {
       <path d='M47.3,8.6H8.6L17.2,0h30.1V8.6z' fill='#001028' />
       <path d='M0,25.7h47.3V30L43,34.4H0V25.7z' fill='#4A6587' />
       <path d='M0,38.7h38.8l-8.6,8.5H0V38.7z' fill='#6D8DAF' />
+    </svg>
+  )
+}
+
+export function SemrushIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} xmlns='http://www.w3.org/2000/svg' viewBox='0 0 43.3 26'>
+      <path
+        fill='#FF642D'
+        d='M37.4,12.8c0,0.8-0.4,0.9-1.4,0.9c-1.1,0-1.3-0.2-1.4-1c-0.2-2.1-1.6-3.9-4-4c-0.7-0.1-0.9-0.3-0.9-1.3 c0-0.9,0.1-1.3,0.8-1.3C34.5,6.2,37.4,9.5,37.4,12.8z M43.3,12.8c0-6.2-4.2-12.8-14-12.8H10C9.6,0,9.3,0.2,9.3,0.6 c0,0.2,0.1,0.4,0.3,0.5c0.7,0.6,1.7,1.2,3.1,1.9c1.3,0.7,2.4,1.1,3.4,1.5c0.4,0.2,0.6,0.4,0.6,0.6c0,0.3-0.2,0.6-0.7,0.6H0.7 C0.2,5.6,0,5.9,0,6.2c0,0.3,0.1,0.5,0.3,0.7c1.2,1.3,3.2,2.9,6.1,4.7c2.5,1.6,5.7,3.3,8.2,4.5c0.4,0.2,0.6,0.4,0.6,0.7 c0,0.3-0.2,0.5-0.7,0.5H7.4c-0.4,0-0.6,0.2-0.6,0.5c0,0.2,0.1,0.4,0.3,0.6c1.6,1.5,4.2,3,7.6,4.5c4.6,1.9,9.2,3.1,14.4,3.1 C39,26,43.3,18.6,43.3,12.8z M30.4,21.7c-4.8,0-8.9-3.9-8.9-8.9c0-4.8,4-8.7,8.9-8.7c5,0,8.9,3.9,8.9,8.7 C39.3,17.7,35.4,21.7,30.4,21.7z'
+      />
     </svg>
   )
 }

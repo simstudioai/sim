@@ -47,7 +47,14 @@ describe('ConsentStoreProvider', () => {
       mode: 'hosted',
       backendURL: 'https://sim-sim.inth.app',
       consentCategories: ['necessary', 'measurement', 'marketing'],
-      store: { iframeBlockerConfig: { disableAutomaticBlocking: true } },
+      scripts: [
+        expect.objectContaining({ id: 'gtag', category: 'measurement', alwaysLoad: true }),
+        expect.objectContaining({ id: 'ahrefs-analytics', category: 'measurement' }),
+      ],
+      store: {
+        reloadOnConsentRevoked: true,
+        iframeBlockerConfig: { disableAutomaticBlocking: true },
+      },
     })
   })
 })

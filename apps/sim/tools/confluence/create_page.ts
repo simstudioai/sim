@@ -87,6 +87,7 @@ export const confluenceCreatePageTool: ToolConfig<
   },
 
   request: {
+    internal: true,
     url: () => '/api/tools/confluence/create-page',
     method: 'POST',
     headers: (params: ConfluenceCreatePageParams) => {

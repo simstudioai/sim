@@ -12,7 +12,7 @@ On Sim Cloud, enterprise features are unlocked by an Enterprise subscription. Se
 There are two parts to getting this right, and skipping the second is the most common reason features appear to do nothing:
 
 1. **Enable the features** with `ENTERPRISE_ENABLED`.
-2. **Give them an organization to apply to.** Whitelabeling, PII redaction, permission groups, data drains, and audit scoping all read their settings from the organization that owns a workspace. A deployment where everyone works in personal workspaces has no organization for those settings to come from.
+2. **Give them an organization to apply to.** Whitelabeling, PII redaction, permission groups, custom blocks, data drains, and audit scoping all read their settings from the organization that owns a workspace. A deployment where everyone works in personal workspaces has no organization for those settings to come from.
 
 ## Enable the feature set
 
@@ -24,7 +24,7 @@ NEXT_PUBLIC_ENTERPRISE_ENABLED=true
 ```
 
 That turns on organizations, permission groups, SSO, whitelabeling, audit logs,
-session policies, data retention, data drains, workspace forks, the Sandbox
+custom blocks, session policies, data retention, data drains, workspace forks, the Sandbox
 entitlement, and the inbox. Sandboxes remain unavailable until their remote
 provider and dedicated Function base are configured.
 
@@ -49,6 +49,7 @@ The individual flags also work on their own if you would rather opt in one at a 
 | SAML and OIDC sign-in | `SSO_ENABLED` | `NEXT_PUBLIC_SSO_ENABLED` |
 | Custom branding | `WHITELABELING_ENABLED` | `NEXT_PUBLIC_WHITELABELING_ENABLED` |
 | Audit logs | `AUDIT_LOGS_ENABLED` | `NEXT_PUBLIC_AUDIT_LOGS_ENABLED` |
+| Custom blocks | `CUSTOM_BLOCKS_ENABLED` | `NEXT_PUBLIC_CUSTOM_BLOCKS_ENABLED` |
 | Session policies | `SESSION_POLICIES_ENABLED` | `NEXT_PUBLIC_SESSION_POLICIES_ENABLED` |
 | Data retention deletion | `DATA_RETENTION_ENABLED` | `NEXT_PUBLIC_DATA_RETENTION_ENABLED` |
 | Data drains | `DATA_DRAINS_ENABLED` | `NEXT_PUBLIC_DATA_DRAINS_ENABLED` |

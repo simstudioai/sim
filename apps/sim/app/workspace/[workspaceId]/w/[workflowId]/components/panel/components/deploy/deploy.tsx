@@ -188,6 +188,7 @@ export function Deploy({ activeWorkflowId, userPermissions, disabled = false }: 
       </Tooltip.Root>
 
       <DeployModal
+        key={activeWorkflowId ?? 'no-workflow'}
         open={isModalOpen}
         onOpenChange={setIsModalOpen}
         workflowId={activeWorkflowId}

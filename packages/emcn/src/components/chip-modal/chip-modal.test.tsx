@@ -1,9 +1,10 @@
 /**
  * @vitest-environment jsdom
  */
-import { act, type ReactNode } from 'react'
+import { act, type FormEvent, type ReactNode } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { ChipInput } from '../chip-input/chip-input'
 import { Modal, ModalContent, ModalHeader } from '../modal/modal'
 import {
   ChipConfirmModal,
@@ -34,6 +35,7 @@ afterEach(() => {
   container?.remove()
   root = null
   container = null
+  vi.restoreAllMocks()
 })
 
 /** The dialog panel Radix renders, which owns the Escape/outside-click handlers. */
@@ -62,9 +64,47 @@ function closeButton(): HTMLButtonElement {
 function pressEscape() {
   act(() => {
     dialog().dispatchEvent(
-      new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })
+      new KeyboardEvent('keydown', {
+        key: 'Escape',
+        bubbles: true,
+        cancelable: true,
+      })
     )
   })
+}
+
+function pressEnter(target: HTMLElement, init: KeyboardEventInit = {}): KeyboardEvent {
+  const event = new KeyboardEvent('keydown', {
+    key: 'Enter',
+    bubbles: true,
+    cancelable: true,
+    ...init,
+  })
+  act(() => target.dispatchEvent(event))
+  return event
+}
+
+function makeElementsVisible(): void {
+  const rect = {
+    bottom: 1,
+    height: 1,
+    left: 0,
+    right: 1,
+    top: 0,
+    width: 1,
+    x: 0,
+    y: 0,
+    toJSON: () => ({}),
+  } satisfies DOMRect
+  const rects = {
+    0: rect,
+    length: 1,
+    item: (index: number) => (index === 0 ? rect : null),
+    [Symbol.iterator]: function* () {
+      yield rect
+    },
+  } as DOMRectList
+  vi.spyOn(Element.prototype, 'getClientRects').mockReturnValue(rects)
 }
 
 function Harness({
@@ -195,7 +235,12 @@ describe('ChipConfirmModal pending', () => {
         onOpenChange={onOpenChange}
         title='Delete key'
         text='This cannot be undone.'
-        confirm={{ label: 'Delete', onClick: () => {}, pending: true, pendingLabel: 'Deleting...' }}
+        confirm={{
+          label: 'Delete',
+          onClick: () => {},
+          pending: true,
+          pendingLabel: 'Deleting...',
+        }}
       />
     )
 
@@ -222,6 +267,416 @@ describe('ChipConfirmModal pending', () => {
     expect(closeButton().disabled).toBe(false)
     act(() => closeButton().click())
     expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+})
+
+describe('ChipModal default actions', () => {
+  beforeEach(makeElementsVisible)
+
+  it('fails safe to the dismiss decision in a confirmation', () => {
+    mount(
+      <ChipConfirmModal
+        open
+        onOpenChange={() => {}}
+        title='Delete key'
+        confirm={{ label: 'Delete', onClick: () => {} }}
+      />
+    )
+
+    expect(document.activeElement).toBe(buttonByText('Cancel'))
+  })
+
+  it('focuses an explicitly declared confirm decision', () => {
+    mount(
+      <ChipConfirmModal
+        open
+        onOpenChange={() => {}}
+        title='Restore archive'
+        defaultAction='confirm'
+        confirm={{ label: 'Restore', onClick: () => {}, variant: 'primary' }}
+      />
+    )
+
+    expect(document.activeElement).toBe(buttonByText('Restore'))
+  })
+
+  it('focuses the dialog instead of arming a decision when the policy is none', () => {
+    mount(
+      <ChipConfirmModal
+        open
+        onOpenChange={() => {}}
+        title='Delete account'
+        defaultAction='none'
+        confirm={{ label: 'Delete account', onClick: () => {} }}
+      />
+    )
+
+    expect(document.activeElement).toBe(dialog())
+  })
+
+  it('treats the regular footer primary as the default action', () => {
+    mount(
+      <ChipModal open onOpenChange={() => {}} srTitle='Create project'>
+        <ChipModalHeader onClose={() => {}}>Create project</ChipModalHeader>
+        <ChipModalFooter
+          onCancel={() => {}}
+          primaryAction={{ label: 'Create', onClick: () => {} }}
+        />
+      </ChipModal>
+    )
+
+    expect(document.activeElement).toBe(buttonByText('Create'))
+  })
+
+  it('supports a form-associated primary action without product-level DOM markers', () => {
+    const onSubmit = vi.fn((event: FormEvent) => event.preventDefault())
+    mount(
+      <ChipModal open onOpenChange={() => {}} srTitle='Deploy workflow'>
+        <ChipModalHeader onClose={() => {}}>Deploy workflow</ChipModalHeader>
+        <ChipModalBody>
+          <form id='deploy-form' onSubmit={onSubmit}>
+            <ChipInput aria-label='Name' value='Canary' onChange={() => {}} />
+          </form>
+        </ChipModalBody>
+        <ChipModalFooter
+          hideCancel
+          primaryAction={{ label: 'Deploy', type: 'submit', form: 'deploy-form' }}
+        />
+      </ChipModal>
+    )
+
+    const submit = buttonByText('Deploy')
+    expect(submit.type).toBe('submit')
+    expect(submit.getAttribute('form')).toBe('deploy-form')
+    act(() => submit.click())
+    expect(onSubmit).toHaveBeenCalledOnce()
+  })
+
+  it('supports a canonical footer with no primary decision', () => {
+    mount(
+      <ChipModal open onOpenChange={() => {}} srTitle='Deployment status'>
+        <ChipModalHeader onClose={() => {}}>Deployment status</ChipModalHeader>
+        <ChipModalFooter hideCancel defaultAction='none' leadingContent={<span>Live</span>} />
+      </ChipModal>
+    )
+
+    expect(document.activeElement).toBe(dialog())
+    expect(dialog().textContent).toContain('Live')
+  })
+
+  it('falls back to an enabled dismiss action when the declared action is disabled', () => {
+    mount(
+      <ChipConfirmModal
+        open
+        onOpenChange={() => {}}
+        title='Delete key'
+        defaultAction='confirm'
+        confirm={{ label: 'Delete', onClick: () => {}, disabled: true }}
+      />
+    )
+
+    expect(document.activeElement).toBe(buttonByText('Cancel'))
+  })
+
+  it('falls back to the dialog when pending disables every decision', () => {
+    mount(
+      <ChipConfirmModal
+        open
+        onOpenChange={() => {}}
+        title='Delete key'
+        defaultAction='confirm'
+        confirm={{ label: 'Delete', onClick: () => {}, pending: true }}
+      />
+    )
+
+    expect(document.activeElement).toBe(dialog())
+  })
+
+  it('ignores hidden policies and activates the visible default action', () => {
+    const onHidden = vi.fn()
+    const onVisible = vi.fn()
+    mount(
+      <ChipModal open onOpenChange={() => {}} srTitle='Visible action'>
+        <ChipModalHeader onClose={() => {}}>Visible action</ChipModalHeader>
+        <ChipModalBody>
+          <ChipModalField type='input' title='Name' value='Canary' onChange={() => {}} />
+        </ChipModalBody>
+        <div aria-hidden='true'>
+          <ChipModalFooter
+            onCancel={() => {}}
+            primaryAction={{ label: 'Hidden save', onClick: onHidden }}
+          />
+        </div>
+        <ChipModalFooter
+          onCancel={() => {}}
+          primaryAction={{ label: 'Visible save', onClick: onVisible }}
+        />
+      </ChipModal>
+    )
+
+    const input = document.querySelector<HTMLInputElement>('input')
+    if (!input) throw new Error('Name input did not render')
+    pressEnter(input)
+    expect(onHidden).not.toHaveBeenCalled()
+    expect(onVisible).toHaveBeenCalledOnce()
+  })
+
+  it('submits a canonical single-line field through the regular footer', () => {
+    const onSave = vi.fn()
+    mount(
+      <ChipModal open onOpenChange={() => {}} srTitle='Rename project'>
+        <ChipModalHeader onClose={() => {}}>Rename project</ChipModalHeader>
+        <ChipModalBody>
+          <ChipModalField type='input' title='Name' value='Canary' onChange={() => {}} />
+        </ChipModalBody>
+        <ChipModalFooter onCancel={() => {}} primaryAction={{ label: 'Save', onClick: onSave }} />
+      </ChipModal>
+    )
+
+    const input = document.querySelector<HTMLInputElement>('input')
+    if (!input) throw new Error('Name input did not render')
+    expect(document.activeElement).toBe(input)
+    expect(pressEnter(input).defaultPrevented).toBe(true)
+    expect(onSave).toHaveBeenCalledOnce()
+  })
+
+  it('submits a raw custom ChipInput through the modal fallback', () => {
+    const onSave = vi.fn()
+    mount(
+      <ChipModal open onOpenChange={() => {}} srTitle='Rename project'>
+        <ChipModalHeader onClose={() => {}}>Rename project</ChipModalHeader>
+        <ChipModalBody>
+          <ChipInput aria-label='Name' value='Canary' onChange={() => {}} />
+        </ChipModalBody>
+        <ChipModalFooter onCancel={() => {}} primaryAction={{ label: 'Save', onClick: onSave }} />
+      </ChipModal>
+    )
+
+    const input = document.querySelector<HTMLInputElement>('[aria-label="Name"]')
+    if (!input) throw new Error('Custom input did not render')
+    expect(pressEnter(input).defaultPrevented).toBe(true)
+    expect(onSave).toHaveBeenCalledOnce()
+  })
+
+  it('registers an explicit confirm decision for canonical field submission', () => {
+    const onConfirm = vi.fn()
+    mount(
+      <ChipConfirmModal
+        open
+        onOpenChange={() => {}}
+        title='Rename and restore'
+        defaultAction='confirm'
+        confirm={{ label: 'Restore', onClick: onConfirm, variant: 'primary' }}
+      >
+        <ChipModalField type='input' title='Name' value='Canary' onChange={() => {}} />
+      </ChipConfirmModal>
+    )
+
+    const input = document.querySelector<HTMLInputElement>('input')
+    if (!input) throw new Error('Name input did not render')
+    pressEnter(input)
+    expect(onConfirm).toHaveBeenCalledOnce()
+  })
+
+  it('does not register the confirm decision when dismissal remains the default', () => {
+    const onConfirm = vi.fn()
+    mount(
+      <ChipConfirmModal
+        open
+        onOpenChange={() => {}}
+        title='Delete key'
+        confirm={{ label: 'Delete', onClick: onConfirm }}
+      >
+        <ChipModalField type='input' title='Name' value='Canary' onChange={() => {}} />
+      </ChipConfirmModal>
+    )
+
+    const input = document.querySelector<HTMLInputElement>('input')
+    if (!input) throw new Error('Name input did not render')
+    expect(pressEnter(input).defaultPrevented).toBe(false)
+    expect(onConfirm).not.toHaveBeenCalled()
+  })
+
+  it('yields Enter to a native form', () => {
+    const onPrimary = vi.fn()
+    mount(
+      <ChipModal open onOpenChange={() => {}} srTitle='Native form'>
+        <ChipModalHeader onClose={() => {}}>Native form</ChipModalHeader>
+        <ChipModalBody>
+          <form onSubmit={(event) => event.preventDefault()}>
+            <ChipInput aria-label='Native field' value='Canary' onChange={() => {}} />
+          </form>
+        </ChipModalBody>
+        <ChipModalFooter
+          onCancel={() => {}}
+          primaryAction={{ label: 'Save', onClick: onPrimary }}
+        />
+      </ChipModal>
+    )
+
+    const input = document.querySelector<HTMLInputElement>('[aria-label="Native field"]')
+    if (!input) throw new Error('Native form input did not render')
+    expect(pressEnter(input).defaultPrevented).toBe(false)
+    expect(onPrimary).not.toHaveBeenCalled()
+  })
+
+  it('yields a canonical field to its native form', () => {
+    const onPrimary = vi.fn()
+    mount(
+      <ChipModal open onOpenChange={() => {}} srTitle='Native form'>
+        <ChipModalHeader onClose={() => {}}>Native form</ChipModalHeader>
+        <ChipModalBody>
+          <form onSubmit={(event) => event.preventDefault()}>
+            <ChipModalField type='input' title='Name' value='Canary' onChange={() => {}} />
+          </form>
+        </ChipModalBody>
+        <ChipModalFooter
+          onCancel={() => {}}
+          primaryAction={{ label: 'Save', onClick: onPrimary }}
+        />
+      </ChipModal>
+    )
+
+    const input = document.querySelector<HTMLInputElement>('input')
+    if (!input) throw new Error('Native form field did not render')
+    expect(pressEnter(input).defaultPrevented).toBe(false)
+    expect(onPrimary).not.toHaveBeenCalled()
+  })
+
+  it('yields Enter to multiline, tag-like and autocomplete controls', () => {
+    const onPrimary = vi.fn()
+    mount(
+      <ChipModal open onOpenChange={() => {}} srTitle='Owned Enter controls'>
+        <ChipModalHeader onClose={() => {}}>Owned Enter controls</ChipModalHeader>
+        <ChipModalBody>
+          <textarea aria-label='Notes' defaultValue='Line one' />
+          <ChipModalField type='custom' title='Tag' submitOnEnter={false}>
+            <ChipInput aria-label='Tag' value='canary' onChange={() => {}} />
+          </ChipModalField>
+          <ChipInput
+            aria-label='Autocomplete'
+            aria-autocomplete='list'
+            value='canary'
+            onChange={() => {}}
+          />
+        </ChipModalBody>
+        <ChipModalFooter
+          onCancel={() => {}}
+          primaryAction={{ label: 'Save', onClick: onPrimary }}
+        />
+      </ChipModal>
+    )
+
+    for (const label of ['Notes', 'Tag', 'Autocomplete']) {
+      const control = document.querySelector<HTMLElement>(`[aria-label="${label}"]`)
+      if (!control) throw new Error(`${label} control did not render`)
+      expect(pressEnter(control).defaultPrevented).toBe(false)
+    }
+    expect(onPrimary).not.toHaveBeenCalled()
+  })
+
+  it('honors submitOnEnter=false on canonical fields', () => {
+    const onPrimary = vi.fn()
+    mount(
+      <ChipModal open onOpenChange={() => {}} srTitle='Schedule runs'>
+        <ChipModalHeader onClose={() => {}}>Schedule runs</ChipModalHeader>
+        <ChipModalBody>
+          <ChipModalField
+            type='input'
+            title='Number of runs'
+            value='2'
+            onChange={() => {}}
+            submitOnEnter={false}
+          />
+        </ChipModalBody>
+        <ChipModalFooter
+          onCancel={() => {}}
+          primaryAction={{ label: 'Schedule', onClick: onPrimary }}
+        />
+      </ChipModal>
+    )
+
+    const input = document.querySelector<HTMLInputElement>('input')
+    if (!input) throw new Error('Runs input did not render')
+    expect(pressEnter(input).defaultPrevented).toBe(true)
+    expect(onPrimary).not.toHaveBeenCalled()
+  })
+
+  it('does not activate a disabled confirm from a field', () => {
+    const onConfirm = vi.fn()
+    mount(
+      <ChipConfirmModal
+        open
+        onOpenChange={() => {}}
+        title='Restore archive'
+        defaultAction='confirm'
+        confirm={{ label: 'Restore', onClick: onConfirm, disabled: true, variant: 'primary' }}
+      >
+        <ChipModalField type='input' title='Name' value='Canary' onChange={() => {}} />
+      </ChipConfirmModal>
+    )
+
+    const input = document.querySelector<HTMLInputElement>('input')
+    if (!input) throw new Error('Name input did not render')
+    expect(pressEnter(input).defaultPrevented).toBe(false)
+    expect(onConfirm).not.toHaveBeenCalled()
+  })
+
+  it('ignores composing and repeated Enter events', () => {
+    const onPrimary = vi.fn()
+    mount(
+      <ChipModal open onOpenChange={() => {}} srTitle='Rename project'>
+        <ChipModalHeader onClose={() => {}}>Rename project</ChipModalHeader>
+        <ChipModalBody>
+          <ChipModalField type='input' title='Name' value='Canary' onChange={() => {}} />
+        </ChipModalBody>
+        <ChipModalFooter
+          onCancel={() => {}}
+          primaryAction={{ label: 'Save', onClick: onPrimary }}
+        />
+      </ChipModal>
+    )
+
+    const input = document.querySelector<HTMLInputElement>('input')
+    if (!input) throw new Error('Name input did not render')
+    expect(pressEnter(input, { isComposing: true }).defaultPrevented).toBe(false)
+    expect(pressEnter(input, { repeat: true }).defaultPrevented).toBe(false)
+    expect(pressEnter(input, { shiftKey: true }).defaultPrevented).toBe(false)
+    expect(pressEnter(input, { metaKey: true }).defaultPrevented).toBe(false)
+    expect(onPrimary).not.toHaveBeenCalled()
+  })
+
+  it('associates confirmation copy with the dialog description', () => {
+    mount(
+      <ChipConfirmModal
+        open
+        onOpenChange={() => {}}
+        title='Delete key'
+        text='This immediately revokes access.'
+        confirm={{ label: 'Delete', onClick: () => {} }}
+      />
+    )
+
+    const descriptionId = dialog().getAttribute('aria-describedby')
+    expect(descriptionId).toBeTruthy()
+    expect(document.getElementById(descriptionId ?? '')?.textContent).toBe(
+      'This immediately revokes access.'
+    )
+  })
+
+  it('owns full-bleed body chrome through a semantic prop', () => {
+    mount(
+      <ChipModal open onOpenChange={() => {}} srTitle='Preview'>
+        <ChipModalHeader onClose={() => {}}>Preview</ChipModalHeader>
+        <ChipModalBody fullBleed data-testid='preview-body'>
+          Preview content
+        </ChipModalBody>
+      </ChipModal>
+    )
+
+    const body = document.querySelector<HTMLElement>('[data-testid="preview-body"]')
+    expect(body?.className).toContain('overflow-hidden')
+    expect(body?.className).not.toContain('px-2')
   })
 })
 
@@ -337,7 +792,10 @@ describe("ChipModalField inputType='password'", () => {
     // control's preventDefault that blur re-masks first, and the click then
     // toggles back to revealed — leaving the password on screen.
     act(() => {
-      const press = new MouseEvent('mousedown', { bubbles: true, cancelable: true })
+      const press = new MouseEvent('mousedown', {
+        bubbles: true,
+        cancelable: true,
+      })
       toggle.dispatchEvent(press)
       if (!press.defaultPrevented) passwordInput().blur()
       toggle.click()

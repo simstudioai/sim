@@ -393,8 +393,6 @@ export interface WorkflowBlockViewProps {
   runPathStatus?: BlockRunStatus
   /** Whether execution controls are active for this block. */
   isRunning?: boolean
-  /** Whether the parent workflow is executing. Holds every block's action swell open. */
-  isWorkflowRunning?: boolean
   /** Whether this block participates in the current execution handoff. */
   isExecutionHighlighted?: boolean
   /** Block icon component and its background color. */
@@ -521,7 +519,6 @@ export function WorkflowBlockView({
   ringStyles,
   runPathStatus,
   isRunning = false,
-  isWorkflowRunning = false,
   isExecutionHighlighted = false,
   Icon,
   iconBgColor,

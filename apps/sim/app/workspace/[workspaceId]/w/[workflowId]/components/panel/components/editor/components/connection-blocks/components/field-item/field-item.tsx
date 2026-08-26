@@ -24,7 +24,6 @@ interface FieldItemProps {
   connection: ConnectedBlock
   field: SchemaField
   path: string
-  level: number
   hasChildren?: boolean
   isExpanded?: boolean
   onToggleExpand?: (path: string) => void
@@ -37,7 +36,6 @@ export function FieldItem({
   connection,
   field,
   path,
-  level,
   hasChildren,
   isExpanded,
   onToggleExpand,

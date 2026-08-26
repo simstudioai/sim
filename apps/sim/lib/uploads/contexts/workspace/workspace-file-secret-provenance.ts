@@ -20,9 +20,10 @@ import {
   PROVENANCE_MAX_ENTRIES,
   PROVENANCE_MAX_SERIALIZED_BYTES,
 } from '@/lib/execution/provenance-limits'
-import type {
-  ResolvedSecretTraceProvenanceV1,
-  ResolvedSecretTraceRegistry,
+import {
+  isResolvedSecretProvenanceAbsence,
+  type ResolvedSecretTraceProvenanceV1,
+  type ResolvedSecretTraceRegistry,
 } from '@/executor/utils/resolved-secret-trace-registry'
 
 /** Ids per statement. Bounds the query, never how many files a caller may classify. */
@@ -36,12 +37,13 @@ export const MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE =
 /**
  * What can be said about the secrets a file's bytes carry.
  *
- * Note the deliberate mismatch with storage: the sidecar's `status` column holds only
- * `'exact' | 'unknown'`, and a stored `'unknown'` maps to `'unrecorded'` here, not to the
- * `'unknown'` below. Storage is recording what the writer could vouch for; this union is recording
- * what a reader can conclude, and "the writer said it could not vouch" and "there is nothing usable
- * to read" are different conclusions that must not share a branch — only the first is an absence a
- * policy may relax. `'unrecorded'` is the name the shared vocabulary already uses for it
+ * The sidecar's `status` column stores all three values, and reader and storage still mean
+ * different things by two of them. Stored `'unrecorded'` is the writer saying nobody vouched for
+ * these bytes; stored `'unknown'` is a writer that knew secrets were in scope and could not map
+ * them. This union records what a *reader* can conclude, so a missing row, moved version, or stale
+ * or malformed sidecar also lands on `'unknown'` — "the writer refused" and "there is nothing
+ * usable to read" share a conclusion but not a stored value. Only `'unrecorded'` is an absence a
+ * policy may relax; it is the name the shared vocabulary already uses
  * (`reportUnrecordedDurableProvenance`, the `secret_provenance.unrecorded` audit action).
  */
 export type WorkspaceFileSecretProvenance =
@@ -252,7 +254,28 @@ export async function createWorkspaceFileSecretProvenanceFromRegistry(
   const persistedProvenance = Object.is(sourceValue, persistedValue)
     ? sourceProvenance
     : registry.exportCommittedProvenanceForValue(persistedValue)
-  if (!sourceProvenance.complete || !persistedProvenance.complete) return { safe: false }
+  if (!sourceProvenance.complete || !persistedProvenance.complete) {
+    /**
+     * A latched registry is the same absence only when both hold: nothing activated, and every
+     * recorded reason is in the registry's absence set — reasons meaning provenance was never on
+     * offer and no secret material transited the latching context. Zero active entries alone does
+     * not prove that: a decrypt, verification, or filtering failure trips while plaintext is in
+     * flight, before anything activates, so any such reason keeps the taint. What remains is a
+     * registry that latched with nothing to lose (a failed workflow run crossing with no envelope
+     * is the recurring producer), which is exactly what `unrecorded` states. Stamping taint for
+     * that state made one failed run turn every file its chat later wrote into a hard refusal
+     * until the next clean write.
+     */
+    const diagnostics = registry.getIncompletenessDiagnostics()
+    if (
+      diagnostics?.activeEntryCount === 0 &&
+      diagnostics.reasons.length > 0 &&
+      diagnostics.reasons.every(isResolvedSecretProvenanceAbsence)
+    ) {
+      return { safe: true, provenance: { status: 'unrecorded' } }
+    }
+    return { safe: false }
+  }
   if (
     (sourceProvenance.entries.length > 0 &&
       !isPrivateSecretProvenanceScopeCompatible(sourceProvenance.scope, destinationScope)) ||
@@ -820,7 +843,11 @@ export async function getBoundWorkspaceFileSecretProvenanceByMetadata(
  * absence this covers. Closing the surface again is a matter of naming it in
  * `DURABLE_SECRET_PROVENANCE_ENFORCED_SURFACES`.
  */
-function mayReadUnrecordedWorkspaceFile(workspaceId: string | undefined, count = 1): boolean {
+function mayReadUnrecordedWorkspaceFile(
+  workspaceId: string | undefined,
+  count = 1,
+  actorUserId?: string
+): boolean {
   if (isDurableSecretProvenanceEnforced('workspace-file')) return false
   if (count > 0) {
     reportUnrecordedDurableProvenance({
@@ -828,6 +855,7 @@ function mayReadUnrecordedWorkspaceFile(workspaceId: string | undefined, count =
       cause: 'durable-provenance-unknown',
       ...(count > 1 ? { affectedCount: count } : {}),
       ...(workspaceId ? { workspaceId } : {}),
+      actorUserId: actorUserId ?? null,
     })
   }
   return true
@@ -845,10 +873,14 @@ export async function importWorkspaceFileSecretProvenanceForModelView(args: {
   registry?: ResolvedSecretTraceRegistry
   view: 'complete' | 'derived' | 'opaque'
   value?: unknown
+  /** Whose access authorized the read, for the unrecorded-read audit entry; null when unnameable. */
+  actorUserId?: string
 }): Promise<boolean> {
   const provenance = await getBoundWorkspaceFileSecretProvenance(args.workspaceId, args.identity)
   if (provenance.status === 'unknown') return false
-  if (provenance.status === 'unrecorded') return mayReadUnrecordedWorkspaceFile(args.workspaceId)
+  if (provenance.status === 'unrecorded') {
+    return mayReadUnrecordedWorkspaceFile(args.workspaceId, 1, args.actorUserId)
+  }
   if (provenance.entries.length === 0) return true
   if (args.view === 'opaque' || !args.registry) return false
 
@@ -881,10 +913,14 @@ export async function importWorkspaceFileSecretProvenanceForRuntime(args: {
   workspaceId: string
   identity: WorkspaceFileSecretProvenanceIdentity
   registry?: ResolvedSecretTraceRegistry
+  /** Whose access authorized the read, for the unrecorded-read audit entry; null when unnameable. */
+  actorUserId?: string
 }): Promise<boolean> {
   const provenance = await getBoundWorkspaceFileSecretProvenance(args.workspaceId, args.identity)
   if (provenance.status === 'unknown') return false
-  if (provenance.status === 'unrecorded') return mayReadUnrecordedWorkspaceFile(args.workspaceId)
+  if (provenance.status === 'unrecorded') {
+    return mayReadUnrecordedWorkspaceFile(args.workspaceId, 1, args.actorUserId)
+  }
   if (provenance.entries.length === 0) return true
   if (!args.registry) return false
 
@@ -904,7 +940,7 @@ export async function filterModelSafeWorkspaceFileAttachments<
   TAttachment extends WorkspaceFileAttachmentIdentity,
 >(
   attachments: readonly TAttachment[],
-  options: { workspaceId?: string } = {}
+  options: { workspaceId?: string; actorUserId?: string } = {}
 ): Promise<TAttachment[]> {
   if (attachments.length === 0) return []
   if (attachments.length > PROVENANCE_MAX_ENTRIES) {
@@ -936,7 +972,9 @@ export async function filterModelSafeWorkspaceFileAttachments<
     return !isDurableSecretProvenanceEnforced('workspace-file')
   })
   /** One report for the whole set of attachments, which is one read, rather than one per file. */
-  if (unrecorded > 0) mayReadUnrecordedWorkspaceFile(options.workspaceId, unrecorded)
+  if (unrecorded > 0) {
+    mayReadUnrecordedWorkspaceFile(options.workspaceId, unrecorded, options.actorUserId)
+  }
   return kept
 }
 
@@ -993,7 +1031,7 @@ async function loadModelSafeWorkspaceFileRows(
  */
 export async function isModelSafeWorkspaceFileKey(
   key: string,
-  options: { workspaceId?: string } = {}
+  options: { workspaceId?: string; actorUserId?: string } = {}
 ): Promise<boolean> {
   return areModelSafeWorkspaceFileKeys([key], options)
 }
@@ -1005,7 +1043,7 @@ export async function isModelSafeWorkspaceFileKey(
  */
 export async function areModelSafeWorkspaceFileKeys(
   keys: readonly string[],
-  options: { workspaceId?: string } = {}
+  options: { workspaceId?: string; actorUserId?: string } = {}
 ): Promise<boolean> {
   const uniqueKeys = [...new Set(keys.filter((key) => key.length > 0))]
   if (uniqueKeys.length === 0) return true
@@ -1023,5 +1061,8 @@ export async function areModelSafeWorkspaceFileKeys(
     if (classification === 'unrecorded') unrecorded += 1
   }
   /** One report for the batch, not one per key: a caller checking many keys is one read. */
-  return unrecorded === 0 || mayReadUnrecordedWorkspaceFile(options.workspaceId, unrecorded)
+  return (
+    unrecorded === 0 ||
+    mayReadUnrecordedWorkspaceFile(options.workspaceId, unrecorded, options.actorUserId)
+  )
 }

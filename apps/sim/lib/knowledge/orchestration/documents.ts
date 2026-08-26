@@ -492,6 +492,7 @@ export async function performDeleteKnowledgeDocument(
 }
 
 export interface PerformMarkKnowledgeDocumentTimedOutParams {
+  knowledgeBaseId: string
   document: {
     id: string
     processingStatus: string
@@ -512,7 +513,7 @@ export type PerformKnowledgeDocumentProcessingResult = KnowledgeOrchestrationRes
 export async function performMarkKnowledgeDocumentTimedOut(
   params: PerformMarkKnowledgeDocumentTimedOutParams
 ): Promise<PerformKnowledgeDocumentProcessingResult> {
-  const { document } = params
+  const { document, knowledgeBaseId } = params
   const requestId = params.requestId ?? generateRequestId()
 
   if (document.processingStatus !== 'processing') {
@@ -527,6 +528,7 @@ export async function performMarkKnowledgeDocumentTimedOut(
 
   try {
     const result = await markDocumentAsFailedTimeout(
+      knowledgeBaseId,
       document.id,
       document.processingStartedAt,
       requestId

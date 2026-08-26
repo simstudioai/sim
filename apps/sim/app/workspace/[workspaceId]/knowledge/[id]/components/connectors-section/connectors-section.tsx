@@ -1,6 +1,6 @@
 'use client'
 
-import { useId, useMemo, useState } from 'react'
+import { useEffect, useId, useMemo, useState } from 'react'
 import {
   Badge,
   Button,
@@ -280,18 +280,36 @@ function ConnectorCard({
       ? (connectorDef.auth.requiredScopes ?? EMPTY_REQUIRED_SCOPES)
       : EMPTY_REQUIRED_SCOPES
 
-  const { data: credentials, refetch: refetchCredentials } = useOAuthCredentials(providerId, {
+  const {
+    data: credentials,
+    isFetching: credentialsLoading,
+    refetch: refetchCredentials,
+  } = useOAuthCredentials(providerId, {
     workspaceId,
   })
 
-  useCredentialRefreshTriggers(refetchCredentials, providerId ?? '', workspaceId)
+  const selectedCredential = useMemo(() => {
+    if (!credentials || !connector.credentialId) return undefined
+    return credentials.find((credential) => credential.id === connector.credentialId)
+  }, [credentials, connector.credentialId])
 
-  const missingScopes = useMemo(() => {
-    if (!credentials || !connector.credentialId) return []
-    const credential = credentials.find((c) => c.id === connector.credentialId)
-    if (!credential) return []
-    return getMissingRequiredScopes(credential, requiredScopes)
-  }, [credentials, connector.credentialId, requiredScopes])
+  useCredentialRefreshTriggers(
+    refetchCredentials,
+    selectedCredential?.provider ?? providerId ?? '',
+    workspaceId
+  )
+
+  const missingScopes = useMemo(
+    () => (selectedCredential ? getMissingRequiredScopes(selectedCredential, requiredScopes) : []),
+    [selectedCredential, requiredScopes]
+  )
+
+  useEffect(() => {
+    if (showOAuthModal && connector.credentialId && !selectedCredential && !credentialsLoading) {
+      consumeOAuthReturnContext()
+      setShowOAuthModal(false)
+    }
+  }, [showOAuthModal, connector.credentialId, selectedCredential, credentialsLoading])
 
   const { data: detail, isLoading: detailLoading } = useConnectorDetail(
     expanded ? knowledgeBaseId : undefined,
@@ -515,13 +533,15 @@ function ConnectorCard({
             {canEdit && serviceId && providerId && (
               <Button
                 variant='primary'
+                disabled={Boolean(connector.credentialId && !selectedCredential)}
                 onClick={() => {
                   if (connector.credentialId) {
+                    if (!selectedCredential) return
                     writeOAuthReturnContext({
                       origin: 'kb-connectors',
                       knowledgeBaseId,
                       displayName: connectorDef?.name ?? connector.connectorType,
-                      providerId: providerId!,
+                      providerId: selectedCredential.provider,
                       preCount: credentials?.length ?? 0,
                       workspaceId,
                       reconnect: true,
@@ -552,11 +572,12 @@ function ConnectorCard({
                 variant='primary'
                 onClick={() => {
                   if (connector.credentialId) {
+                    if (!selectedCredential) return
                     writeOAuthReturnContext({
                       origin: 'kb-connectors',
                       knowledgeBaseId,
                       displayName: connectorDef?.name ?? connector.connectorType,
-                      providerId: providerId!,
+                      providerId: selectedCredential.provider,
                       preCount: credentials?.length ?? 0,
                       workspaceId,
                       reconnect: true,
@@ -600,23 +621,32 @@ function ConnectorCard({
         />
       )}
 
-      {showOAuthModal && serviceId && providerId && connector.credentialId && (
-        <ConnectOAuthModal
-          mode='reauthorize'
-          open={showOAuthModal}
-          onOpenChange={(open) => {
-            if (!open) {
-              consumeOAuthReturnContext()
-              setShowOAuthModal(false)
-            }
-          }}
-          toolName={connectorDef?.name ?? connector.connectorType}
-          requiredScopes={getCanonicalScopesForProvider(providerId)}
-          newScopes={missingScopes}
-          serviceId={serviceId}
-          providerId={providerId}
-        />
-      )}
+      {showOAuthModal &&
+        serviceId &&
+        providerId &&
+        connector.credentialId &&
+        selectedCredential && (
+          <ConnectOAuthModal
+            mode='reauthorize'
+            open={showOAuthModal}
+            onOpenChange={(open) => {
+              if (!open) {
+                consumeOAuthReturnContext()
+                setShowOAuthModal(false)
+              }
+            }}
+            toolName={connectorDef?.name ?? connector.connectorType}
+            requiredScopes={getCanonicalScopesForProvider(providerId)}
+            newScopes={missingScopes}
+            serviceId={serviceId}
+            providerId={selectedCredential.provider}
+            reconnectTarget={{
+              workspaceId,
+              credentialId: selectedCredential.id,
+              displayName: selectedCredential.name,
+            }}
+          />
+        )}
     </div>
   )
 }
@@ -686,7 +716,11 @@ export function SyncHistory({ logs, isLoading }: SyncHistoryProps) {
       {logs.map((log) => {
         const state = getSyncLogState(log, now)
         const totalChanges =
-          log.docsAdded + log.docsUpdated + log.docsDeleted + (log.docsFailed ?? 0)
+          log.docsAdded +
+          log.docsUpdated +
+          log.docsDeleted +
+          log.docsSkipped +
+          (log.docsFailed ?? 0)
 
         return (
           <div key={log.id} className='flex items-start gap-2 rounded-md px-2 py-1.5 text-xs'>
@@ -731,6 +765,16 @@ export function SyncHistory({ logs, isLoading }: SyncHistoryProps) {
                             {(log.docsAdded > 0 || log.docsUpdated > 0 || log.docsDeleted > 0) &&
                               ' '}
                             <span className='text-[var(--text-error)]'>!{log.docsFailed}</span>
+                          </>
+                        )}
+                        {log.docsSkipped > 0 && (
+                          <>
+                            {(log.docsAdded > 0 ||
+                              log.docsUpdated > 0 ||
+                              log.docsDeleted > 0 ||
+                              log.docsFailed > 0) &&
+                              ' '}
+                            <span className='text-[var(--caution)]'>⊘{log.docsSkipped}</span>
                           </>
                         )}
                       </>

@@ -659,6 +659,11 @@ const Combobox = memo(
                       onKeyDown={handleKeyDown}
                       disabled={disabled}
                       {...inputProps}
+                      role='combobox'
+                      aria-expanded={open}
+                      aria-haspopup='listbox'
+                      aria-controls={listboxId}
+                      aria-autocomplete='list'
                     />
                     {(overlayContent || SelectedIcon) && (
                       <div

@@ -639,6 +639,57 @@ describe('userTableServerTool.import_file', () => {
     expect(result.message).toMatch(/File not found: "files\/typo\.csv"/)
   })
 
+  /**
+   * A malformed CSV silently loses records; the tool used to report the survivors
+   * as a clean import, so the model had no signal that the file did not land whole.
+   */
+  it('surfaces rejected records in the message and payload of an append import', async () => {
+    mockDownloadWorkspaceFile.mockResolvedValueOnce(
+      Buffer.from('name,age\nAlice,30\nBroken,"unterminated\nBob,40\n')
+    )
+
+    const result = await userTableServerTool.execute(
+      { operation: 'import_file', args: { tableId: 'tbl_1', fileId: 'file-1' } },
+      buildToolContext()
+    )
+
+    expect(result.success).toBe(true)
+    expect(result.message).toMatch(/dropped at least 1 unreadable row/i)
+    expect(result.message).toMatch(/CSV_QUOTE_NOT_CLOSED/)
+    expect(result.data?.rejections).toMatchObject({ rowsRejected: 1 })
+    expect(result.data?.rejections.rejectedSamples[0]).toMatchObject({
+      code: 'CSV_QUOTE_NOT_CLOSED',
+    })
+  })
+
+  it('surfaces rejected records in the message and payload of a replace import', async () => {
+    mockDownloadWorkspaceFile.mockResolvedValueOnce(
+      Buffer.from('name,age\nAlice,30\nBroken,"unterminated\nBob,40\n')
+    )
+    mockReplaceTableRows.mockResolvedValueOnce({ deletedCount: 3, insertedCount: 1 })
+
+    const result = await userTableServerTool.execute(
+      { operation: 'import_file', args: { tableId: 'tbl_1', fileId: 'file-1', mode: 'replace' } },
+      buildToolContext()
+    )
+
+    expect(result.success).toBe(true)
+    expect(result.message).toMatch(/dropped at least 1 unreadable row/i)
+    expect(result.data?.rejections).toMatchObject({ rowsRejected: 1 })
+  })
+
+  it("leaves a clean import's message and payload untouched", async () => {
+    const result = await userTableServerTool.execute(
+      { operation: 'import_file', args: { tableId: 'tbl_1', fileId: 'file-1' } },
+      buildToolContext()
+    )
+
+    expect(result.message).toBe(
+      'Imported 2 rows into "People" from "people.csv" (2 columns matched)'
+    )
+    expect(result.data).not.toHaveProperty('rejections')
+  })
+
   it('rejects a background import while another job holds the table slot', async () => {
     mockResolveWorkspaceFileReference.mockResolvedValueOnce({
       id: 'file-1',
@@ -759,6 +810,34 @@ describe('userTableServerTool.create_from_file', () => {
       fileKey: 'workspace/workspace-1/big.csv',
       deleteSourceFile: false,
     })
+  })
+
+  it('surfaces rejected records alongside the created table', async () => {
+    mockDownloadWorkspaceFile.mockResolvedValueOnce(
+      Buffer.from('name,age\nAlice,30\nBroken,"unterminated\nBob,40\n')
+    )
+
+    const result = await userTableServerTool.execute(
+      { operation: 'create_from_file', args: { fileId: 'file-1' } },
+      buildToolContext()
+    )
+
+    expect(result.success).toBe(true)
+    expect(result.message).toMatch(/dropped at least 1 unreadable row/i)
+    expect(result.message).toMatch(/CSV_QUOTE_NOT_CLOSED/)
+    expect(result.data?.rejections).toMatchObject({ rowsRejected: 1 })
+  })
+
+  it('leaves a clean create_from_file message and payload untouched', async () => {
+    const result = await userTableServerTool.execute(
+      { operation: 'create_from_file', args: { fileId: 'file-1' } },
+      buildToolContext()
+    )
+
+    expect(result.message).toBe(
+      'Created table "people" with 2 columns and 2 rows from "people.csv"'
+    )
+    expect(result.data).not.toHaveProperty('rejections')
   })
 
   it('rejects unknown workspace-file provenance before creating a table', async () => {

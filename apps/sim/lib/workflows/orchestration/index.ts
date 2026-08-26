@@ -17,6 +17,5 @@ export {
   performCreateWorkflowTransition,
   performDeleteWorkflow,
   performRestoreWorkflow,
-  performUpdateWorkflow,
   updateWorkflowRecord,
 } from './workflow-lifecycle'

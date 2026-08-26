@@ -9,6 +9,7 @@ import { workspaceOperations } from '@/lib/workspaces/application/operations'
 import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
 import {
   getPublicWorkspaceDetail,
+  getPublicWorkspaceDetails,
   type PublicWorkspaceDetail,
 } from '@/lib/workspaces/public-queries'
 import { listAccessibleWorkspaceRowsForUser } from '@/lib/workspaces/utils'
@@ -79,7 +80,12 @@ export const listPublicWorkspaces: OperationUseCase<
       .map(({ workspace }) => workspace)
       .sort((left, right) => compareWorkspaceRows(left, right, input.sortBy, input.sortOrder))
     const page = sorted.slice(input.offset, input.offset + input.limit)
-    const workspaces = await Promise.all(page.map(({ id }) => requirePublicWorkspaceDetail(id)))
+    const details = await getPublicWorkspaceDetails(page.map(({ id }) => id))
+    const workspaces = page.map(({ id }) => {
+      const workspace = details.get(id)
+      if (!workspace) throw new Error(`Accessible workspace ${id} disappeared during listing`)
+      return workspace
+    })
 
     return {
       workspaces,

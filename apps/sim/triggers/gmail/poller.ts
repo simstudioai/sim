@@ -1,8 +1,5 @@
-import { createLogger } from '@sim/logger'
 import { GmailIcon } from '@/components/icons'
 import type { TriggerConfig } from '@/triggers/types'
-
-const logger = createLogger('GmailPollingTrigger')
 
 export const gmailPollingTrigger: TriggerConfig = {
   id: 'gmail_poller',

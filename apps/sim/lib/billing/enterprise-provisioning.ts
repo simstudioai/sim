@@ -14,7 +14,7 @@ import {
 import { isOrgAdminRole, permissionSatisfies } from '@sim/platform-authz/workspace'
 import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
-import { normalizeEmail } from '@sim/utils/string'
+import { normalizeEmail, slugify } from '@sim/utils/string'
 import {
   and,
   count,
@@ -998,11 +998,7 @@ export async function reviewEnterpriseProvisioning(
 }
 
 function slugifyOrganizationName(name: string, organizationId: string): string {
-  const base = name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '')
-    .slice(0, 80)
+  const base = slugify(name).slice(0, 80)
   return `${base || 'organization'}-${organizationId.slice(-8)}`
 }
 

@@ -143,6 +143,7 @@ describe('GET /api/credentials', () => {
         type: 'env_personal',
         displayName: 'MY_API_KEY',
         description: null,
+        unredacted: false,
         providerId: null,
         accountId: null,
         envKey: 'MY_API_KEY',
@@ -186,6 +187,7 @@ describe('GET /api/credentials', () => {
         type: 'service_account',
         displayName: 'Slack custom bot',
         description: null,
+        unredacted: false,
         providerId: 'slack-custom-bot',
         accountId: null,
         envKey: null,
@@ -201,6 +203,7 @@ describe('GET /api/credentials', () => {
         type: 'oauth',
         displayName: 'Google account',
         description: null,
+        unredacted: false,
         providerId: 'google-email',
         accountId: 'google-account',
         envKey: null,
@@ -317,6 +320,7 @@ describe('POST /api/credentials', () => {
         type: 'service_account',
         displayName: 'Service account',
         description: null,
+        unredacted: false,
         providerId: 'zoom-service-account',
         accountId: null,
         envKey: null,
@@ -351,6 +355,7 @@ describe('POST /api/credentials', () => {
           type: 'service_account',
           displayName: 'Zoom account acct_123',
           description: null,
+          unredacted: false,
           providerId: 'zoom-service-account',
           accountId: null,
           envKey: null,
@@ -404,6 +409,7 @@ describe('POST /api/credentials', () => {
           type: 'service_account',
           displayName: 'Oracle NetSuite 1234567',
           description: null,
+          unredacted: false,
           providerId: 'netsuite-service-account',
           accountId: null,
           envKey: null,
@@ -462,7 +468,12 @@ describe('POST /api/credentials', () => {
       expect(data).toEqual({ code: 'invalid_credentials', error: 'invalid_credentials' })
     })
 
-    it('maps a provider outage to a 502, not a 400', async () => {
+    /**
+     * A provider outage is `503`, matching `PROVIDER_OUTAGE_CODES` and the v2
+     * surface. It was `502` here alone — the same failure rendered three ways
+     * across the two surfaces and the shared status helper.
+     */
+    it('maps a provider outage to a 503 with a Retry-After, not a 400', async () => {
       mockVerifyAndBuildServiceAccountSecret.mockRejectedValueOnce(
         new TokenServiceAccountValidationError('provider_unavailable', 502, {
           step: 'zoom_token_mint',
@@ -481,7 +492,8 @@ describe('POST /api/credentials', () => {
       const response = await POST(req)
       const data = await response.json()
 
-      expect(response.status).toBe(502)
+      expect(response.status).toBe(503)
+      expect(response.headers.get('Retry-After')).toBe('5')
       expect(data).toEqual({ code: 'provider_unavailable', error: 'provider_unavailable' })
     })
 

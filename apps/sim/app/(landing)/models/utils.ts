@@ -1,4 +1,5 @@
 import type { ComponentType } from 'react'
+import { slugify } from '@sim/utils/string'
 import { type ModelCapabilities, PROVIDER_DEFINITIONS } from '@/providers/models'
 
 const PROVIDER_PREFIXES: Record<string, string[]> = {
@@ -222,14 +223,6 @@ export function getEffectiveMaxOutputTokens(capabilities: ModelCapabilities): nu
 
 function trimTrailingZeros(value: string): string {
   return value.replace(/\.0+$/, '').replace(/(\.\d*?)0+$/, '$1')
-}
-
-function slugify(value: string): string {
-  return value
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .replace(/--+/g, '-')
 }
 
 function getProviderPrefixes(providerId: string): string[] {

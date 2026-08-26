@@ -1,4 +1,5 @@
 import { memory, memorySecretProvenance } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import { and, eq, isNull, or } from 'drizzle-orm'
 import type { DbTransaction } from '@/lib/db/types'
 import {
@@ -7,6 +8,8 @@ import {
   hashDurableSecretProvenanceValue,
   normalizeDurableSecretProvenanceEntries,
 } from '@/lib/execution/durable-secret-provenance'
+
+const logger = createLogger('MemorySecretProvenance')
 
 interface MemorySecretProvenanceRow {
   secretProvenanceVersion: number | null
@@ -49,6 +52,20 @@ export async function replaceMemorySecretProvenanceInTx(
       ? normalizeDurableSecretProvenanceEntries(provenance.entries)
       : []
   const status = contentHash && provenance.status === 'exact' && entries ? 'exact' : 'unknown'
+  /**
+   * The one degrade that happens here rather than upstream: exact provenance arrived, and this
+   * binding could not hold it — the record outgrew the content hash's bounds, or the entries the
+   * envelope bounds. Every later read of the row proceeds unvouched, so the cause is logged where
+   * it was decided, the shape the table writer uses. An incoming `unknown` stays silent; its
+   * producer already reported.
+   */
+  if (provenance.status === 'exact' && status === 'unknown') {
+    logger.error('Memory write persisted unrecorded secret provenance', {
+      surface: 'memory',
+      cause: contentHash ? 'entries-unnormalizable' : 'hash-unavailable',
+      memoryId,
+    })
+  }
   await tx
     .insert(memorySecretProvenance)
     .values({

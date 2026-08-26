@@ -15,6 +15,7 @@ import { authenticateApiKeyFromHeader, updateApiKeyLastUsed } from '@/lib/api-ke
 import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { WORKFLOW_DELEGATION_AUDIENCE } from '@/lib/workflows/application/authorization'
 import { WorkflowImportError } from '@/lib/workflows/application/workflow-import-error'
+import { WorkflowOperationsNotAppliedError } from '@/lib/workflows/application/workflow-operations-error'
 import { v2CaughtOrchestrationError, v2ErrorForOrchestration } from '@/app/api/v2/lib/response'
 
 export const v2WorkflowErrorPolicies = {
@@ -29,6 +30,27 @@ export const v2WorkflowErrorPolicies = {
   } satisfies V2ErrorPolicy,
   concealWorkflowAuthorization: createV2ResourceConcealmentPolicy({
     notFoundMessage: 'Workflow not found',
+  }),
+  /**
+   * Conceals cross-tenant reads exactly as
+   * {@link v2WorkflowErrorPolicies.concealWorkflowAuthorization} does, and adds
+   * the one refusal an edit batch has structured detail for: an `atomic` batch
+   * that could not be applied whole answers `409` carrying the declined
+   * operations and the block inputs that would have been dropped, so a pipeline
+   * can act on both without a second request.
+   */
+  concealWorkflowGraphAuthorization: createV2ResourceConcealmentPolicy({
+    notFoundMessage: 'Workflow not found',
+    render(error) {
+      if (error instanceof WorkflowOperationsNotAppliedError) {
+        return v2ErrorForOrchestration(error.code, error.message, {
+          code: 'OPERATIONS_NOT_APPLIED',
+          skipped: error.skipped,
+          droppedInputs: error.droppedInputs,
+        })
+      }
+      return v2CaughtOrchestrationError(error)
+    },
   }),
   concealRunAuthorization: createV2ResourceConcealmentPolicy({
     notFoundMessage: 'Run not found',

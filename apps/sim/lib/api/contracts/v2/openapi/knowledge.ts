@@ -1,5 +1,6 @@
 import {
   v2AbortKnowledgeDocumentUploadContract,
+  v2AddWorkspaceFilesToKnowledgeBaseContract,
   v2BulkUpdateKnowledgeDocumentsContract,
   v2CompleteKnowledgeDocumentUploadContract,
   v2CreateKnowledgeBaseContract,
@@ -21,6 +22,7 @@ import {
   v2ListKnowledgeFoldersContract,
   v2ListKnowledgeTagsContract,
   v2RelocateKnowledgeFolderContract,
+  v2RestoreKnowledgeBaseContract,
   v2SearchKnowledgeContract,
   v2SyncKnowledgeConnectorContract,
   v2UpdateKnowledgeBaseContract,
@@ -30,6 +32,8 @@ import {
   v2UploadKnowledgeDocumentContract,
   v2UploadKnowledgeDocumentFormSchema,
 } from '@/lib/api/contracts/v2/knowledge'
+import { knowledgeChunkOpenApiRoutes } from '@/lib/api/contracts/v2/openapi/knowledge-chunks'
+import { knowledgeTagOpenApiRoutes } from '@/lib/api/contracts/v2/openapi/knowledge-tags'
 import {
   documentedSchema,
   type ErrorResponseId,
@@ -109,7 +113,7 @@ const declaredRoutes = [
     knowledgeOperation({
       operationId: 'listKnowledgeBases',
       summary: 'List Knowledge Bases',
-      description: `List knowledge bases in a workspace with folder filtering, search, sorting, and opaque cursor pagination. ${FOLDER_TREE_TOO_LARGE}`,
+      description: `List knowledge bases in a workspace with lifecycle scope, folder filtering, search, sorting, and opaque cursor pagination. \`scope\` defaults to \`active\`; pass \`archived\` to list knowledge bases a \`DELETE\` archived, each carrying the \`deletedAt\` instant it was archived, and recover one with \`POST /api/v2/knowledge/{knowledgeBaseId}/restore\`. ${FOLDER_TREE_TOO_LARGE}`,
       errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: { description: 'A page of knowledge bases.' },
     }),
@@ -118,7 +122,7 @@ const declaredRoutes = [
         v2ListKnowledgeBasesContract.query,
         'ListKnowledgeBasesQuery',
         'List knowledge bases query',
-        'Workspace, folder, search, and sorting options for listing knowledge bases.'
+        'Workspace, lifecycle scope, folder, search, and sorting options for listing knowledge bases.'
       ),
       response: documentedSchema(
         v2ListKnowledgeBasesContract.response.schema,
@@ -603,7 +607,7 @@ const declaredRoutes = [
       operationId: 'listKnowledgeDocuments',
       summary: 'List Documents',
       description:
-        'List documents in a knowledge base with filename search, state filtering, tag filtering, sorting, and opaque cursor pagination. Tag values are keyed by display name; resolve those to write slots with `GET /api/v2/knowledge/{id}/tags`.',
+        'List documents in a knowledge base with filename search, state filtering, tag filtering, sorting, and opaque cursor pagination. Tag values are keyed by display name; resolve those to write slots with `GET /api/v2/knowledge/{knowledgeBaseId}/tags`.',
       errors: RESOURCE_ERRORS,
       success: { description: 'A page of knowledge documents.' },
     }),
@@ -633,7 +637,7 @@ const declaredRoutes = [
     knowledgeOperation({
       operationId: 'bulkUpdateKnowledgeDocuments',
       summary: 'Bulk Enable or Disable Documents',
-      description: `Enable or disable many documents in one request, either by identifier or, with \`selectAll\`, every document in the knowledge base. Bulk delete is not offered; delete documents one at a time with \`DELETE /api/v2/knowledge/{id}/documents/{documentId}\`. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Enable or disable many documents in one request, either by identifier or, with \`selectAll\`, every document in the knowledge base. Bulk delete is not offered; delete documents one at a time with \`DELETE /api/v2/knowledge/{knowledgeBaseId}/documents/{documentId}\`. ${WORKSPACE_API_KEY_DENIED}`,
       errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The number and identifiers of the documents that changed.' },
     }),
@@ -844,7 +848,7 @@ const declaredRoutes = [
       summary: 'Complete Document Upload',
       description:
         'Verify a direct upload or assemble multipart parts, create the knowledge document, and queue asynchronous processing.',
-      errors: [...WORKSPACE_ERRORS, 'UsageLimitExceeded', 'NotFound', 'Conflict'],
+      errors: [...WORKSPACE_ERRORS, 'NotFound', 'Conflict'],
       success: { description: 'The completed upload and queued document.' },
     }),
     {
@@ -909,7 +913,7 @@ const declaredRoutes = [
     knowledgeOperation({
       operationId: 'updateKnowledgeDocument',
       summary: 'Update Document',
-      description: `Rename a document, enable or disable it for search, set any of its 17 tag slots, or requeue it for processing. Absent fields are unchanged, and derived indexing state is read-only. Resolve a tag display name to its slot with \`GET /api/v2/knowledge/{id}/tags\`. The returned document omits the connector provenance the detail read carries. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Rename a document, enable or disable it for search, set any of its 17 tag slots, or requeue it for processing. Absent fields are unchanged, and derived indexing state is read-only. Resolve a tag display name to its slot with \`GET /api/v2/knowledge/{knowledgeBaseId}/tags\`. The returned document omits the connector provenance the detail read carries. ${WORKSPACE_API_KEY_DENIED}`,
       errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The updated document, or the requeue acknowledgement.' },
     }),
@@ -1073,6 +1077,73 @@ const declaredRoutes = [
       ),
     }
   ),
+  defineOpenApiRoute(
+    v2RestoreKnowledgeBaseContract,
+    knowledgeOperation({
+      operationId: 'restoreKnowledgeBase',
+      summary: 'Restore Knowledge Base',
+      description: `Un-archive a soft-deleted knowledge base along with its documents and connectors. Idempotent: a knowledge base that is already active is returned unchanged with no audit entry recorded. Restoring into an archived workspace is a \`409\`, and a knowledge base whose folder is still archived is returned to the workspace root. ${FOLDER_TREE_TOO_LARGE}`,
+      errors: RESOURCE_CONFLICT_ERRORS,
+      success: { description: 'The restored knowledge base.' },
+    }),
+    {
+      query: v2RestoreKnowledgeBaseContract.query,
+      params: documentedSchema(
+        v2RestoreKnowledgeBaseContract.params,
+        'RestoreKnowledgeBaseParams',
+        'Restore knowledge base path parameters',
+        'Knowledge base selected for restoration.'
+      ),
+      body: documentedSchema(
+        v2RestoreKnowledgeBaseContract.body,
+        'RestoreKnowledgeBaseRequest',
+        'Restore knowledge base request',
+        'Workspace scope for the knowledge base.',
+        [{ workspaceId: WORKSPACE_ID }]
+      ),
+      response: documentedSchema(
+        v2RestoreKnowledgeBaseContract.response.schema,
+        'V2KnowledgeBaseResponse',
+        'Knowledge base response',
+        'A single knowledge base.'
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2AddWorkspaceFilesToKnowledgeBaseContract,
+    knowledgeOperation({
+      operationId: 'addWorkspaceFilesToKnowledgeBase',
+      summary: 'Index Workspace Files',
+      description:
+        'Index files the workspace already stores, without re-uploading their bytes. Each reference is authorized against the file it names, so a reference the caller cannot read, one over the 100 MB document limit, or one whose type is not supported is reported in `failed` while the rest are queued — a partial outcome is a `200`, not a multi-status. A queued document starts in the `pending` processing state; the entries returned here carry only its identity, so read `GET /api/v2/knowledge/{knowledgeBaseId}/documents/{documentId}` for its current state. A workspace API key is rejected with `403`; use a personal API key.',
+      errors: [...RESOURCE_ERRORS, 'UsageLimitExceeded'],
+      success: { description: 'Files queued for indexing, with any that could not be.' },
+    }),
+    {
+      query: v2AddWorkspaceFilesToKnowledgeBaseContract.query,
+      params: documentedSchema(
+        v2AddWorkspaceFilesToKnowledgeBaseContract.params,
+        'AddWorkspaceFilesToKnowledgeBaseParams',
+        'Index workspace files path parameters',
+        'Knowledge base the files are indexed into.'
+      ),
+      body: documentedSchema(
+        v2AddWorkspaceFilesToKnowledgeBaseContract.body,
+        'AddWorkspaceFilesToKnowledgeBaseRequest',
+        'Index workspace files request',
+        'Workspace scope and the workspace file references to index.',
+        [{ workspaceId: WORKSPACE_ID, fileReferences: ['handbook.pdf'] }]
+      ),
+      response: documentedSchema(
+        v2AddWorkspaceFilesToKnowledgeBaseContract.response.schema,
+        'V2AddWorkspaceFilesToKnowledgeBaseResponse',
+        'Index workspace files response',
+        'Documents queued for indexing and references that could not be.'
+      ),
+    }
+  ),
+  ...knowledgeChunkOpenApiRoutes,
+  ...knowledgeTagOpenApiRoutes,
 ] as const
 
 const routes = declaredRoutes.map(withRequestBodyErrors)

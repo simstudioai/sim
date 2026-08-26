@@ -16,6 +16,7 @@ import {
 import {
   deletePersonalSecret,
   deleteWorkspaceSecret,
+  readWorkspaceSecretValues,
   setPersonalSecret,
   setWorkspaceSecret,
 } from '@/lib/credentials/secret-values'
@@ -193,6 +194,7 @@ async function getPersonalSecretMetadata(params: {
     type: 'env_personal',
     displayName: params.name,
     description: null,
+    unredacted: false,
     providerId: null,
     accountId: null,
     envKey: params.name,
@@ -238,8 +240,22 @@ export const listSecretsUseCase = defineAuthorizedWorkspaceUseCase({
       workspaceId: context.workspaceId,
       userId,
     })
+    /**
+     * The one place a secret value rides a read response: rows the workspace marked
+     * visible (unredacted) — whose values already print into every run log this
+     * caller can open — so external agents don't have to scrape logs for them.
+     * Bounded by the page, and read from one environment row.
+     */
+    const visibleNames = page.data.flatMap((row) =>
+      row.type === 'env_workspace' && row.unredacted && row.envKey ? [row.envKey] : []
+    )
+    const values = await readWorkspaceSecretValues({
+      workspaceId: context.workspaceId,
+      names: visibleNames,
+    })
     return {
       secrets: page.data,
+      values,
       nextCursorKeys: page.nextCursorKeys,
       userId,
       sortBy: input.sortBy,
@@ -259,6 +275,8 @@ export interface SetSecretInput {
    * description written here would exist in this workspace alone.
    */
   description?: string | null
+  /** Redaction opt-out; workspace scope only, for the same mirror-row reason as description. */
+  unredacted?: boolean
 }
 
 export const setSecretUseCase = defineAuthorizedWorkspaceUseCase({
@@ -272,6 +290,12 @@ export const setSecretUseCase = defineAuthorizedWorkspaceUseCase({
       throw new OrchestrationError(
         'validation',
         'description is only supported for a workspace secret'
+      )
+    }
+    if (input.scope === 'personal' && input.unredacted !== undefined) {
+      throw new OrchestrationError(
+        'validation',
+        'unredacted is only supported for a workspace secret'
       )
     }
     if (input.scope === 'workspace') {
@@ -289,6 +313,7 @@ export const setSecretUseCase = defineAuthorizedWorkspaceUseCase({
         value: input.value,
         userId,
         description: input.description,
+        unredacted: input.unredacted,
       })
       const secret = await getWorkspaceSecretMetadata({
         workspaceId: context.workspaceId,
@@ -317,6 +342,8 @@ export const setSecretUseCase = defineAuthorizedWorkspaceUseCase({
       scope: input.scope,
       name: input.name,
       ...(input.description !== undefined ? { descriptionUpdated: true } : {}),
+      /** The value, not just a marker: enabling visibility is the security-relevant event. */
+      ...(input.unredacted !== undefined ? { unredacted: input.unredacted } : {}),
     },
   }),
 })

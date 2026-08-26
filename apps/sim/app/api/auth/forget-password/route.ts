@@ -97,6 +97,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     return NextResponse.json(
       {
         message:
+          // utils-lint-allow: returned to an unauthenticated caller, so a non-Error throw
+          // must surface the fixed copy rather than its own text — getErrorMessage would
+          // pass a thrown string straight through.
           error instanceof Error
             ? error.message
             : 'Failed to send password reset email. Please try again later.',

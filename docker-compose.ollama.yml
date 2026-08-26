@@ -3,6 +3,9 @@ name: sim-with-ollama
 services:
   # Main Sim Application
   simstudio:
+    env_file:
+      - path: .env
+        required: false
     build:
       context: .
       dockerfile: docker/app.Dockerfile

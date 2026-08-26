@@ -36,6 +36,8 @@ export interface VisibleWorkspaceCredential {
   type: CredentialRow['type']
   displayName: string
   description: string | null
+  /** True only on env_workspace secrets that opt out of redaction. */
+  unredacted: boolean
   providerId: string | null
   accountId: string | null
   envKey: string | null
@@ -163,6 +165,7 @@ export async function listVisibleWorkspaceCredentials(params: {
       type: credential.type,
       displayName: credential.displayName,
       description: credential.description,
+      unredacted: credential.unredacted,
       providerId: credential.providerId,
       accountId: credential.accountId,
       envKey: credential.envKey,
@@ -254,6 +257,7 @@ export async function listWorkspacePrincipalCredentials(params: {
       type: credential.type,
       displayName: credential.displayName,
       description: credential.description,
+      unredacted: credential.unredacted,
       providerId: credential.providerId,
       accountId: credential.accountId,
       createdBy: credential.createdBy,

@@ -56,6 +56,7 @@ export const agiloftListTablesTool: ToolConfig<AgiloftListTablesParams, AgiloftL
     },
 
     request: {
+      internal: true,
       url: () => '/api/tools/agiloft/list_tables',
       method: 'POST',
       headers: () => ({ 'Content-Type': 'application/json' }),

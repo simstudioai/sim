@@ -392,6 +392,16 @@ export interface ExecutionContext {
   permissionConfig?: PermissionGroupConfig | null
   permissionConfigLoaded?: boolean
 
+  /**
+   * Resolved display names for the resources an agent tool is bound to, keyed `${kind}:${id}`,
+   * with `null` recording a miss so it is not retried. Shared across the whole run: an agent block
+   * inside a loop re-formats its tools every iteration, and its bound resources do not change.
+   *
+   * A Map rather than plain fields on purpose — `blockCtx` is a shallow clone of this context per
+   * block execution, so only a shared reference survives; a scalar written here would be lost.
+   */
+  toolBindingLabelCache?: Map<string, string | null>
+
   blockStates: ReadonlyMap<string, BlockState>
   executedBlocks: ReadonlySet<string>
 

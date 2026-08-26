@@ -86,6 +86,29 @@ describe('discoverConfigurationSources', () => {
     expect(sources[0].values?.get('RESEND_API_KEY')).toBe('current')
   })
 
+  it('retains Chat configuration from a prepared Compose .env file', () => {
+    const root = temporaryDirectory()
+    writeFileSync(
+      path.join(root, '.env'),
+      [
+        'COPILOT_API_KEY=existing-chat-key',
+        'NEXT_PUBLIC_CHAT_DISABLED=false',
+        'SIM_AGENT_API_URL=https://copilot.example.com',
+      ].join('\n')
+    )
+    writeFileSync(
+      path.join(root, 'docker-compose.prod.yml'),
+      'services:\n  simstudio:\n    image: ghcr.io/simstudioai/simstudio:latest\n    env_file: .env\n'
+    )
+
+    const sources = discoverConfigurationSources({ root, runner: () => commandResult(1) })
+
+    expect(sources).toHaveLength(1)
+    expect(sources[0].values?.get('COPILOT_API_KEY')).toBe('existing-chat-key')
+    expect(sources[0].values?.get('NEXT_PUBLIC_CHAT_DISABLED')).toBe('false')
+    expect(sources[0].values?.get('SIM_AGENT_API_URL')).toBe('https://copilot.example.com')
+  })
+
   it('uses the effective environment of a stopped Compose app container', () => {
     const parent = temporaryDirectory()
     const root = path.join(parent, 'checkout')

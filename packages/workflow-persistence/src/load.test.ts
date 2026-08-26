@@ -95,9 +95,32 @@ async function loadRetry(retry: unknown) {
   return loaded?.blocks['block-1'].retry
 }
 
-describe('loadWorkflowFromNormalizedTablesRaw retry normalization', () => {
+describe('loadWorkflowFromNormalizedTablesRaw', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+  })
+
+  it('loads an existing blockless workflow as an empty normalized graph', async () => {
+    const tx = createTx({
+      workflowBlocks: [],
+      workflowEdges: [],
+      workflowSubflows: [],
+      workflow: [{ workspaceId: 'workspace-1' }],
+    })
+
+    await expect(
+      loadWorkflowFromNormalizedTablesRaw(
+        'workflow-1',
+        tx as unknown as Parameters<typeof loadWorkflowFromNormalizedTablesRaw>[1]
+      )
+    ).resolves.toMatchObject({
+      blocks: {},
+      edges: [],
+      loops: {},
+      parallels: {},
+      isFromNormalizedTables: true,
+      workspaceId: 'workspace-1',
+    })
   })
 
   /**

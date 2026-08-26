@@ -14,6 +14,7 @@ import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { ExecutionMetadata, SerializableExecutionState } from '@/executor/execution/types'
 import type { ExecutionResult, StreamingExecution } from '@/executor/types'
 import type { ResolvedSecretTraceProvenanceV1 } from '@/executor/utils/resolved-secret-trace-registry'
+import type { CoreTriggerType } from '@/stores/logs/filters/types'
 
 const logger = createLogger('WorkflowExecution')
 
@@ -22,7 +23,7 @@ export interface ExecuteWorkflowOptions {
   principal: WorkflowExecutionPrincipal
   selectedOutputs?: string[]
   isSecureMode?: boolean
-  workflowTriggerType?: 'api' | 'chat' | 'copilot' | 'table'
+  workflowTriggerType?: CoreTriggerType | 'table'
   /**
    * If set, the executor enters the workflow at this block instead of resolving a Start block.
    * Use for trigger-originated runs (webhooks, table triggers, schedules) where the entry point

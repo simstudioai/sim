@@ -9,6 +9,7 @@ import {
   EDGE_Z_MAX,
   getBlockZIndex,
   getEdgeZIndex,
+  getEdgeZIndexForTarget,
 } from './canvas-layers'
 
 /**
@@ -67,5 +68,38 @@ describe('getEdgeZIndex', () => {
        highlighted tier. Nothing in the editor nests anywhere near it. */
     expect(getEdgeZIndex(40)).toBe(getEdgeZIndex(8))
     expect(getEdgeZIndex(8)).toBeLessThan(getEdgeZIndex(undefined, { isHighlighted: true }))
+  })
+})
+
+describe('getEdgeZIndexForTarget', () => {
+  it('shares a container target layer so the node paints over the incoming edge', () => {
+    const parentZIndex = 0
+    const targetZIndex = 1
+    const edgeZIndex = getEdgeZIndex(parentZIndex)
+
+    const resolved = getEdgeZIndexForTarget(edgeZIndex, targetZIndex)
+
+    expect(resolved).toBe(targetZIndex)
+    expect(resolved).toBeGreaterThan(parentZIndex)
+  })
+
+  it('places incoming edges beneath top-level container targets', () => {
+    expect(getEdgeZIndexForTarget(EDGE_Z_BASE, 0)).toBe(0)
+  })
+
+  it('does not let highlighting elevate an edge over its container target', () => {
+    const highlighted = getEdgeZIndex(undefined, { isHighlighted: true })
+
+    expect(getEdgeZIndexForTarget(highlighted, 2)).toBe(2)
+  })
+
+  it('does not let an execution edge elevate over its container target', () => {
+    expect(getEdgeZIndexForTarget(EDGE_Z_MAX, 2)).toBe(2)
+  })
+
+  it('leaves edges to ordinary blocks unchanged', () => {
+    const edgeZIndex = getEdgeZIndex(1)
+
+    expect(getEdgeZIndexForTarget(edgeZIndex, undefined)).toBe(edgeZIndex)
   })
 })

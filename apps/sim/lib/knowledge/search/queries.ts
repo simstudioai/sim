@@ -314,7 +314,7 @@ const FTS_CONFIG = 'english'
 
 /**
  * Reciprocal-rank-fusion damping constant. 60 is the value from the original RRF
- * paper and matches the docs Ask-AI retriever (`apps/docs/app/api/chat/route.ts`).
+ * paper and matches the docs search retriever (`apps/docs/app/api/search/route.ts`).
  */
 export const RRF_K = 60
 

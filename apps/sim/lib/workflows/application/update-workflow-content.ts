@@ -1,42 +1,46 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
-import type { Principal } from '@sim/auth/principal'
+import { type Principal, resolvePrincipalAttribution } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { workflow } from '@sim/db/schema'
-import { createLogger } from '@sim/logger'
-import { assertWorkflowMutable, WorkflowLockedError } from '@sim/platform-authz/workflow'
-import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { isRecordLike } from '@sim/utils/object'
 import type { BlockState, WorkflowState } from '@sim/workflow-types/workflow'
 import { and, eq, isNull } from 'drizzle-orm'
+import { principalAuditSource } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { notifyWorkflowUpdated } from '@/lib/realtime/notify'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
 import { resolveActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import { assertedWorkflowWorkspaceId } from '@/lib/workflows/application/principal-scope'
+import { requireMutableWorkflow } from '@/lib/workflows/application/workflow-mutability'
 import {
-  loadWorkflowFromNormalizedTables,
-  saveWorkflowToNormalizedTables,
-} from '@/lib/workflows/persistence/utils'
+  coerceWorkflowVariableValue,
+  normalizeWorkflowVariables,
+  type WorkflowVariable,
+} from '@/lib/workflows/application/workflow-variables'
+import {
+  type BlockEnablementRefusal,
+  decideBlockEnablement,
+} from '@/lib/workflows/editing/block-enablement'
+import { replaceWorkflowNormalizedState } from '@/lib/workflows/persistence/replace-normalized-state'
+import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
+import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 
-const logger = createLogger('UpdateWorkflowContent')
 const MAX_WORKFLOW_VARIABLE_OPERATIONS = 100
+
+/** How each protection refusal is classified when a single block toggle is the whole request. */
+const BLOCK_ENABLEMENT_REFUSAL_CODES: Record<
+  BlockEnablementRefusal['reason'],
+  'not_found' | 'locked' | 'validation'
+> = {
+  not_found: 'not_found',
+  locked: 'locked',
+  disabled_ancestor: 'validation',
+}
 
 interface WorkflowContentInput {
   workflowId: string
   assertedWorkspaceId?: string
-}
-
-async function requireMutableWorkflow(workflowId: string): Promise<void> {
-  try {
-    await assertWorkflowMutable(workflowId)
-  } catch (error) {
-    if (error instanceof WorkflowLockedError) {
-      throw new OrchestrationError('locked', error.message)
-    }
-    throw error
-  }
 }
 
 function resolveWorkflowContentContext<I extends WorkflowContentInput>({
@@ -52,14 +56,6 @@ function resolveWorkflowContentContext<I extends WorkflowContentInput>({
   })
 }
 
-interface WorkflowVariable {
-  id: string
-  workflowId?: string
-  name: string
-  type: string
-  value?: unknown
-}
-
 export interface WorkflowVariableOperation {
   name: string
   operation: 'add' | 'edit' | 'delete'
@@ -71,59 +67,14 @@ export interface ApplyWorkflowVariableOperationsInput extends WorkflowContentInp
   operations: WorkflowVariableOperation[]
 }
 
-function coerceWorkflowVariableValue(value: unknown, type: string): unknown {
-  if (value === undefined) return value
-  if (type === 'number') {
-    const number = Number(value)
-    return Number.isNaN(number) ? value : number
-  }
-  if (type === 'boolean') {
-    const normalized = String(value).trim().toLowerCase()
-    if (normalized === 'true') return true
-    if (normalized === 'false') return false
-    return value
-  }
-  if (type !== 'array' && type !== 'object') return value
-
-  try {
-    const parsed: unknown = JSON.parse(String(value))
-    if (type === 'array' && Array.isArray(parsed)) return parsed
-    if (type === 'object' && isRecordLike(parsed)) {
-      return parsed
-    }
-  } catch (error) {
-    logger.warn('Failed to parse JSON value for workflow variable coercion', {
-      error: getErrorMessage(error),
-    })
-  }
-  return value
-}
-
 function applyVariableOperations(
   workflowId: string,
   currentVariables: unknown,
   operations: readonly WorkflowVariableOperation[]
 ): { variables: Record<string, WorkflowVariable>; changed: boolean } {
-  const current = isRecordLike(currentVariables)
-    ? (currentVariables as Record<string, unknown>)
-    : {}
   const byName = new Map<string, WorkflowVariable>()
-  for (const value of Object.values(current)) {
-    if (
-      value &&
-      typeof value === 'object' &&
-      'id' in value &&
-      typeof value.id === 'string' &&
-      'name' in value &&
-      typeof value.name === 'string'
-    ) {
-      byName.set(value.name, {
-        ...value,
-        id: value.id,
-        name: value.name,
-        type: 'type' in value && typeof value.type === 'string' ? value.type : 'plain',
-      })
-    }
+  for (const variable of Object.values(normalizeWorkflowVariables(currentVariables))) {
+    byName.set(variable.name, variable)
   }
 
   let changed = false
@@ -146,10 +97,7 @@ function applyVariableOperations(
     changed = true
   }
 
-  return {
-    variables: Object.fromEntries([...byName.values()].map((variable) => [variable.id, variable])),
-    changed,
-  }
+  return { variables: normalizeWorkflowVariables([...byName.values()]), changed }
 }
 
 export const applyWorkflowVariableOperations = defineAuthorizedWorkflowUseCase({
@@ -203,7 +151,7 @@ export const applyWorkflowVariableOperations = defineAuthorizedWorkflowUseCase({
       return { updated: Object.keys(transformed.variables).length, changed: true }
     })
   },
-  projectAudit: ({ input, context, result }) =>
+  projectAudit: ({ principal, input, context, result }) =>
     result.changed
       ? {
           action: AuditAction.WORKFLOW_VARIABLES_UPDATED,
@@ -211,169 +159,125 @@ export const applyWorkflowVariableOperations = defineAuthorizedWorkflowUseCase({
           resourceId: context.workflowId,
           resourceName: context.workflow.name,
           description: 'Updated workflow variables',
-          metadata: { operationCount: input.operations.length, source: 'copilot' },
+          metadata: {
+            operationCount: input.operations.length,
+            source: principalAuditSource(principal),
+          },
         }
       : [],
   afterSuccess: ({ context, result }) =>
     result.changed ? notifyWorkflowUpdated(context.workflowId) : undefined,
 })
 
-function isBlockProtected(blockId: string, blocksById: Record<string, BlockState>): boolean {
-  const block = blocksById[blockId]
-  if (!block) return false
-  if (block.locked) return true
-
-  const visited = new Set<string>()
-  let parentId = block.data?.parentId
-  while (parentId && !visited.has(parentId)) {
-    visited.add(parentId)
-    if (blocksById[parentId]?.locked) return true
-    parentId = blocksById[parentId]?.data?.parentId
-  }
-  return false
-}
-
-function hasDisabledAncestor(blockId: string, blocksById: Record<string, BlockState>): boolean {
-  const visited = new Set<string>()
-  let parentId = blocksById[blockId]?.data?.parentId
-  while (parentId && !visited.has(parentId)) {
-    visited.add(parentId)
-    const parent = blocksById[parentId]
-    if (!parent) return false
-    if (parent.enabled === false) return true
-    parentId = parent.data?.parentId
-  }
-  return false
-}
-
-function findDescendants(containerId: string, blocksById: Record<string, BlockState>): string[] {
-  const descendants: string[] = []
-  const stack = [containerId]
-  const visited = new Set<string>()
-  while (stack.length > 0) {
-    const current = stack.pop()!
-    if (visited.has(current)) continue
-    visited.add(current)
-    for (const [blockId, block] of Object.entries(blocksById)) {
-      if (block.data?.parentId === current) {
-        descendants.push(blockId)
-        stack.push(blockId)
-      }
-    }
-  }
-  return descendants
-}
-
 export interface SetWorkflowBlockEnabledInput extends WorkflowContentInput {
   blockId: string
   enabled: boolean
 }
 
+/**
+ * Toggles one block, or a container and its unlocked descendants.
+ *
+ * The write goes through {@link replaceWorkflowNormalizedState}, the same door
+ * `replaceWorkflowState` and `applyWorkflowOperations` use, so this toggle
+ * cannot acquire different persistence behavior by being a different entry
+ * point: it gets the same state preparation, the same row-locked replace
+ * transaction, the same `lastSynced` stamp, and the same custom-tool
+ * extraction. Writing the graph here directly was how those diverged.
+ */
 export const setWorkflowBlockEnabled = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.setBlockEnabled,
   resolveContext: resolveWorkflowContentContext<SetWorkflowBlockEnabledInput>,
-  async execute({ input, context }) {
+  async execute({ principal, input, context }) {
     await requireMutableWorkflow(context.workflowId)
-    return db.transaction(async (tx) => {
-      const [active] = await tx
-        .select({ id: workflow.id, name: workflow.name })
-        .from(workflow)
-        .where(
-          and(
-            eq(workflow.id, context.workflowId),
-            eq(workflow.workspaceId, context.workspaceId),
-            isNull(workflow.archivedAt)
-          )
-        )
-        .limit(1)
-        .for('update')
-      if (!active) throw new OrchestrationError('not_found', 'Workflow not found')
 
-      const normalized = await loadWorkflowFromNormalizedTables(context.workflowId, tx)
-      if (!normalized) {
-        throw new OrchestrationError(
-          'validation',
-          `Workflow ${context.workflowId} has no normalized state`
-        )
-      }
-      const currentState: WorkflowState = {
-        blocks: normalized.blocks as Record<string, BlockState>,
-        edges: normalized.edges || [],
-        loops: normalized.loops || {},
-        parallels: normalized.parallels || {},
-        lastSaved: Date.now(),
-      }
-      const targetBlock = currentState.blocks[input.blockId]
-      if (!targetBlock) {
-        throw new OrchestrationError(
-          'not_found',
-          `Block ${input.blockId} not found in workflow ${context.workflowId}`
-        )
-      }
-      if (isBlockProtected(input.blockId, currentState.blocks)) {
-        throw new OrchestrationError(
-          'locked',
-          `Block ${input.blockId} is locked or inside a locked container and cannot be updated`
-        )
-      }
-      if (input.enabled && hasDisabledAncestor(input.blockId, currentState.blocks)) {
-        throw new OrchestrationError(
-          'validation',
-          `Cannot enable block ${input.blockId} while one of its parent containers is disabled. Enable the parent first.`
-        )
-      }
-
-      const affectedBlockIds = new Set<string>([input.blockId])
-      if (targetBlock.type === 'loop' || targetBlock.type === 'parallel') {
-        for (const descendantId of findDescendants(input.blockId, currentState.blocks)) {
-          if (!isBlockProtected(descendantId, currentState.blocks)) {
-            affectedBlockIds.add(descendantId)
-          }
-        }
-      }
-      if (targetBlock.enabled === input.enabled) {
-        return {
-          changed: false,
-          workflowName: active.name,
-          affectedBlockIds: [input.blockId],
-          state: currentState,
-        }
-      }
-
-      const nextBlocks = { ...currentState.blocks }
-      for (const blockId of affectedBlockIds) {
-        nextBlocks[blockId] = { ...nextBlocks[blockId], enabled: input.enabled }
-      }
-      const nextState: WorkflowState = {
-        ...currentState,
-        blocks: nextBlocks,
-        lastSaved: Date.now(),
-      }
-      const saveResult = await saveWorkflowToNormalizedTables(context.workflowId, nextState, tx)
-      if (!saveResult.success) {
-        throw new Error(saveResult.error || 'Failed to save workflow state')
-      }
-      const [updated] = await tx
-        .update(workflow)
-        .set({ lastSynced: new Date(), updatedAt: new Date() })
-        .where(
-          and(
-            eq(workflow.id, context.workflowId),
-            eq(workflow.workspaceId, context.workspaceId),
-            isNull(workflow.archivedAt)
-          )
-        )
-        .returning({ id: workflow.id })
-      if (!updated) throw new OrchestrationError('not_found', 'Workflow not found')
+    const normalized = await loadWorkflowFromNormalizedTables(context.workflowId)
+    if (!normalized) {
+      throw new OrchestrationError(
+        'validation',
+        `Workflow ${context.workflowId} has no normalized state`
+      )
+    }
+    const currentState: WorkflowState = {
+      blocks: normalized.blocks as Record<string, BlockState>,
+      edges: normalized.edges || [],
+      loops: normalized.loops || {},
+      parallels: normalized.parallels || {},
+      lastSaved: Date.now(),
+    }
+    const decision = decideBlockEnablement(currentState.blocks, input.blockId, input.enabled)
+    if (decision.outcome === 'refused') {
+      throw new OrchestrationError(
+        BLOCK_ENABLEMENT_REFUSAL_CODES[decision.refusal.reason],
+        decision.refusal.reason === 'not_found'
+          ? `Block ${input.blockId} not found in workflow ${context.workflowId}`
+          : decision.refusal.message
+      )
+    }
+    if (decision.outcome === 'unchanged') {
       return {
-        changed: true,
-        workflowName: active.name,
-        affectedBlockIds: [...affectedBlockIds],
-        state: nextState,
+        changed: false,
+        workflowName: context.workflow.name,
+        affectedBlockIds: decision.affectedBlockIds,
+        state: currentState,
       }
+    }
+
+    const attribution = resolvePrincipalAttribution(principal, {
+      workspaceBillingOwnerUserId: context.billedAccountUserId,
     })
+    /**
+     * The graph is re-read and the toggle re-decided inside the row lock.
+     *
+     * The read above is advisory: it answers "is this a refusal or a no-op"
+     * cheaply, but a graph read outside the lock cannot be written back safely.
+     * The editor's own save takes the same lock, so between that read and this
+     * write a canvas autosave can commit — and this operation writes a whole
+     * graph, not a delta, so persisting the stale copy would discard it wholly.
+     */
+    const persisted = await replaceWorkflowNormalizedState({
+      workflowId: context.workflowId,
+      workspaceId: context.workspaceId,
+      attributedUserId: attribution.attributedUserId,
+      state: async (tx) => {
+        const locked = await loadWorkflowFromNormalizedTables(context.workflowId, tx)
+        if (!locked) {
+          throw new OrchestrationError(
+            'validation',
+            `Workflow ${context.workflowId} has no normalized state`
+          )
+        }
+        const lockedBlocks = locked.blocks as Record<string, BlockState>
+        const lockedDecision = decideBlockEnablement(lockedBlocks, input.blockId, input.enabled)
+        if (lockedDecision.outcome === 'refused') {
+          throw new OrchestrationError(
+            BLOCK_ENABLEMENT_REFUSAL_CODES[lockedDecision.refusal.reason],
+            lockedDecision.refusal.reason === 'not_found'
+              ? `Block ${input.blockId} not found in workflow ${context.workflowId}`
+              : lockedDecision.refusal.message
+          )
+        }
+        return {
+          blocks: lockedDecision.outcome === 'unchanged' ? lockedBlocks : lockedDecision.blocks,
+          edges: locked.edges || [],
+        }
+      },
+    })
+
+    const blocks = persisted.state.blocks as Record<string, BlockState>
+    return {
+      changed: true,
+      workflowName: context.workflow.name,
+      affectedBlockIds: decision.affectedBlockIds,
+      state: {
+        blocks,
+        edges: persisted.state.edges,
+        loops: generateLoopBlocks(blocks),
+        parallels: generateParallelBlocks(blocks),
+        lastSaved: Date.now(),
+      } satisfies WorkflowState,
+    }
   },
-  projectAudit: ({ input, context, result }) =>
+  projectAudit: ({ principal, input, context, result }) =>
     result.changed
       ? {
           action: AuditAction.WORKFLOW_UPDATED,
@@ -386,7 +290,7 @@ export const setWorkflowBlockEnabled = defineAuthorizedWorkflowUseCase({
             blockId: input.blockId,
             enabled: input.enabled,
             affectedBlockIds: result.affectedBlockIds,
-            source: 'copilot',
+            source: principalAuditSource(principal),
           },
         }
       : [],

@@ -12,7 +12,8 @@
  * Body:
  *   - currentUsageLimit?: number | null - Usage limit (null to use default)
  *   - billingBlocked?: boolean - Block/unblock billing
- *   - currentPeriodCost?: number - Reset/adjust current period cost (use with caution)
+ *   - currentPeriodCost?: number - Deprecated no-op: usage is the attributed
+ *     usage_log ledger and cannot be adjusted here
  *   - reason?: string - Reason for the change (for audit logging)
  *
  * Response: AdminSingleResponse<{ success: true, updated: string[], warnings: string[] }>
@@ -79,9 +80,8 @@ export const GET = withRouteHandler(
 
       const [stats] = await db.select().from(userStats).where(eq(userStats.userId, userId)).limit(1)
 
-      // currentPeriodCost is now only a baseline; canonical current-period usage
-      // (baseline + attributed usage_log, refresh-adjusted) comes from the same
-      // helper users see, so admin reflects real usage instead of a stale 0.
+      // Canonical current-period usage (attributed usage_log, refresh-adjusted)
+      // comes from the same helper users see.
       const usage = await getUserUsageData(userId)
 
       const memberOrgs = await db
@@ -197,10 +197,10 @@ export const PATCH = withRouteHandler(
         if (currentUsageLimit === null) {
           updateData.currentUsageLimit = null
         } else {
-          const currentCost = Number.parseFloat(existingStats?.currentPeriodCost || '0')
-          if (currentUsageLimit < currentCost) {
+          const { currentUsage } = await getUserUsageData(userId)
+          if (currentUsageLimit < currentUsage) {
             warnings.push(
-              `New limit ($${currentUsageLimit.toFixed(2)}) is below current usage ($${currentCost.toFixed(2)}). User may be immediately blocked.`
+              `New limit ($${currentUsageLimit.toFixed(2)}) is below current usage ($${currentUsage.toFixed(2)}). User may be immediately blocked.`
             )
           }
           updateData.currentUsageLimit = currentUsageLimit.toFixed(2)
@@ -225,13 +225,9 @@ export const PATCH = withRouteHandler(
       }
 
       if (currentPeriodCost !== undefined) {
-        const previousCost = existingStats?.currentPeriodCost || '0'
         warnings.push(
-          `Manually adjusting currentPeriodCost from $${previousCost} to $${currentPeriodCost.toFixed(2)}. This may affect billing accuracy.`
+          'currentPeriodCost adjustments are deprecated: usage is the attributed usage_log ledger and cannot be edited here. The field was ignored.'
         )
-
-        updateData.currentPeriodCost = currentPeriodCost.toFixed(2)
-        updated.push('currentPeriodCost')
       }
 
       if (updated.length === 0) {
@@ -256,7 +252,6 @@ export const PATCH = withRouteHandler(
           ? {
               currentUsageLimit: existingStats.currentUsageLimit,
               billingBlocked: existingStats.billingBlocked,
-              currentPeriodCost: existingStats.currentPeriodCost,
             }
           : null,
         newValues: updateData,

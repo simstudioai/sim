@@ -18,6 +18,7 @@ vi.mock('@/lib/execution/durable-secret-provenance-enforcement', () => ({
   reportUnrecordedDurableProvenance: mockReport,
 }))
 
+import { memoryListQuerySchema } from '@/lib/api/contracts/memory'
 import { AuthType } from '@/lib/auth/hybrid'
 import {
   PRIVATE_SECRET_PROVENANCE_BUNDLE_V1,
@@ -339,5 +340,13 @@ describe('memory write secret provenance', () => {
     })
 
     expect(mockReport).not.toHaveBeenCalled()
+  })
+})
+
+describe('memory list query contract', () => {
+  it('rejects a limit past the page ceiling and keeps the default below it', () => {
+    expect(memoryListQuerySchema.safeParse({ limit: '2000' }).success).toBe(false)
+    expect(memoryListQuerySchema.parse({})).toMatchObject({ limit: 50 })
+    expect(memoryListQuerySchema.parse({ limit: '1000' })).toMatchObject({ limit: 1000 })
   })
 })

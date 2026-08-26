@@ -33,31 +33,17 @@ import { workflowExecutionOriginSql } from '@/lib/logs/execution-origin'
 import { jobCostTotal } from '@/lib/logs/fetch-log-detail'
 import { buildFilterConditions } from '@/lib/logs/filters'
 import { expandFolderIdsWithDescendants } from '@/lib/logs/folder-expansion'
+import {
+  buildLogSortCursorCondition,
+  decodeLogSortCursor,
+  encodeLogSortCursor,
+} from '@/lib/logs/sort-cursor'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 export type ListLogsParams = z.output<typeof listLogsQuerySchema>
 
 type SortBy = 'date' | 'duration' | 'cost' | 'status'
 type SortOrder = 'asc' | 'desc'
-
-interface CursorData {
-  v: string | number | null
-  id: string
-}
-
-function encodeCursor(data: CursorData): string {
-  return Buffer.from(JSON.stringify(data)).toString('base64')
-}
-
-export function decodeCursor(cursor: string): CursorData | null {
-  try {
-    const parsed = JSON.parse(Buffer.from(cursor, 'base64').toString())
-    if (typeof parsed?.id !== 'string') return null
-    return parsed as CursorData
-  } catch {
-    return null
-  }
-}
 
 /**
  * Shared logs list query used by the `/api/logs` route and the copilot `query_logs`
@@ -74,7 +60,7 @@ export async function listLogs(params: ListLogsParams, userId: string): Promise<
 
   const sortBy = params.sortBy as SortBy
   const sortOrder = params.sortOrder as SortOrder
-  const cursor = params.cursor ? decodeCursor(params.cursor) : null
+  const cursor = params.cursor ? decodeLogSortCursor(params.cursor) : null
 
   // Expand selected folders to include descendants (matches the route behavior),
   // without mutating the caller's params object.
@@ -114,16 +100,8 @@ export async function listLogs(params: ListLogsParams, userId: string): Promise<
   const nullsLast = sql`NULLS LAST`
   const orderByClause = (expr: SQL): SQL => sql`${dir(expr)} ${nullsLast}`
 
-  const buildCursorCondition = (sortExpr: unknown, idCol: unknown): SQL | undefined => {
-    if (!cursor) return undefined
-    const v = cursor.v
-    const id = cursor.id
-    const cmp = sortOrder === 'asc' ? sql`>` : sql`<`
-    if (v === null) {
-      return sql`(${sortExpr} IS NULL AND ${idCol} ${cmp} ${id})`
-    }
-    return sql`((${sortExpr} IS NOT NULL AND ${sortExpr} ${cmp} ${v}) OR (${sortExpr} = ${v} AND ${idCol} ${cmp} ${id}) OR ${sortExpr} IS NULL)`
-  }
+  const buildCursorCondition = (sortExpr: unknown, idCol: unknown): SQL | undefined =>
+    buildLogSortCursorCondition(cursor, sortExpr, idCol, sortOrder)
 
   const fetchSize = p.limit + 1
 
@@ -455,7 +433,7 @@ export async function listLogs(params: ListLogsParams, userId: string): Promise<
           : v == null
             ? null
             : String(v)
-    nextCursor = encodeCursor({ v: cursorV, id: last.id })
+    nextCursor = encodeLogSortCursor({ v: cursorV, id: last.id })
   }
 
   let total: number | undefined

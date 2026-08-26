@@ -25,6 +25,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db, dbReplica } from '@sim/db'
 import { member, organization, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { slugify } from '@sim/utils/string'
 import { count, eq } from 'drizzle-orm'
 import {
   adminV1CreateOrganizationContract,
@@ -142,12 +143,7 @@ export const POST = withRouteHandler(
         )
       }
 
-      const slug =
-        requestedSlug?.trim() ||
-        name
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, '-')
-          .replace(/^-|-$/g, '')
+      const slug = requestedSlug?.trim() || slugify(name)
 
       const { organizationId, memberId } = await createOrganizationWithOwner({
         ownerUserId: ownerId,

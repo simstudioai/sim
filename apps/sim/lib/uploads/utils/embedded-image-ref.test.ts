@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { extractEmbeddedFileRef, extractImgSrcs } from '@/lib/uploads/utils/embedded-image-ref'
+import {
+  extractEmbeddedFileRef,
+  extractImgSrcs,
+  storedFileId,
+} from '@/lib/uploads/utils/embedded-image-ref'
 
 const KEY = 'workspace/W1/1700000000000-deadbeefdeadbeef-photo.png'
 const ENCODED = encodeURIComponent(KEY)
@@ -34,6 +38,17 @@ describe('extractEmbeddedFileRef', () => {
     expect(extractEmbeddedFileRef('https://cdn.example.com/a.png')).toBeNull()
     expect(extractEmbeddedFileRef('data:image/png;base64,AAAA')).toBeNull()
     expect(extractEmbeddedFileRef('/api/files/serve/profile-pictures%2Fu1%2Favatar.png')).toBeNull()
+  })
+})
+
+describe('storedFileId', () => {
+  it('decodes a document-spelled id exactly once', () => {
+    expect(storedFileId('wf%5Fabc')).toBe('wf_abc')
+    expect(storedFileId('wf%255Fabc')).toBe('wf%5Fabc')
+  })
+
+  it('leaves malformed encodings unchanged', () => {
+    expect(storedFileId('wf%5')).toBe('wf%5')
   })
 })
 

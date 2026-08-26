@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { createCredentialGroupInviteLink } from '@/lib/credential-groups/application/create-invite-link'
 import { authenticateCredentialGroupDelegation } from '@/lib/credential-groups/application/delegation'
 import { listCredentialGroupCredentials } from '@/lib/credential-groups/application/list-credentials'
 import { listCredentialGroupsForWorkflow } from '@/lib/credential-groups/application/list-groups'
@@ -21,6 +22,7 @@ const logger = createLogger('CredentialGroupBlockHandler')
 const CREDENTIAL_GROUP_OPERATION_IDS = [
   'list_credentials',
   'send_invite',
+  'get_invite_link',
   'list_people',
   'list_groups',
 ] as const
@@ -152,6 +154,28 @@ export class CredentialGroupBlockHandler implements BlockHandler {
           status: result.enrollment.status,
           invitedAt: result.enrollment.invitedAt,
           expiresAt: result.enrollment.expiresAt,
+        }
+      }
+      case 'get_invite_link': {
+        await enforceCredentialGroupInvitationExecutionRateLimit(principal.workspaceId)
+        const result = await createCredentialGroupInviteLink.execute({
+          principal,
+          input: {
+            credentialGroupId: credentialGroupId!,
+            email: requireString(inputs.email, 'Email'),
+          },
+        })
+        logger.info('Generated Credential Group invitation link', {
+          credentialGroupId,
+          enrollmentId: result.enrollment.id,
+        })
+        return {
+          enrollmentId: result.enrollment.id,
+          email: result.enrollment.email,
+          status: result.enrollment.status,
+          invitedAt: result.enrollment.invitedAt,
+          expiresAt: result.enrollment.expiresAt,
+          invitationLink: result.invitationLink,
         }
       }
       case 'list_people': {

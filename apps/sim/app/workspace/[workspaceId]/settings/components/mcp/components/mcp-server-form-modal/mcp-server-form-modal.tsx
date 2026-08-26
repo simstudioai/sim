@@ -151,7 +151,10 @@ function FormattedInput({
   }
 
   return (
-    <div className={cn('relative', className)}>
+    <div
+      className={cn('relative', className)}
+      data-chip-modal-enter-owner={showEnvVars ? '' : undefined}
+    >
       <ChipInput
         ref={ref}
         placeholder={placeholder}

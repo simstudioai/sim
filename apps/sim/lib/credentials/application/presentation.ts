@@ -46,6 +46,7 @@ export function toWorkspaceCredential(
     type,
     displayName: row.displayName,
     description: row.description,
+    unredacted: row.unredacted,
     providerId: row.providerId,
     accountId: row.accountId,
     envKey: row.envKey,

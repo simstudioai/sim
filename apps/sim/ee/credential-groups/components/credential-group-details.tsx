@@ -266,6 +266,7 @@ export function CredentialGroupDetails({
         title={`Remove ${
           removingProvider ? getCredentialGroupProviderService(removingProvider).name : 'account'
         }`}
+        defaultAction='confirm'
         text='People will no longer be asked to connect this account. Existing credentials are retained but will no longer be returned by this group.'
         dismissLabel='Cancel'
         confirm={{

@@ -51,6 +51,7 @@ export const agiloftAsyncStatusTool: ToolConfig<
   },
 
   request: {
+    internal: true,
     url: () => '/api/tools/agiloft/async_status',
     method: 'POST',
     headers: () => ({ 'Content-Type': 'application/json' }),

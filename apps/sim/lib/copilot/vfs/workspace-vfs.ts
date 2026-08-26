@@ -27,8 +27,12 @@ import { computeWorkspaceEntitlements } from '@/lib/copilot/entitlements'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import {
+  type DeniedBlockOperations,
+  projectIntegrationToolsForViewer,
+  resolveDeniedBlockOperations,
+} from '@/lib/copilot/integration-tool-projection'
+import {
   type ExposedIntegrationTool,
-  filterExposedIntegrationTools,
   getExposedIntegrationTools,
 } from '@/lib/copilot/integration-tools'
 import { recordVfsMaterialize } from '@/lib/copilot/request/metrics'
@@ -42,11 +46,6 @@ import { compileDoc, getE2BDocFormat } from '@/lib/copilot/tools/server/files/do
 import { extractDocText, isExtractableDocExt } from '@/lib/copilot/tools/server/files/doc-extract'
 import { runE2BCompiledCheck } from '@/lib/copilot/tools/server/files/doc-recalc'
 import { isRenderableDocExt, renderDocToGrid } from '@/lib/copilot/tools/server/files/doc-render'
-import {
-  collectWorkflowFieldIssues,
-  lintEditedWorkflowState,
-} from '@/lib/copilot/tools/server/workflow/edit-workflow/lint'
-import { UNRESOLVABLE_AT_LINT_NOTE } from '@/lib/copilot/tools/server/workflow/edit-workflow/validation'
 import { extractDocumentStyle } from '@/lib/copilot/vfs/document-style'
 import {
   type FileReadResult,
@@ -138,13 +137,17 @@ import { createIntegrationCredentialVisibility } from '@/lib/integrations/creden
 import { listKnowledgeConnectors } from '@/lib/knowledge/application/connectors'
 import { listKnowledgeDocuments } from '@/lib/knowledge/application/documents'
 import {
-  listArchivedKnowledgeBases,
   listKnowledgeBaseCatalog,
+  listKnowledgeBases,
 } from '@/lib/knowledge/application/knowledge-bases'
 import { validateMermaidSource } from '@/lib/mermaid/validate'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
 import { getActivePermissionGroupRestrictions } from '@/lib/permission-groups/features'
-import { intersectIntegrationAllowlists } from '@/lib/permission-groups/integration-allowlist'
+import {
+  intersectIntegrationAllowlists,
+  toAllowedIntegrationTypes,
+} from '@/lib/permission-groups/integration-allowlist'
+import type { IsToolAllowed } from '@/lib/permission-groups/operation-access'
 import {
   listOrganizationWorkspaceRefs,
   listPermissionGroupRoster,
@@ -163,9 +166,14 @@ import type {
   WorkspaceFileSecretProvenanceIdentity,
 } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { isImageFileType, resolveEffectiveMimeType } from '@/lib/uploads/utils/file-utils'
-import { listCustomBlocksWithInputsForWorkspace } from '@/lib/workflows/custom-blocks/operations'
+import {
+  type CustomBlockWithInputs,
+  listCustomBlocksWithInputsForWorkspace,
+} from '@/lib/workflows/custom-blocks/operations'
 import { getCustomToolById } from '@/lib/workflows/custom-tools/operations'
 import { checkNeedsRedeployment } from '@/lib/workflows/deployment-status'
+import { collectWorkflowFieldIssues, lintEditedWorkflowState } from '@/lib/workflows/editing/lint'
+import { UNRESOLVABLE_AT_LINT_NOTE } from '@/lib/workflows/editing/validation'
 import {
   loadDeployedWorkflowState,
   loadWorkflowFromNormalizedTables,
@@ -286,42 +294,60 @@ const triggerPathOwners = new Map<string, Array<Pick<BlockConfig, 'type' | 'prev
 function isBlockOwnerHidden(
   owner: Pick<BlockConfig, 'type' | 'preview'>,
   vis: BlockVisibilityState | null,
-  allowedIntegrationTypes: ReadonlySet<string> | null
+  gate: StaticFileGate
 ): boolean {
   const config = BLOCK_REGISTRY[owner.type]
   if (config?.hideFromToolbar) return true
   if (!isIntegrationDeploymentAvailableForVisibility(owner.type, vis)) return true
   if (
-    allowedIntegrationTypes !== null &&
+    gate.allowedIntegrationTypes !== null &&
     !isBlockTypeAccessControlExempt(owner.type) &&
-    !allowedIntegrationTypes.has(owner.type.toLowerCase())
+    !gate.allowedIntegrationTypes.has(owner.type.toLowerCase())
   ) {
     return true
   }
+  /* Every operation denied leaves nothing the viewer could configure, so the
+     block is withheld outright rather than published with an empty selector. */
+  if (gate.fullyDeniedBlockTypes.has(owner.type)) return true
   return isHiddenUnder(vis, owner)
+}
+
+/**
+ * The per-viewer gates the static-file filter applies, carried together so a
+ * caller cannot pass one and forget the other.
+ */
+interface StaticFileGate {
+  /** Lowercased block types the viewer may use; `null` when unrestricted. */
+  allowedIntegrationTypes: ReadonlySet<string> | null
+  /** Block types whose every selectable operation the viewer's group denies. */
+  fullyDeniedBlockTypes: ReadonlySet<string>
+}
+
+const UNGATED_STATIC_FILES: StaticFileGate = {
+  allowedIntegrationTypes: null,
+  fullyDeniedBlockTypes: new Set(),
 }
 
 function isStaticFileHidden(
   path: string,
   vis: BlockVisibilityState | null,
-  allowedIntegrationTypes: ReadonlySet<string> | null = null
+  gate: StaticFileGate = UNGATED_STATIC_FILES
 ): boolean {
   const blockMatch = path.match(/^components\/(?:blocks|triggers\/sim)\/([^/]+)\.json$/)
   if (blockMatch) {
     const config = BLOCK_REGISTRY[blockMatch[1]!]
-    return config ? isBlockOwnerHidden(config, vis, allowedIntegrationTypes) : false
+    return config ? isBlockOwnerHidden(config, vis, gate) : false
   }
   const triggerOwners = triggerPathOwners.get(path)
   if (triggerOwners) {
     return (
       triggerOwners.length > 0 &&
-      triggerOwners.every((owner) => isBlockOwnerHidden(owner, vis, allowedIntegrationTypes))
+      triggerOwners.every((owner) => isBlockOwnerHidden(owner, vis, gate))
     )
   }
   const owners = integrationPathOwners.get(path)
   return owners
-    ? owners.length > 0 &&
-        owners.every((owner) => isBlockOwnerHidden(owner, vis, allowedIntegrationTypes))
+    ? owners.length > 0 && owners.every((owner) => isBlockOwnerHidden(owner, vis, gate))
     : false
 }
 
@@ -366,20 +392,13 @@ function buildIntegrationAggregateFiles(
   ])
 }
 
-function buildTriggerOverview(
-  vis: BlockVisibilityState | null,
-  allowedIntegrationTypes: ReadonlySet<string> | null
-): string {
+function buildTriggerOverview(vis: BlockVisibilityState | null, gate: StaticFileGate): string {
   const builtinTriggers = Object.values(BLOCK_REGISTRY)
     .filter(
       (block) =>
         block.category === 'triggers' &&
         !block.preview &&
-        !isStaticFileHidden(
-          `components/triggers/sim/${block.type}.json`,
-          vis,
-          allowedIntegrationTypes
-        )
+        !isStaticFileHidden(`components/triggers/sim/${block.type}.json`, vis, gate)
     )
     .map((block) => ({
       id: block.type,
@@ -390,11 +409,7 @@ function buildTriggerOverview(
   const externalTriggers = Object.entries(TRIGGER_REGISTRY)
     .filter(
       ([id, trigger]) =>
-        !isStaticFileHidden(
-          `components/triggers/${trigger.provider}/${id}.json`,
-          vis,
-          allowedIntegrationTypes
-        )
+        !isStaticFileHidden(`components/triggers/${trigger.provider}/${id}.json`, vis, gate)
     )
     .map(([id, trigger]) => ({
       id,
@@ -422,6 +437,66 @@ function isBinaryDocBuffer(buffer: Buffer, ext: string): boolean {
 }
 
 /**
+ * Tool configs keyed by every id a block schema may reference, memoized for the
+ * process. Shared by the one-time static build and the per-viewer re-projection
+ * of a block whose operations are partly denied.
+ */
+let staticToolConfigs: ReadonlyMap<string, ToolConfig> | null = null
+
+function getStaticToolConfigs(): ReadonlyMap<string, ToolConfig> {
+  if (staticToolConfigs) return staticToolConfigs
+  const configs = new Map<string, ToolConfig>()
+  for (const { toolId, config } of getExposedIntegrationTools()) {
+    configs.set(toolId, config)
+    configs.set(config.id, config)
+  }
+  staticToolConfigs = configs
+  return configs
+}
+
+const BLOCK_SCHEMA_PATH_PREFIX = 'components/blocks/'
+const INTEGRATION_SCHEMA_PATH_PREFIX = 'components/integrations/'
+
+/** The per-viewer projections applied to a shared static component file. */
+interface StaticFileProjection {
+  sandboxEntitled: boolean
+  deniedOperations: DeniedBlockOperations
+  isToolAllowed: IsToolAllowed
+}
+
+/**
+ * The viewer's copy of one shared static component file.
+ *
+ * Returns the shared string untouched unless this viewer actually loses
+ * something, so the process-global build stays the hot path and only a block
+ * carrying a denied operation pays for a re-serialization.
+ */
+function projectStaticComponentFile(
+  path: string,
+  content: string,
+  projection: StaticFileProjection
+): string {
+  if (path === 'components/blocks/function.json' && !projection.sandboxEntitled) {
+    return staticFunctionSchemaWithRestrictedSimSandboxes ?? content
+  }
+  if (projection.deniedOperations.needsProjection.size === 0) return content
+  if (!path.startsWith(BLOCK_SCHEMA_PATH_PREFIX)) return content
+
+  const blockType = path.match(/^components\/blocks\/([^/]+)\.json$/)?.[1]
+  if (!blockType) return content
+  const deniedOperationIds = projection.deniedOperations.needsProjection.get(blockType)
+  if (!deniedOperationIds) return content
+  const block = BLOCK_REGISTRY[blockType]
+  if (!block) return content
+
+  return serializeBlockSchema(block, {
+    toolConfigs: getStaticToolConfigs(),
+    deniedOperationIds,
+    isToolAllowed: projection.isToolAllowed,
+  })
+}
+
+/**
  * Build the static component files from block and tool registries.
  * This only needs to happen once per process.
  *
@@ -442,11 +517,7 @@ function getStaticComponentFiles(): Map<string, string> {
   const allBlocks = Object.values(BLOCK_REGISTRY)
   const visibleBlocks = allBlocks.filter((block) => !block.hideFromToolbar)
   const exposedTools = getExposedIntegrationTools()
-  const toolConfigs = new Map<string, ToolConfig>()
-  for (const { toolId, config } of exposedTools) {
-    toolConfigs.set(toolId, config)
-    toolConfigs.set(config.id, config)
-  }
+  const toolConfigs = getStaticToolConfigs()
 
   let blocksFiltered = 0
   for (const block of visibleBlocks) {
@@ -592,7 +663,7 @@ function getStaticComponentFiles(): Map<string, string> {
     externalTriggerCount++
   }
 
-  files.set('components/triggers/triggers.md', buildTriggerOverview(null, null))
+  files.set('components/triggers/triggers.md', buildTriggerOverview(null, UNGATED_STATIC_FILES))
 
   logger.info('Static component files built', {
     blocks: visibleBlocks.length,
@@ -669,6 +740,7 @@ export class WorkspaceVFS {
     Promise<Awaited<ReturnType<typeof loadWorkflowFromNormalizedTables>>>
   >()
   private deploymentCache = new Map<string, Promise<DeploymentData | null>>()
+  private customBlocksPromise: Promise<CustomBlockWithInputs[]> | undefined
   private _workspaceId = ''
   /**
    * Types of the org's CURRENT custom blocks (enabled + disabled — a disabled block
@@ -845,6 +917,7 @@ export class WorkspaceVFS {
     this.lazy = new Map()
     this.normalizedCache = new Map()
     this.deploymentCache = new Map()
+    this.customBlocksPromise = undefined
     this._customBlockTypes = null
     this._workspaceId = workspaceId
 
@@ -958,29 +1031,35 @@ export class WorkspaceVFS {
 
             // Per-viewer gating happens HERE, not in the shared builder: files
             // owned by blocks hidden for this viewer are skipped at stamp time.
-            const configuredAllowedIntegrations = intersectIntegrationAllowlists(
-              permissionConfig?.allowedIntegrations ?? null,
-              getAllowedIntegrationsFromEnv()
+            const {
+              tools: viewerIntegrationTools,
+              allowedBlockTypes,
+              isToolAllowed,
+            } = projectIntegrationToolsForViewer(blockVisibility, permissionConfig)
+            const deniedOperations = resolveDeniedBlockOperations(
+              permissionConfig?.deniedTools,
+              isToolAllowed
             )
-            const allowedIntegrationTypes = configuredAllowedIntegrations
-              ? new Set(configuredAllowedIntegrations.map((type) => type.toLowerCase()))
-              : null
-            for (const [path, content] of getStaticComponentFiles()) {
-              if (isStaticFileHidden(path, blockVisibility, allowedIntegrationTypes)) continue
-              const projectedContent =
-                path === 'components/blocks/function.json' && !sandboxEntitled
-                  ? (staticFunctionSchemaWithRestrictedSimSandboxes ?? content)
-                  : content
-              this.files.set(path, projectedContent)
+            const staticFileGate: StaticFileGate = {
+              allowedIntegrationTypes: allowedBlockTypes,
+              fullyDeniedBlockTypes: deniedOperations.fullyDenied,
             }
-            const viewerIntegrationTools = filterExposedIntegrationTools(
-              getExposedIntegrationTools(),
-              blockVisibility,
-              (owner) =>
-                isIntegrationDeploymentAvailableForVisibility(owner.blockType, blockVisibility) &&
-                (allowedIntegrationTypes === null ||
-                  allowedIntegrationTypes.has(owner.blockType.toLowerCase()))
-            )
+            const staticFileProjection: StaticFileProjection = {
+              sandboxEntitled,
+              deniedOperations,
+              isToolAllowed,
+            }
+            for (const [path, content] of getStaticComponentFiles()) {
+              /* Integration schemas are authored per viewer from
+                 `viewerIntegrationTools` immediately below, which is the only
+                 projection that knows the group's per-tool denylist. Stamping
+                 the shared copy first would publish a denied operation's schema
+                 that the loop below never overwrites, because it only writes the
+                 operations the viewer may use. */
+              if (path.startsWith(INTEGRATION_SCHEMA_PATH_PREFIX)) continue
+              if (isStaticFileHidden(path, blockVisibility, staticFileGate)) continue
+              this.files.set(path, projectStaticComponentFile(path, content, staticFileProjection))
+            }
             for (const exposedTool of viewerIntegrationTools) {
               const { config: tool, service, operation, blockType } = exposedTool
               this.files.set(
@@ -997,7 +1076,7 @@ export class WorkspaceVFS {
             }
             this.files.set(
               'components/triggers/triggers.md',
-              buildTriggerOverview(blockVisibility, allowedIntegrationTypes)
+              buildTriggerOverview(blockVisibility, staticFileGate)
             )
 
             span.setAttributes({
@@ -1874,7 +1953,6 @@ export class WorkspaceVFS {
         }
         const folderPath = wf.folderId ? folderPaths.get(wf.folderId) : null
         const prefix = `${canonicalWorkflowVfsDir({ name: wf.name, folderPath })}/`
-        const workflowPath = prefix.replace(/\/$/, '')
 
         const inheritedFolderLock = wf.folderId ? lockedFolderIds.has(wf.folderId) : false
         this.files.set(
@@ -2394,7 +2472,7 @@ export class WorkspaceVFS {
     workspaceId: string
   ): Promise<NonNullable<WorkspaceMdData['customBlocks']>> {
     try {
-      const blocks = await listCustomBlocksWithInputsForWorkspace(workspaceId)
+      const blocks = await this.loadCustomBlocks(workspaceId)
       // Every current definition (incl. disabled) — the authoritative set used to
       // drop deleted-definition instances from workflow state (see loadNormalized).
       this._customBlockTypes = new Set(blocks.map((cb) => cb.type))
@@ -2428,6 +2506,18 @@ export class WorkspaceVFS {
         error: toError(err).message,
       })
       return []
+    }
+  }
+
+  /** Load the org's custom blocks once per VFS materialization. Failed loads remain retryable. */
+  private async loadCustomBlocks(workspaceId: string): Promise<CustomBlockWithInputs[]> {
+    const request = this.customBlocksPromise ?? listCustomBlocksWithInputsForWorkspace(workspaceId)
+    this.customBlocksPromise = request
+    try {
+      return await request
+    } catch (error) {
+      if (this.customBlocksPromise === request) this.customBlocksPromise = undefined
+      throw error
     }
   }
 
@@ -2583,7 +2673,7 @@ export class WorkspaceVFS {
       // names-only index need it, and each block's detail path must exist in
       // the key view for glob to list. Only the deployed graph stays lazy —
       // it is the expensive part and most turns never read it.
-      const orgBlocks = await listCustomBlocksWithInputsForWorkspace(workspaceId).catch((err) => {
+      const orgBlocks = await this.loadCustomBlocks(workspaceId).catch((err) => {
         logger.warn('Failed to list org custom blocks', {
           workspaceId,
           error: toError(err).message,
@@ -2949,12 +3039,12 @@ export class WorkspaceVFS {
             input: { workspaceId, scope: 'archived' },
           })
           .then(({ folders }) => folders),
-        listArchivedKnowledgeBases
+        listKnowledgeBases
           .execute({
             principal: this.requireKnowledgePrincipal(),
-            input: { workspaceId },
+            input: { workspaceId, scope: 'archived' },
           })
-          .then(({ knowledgeBases }) => knowledgeBases),
+          .then(({ knowledgeBases }) => knowledgeBases.map((entry) => entry.knowledgeBase)),
       ])
 
       for (const wf of archivedWorkflows) {
@@ -3091,14 +3181,13 @@ export class WorkspaceVFS {
           getPersonalAndWorkspaceEnv(userId, workspaceId),
           permissionConfigPromise,
         ])
-      const configuredAllowedIntegrations = intersectIntegrationAllowlists(
-        permissionConfig?.allowedIntegrations ?? null,
-        getAllowedIntegrationsFromEnv()
-      )
       const credentialVisibility = createIntegrationCredentialVisibility({
-        allowedIntegrationTypes: configuredAllowedIntegrations
-          ? new Set(configuredAllowedIntegrations.map((type) => type.toLowerCase()))
-          : null,
+        allowedIntegrationTypes: toAllowedIntegrationTypes(
+          intersectIntegrationAllowlists(
+            permissionConfig?.allowedIntegrations ?? null,
+            getAllowedIntegrationsFromEnv()
+          )
+        ),
         blockVisibility,
       })
       const visibleOAuthCredentials = oauthCredentials.filter((credential) =>
@@ -3148,9 +3237,18 @@ export class WorkspaceVFS {
         Object.keys(envData.workspaceEncrypted),
         secretMountPolicy
       )
+      /** Intersected with the policy-filtered names, so the mount policy applies here too. */
+      const workspaceVarNameSet = new Set(workspaceVarNames)
+      const unredactedWorkspaceVarNames = envData.workspaceUnredactedKeys.filter((name) =>
+        workspaceVarNameSet.has(name)
+      )
       this.files.set(
         'environment/variables.json',
-        serializeEnvironmentVariables(personalVarNames, workspaceVarNames)
+        serializeEnvironmentVariables(
+          personalVarNames,
+          workspaceVarNames,
+          unredactedWorkspaceVarNames
+        )
       )
 
       const envKeys = [...visibleEnvCredentialNames]

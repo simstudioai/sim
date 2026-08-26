@@ -79,6 +79,7 @@ export const confluenceUpdateTaskTool: ToolConfig<
   },
 
   request: {
+    internal: true,
     url: () => '/api/tools/confluence/tasks',
     method: 'POST',
     headers: (params: ConfluenceUpdateTaskParams) => ({

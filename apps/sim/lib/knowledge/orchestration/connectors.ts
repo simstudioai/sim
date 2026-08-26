@@ -106,6 +106,12 @@ export interface PerformCreateKnowledgeConnectorParams extends KnowledgeOperatio
 
 export type PerformConnectorResult = KnowledgeOrchestrationResult<{
   connector: ConnectorWithoutSecret
+  /**
+   * Creation only: whether the connector's first sync was actually enqueued.
+   * Creation succeeds either way, so the caller reports the sync from this
+   * rather than assuming it.
+   */
+  initialSyncQueued?: boolean
 }>
 
 /**
@@ -357,15 +363,33 @@ export async function performCreateKnowledgeConnector(
     })
   }
 
+  /**
+   * Awaited, like the update and manual-sync dispatches: detaching it let the
+   * enqueue fail after the caller had already been told the connector was ready,
+   * so the failure surfaced nowhere and the row was left waiting on a run that
+   * was never queued. The connector itself is created either way — only the
+   * initial sync is at stake — so a failed enqueue is reported on the connector,
+   * not by failing the creation.
+   */
   const dispatchSync = await loadDispatchSync()
-  dispatchSync(connectorId, { billingAttribution, requestId }).catch((error) => {
+  let initialSyncQueued = true
+  try {
+    const dispatch = await dispatchSync(connectorId, { billingAttribution, requestId })
+    if (!dispatch.queued) {
+      initialSyncQueued = false
+      logger.warn(
+        `[${requestId}] Initial sync for connector ${connectorId} was not queued: ${dispatch.reason}`
+      )
+    }
+  } catch (error) {
+    initialSyncQueued = false
     logger.error(
       `[${requestId}] Failed to dispatch initial sync for connector ${connectorId}`,
       error
     )
-  })
+  }
 
-  return { success: true, connector: withoutSecret(created) }
+  return { success: true, connector: withoutSecret(created), initialSyncQueued }
 }
 
 export interface PerformUpdateKnowledgeConnectorParams extends KnowledgeOperationContext {
@@ -854,6 +878,38 @@ export async function performSyncKnowledgeConnector(
     `[${requestId}] Manual sync${rehydrate ? ' (full rehydrate)' : ''} triggered for connector ${connectorId}`
   )
 
+  /**
+   * The dispatch is awaited, and it only enqueues: it takes the pending lock and
+   * hands the run to the queue, it does not run the sync. Detaching it made a
+   * failed enqueue invisible — the caller was told the sync was queued while the
+   * connector sat `pending` with nothing behind it — and recorded an audit and a
+   * product event for work that never started. Awaiting first makes the reported
+   * outcome and both records describe what actually happened.
+   */
+  const dispatchSync = await loadDispatchSync()
+  try {
+    const dispatch = await dispatchSync(connectorId, { billingAttribution, requestId, rehydrate })
+    /**
+     * A guard inside the dispatch declining to queue is reported as a failure
+     * rather than a queued sync. Every one of them means the connector's state
+     * changed between this operation's own guards and the queue write, so the
+     * caller is told the sync did not start instead of being handed a success
+     * with an audit and a product event behind it.
+     */
+    if (!dispatch.queued) {
+      logger.warn(
+        `[${requestId}] Manual sync for connector ${connectorId} was not queued: ${dispatch.reason}`
+      )
+      return fail(dispatch.reason ?? 'Sync could not be queued', 'conflict')
+    }
+  } catch (error) {
+    logger.error(
+      `[${requestId}] Failed to dispatch manual sync for connector ${connectorId}`,
+      error
+    )
+    return classifyKnowledgeFailure(error, requestId, `Sync connector ${connectorId}`)
+  }
+
   if (params.recordProductAnalytics !== false) {
     captureServerEvent(
       params.userId,
@@ -887,14 +943,6 @@ export async function performSyncKnowledgeConnector(
       ...(request ? { request } : {}),
     })
   }
-
-  const dispatchSync = await loadDispatchSync()
-  dispatchSync(connectorId, { billingAttribution, requestId, rehydrate }).catch((error) => {
-    logger.error(
-      `[${requestId}] Failed to dispatch manual sync for connector ${connectorId}`,
-      error
-    )
-  })
 
   return { success: true }
 }

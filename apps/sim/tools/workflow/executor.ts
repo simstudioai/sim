@@ -34,7 +34,9 @@ export const workflowExecutorTool: ToolConfig<
     },
   },
   request: {
-    url: (params: WorkflowExecutorParams) => `/api/workflows/${params.workflowId}/execute`,
+    internal: true,
+    url: (params: WorkflowExecutorParams) =>
+      `/api/workflows/${encodeURIComponent(params.workflowId)}/execute`,
     method: 'POST',
     headers: () => ({ 'Content-Type': 'application/json' }),
     secretProvenance: {

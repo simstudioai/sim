@@ -7,7 +7,6 @@ import type { TableDefinition } from '@/lib/table/types'
 
 const mocks = vi.hoisted(() => ({
   audit: vi.fn(),
-  batchUpdate: vi.fn(),
   deleteByFilter: vi.fn(),
   markJob: vi.fn(),
   releaseJob: vi.fn(),
@@ -42,8 +41,6 @@ vi.mock('@/lib/core/config/env-flags', () => ({ isTriggerDevEnabled: false }))
 vi.mock('@/lib/core/utils/background', () => ({ runDetached: vi.fn() }))
 
 vi.mock('@/lib/table', () => ({
-  batchUpdateRows: mocks.batchUpdate,
-  CSV_MAX_BATCH_SIZE: 1000,
   deleteRowsByFilter: mocks.deleteByFilter,
   queryRows: vi.fn(),
   rowDataNameToId: (data: Record<string, unknown>) => data,
@@ -83,7 +80,6 @@ vi.mock('@/lib/table/update-runner', () => ({
 }))
 
 import {
-  copilotBatchUpdateRows,
   copilotDeleteRowsByFilter,
   copilotUpdateRowsByFilter,
 } from '@/lib/table/application/copilot-bulk-rows'
@@ -138,7 +134,6 @@ describe('Copilot bulk row application use cases', () => {
     mocks.translateFilter.mockReturnValue({})
     mocks.updateByFilter.mockResolvedValue({ affectedCount: 1, affectedRowIds: ['row-1'] })
     mocks.deleteByFilter.mockResolvedValue({ affectedCount: 1, affectedRowIds: ['row-1'] })
-    mocks.batchUpdate.mockResolvedValue({ affectedCount: 1, affectedRowIds: ['row-1'] })
     mocks.markJob.mockResolvedValue(true)
     mocks.releaseJob.mockResolvedValue(true)
   })
@@ -208,27 +203,6 @@ describe('Copilot bulk row application use cases', () => {
     expect(mocks.deleteByFilter).toHaveBeenCalledTimes(1)
     expect(mocks.releaseJob).toHaveBeenCalledWith('table-1', 'workspace-1', 'job-12345678')
     expect(mocks.audit).toHaveBeenCalledTimes(1)
-  })
-
-  it('runs batch mutation behavior behind the same delegated boundary', async () => {
-    await copilotBatchUpdateRows.execute({
-      principal,
-      input: {
-        tableId: 'table-1',
-        assertedWorkspaceId: 'workspace-1',
-        updates: [{ rowId: 'row-1', data: { name: 'Grace' } }],
-      },
-    })
-
-    expect(mocks.batchUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        tableId: 'table-1',
-        workspaceId: 'workspace-1',
-        actorUserId: 'user-1',
-      }),
-      table,
-      'job-1234'
-    )
   })
 
   it('propagates unknown infrastructure failures without audit or effects', async () => {

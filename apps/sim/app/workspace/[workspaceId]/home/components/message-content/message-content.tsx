@@ -22,6 +22,7 @@ import {
 } from '@/lib/copilot/tools/tool-display'
 import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import type { CredentialSubmissionPayload } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
+import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import type { ContentBlock, OptionItem, ToolCallData } from '../../types'
 import { SUBAGENT_LABELS } from '../../types'
 import type { AgentGroupItem } from './components'
@@ -851,7 +852,11 @@ function MessageContentInner({
   actions,
 }: MessageContentProps) {
   const { onWorkspaceResourceSelect } = useChatSurface()
-  const parsed = useMemo(() => (blocks.length > 0 ? parseBlocks(blocks) : []), [blocks])
+  const blockOverlayVersion = useCustomBlockOverlayVersion()
+  const parsed = useMemo(
+    () => (blocks.length > 0 ? parseBlocks(blocks) : []),
+    [blocks, blockOverlayVersion]
+  )
 
   const [trailingRevealing, setTrailingRevealing] = useState(false)
   const handleTrailingRevealChange = useCallback((revealing: boolean) => {

@@ -45,8 +45,7 @@ const DEFAULT_MATCH_TIME_BUDGET_MS = 5_000
  */
 const DEFAULT_MAX_SCANNED_CHARS = 64 * 1024 * 1024
 
-// Overview (Level 2): block tree with timing + cost, NO input/output.
-
+/** Block tree with timing and cost, without input/output. */
 export interface OverviewSpan {
   id: string
   blockId?: string
@@ -75,10 +74,7 @@ export function toOverview(spans: TraceSpan[]): OverviewSpan[] {
   })
 }
 
-// ---------------------------------------------------------------------------
-// Trace (Level 1.5): condensed per-block digest — names, statuses, counts.
-// ---------------------------------------------------------------------------
-
+/** Condensed per-block digest: names, statuses, counts. */
 export interface TraceDigestEntry {
   /** Block id when the spans carry one; the drill-in key for `full` blockIds. */
   blockId?: string
@@ -125,9 +121,7 @@ export function toTrace(spans: TraceSpan[]): TraceDigestEntry[] {
   return Array.from(byKey.values())
 }
 
-// ---------------------------------------------------------------------------
-// Full (Level 3): block tree WITH materialized input/output.
-
+/** Block tree with materialized input/output. */
 export interface FullSpan extends OverviewSpan {
   startTime?: string
   endTime?: string

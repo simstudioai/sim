@@ -29,9 +29,10 @@ export const knowledgeDeleteChunkTool: ToolConfig<any, KnowledgeDeleteChunkRespo
   },
 
   request: {
+    internal: true,
     internalAuth: 'executor_delegation',
     url: (params) =>
-      `/api/knowledge/${params.knowledgeBaseId}/documents/${params.documentId}/chunks/${params.chunkId}`,
+      `/api/knowledge/${encodeURIComponent(params.knowledgeBaseId)}/documents/${encodeURIComponent(params.documentId)}/chunks/${encodeURIComponent(params.chunkId)}`,
     method: 'DELETE',
     headers: () => ({
       'Content-Type': 'application/json',

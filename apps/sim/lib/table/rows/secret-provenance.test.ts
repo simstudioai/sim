@@ -20,7 +20,7 @@ vi.mock('@/lib/execution/durable-secret-provenance-enforcement', () => ({
 import type { DbTransaction } from '@/lib/table/planner'
 import {
   classifyTableRowSecretProvenanceForCopy,
-  isTableSnapshotSafeForModelMount,
+  getTableSnapshotModelMountSafety,
   loadTableRowSecretProvenance,
   mutateTableRowsWithSecretProvenance,
   updateTableRowsWithDerivedSecretProvenance,
@@ -67,30 +67,31 @@ describe('table row secret provenance', () => {
     queueTableRows(userTableRows, [])
 
     await expect(
-      isTableSnapshotSafeForModelMount({
+      getTableSnapshotModelMountSafety({
         tableId: 'table-1',
         workspaceId: 'workspace-1',
         rowsVersion: 7,
       })
-    ).resolves.toBe(true)
+    ).resolves.toBe('safe')
 
     expect(dbChainMockFns.limit).toHaveBeenCalledTimes(3)
     expect(dbChainMockFns.orderBy).not.toHaveBeenCalled()
   })
 
-  it('rejects the snapshot as soon as an unsafe row exists', async () => {
+  it('classifies unsafe provenance after confirming the snapshot remains current', async () => {
     queueTableRows(userTableDefinitions, [{ rowsVersion: 7 }])
     queueTableRows(userTableRows, [{ id: 'unsafe-row' }])
+    queueTableRows(userTableDefinitions, [{ rowsVersion: 7 }])
 
     await expect(
-      isTableSnapshotSafeForModelMount({
+      getTableSnapshotModelMountSafety({
         tableId: 'table-1',
         workspaceId: 'workspace-1',
         rowsVersion: 7,
       })
-    ).resolves.toBe(false)
+    ).resolves.toBe('unsafe-provenance')
 
-    expect(dbChainMockFns.limit).toHaveBeenCalledTimes(2)
+    expect(dbChainMockFns.limit).toHaveBeenCalledTimes(3)
   })
 
   it('rejects a snapshot when the table changes during the safety check', async () => {
@@ -99,12 +100,12 @@ describe('table row secret provenance', () => {
     queueTableRows(userTableRows, [])
 
     await expect(
-      isTableSnapshotSafeForModelMount({
+      getTableSnapshotModelMountSafety({
         tableId: 'table-1',
         workspaceId: 'workspace-1',
         rowsVersion: 7,
       })
-    ).resolves.toBe(false)
+    ).resolves.toBe('stale')
   })
 
   it('keeps untouched legacy rows readable with exact-empty provenance', async () => {

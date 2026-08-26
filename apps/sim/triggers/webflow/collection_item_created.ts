@@ -1,8 +1,5 @@
-import { createLogger } from '@sim/logger'
 import { WebflowIcon } from '@/components/icons'
 import type { TriggerConfig } from '../types'
-
-const logger = createLogger('webflow-collection-item-created-trigger')
 
 export const webflowCollectionItemCreatedTrigger: TriggerConfig = {
   id: 'webflow_collection_item_created',

@@ -33,41 +33,65 @@ export interface WorkspaceMemberPage {
   nextEmail: string | null
 }
 
+interface WorkspaceMemberCountRow extends Record<string, unknown> {
+  workspaceId: string
+  count: number | string
+}
+
 async function countWorkspaceMembers(
-  workspaceId: string,
-  organizationId: string | null
-): Promise<number> {
+  workspaceRows: Array<{ id: string; organizationId: string | null }>
+): Promise<Map<string, number>> {
+  const counts = new Map<string, number>()
+  if (workspaceRows.length === 0) return counts
+
   const orgAdminRoles = sql.join(
     ORG_ADMIN_ROLES.map((role) => sql`${role}`),
     sql`, `
   )
-  const [row] = await db.execute<{ count: number | string }>(sql`
-    SELECT COUNT(*)::integer AS count
-    FROM (
+  const targets = sql.join(
+    workspaceRows.map(({ id, organizationId }) => sql`(${id}::text, ${organizationId}::text)`),
+    sql`, `
+  )
+  const rows = await db.execute<WorkspaceMemberCountRow>(sql`
+    WITH targets (workspace_id, organization_id) AS (VALUES ${targets})
+    SELECT
+      targets.workspace_id AS "workspaceId",
+      COUNT(effective_members.user_id)::integer AS count
+    FROM targets
+    LEFT JOIN LATERAL (
       SELECT ${permissions.userId} AS user_id
       FROM ${permissions}
       WHERE ${permissions.entityType} = 'workspace'
-        AND ${permissions.entityId} = ${workspaceId}
+        AND ${permissions.entityId} = targets.workspace_id
       UNION
       SELECT ${member.userId} AS user_id
       FROM ${member}
-      WHERE ${member.organizationId} = ${organizationId}
+      WHERE ${member.organizationId} = targets.organization_id
         AND ${member.role} IN (${orgAdminRoles})
-    ) AS effective_members
+    ) AS effective_members ON true
+    GROUP BY targets.workspace_id
   `)
 
-  const count = Number(row?.count)
-  if (!Number.isSafeInteger(count) || count < 0) {
-    throw new Error(`Invalid member count for workspace ${workspaceId}`)
+  for (const row of rows) {
+    const count = Number(row.count)
+    if (!Number.isSafeInteger(count) || count < 0) {
+      throw new Error(`Invalid member count for workspace ${row.workspaceId}`)
+    }
+    counts.set(row.workspaceId, count)
   }
-  return count
+
+  return counts
 }
 
 /** Public workspace metadata with all governance and billing identities omitted. */
-export async function getPublicWorkspaceDetail(
-  workspaceId: string
-): Promise<PublicWorkspaceDetail | null> {
-  const [row] = await db
+export async function getPublicWorkspaceDetails(
+  workspaceIds: string[]
+): Promise<Map<string, PublicWorkspaceDetail>> {
+  const details = new Map<string, PublicWorkspaceDetail>()
+  if (workspaceIds.length === 0) return details
+  const uniqueWorkspaceIds = [...new Set(workspaceIds)]
+
+  const rows = await db
     .select({
       id: workspace.id,
       name: workspace.name,
@@ -78,20 +102,33 @@ export async function getPublicWorkspaceDetail(
       updatedAt: workspace.updatedAt,
     })
     .from(workspace)
-    .where(and(eq(workspace.id, workspaceId), isNull(workspace.archivedAt)))
-    .limit(1)
+    .where(and(inArray(workspace.id, uniqueWorkspaceIds), isNull(workspace.archivedAt)))
 
-  if (!row) return null
-
-  return {
-    id: row.id,
-    name: row.name,
-    color: row.color,
-    logoUrl: row.logoUrl,
-    memberCount: await countWorkspaceMembers(workspaceId, row.organizationId),
-    createdAt: row.createdAt,
-    updatedAt: row.updatedAt,
+  const memberCounts = await countWorkspaceMembers(rows)
+  for (const row of rows) {
+    const memberCount = memberCounts.get(row.id)
+    if (memberCount === undefined) {
+      throw new Error(`Invalid member count for workspace ${row.id}`)
+    }
+    details.set(row.id, {
+      id: row.id,
+      name: row.name,
+      color: row.color,
+      logoUrl: row.logoUrl,
+      memberCount,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    })
   }
+
+  return details
+}
+
+export async function getPublicWorkspaceDetail(
+  workspaceId: string
+): Promise<PublicWorkspaceDetail | null> {
+  const details = await getPublicWorkspaceDetails([workspaceId])
+  return details.get(workspaceId) ?? null
 }
 
 /**

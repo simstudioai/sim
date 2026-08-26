@@ -38,7 +38,7 @@ export interface SetupStatusReport {
 const SECRET_KEYS = new Set(['BETTER_AUTH_SECRET', 'ENCRYPTION_KEY', 'INTERNAL_API_SECRET'])
 const URL_KEYS = new Set(['DATABASE_URL', 'BETTER_AUTH_URL', 'NEXT_PUBLIC_APP_URL'])
 const FEATURE_ORDER: readonly SetupStatusFeatureId[] = SETUP_FEATURES.flatMap((feature) =>
-  feature.id === 'integration' ? [] : [feature.id]
+  feature.id === 'chat' || feature.id === 'integration' ? [] : [feature.id]
 )
 
 function readString(values: EnvCapabilityValues, key: string): string | undefined {

@@ -3,6 +3,7 @@ import { document, knowledgeBase, knowledgeConnector, workspaceFiles } from '@si
 import { createLogger } from '@sim/logger'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { filterUndefined } from '@sim/utils/object'
 import type { SQL } from 'drizzle-orm'
 import { and, count, eq, exists, inArray, isNotNull, isNull, ne, sql } from 'drizzle-orm'
 import type { V2KnowledgeBaseSortBy } from '@/lib/api/contracts/v2/knowledge'
@@ -192,7 +193,7 @@ async function readKnowledgeBaseRows(
       deletedAt: knowledgeBase.deletedAt,
       workspaceId: knowledgeBase.workspaceId,
       folderId: knowledgeBase.folderId,
-      docCount: count(document.id),
+      docCount: count(document.knowledgeBaseId),
     })
     .from(knowledgeBase)
     .leftJoin(
@@ -497,11 +498,7 @@ export async function updateKnowledgeBase(
     description?: string
     workspaceId?: string | null
     folderId?: string | null
-    chunkingConfig?: {
-      maxSize: number
-      minSize: number
-      overlap: number
-    }
+    chunkingConfig?: ChunkingConfig
   },
   requestId: string,
   options?: { actorUserId?: string; assertedWorkspaceId?: string }
@@ -516,7 +513,21 @@ export async function updateKnowledgeBase(
   if (updates.workspaceId !== undefined) updateData.workspaceId = updates.workspaceId
   if (updates.folderId !== undefined) updateData.folderId = updates.folderId
   if (updates.chunkingConfig !== undefined) {
-    updateData.chunkingConfig = updates.chunkingConfig
+    /**
+     * Projected field by field rather than assigned whole, so every member of
+     * {@link ChunkingConfig} is named here: `strategy` and `strategyOptions`
+     * used to survive only because structural typing let them ride on an
+     * object typed as the three size fields, and the first destructure of
+     * those three would have dropped them silently.
+     */
+    const { maxSize, minSize, overlap, strategy, strategyOptions } = updates.chunkingConfig
+    updateData.chunkingConfig = filterUndefined({
+      maxSize,
+      minSize,
+      overlap,
+      strategy,
+      strategyOptions,
+    })
   }
 
   if (updates.workspaceId !== undefined && !options?.actorUserId) {
@@ -882,7 +893,7 @@ export async function updateKnowledgeBase(
       deletedAt: knowledgeBase.deletedAt,
       workspaceId: knowledgeBase.workspaceId,
       folderId: knowledgeBase.folderId,
-      docCount: count(document.id),
+      docCount: count(document.knowledgeBaseId),
     })
     .from(knowledgeBase)
     .leftJoin(
@@ -921,6 +932,33 @@ export async function updateKnowledgeBase(
 }
 
 /**
+ * Display names for knowledge bases that live in `workspaceId`, keyed by id.
+ *
+ * Scoped by workspace in the query rather than checked afterwards, so an id belonging to another
+ * tenant resolves to nothing at all. Deliberately narrower than {@link getKnowledgeBaseById}, which
+ * joins `document` and aggregates counts — far more than a name lookup needs.
+ */
+export async function getKnowledgeBaseNames(
+  knowledgeBaseIds: readonly string[],
+  workspaceId: string
+): Promise<Map<string, string>> {
+  if (knowledgeBaseIds.length === 0) return new Map()
+
+  const rows = await db
+    .select({ id: knowledgeBase.id, name: knowledgeBase.name })
+    .from(knowledgeBase)
+    .where(
+      and(
+        inArray(knowledgeBase.id, [...new Set(knowledgeBaseIds)]),
+        eq(knowledgeBase.workspaceId, workspaceId),
+        isNull(knowledgeBase.deletedAt)
+      )
+    )
+
+  return new Map(rows.map((row) => [row.id, row.name]))
+}
+
+/**
  * Get a single knowledge base by ID
  */
 export async function getKnowledgeBaseById(
@@ -941,7 +979,7 @@ export async function getKnowledgeBaseById(
       deletedAt: knowledgeBase.deletedAt,
       workspaceId: knowledgeBase.workspaceId,
       folderId: knowledgeBase.folderId,
-      docCount: count(document.id),
+      docCount: count(document.knowledgeBaseId),
     })
     .from(knowledgeBase)
     .leftJoin(

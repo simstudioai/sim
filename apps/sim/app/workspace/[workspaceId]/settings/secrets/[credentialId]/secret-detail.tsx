@@ -1,7 +1,15 @@
 'use client'
 
 import { useState } from 'react'
-import { Chip, ChipCopyInput, ChipLink, ChipModalTabs, ChipTextarea } from '@sim/emcn'
+import {
+  Chip,
+  ChipCopyInput,
+  ChipLink,
+  ChipModalTabs,
+  ChipTextarea,
+  Label,
+  Switch,
+} from '@sim/emcn'
 import { ArrowLeft, Clock, Key, Send } from '@sim/emcn/icons'
 import { useQueryState } from 'nuqs'
 import { SaveDiscardChips } from '@/components/settings/save-discard-actions'
@@ -245,6 +253,27 @@ export function SecretDetail({ workspaceId, credentialId }: SecretDetailProps) {
             placeholder='Enter value'
           />
         </DetailSection>
+
+        {!isPersonal && (
+          <DetailSection title='Visibility'>
+            <div className='flex items-center justify-between'>
+              <div className='flex flex-col gap-1'>
+                <Label htmlFor='secret-unredacted'>Show value in logs and Chat</Label>
+                <p className='text-[var(--text-muted)] text-caption'>
+                  {
+                    'The value is visible to anyone who can see this workspace’s runs — in logs, Chat, and the API, including shared log links.'
+                  }
+                </p>
+              </div>
+              <Switch
+                id='secret-unredacted'
+                checked={form.unredactedDraft}
+                onCheckedChange={form.setUnredactedDraft}
+                disabled={!isWorkspaceSecretAdmin}
+              />
+            </div>
+          </DetailSection>
+        )}
 
         {!isPersonal && (
           <DetailSection title='Description'>

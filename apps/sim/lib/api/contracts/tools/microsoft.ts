@@ -104,6 +104,122 @@ export const dataverseUploadFileBodySchema = z.object({
   fileContent: z.string().optional().nullable(),
 })
 
+/**
+ * Ceiling on generated document text. A `.docx` is built in memory before it is
+ * uploaded, so an unbounded body would be materialized twice — once as text and
+ * once as a zipped package.
+ */
+const MAX_DOCUMENT_CONTENT_LENGTH = 2_000_000
+
+/**
+ * Ceiling on the serialized placeholder map. Replacement values are substituted
+ * into a package that is rewritten in memory, so they need the same kind of
+ * bound the generated document text has.
+ */
+const MAX_REPLACEMENTS_LENGTH = 200_000
+
+/** Whether a string parses as a JSON object (not an array or scalar). */
+function isPlaceholderMap(value: unknown): boolean {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
+  // A blank placeholder would match at every position in the document, so it is
+  // rejected here rather than failing mid-rewrite with an unattributable 500.
+  return Object.keys(value).every((key) => key.trim().length > 0)
+}
+
+/** Whether a string parses as a JSON object whose keys are all usable placeholders. */
+function isPlaceholderMapString(value: string): boolean {
+  if (!value.trim()) return true
+  try {
+    return isPlaceholderMap(JSON.parse(value))
+  } catch {
+    return false
+  }
+}
+
+/**
+ * The placeholder map, accepted either as an object from the editor or as the
+ * JSON string a variable reference resolves to. Both forms are bounded and both
+ * must describe an object, so malformed caller input is a 400 rather than a 500
+ * raised later while the template is being filled.
+ */
+const wordReplacementsSchema = z
+  .union([
+    z
+      .string()
+      .refine(
+        isPlaceholderMapString,
+        'Placeholder values must be a JSON object mapping each non-empty placeholder to its value'
+      ),
+    z
+      .record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()]))
+      .refine(isPlaceholderMap, 'Every placeholder must be a non-empty string'),
+  ])
+  .refine(
+    (value) =>
+      (typeof value === 'string' ? value.length : JSON.stringify(value).length) <=
+      MAX_REPLACEMENTS_LENGTH,
+    'Placeholder values are too long'
+  )
+
+const wordDocumentIdSchema = z.string().min(1, 'Document ID is required')
+const wordDriveIdSchema = z.string().optional().nullable()
+
+export const microsoftWordCreateBodySchema = z.object({
+  accessToken: accessTokenSchema,
+  name: z.string().min(1, 'Document name is required').max(255, 'Document name is too long'),
+  content: z
+    .string()
+    .max(MAX_DOCUMENT_CONTENT_LENGTH, 'Document content is too long')
+    .optional()
+    .nullable(),
+  folderId: z.string().optional().nullable(),
+  driveId: wordDriveIdSchema,
+})
+
+export const microsoftWordReadBodySchema = z.object({
+  accessToken: accessTokenSchema,
+  documentId: wordDocumentIdSchema,
+  driveId: wordDriveIdSchema,
+})
+
+export const microsoftWordUpdateBodySchema = z.object({
+  accessToken: accessTokenSchema,
+  documentId: wordDocumentIdSchema,
+  content: z
+    .string()
+    .min(1, 'Document content is required')
+    .max(MAX_DOCUMENT_CONTENT_LENGTH, 'Document content is too long'),
+  driveId: wordDriveIdSchema,
+})
+
+export const microsoftWordAppendBodySchema = microsoftWordUpdateBodySchema
+
+export const microsoftWordCreateFromTemplateBodySchema = z.object({
+  accessToken: accessTokenSchema,
+  templateDocumentId: z.string().min(1, 'Template document ID is required'),
+  name: z.string().min(1, 'Document name is required').max(255, 'Document name is too long'),
+  replacements: wordReplacementsSchema.optional().nullable(),
+  matchCase: z.boolean().optional().nullable(),
+  folderId: z.string().optional().nullable(),
+  driveId: wordDriveIdSchema,
+})
+
+export const microsoftWordReplaceTextBodySchema = z.object({
+  accessToken: accessTokenSchema,
+  documentId: wordDocumentIdSchema,
+  findText: z.string().min(1, 'Search text is required').max(4000, 'Search text is too long'),
+  replaceText: z.string().max(20000, 'Replacement text is too long').optional().nullable(),
+  matchCase: z.boolean().optional().nullable(),
+  driveId: wordDriveIdSchema,
+})
+
+export const microsoftWordExportPdfBodySchema = z.object({
+  accessToken: accessTokenSchema,
+  documentId: wordDocumentIdSchema,
+  fileName: z.string().optional().nullable(),
+  driveId: wordDriveIdSchema,
+})
+
 const toolJsonResponseSchema = z.unknown()
 
 export const outlookSendContract = defineRouteContract({
@@ -211,6 +327,55 @@ export const dataverseUploadFileContract = defineRouteContract({
   response: { mode: 'json', schema: toolJsonResponseSchema },
 })
 
+export const microsoftWordCreateContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/tools/microsoft_word/create',
+  body: microsoftWordCreateBodySchema,
+  response: { mode: 'json', schema: toolJsonResponseSchema },
+})
+
+export const microsoftWordReadContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/tools/microsoft_word/read',
+  body: microsoftWordReadBodySchema,
+  response: { mode: 'json', schema: toolJsonResponseSchema },
+})
+
+export const microsoftWordUpdateContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/tools/microsoft_word/update',
+  body: microsoftWordUpdateBodySchema,
+  response: { mode: 'json', schema: toolJsonResponseSchema },
+})
+
+export const microsoftWordAppendContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/tools/microsoft_word/append',
+  body: microsoftWordAppendBodySchema,
+  response: { mode: 'json', schema: toolJsonResponseSchema },
+})
+
+export const microsoftWordCreateFromTemplateContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/tools/microsoft_word/create-from-template',
+  body: microsoftWordCreateFromTemplateBodySchema,
+  response: { mode: 'json', schema: toolJsonResponseSchema },
+})
+
+export const microsoftWordReplaceTextContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/tools/microsoft_word/replace-text',
+  body: microsoftWordReplaceTextBodySchema,
+  response: { mode: 'json', schema: toolJsonResponseSchema },
+})
+
+export const microsoftWordExportPdfContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/tools/microsoft_word/export-pdf',
+  body: microsoftWordExportPdfBodySchema,
+  response: { mode: 'json', schema: toolJsonResponseSchema },
+})
+
 export type OutlookSendBody = ContractBody<typeof outlookSendContract>
 export type OutlookDraftBody = ContractBody<typeof outlookDraftContract>
 export type OutlookDeleteBody = ContractBody<typeof outlookDeleteContract>
@@ -226,3 +391,12 @@ export type OneDriveDownloadBody = ContractBody<typeof onedriveDownloadContract>
 export type SharepointUploadBody = ContractBody<typeof sharepointUploadContract>
 export type SharepointDownloadFileBody = ContractBody<typeof sharepointDownloadFileContract>
 export type DataverseUploadFileBody = z.output<typeof dataverseUploadFileBodySchema>
+export type MicrosoftWordCreateBody = ContractBody<typeof microsoftWordCreateContract>
+export type MicrosoftWordReadBody = ContractBody<typeof microsoftWordReadContract>
+export type MicrosoftWordUpdateBody = ContractBody<typeof microsoftWordUpdateContract>
+export type MicrosoftWordAppendBody = ContractBody<typeof microsoftWordAppendContract>
+export type MicrosoftWordCreateFromTemplateBody = ContractBody<
+  typeof microsoftWordCreateFromTemplateContract
+>
+export type MicrosoftWordReplaceTextBody = ContractBody<typeof microsoftWordReplaceTextContract>
+export type MicrosoftWordExportPdfBody = ContractBody<typeof microsoftWordExportPdfContract>

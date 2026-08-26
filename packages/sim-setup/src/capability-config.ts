@@ -847,13 +847,14 @@ if (missingCapabilitySetups.length > 0) {
 }
 
 export type CapabilitySetupId = (typeof CAPABILITY_SETUPS)[number]['definition']['id']
-export type SetupFeatureId = CapabilitySetupId | 'llm' | 'integration'
+export type SetupFeatureId = CapabilitySetupId | 'chat' | 'llm' | 'integration'
 
 export const SETUP_FEATURES: readonly { id: SetupFeatureId; label: string }[] = [
   ...CAPABILITY_SETUPS.map((setup) => ({
     id: setup.definition.id,
     label: setup.label,
   })),
+  { id: 'chat', label: 'Chat' },
   { id: 'llm', label: 'LLM API keys' },
   { id: 'integration', label: 'OAuth integration' },
 ]

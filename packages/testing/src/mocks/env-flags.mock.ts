@@ -36,6 +36,7 @@ export interface EnvFlagsMockState {
   isSandboxesEnabled: boolean
   isWhitelabelingEnabled: boolean
   isAuditLogsEnabled: boolean
+  isCustomBlocksEnabled: boolean
   isDataRetentionEnabled: boolean
   isDataDrainsEnabled: boolean
   isSessionPoliciesEnabled: boolean
@@ -89,6 +90,7 @@ const defaultEnvFlagsState: EnvFlagsMockState = {
   isWhitelabelingEnabled: true,
   isSessionPoliciesEnabled: true,
   isAuditLogsEnabled: false,
+  isCustomBlocksEnabled: false,
   isDataRetentionEnabled: false,
   isDataDrainsEnabled: false,
   isForkingEnabled: false,

@@ -122,7 +122,7 @@ function readLocks(row: {
  * Uses an advisory lock (not `SELECT ... FOR UPDATE` on the definition row) so
  * it adds no edges to the row-lock graph — the row-count trigger (migration
  * 0198) locks the definition row from `insertRow`/`deleteRow`, and a FOR UPDATE
- * here would invert that order. Mirrors `acquireTablePositionLock`. The lock and
+ * here would invert that order. Mirrors `acquireRowOrderLock`. The lock and
  * the read both release at COMMIT/ROLLBACK; the wait is bounded by the
  * `statement_timeout` set in `setTableTxTimeouts`.
  */

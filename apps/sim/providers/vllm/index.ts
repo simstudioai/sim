@@ -11,6 +11,7 @@ import { formatMessagesForProvider } from '@/providers/attachments'
 import { getCachedProviderClient } from '@/providers/client-cache'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import { createOpenAICompatAssistantHistory } from '@/providers/openai-compat/assistant-history'
+import { getOpenAICompatibleApiBaseUrl } from '@/providers/openai-compat/base-url'
 import { executeProviderTool } from '@/providers/runtime-context'
 import { createSettledAgentEventStream } from '@/providers/stream-events'
 import { createStreamingExecution } from '@/providers/streaming-execution'
@@ -53,13 +54,14 @@ export const vllmProvider: ProviderConfig = {
       return
     }
 
-    const baseUrl = (env.VLLM_BASE_URL || '').replace(/\/$/, '')
+    const baseUrl = env.VLLM_BASE_URL?.trim()
     if (!baseUrl) {
       logger.info('VLLM_BASE_URL not configured, skipping initialization')
       return
     }
 
     try {
+      const apiBaseUrl = getOpenAICompatibleApiBaseUrl(baseUrl)
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
       }
@@ -68,7 +70,7 @@ export const vllmProvider: ProviderConfig = {
         headers.Authorization = `Bearer ${env.VLLM_API_KEY}`
       }
 
-      const response = await fetch(`${baseUrl}/v1/models`, { headers })
+      const response = await fetch(`${apiBaseUrl}/models`, { headers })
       if (!response.ok) {
         await response.text().catch(() => {})
         useProvidersStore.getState().setProviderModels('vllm', [])
@@ -105,10 +107,11 @@ export const vllmProvider: ProviderConfig = {
 
     const userProvidedEndpoint = request.azureEndpoint
 
-    const baseUrl = (userProvidedEndpoint || env.VLLM_BASE_URL || '').replace(/\/$/, '')
+    const baseUrl = (userProvidedEndpoint || env.VLLM_BASE_URL)?.trim()
     if (!baseUrl) {
       throw new Error('VLLM_BASE_URL is required for vLLM provider')
     }
+    const apiBaseUrl = getOpenAICompatibleApiBaseUrl(baseUrl)
 
     /**
      * A user-supplied endpoint is attacker-controlled: validate it against the
@@ -142,12 +145,12 @@ export const vllmProvider: ProviderConfig = {
 
     const apiKey = request.apiKey || env.VLLM_API_KEY || 'empty'
     const vllm = getCachedProviderClient(
-      `vllm::${apiKey}::${baseUrl}::${pinnedIP ?? 'no-pin'}`,
+      `vllm::${apiKey}::${apiBaseUrl}::${pinnedIP ?? 'no-pin'}`,
       () =>
         new OpenAI({
           ...openAICompatTransport(),
           apiKey,
-          baseURL: `${baseUrl}/v1`,
+          baseURL: apiBaseUrl,
           ...(pinnedFetch ? { fetch: pinnedFetch } : {}),
         })
     )
@@ -183,7 +186,7 @@ export const vllmProvider: ProviderConfig = {
     }
 
     if (request.temperature !== undefined) payload.temperature = request.temperature
-    if (request.maxTokens != null) payload.max_completion_tokens = request.maxTokens
+    if (request.maxTokens != null) payload.max_tokens = request.maxTokens
 
     if (request.responseFormat) {
       payload.response_format = {

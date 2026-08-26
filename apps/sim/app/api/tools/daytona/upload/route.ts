@@ -11,7 +11,7 @@ import { processFilesToUserFiles, type RawFileInput } from '@/lib/uploads/utils/
 import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { docNotReadyResponse } from '@/lib/uploads/utils/servable-file-response'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
-import { DAYTONA_TOOLBOX_BASE_URL, extractDaytonaError } from '@/tools/daytona/utils'
+import { daytonaToolboxUrl, extractDaytonaError } from '@/tools/daytona/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -129,7 +129,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       fileName
     )
 
-    const uploadUrl = `${DAYTONA_TOOLBOX_BASE_URL}/${encodeURIComponent(params.sandboxId.trim())}/files/upload?path=${encodeURIComponent(destinationPath)}`
+    const uploadUrl = daytonaToolboxUrl(
+      params.sandboxId,
+      `/files/upload-v2?path=${encodeURIComponent(destinationPath)}`
+    )
     const response = await fetch(uploadUrl, {
       method: 'POST',
       headers: {

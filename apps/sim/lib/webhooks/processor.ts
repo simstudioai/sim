@@ -80,6 +80,7 @@ export interface WebhookPreprocessingResult {
 }
 
 const WEBHOOK_BODY_LABEL = 'Webhook request body'
+const MAX_WEBHOOK_TARGETS_PER_LOOKUP = 1_000
 
 /**
  * Flattens a `multipart/form-data` body into the plain object shape provider handlers
@@ -383,6 +384,13 @@ export async function findAllWebhooksForPath(
         )
       )
     )
+    .limit(MAX_WEBHOOK_TARGETS_PER_LOOKUP + 1)
+
+  if (results.length > MAX_WEBHOOK_TARGETS_PER_LOOKUP) {
+    throw new Error(
+      `Webhook path resolves more than ${MAX_WEBHOOK_TARGETS_PER_LOOKUP} active webhooks`
+    )
+  }
 
   if (results.length === 0) {
     logger.warn(`[${options.requestId}] No active webhooks found for path: ${options.path}`)
@@ -481,6 +489,13 @@ export async function findWebhooksByRoutingKey(
         )
       )
     )
+    .limit(MAX_WEBHOOK_TARGETS_PER_LOOKUP + 1)
+
+  if (results.length > MAX_WEBHOOK_TARGETS_PER_LOOKUP) {
+    throw new Error(
+      `Routing key resolves more than ${MAX_WEBHOOK_TARGETS_PER_LOOKUP} active ${provider} webhooks`
+    )
+  }
 
   if (results.length === 0) {
     logger.warn(`[${requestId}] No active ${provider} webhooks for routing key`)

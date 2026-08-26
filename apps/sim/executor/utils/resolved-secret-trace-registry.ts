@@ -99,6 +99,40 @@ export type ResolvedSecretIncompletenessReason =
  * inheriting a parent that reported moments earlier, or an unaudited caller taking the default
  * reason from flooding the error stream. A reason added later without thought stays quiet.
  */
+/**
+ * Reasons meaning provenance was never on offer AND no secret material transited the latching
+ * context. This is a deliberately separate, narrower set than the warn side of the report-level
+ * split below: that split assigns report ownership, and a warn-level reason can still involve
+ * plaintext in flight — `value-provenance-filter-incomplete` latches after a staged source
+ * registry decrypted real entries it then could not narrow to the value, so the plaintext existed
+ * in-process without ever activating. Membership here requires the stronger claim.
+ *
+ * The claim holds for each member: an absent or declared-incomplete envelope carries no entries
+ * (the envelope schema rejects incomplete-with-entries), so nothing was decrypted; a registry
+ * built without a catalog or without a persisted log never handled material; a durable read that
+ * latched did so before importing anything; and the inherited markers never occur alone — the
+ * source's own reasons are copied first, so they are judged by the originals they accompany.
+ *
+ * Consumers use this to separate `unrecorded` (absence — readable under the fail-open policy)
+ * from taint at a write decision. A reason outside this set keeps the taint.
+ */
+const PROVENANCE_ABSENCE_REASONS = new Set<ResolvedSecretIncompletenessReason>([
+  'value-provenance-absent',
+  'source-provenance-incomplete',
+  'constructed-incomplete',
+  'log-creation-skipped',
+  'durable-provenance-unknown',
+  'inherited-incomplete-source',
+  'inherited-incomplete-input-path',
+])
+
+/** True when {@link PROVENANCE_ABSENCE_REASONS} holds the reason; see its contract. */
+export function isResolvedSecretProvenanceAbsence(
+  reason: ResolvedSecretIncompletenessReason
+): boolean {
+  return PROVENANCE_ABSENCE_REASONS.has(reason)
+}
+
 const ORIGINATING_FAULT_REASONS = new Set<ResolvedSecretIncompletenessReason>([
   'untrusted-provenance',
   'entry-decrypt-failed',
@@ -235,6 +269,13 @@ export interface ResolvedSecretTraceCatalogEntry {
    * Unset for workspace entries, which the workspace itself owns.
    */
   ownerUserId?: string
+  /**
+   * Set only on workspace entries whose credential row opts the secret out of redaction.
+   * Never trusted off an entry directly at decision time — every exemption re-derives
+   * through the catalog by name AND plaintext, so an entry adopted from an imported
+   * envelope is exempt only when it is byte-identical to the run's own flagged secret.
+   */
+  unredacted?: true
 }
 
 export interface ResolvedSecretTraceMatch {
@@ -381,6 +422,13 @@ export interface CreateResolvedSecretTraceRegistryOptions {
   restoreTrusted?: boolean
   requireRestoredProvenance?: boolean
   scope?: ResolvedSecretTraceScopeV1
+  /**
+   * Workspace env keys flagged `unredacted` on their credential row, from
+   * {@link EnvironmentResolutionSnapshot.workspaceUnredactedKeys}. Stamps the matching
+   * workspace catalog entries so their resolved values render in plaintext instead of
+   * `{{NAME}}` and are omitted from exported provenance envelopes.
+   */
+  workspaceUnredactedKeys?: readonly string[]
 }
 
 function compareStrings(left: string, right: string): number {
@@ -634,6 +682,7 @@ function isExactProvenanceEntriesArray(value: unknown): value is unknown[] {
 function buildEffectiveCatalogEntry(
   options: CreateResolvedSecretTraceRegistryOptions,
   failedNames: ReadonlySet<string>,
+  unredactedNames: ReadonlySet<string>,
   name: string,
   encryptedValue: string
 ): ResolvedSecretTraceCatalogEntry | undefined {
@@ -649,7 +698,20 @@ function buildEffectiveCatalogEntry(
    * precedence the merged environment applies. A name present in both must not be
    * attributed to the personal secret it shadowed.
    */
-  if (fromWorkspace) return { name, plaintext, encryptedValue, scope: 'workspace' }
+  if (fromWorkspace) {
+    return {
+      name,
+      plaintext,
+      encryptedValue,
+      scope: 'workspace',
+      /**
+       * Stamped only on the workspace branch: a personal secret shadowed by a flagged
+       * workspace name must not inherit the flag, and a personal value that WON the
+       * name can never carry it.
+       */
+      ...(unredactedNames.has(name) ? { unredacted: true as const } : {}),
+    }
+  }
 
   const ownerUserId = options.personalOwners?.[name]
   return {
@@ -665,12 +727,19 @@ function* iterateEffectiveCatalogEntries(
   options: CreateResolvedSecretTraceRegistryOptions,
   failedNames: ReadonlySet<string>
 ): Generator<ResolvedSecretTraceCatalogEntry> {
+  const unredactedNames = new Set(options.workspaceUnredactedKeys ?? [])
   for (const name in options.personalEncrypted) {
     if (!hasOwn(options.personalEncrypted, name)) continue
     const encryptedValue = hasOwn(options.workspaceEncrypted, name)
       ? options.workspaceEncrypted[name]
       : options.personalEncrypted[name]
-    const entry = buildEffectiveCatalogEntry(options, failedNames, name, encryptedValue)
+    const entry = buildEffectiveCatalogEntry(
+      options,
+      failedNames,
+      unredactedNames,
+      name,
+      encryptedValue
+    )
     if (entry) yield entry
   }
 
@@ -681,6 +750,7 @@ function* iterateEffectiveCatalogEntries(
     const entry = buildEffectiveCatalogEntry(
       options,
       failedNames,
+      unredactedNames,
       name,
       options.workspaceEncrypted[name]
     )
@@ -880,18 +950,28 @@ export class ResolvedSecretTraceRegistry {
   private readonly scope?: ResolvedSecretTraceScopeV1
   private readonly completeProvenanceEnvelopeBytes: number
   /**
-   * A staged registry filters one value and is then discarded. Its caller re-reports whatever
-   * fault it hits against the real input path, so its own summary lines would restate that with
-   * strictly less context. Entry-level detail still logs — the caller cannot reconstruct it.
+   * A staged registry filters values for one operation and is then discarded. Its caller owns the
+   * reporting and says it with strictly more context — the real input path for a value filter, the
+   * execution for a display read — so the registry's own summary lines would only restate it.
+   * Entry-level detail still logs — the caller cannot reconstruct it.
    */
   private readonly staged: boolean
+  /**
+   * Plaintexts a fork's parent was protecting when the fork was cut. A fork copies an
+   * active-entry SUBSET, so a non-exempt entry sharing an unredacted entry's plaintext can be
+   * left behind — and without this set the fork would emit bytes the parent's own log renders
+   * redacted. Collision decisions consult this set alongside the fork's own entries, so the
+   * exemption can only ever narrow across a fork, never widen.
+   */
+  private readonly inheritedProtectedPlaintexts: ReadonlySet<string>
 
   constructor(
     catalogEntries: Iterable<ResolvedSecretTraceCatalogEntry> = [],
     scope?: ResolvedSecretTraceScopeV1,
-    options: { staged?: boolean } = {}
+    options: { staged?: boolean; inheritedProtectedPlaintexts?: ReadonlySet<string> } = {}
   ) {
     this.staged = options.staged === true
+    this.inheritedProtectedPlaintexts = options.inheritedProtectedPlaintexts ?? new Set()
     this.scope = scope ? cloneProvenanceScope(scope) : undefined
     this.completeProvenanceEnvelopeBytes = serializedProvenanceEnvelopeByteSize(true, this.scope)
     if (this.completeProvenanceEnvelopeBytes > MAX_SERIALIZED_PROVENANCE_BYTES) {
@@ -914,7 +994,9 @@ export class ResolvedSecretTraceRegistry {
    * available to later calls in the run.
    */
   forkForToolCall(): ResolvedSecretTraceRegistry {
-    const fork = new ResolvedSecretTraceRegistry(this.catalog.values(), this.scope)
+    const fork = new ResolvedSecretTraceRegistry(this.catalog.values(), this.scope, {
+      inheritedProtectedPlaintexts: this.collectProtectedPlaintexts(),
+    })
     for (const entry of this.activeEntries.values()) {
       fork.addActiveEntry(
         { ...entry },
@@ -932,7 +1014,9 @@ export class ResolvedSecretTraceRegistry {
     paths: readonly ResolvedSecretInputPath[],
     options: { propagated?: boolean } = {}
   ): ResolvedSecretTraceRegistry {
-    const fork = new ResolvedSecretTraceRegistry(this.catalog.values(), this.scope)
+    const fork = new ResolvedSecretTraceRegistry(this.catalog.values(), this.scope, {
+      inheritedProtectedPlaintexts: this.collectProtectedPlaintexts(),
+    })
     if (!this.complete) {
       fork.markIncomplete('inherited-incomplete-source', { source: this })
       return fork
@@ -957,7 +1041,9 @@ export class ResolvedSecretTraceRegistry {
 
   /** Creates a model/output registry containing only provenance explicitly carried by a result. */
   forkForPropagatedEntries(): ResolvedSecretTraceRegistry {
-    const fork = new ResolvedSecretTraceRegistry(this.catalog.values(), this.scope)
+    const fork = new ResolvedSecretTraceRegistry(this.catalog.values(), this.scope, {
+      inheritedProtectedPlaintexts: this.collectProtectedPlaintexts(),
+    })
     for (const entry of this.activeEntries.values()) {
       if (this.propagatedEntryKeys.has(activeEntryKey(entry))) {
         fork.addActiveEntry({ ...entry }, { propagated: true })
@@ -1011,7 +1097,9 @@ export class ResolvedSecretTraceRegistry {
       }
     }
 
-    const registry = new ResolvedSecretTraceRegistry(this.catalog.values(), this.scope)
+    const registry = new ResolvedSecretTraceRegistry(this.catalog.values(), this.scope, {
+      inheritedProtectedPlaintexts: this.collectProtectedPlaintexts(),
+    })
     let matched = false
     const resolve = (candidate: unknown, path: string[]): unknown => {
       if (typeof candidate === 'string') {
@@ -1320,17 +1408,39 @@ export class ResolvedSecretTraceRegistry {
     }
   }
 
+  /**
+   * Whether a recorded input leaf still needs its placeholder projection applied. A leaf is
+   * released to the model raw only when every entry that activated it is exempt and nothing
+   * else protects those bytes; an entry key that no longer resolves keeps the projection —
+   * fail closed, never open, on bookkeeping gaps.
+   */
+  private shouldProjectInputState(
+    state: ResolvedInputPathState,
+    protectedPlaintexts: ReadonlySet<string>
+  ): boolean {
+    if (state.entryKeys.size === 0) return true
+    for (const entryKey of state.entryKeys) {
+      const entry = this.activeEntries.get(entryKey)
+      if (!entry) return true
+      if (!this.isUnredactedEntry(entry)) return true
+      if (protectedPlaintexts.has(entry.plaintext)) return true
+    }
+    return false
+  }
+
   private projectResolvedInputStates(
     selected: Record<string, unknown>,
     states: Iterable<ResolvedInputPathState>
   ): ResolvedSecretInputProjection {
     const projected = { ...selected }
     const projectedContainers = new WeakMap<object, object>([[selected, projected]])
+    const protectedPlaintexts = this.collectProtectedPlaintexts()
 
     for (const state of states) {
       if (state.rawValue === undefined || state.projectedValue === undefined) continue
       if (!Object.hasOwn(selected, state.path[0])) continue
       if (readInputPath(selected, state.path) !== state.rawValue) continue
+      if (!this.shouldProjectInputState(state, protectedPlaintexts)) continue
       if (
         !writeInputPathOnProjectedCopy(
           selected,
@@ -1711,6 +1821,35 @@ export class ResolvedSecretTraceRegistry {
   }
 
   /**
+   * Names the sandbox path may treat as exempt when classifying its exported files. The route
+   * sees only names and cannot re-check collisions itself, so any flagged name whose plaintext
+   * another catalog entry or a non-exempt active entry shares is withheld — the file export
+   * then records the colliding owner's provenance exactly as before.
+   *
+   * Certifies nothing once the registry is permanently incomplete: the collision set is built
+   * from the active entries, and a failed import or capacity latch means entries — including a
+   * collider for a flagged plaintext — may be missing. The same bar model egress applies, and
+   * for the same reason: incompleteness must only ever widen protection.
+   */
+  getUnredactedSecretNames(): readonly string[] {
+    if (this.isPermanentlyIncomplete()) return []
+    const protectedPlaintexts = this.collectProtectedPlaintexts()
+    const nonExemptCatalogPlaintexts = new Set<string>()
+    for (const entry of this.catalog.values()) {
+      if (entry.unredacted !== true) nonExemptCatalogPlaintexts.add(entry.plaintext)
+    }
+
+    const names: string[] = []
+    for (const entry of this.catalog.values()) {
+      if (entry.unredacted !== true) continue
+      if (protectedPlaintexts.has(entry.plaintext)) continue
+      if (nonExemptCatalogPlaintexts.has(entry.plaintext)) continue
+      names.push(entry.name)
+    }
+    return names
+  }
+
+  /**
    * Returns committed literals that must be removed before content can cross into a model.
    * Only entries activated by an exact resolver or trusted provenance boundary participate;
    * configured-but-unused catalog values remain inert. Temporary work in another call is
@@ -1773,6 +1912,32 @@ export class ResolvedSecretTraceRegistry {
       )
   }
 
+  /**
+   * Whether one active entry is exempt from redaction. Derived through the catalog at decision
+   * time rather than trusted off the entry, so an imported duplicate of a flagged secret is
+   * exempt only when byte-identical to the run's own catalog value, and replace-on-mismatch
+   * churn in {@link addActiveEntry} cannot change the answer.
+   */
+  private isUnredactedEntry(entry: ActiveSecretEntry): boolean {
+    if (entry.anonymous || entry.name.length === 0) return false
+    const catalogEntry = this.catalog.get(entry.name)
+    return catalogEntry?.unredacted === true && catalogEntry.plaintext === entry.plaintext
+  }
+
+  /**
+   * Plaintexts that must stay redacted regardless of any exemption: every active entry that is
+   * not itself exempt, plus everything a fork's parent was protecting. Computed over the FULL
+   * active set, never a caller's selected subset — the bytes leaving a surface are the same no
+   * matter which selection vouched for them.
+   */
+  private collectProtectedPlaintexts(): Set<string> {
+    const protectedPlaintexts = new Set(this.inheritedProtectedPlaintexts)
+    for (const entry of this.activeEntries.values()) {
+      if (!this.isUnredactedEntry(entry)) protectedPlaintexts.add(entry.plaintext)
+    }
+    return protectedPlaintexts
+  }
+
   private buildMatches(entries: Iterable<ActiveSecretEntry>): readonly ResolvedSecretTraceMatch[] {
     const candidatesByPlaintext = new Map<string, ActiveSecretEntry[]>()
     for (const entry of entries) {
@@ -1785,6 +1950,18 @@ export class ResolvedSecretTraceRegistry {
       const candidates = candidatesByPlaintext.get(entry.plaintext) ?? []
       candidates.push(entry)
       candidatesByPlaintext.set(entry.plaintext, candidates)
+    }
+
+    /**
+     * A plaintext leaves the match set only when every owner of those bytes is exempt AND no
+     * fork parent was protecting them — any non-exempt owner (a personal secret, an anonymous
+     * token) keeps the substitution, failing toward redaction on collision.
+     */
+    for (const [plaintext, candidates] of candidatesByPlaintext) {
+      if (this.inheritedProtectedPlaintexts.has(plaintext)) continue
+      if (candidates.every((candidate) => this.isUnredactedEntry(candidate))) {
+        candidatesByPlaintext.delete(plaintext)
+      }
     }
 
     const matches = [...candidatesByPlaintext.keys()].map((plaintext) => {
@@ -2407,7 +2584,24 @@ export class ResolvedSecretTraceRegistry {
     activeEntries: ActiveSecretEntry[],
     forceAnonymous = false
   ): ResolvedSecretTraceProvenanceEntryV1[] {
+    /**
+     * Exempt entries are omitted from every envelope — that is what lets per-span display
+     * projection show the plaintext, durable sidecars leave files unlocked, and opaque
+     * model-input validation accept the value. EXCEPT under forced anonymity: that envelope
+     * crosses into a scope where the flagging workspace's decision carries no authority (the
+     * custom-block crossing runs the child in the source workflow's workspace), so exempt
+     * entries are kept — anonymized — rather than dropped. The protected set is computed over
+     * the full active set, not the caller's selection, so a colliding non-exempt owner keeps
+     * the entry no matter which paths vouched for the value.
+     */
+    const protectedPlaintexts = forceAnonymous ? undefined : this.collectProtectedPlaintexts()
     return activeEntries
+      .filter(
+        (entry) =>
+          protectedPlaintexts === undefined ||
+          protectedPlaintexts.has(entry.plaintext) ||
+          !this.isUnredactedEntry(entry)
+      )
       .sort(
         (left, right) =>
           compareStrings(left.name, right.name) ||

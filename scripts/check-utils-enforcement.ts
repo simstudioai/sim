@@ -2,9 +2,17 @@
 /**
  * Enforces use of shared @sim/utils helpers over inline implementations.
  *
- * Biome's noRestrictedImports covers import-based bans (nanoid, uuid, crypto named imports).
- * This script catches patterns that static import analysis misses — global property access,
- * inline idioms, and reimplemented helpers that should live in @sim/utils.
+ * Biome's noRestrictedImports covers the import-based bans it lists — today `nanoid` and
+ * `uuid`. It does NOT cover named crypto imports; `import { randomBytes } from 'node:crypto'`
+ * passes both gates, and deliberately so, since server code building cipher IVs and tokens
+ * wants node's crypto rather than the cross-context wrapper in `@sim/utils/random`.
+ *
+ * This script catches what static import analysis misses — global property access, inline
+ * idioms, and reimplemented helpers that should live in @sim/utils.
+ *
+ * Patterns are matched against the whole file, not line by line: every idiom banned here is a
+ * multi-token expression that the formatter wraps at 100 columns, and a line-scoped scan sees
+ * none of the wrapped forms. Deliberate exceptions carry `// utils-lint-allow: <reason>`.
  */
 import { readdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
@@ -108,6 +116,48 @@ interface Violation {
   snippet: string
 }
 
+/** Escape hatch for a deliberate use, mirroring `rq-lint-allow:` in check-react-query-patterns.ts. */
+const ALLOW = 'utils-lint-allow:'
+
+/** Offset of the first character of each line, for mapping a match index back to a line number. */
+function buildLineStarts(content: string): number[] {
+  const starts = [0]
+  for (let i = 0; i < content.length; i++) {
+    if (content[i] === '\n') starts.push(i + 1)
+  }
+  return starts
+}
+
+/** 1-based line containing `offset`, by binary search over {@link buildLineStarts}. */
+function lineAt(lineStarts: number[], offset: number): number {
+  let low = 0
+  let high = lineStarts.length - 1
+  while (low < high) {
+    const mid = Math.ceil((low + high) / 2)
+    if (lineStarts[mid] <= offset) low = mid
+    else high = mid - 1
+  }
+  return low + 1
+}
+
+/**
+ * True if a `// utils-lint-allow: <reason>` annotation sits just above `line` (1-based).
+ *
+ * The reason must be non-empty: an annotation that does not say why is the thing this
+ * check exists to prevent. Scans up to three comment lines above, so the annotation can
+ * carry context lines with it.
+ */
+function hasAllow(lines: string[], line: number): boolean {
+  for (let i = line - 2; i >= 0 && i >= line - 5; i--) {
+    const text = lines[i]?.trim() ?? ''
+    if (text.includes(ALLOW)) {
+      return text.slice(text.indexOf(ALLOW) + ALLOW.length).trim().length > 0
+    }
+    if (text.length > 0 && !text.startsWith('//') && !text.startsWith('*')) break
+  }
+  return false
+}
+
 async function main() {
   const allFiles: string[] = []
   for (const dir of SCAN_DIRS) {
@@ -122,20 +172,20 @@ async function main() {
 
     const content = await readFile(file, 'utf8')
     const lines = content.split('\n')
+    const lineStarts = buildLineStarts(content)
 
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i]
-      for (const { pattern, description, suggestion } of BANNED_PATTERNS) {
-        pattern.lastIndex = 0
-        if (pattern.test(line)) {
-          violations.push({
-            file: rel,
-            line: i + 1,
-            description,
-            suggestion,
-            snippet: line.trim(),
-          })
-        }
+    for (const { pattern, description, suggestion } of BANNED_PATTERNS) {
+      pattern.lastIndex = 0
+      for (let match = pattern.exec(content); match !== null; match = pattern.exec(content)) {
+        const line = lineAt(lineStarts, match.index)
+        if (hasAllow(lines, line)) continue
+        violations.push({
+          file: rel,
+          line,
+          description,
+          suggestion,
+          snippet: (lines[line - 1] ?? '').trim(),
+        })
       }
     }
   }

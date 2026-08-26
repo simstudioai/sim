@@ -1,8 +1,5 @@
-import { createLogger } from '@sim/logger'
 import { WebflowIcon } from '@/components/icons'
 import type { TriggerConfig } from '../types'
-
-const logger = createLogger('webflow-form-submission-trigger')
 
 export const webflowFormSubmissionTrigger: TriggerConfig = {
   id: 'webflow_form_submission',

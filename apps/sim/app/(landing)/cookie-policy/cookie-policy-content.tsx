@@ -9,10 +9,6 @@ import { PROSE_TABLE_WIDTHS } from '@/app/(landing)/components/prose-page/consta
 import { ConsentPreferencesLink } from '@/app/(landing)/cookie-policy/consent-preferences-link'
 
 /**
- * One cookie-inventory table per consent category. The three share a header and
- * a column layout, so they are built from one shape rather than repeated.
- */
-/**
  * The withdrawal control, or the bare phrase on a self-hosted deployment. The
  * consent runtime is hosted-only, so there the button would have no listener
  * and clicking it would do nothing.
@@ -41,15 +37,14 @@ function cookieTable(caption: string, rows: ReactNode[][]): LegalBlock {
  *
  * The tables describe what Sim and its providers actually set, grouped by the
  * three categories the banner offers. Keep them in step with the banner's
- * categories (`lib/consent/constants`) and with the tags configured in Google
- * Tag Manager: naming a cookie the site no longer sets is as wrong as omitting
- * one it does.
+ * categories and consent-managed scripts: naming a cookie the site no longer
+ * sets is as wrong as omitting one it does.
  */
 export const COOKIE_POLICY_CONFIG: LegalPageConfig = {
   title: 'Cookie Policy',
   description:
     'What cookies Sim sets, why, how long they last, and how to change your choice at any time.',
-  lastUpdated: 'August 18, 2026',
+  lastUpdated: 'August 24, 2026',
   intro: [
     {
       kind: 'paragraph',
@@ -120,7 +115,9 @@ export const COOKIE_POLICY_CONFIG: LegalPageConfig = {
             <>
               <strong>Analytics</strong> — how many people use Sim, which pages and features they
               reach, and where errors happen, so we can improve the product. Measurement only; we do
-              not use these to target advertising.
+              not use these to target advertising. Google Analytics loads with analytics storage
+              denied and cannot set analytics cookies until this category is allowed; before then,
+              it may send limited cookieless consent and measurement signals.
             </>,
             <>
               <strong>Marketing</strong> — measuring which campaigns bring builders to Sim and
@@ -182,6 +179,24 @@ export const COOKIE_POLICY_CONFIG: LegalPageConfig = {
           ['hubspotutk', 'HubSpot', 'Identifies a visitor across form submissions.', '6 months'],
           ['__hssc', 'HubSpot', 'Tracks the current session.', '30 minutes'],
           ['__hssrc', 'HubSpot', 'Detects whether the visitor restarted their browser.', 'Session'],
+          [
+            'ph_*_posthog',
+            'PostHog',
+            'Stores analytics identity and durable session state after analytics consent is granted.',
+            '1 year',
+          ],
+          [
+            '__ph_opt_in_out_*',
+            'PostHog',
+            'Records PostHog’s local capture state, synchronized from your Sim analytics choice.',
+            'Until you change your choice',
+          ],
+          [
+            'ph_*_window_id / ph_*_primary_window_exists',
+            'PostHog',
+            'Coordinates analytics state for the current browser tab.',
+            'Session',
+          ],
         ]),
         cookieTable('Marketing', [
           [
@@ -199,7 +214,6 @@ export const COOKIE_POLICY_CONFIG: LegalPageConfig = {
           ],
           ['personalization_id', 'X (Twitter)', 'Personalizes the ads shown on X.', '13 months'],
           ['muc_ads', 'X (Twitter)', 'Measures ad conversions across X domains.', '13 months'],
-          ['_gcl_*', 'Google Ads', 'Attributes a sign-up to the ad that led to it.', '90 days'],
         ]),
       ],
     },
@@ -224,7 +238,7 @@ export const COOKIE_POLICY_CONFIG: LegalPageConfig = {
         },
         {
           kind: 'paragraph',
-          content: `We honor Global Privacy Control (GPC). If your browser or an extension sends a GPC signal, we treat it as an instruction to opt out of analytics and marketing cookies without your having to use the banner.`,
+          content: `We honor Global Privacy Control (GPC). Where the applicable privacy policy provides an opt-out right, the consent service applies that signal to the covered optional categories without requiring you to use the banner.`,
         },
         {
           kind: 'paragraph',
@@ -234,9 +248,9 @@ export const COOKIE_POLICY_CONFIG: LegalPageConfig = {
               <ProseLink href='https://tools.google.com/dlpage/gaoptout'>
                 Google Analytics
               </ProseLink>
-              , <ProseLink href='https://myadcenter.google.com'>Google Ads</ProseLink>,{' '}
-              <ProseLink href='https://x.com/settings/privacy_and_safety'>X (Twitter)</ProseLink>,
-              and <ProseLink href='https://legal.hubspot.com/privacy-policy'>HubSpot</ProseLink>.
+              , <ProseLink href='https://x.com/settings/privacy_and_safety'>X (Twitter)</ProseLink>,{' '}
+              <ProseLink href='https://legal.hubspot.com/privacy-policy'>HubSpot</ProseLink>, and{' '}
+              <ProseLink href='https://posthog.com/privacy'>PostHog</ProseLink>.
             </>
           ),
         },
@@ -256,10 +270,11 @@ export const COOKIE_POLICY_CONFIG: LegalPageConfig = {
             <>
               The providers currently in use are{' '}
               <ProseLink href='https://policies.google.com/technologies/cookies'>Google</ProseLink>{' '}
-              (Analytics, Tag Manager, and Ads),{' '}
+              (Analytics),{' '}
               <ProseLink href='https://legal.hubspot.com/privacy-policy'>HubSpot</ProseLink>,{' '}
               <ProseLink href='https://x.com/en/privacy'>X (Twitter)</ProseLink>,{' '}
-              <ProseLink href='https://ahrefs.com/privacy'>Ahrefs</ProseLink>, and{' '}
+              <ProseLink href='https://ahrefs.com/privacy'>Ahrefs</ProseLink>,{' '}
+              <ProseLink href='https://posthog.com/privacy'>PostHog</ProseLink>, and{' '}
               <ProseLink href='https://www.cloudflare.com/privacypolicy/'>Cloudflare</ProseLink>.
             </>
           ),

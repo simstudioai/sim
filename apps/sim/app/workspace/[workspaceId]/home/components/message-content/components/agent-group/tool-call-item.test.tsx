@@ -1,10 +1,12 @@
 /**
- * @vitest-environment node
+ * @vitest-environment jsdom
  */
-import type { ReactNode, SVGProps } from 'react'
+import { act, type ReactNode, type SVGProps } from 'react'
+import { createRoot, type Root } from 'react-dom/client'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { describe, expect, it, vi } from 'vitest'
-import { getBlockByToolName } from '@/blocks/registry'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { notifyBlockOverlayChanged } from '@/blocks/custom/client-overlay'
+import { getBlock, getBlockByToolName } from '@/blocks/registry'
 import { ToolCallItem } from './tool-call-item'
 
 vi.mock('@/components/ui', () => ({
@@ -12,6 +14,11 @@ vi.mock('@/components/ui', () => ({
 }))
 
 describe('ToolCallItem', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+  })
+
   it.each(['executing', 'success', 'error', 'cancelled'] as const)(
     'renders the %s tool row without an icon',
     (status) => {
@@ -114,5 +121,35 @@ describe('ToolCallItem', () => {
 
     expect(markup).toContain('<svg')
     expect(markup).toContain('Read recent emails')
+  })
+
+  it('refreshes the read icon when custom blocks hydrate after mount', () => {
+    vi.mocked(getBlock).mockReturnValue(undefined)
+    const container = document.createElement('div')
+    const root: Root = createRoot(container)
+
+    act(() => {
+      root.render(
+        <ToolCallItem
+          toolName='read'
+          displayTitle='Read Custom block invoice parser'
+          status='success'
+          params={{
+            path: 'organization/custom-blocks/custom_block_invoice_parser.json',
+          }}
+        />
+      )
+    })
+    expect(container.querySelector('[data-testid="custom-block-icon"]')).toBeNull()
+
+    vi.mocked(getBlock).mockReturnValue({
+      type: 'custom_block_invoice_parser',
+      name: 'Invoice Parser',
+      icon: (props: SVGProps<SVGSVGElement>) => <svg {...props} data-testid='custom-block-icon' />,
+    } as ReturnType<typeof getBlock>)
+    act(() => notifyBlockOverlayChanged())
+
+    expect(container.querySelector('[data-testid="custom-block-icon"]')).not.toBeNull()
+    act(() => root.unmount())
   })
 })

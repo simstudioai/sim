@@ -86,5 +86,7 @@ describe('containsReference', () => {
   it('returns false for stray brackets that are not references', () => {
     expect(containsReference('a < b')).toBe(false)
     expect(containsReference('<123>')).toBe(false)
+    expect(containsReference('value <limit && value>max')).toBe(false)
+    expect(containsReference('a<b<c>d')).toBe(false)
   })
 })

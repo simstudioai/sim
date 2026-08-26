@@ -112,6 +112,11 @@ interface ConnectOAuthModalReauthorizeProps extends ConnectOAuthModalBaseProps {
   toolName: string
   requiredScopes?: readonly string[]
   newScopes?: readonly string[]
+  reconnectTarget?: {
+    workspaceId: string
+    credentialId: string
+    displayName: string
+  }
   onConnect?: () => Promise<void> | void
 }
 
@@ -316,6 +321,16 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
         handleClose()
         return
       } else {
+        if (props.reconnectTarget) {
+          const draft = await createDraft.mutateAsync({
+            workspaceId: props.reconnectTarget.workspaceId,
+            providerId,
+            credentialId: props.reconnectTarget.credentialId,
+            displayName: props.reconnectTarget.displayName,
+          })
+          draftId = draft.draftId
+        }
+
         logger.info('Reauthorizing OAuth2', {
           providerId,
           requiredScopes,
@@ -341,7 +356,8 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
     }
   }
 
-  const isPending = (isConnect && createDraft.isPending) || connectOAuthService.isPending
+  const createsDraft = isConnect || (!isConnect && Boolean(props.reconnectTarget))
+  const isPending = (createsDraft && createDraft.isPending) || connectOAuthService.isPending
   const isDisabled = isConnect
     ? !displayName.trim() || isPending || Boolean(existingCredential)
     : isPending

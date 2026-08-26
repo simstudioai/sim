@@ -33,7 +33,11 @@ import {
   InvalidInternalDelegationBindingError,
 } from '@/lib/auth/internal-delegation'
 import type { ApplicationOperation, OperationUseCase } from '@/lib/core/application'
-import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
+import {
+  asOrchestrationError,
+  messageForOrchestrationError,
+  statusForOrchestrationError,
+} from '@/lib/core/orchestration/types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 export class InternalUnauthenticatedError extends Error {
@@ -142,7 +146,10 @@ export const internalOrchestrationErrorPolicy: InternalErrorPolicy = {
     const classified = asOrchestrationError(error)
     if (!classified) return null
     return internalErrorResponse(statusForOrchestrationError(classified.code), {
-      error: classified.message,
+      error: messageForOrchestrationError(
+        { error: classified.message, errorCode: classified.code },
+        'Internal server error'
+      ),
     })
   },
   unhandled() {

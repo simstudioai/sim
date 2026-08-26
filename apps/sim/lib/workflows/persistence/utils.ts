@@ -542,8 +542,8 @@ async function migrateCredentialIds(
  * Load workflow from normalized tables and apply all block migrations
  * (credential ID rewrites, agent message migration, subblock ID migrations,
  * WhatsApp interactive-type backfill, canonical-mode backfill, tool
- * sanitization). Returns null if the workflow has not been migrated to
- * normalized tables yet.
+ * sanitization). An existing blockless workflow returns an explicit empty
+ * graph; null is reserved for a missing workflow or a failed load.
  */
 export async function loadWorkflowFromNormalizedTables(
   workflowId: string,

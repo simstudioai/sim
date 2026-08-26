@@ -12,10 +12,10 @@ import {
 } from '@/components/settings/navigation'
 import { getSession } from '@/lib/auth'
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing'
-import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { isBillingEnabled, isHosted } from '@/lib/core/config/env-flags'
 import { canOpenOrganizationSettingsSection } from '@/lib/organizations/settings-access'
 import { isPlatformAdmin } from '@/lib/permissions/super-user'
+import { isCustomBlocksEligibleForOrganization } from '@/lib/workflows/custom-blocks/operations'
 import { getWorkspaceHostContextForViewer } from '@/lib/workspaces/host-context'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import {
@@ -133,7 +133,7 @@ export default async function WorkspaceSettingsSectionPage({
      * Every other section is independent of that config, so resolving the viewer's group for it
      * can never change this gate's answer.
      */
-    const [permissionGroup, forksAvailable] = await Promise.all([
+    const [permissionGroup, forksAvailable, customBlocksAvailable] = await Promise.all([
       hostContext.hostOrganizationId &&
       hostContext.ownerBilling.isEnterprise &&
       workspaceSectionUsesPermissionConfig(workspaceSection)
@@ -142,10 +142,10 @@ export default async function WorkspaceSettingsSectionPage({
       workspaceSection === 'forks'
         ? isForkingAvailableForWorkspace(hostContext.hostOrganizationId, session.user.id)
         : Promise.resolve(false),
+      workspaceSection === 'custom-blocks' && hostContext.hostOrganizationId
+        ? isCustomBlocksEligibleForOrganization(hostContext.hostOrganizationId)
+        : Promise.resolve(false),
     ])
-    const customBlocksAvailable = isHosted
-      ? hostContext.ownerBilling.isEnterprise
-      : isTruthy(getEnv('NEXT_PUBLIC_CUSTOM_BLOCKS_ENABLED'))
     const navigation = resolveWorkspaceNavigation({
       permission: hostContext.viewer.permission,
       permissionConfig: permissionGroup?.config ?? {},

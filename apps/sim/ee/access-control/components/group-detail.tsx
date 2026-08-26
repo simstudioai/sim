@@ -268,7 +268,7 @@ function AddMembersModal({
             All organization members are already in this group.
           </p>
         ) : (
-          <ChipModalField type='custom' title='Members'>
+          <ChipModalField type='custom' title='Members' submitOnEnter={false}>
             <div className='flex flex-col gap-3'>
               <div className='flex items-center gap-2'>
                 <ChipInput

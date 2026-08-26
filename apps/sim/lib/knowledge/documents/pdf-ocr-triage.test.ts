@@ -28,6 +28,7 @@ vi.mock('@/lib/file-parsers', () => ({
 vi.mock('@/lib/uploads/utils/file-utils.server', () => ({ downloadFileFromUrl: mockDownload }))
 
 import { env } from '@/lib/core/config/env'
+import { PermanentDocumentProcessingError } from '@/lib/knowledge/documents/document-processing-error'
 import { processDocument } from '@/lib/knowledge/documents/document-processor'
 import { runWithKnowledgeModelInputProvenance } from '@/lib/knowledge/model-input-provenance'
 
@@ -41,6 +42,10 @@ async function pdfOfPages(count: number): Promise<Buffer> {
   const pdf = await PDFDocument.create()
   for (let i = 0; i < count; i++) pdf.addPage()
   return Buffer.from(await pdf.save())
+}
+
+function ocrPages(count: number, markdown = 'Recognised page') {
+  return Array.from({ length: count }, () => ({ markdown }))
 }
 
 function parse() {
@@ -85,10 +90,13 @@ describe('PDF OCR triage', () => {
     const headerOnly = 'CONFIDENTIAL - Vendor Master Agreement - Page header. '.repeat(6)
     mockParseBuffer.mockResolvedValue({ content: headerOnly, metadata: { pageCount: 80 } })
     const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ pages: [{ markdown: 'Recognised' }], usage_info: {} }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      })
+      new Response(
+        JSON.stringify({ pages: [{ markdown: 'Recognised' }], usage_info: { pages_processed: 1 } }),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      )
     )
     vi.stubGlobal('fetch', fetchMock)
 
@@ -100,10 +108,13 @@ describe('PDF OCR triage', () => {
   it('falls through to OCR when the PDF is a scan', async () => {
     mockParseBuffer.mockResolvedValue({ content: '', metadata: {} })
     const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ pages: [{ markdown: 'Recognised text' }], usage_info: {} }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      })
+      new Response(
+        JSON.stringify({
+          pages: [{ markdown: 'Recognised text' }],
+          usage_info: { pages_processed: 1 },
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
     )
     vi.stubGlobal('fetch', fetchMock)
 
@@ -121,10 +132,13 @@ describe('PDF OCR triage', () => {
   it('falls through to OCR when the text layer is raw CID escapes', async () => {
     mockParseBuffer.mockResolvedValue({ content: '/31 /8 /18 /12 /44 '.repeat(60), metadata: {} })
     const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ pages: [{ markdown: 'Recognised' }], usage_info: {} }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      })
+      new Response(
+        JSON.stringify({ pages: [{ markdown: 'Recognised' }], usage_info: { pages_processed: 1 } }),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      )
     )
     vi.stubGlobal('fetch', fetchMock)
 
@@ -137,16 +151,34 @@ describe('PDF OCR triage', () => {
   it('falls through to OCR when the text layer cannot be parsed at all', async () => {
     mockParseBuffer.mockRejectedValue(new Error('Invalid PDF structure.'))
     const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ pages: [{ markdown: 'Recognised' }], usage_info: {} }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      })
+      new Response(
+        JSON.stringify({ pages: [{ markdown: 'Recognised' }], usage_info: { pages_processed: 1 } }),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      )
     )
     vi.stubGlobal('fetch', fetchMock)
 
     const result = await parse()
 
     expect(result.metadata.processingMethod).toBe('mistral-ocr')
+  })
+
+  it('does not index a Mistral no-pages response as raw provider JSON', async () => {
+    mockParseBuffer.mockResolvedValue({ content: '', metadata: {} })
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ pages: [], usage_info: { pages_processed: 0 } }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      )
+    )
+
+    await expect(parse()).rejects.toThrow('OCR provider returned no page results')
   })
 })
 
@@ -166,13 +198,17 @@ describe('Azure OCR chunking', () => {
     mockParseBuffer.mockResolvedValue({ content: '', metadata: { pageCount: 2500 } })
     mockDownload.mockResolvedValue(await pdfOfPages(1001))
     // A fresh Response per call: a body can only be read once.
-    const fetchMock = vi.fn().mockImplementation(
-      async () =>
-        new Response(JSON.stringify({ pages: [{ markdown: 'Recognised page' }] }), {
+    let request = 0
+    const fetchMock = vi.fn().mockImplementation(async () => {
+      const pageCount = request++ === 0 ? 1000 : 1
+      return new Response(
+        JSON.stringify({ pages: ocrPages(pageCount), usage_info: { pages_processed: pageCount } }),
+        {
           status: 200,
           headers: { 'Content-Type': 'application/json' },
-        })
-    )
+        }
+      )
+    })
     vi.stubGlobal('fetch', fetchMock)
 
     const result = await parse()
@@ -196,10 +232,16 @@ describe('Azure OCR chunking', () => {
     mockParseBuffer.mockRejectedValue(new Error('Invalid PDF structure.'))
     mockDownload.mockResolvedValue(Buffer.from('not something pdf-lib can load'))
     const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ pages: [{ markdown: 'Recognised' }] }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      })
+      new Response(
+        JSON.stringify({
+          pages: [{ markdown: 'Recognised' }],
+          usage_info: { pages_processed: 1 },
+        }),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      )
     )
     vi.stubGlobal('fetch', fetchMock)
 
@@ -214,7 +256,7 @@ describe('Azure OCR chunking', () => {
    * the API envelope as the document and satisfy the empty-content check meant to
    * catch it.
    */
-  it('treats an Azure response carrying no pages as empty, not as content', async () => {
+  it('treats an Azure response carrying no processed pages as an incomplete provider response', async () => {
     Object.assign(env, {
       OCR_PROVIDER: 'azure-mistral',
       OCR_AZURE_API_KEY: 'key',
@@ -233,8 +275,11 @@ describe('Azure OCR chunking', () => {
       )
     )
 
-    // Counted as a failed chunk rather than stitched in as recovered text.
-    await expect(parse()).rejects.toThrow(/OCR recovered 0 of 1 chunks/)
+    const error = await parse().catch((caught: unknown) => caught)
+
+    expect(error).toBeInstanceOf(Error)
+    expect(error).not.toBeInstanceOf(PermanentDocumentProcessingError)
+    expect(error).toMatchObject({ message: expect.stringMatching(/completed 0 of 1 chunks/) })
   })
 
   /**
@@ -258,15 +303,54 @@ describe('Azure OCR chunking', () => {
       vi.fn().mockImplementation(async () => {
         call++
         if (call === 1) {
-          return new Response(JSON.stringify({ pages: [{ markdown: 'First half' }] }), {
-            status: 200,
-            headers: { 'Content-Type': 'application/json' },
-          })
+          return new Response(
+            JSON.stringify({
+              pages: ocrPages(1000, 'First half'),
+              usage_info: { pages_processed: 1000 },
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }
+          )
         }
         return new Response('upstream failure', { status: 500 })
       })
     )
 
-    await expect(parse()).rejects.toThrow(/OCR recovered 1 of 2 chunks/)
+    const error = await parse().catch((caught: unknown) => caught)
+
+    expect(error).toBeInstanceOf(Error)
+    expect(error).not.toBeInstanceOf(PermanentDocumentProcessingError)
+    expect(error).toMatchObject({ message: expect.stringMatching(/OCR completed 1 of 2 chunks/) })
+  })
+
+  it('accepts a page-complete blank range when another range contains text', async () => {
+    Object.assign(env, {
+      OCR_PROVIDER: 'azure-mistral',
+      OCR_AZURE_API_KEY: 'key',
+      OCR_AZURE_ENDPOINT: 'https://example.openai.azure.com',
+      OCR_AZURE_MODEL_NAME: 'mistral-ocr',
+    })
+    mockParseBuffer.mockResolvedValue({ content: '', metadata: {} })
+    mockDownload.mockResolvedValue(await pdfOfPages(1001))
+
+    let request = 0
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async () => {
+        const first = request++ === 0
+        const pageCount = first ? 1000 : 1
+        return new Response(
+          JSON.stringify({
+            pages: ocrPages(pageCount, first ? 'First half' : ''),
+            usage_info: { pages_processed: pageCount },
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      })
+    )
+
+    const result = await parse()
+
+    expect(result.chunks.some((chunk) => chunk.text.includes('First half'))).toBe(true)
+    expect(result.metadata.processingMethod).toBe('mistral-ocr')
   })
 })

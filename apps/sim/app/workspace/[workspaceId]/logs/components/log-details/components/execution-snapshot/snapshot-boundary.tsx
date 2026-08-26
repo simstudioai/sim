@@ -1,15 +1,7 @@
 'use client'
 
-import { Component, type ErrorInfo, type ReactNode } from 'react'
-import {
-  Loader,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalDescription,
-  ModalHeader,
-  toast,
-} from '@sim/emcn'
+import { Component, type ErrorInfo, type ReactNode, useId } from 'react'
+import { ChipModal, ChipModalBody, ChipModalHeader, Loader, toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 
 const logger = createLogger('ExecutionSnapshotBoundary')
@@ -32,26 +24,30 @@ interface SnapshotModalFallbackProps {
 }
 
 export function SnapshotModalFallback({ isOpen, onClose }: SnapshotModalFallbackProps) {
+  const descriptionId = useId()
+
   return (
-    <Modal
+    <ChipModal
       open={isOpen}
       onOpenChange={(open) => {
         if (!open) onClose()
       }}
+      srTitle='Workflow State'
+      aria-describedby={descriptionId}
+      size='full'
+      className='h-[90vh] [&>div]:h-full'
     >
-      <ModalContent size='full' className='flex h-[90vh] flex-col'>
-        <ModalHeader>Workflow State</ModalHeader>
-        <ModalBody className='!p-0 flex min-h-0 flex-1 items-center justify-center overflow-hidden'>
-          <ModalDescription className='sr-only'>
-            Loading the workflow state snapshot for this execution
-          </ModalDescription>
-          <div className='flex items-center gap-2 text-[var(--text-secondary)]'>
-            <Loader className='size-[16px]' animate />
-            <span className='text-small'>Loading run snapshot…</span>
-          </div>
-        </ModalBody>
-      </ModalContent>
-    </Modal>
+      <ChipModalHeader onClose={onClose}>Workflow State</ChipModalHeader>
+      <ChipModalBody fullBleed className='items-center justify-center'>
+        <p id={descriptionId} className='sr-only'>
+          Loading the workflow state snapshot for this execution
+        </p>
+        <div className='flex items-center gap-2 text-[var(--text-secondary)]'>
+          <Loader className='size-[16px]' animate />
+          <span className='text-small'>Loading run snapshot…</span>
+        </div>
+      </ChipModalBody>
+    </ChipModal>
   )
 }
 

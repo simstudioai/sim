@@ -32,7 +32,7 @@ import { selectModelBoundFileInputPaths } from '@/lib/uploads/utils/model-input'
 import { hydrateUserFilesWithBase64 } from '@/lib/uploads/utils/user-file-base64.server'
 import { resolveCustomBlockToolBinding } from '@/lib/workflows/custom-blocks/operations'
 import { getCustomToolById } from '@/lib/workflows/custom-tools/operations'
-import { getAllBlocks } from '@/blocks'
+import { getAllBlocks, getBlock } from '@/blocks'
 import { assembleCustomBlockInputMapping, isCustomBlockType } from '@/blocks/custom/build-config'
 import type { BlockOutput } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
@@ -68,6 +68,7 @@ import type {
   ResolvedSecretInputPath,
   ResolvedSecretTraceRegistry,
 } from '@/executor/utils/resolved-secret-trace-registry'
+import { annotateDuplicateToolBindings } from '@/executor/utils/tool-binding-labels'
 import { resolveVertexCredential } from '@/executor/utils/vertex-credential'
 import { executeProviderRequest } from '@/providers'
 import {
@@ -804,12 +805,11 @@ export class AgentBlockHandler implements BlockHandler {
     )
 
     const allTools = [...otherResults, ...mcpResults]
-    return {
-      tools: allTools.filter(
-        (tool): tool is ProviderToolConfig => tool !== null && tool !== undefined
-      ),
-      inputProvenance,
-    }
+    const tools = allTools.filter(
+      (tool): tool is ProviderToolConfig => tool !== null && tool !== undefined
+    )
+    await annotateDuplicateToolBindings(ctx, tools)
+    return { tools, inputProvenance }
   }
 
   private assertInputPathsDoNotResolveSecrets(
@@ -857,7 +857,7 @@ export class AgentBlockHandler implements BlockHandler {
     )
     if (tool.type === 'mcp' || tool.type === 'custom-tool') return alignedParams
 
-    const blockInputs = getAllBlocks().find((block) => block.type === tool.type)?.inputs
+    const blockInputs = tool.type ? getBlock(tool.type)?.inputs : undefined
     return prepareResolvedSecretProjectedInputs(alignedParams, blockInputs, formattedParams)
   }
 
@@ -965,7 +965,6 @@ export class AgentBlockHandler implements BlockHandler {
     const toolId = `${AGENT.CUSTOM_TOOL_PREFIX}${title}`
     const base: any = {
       id: toolId,
-      name: schema.function.name,
       description: projectedDescription || '',
       params: userProvidedParams,
       parameters: {
@@ -1377,7 +1376,6 @@ export class AgentBlockHandler implements BlockHandler {
 
     return {
       id: toolId,
-      name: config.toolName,
       description: config.description,
       parameters: filteredSchema,
       params: config.userProvidedParams,
@@ -1680,6 +1678,7 @@ export class AgentBlockHandler implements BlockHandler {
               identity,
               registry: ctx.resolvedSecretTraceRegistry,
               view: 'opaque',
+              ...(ctx.userId ? { actorUserId: ctx.userId } : {}),
             })
             if (!safe) {
               unsafeGeneratedDocumentFiles.add(`${file.key}:${file.id}`)

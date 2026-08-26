@@ -154,9 +154,10 @@ export function useMemberRemovalImpact(
  * (no cross-org cache collision). The active-org caller passes the active org's
  * id, so its behavior is unchanged.
  */
-async function fetchOrganization(orgId: string, _signal?: AbortSignal) {
+async function fetchOrganization(orgId: string, signal?: AbortSignal) {
   const response = await client.organization.getFullOrganization({
     query: { organizationId: orgId },
+    fetchOptions: { signal },
   })
   return response.data
 }

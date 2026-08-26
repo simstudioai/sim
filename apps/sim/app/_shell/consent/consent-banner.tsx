@@ -1,11 +1,9 @@
 'use client'
 
-import { useEffect } from 'react'
 import { useHeadlessConsentUI } from '@c15t/nextjs/headless'
 import { Chip } from '@sim/emcn'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import Link from 'next/link'
-import { OPEN_CONSENT_PREFERENCES_EVENT } from '@/lib/consent/constants'
 import { CONSENT_LINK_CLASS, ConsentPreferences } from '@/app/_shell/consent/consent-preferences'
 
 /** Shared expo-out easing and timings, matching the toast stack's motion. */
@@ -30,18 +28,12 @@ const CATEGORIES_OPEN = { height: 'auto', opacity: 1 } as const
  * It follows the visitor's theme. Every surface it can appear on either pins
  * the light layer on `<html>` through `ThemeProvider`'s forced theme, or is a
  * themed app page where inheriting is what should happen — the card no longer
- * decides for itself. Inside the workspace it never renders at all; consent is
- * managed from Settings → Privacy there.
+ * decides for itself.
  */
 export function ConsentBanner() {
   const { banner, dialog, openDialog, performAction, saveCustomPreferences } =
     useHeadlessConsentUI()
   const prefersReducedMotion = useReducedMotion()
-
-  useEffect(() => {
-    window.addEventListener(OPEN_CONSENT_PREFERENCES_EVENT, openDialog)
-    return () => window.removeEventListener(OPEN_CONSENT_PREFERENCES_EVENT, openDialog)
-  }, [openDialog])
 
   const isExpanded = dialog.isVisible
   const surfaceName = isExpanded ? 'dialog' : 'banner'

@@ -4,6 +4,7 @@
 import {
   auditMock,
   dbChainMockFns,
+  environmentUtilsMockFns,
   queueTableRows,
   resetDbChainMock,
   schemaMock,
@@ -71,6 +72,7 @@ import {
   createServiceAccountCredential,
   deleteCredentialRecord,
   performUpdateCredential,
+  statusForCredentialOrchestrationError,
 } from '@/lib/credentials/orchestration'
 
 const OLD_EMAIL = 'old-sa@old-project.iam.gserviceaccount.com'
@@ -476,6 +478,128 @@ describe('performUpdateCredential — description scope', () => {
   })
 })
 
+/**
+ * Only a service-account credential has a secret blob to rotate into. Every
+ * other type used to fall straight through the rotation branch, so a secret
+ * sent alongside a rename was silently discarded behind a 200 — the caller
+ * believing it had rotated something.
+ */
+describe('performUpdateCredential — secret fields on a non-rotatable credential', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    mockIsClientCredentialAccountProviderId.mockReturnValue(false)
+    mockGetClientCredentialAccountDescriptor.mockReturnValue(undefined)
+  })
+
+  it('rejects a secret sent for an oauth credential rather than dropping it', async () => {
+    mockCredential({ type: 'oauth', providerId: 'google' })
+
+    const result = await performUpdateCredential({
+      credentialId: 'cred-1',
+      userId: 'user-1',
+      displayName: 'Renamed',
+      apiToken: 'token-that-would-vanish',
+    })
+
+    expect(result).toMatchObject({ success: false, errorCode: 'validation' })
+    expect(result.success ? '' : result.error).toMatch(/apiToken/)
+    expect(dbChainMockFns.set).not.toHaveBeenCalled()
+    expect(mockVerifyAndBuildServiceAccountSecret).not.toHaveBeenCalled()
+  })
+
+  it('names every submitted secret field so the caller knows what was refused', async () => {
+    mockCredential({ type: 'env_workspace', envKey: 'STRIPE_API_KEY', providerId: null })
+
+    const result = await performUpdateCredential({
+      credentialId: 'cred-1',
+      userId: 'user-1',
+      apiToken: 'token',
+      domain: 'example.atlassian.net',
+    })
+
+    expect(result).toMatchObject({ success: false, errorCode: 'validation' })
+    expect(result.success ? '' : result.error).toMatch(/apiToken, domain/)
+  })
+
+  it('leaves a rename with no secret working on a non-service-account credential', async () => {
+    mockCredential({ type: 'oauth', providerId: 'google' })
+
+    const result = await performUpdateCredential({
+      credentialId: 'cred-1',
+      userId: 'user-1',
+      displayName: 'Renamed',
+    })
+
+    expect(result.success).toBe(true)
+    expect(updatePayload().displayName).toBe('Renamed')
+  })
+})
+
+describe('performUpdateCredential — unredacted scope', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    mockIsClientCredentialAccountProviderId.mockReturnValue(false)
+    mockGetClientCredentialAccountDescriptor.mockReturnValue(undefined)
+  })
+
+  it('applies the flag to a workspace secret and invalidates its environment cache', async () => {
+    mockCredential({ type: 'env_workspace', envKey: 'STRIPE_API_KEY', providerId: null })
+
+    const result = await performUpdateCredential({
+      credentialId: 'cred-1',
+      userId: 'user-1',
+      unredacted: true,
+    })
+
+    expect(result.success).toBe(true)
+    expect(updatePayload().unredacted).toBe(true)
+    expect(result.updatedFields).toContain('unredacted')
+    expect(auditMetadata().unredacted).toBe(true)
+    expect(environmentUtilsMockFns.mockInvalidateEffectiveDecryptedEnvCache).toHaveBeenCalledWith({
+      workspaceId: 'ws-1',
+    })
+  })
+
+  it.each(['oauth', 'env_personal', 'service_account'] as const)(
+    'rejects the flag on a %s credential instead of writing dead data',
+    async (type) => {
+      mockCredential({ type, envKey: type === 'env_personal' ? 'MY_KEY' : null })
+
+      const result = await performUpdateCredential({
+        credentialId: 'cred-1',
+        userId: 'user-1',
+        unredacted: true,
+      })
+
+      expect(result).toMatchObject({
+        success: false,
+        errorCode: 'validation',
+        error: 'Only workspace secrets can be marked visible (unredacted).',
+      })
+      expect(dbChainMockFns.update).not.toHaveBeenCalled()
+      expect(
+        environmentUtilsMockFns.mockInvalidateEffectiveDecryptedEnvCache
+      ).not.toHaveBeenCalled()
+    }
+  )
+
+  it('does not invalidate the environment cache for a pure description change', async () => {
+    mockCredential({ type: 'env_workspace', envKey: 'STRIPE_API_KEY', providerId: null })
+
+    const result = await performUpdateCredential({
+      credentialId: 'cred-1',
+      userId: 'user-1',
+      description: 'Prod billing key',
+    })
+
+    expect(result.success).toBe(true)
+    expect(updatePayload()).not.toHaveProperty('unredacted')
+    expect(environmentUtilsMockFns.mockInvalidateEffectiveDecryptedEnvCache).not.toHaveBeenCalled()
+  })
+})
+
 describe('createServiceAccountCredential', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -640,5 +764,29 @@ describe('deleteCredentialRecord', () => {
     })
 
     expect(mockDeleteOrphanedOAuthAccount).not.toHaveBeenCalled()
+  })
+})
+
+describe('statusForCredentialOrchestrationError', () => {
+  /**
+   * `PROVIDER_OUTAGE_CODES` twelve lines above it already says both outage
+   * families "must map to 503, not 400"; this returned 502, so the shared
+   * status helper disagreed with its own neighbouring contract.
+   */
+  it('maps a provider outage to 503, matching the outage-code contract', () => {
+    expect(statusForCredentialOrchestrationError(undefined, { providerUnavailable: true })).toBe(
+      503
+    )
+    expect(statusForCredentialOrchestrationError('validation', { providerUnavailable: true })).toBe(
+      503
+    )
+  })
+
+  it('keeps the classified codes on their own statuses', () => {
+    expect(statusForCredentialOrchestrationError('validation')).toBe(400)
+    expect(statusForCredentialOrchestrationError('forbidden')).toBe(403)
+    expect(statusForCredentialOrchestrationError('not_found')).toBe(404)
+    expect(statusForCredentialOrchestrationError('conflict')).toBe(409)
+    expect(statusForCredentialOrchestrationError(undefined)).toBe(500)
   })
 })

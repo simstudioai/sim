@@ -34,6 +34,31 @@ export function truncate(str: string, sliceLength: number, suffix = '...'): stri
 }
 
 /**
+ * Lowercases `value` into the `[a-z0-9-]` charset: every run of other characters
+ * becomes one hyphen, and leading and trailing hyphens are dropped.
+ *
+ * ASCII-only by design — the character class drops accented and non-Latin text
+ * rather than transliterating it, so `'Café'` yields `'caf'` and a wholly
+ * non-Latin name yields `''`. Callers that need a non-empty result supply their
+ * own fallback, because what to fall back to is theirs to decide.
+ *
+ * Truncation is likewise the caller's: slicing a slug can leave a trailing
+ * hyphen, and whether to strip it, and at what length, varies by the identifier
+ * being built.
+ *
+ * @example
+ * slugify('Acme Corp')       // 'acme-corp'
+ * slugify('  !!Hello!!  ')   // 'hello'
+ * slugify('***')             // ''
+ */
+export function slugify(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+}
+
+/**
  * Strips a trailing `_vN` version suffix from `value`, yielding the base type.
  * Only the single trailing suffix is removed; leading occurrences are left intact.
  *

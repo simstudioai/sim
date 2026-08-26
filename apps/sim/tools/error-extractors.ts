@@ -532,7 +532,7 @@ export function extractErrorMessageWithId(
     if (message?.trim()) {
       return message
     }
-  } catch (error) {}
+  } catch {}
 
   return `Request failed with status ${errorInfo?.status || 'unknown'}`
 }
@@ -564,7 +564,7 @@ export function extractErrorMessage(errorInfo?: ErrorInfo, extractorId?: string)
       if (message?.trim()) {
         return message
       }
-    } catch (error) {}
+    } catch {}
   }
 
   return `Request failed with status ${errorInfo?.status || 'unknown'}`

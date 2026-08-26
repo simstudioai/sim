@@ -1,8 +1,5 @@
-import { createLogger } from '@sim/logger'
 import { OutlookIcon } from '@/components/icons'
 import type { TriggerConfig } from '@/triggers/types'
-
-const logger = createLogger('OutlookPollingTrigger')
 
 export const outlookPollingTrigger: TriggerConfig = {
   id: 'outlook_poller',

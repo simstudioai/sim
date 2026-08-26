@@ -252,6 +252,7 @@ export function ShareModal({
         </ChipModalBody>
         <ChipModalFooter
           onCancel={handleClose}
+          defaultAction={isUnshareAction ? 'none' : 'primary'}
           secondaryActions={
             saved?.isActive && saved.url
               ? [

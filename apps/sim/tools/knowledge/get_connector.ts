@@ -24,8 +24,10 @@ export const knowledgeGetConnectorTool: ToolConfig<any, KnowledgeGetConnectorRes
   },
 
   request: {
+    internal: true,
     internalAuth: 'executor_delegation',
-    url: (params) => `/api/knowledge/${params.knowledgeBaseId}/connectors/${params.connectorId}`,
+    url: (params) =>
+      `/api/knowledge/${encodeURIComponent(params.knowledgeBaseId)}/connectors/${encodeURIComponent(params.connectorId)}`,
     method: 'GET',
     headers: () => ({
       'Content-Type': 'application/json',

@@ -77,6 +77,8 @@ export class FunctionBlockHandler implements BlockHandler {
             mountedSecrets: inputs.mountedSecrets,
           })
 
+    const unredactedSecretNames = ctx.resolvedSecretTraceRegistry?.getUnredactedSecretNames() ?? []
+
     const toolParams = {
       code: codeContent,
       ...(sourceCode ? { sourceCode } : {}),
@@ -84,6 +86,7 @@ export class FunctionBlockHandler implements BlockHandler {
       timeout,
       ...(inputs.sandboxId ? { sandboxId: inputs.sandboxId } : {}),
       ...(secretMountPolicy ?? {}),
+      ...(unredactedSecretNames.length > 0 ? { unredactedSecretNames } : {}),
       envVars: normalizeStringRecord(ctx.environmentVariables),
       workflowVariables: normalizeWorkflowVariables(ctx.workflowVariables),
       blockData: {},

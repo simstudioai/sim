@@ -6,6 +6,7 @@ export {
   EDGE_Z_MAX,
   getBlockZIndex,
   getEdgeZIndex,
+  getEdgeZIndexForTarget,
 } from './canvas-layers'
 export * from './dimensions'
 export { WorkflowEdgeView, type WorkflowEdgeViewProps } from './edge/workflow-edge-view'
@@ -37,7 +38,14 @@ export {
   type SubflowNodeViewProps,
   SubflowStartView,
 } from './subflow/subflow-node-view'
-export type { BlockRunStatus, DiffStatus, EdgeDiffStatus, EdgeRunStatus } from './types'
+export type {
+  BlockRunStatus,
+  CodePreview,
+  CodePreviewLanguage,
+  DiffStatus,
+  EdgeDiffStatus,
+  EdgeRunStatus,
+} from './types'
 export {
   type CanvasSentenceSegment,
   CanvasSentenceView,

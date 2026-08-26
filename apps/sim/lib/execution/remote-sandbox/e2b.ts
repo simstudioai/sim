@@ -109,6 +109,8 @@ function isE2BExecutionTimeout(error: unknown): boolean {
         ? error.name
         : ''
   const message =
+    // utils-lint-allow: probes E2B's own error shape — a record-like carrying `message`
+    // or `value` — which getErrorMessage cannot express.
     error instanceof Error
       ? error.message
       : isRecordLike(error)

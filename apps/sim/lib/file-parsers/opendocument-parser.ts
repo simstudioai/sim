@@ -1,6 +1,7 @@
 import { existsSync } from 'fs'
 import { readFile } from 'fs/promises'
 import { createLogger } from '@sim/logger'
+import { FileParserError, isEncryptedOfficeParserError } from '@/lib/file-parsers/errors'
 import { loadParseOfficeAsync } from '@/lib/file-parsers/officeparser-module'
 import type { FileParseResult, FileParser } from '@/lib/file-parsers/types'
 import { sanitizeTextForUTF8 } from '@/lib/file-parsers/utils'
@@ -38,7 +39,7 @@ export class OpenDocumentParser implements FileParser {
 
   async parseBuffer(buffer: Buffer): Promise<FileParseResult> {
     if (!buffer || buffer.length === 0) {
-      throw new Error('Empty buffer provided')
+      throw new FileParserError('empty_input', 'Empty buffer provided')
     }
 
     /**
@@ -55,12 +56,22 @@ export class OpenDocumentParser implements FileParser {
       extracted = typeof result === 'string' ? result : ''
     } catch (error) {
       logger.error('OpenDocument parsing failed', { error: (error as Error).message })
-      throw new Error(`Failed to parse OpenDocument file: ${(error as Error).message}`)
+      if (isEncryptedOfficeParserError(error)) {
+        throw new FileParserError(
+          'encrypted_file',
+          'This OpenDocument file is encrypted or password-protected',
+          error
+        )
+      }
+      throw new FileParserError('invalid_format', 'Failed to parse OpenDocument file', error)
     }
 
     const content = sanitizeTextForUTF8(extracted.trim())
     if (!content) {
-      throw new Error('Failed to extract text from OpenDocument file')
+      throw new FileParserError(
+        'no_extractable_text',
+        'No text could be extracted from this OpenDocument file'
+      )
     }
 
     return {

@@ -9,6 +9,27 @@ import { buildRequest, coerce, type FieldSpec } from './request'
 const WORKSPACE = 'ws_local'
 
 describe('buildRequest', () => {
+  /**
+   * `recursive` is the one string-backed toggle the API turns on by itself —
+   * it defaults to true as soon as a search is set. Its `--no-` twin has to
+   * reach the wire as an explicit false, or searching a single folder without
+   * descending into it is unsayable from the terminal.
+   */
+  it('sends an explicit false for a negated string-backed toggle', () => {
+    const built = buildRequest(
+      'listFiles',
+      [],
+      { folderPath: '/Reports', search: 'q3', recursive: false },
+      WORKSPACE
+    )
+    expect(built.query.recursive).toBe(false)
+  })
+
+  it('sends true when the same toggle is set positively', () => {
+    const built = buildRequest('listFiles', [], { recursive: true }, WORKSPACE)
+    expect(built.query.recursive).toBe(true)
+  })
+
   it('substitutes path params from positional args and injects the workspace', () => {
     expect(buildRequest('upsertTableRow', ['tbl_1'], { data: '{"a":1}' }, WORKSPACE)).toEqual({
       path: '/api/v2/tables/tbl_1/rows/upsert',
@@ -201,6 +222,25 @@ describe('repeated flags encode per the field kind, not uniformly', () => {
     rmSync(path)
   })
 
+  /**
+   * Without an escape a list value that starts with `@` has no spelling at all:
+   * `--tag @urgent` can only be read as a request to open a file named
+   * `urgent`. The escape belongs to the shared reader, so every `@`-aware flag
+   * has it — `secrets set --value` documented `@@` but implemented it alone.
+   */
+  it('takes @@ as a literal leading @ in a list value', () => {
+    expect(coerce(['@@urgent', 'plain'], { kind: 'array' }, { list: true }, 'tag')).toEqual([
+      '@urgent',
+      'plain',
+    ])
+  })
+
+  it('still reads a single @ in a list value as a file', () => {
+    expect(() => coerce('@urgent', { kind: 'array' }, { list: true }, 'tag')).toThrow(
+      /cannot read urgent/
+    )
+  })
+
   it('rejects empty lines in a list file', () => {
     const path = join(tmpdir(), 'sim-cli-list-empty-line.txt')
     writeFileSync(path, 'file_1\n\nfile_2')
@@ -340,5 +380,58 @@ describe('folder paths are typed by the name the app shows', () => {
     // marker is what keeps the encoder away from one.
     const local = './My Docs/report.pdf'
     expect(coerce(local, { kind: 'string' }, {}, 'file')).toBe(local)
+  })
+})
+
+describe('the word null typed into a string flag', () => {
+  /**
+   * There is no flag that sends JSON `null`: `--no-<flag>` is spoken for by the
+   * boolean negations, so a field the contract clears with null is cleared from
+   * the terminal only as far as an empty string goes. What a caller types is
+   * text, and `coerce` keeps it that way rather than guessing at the value.
+   */
+  it('stays the four characters, while an empty string stays empty', () => {
+    expect(coerce('null', { kind: 'string' }, {}, 'description')).toBe('null')
+    expect(coerce('', { kind: 'string' }, {}, 'description')).toBe('')
+  })
+})
+
+describe('contract-declared headers', () => {
+  it('builds a header slot from the flag the contract declares', () => {
+    const built = buildRequest('getFileUpload', ['up_1'], { uploadToken: 'tok_1' }, WORKSPACE)
+    expect(built.headers).toEqual({ 'upload-token': 'tok_1' })
+  })
+
+  it('raises before the request when a required header is absent', () => {
+    expect(() => buildRequest('getFileUpload', ['up_1'], {}, WORKSPACE)).toThrow(
+      /--upload-token is required/
+    )
+  })
+
+  /**
+   * Absent rather than empty: the client builds its own header block, and an
+   * empty object spread over it must not be what a headerless request looks
+   * like.
+   */
+  it('omits the slot for an operation that declares no headers', () => {
+    expect(buildRequest('listTables', [], {}, WORKSPACE)).not.toHaveProperty('headers')
+  })
+
+  /**
+   * `upload-token` is omitted from the flags of `tables imports get`: the token
+   * is a per-transfer credential the CLI never prints, and the session it
+   * addresses is opened and finished inside one `sim files upload`. An omitted
+   * field is dropped even when a value is keyed by its name, so nothing the
+   * caller can type puts the slot back.
+   */
+  it('builds no header for a field the CLI contract omits', () => {
+    expect(
+      buildRequest('getTableImport', ['imp_1'], { uploadToken: 'tok_1' }, WORKSPACE)
+    ).not.toHaveProperty('headers')
+    // Paired with an operation that declares one, so the absence above means
+    // "omitted" rather than "this never builds a header slot at all".
+    expect(
+      buildRequest('getFileUpload', ['up_1'], { uploadToken: 'tok_1' }, WORKSPACE).headers
+    ).toEqual({ 'upload-token': 'tok_1' })
   })
 })

@@ -9,8 +9,8 @@ import type { ExecutionContext } from '@/lib/copilot/request/types'
 const {
   ensureWorkflowAccessMock,
   getWorkspaceWithOwnerMock,
-  isFeatureEnabledMock,
-  isOrganizationOnEnterprisePlanMock,
+  isCustomBlocksDeploymentEnabledMock,
+  isCustomBlocksEligibleForOrganizationMock,
   publishCustomBlockMock,
   updateCustomBlockMock,
   deleteCustomBlockMock,
@@ -21,8 +21,8 @@ const {
 } = vi.hoisted(() => ({
   ensureWorkflowAccessMock: vi.fn(),
   getWorkspaceWithOwnerMock: vi.fn(),
-  isFeatureEnabledMock: vi.fn(),
-  isOrganizationOnEnterprisePlanMock: vi.fn(),
+  isCustomBlocksDeploymentEnabledMock: vi.fn(),
+  isCustomBlocksEligibleForOrganizationMock: vi.fn(),
   publishCustomBlockMock: vi.fn(),
   updateCustomBlockMock: vi.fn(),
   deleteCustomBlockMock: vi.fn(),
@@ -41,14 +41,6 @@ vi.mock('../access', () => ({
 
 vi.mock('@/lib/workspaces/permissions/utils', () => ({
   getWorkspaceWithOwner: getWorkspaceWithOwnerMock,
-}))
-
-vi.mock('@/lib/core/config/feature-flags', () => ({
-  isFeatureEnabled: isFeatureEnabledMock,
-}))
-
-vi.mock('@/lib/billing', () => ({
-  isOrganizationOnEnterprisePlan: isOrganizationOnEnterprisePlanMock,
 }))
 
 vi.mock('@/lib/copilot/application/execute-file-use-case', () => ({
@@ -81,6 +73,8 @@ vi.mock('@/lib/workflows/custom-blocks/operations', () => {
     updateCustomBlock: updateCustomBlockMock,
     deleteCustomBlock: deleteCustomBlockMock,
     getCustomBlockWithInputsByWorkflowId: getCustomBlockWithInputsByWorkflowIdMock,
+    isCustomBlocksDeploymentEnabled: isCustomBlocksDeploymentEnabledMock,
+    isCustomBlocksEligibleForOrganization: isCustomBlocksEligibleForOrganizationMock,
   }
 })
 
@@ -117,8 +111,8 @@ describe('executeDeployCustomBlock', () => {
       workflow: { id: 'wf-1', workspaceId: 'ws-1', name: 'Test Workflow', isDeployed: true },
     })
     getWorkspaceWithOwnerMock.mockResolvedValue({ id: 'ws-1', organizationId: 'org-1' })
-    isFeatureEnabledMock.mockResolvedValue(true)
-    isOrganizationOnEnterprisePlanMock.mockResolvedValue(true)
+    isCustomBlocksDeploymentEnabledMock.mockReturnValue(true)
+    isCustomBlocksEligibleForOrganizationMock.mockResolvedValue(true)
     getCustomBlockWithInputsByWorkflowIdMock.mockResolvedValue(null)
   })
 
@@ -245,8 +239,8 @@ describe('executeDeployCustomBlock', () => {
     })
   })
 
-  it('updates an existing block without requiring the enterprise plan', async () => {
-    isOrganizationOnEnterprisePlanMock.mockResolvedValue(false)
+  it('updates an existing block after organization eligibility lapses', async () => {
+    isCustomBlocksEligibleForOrganizationMock.mockResolvedValue(false)
     getCustomBlockWithInputsByWorkflowIdMock
       .mockResolvedValueOnce(publishedBlock)
       .mockResolvedValueOnce(publishedBlock)
@@ -258,8 +252,8 @@ describe('executeDeployCustomBlock', () => {
     expect(publishCustomBlockMock).not.toHaveBeenCalled()
   })
 
-  it('undeploys without requiring the enterprise plan', async () => {
-    isOrganizationOnEnterprisePlanMock.mockResolvedValue(false)
+  it('undeploys after organization eligibility lapses', async () => {
+    isCustomBlocksEligibleForOrganizationMock.mockResolvedValue(false)
     getCustomBlockWithInputsByWorkflowIdMock.mockResolvedValue(publishedBlock)
 
     const result = await executeDeployCustomBlock({ action: 'undeploy' }, context)
@@ -338,8 +332,8 @@ describe('executeDeployCustomBlock', () => {
     expect(deleteCustomBlockMock).not.toHaveBeenCalled()
   })
 
-  it('fails when the feature flag is off', async () => {
-    isFeatureEnabledMock.mockResolvedValue(false)
+  it('fails when custom blocks are not enabled for the organization', async () => {
+    isCustomBlocksEligibleForOrganizationMock.mockResolvedValue(false)
 
     const result = await executeDeployCustomBlock({ name: 'Enrich Lead' }, context)
 
@@ -347,13 +341,17 @@ describe('executeDeployCustomBlock', () => {
     expect(result.error).toContain('not enabled')
   })
 
-  it('fails when the org is not on the enterprise plan', async () => {
-    isOrganizationOnEnterprisePlanMock.mockResolvedValue(false)
+  it('blocks existing custom blocks when the deployment entitlement is disabled', async () => {
+    isCustomBlocksDeploymentEnabledMock.mockReturnValue(false)
+    getCustomBlockWithInputsByWorkflowIdMock.mockResolvedValue(publishedBlock)
 
-    const result = await executeDeployCustomBlock({ name: 'Enrich Lead' }, context)
+    const result = await executeDeployCustomBlock({ action: 'undeploy' }, context)
 
-    expect(result.success).toBe(false)
-    expect(result.error).toContain('enterprise')
+    expect(result).toEqual({
+      success: false,
+      error: 'Custom blocks are not enabled for this organization',
+    })
+    expect(deleteCustomBlockMock).not.toHaveBeenCalled()
   })
 
   it('ingests a workspace-file icon into public icon storage', async () => {

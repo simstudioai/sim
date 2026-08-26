@@ -248,6 +248,7 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
         <ChipModalBody>
           <ChipModalField
             type='custom'
+            submitOnEnter={false}
             title={
               <>
                 Tags:{' '}
@@ -389,6 +390,7 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
 
         <ChipModalFooter
           onCancel={() => handleClose(false)}
+          defaultAction='none'
           primaryAction={{ label: 'Close', onClick: () => handleClose(false) }}
         />
       </ChipModal>

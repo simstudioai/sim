@@ -83,13 +83,15 @@ interface CredentialGroupBlockOutput {
     status: string
     invitedAt: string
     expiresAt: string
+    invitationLink: string
     count: number
     hasMore: boolean
     nextCursor: string | null
   }
 }
 
-const GROUP_OPERATIONS = ['list_credentials', 'send_invite', 'list_people'] as const
+const INVITE_OPERATIONS = ['send_invite', 'get_invite_link'] as const
+const GROUP_OPERATIONS = ['list_credentials', ...INVITE_OPERATIONS, 'list_people'] as const
 const LIST_OPERATIONS = ['list_credentials', 'list_people', 'list_groups'] as const
 
 export const CredentialGroupBlock: BlockConfig<CredentialGroupBlockOutput> = {
@@ -97,7 +99,7 @@ export const CredentialGroupBlock: BlockConfig<CredentialGroupBlockOutput> = {
   name: 'Credential Groups',
   description: 'Invite people and use credentials collected by Credential Groups',
   longDescription:
-    'List usable managed credentials, inspect invited people, send an account-connection invitation, or discover Credential Groups in the current workspace. The block returns credential IDs and account metadata without exposing OAuth tokens.',
+    'List usable managed credentials, inspect invited people, send or generate an account-connection invitation, or discover Credential Groups in the current workspace. The block returns credential IDs and account metadata without exposing OAuth tokens.',
   bestPractices: `
   - "List Credentials" returns every active credential. Filter by email to select one enrolled person, by provider to select one account type, or by both for an exact match.
   - Provider blocks can use the current actor's enrolled credential by default. Using another enrollment requires an explicit workflow access grant.
@@ -106,6 +108,7 @@ export const CredentialGroupBlock: BlockConfig<CredentialGroupBlockOutput> = {
   - "List Credentials" returns active, usable credentials only. Reconnect-needed and revoked credentials are excluded.
   - Use "List People" to inspect invitation and connection progress without exposing credential secrets.
   - "Send Invite" sends one email. Use a loop when invitations should come from a dynamic list.
+  - "Get Invite Link" issues a fresh seven-day bearer link without sending email. It invalidates the previous link for that email, so treat the output as a secret.
   `,
   docsLink: 'https://docs.sim.ai/workflows/blocks/credential-group',
   bgColor: '#8B5CF6',
@@ -132,6 +135,14 @@ export const CredentialGroupBlock: BlockConfig<CredentialGroupBlockOutput> = {
             core: true,
           },
         ],
+        get_invite_link: [
+          { text: 'Get invite link for', field: 'email', core: true },
+          {
+            text: 'in',
+            field: ['credentialGroup', 'manualCredentialGroup'],
+            core: true,
+          },
+        ],
         list_people: [
           {
             text: 'List people in',
@@ -154,6 +165,7 @@ export const CredentialGroupBlock: BlockConfig<CredentialGroupBlockOutput> = {
       options: [
         { label: 'List Credentials', id: 'list_credentials' },
         { label: 'Send Invite', id: 'send_invite' },
+        { label: 'Get Invite Link', id: 'get_invite_link' },
         { label: 'List People', id: 'list_people' },
         { label: 'List Credential Groups', id: 'list_groups' },
       ],
@@ -183,7 +195,7 @@ export const CredentialGroupBlock: BlockConfig<CredentialGroupBlockOutput> = {
       id: 'email',
       title: 'Email',
       type: 'short-input',
-      required: { field: 'operation', value: 'send_invite' },
+      required: { field: 'operation', value: [...INVITE_OPERATIONS] },
       placeholder: 'person@example.com',
       condition: { field: 'operation', value: [...GROUP_OPERATIONS] },
     },
@@ -248,7 +260,8 @@ export const CredentialGroupBlock: BlockConfig<CredentialGroupBlockOutput> = {
   inputs: {
     operation: {
       type: 'string',
-      description: "'list_credentials', 'send_invite', 'list_people', or 'list_groups'",
+      description:
+        "'list_credentials', 'send_invite', 'get_invite_link', 'list_people', or 'list_groups'",
     },
     credentialGroupId: { type: 'string', description: 'Credential Group ID' },
     email: {
@@ -288,27 +301,32 @@ export const CredentialGroupBlock: BlockConfig<CredentialGroupBlockOutput> = {
     enrollmentId: {
       type: 'string',
       description: 'Enrollment ID created or refreshed by the invitation',
-      condition: { field: 'operation', value: 'send_invite' },
+      condition: { field: 'operation', value: [...INVITE_OPERATIONS] },
     },
     email: {
       type: 'string',
       description: 'Normalized invitation recipient email',
-      condition: { field: 'operation', value: 'send_invite' },
+      condition: { field: 'operation', value: [...INVITE_OPERATIONS] },
     },
     status: {
       type: 'string',
       description: 'Invitation status',
-      condition: { field: 'operation', value: 'send_invite' },
+      condition: { field: 'operation', value: [...INVITE_OPERATIONS] },
     },
     invitedAt: {
       type: 'string',
       description: 'Invitation timestamp',
-      condition: { field: 'operation', value: 'send_invite' },
+      condition: { field: 'operation', value: [...INVITE_OPERATIONS] },
     },
     expiresAt: {
       type: 'string',
       description: 'Invitation expiration timestamp',
-      condition: { field: 'operation', value: 'send_invite' },
+      condition: { field: 'operation', value: [...INVITE_OPERATIONS] },
+    },
+    invitationLink: {
+      type: 'string',
+      description: 'Fresh bearer invitation link for the recipient',
+      condition: { field: 'operation', value: 'get_invite_link' },
     },
     count: {
       type: 'number',

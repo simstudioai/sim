@@ -77,6 +77,13 @@ export const credentialGroupOperations = {
     principalKinds: ['delegated'],
     delegatedServices: ['executor'],
   }),
+  createInviteLink: defineWorkspaceOperation({
+    id: 'credential_groups.invites.link.create',
+    minimumRole: 'admin',
+    workspaceApiKey: 'deny',
+    principalKinds: ['delegated'],
+    delegatedServices: ['executor'],
+  }),
   startSlackConfiguration: defineWorkspaceOperation({
     id: 'credential_groups.slack_configuration.start',
     minimumRole: 'admin',

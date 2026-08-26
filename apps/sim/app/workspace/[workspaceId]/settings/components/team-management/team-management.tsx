@@ -274,9 +274,7 @@ export function TeamManagement({
           portalWindow?.close()
           logger.error('Failed to open billing portal from transfer dialog', { error })
           setTransferPortalError(
-            error instanceof Error
-              ? error.message
-              : 'Failed to open Stripe billing portal. Please try again.'
+            getErrorMessage(error, 'Failed to open Stripe billing portal. Please try again.')
           )
         },
       }

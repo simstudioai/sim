@@ -1,6 +1,7 @@
 import type { ComponentType } from 'react'
 import { cn } from '@sim/emcn'
 import { OverflowSpan } from '../lib/overflow-span'
+import type { CodePreview } from '../types'
 import { InlineChip } from './inline-chip'
 
 /**
@@ -16,6 +17,8 @@ export interface SubBlockRowViewProps {
   displayValue?: string
   /** Render the value in a monospace font (e.g. filter expressions). */
   isMonospace?: boolean
+  /** Rich preview for an inline code value; ordinary values keep the text tooltip. */
+  codePreview?: CodePreview
   /**
    * Leading icon for the `meta` variant; without one the variant falls back
    * to the labeled `row` presentation.
@@ -46,6 +49,7 @@ export function SubBlockRowView({
   title,
   displayValue,
   isMonospace,
+  codePreview,
   icon: Icon,
   variant = 'row',
 }: SubBlockRowViewProps) {
@@ -55,6 +59,7 @@ export function SubBlockRowView({
         <OverflowSpan
           value={displayValue ?? title}
           className={cn('min-w-0 truncate', isMonospace && 'font-mono')}
+          codePreview={codePreview}
         />
       </InlineChip>
     )

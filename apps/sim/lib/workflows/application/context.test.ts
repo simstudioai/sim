@@ -18,7 +18,6 @@ vi.mock('@/lib/workspaces/application/workspace-context', () => ({
 import {
   resolveActiveWorkflowApplicationContext,
   resolveActiveWorkflowRunApplicationContext,
-  resolveActiveWorkspaceApplicationContext,
 } from '@/lib/workflows/application/context'
 
 const workspace = {
@@ -41,11 +40,6 @@ describe('workflow application contexts', () => {
     resetDbChainMock()
     mocks.loadWorkspace.mockResolvedValue(workspace)
     mocks.getJobQueue.mockResolvedValue({ getJob: mocks.getJob })
-  })
-
-  it('uses the canonical loader for workspace-scoped operations', async () => {
-    await expect(resolveActiveWorkspaceApplicationContext('workspace-1')).resolves.toBe(workspace)
-    expect(mocks.loadWorkspace).toHaveBeenCalledWith('workspace-1')
   })
 
   it('derives workflow authorization from its canonical active workspace', async () => {

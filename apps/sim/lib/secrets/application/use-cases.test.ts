@@ -20,6 +20,7 @@ const { mocks } = vi.hoisted(() => ({
     setPersonal: vi.fn(),
     deletePersonal: vi.fn(),
     listCredentials: vi.fn(),
+    readWorkspaceValues: vi.fn(),
     secretUsage: vi.fn(),
     workspaceEnvValue: vi.fn(),
     scanReferences: vi.fn(),
@@ -63,6 +64,7 @@ vi.mock('@/lib/secrets/usage/queries', () => ({
 vi.mock('@/lib/credentials/secret-values', () => ({
   deletePersonalSecret: mocks.deletePersonal,
   deleteWorkspaceSecret: vi.fn(),
+  readWorkspaceSecretValues: mocks.readWorkspaceValues,
   setPersonalSecret: mocks.setPersonal,
   setWorkspaceSecret: mocks.setWorkspace,
 }))
@@ -71,6 +73,7 @@ import {
   deleteSecretUseCase,
   type ListSecretReferencesInput,
   listSecretReferencesUseCase,
+  listSecretsUseCase,
   listSecretUsageUseCase,
   setSecretUseCase,
 } from '@/lib/secrets/application/use-cases'
@@ -96,6 +99,15 @@ const secret = {
   updatedAt: new Date('2026-01-02T00:00:00Z'),
   hasServiceAccountKey: false,
   role: 'admin' as const,
+  unredacted: false,
+}
+
+const visibleSecret = {
+  ...secret,
+  id: 'secret-3',
+  displayName: 'STAGING_BASE_URL',
+  envKey: 'STAGING_BASE_URL',
+  unredacted: true,
 }
 
 const personalUpdatedAt = new Date('2026-02-01T00:00:00Z')
@@ -122,7 +134,57 @@ describe('secret application use cases', () => {
     mocks.personalMetadata.mockResolvedValue(null)
     mocks.deletePersonal.mockResolvedValue(true)
     mocks.listCredentials.mockResolvedValue({ data: [secret], nextCursorKeys: null })
+    mocks.readWorkspaceValues.mockResolvedValue({})
     mocks.secretUsage.mockResolvedValue({ entries: [] })
+  })
+
+  it('reads values for exactly the visible (unredacted) workspace rows on the page', async () => {
+    mocks.listCredentials.mockResolvedValue({
+      data: [secret, visibleSecret, personalSecret],
+      nextCursorKeys: null,
+    })
+    mocks.readWorkspaceValues.mockResolvedValue({
+      [visibleSecret.envKey]: 'https://staging.example.com',
+    })
+
+    const result = await listSecretsUseCase.execute({
+      principal: session,
+      input: {
+        workspaceId: workspace.workspaceId,
+        sortBy: 'name',
+        sortOrder: 'asc',
+        limit: 50,
+      },
+    })
+
+    expect(mocks.readWorkspaceValues).toHaveBeenCalledWith({
+      workspaceId: workspace.workspaceId,
+      names: [visibleSecret.envKey],
+    })
+    expect(result.values).toEqual({ [visibleSecret.envKey]: 'https://staging.example.com' })
+  })
+
+  it('never asks for values when no row on the page is marked visible', async () => {
+    mocks.listCredentials.mockResolvedValue({
+      data: [secret, personalSecret],
+      nextCursorKeys: null,
+    })
+
+    const result = await listSecretsUseCase.execute({
+      principal: session,
+      input: {
+        workspaceId: workspace.workspaceId,
+        sortBy: 'name',
+        sortOrder: 'asc',
+        limit: 50,
+      },
+    })
+
+    expect(mocks.readWorkspaceValues).toHaveBeenCalledWith({
+      workspaceId: workspace.workspaceId,
+      names: [],
+    })
+    expect(result.values).toEqual({})
   })
 
   it('rejects workspace keys before resolving or reading secret state', async () => {
@@ -214,6 +276,76 @@ describe('secret application use cases', () => {
         },
       })
     ).rejects.toThrow(/only supported for a workspace secret/)
+  })
+
+  it('refuses unredacted on a personal secret in the use case, not just the contract', async () => {
+    await expect(
+      setSecretUseCase.execute({
+        principal: session,
+        input: {
+          workspaceId: workspace.workspaceId,
+          name: secret.envKey,
+          scope: 'personal',
+          value: 'secret-value',
+          unredacted: true,
+        },
+      })
+    ).rejects.toThrow(/unredacted is only supported for a workspace secret/)
+
+    expect(mocks.setPersonal).not.toHaveBeenCalled()
+    expect(mocks.audit).not.toHaveBeenCalled()
+  })
+
+  it('forwards the workspace unredacted flag to the manager and audits its value', async () => {
+    await setSecretUseCase.execute({
+      principal: session,
+      input: {
+        workspaceId: workspace.workspaceId,
+        name: secret.envKey,
+        scope: 'workspace',
+        value: 'secret-value',
+        unredacted: true,
+      },
+    })
+
+    expect(mocks.setWorkspace).toHaveBeenCalledWith(expect.objectContaining({ unredacted: true }))
+    expect(mocks.audit).toHaveBeenCalledWith(
+      expect.objectContaining({ metadata: expect.objectContaining({ unredacted: true }) })
+    )
+  })
+
+  it('audits the recorded value when the flag is explicitly turned off', async () => {
+    await setSecretUseCase.execute({
+      principal: session,
+      input: {
+        workspaceId: workspace.workspaceId,
+        name: secret.envKey,
+        scope: 'workspace',
+        value: 'secret-value',
+        unredacted: false,
+      },
+    })
+
+    expect(mocks.setWorkspace).toHaveBeenCalledWith(expect.objectContaining({ unredacted: false }))
+    expect(mocks.audit).toHaveBeenCalledWith(
+      expect.objectContaining({ metadata: expect.objectContaining({ unredacted: false }) })
+    )
+  })
+
+  it('omits unredacted from the audit metadata when it was not provided', async () => {
+    await setSecretUseCase.execute({
+      principal: session,
+      input: {
+        workspaceId: workspace.workspaceId,
+        name: secret.envKey,
+        scope: 'workspace',
+        value: 'secret-value',
+      },
+    })
+
+    const metadata = (mocks.audit.mock.calls[0][0] as { metadata: Record<string, unknown> })
+      .metadata
+    expect(metadata).not.toHaveProperty('unredacted')
   })
 
   it('still fails a workspace write whose metadata never materialized', async () => {

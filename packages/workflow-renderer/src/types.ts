@@ -17,3 +17,12 @@ export type DiffStatus = 'new' | 'edited' | undefined
 
 /** Execution outcome of a block on its run path. */
 export type BlockRunStatus = 'success' | 'error' | undefined
+
+/** Syntax languages supported by canvas code previews. */
+export type CodePreviewLanguage = 'javascript' | 'json' | 'python' | 'bash'
+
+/** Rich preview payload for a code value in the pure workflow renderer. */
+export interface CodePreview {
+  code: string
+  language: CodePreviewLanguage
+}

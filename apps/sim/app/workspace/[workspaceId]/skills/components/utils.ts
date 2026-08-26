@@ -1,3 +1,4 @@
+import { slugify } from '@sim/utils/string'
 import { isApiClientError } from '@/lib/api/client/errors'
 
 export interface ParsedSkill {
@@ -75,12 +76,7 @@ function inferNameFromHeading(markdown: string): string {
   const headingMatch = markdown.match(/^#{1,3}\s+(.+)$/m)
   if (!headingMatch) return ''
 
-  return headingMatch[1]
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '')
-    .slice(0, 64)
+  return slugify(headingMatch[1]).slice(0, 64)
 }
 
 /**

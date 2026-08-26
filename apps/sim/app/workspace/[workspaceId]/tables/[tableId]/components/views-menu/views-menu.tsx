@@ -4,6 +4,7 @@ import { memo, useEffect, useRef, useState } from 'react'
 import {
   Button,
   ChipChevronDown,
+  ChipConfirmModal,
   chipContentLabelClass,
   chipVariants,
   cn,
@@ -62,9 +63,11 @@ export const ViewsMenu = memo(function ViewsMenu({
   canEdit,
 }: ViewsMenuProps) {
   const [open, setOpen] = useState(false)
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null)
   const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const { activeView, defaultView } = resolveTableViewSelection(views, activeViewId)
+  const deleteTarget = views.find((view) => view.id === deleteTargetId)
   const hasDefaultView = defaultView !== null
   const label = activeView?.name ?? ALL_ROWS_VIEW_LABEL
 
@@ -176,7 +179,7 @@ export const ViewsMenu = memo(function ViewsMenu({
                         disabledReason: view.isDefault
                           ? 'Default view cannot be deleted'
                           : undefined,
-                        onClick: () => runAndClose(() => onDelete(view.id)),
+                        onClick: () => runAndClose(() => setDeleteTargetId(view.id)),
                       },
                     ]
                   : undefined
@@ -199,6 +202,28 @@ export const ViewsMenu = memo(function ViewsMenu({
           </>
         )}
       </PopoverContent>
+      <ChipConfirmModal
+        open={deleteTargetId !== null}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) setDeleteTargetId(null)
+        }}
+        srTitle='Delete View'
+        title='Delete View'
+        text={[
+          'Are you sure you want to delete ',
+          { text: deleteTarget?.name ?? 'this view', bold: true },
+          '? ',
+          { text: 'This action cannot be undone.', error: true },
+        ]}
+        confirm={{
+          label: 'Delete',
+          onClick: () => {
+            if (!deleteTargetId) return
+            onDelete(deleteTargetId)
+            setDeleteTargetId(null)
+          },
+        }}
+      />
     </Popover>
   )
 })

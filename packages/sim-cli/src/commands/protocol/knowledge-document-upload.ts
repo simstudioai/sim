@@ -40,6 +40,7 @@ export function attachKnowledgeDocumentUpload(documents: Command): void {
     .command('upload')
     .argument('<knowledgeBaseId>', 'Knowledge base to upload into')
     .argument('<path>', 'Local file to upload')
+    .allowExcessArguments(false)
     .description('Upload a document to a knowledge base')
     .option('--name <name>', 'Store it under a different name')
     .option('--tag <value...>', 'Document tags, in tag1 through tag7 order')

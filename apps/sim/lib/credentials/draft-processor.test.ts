@@ -70,6 +70,33 @@ describe('processCredentialDraft', () => {
     expect(dbChainMockFns.delete).toHaveBeenCalledWith(schemaMock.pendingCredentialDraft)
   })
 
+  it('reconnects the credential bound to an exact Slack draft regardless of account identity', async () => {
+    const draft = {
+      ...credentialDraft('draft-slack', 'workspace-1'),
+      providerId: 'slack',
+      displayName: 'Team Slack',
+      credentialId: 'credential-slack',
+    }
+    queueTableRows(schemaMock.pendingCredentialDraft, [draft])
+
+    await processCredentialDraft({
+      draftId: 'draft-slack',
+      userId: 'user-1',
+      providerId: 'slack',
+      accountId: 'T01234567-usr_U01234567-new-account-id',
+    })
+
+    expect(mockHandleReconnectCredential).toHaveBeenCalledWith({
+      draft,
+      newAccountId: 'T01234567-usr_U01234567-new-account-id',
+      workspaceId: 'workspace-1',
+      userId: 'user-1',
+      now: expect.any(Date),
+    })
+    expect(mockHandleCreateCredentialFromDraft).not.toHaveBeenCalled()
+    expect(dbChainMockFns.delete).toHaveBeenCalledWith(schemaMock.pendingCredentialDraft)
+  })
+
   it('fails closed when a legacy callback has multiple active drafts', async () => {
     queueTableRows(schemaMock.pendingCredentialDraft, [
       credentialDraft('draft-1', 'workspace-1'),

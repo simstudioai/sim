@@ -12,6 +12,7 @@ import { resolveActiveShareByToken } from '@/lib/public-shares/share-manager'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
 import { extractEmbeddedFileRefs } from '@/lib/uploads/server/embedded-image-refs'
 import { resolveWorkspaceInlineImage } from '@/lib/uploads/server/inline-image'
+import { storedFileId } from '@/lib/uploads/utils/embedded-image-ref'
 import { serveInlineImage } from '@/app/api/files/serve-inline-image'
 import { createErrorResponse, FileNotFoundError } from '@/app/api/files/utils'
 
@@ -73,7 +74,9 @@ export const GET = withRouteHandler(
       // Referenced-by-doc gate: the share grants exactly the images the document embeds.
       const docText = (await downloadFile({ key: doc.key, context: 'workspace' })).toString('utf-8')
       const { keys, ids } = extractEmbeddedFileRefs(docText)
-      const referenced = ref.fileId ? ids.includes(ref.fileId) : keys.includes(ref.key as string)
+      const referenced = ref.fileId
+        ? ids.some((id) => storedFileId(id) === ref.fileId)
+        : keys.includes(ref.key as string)
       if (!referenced) {
         throw new FileNotFoundError('Not found')
       }

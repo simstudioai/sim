@@ -69,8 +69,10 @@ function normalizeShopifyDomain(rawDomain: string): string {
  * Validates a Shopify custom-app Admin API access token by running the
  * scope-free `shop` query against the store's GraphQL Admin API — the exact
  * URL and header shape every Sim Shopify tool uses. Unknown shops return 404
- * (wildcard DNS means the host always resolves), which maps to
- * `site_not_found`.
+ * (wildcard DNS means the host normally resolves), which maps to
+ * `site_not_found` — and so does an outright resolution failure, since the
+ * domain is caller-supplied and a host that does not exist is wrong input
+ * rather than a Shopify outage.
  */
 export async function validateShopifyServiceAccount(
   fields: TokenServiceAccountFields
@@ -94,7 +96,8 @@ export async function validateShopifyServiceAccount(
       },
       body: JSON.stringify({ query: SHOP_QUERY }),
     },
-    'shop_query'
+    'shop_query',
+    { dnsFailureCode: 'site_not_found', dnsFailureReason: 'store domain does not resolve' }
   )
 
   if (res.status === 404) {
