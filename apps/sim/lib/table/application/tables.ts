@@ -26,7 +26,11 @@ import {
   resolveArchivedTableContext,
   resolveTableWorkspaceContext,
 } from '@/lib/table/application/context'
-import { resolveTableFolderPath, tableFolderPathForId } from '@/lib/table/application/folder-paths'
+import {
+  archivableTableFolderPath,
+  resolveTableFolderPath,
+  tableFolderPathForId,
+} from '@/lib/table/application/folder-paths'
 import { tableOperations } from '@/lib/table/application/operations'
 import { signalTableSchemaChanged } from '@/lib/table/events'
 
@@ -68,7 +72,10 @@ export const listTablesUseCase = defineAuthorizedTableUseCase({
     return {
       tables: tables.map((table) => ({
         table,
-        folderPath: tableFolderPathForId(folderIndex, table.folderId),
+        folderPath:
+          input.scope === 'archived'
+            ? archivableTableFolderPath(folderIndex, table.folderId)
+            : tableFolderPathForId(folderIndex, table.folderId),
       })),
       nextKeys,
       sortBy: input.sortBy,
