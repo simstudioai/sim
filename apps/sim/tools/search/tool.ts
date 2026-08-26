@@ -18,6 +18,7 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
   },
 
   request: {
+    internal: true,
     modelInput: {
       mode: 'project',
       select: (params) => ({ query: params.query }),

@@ -62,6 +62,7 @@ export const agiloftDeleteRecordTool: ToolConfig<AgiloftDeleteRecordParams, Agil
     },
 
     request: {
+      internal: true,
       url: () => '/api/tools/agiloft/delete_record',
       method: 'POST',
       headers: () => ({ 'Content-Type': 'application/json' }),

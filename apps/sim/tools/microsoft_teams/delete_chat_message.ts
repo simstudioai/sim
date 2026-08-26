@@ -47,6 +47,7 @@ export const deleteChatMessageTool: ToolConfig<
   },
 
   request: {
+    internal: true,
     url: (params) => {
       const chatId = params.chatId?.trim()
       const messageId = params.messageId?.trim()

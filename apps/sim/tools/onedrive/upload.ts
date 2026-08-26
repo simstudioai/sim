@@ -3,6 +3,11 @@ import type { OneDriveToolParams, OneDriveUploadResponse } from '@/tools/onedriv
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('OneDriveUploadTool')
+const EXCEL_MIME_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+
+function usesInternalUploadRoute(params: OneDriveToolParams): boolean {
+  return Boolean(params.file || params.mimeType === EXCEL_MIME_TYPE)
+}
 
 export const uploadTool: ToolConfig<OneDriveToolParams, OneDriveUploadResponse> = {
   id: 'onedrive_upload',
@@ -56,10 +61,9 @@ export const uploadTool: ToolConfig<OneDriveToolParams, OneDriveUploadResponse> 
   },
 
   request: {
+    internal: usesInternalUploadRoute,
     url: (params) => {
-      const isExcelFile =
-        params.mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-      if (params.file || isExcelFile) {
+      if (usesInternalUploadRoute(params)) {
         return '/api/tools/onedrive/upload'
       }
 
@@ -75,17 +79,11 @@ export const uploadTool: ToolConfig<OneDriveToolParams, OneDriveUploadResponse> 
       }
       return `https://graph.microsoft.com/v1.0/me/drive/root:/${fileName}:/content`
     },
-    method: (params) => {
-      const isExcelFile =
-        params.mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-      return params.file || isExcelFile ? 'POST' : 'PUT'
-    },
+    method: (params) => (usesInternalUploadRoute(params) ? 'POST' : 'PUT'),
     headers: (params) => {
       const headers: Record<string, string> = {}
-      const isExcelFile =
-        params.mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 
-      if (params.file || isExcelFile) {
+      if (usesInternalUploadRoute(params)) {
         headers['Content-Type'] = 'application/json'
       } else {
         headers.Authorization = `Bearer ${params.accessToken}`
@@ -94,10 +92,7 @@ export const uploadTool: ToolConfig<OneDriveToolParams, OneDriveUploadResponse> 
       return headers
     },
     body: (params) => {
-      const isExcelFile =
-        params.mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-
-      if (params.file || isExcelFile) {
+      if (usesInternalUploadRoute(params)) {
         return {
           accessToken: params.accessToken,
           fileName: params.fileName,
@@ -115,10 +110,7 @@ export const uploadTool: ToolConfig<OneDriveToolParams, OneDriveUploadResponse> 
   transformResponse: async (response: Response, params?: OneDriveToolParams) => {
     const data = await response.json()
 
-    const isExcelFile =
-      params?.mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-
-    if ((params?.file || isExcelFile) && data.success !== undefined) {
+    if (params && usesInternalUploadRoute(params) && data.success !== undefined) {
       if (!data.success) {
         throw new Error(data.error || 'Failed to upload file')
       }

@@ -60,6 +60,7 @@ export const confluenceDeleteBlogPostTool: ToolConfig<
   },
 
   request: {
+    internal: true,
     url: () => '/api/tools/confluence/blogposts',
     method: 'DELETE',
     headers: (params: ConfluenceDeleteBlogPostParams) => ({

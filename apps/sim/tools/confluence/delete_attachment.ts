@@ -59,6 +59,7 @@ export const confluenceDeleteAttachmentTool: ToolConfig<
   },
 
   request: {
+    internal: true,
     url: () => '/api/tools/confluence/attachment',
     method: 'DELETE',
     headers: (params: ConfluenceDeleteAttachmentParams) => {

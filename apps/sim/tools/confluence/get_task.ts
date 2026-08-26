@@ -70,6 +70,7 @@ export const confluenceGetTaskTool: ToolConfig<ConfluenceGetTaskParams, Confluen
     },
 
     request: {
+      internal: true,
       url: () => '/api/tools/confluence/tasks',
       method: 'POST',
       headers: (params: ConfluenceGetTaskParams) => ({

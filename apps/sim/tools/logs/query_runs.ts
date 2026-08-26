@@ -99,6 +99,7 @@ export const logsQueryRunsTool: ToolConfig<LogsQueryRunsParams, LogsQueryRunsRes
   },
 
   request: {
+    internal: true,
     url: (params) => {
       const workspaceId = params._context?.workspaceId
       if (!workspaceId) {

@@ -66,6 +66,7 @@ export const agiloftUpsertRecordTool: ToolConfig<
   },
 
   request: {
+    internal: true,
     url: () => '/api/tools/agiloft/upsert_record',
     method: 'POST',
     headers: () => ({ 'Content-Type': 'application/json' }),

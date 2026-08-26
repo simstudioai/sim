@@ -4,6 +4,10 @@ import type {
 } from '@/tools/microsoft_teams/types'
 import type { ToolConfig } from '@/tools/types'
 
+function usesInternalChannelRoute(params: MicrosoftTeamsToolParams): boolean {
+  return Boolean(params.files?.length || /<at>[^<]+<\/at>/i.test(params.content || ''))
+}
+
 export const writeChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsWriteResponse> = {
   id: 'microsoft_teams_write_channel',
   name: 'Write to Microsoft Teams Channel',
@@ -62,6 +66,7 @@ export const writeChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTea
   },
 
   request: {
+    internal: usesInternalChannelRoute,
     url: (params) => {
       const teamId = params.teamId?.trim()
       if (!teamId) {
@@ -79,8 +84,7 @@ export const writeChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTea
       }
 
       // If content contains mentions, use custom API route for mention resolution
-      const hasMentions = /<at>[^<]+<\/at>/i.test(params.content || '')
-      if (hasMentions) {
+      if (usesInternalChannelRoute(params)) {
         return '/api/tools/microsoft_teams/write_channel'
       }
 

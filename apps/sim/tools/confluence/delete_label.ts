@@ -68,6 +68,7 @@ export const confluenceDeleteLabelTool: ToolConfig<
   },
 
   request: {
+    internal: true,
     url: () => '/api/tools/confluence/labels',
     method: 'DELETE',
     headers: (params: ConfluenceDeleteLabelParams) => ({

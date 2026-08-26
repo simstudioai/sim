@@ -69,6 +69,7 @@ export const confluenceSearchTool: ToolConfig<ConfluenceSearchParams, Confluence
   },
 
   request: {
+    internal: true,
     url: () => '/api/tools/confluence/search',
     method: 'POST',
     headers: (params: ConfluenceSearchParams) => {
