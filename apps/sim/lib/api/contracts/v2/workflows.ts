@@ -17,6 +17,7 @@ import {
 } from '@/lib/api/contracts/deployments'
 import {
   booleanQueryFlagSchema,
+  MAX_ID_LENGTH,
   missingFieldError,
   noInputSchema,
   runIdSchema,
@@ -58,6 +59,7 @@ import {
 import { MAX_WORKFLOW_EXECUTION_TIMEOUT_SECONDS } from '@/lib/billing/execution-timeout-defaults'
 import { MAX_INLINE_MATERIALIZATION_BYTES } from '@/lib/execution/payloads/limits'
 import { PERSISTED_WORKFLOW_EXECUTION_STATUSES } from '@/lib/logs/types'
+import { MAX_MCP_TOOL_NAME_BYTES } from '@/lib/mcp/constants'
 import { WORKFLOW_SKIPPED_ITEM_TYPES } from '@/lib/workflows/editing/types'
 
 export const V2_WORKFLOW_RUN_ID_HEADER = 'X-Run-Id'
@@ -2053,6 +2055,8 @@ export const MAX_WORKFLOW_GRAPH_BLOCKS = 2000
 export const MAX_WORKFLOW_GRAPH_EDGES = 10_000
 /** Ceiling on one `POST /operations` batch. */
 export const MAX_WORKFLOW_EDIT_OPERATIONS = 200
+/** Ceiling on the complete tool list assigned to one Agent block. */
+export const MAX_AGENT_TOOLS_PER_BLOCK = 100
 /** Ceiling on one `PATCH /variables` batch; mirrors the application use case's own cap. */
 export const MAX_WORKFLOW_VARIABLE_OPERATIONS = 100
 /** Ceiling on one bulk move; mirrors the application use case's own cap. */
@@ -2639,6 +2643,241 @@ const WORKFLOW_OPERATION_PARAM_ENVELOPE =
   'block id, `{ block, handle }`, or an array of either; `success` is accepted as an ' +
   'alias for the `source` handle.'
 
+const v2AgentToolUsageControlSchema = z
+  .enum(['auto', 'force', 'none'])
+  .describe(
+    'When the Agent may call the tool: `auto` lets the model decide, `force` requires a call, and `none` disables it. Omitted means `auto`.'
+  )
+
+const v2AgentToolParamsSchema = z
+  .record(z.string(), z.unknown().describe('One tool parameter value.'))
+  .describe(
+    'Parameters fixed by the workflow author. Parameters left out remain available for the model to supply when the tool declares them.'
+  )
+
+/** A catalog integration attached directly to an Agent block. */
+export const v2AgentIntegrationToolSchema = z
+  .object({
+    type: z
+      .string()
+      .trim()
+      .min(1, 'Agent integration tool type cannot be empty')
+      .max(255, 'Agent integration tool type must be at most 255 characters')
+      .regex(
+        /^(?!(?:custom-tool|mcp)$).+$/,
+        'Agent integration tool type must be a catalog block id, not `custom-tool` or `mcp`'
+      )
+      .describe(
+        'Catalog block id, such as `cloudwatch` or `slack`. Use the block id, never an underlying tool id.'
+      ),
+    operation: z
+      .string()
+      .trim()
+      .min(1, 'Agent integration tool operation cannot be empty')
+      .max(255, 'Agent integration tool operation must be at most 255 characters')
+      .optional()
+      .describe(
+        'Operation id from `GET /api/v2/blocks/{blockId}`. Required when the block exposes multiple operations; it may differ from the underlying tool id.'
+      ),
+    usageControl: v2AgentToolUsageControlSchema.optional(),
+    params: v2AgentToolParamsSchema.optional(),
+  })
+  .catchall(
+    z
+      .unknown()
+      .describe('Forward-compatible integration tool metadata preserved by the workflow editor.')
+  )
+  .meta({
+    id: 'AgentIntegrationTool',
+    title: 'Agent integration tool',
+    description:
+      'A catalog integration operation the Agent may call. Resolve valid block and operation ids through the block catalog.',
+    examples: [
+      {
+        type: 'cloudwatch',
+        operation: 'describe_alarm_history',
+        usageControl: 'auto',
+        params: {},
+      },
+    ],
+  })
+
+const v2AgentCustomToolReferenceSchema = z
+  .object({
+    type: z.literal('custom-tool').describe('Custom-tool discriminator.'),
+    customToolId: z
+      .string()
+      .trim()
+      .min(1, 'Agent customToolId cannot be empty')
+      .max(255, 'Agent customToolId must be at most 255 characters')
+      .describe('Custom tool id returned by `GET /api/v2/custom-tools`.'),
+    usageControl: v2AgentToolUsageControlSchema.optional(),
+  })
+  .catchall(
+    z
+      .unknown()
+      .describe('Forward-compatible custom tool metadata preserved by the workflow editor.')
+  )
+
+const v2AgentInlineCustomToolSchema = z
+  .object({
+    type: z.literal('custom-tool').describe('Custom-tool discriminator.'),
+    schema: z
+      .object({
+        type: z.literal('function').optional().describe('Function declaration discriminator.'),
+        function: z
+          .object({
+            name: z
+              .string()
+              .trim()
+              .min(1, 'Inline custom tool function name cannot be empty')
+              .max(64, 'Inline custom tool function name must be at most 64 characters')
+              .describe('Function name presented to the model.'),
+            description: z.string().optional().describe('What the inline custom tool does.'),
+            parameters: z
+              .record(
+                z.string(),
+                z.unknown().describe('One JSON Schema keyword on the function parameters.')
+              )
+              .describe('JSON Schema describing the function arguments.'),
+          })
+          .catchall(z.unknown().describe('Additional function declaration metadata.'))
+          .describe('OpenAI-style function definition.'),
+      })
+      .catchall(z.unknown().describe('Additional custom tool declaration metadata.'))
+      .describe('Inline OpenAI-style function declaration.'),
+    code: z.string().describe('Inline tool implementation executed by the Function runtime.'),
+    usageControl: v2AgentToolUsageControlSchema.optional(),
+  })
+  .catchall(
+    z
+      .unknown()
+      .describe('Forward-compatible custom tool metadata preserved by the workflow editor.')
+  )
+
+/** A workspace custom tool attached directly to an Agent block. */
+export const v2AgentCustomToolSchema = z
+  .union([v2AgentCustomToolReferenceSchema, v2AgentInlineCustomToolSchema])
+  .meta({
+    id: 'AgentCustomTool',
+    title: 'Agent custom tool',
+    description:
+      'A workspace custom tool. Reference `customToolId` is the preferred shape; the inline declaration is retained for legacy workflow round trips.',
+    examples: [
+      {
+        type: 'custom-tool',
+        customToolId: 'cst_01J9X2ABCDEF',
+        usageControl: 'auto',
+      },
+    ],
+  })
+
+/** An MCP server tool attached directly to an Agent block. */
+export const v2AgentMcpToolSchema = z
+  .object({
+    type: z.literal('mcp').describe('MCP-tool discriminator.'),
+    params: z
+      .intersection(
+        z
+          .object({
+            serverId: z
+              .string()
+              .trim()
+              .min(1, 'Agent MCP serverId cannot be empty')
+              .max(MAX_ID_LENGTH, `Agent MCP serverId must be at most ${MAX_ID_LENGTH} characters`)
+              .describe('MCP server id returned by `GET /api/v2/mcp-servers`.'),
+            toolName: z
+              .string()
+              .trim()
+              .min(1, 'Agent MCP toolName cannot be empty')
+              .max(
+                MAX_MCP_TOOL_NAME_BYTES,
+                `Agent MCP toolName must be at most ${MAX_MCP_TOOL_NAME_BYTES} characters`
+              )
+              .refine(
+                (toolName) =>
+                  new TextEncoder().encode(toolName).byteLength <= MAX_MCP_TOOL_NAME_BYTES,
+                `Agent MCP toolName must be at most ${MAX_MCP_TOOL_NAME_BYTES} bytes`
+              )
+              .describe('Tool name returned by the MCP server’s tools endpoint.'),
+          })
+          .catchall(z.unknown().describe('One parameter fixed by the workflow author.')),
+        z.record(z.string(), z.unknown().describe('One parameter fixed by the workflow author.'))
+      )
+      .describe(
+        'MCP server and tool identity plus any tool arguments fixed by the workflow author.'
+      ),
+    usageControl: v2AgentToolUsageControlSchema.optional(),
+  })
+  .catchall(
+    z.unknown().describe('Forward-compatible MCP tool metadata preserved by the workflow editor.')
+  )
+  .meta({
+    id: 'AgentMcpTool',
+    title: 'Agent MCP tool',
+    description: 'One tool discovered from a workspace MCP server.',
+    examples: [
+      {
+        type: 'mcp',
+        params: { serverId: 'mcp_01J9X2ABCDEF', toolName: 'search_docs' },
+        usageControl: 'auto',
+      },
+    ],
+  })
+
+/** One callable tool attached directly to an Agent block. */
+export const v2AgentToolSchema = z
+  .xor([v2AgentIntegrationToolSchema, v2AgentCustomToolSchema, v2AgentMcpToolSchema])
+  .meta({
+    id: 'AgentTool',
+    title: 'Agent tool',
+    description:
+      'A catalog integration operation, workspace custom tool, or MCP tool available to an Agent.',
+  })
+export type V2AgentTool = z.input<typeof v2AgentToolSchema>
+
+/** The stored value of an Agent block's `tools` input. */
+export const v2AgentToolInputSchema = z
+  .array(v2AgentToolSchema)
+  .max(MAX_AGENT_TOOLS_PER_BLOCK, `Agent tools cannot exceed ${MAX_AGENT_TOOLS_PER_BLOCK} entries`)
+  .describe(
+    'Tools the Agent may call. Integration `type` and `operation` values come from `GET /api/v2/blocks/{blockId}`; custom and MCP identifiers come from their workspace catalog endpoints.'
+  )
+  .meta({
+    id: 'AgentToolInput',
+    title: 'Agent tools input',
+    description: 'The complete value stored in an Agent block’s `tools` input.',
+  })
+export type V2AgentToolInput = z.input<typeof v2AgentToolInputSchema>
+
+const v2WorkflowOperationInputsSchema = z
+  .intersection(
+    z
+      .object({
+        tools: v2AgentToolInputSchema
+          .optional()
+          .describe(
+            'Agent tools configuration. Applies to a `tool-input` field; other block inputs remain catalog-defined.'
+          ),
+      })
+      .catchall(
+        z
+          .unknown()
+          .describe(
+            'One block-specific input whose accepted shape is published by the block catalog.'
+          )
+      ),
+    z.record(
+      z.string(),
+      z
+        .unknown()
+        .describe(
+          'One block-specific input whose accepted shape is published by the block catalog.'
+        )
+    )
+  )
+  .describe('Block configuration keyed by sub-block id.')
+
 /**
  * The keys `edit` accepts. Open because the per-block input set is defined by
  * the block registry rather than by this contract, but the envelope around it
@@ -2646,9 +2885,18 @@ const WORKFLOW_OPERATION_PARAM_ENVELOPE =
  * rename a block and nothing else.
  */
 const v2WorkflowOperationParamsSchema = z
-  .record(
-    z.string(),
-    z.unknown().describe('One operation parameter; see the description for the accepted keys.')
+  .intersection(
+    z
+      .object({
+        inputs: v2WorkflowOperationInputsSchema.optional(),
+      })
+      .catchall(
+        z.unknown().describe('One operation parameter; see the description for the accepted keys.')
+      ),
+    z.record(
+      z.string(),
+      z.unknown().describe('One operation parameter; see the description for the accepted keys.')
+    )
   )
   .describe(
     'Fields to change on the target block. Send only what changes. Accepted keys: `inputs`, ' +
@@ -2669,6 +2917,7 @@ const v2AddWorkflowBlockParamsSchema = z
       .string()
       .min(1, 'params.name is required to add a block')
       .describe('Block display name.'),
+    inputs: v2WorkflowOperationInputsSchema.optional(),
   })
   .catchall(z.unknown().describe('One block-specific input or connection descriptor.'))
   .describe(
@@ -2701,6 +2950,7 @@ const v2InsertIntoSubflowParamsSchema = z
       .string()
       .min(1, 'params.name is required to insert a block')
       .describe('Block display name.'),
+    inputs: v2WorkflowOperationInputsSchema.optional(),
   })
   .catchall(z.unknown().describe('One block-specific input or connection descriptor.'))
   .describe(
@@ -2821,7 +3071,24 @@ export const v2ApplyWorkflowOperationsBodySchema = z
     examples: [
       {
         operations: [
-          { operation_type: 'add', block_id: 'agent-1', params: { type: 'agent', name: 'Triage' } },
+          {
+            operation_type: 'add',
+            block_id: 'agent-1',
+            params: {
+              type: 'agent',
+              name: 'Triage',
+              inputs: {
+                tools: [
+                  {
+                    type: 'cloudwatch',
+                    operation: 'describe_alarm_history',
+                    usageControl: 'auto',
+                    params: {},
+                  },
+                ],
+              },
+            },
+          },
         ],
       },
     ],

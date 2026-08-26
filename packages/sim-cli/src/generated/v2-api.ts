@@ -345,12 +345,19 @@ type ApplyWorkflowOperationsBodyRef0 =
       params: {
         type: string
         name: string
+        inputs?: {
+          tools?: ApplyWorkflowOperationsBodyRef1
+        } & Record<string, unknown>
       }
     }
   | {
       operation_type: 'edit'
       block_id: string
-      params: Record<string, unknown>
+      params: {
+        inputs?: {
+          tools?: ApplyWorkflowOperationsBodyRef1
+        } & Record<string, unknown>
+      } & Record<string, unknown>
     }
   | {
       operation_type: 'delete'
@@ -363,6 +370,9 @@ type ApplyWorkflowOperationsBodyRef0 =
         subflowId: string
         type: string
         name: string
+        inputs?: {
+          tools?: ApplyWorkflowOperationsBodyRef1
+        } & Record<string, unknown>
       }
     }
   | {
@@ -372,6 +382,49 @@ type ApplyWorkflowOperationsBodyRef0 =
         subflowId: string
       }
     }
+
+type ApplyWorkflowOperationsBodyRef1 = Array<ApplyWorkflowOperationsBodyRef2>
+
+type ApplyWorkflowOperationsBodyRef2 =
+  | ApplyWorkflowOperationsBodyRef3
+  | ApplyWorkflowOperationsBodyRef4
+  | ApplyWorkflowOperationsBodyRef5
+
+type ApplyWorkflowOperationsBodyRef3 = {
+  type: string
+  operation?: string
+  usageControl?: 'auto' | 'force' | 'none'
+  params?: Record<string, unknown>
+}
+
+type ApplyWorkflowOperationsBodyRef4 =
+  | {
+      type: 'custom-tool'
+      customToolId: string
+      usageControl?: 'auto' | 'force' | 'none'
+    }
+  | {
+      type: 'custom-tool'
+      schema: {
+        type?: 'function'
+        function: {
+          name: string
+          description?: string
+          parameters: Record<string, unknown>
+        }
+      }
+      code: string
+      usageControl?: 'auto' | 'force' | 'none'
+    }
+
+type ApplyWorkflowOperationsBodyRef5 = {
+  type: 'mcp'
+  params: {
+    serverId: string
+    toolName: string
+  } & Record<string, unknown>
+  usageControl?: 'auto' | 'force' | 'none'
+}
 
 export type ApplyWorkflowOperationsBody = {
   operations: Array<ApplyWorkflowOperationsBodyRef0>
