@@ -12,8 +12,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DbOrTx } from '@/lib/db/types'
 import type { TableSchema } from '@/lib/table/types'
 
-const { mockAssertTableRowTtlEnabled } = vi.hoisted(() => ({
-  mockAssertTableRowTtlEnabled: vi.fn(),
+const mocks = vi.hoisted(() => ({
+  assertColumnReferencesInWorkspace: vi.fn(),
+  assertTableRowTtlEnabled: vi.fn(),
+}))
+
+vi.mock('@/lib/table/column-types/registry.server', () => ({
+  assertColumnReferencesInWorkspace: mocks.assertColumnReferencesInWorkspace,
 }))
 
 vi.mock('@/lib/realtime/notify', () => ({
@@ -26,7 +31,7 @@ vi.mock('@/lib/table/billing', () => ({
 }))
 
 vi.mock('@/lib/table/ttl-availability', () => ({
-  assertTableRowTtlEnabled: mockAssertTableRowTtlEnabled,
+  assertTableRowTtlEnabled: mocks.assertTableRowTtlEnabled,
 }))
 
 import { createTable, getTableById } from '@/lib/table/service'
@@ -66,11 +71,14 @@ describe('createTable schema invariants', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
-    mockAssertTableRowTtlEnabled.mockResolvedValue(undefined)
+    mocks.assertColumnReferencesInWorkspace.mockResolvedValue(undefined)
+    mocks.assertTableRowTtlEnabled.mockResolvedValue(undefined)
   })
 
   it('rejects a TTL schema before persistence when the feature is disabled', async () => {
-    mockAssertTableRowTtlEnabled.mockRejectedValue(new Error('Expiration columns are not enabled'))
+    mocks.assertTableRowTtlEnabled.mockRejectedValue(
+      new Error('Expiration columns are not enabled')
+    )
 
     await expect(
       create({ columns: [{ name: 'expires_at', type: 'ttl' }] } as TableSchema)
@@ -130,6 +138,44 @@ describe('createTable schema invariants', () => {
         createdBy: 'user-1',
       })
     )
+  })
+
+  it('validates Reference targets before persisting the new table', async () => {
+    queueTableRows(schemaMock.userTableDefinitions, [{ count: 0 }])
+
+    await create({
+      columns: [
+        {
+          name: 'account',
+          type: 'reference',
+          referenceTableId: 'tbl_accounts',
+        },
+      ],
+    } as TableSchema)
+
+    expect(mocks.assertColumnReferencesInWorkspace).toHaveBeenCalledWith(
+      expect.anything(),
+      WORKSPACE_ID,
+      [expect.objectContaining({ referenceTableId: 'tbl_accounts' })]
+    )
+  })
+
+  it('does not insert a table when a Reference target is unavailable', async () => {
+    mocks.assertColumnReferencesInWorkspace.mockRejectedValueOnce({ code: 'not_found' })
+
+    await expect(
+      create({
+        columns: [
+          {
+            name: 'account',
+            type: 'reference',
+            referenceTableId: 'tbl_missing',
+          },
+        ],
+      } as TableSchema)
+    ).rejects.toMatchObject({ code: 'not_found' })
+
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
   })
 })
 

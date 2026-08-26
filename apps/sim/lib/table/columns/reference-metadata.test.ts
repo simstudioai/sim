@@ -8,11 +8,21 @@ import type { TableDefinition } from '@/lib/table/types'
 
 const mocks = vi.hoisted(() => ({
   withLockedTable: vi.fn(),
+  assertColumnReferencesInWorkspace: vi.fn(),
+  migrationFrom: vi.fn(),
+  migrationTo: vi.fn(),
+  writeBackCoercedCells: vi.fn(),
   set: vi.fn(),
   where: vi.fn(),
 }))
 
 vi.mock('@/lib/table/service', () => ({ withLockedTable: mocks.withLockedTable }))
+vi.mock('@/lib/table/column-types/registry.server', () => ({
+  assertColumnReferencesInWorkspace: mocks.assertColumnReferencesInWorkspace,
+  migrationFrom: mocks.migrationFrom,
+  migrationTo: mocks.migrationTo,
+  writeBackCoercedCells: mocks.writeBackCoercedCells,
+}))
 
 import {
   addTableColumn,
@@ -50,6 +60,10 @@ function tableWithReference(referenceTableId = 'tbl_accounts'): TableDefinition 
 describe('reference column metadata persistence', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.assertColumnReferencesInWorkspace.mockResolvedValue(undefined)
+    mocks.migrationFrom.mockReturnValue(undefined)
+    mocks.migrationTo.mockReturnValue(undefined)
+    mocks.writeBackCoercedCells.mockResolvedValue(undefined)
     mocks.where.mockResolvedValue(undefined)
     mocks.set.mockReturnValue({ where: mocks.where })
   })
@@ -87,6 +101,11 @@ describe('reference column metadata persistence', () => {
       type: 'reference',
       referenceTableId: 'tbl_accounts',
     })
+    expect(mocks.assertColumnReferencesInWorkspace).toHaveBeenCalledWith(
+      expect.anything(),
+      'ws_1',
+      [expect.objectContaining({ referenceTableId: 'tbl_accounts' })]
+    )
   })
 
   it('retains the supplied target when converting a column to reference', async () => {
@@ -107,6 +126,11 @@ describe('reference column metadata persistence', () => {
       type: 'reference',
       referenceTableId: 'tbl_accounts',
     })
+    expect(mocks.assertColumnReferencesInWorkspace).toHaveBeenCalledWith(
+      expect.anything(),
+      'ws_1',
+      [expect.objectContaining({ referenceTableId: 'tbl_accounts' })]
+    )
   })
 
   it('changes a reference target without reading or rewriting rows', async () => {
@@ -122,6 +146,11 @@ describe('reference column metadata persistence', () => {
     )
 
     expect(updated.schema.columns[0]).toMatchObject({ referenceTableId: 'tbl_companies' })
+    expect(mocks.assertColumnReferencesInWorkspace).toHaveBeenCalledWith(
+      expect.anything(),
+      'ws_1',
+      [expect.objectContaining({ referenceTableId: 'tbl_companies' })]
+    )
     expect(trx.select).not.toHaveBeenCalled()
     expect(trx.execute).not.toHaveBeenCalled()
     expect(trx.update).toHaveBeenCalledOnce()
@@ -140,6 +169,24 @@ describe('reference column metadata persistence', () => {
         'req_1'
       )
     ).rejects.toMatchObject({ code: 'validation' })
+
+    expect(trx.update).not.toHaveBeenCalled()
+  })
+
+  it('leaves the source schema unchanged when the target table is unavailable', async () => {
+    const trx = useTable(tableWithReference())
+    mocks.assertColumnReferencesInWorkspace.mockRejectedValueOnce({ code: 'not_found' })
+
+    await expect(
+      updateColumnReference(
+        {
+          tableId: 'tbl_people',
+          columnName: 'col_account',
+          referenceTableId: 'tbl_missing',
+        },
+        'req_1'
+      )
+    ).rejects.toMatchObject({ code: 'not_found' })
 
     expect(trx.update).not.toHaveBeenCalled()
   })
