@@ -293,6 +293,46 @@ describe('generated OpenAPI documents', () => {
     )
   })
 
+  it('publishes Agent tools as named integration, custom, and MCP schemas', () => {
+    const workflowsSpec = generateOpenApiDocument(workflowsOpenApiDocument)
+    const schemas = (workflowsSpec.components as JsonObject).schemas as JsonObject
+    const agentTool = schemas.AgentTool as JsonObject
+    const agentToolVariants = agentTool.oneOf as JsonObject[]
+    const integrationTool = schemas.AgentIntegrationTool as JsonObject
+    const integrationProperties = integrationTool.properties as JsonObject
+    const customTool = schemas.AgentCustomTool as JsonObject
+    const mcpTool = schemas.AgentMcpTool as JsonObject
+    const mcpProperties = mcpTool.properties as JsonObject
+    const mcpParams = mcpProperties.params as JsonObject
+    const mcpParamIdentity = (mcpParams.allOf as JsonObject[])[0]
+    const mcpParamProperties = mcpParamIdentity.properties as JsonObject
+
+    expect(agentToolVariants).toEqual([
+      { $ref: '#/components/schemas/AgentIntegrationTool' },
+      { $ref: '#/components/schemas/AgentCustomTool' },
+      { $ref: '#/components/schemas/AgentMcpTool' },
+    ])
+    expect(integrationProperties).toEqual(
+      expect.objectContaining({
+        type: expect.objectContaining({ type: 'string', pattern: expect.any(String) }),
+        operation: expect.objectContaining({ type: 'string' }),
+        usageControl: expect.objectContaining({ enum: ['auto', 'force', 'none'] }),
+        params: expect.objectContaining({ type: 'object' }),
+      })
+    )
+    expect(customTool).toHaveProperty('anyOf')
+    expect((mcpProperties.type as JsonObject).const).toBe('mcp')
+    expect(mcpParamProperties).toEqual(
+      expect.objectContaining({
+        serverId: expect.objectContaining({ type: 'string' }),
+        toolName: expect.objectContaining({ type: 'string' }),
+      })
+    )
+    expect(JSON.stringify(schemas.WorkflowEditOperation)).toContain(
+      '#/components/schemas/AgentToolInput'
+    )
+  })
+
   it('uses named schemas for top-level response objects and list items', () => {
     for (const document of DOCUMENTS) {
       expect(anonymousTopLevelResponseObjects(generateOpenApiDocument(document))).toEqual([])
