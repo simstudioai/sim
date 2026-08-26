@@ -2,247 +2,50 @@ import type { OutputProperty, ToolResponse } from '@/tools/types'
 
 /**
  * Shared output property definitions for Serper API responses.
- * Based on Serper.dev API documentation: https://serper.dev/
- * Reference: https://github.com/yigitkonur/serper-deno-sdk
+ *
+ * Serper publishes no schema and no reachable docs site; the authoritative source is the set of
+ * example responses embedded in the vertical tab-switcher on https://serper.dev/. Every field
+ * below is taken from those examples — nothing here is inferred.
  */
 
 /**
- * Output definition for search parameters echoed in response
- */
-export const SEARCH_PARAMETERS_OUTPUT_PROPERTIES = {
-  q: { type: 'string', description: 'The search query that was executed' },
-  type: { type: 'string', description: 'Type of search performed (search, images, news, etc.)' },
-  engine: { type: 'string', description: 'Search engine used (always "google")' },
-  gl: { type: 'string', description: 'Country code applied to the search', optional: true },
-  hl: { type: 'string', description: 'Language code applied to the search', optional: true },
-  location: { type: 'string', description: 'Location applied to the search', optional: true },
-  num: { type: 'number', description: 'Number of results requested', optional: true },
-} as const satisfies Record<string, OutputProperty>
-
-/**
- * Output definition for Knowledge Graph panel
- * Appears for entities like companies, people, places
- */
-export const KNOWLEDGE_GRAPH_OUTPUT_PROPERTIES = {
-  title: { type: 'string', description: 'Entity name/title (e.g., "OpenAI")' },
-  type: {
-    type: 'string',
-    description: 'Entity type (e.g., "Company", "Person", "Place")',
-    optional: true,
-  },
-  description: {
-    type: 'string',
-    description: 'Description text, usually from Wikipedia',
-    optional: true,
-  },
-  descriptionSource: {
-    type: 'string',
-    description: 'Source of the description (e.g., "Wikipedia")',
-    optional: true,
-  },
-  descriptionLink: { type: 'string', description: 'URL to the description source', optional: true },
-  imageUrl: {
-    type: 'string',
-    description: 'URL of an image associated with the entity',
-    optional: true,
-  },
-  website: { type: 'string', description: 'Official website of the entity', optional: true },
-  attributes: {
-    type: 'object',
-    description:
-      'Additional key-value attributes about the entity (e.g., Headquarters, CEO, Founded)',
-    optional: true,
-  },
-} as const satisfies Record<string, OutputProperty>
-
-/**
- * Output definition for Answer Box / Featured Snippet
- * Appears for direct answer queries
- */
-export const ANSWER_BOX_OUTPUT_PROPERTIES = {
-  snippet: { type: 'string', description: 'Answer snippet text', optional: true },
-  answer: {
-    type: 'string',
-    description: 'Direct answer (for calculations, definitions)',
-    optional: true,
-  },
-  title: { type: 'string', description: 'Title of the source', optional: true },
-  link: { type: 'string', description: 'URL of the source', optional: true },
-} as const satisfies Record<string, OutputProperty>
-
-/**
- * Output definition for sitelinks under an organic result
- */
-export const SITELINK_OUTPUT_PROPERTIES = {
-  title: { type: 'string', description: 'Sitelink title' },
-  link: { type: 'string', description: 'Sitelink URL' },
-} as const satisfies Record<string, OutputProperty>
-
-/**
- * Complete sitelinks array output definition
- */
-export const SITELINKS_OUTPUT: OutputProperty = {
-  type: 'array',
-  description: 'Sitelinks under this result',
-  optional: true,
-  items: {
-    type: 'object',
-    properties: SITELINK_OUTPUT_PROPERTIES,
-  },
-}
-
-/**
- * Output definition for organic search result items
- */
-export const ORGANIC_RESULT_OUTPUT_PROPERTIES = {
-  title: { type: 'string', description: 'Result title' },
-  link: { type: 'string', description: 'Result URL' },
-  snippet: { type: 'string', description: 'Text snippet with query context', optional: true },
-  position: { type: 'number', description: 'Position in results (1-based)' },
-  date: { type: 'string', description: 'Publication date if available', optional: true },
-  sitelinks: SITELINKS_OUTPUT,
-  attributes: {
-    type: 'object',
-    description: 'Additional attributes (e.g., for Wikipedia: "Available in", "URL")',
-    optional: true,
-  },
-} as const satisfies Record<string, OutputProperty>
-
-/**
- * Output definition for People Also Ask questions
- */
-export const PEOPLE_ALSO_ASK_OUTPUT_PROPERTIES = {
-  question: { type: 'string', description: 'The question that was asked' },
-  snippet: { type: 'string', description: 'A snippet of the answer', optional: true },
-  title: { type: 'string', description: 'Title of the source page', optional: true },
-  link: { type: 'string', description: 'URL of the source page', optional: true },
-} as const satisfies Record<string, OutputProperty>
-
-/**
- * Output definition for related search suggestions
- */
-export const RELATED_SEARCH_OUTPUT_PROPERTIES = {
-  query: { type: 'string', description: 'Suggested search query' },
-} as const satisfies Record<string, OutputProperty>
-
-/**
- * Output definition for top stories in news carousel
- */
-export const TOP_STORY_OUTPUT_PROPERTIES = {
-  title: { type: 'string', description: 'Story headline' },
-  link: { type: 'string', description: 'Story URL' },
-  source: { type: 'string', description: 'News source name' },
-  date: { type: 'string', description: 'Publication date/time', optional: true },
-  imageUrl: { type: 'string', description: 'Thumbnail image URL', optional: true },
-} as const satisfies Record<string, OutputProperty>
-
-/**
- * Output definition for news search result items
- */
-export const NEWS_RESULT_OUTPUT_PROPERTIES = {
-  title: { type: 'string', description: 'News article title' },
-  link: { type: 'string', description: 'News article URL' },
-  snippet: { type: 'string', description: 'Article summary/excerpt' },
-  date: { type: 'string', description: 'Publication date (e.g., "2 hours ago", "Jan 5, 2025")' },
-  source: { type: 'string', description: 'Publisher/source name' },
-  imageUrl: { type: 'string', description: 'Article thumbnail image URL', optional: true },
-  position: { type: 'number', description: 'Position in results (1-based)' },
-} as const satisfies Record<string, OutputProperty>
-
-/**
- * Output definition for image search result items
- */
-export const IMAGE_RESULT_OUTPUT_PROPERTIES = {
-  title: { type: 'string', description: 'Image title/alt text' },
-  imageUrl: { type: 'string', description: 'Direct URL to full-size image' },
-  thumbnailUrl: { type: 'string', description: 'URL to thumbnail image' },
-  imageWidth: { type: 'number', description: 'Full image width in pixels' },
-  imageHeight: { type: 'number', description: 'Full image height in pixels' },
-  thumbnailWidth: { type: 'number', description: 'Thumbnail width in pixels' },
-  thumbnailHeight: { type: 'number', description: 'Thumbnail height in pixels' },
-  source: { type: 'string', description: 'Source website name' },
-  domain: { type: 'string', description: 'Source domain' },
-  link: { type: 'string', description: 'Page URL where image appears' },
-  googleUrl: { type: 'string', description: "Google's redirect URL for the image" },
-  position: { type: 'number', description: 'Position in results (1-based)' },
-} as const satisfies Record<string, OutputProperty>
-
-/**
- * Output definition for video search result items
- */
-export const VIDEO_RESULT_OUTPUT_PROPERTIES = {
-  title: { type: 'string', description: 'Video title' },
-  link: { type: 'string', description: 'Video URL (often YouTube or source site)' },
-  snippet: { type: 'string', description: 'Video description/snippet', optional: true },
-  source: { type: 'string', description: 'Platform name (e.g., "YouTube")' },
-  duration: {
-    type: 'string',
-    description: 'Video duration (e.g., "10:30", "1:30:00")',
-    optional: true,
-  },
-  date: { type: 'string', description: 'Upload date or relative time', optional: true },
-  position: { type: 'number', description: 'Position in results (1-based)' },
-} as const satisfies Record<string, OutputProperty>
-
-/**
- * Output definition for places/maps search result items
- */
-export const PLACE_RESULT_OUTPUT_PROPERTIES = {
-  title: { type: 'string', description: 'Business/place name' },
-  address: { type: 'string', description: 'Full street address' },
-  latitude: { type: 'number', description: 'Latitude coordinate' },
-  longitude: { type: 'number', description: 'Longitude coordinate' },
-  rating: { type: 'number', description: 'Average rating (1-5 stars)', optional: true },
-  ratingCount: { type: 'number', description: 'Total number of reviews', optional: true },
-  type: {
-    type: 'string',
-    description: 'Primary category/type (e.g., "Coffee shop", "Restaurant")',
-  },
-  types: {
-    type: 'array',
-    description: 'All applicable categories',
-    items: { type: 'string', description: 'Category type' },
-  },
-  website: { type: 'string', description: 'Business website URL', optional: true },
-  phoneNumber: { type: 'string', description: 'Contact phone number', optional: true },
-  description: {
-    type: 'string',
-    description: 'Business description from Google Maps',
-    optional: true,
-  },
-  cid: { type: 'string', description: 'Google CID (internal identifier)' },
-  placeId: { type: 'string', description: 'Google Place ID (for use with other APIs)' },
-  position: { type: 'number', description: 'Position in results (1-based)' },
-} as const satisfies Record<string, OutputProperty>
-
-/**
- * Output definition for shopping/product search result items
- */
-export const SHOPPING_RESULT_OUTPUT_PROPERTIES = {
-  title: { type: 'string', description: 'Product name/title' },
-  link: { type: 'string', description: 'Product page URL (Google Shopping or merchant)' },
-  snippet: { type: 'string', description: 'Product description/details', optional: true },
-  source: { type: 'string', description: 'Seller/store name' },
-  price: { type: 'string', description: 'Price as displayed (e.g., "$19.99", "€24.99")' },
-  imageUrl: { type: 'string', description: 'Product image URL' },
-  position: { type: 'number', description: 'Position in results (1-based)' },
-} as const satisfies Record<string, OutputProperty>
-
-/**
- * Combined search result output definition (supports all search types for legacy compatibility)
- * This is used when returning a unified result format across different search types
+ * Unified per-item shape returned by {@link SearchResponse}. One flat projection is used across
+ * every vertical, so a field only present in some verticals is `optional`.
+ *
+ * `link` is optional because the `places` vertical genuinely has no result URL: its items carry a
+ * business `website` instead, which is surfaced under its own key rather than impersonating a
+ * search result link.
  */
 export const SERPER_SEARCH_RESULT_OUTPUT_PROPERTIES = {
   title: { type: 'string', description: 'Result title' },
-  link: { type: 'string', description: 'Result URL' },
-  snippet: { type: 'string', description: 'Result description/snippet', optional: true },
+  link: {
+    type: 'string',
+    description: 'Result URL. Absent for places results, which have no result URL',
+    optional: true,
+  },
+  snippet: {
+    type: 'string',
+    description: 'Result description/snippet (the business description for places)',
+    optional: true,
+  },
   position: { type: 'number', description: 'Position in search results' },
   date: { type: 'string', description: 'Publication date (news/videos)', optional: true },
   imageUrl: { type: 'string', description: 'Image URL (images/news/shopping)', optional: true },
   source: { type: 'string', description: 'Source name (news/videos/shopping)', optional: true },
-  rating: { type: 'number', description: 'Rating (places)', optional: true },
-  ratingCount: { type: 'number', description: 'Number of reviews (places)', optional: true },
+  rating: { type: 'number', description: 'Average rating, 1-5 (places)', optional: true },
+  ratingCount: {
+    type: 'number',
+    description: 'Number of ratings/reviews (places)',
+    optional: true,
+  },
   address: { type: 'string', description: 'Address (places)', optional: true },
+  category: {
+    type: 'string',
+    description: 'Primary category, e.g. "Coffee shop" (places)',
+    optional: true,
+  },
+  phoneNumber: { type: 'string', description: 'Contact phone number (places)', optional: true },
+  website: { type: 'string', description: 'Business website URL (places)', optional: true },
   price: { type: 'string', description: 'Price (shopping)', optional: true },
   duration: { type: 'string', description: 'Duration (videos)', optional: true },
 } as const satisfies Record<string, OutputProperty>
@@ -259,7 +62,8 @@ export interface SearchParams {
 
 export interface SearchResult {
   title: string
-  link: string
+  /** Absent on `places` results, which Serper returns without any result URL. */
+  link?: string
   snippet?: string
   position: number
   imageUrl?: string
@@ -267,57 +71,16 @@ export interface SearchResult {
   source?: string
   rating?: number
   ratingCount?: number
-  /** Legacy passthrough of the raw `reviews` key on places items; not an advertised output. */
-  reviews?: number
   address?: string
+  category?: string
+  phoneNumber?: string
+  website?: string
   price?: string
   duration?: string
-}
-
-interface KnowledgeGraph {
-  title: string
-  type?: string
-  description?: string
-  descriptionSource?: string
-  descriptionLink?: string
-  imageUrl?: string
-  website?: string
-  attributes?: Record<string, string>
-}
-
-interface AnswerBox {
-  snippet?: string
-  answer?: string
-  title?: string
-  link?: string
-}
-
-interface PeopleAlsoAsk {
-  question: string
-  snippet?: string
-  title?: string
-  link?: string
-}
-
-interface RelatedSearch {
-  query: string
-}
-
-interface TopStory {
-  title: string
-  link: string
-  source: string
-  date?: string
-  imageUrl?: string
 }
 
 export interface SearchResponse extends ToolResponse {
   output: {
     searchResults: SearchResult[]
-    knowledgeGraph?: KnowledgeGraph
-    answerBox?: AnswerBox
-    peopleAlsoAsk?: PeopleAlsoAsk[]
-    relatedSearches?: RelatedSearch[]
-    topStories?: TopStory[]
   }
 }

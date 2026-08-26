@@ -48,6 +48,27 @@ describe('linkedInSharePostTool.postProcess', () => {
     expect(result.error).toBeUndefined()
   })
 
+  it('builds the member-viewable post URL from the returned share URN', async () => {
+    mockFetch.mockResolvedValue(
+      new Response(null, {
+        status: 201,
+        headers: { 'x-restli-id': 'urn:li:share:123' },
+      })
+    )
+
+    const result = await linkedInSharePostTool.postProcess!(profileResult, params, executeTool)
+
+    expect(result.output.postUrl).toBe('https://www.linkedin.com/feed/update/urn:li:share:123/')
+  })
+
+  it('leaves the post URL undefined when there is no share URN to build it from', async () => {
+    mockFetch.mockResolvedValue(new Response(null, { status: 201 }))
+
+    const result = await linkedInSharePostTool.postProcess!(profileResult, params, executeTool)
+
+    expect(result.output.postUrl).toBeUndefined()
+  })
+
   it('still reports success with an undefined postId when 201 carries no x-restli-id header', async () => {
     mockFetch.mockResolvedValue(new Response(null, { status: 201 }))
 
@@ -96,5 +117,11 @@ describe('linkedInSharePostTool.postProcess', () => {
 
     expect(result.success).toBe(false)
     expect(result.error).toContain('Not enough permissions')
+  })
+})
+
+describe('linkedInSharePostTool.outputs', () => {
+  it('declares exactly the keys postProcess returns', () => {
+    expect(Object.keys(linkedInSharePostTool.outputs ?? {}).sort()).toEqual(['postId', 'postUrl'])
   })
 })

@@ -10,6 +10,12 @@ import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('LinkedInSharePost')
 
+/**
+ * LinkedIn's documented permalink prefix for a share URN. LinkedIn describes the resulting URL as
+ * viewable by an authorized member, not as a guaranteed public permalink.
+ */
+const LINKEDIN_FEED_UPDATE_BASE = 'https://www.linkedin.com/feed/update/'
+
 // Helper function to extract profile ID from various response formats
 const extractProfileId: ProfileIdExtractor = (output: unknown): string | null => {
   if (typeof output === 'object' && output !== null) {
@@ -134,7 +140,10 @@ export const linkedInSharePostTool: ToolConfig<SharePostParams, SharePostRespons
 
       return {
         success: true,
-        output: { postId },
+        output: {
+          postId,
+          postUrl: postId ? `${LINKEDIN_FEED_UPDATE_BASE}${postId}/` : undefined,
+        },
       }
     } catch (error) {
       return {
@@ -143,6 +152,21 @@ export const linkedInSharePostTool: ToolConfig<SharePostParams, SharePostRespons
         error: getErrorMessage(error, 'Unknown error'),
       }
     }
+  },
+
+  outputs: {
+    postId: {
+      type: 'string',
+      description:
+        'URN of the created share, read from the `x-restli-id` response header. Absent when LinkedIn omits that header.',
+      optional: true,
+    },
+    postUrl: {
+      type: 'string',
+      description:
+        'LinkedIn URL of the created post. Viewable by an authorized LinkedIn member — not a guaranteed public permalink. Absent when no share URN was returned.',
+      optional: true,
+    },
   },
 
   transformResponse: async (response: Response): Promise<SharePostResponse> => {

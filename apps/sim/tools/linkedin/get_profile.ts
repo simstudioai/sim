@@ -30,6 +30,27 @@ export const linkedInGetProfileTool: ToolConfig<GetProfileParams, GetProfileResp
     }),
   },
 
+  outputs: {
+    profile: {
+      type: 'object',
+      description: 'The authenticated LinkedIn member, from the OpenID Connect userinfo endpoint',
+      properties: {
+        id: { type: 'string', description: 'LinkedIn member id (the OpenID `sub` claim)' },
+        name: { type: 'string', description: 'Full display name', optional: true },
+        email: {
+          type: 'string',
+          description: 'Primary email address. Present only when the `email` scope was granted',
+          optional: true,
+        },
+        picture: {
+          type: 'string',
+          description: 'URL of the profile picture, when the member has one',
+          optional: true,
+        },
+      },
+    },
+  },
+
   transformResponse: async (response: Response): Promise<GetProfileResponse> => {
     if (!response.ok) {
       return {

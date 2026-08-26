@@ -1,41 +1,5 @@
 import type { ToolResponse } from '@/tools/types'
 
-interface LinkedInProfile {
-  sub: string
-  name: string
-  given_name: string
-  family_name: string
-  email?: string
-  picture?: string
-  email_verified?: boolean
-}
-
-interface LinkedInPost {
-  author: string // URN format: urn:li:person:abc123
-  lifecycleState: 'PUBLISHED'
-  specificContent: {
-    'com.linkedin.ugc.ShareContent': {
-      shareCommentary: {
-        text: string
-      }
-      shareMediaCategory: 'NONE' | 'ARTICLE' | 'IMAGE'
-      media?: Array<{
-        status: 'READY'
-        description: {
-          text: string
-        }
-        media: string // URN format
-        title: {
-          text: string
-        }
-      }>
-    }
-  }
-  visibility: {
-    'com.linkedin.ugc.MemberNetworkVisibility': 'PUBLIC' | 'CONNECTIONS'
-  }
-}
-
 export type LinkedInResponse = {
   success: boolean
   output: {
@@ -67,14 +31,18 @@ export interface SharePostParams {
   accessToken: string
   text: string
   visibility?: 'PUBLIC' | 'CONNECTIONS' | 'LOGGED_IN'
-  mediaUrls?: string
 }
 
 export interface SharePostResponse extends ToolResponse {
   output: {
+    /** Share URN from the `x-restli-id` response header; absent if LinkedIn omits the header. */
     postId?: string
+    /**
+     * LinkedIn's `feed/update/<urn>` permalink for the created post. LinkedIn documents this URL
+     * as viewable by an authorized member, so it is not guaranteed to resolve for the public or
+     * for signed-out visitors. Absent whenever {@link SharePostResponse.output.postId} is.
+     */
     postUrl?: string
-    visibility?: string
   }
 }
 

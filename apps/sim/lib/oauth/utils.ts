@@ -385,7 +385,7 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'webhooks:full': 'Full access to manage Pipedrive webhooks',
 
   // LinkedIn scopes
-  w_member_social: 'Access LinkedIn profile',
+  w_member_social: 'Post, comment, and like posts on your behalf',
 
   // Instagram scopes (Business Login for Instagram)
   instagram_business_basic: 'Access Instagram professional profile and media',

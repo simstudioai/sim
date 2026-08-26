@@ -187,7 +187,7 @@ export const SerperBlockMeta = {
       description:
         'Run a Serper web search on a topic and synthesize the top organic results into a sourced summary.',
       content:
-        '# Research Web Topic\n\nGather current web results on a topic and turn them into a concise, sourced briefing.\n\n## Steps\n1. Run the search operation with a focused query. Set the country and language for the target audience and choose a result count (10 to 100) appropriate to the depth needed.\n2. Read the organic results, titles, snippets, and any answer box or knowledge graph data.\n3. Synthesize the findings, noting agreement and disagreement across sources.\n\n## Output\nReturn a short summary of what the web says about the topic, each key claim linked to the result URL it came from.',
+        '# Research Web Topic\n\nGather current web results on a topic and turn them into a concise, sourced briefing.\n\n## Steps\n1. Run the search operation with a focused query. Set the country and language for the target audience and choose a result count (10 to 100) appropriate to the depth needed.\n2. Read the returned results: titles, links, and snippets.\n3. Synthesize the findings, noting agreement and disagreement across sources.\n\n## Output\nReturn a short summary of what the web says about the topic, each key claim linked to the result URL it came from.',
     },
     {
       name: 'monitor-news-mentions',

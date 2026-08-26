@@ -131,6 +131,11 @@ export const LinkedInBlock: BlockConfig<LinkedInResponse> = {
   outputs: {
     success: { type: 'boolean', description: 'Operation success status' },
     postId: { type: 'string', description: 'Created post ID' },
+    postUrl: {
+      type: 'string',
+      description:
+        'LinkedIn URL of the created post. Viewable by an authorized LinkedIn member — not a guaranteed public permalink',
+    },
     profile: { type: 'json', description: 'LinkedIn profile information' },
     error: { type: 'string', description: 'Error message if operation failed' },
   },
@@ -210,7 +215,7 @@ export const LinkedInBlockMeta = {
       description:
         'Draft and share a post to your LinkedIn feed with a hook, value, and a clear call-to-action.',
       content:
-        '# Publish LinkedIn Post\n\nWrite and publish an engagement-optimized post to your LinkedIn feed.\n\n## Steps\n1. Take the source idea, article, or update to post about.\n2. Draft post text with a strong first-line hook, two to three lines of value or insight, and a clear call-to-action, kept within LinkedIn length limits.\n3. Share Post with the drafted text and a visibility of PUBLIC or CONNECTIONS.\n\n## Output\nConfirmation the post was shared, the created post ID, and the final post text used.',
+        '# Publish LinkedIn Post\n\nWrite and publish an engagement-optimized post to your LinkedIn feed.\n\n## Steps\n1. Take the source idea, article, or update to post about.\n2. Draft post text with a strong first-line hook, two to three lines of value or insight, and a clear call-to-action, kept within LinkedIn length limits.\n3. Share Post with the drafted text and a visibility of PUBLIC or CONNECTIONS.\n\n## Output\nConfirmation the post was shared, the created post ID and URL, and the final post text used.',
     },
     {
       name: 'repurpose-content-to-post',

@@ -116,7 +116,7 @@ describe('serper searchTool.transformResponse', () => {
     ])
   })
 
-  it('maps news results unchanged', async () => {
+  it('keeps the publisher name Serper reports on news results', async () => {
     const response = serperResponse('https://google.serper.dev/news', {
       news: [
         {
@@ -140,20 +140,29 @@ describe('serper searchTool.transformResponse', () => {
         position: 1,
         date: '2 hours ago',
         imageUrl: 'https://example.com/markets.png',
+        source: 'Example Wire',
       },
     ])
   })
 
-  it('maps places results unchanged', async () => {
+  it('maps places results from the keys Serper actually returns', async () => {
     const response = serperResponse('https://google.serper.dev/places', {
       places: [
         {
+          position: 1,
           title: 'Corner Coffee',
-          link: 'https://example.com/coffee',
-          snippet: 'Espresso bar',
+          address: '1 Main St, Seattle, WA 98101',
+          latitude: 47.6,
+          longitude: -122.33,
           rating: 4.6,
-          address: '1 Main St',
           ratingCount: 812,
+          type: 'Coffee shop',
+          types: ['Coffee shop', 'Cafe'],
+          website: 'https://cornercoffee.example',
+          phoneNumber: '+1 206-555-0100',
+          description: 'Espresso bar with pastries',
+          cid: '123456789',
+          placeId: 'ChIJabc',
         },
       ],
     })
@@ -163,13 +172,27 @@ describe('serper searchTool.transformResponse', () => {
     expect(result.output.searchResults).toEqual([
       {
         title: 'Corner Coffee',
-        link: 'https://example.com/coffee',
-        snippet: 'Espresso bar',
+        snippet: 'Espresso bar with pastries',
         position: 1,
         rating: 4.6,
-        address: '1 Main St',
+        ratingCount: 812,
+        address: '1 Main St, Seattle, WA 98101',
+        category: 'Coffee shop',
+        phoneNumber: '+1 206-555-0100',
+        website: 'https://cornercoffee.example',
       },
     ])
+  })
+
+  it('leaves the places link undefined rather than passing off the business website as one', async () => {
+    const response = serperResponse('https://google.serper.dev/places', {
+      places: [{ title: 'Corner Coffee', website: 'https://cornercoffee.example' }],
+    })
+
+    const result = await searchTool.transformResponse!(response, {} as never)
+
+    expect(result.output.searchResults[0].link).toBeUndefined()
+    expect(result.output.searchResults[0].website).toBe('https://cornercoffee.example')
   })
 
   it('maps images results unchanged', async () => {

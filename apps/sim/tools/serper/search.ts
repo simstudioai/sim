@@ -38,18 +38,28 @@ const SERPER_VERTICALS: Record<SerperSearchType, SerperVertical> = {
       position: index + 1,
       date: item.date as string | undefined,
       imageUrl: item.imageUrl as string | undefined,
+      source: item.source as string | undefined,
     }),
   },
+  /**
+   * Places items carry no `link` and no `snippet`: Serper returns `website` (the business site,
+   * which is not a search result URL and must not be presented as one) and `description`. Its
+   * review count is `ratingCount`, and its category is `type`. The full documented item shape is
+   * `position, title, address, latitude, longitude, rating, ratingCount, type, types, website,
+   * phoneNumber, description, cid, placeId`.
+   */
   places: {
     responseKey: 'places',
     toResult: (item, index) => ({
       title: item.title as string,
-      link: item.link as string,
-      snippet: item.snippet as string | undefined,
+      snippet: item.description as string | undefined,
       position: index + 1,
       rating: item.rating as number | undefined,
-      reviews: item.reviews as number | undefined,
+      ratingCount: item.ratingCount as number | undefined,
       address: item.address as string | undefined,
+      category: item.type as string | undefined,
+      phoneNumber: item.phoneNumber as string | undefined,
+      website: item.website as string | undefined,
     }),
   },
   images: {
@@ -159,7 +169,7 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
   id: 'serper_search',
   name: 'Web Search',
   description:
-    'A powerful web search tool that provides access to Google search results through Serper.dev API. Supports different types of searches including regular web search, news, places, images, videos, and shopping. Returns comprehensive results including organic results, knowledge graph, answer box, people also ask, related searches, and top stories.',
+    'Search Google through the Serper.dev API. Supports the web, news, places, images, videos, shopping, scholar, and patents verticals, and returns a flat list of results for the requested vertical with its type-specific metadata (date and source for news, rating, review count, address, category, phone, and website for places, image URLs for images, duration for videos, price for shopping).',
   version: '1.0.0',
 
   params: {
@@ -267,7 +277,7 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
     searchResults: {
       type: 'array',
       description:
-        'Search results with titles, links, snippets, and type-specific metadata (date for news, rating for places, imageUrl for images, duration/source for videos, price/source for shopping)',
+        'Results for the requested vertical, with titles, links, snippets, and type-specific metadata (date/source for news, rating/ratingCount/address/category/phoneNumber/website for places, imageUrl for images, duration/source for videos, price/source for shopping). Places results have no link.',
       items: {
         type: 'object',
         properties: SERPER_SEARCH_RESULT_OUTPUT_PROPERTIES,
