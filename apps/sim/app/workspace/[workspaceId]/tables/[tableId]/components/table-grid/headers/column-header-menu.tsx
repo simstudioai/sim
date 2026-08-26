@@ -28,6 +28,8 @@ interface ColumnHeaderMenuProps {
   onColumnSelect: (colIndex: number, shiftKey: boolean) => void
   onInsertLeft: (columnName: string) => void
   onInsertRight: (columnName: string) => void
+  /** Opens the table targeted by a Reference column. */
+  onGoToReferenceTable?: (tableId: string) => void
   onDeleteColumn: (columnName: string) => void
   onResizeStart: (columnKey: string) => void
   onResize: (columnKey: string, width: number) => void
@@ -80,6 +82,7 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   onColumnSelect,
   onInsertLeft,
   onInsertRight,
+  onGoToReferenceTable,
   onDeleteColumn,
   onResizeStart,
   onResize,
@@ -354,6 +357,7 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
             onOpenConfig={onOpenConfig}
             schemaLockedReason={schemaLockedReason}
             deleteLockedReason={deleteLockedReason}
+            onGoToReferenceTable={onGoToReferenceTable}
             onInsertLeft={onInsertLeft}
             onInsertRight={onInsertRight}
             onDeleteColumn={onDeleteColumn}
