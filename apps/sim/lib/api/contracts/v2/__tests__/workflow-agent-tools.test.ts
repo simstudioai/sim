@@ -2,10 +2,13 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
+import { MAX_ID_LENGTH } from '@/lib/api/contracts/primitives'
 import {
+  MAX_AGENT_TOOLS_PER_BLOCK,
   v2AgentToolInputSchema,
   v2ApplyWorkflowOperationsBodySchema,
 } from '@/lib/api/contracts/v2/workflows'
+import { MAX_MCP_TOOL_NAME_BYTES } from '@/lib/mcp/constants'
 
 describe('v2AgentToolInputSchema', () => {
   it('accepts catalog integration, custom-tool reference, and MCP tool shapes', () => {
@@ -56,6 +59,57 @@ describe('v2AgentToolInputSchema', () => {
     [{ type: 'slack', operation: 'send', usageControl: 'sometimes' }],
   ])('rejects a malformed reserved tool shape', (tools) => {
     expect(v2AgentToolInputSchema.safeParse(tools).success).toBe(false)
+  })
+
+  it('rejects a tool list above the workflow-operation ceiling', () => {
+    const tools = Array.from({ length: MAX_AGENT_TOOLS_PER_BLOCK + 1 }, (_, index) => ({
+      type: `integration-${index}`,
+    }))
+
+    expect(v2AgentToolInputSchema.safeParse(tools).success).toBe(false)
+  })
+
+  it.each([
+    [
+      'inline function name',
+      {
+        type: 'custom-tool',
+        schema: {
+          type: 'function',
+          function: { name: 'a'.repeat(65), parameters: { type: 'object' } },
+        },
+        code: 'return null',
+      },
+    ],
+    [
+      'MCP server id',
+      {
+        type: 'mcp',
+        params: { serverId: 'a'.repeat(MAX_ID_LENGTH + 1), toolName: 'search_docs' },
+      },
+    ],
+    [
+      'MCP tool name',
+      {
+        type: 'mcp',
+        params: {
+          serverId: 'mcp_123',
+          toolName: 'a'.repeat(MAX_MCP_TOOL_NAME_BYTES + 1),
+        },
+      },
+    ],
+    [
+      'MCP multibyte tool name',
+      {
+        type: 'mcp',
+        params: {
+          serverId: 'mcp_123',
+          toolName: '💡'.repeat(Math.floor(MAX_MCP_TOOL_NAME_BYTES / 4) + 1),
+        },
+      },
+    ],
+  ])('rejects an overlong %s', (_label, tool) => {
+    expect(v2AgentToolInputSchema.safeParse([tool]).success).toBe(false)
   })
 })
 

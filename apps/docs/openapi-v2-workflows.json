@@ -6197,6 +6197,7 @@
         "description": "One semantic edit against a workflow graph."
       },
       "AgentToolInput": {
+        "maxItems": 100,
         "type": "array",
         "items": {
           "$ref": "#/components/schemas/AgentTool"
@@ -6315,6 +6316,7 @@
                       "name": {
                         "type": "string",
                         "minLength": 1,
+                        "maxLength": 64,
                         "description": "Function name presented to the model."
                       },
                       "description": {
@@ -6387,11 +6389,13 @@
                   "serverId": {
                     "type": "string",
                     "minLength": 1,
+                    "maxLength": 128,
                     "description": "MCP server id returned by `GET /api/v2/mcp-servers`."
                   },
                   "toolName": {
                     "type": "string",
                     "minLength": 1,
+                    "maxLength": 256,
                     "description": "Tool name returned by the MCP server’s tools endpoint."
                   }
                 },

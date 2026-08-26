@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { MAX_ID_LENGTH } from '../../apps/sim/lib/api/contracts/primitives'
 import { billingOpenApiDocument } from '../../apps/sim/lib/api/contracts/v2/openapi/billing'
 import { filesAuditOpenApiDocument } from '../../apps/sim/lib/api/contracts/v2/openapi/files-audit'
 import { knowledgeOpenApiDocument } from '../../apps/sim/lib/api/contracts/v2/openapi/knowledge'
@@ -14,6 +15,8 @@ import {
 } from '../../apps/sim/lib/api/contracts/v2/openapi/shared'
 import { tablesOpenApiDocument } from '../../apps/sim/lib/api/contracts/v2/openapi/tables'
 import { workflowsOpenApiDocument } from '../../apps/sim/lib/api/contracts/v2/openapi/workflows'
+import { MAX_AGENT_TOOLS_PER_BLOCK } from '../../apps/sim/lib/api/contracts/v2/workflows'
+import { MAX_MCP_TOOL_NAME_BYTES } from '../../apps/sim/lib/mcp/constants'
 import { generateOpenApiDocument, serializeOpenApiDocument } from './generator'
 
 type JsonObject = Record<string, unknown>
@@ -296,11 +299,18 @@ describe('generated OpenAPI documents', () => {
   it('publishes Agent tools as named integration, custom, and MCP schemas', () => {
     const workflowsSpec = generateOpenApiDocument(workflowsOpenApiDocument)
     const schemas = (workflowsSpec.components as JsonObject).schemas as JsonObject
+    const agentToolInput = schemas.AgentToolInput as JsonObject
     const agentTool = schemas.AgentTool as JsonObject
     const agentToolVariants = agentTool.oneOf as JsonObject[]
     const integrationTool = schemas.AgentIntegrationTool as JsonObject
     const integrationProperties = integrationTool.properties as JsonObject
     const customTool = schemas.AgentCustomTool as JsonObject
+    const customToolVariants = customTool.anyOf as JsonObject[]
+    const inlineCustomToolProperties = customToolVariants[1].properties as JsonObject
+    const inlineCustomToolSchema = inlineCustomToolProperties.schema as JsonObject
+    const inlineCustomToolSchemaProperties = inlineCustomToolSchema.properties as JsonObject
+    const inlineFunction = inlineCustomToolSchemaProperties.function as JsonObject
+    const inlineFunctionProperties = inlineFunction.properties as JsonObject
     const mcpTool = schemas.AgentMcpTool as JsonObject
     const mcpProperties = mcpTool.properties as JsonObject
     const mcpParams = mcpProperties.params as JsonObject
@@ -312,6 +322,9 @@ describe('generated OpenAPI documents', () => {
       { $ref: '#/components/schemas/AgentCustomTool' },
       { $ref: '#/components/schemas/AgentMcpTool' },
     ])
+    expect(agentToolInput).toEqual(
+      expect.objectContaining({ type: 'array', maxItems: MAX_AGENT_TOOLS_PER_BLOCK })
+    )
     expect(integrationProperties).toEqual(
       expect.objectContaining({
         type: expect.objectContaining({ type: 'string', pattern: expect.any(String) }),
@@ -321,11 +334,17 @@ describe('generated OpenAPI documents', () => {
       })
     )
     expect(customTool).toHaveProperty('anyOf')
+    expect(inlineFunctionProperties.name).toEqual(
+      expect.objectContaining({ type: 'string', maxLength: 64 })
+    )
     expect((mcpProperties.type as JsonObject).const).toBe('mcp')
     expect(mcpParamProperties).toEqual(
       expect.objectContaining({
-        serverId: expect.objectContaining({ type: 'string' }),
-        toolName: expect.objectContaining({ type: 'string' }),
+        serverId: expect.objectContaining({ type: 'string', maxLength: MAX_ID_LENGTH }),
+        toolName: expect.objectContaining({
+          type: 'string',
+          maxLength: MAX_MCP_TOOL_NAME_BYTES,
+        }),
       })
     )
     expect(JSON.stringify(schemas.WorkflowEditOperation)).toContain(

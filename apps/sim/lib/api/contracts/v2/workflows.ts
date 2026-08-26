@@ -17,6 +17,7 @@ import {
 } from '@/lib/api/contracts/deployments'
 import {
   booleanQueryFlagSchema,
+  MAX_ID_LENGTH,
   missingFieldError,
   noInputSchema,
   runIdSchema,
@@ -58,6 +59,7 @@ import {
 import { MAX_WORKFLOW_EXECUTION_TIMEOUT_SECONDS } from '@/lib/billing/execution-timeout-defaults'
 import { MAX_INLINE_MATERIALIZATION_BYTES } from '@/lib/execution/payloads/limits'
 import { PERSISTED_WORKFLOW_EXECUTION_STATUSES } from '@/lib/logs/types'
+import { MAX_MCP_TOOL_NAME_BYTES } from '@/lib/mcp/constants'
 import { WORKFLOW_SKIPPED_ITEM_TYPES } from '@/lib/workflows/editing/types'
 
 export const V2_WORKFLOW_RUN_ID_HEADER = 'X-Run-Id'
@@ -2053,6 +2055,8 @@ export const MAX_WORKFLOW_GRAPH_BLOCKS = 2000
 export const MAX_WORKFLOW_GRAPH_EDGES = 10_000
 /** Ceiling on one `POST /operations` batch. */
 export const MAX_WORKFLOW_EDIT_OPERATIONS = 200
+/** Ceiling on the complete tool list assigned to one Agent block. */
+export const MAX_AGENT_TOOLS_PER_BLOCK = 100
 /** Ceiling on one `PATCH /variables` batch; mirrors the application use case's own cap. */
 export const MAX_WORKFLOW_VARIABLE_OPERATIONS = 100
 /** Ceiling on one bulk move; mirrors the application use case's own cap. */
@@ -2727,6 +2731,7 @@ const v2AgentInlineCustomToolSchema = z
               .string()
               .trim()
               .min(1, 'Inline custom tool function name cannot be empty')
+              .max(64, 'Inline custom tool function name must be at most 64 characters')
               .describe('Function name presented to the model.'),
             description: z.string().optional().describe('What the inline custom tool does.'),
             parameters: z
@@ -2779,11 +2784,21 @@ export const v2AgentMcpToolSchema = z
               .string()
               .trim()
               .min(1, 'Agent MCP serverId cannot be empty')
+              .max(MAX_ID_LENGTH, `Agent MCP serverId must be at most ${MAX_ID_LENGTH} characters`)
               .describe('MCP server id returned by `GET /api/v2/mcp-servers`.'),
             toolName: z
               .string()
               .trim()
               .min(1, 'Agent MCP toolName cannot be empty')
+              .max(
+                MAX_MCP_TOOL_NAME_BYTES,
+                `Agent MCP toolName must be at most ${MAX_MCP_TOOL_NAME_BYTES} characters`
+              )
+              .refine(
+                (toolName) =>
+                  new TextEncoder().encode(toolName).byteLength <= MAX_MCP_TOOL_NAME_BYTES,
+                `Agent MCP toolName must be at most ${MAX_MCP_TOOL_NAME_BYTES} bytes`
+              )
               .describe('Tool name returned by the MCP server’s tools endpoint.'),
           })
           .catchall(z.unknown().describe('One parameter fixed by the workflow author.')),
@@ -2824,6 +2839,7 @@ export type V2AgentTool = z.input<typeof v2AgentToolSchema>
 /** The stored value of an Agent block's `tools` input. */
 export const v2AgentToolInputSchema = z
   .array(v2AgentToolSchema)
+  .max(MAX_AGENT_TOOLS_PER_BLOCK, `Agent tools cannot exceed ${MAX_AGENT_TOOLS_PER_BLOCK} entries`)
   .describe(
     'Tools the Agent may call. Integration `type` and `operation` values come from `GET /api/v2/blocks/{blockId}`; custom and MCP identifiers come from their workspace catalog endpoints.'
   )
