@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { workspaceFiles } from '@sim/db/schema'
+import { workspaceFileColumns, workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -180,7 +180,7 @@ export async function planForkFileCopies(params: {
     fileKeys.length > 0 ? inArray(workspaceFiles.key, fileKeys) : undefined,
   ].filter((clause): clause is NonNullable<typeof clause> => clause !== undefined)
   const metas = await tx
-    .select()
+    .select(workspaceFileColumns)
     .from(workspaceFiles)
     .where(
       and(

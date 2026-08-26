@@ -5,7 +5,13 @@
 
 import { randomBytes } from 'crypto'
 import { db } from '@sim/db'
-import { uploadSession, workspace, workspaceFiles } from '@sim/db/schema'
+import {
+  uploadSession,
+  type WorkspaceFileRow,
+  workspace,
+  workspaceFileColumns,
+  workspaceFiles,
+} from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import {
   describeError,
@@ -247,7 +253,7 @@ interface WorkspaceFileMetadataInsert {
 async function insertWorkspaceFileMetadataInTx(
   tx: DbOrTx,
   metadata: WorkspaceFileMetadataInsert
-): Promise<typeof workspaceFiles.$inferSelect | undefined> {
+): Promise<WorkspaceFileRow | undefined> {
   const [inserted] = await tx
     .insert(workspaceFiles)
     .values({
@@ -262,7 +268,7 @@ async function insertWorkspaceFileMetadataInTx(
       contentUpdatedAt: new Date(),
     })
     .onConflictDoNothing()
-    .returning()
+    .returning(workspaceFileColumns)
   return inserted
 }
 
@@ -278,9 +284,9 @@ class WorkspaceFileRegistrationConflictError extends Error {
 async function findWorkspaceFileByRegistrationKey(
   executor: DbOrTx,
   key: string
-): Promise<typeof workspaceFiles.$inferSelect | undefined> {
+): Promise<WorkspaceFileRow | undefined> {
   const files = await executor
-    .select()
+    .select(workspaceFileColumns)
     .from(workspaceFiles)
     .where(eq(workspaceFiles.key, key))
     .orderBy(sql`${workspaceFiles.deletedAt} IS NULL DESC`)
@@ -295,9 +301,9 @@ async function findWorkspaceFileForLifecycle(
   executor: DbOrTx,
   workspaceId: string,
   fileId: string
-): Promise<typeof workspaceFiles.$inferSelect | undefined> {
+): Promise<WorkspaceFileRow | undefined> {
   const [file] = await executor
-    .select()
+    .select(workspaceFileColumns)
     .from(workspaceFiles)
     .where(
       and(
@@ -316,7 +322,7 @@ async function findWorkspaceFileForLifecycle(
  * ownership and object attributes prevent unrelated callers from reusing it.
  */
 function isSameWorkspaceFileRegistration(
-  file: typeof workspaceFiles.$inferSelect,
+  file: WorkspaceFileRow,
   params: {
     workspaceId: string
     userId: string
@@ -464,7 +470,7 @@ export async function uploadWorkspaceFile(
       logger.info(`Upload returned key: ${uploadResult.key}`)
 
       let finalized: {
-        inserted: typeof workspaceFiles.$inferSelect
+        inserted: WorkspaceFileRow
         updatedUsage: number | undefined
       }
       try {
@@ -839,7 +845,7 @@ async function markUploadSessionFileRegistered(
   if (!marked) throw new Error('Workspace upload registration marker could not be persisted')
 }
 
-function assertActiveWorkspaceFileRegistration(file: typeof workspaceFiles.$inferSelect): void {
+function assertActiveWorkspaceFileRegistration(file: WorkspaceFileRow): void {
   if (file.deletedAt) {
     throw new OrchestrationError('conflict', 'Upload result was deleted')
   }
@@ -1124,7 +1130,7 @@ function mapWorkspaceFileRecord(
 }
 
 function mapUploadedWorkspaceFileRecord(
-  file: typeof workspaceFiles.$inferSelect,
+  file: WorkspaceFileRow,
   workspaceId: string,
   folderPath: string | null
 ): UploadedWorkspaceFileRecord {
@@ -1144,7 +1150,7 @@ function mapUploadedWorkspaceFileRecord(
 }
 
 async function mapSingleWorkspaceFileRecord(
-  file: typeof workspaceFiles.$inferSelect,
+  file: WorkspaceFileRow,
   workspaceId: string
 ): Promise<WorkspaceFileRecord> {
   if (!file.folderId) {
@@ -1205,7 +1211,7 @@ export async function getWorkspaceFileByName(
 ): Promise<WorkspaceFileRecord | null> {
   const folderId = options?.folderId ?? null
   const files = await db
-    .select()
+    .select(workspaceFileColumns)
     .from(workspaceFiles)
     .where(
       and(
@@ -1257,10 +1263,7 @@ const workspaceFileListColumns = {
 } as const
 
 /** A row carrying exactly the columns {@link mapWorkspaceFileRecord} needs; a full row satisfies it. */
-type WorkspaceFileListRow = Pick<
-  typeof workspaceFiles.$inferSelect,
-  keyof typeof workspaceFileListColumns
->
+type WorkspaceFileListRow = Pick<WorkspaceFileRow, keyof typeof workspaceFileListColumns>
 
 /** Resolves `folderPath` for a page of rows, reading the folder tree only if any row needs it. */
 async function hydrateWorkspaceFilePaths(
@@ -1607,7 +1610,7 @@ export async function getWorkspaceFile(
   try {
     const { includeDeleted = false } = options ?? {}
     const files = await db
-      .select()
+      .select(workspaceFileColumns)
       .from(workspaceFiles)
       .where(
         includeDeleted
@@ -1779,7 +1782,7 @@ export async function updateWorkspaceFileContent(
     })
 
     let finalized: {
-      file: typeof workspaceFiles.$inferSelect
+      file: WorkspaceFileRow
       oldKey: string
       sizeDiff: number
       updatedUsage: number | undefined
@@ -1787,7 +1790,7 @@ export async function updateWorkspaceFileContent(
     try {
       finalized = await db.transaction(async (tx) => {
         const [currentFile] = await tx
-          .select()
+          .select(workspaceFileColumns)
           .from(workspaceFiles)
           .where(
             and(
@@ -1852,7 +1855,7 @@ export async function updateWorkspaceFileContent(
               isNull(workspaceFiles.deletedAt)
             )
           )
-          .returning()
+          .returning(workspaceFileColumns)
         if (!updatedFile) {
           throw new OrchestrationError('not_found', 'File not found or could not be updated')
         }
@@ -2129,7 +2132,7 @@ export async function deleteWorkspaceFile(workspaceId: string, fileId: string): 
           isNull(workspaceFiles.deletedAt)
         )
       )
-      .returning()
+      .returning(workspaceFileColumns)
     if (!archived) return
 
     logger.info(`Successfully archived workspace file: ${archived.originalName}`)
@@ -2278,7 +2281,7 @@ export async function restoreWorkspaceFile(workspaceId: string, fileId: string):
             isNotNull(workspaceFiles.deletedAt)
           )
         )
-        .returning()
+        .returning(workspaceFileColumns)
       if (!restored) return
 
       logger.info(`Successfully restored workspace file: ${newName}`)

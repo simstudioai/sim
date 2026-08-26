@@ -52,7 +52,7 @@ const passwordShare = {
     workspaceId: 'ws-1',
     originalName: 'report.pdf',
     contentType: 'application/pdf',
-    size: 4,
+    sizeBytes: 4,
   },
   workspaceName: 'Acme',
   ownerName: 'Jane',

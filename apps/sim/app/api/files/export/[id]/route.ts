@@ -17,6 +17,7 @@ import { getServeStoragePrefix } from '@/lib/uploads/config'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
 import { extractEmbeddedFileRefs } from '@/lib/uploads/server/embedded-image-refs'
 import { getFileMetadataById } from '@/lib/uploads/server/metadata'
+import { getWorkspaceFileSize } from '@/lib/uploads/shared/types'
 import { storedFileId } from '@/lib/uploads/utils/embedded-image-ref'
 import { formatFileSize } from '@/lib/uploads/utils/file-utils'
 import { verifyFileAccess } from '@/app/api/files/authorization'
@@ -103,7 +104,7 @@ export const GET = withRouteHandler(
         metadata: {
           fileId: record.id,
           fileName: record.originalName,
-          bytes: record.size,
+          bytes: getWorkspaceFileSize(record),
           format,
           assetCount,
         },
@@ -178,7 +179,8 @@ export const GET = withRouteHandler(
     // The body counts against the same budget as its assets — the zip holds both, so a
     // limit that measured only the attachments would not describe the archive produced.
     const bundleBytes =
-      mdBuffer.length + assetTargets.reduce((sum, target) => sum + target.record.size, 0)
+      mdBuffer.length +
+      assetTargets.reduce((sum, target) => sum + getWorkspaceFileSize(target.record), 0)
     if (bundleBytes > MAX_EXPORT_TOTAL_BYTES) {
       return NextResponse.json(
         {

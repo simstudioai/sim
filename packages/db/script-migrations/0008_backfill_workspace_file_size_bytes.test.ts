@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
   backfillWorkspaceFileSizeBytes,
+  WORKSPACE_FILE_SIZE_BYTES_BATCH_SIZE,
   type WorkspaceFileSizeBytesBackfillStore,
 } from './0008_backfill_workspace_file_size_bytes'
 
@@ -34,5 +35,25 @@ describe('backfillWorkspaceFileSizeBytes', () => {
     }
 
     await expect(backfillWorkspaceFileSizeBytes(store)).rejects.toThrow('non-advancing page')
+  })
+
+  it('treats database-ordered text cursors as opaque', async () => {
+    const listCandidateIds = vi
+      .fn<WorkspaceFileSizeBytesBackfillStore['listCandidateIds']>()
+      .mockResolvedValueOnce(['lowercase-z'])
+      .mockResolvedValueOnce(['UPPERCASE-A'])
+      .mockResolvedValueOnce([])
+    const backfillCandidateIds = vi
+      .fn<WorkspaceFileSizeBytesBackfillStore['backfillCandidateIds']>()
+      .mockResolvedValue(1)
+
+    await expect(
+      backfillWorkspaceFileSizeBytes({ listCandidateIds, backfillCandidateIds })
+    ).resolves.toBe(2)
+    expect(listCandidateIds.mock.calls).toEqual([
+      ['', WORKSPACE_FILE_SIZE_BYTES_BATCH_SIZE],
+      ['lowercase-z', WORKSPACE_FILE_SIZE_BYTES_BATCH_SIZE],
+      ['UPPERCASE-A', WORKSPACE_FILE_SIZE_BYTES_BATCH_SIZE],
+    ])
   })
 })

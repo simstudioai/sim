@@ -1,4 +1,5 @@
-import { type SQL, sql } from 'drizzle-orm'
+import { omit } from '@sim/utils/object'
+import { getTableColumns, type SQL, sql } from 'drizzle-orm'
 import {
   type AnyPgColumn,
   bigint,
@@ -2105,7 +2106,7 @@ export const workspaceFiles = pgTable(
      */
     displayName: text('display_name'),
     contentType: text('content_type').notNull(),
-    /** contract-pending(after #7112 is fully deployed): drop size, workspace_files_sync_size_columns, and the temporary dev cutover runner */
+    /** contract-pending(after the cutover is fully deployed and size_bytes has no NULLs): drop size, workspace_files_sync_size_columns, and the temporary dev cutover runner — all application reads and writes use size_bytes */
     size: integer('size').notNull().default(0),
     /** Exact byte size. The deploy migration backfills existing rows before this release serves traffic. */
     sizeBytes: bigint('size_bytes', { mode: 'number' }),
@@ -2172,6 +2173,10 @@ export const workspaceFiles = pgTable(
       .where(sql`${table.deletedAt} IS NOT NULL`),
   })
 )
+
+/** Canonical application projection; the legacy `size` bridge is migration-only. */
+export const workspaceFileColumns = omit(getTableColumns(workspaceFiles), ['size'])
+export type WorkspaceFileRow = Omit<typeof workspaceFiles.$inferSelect, 'size'>
 
 export const uploadSessionStatusEnum = pgEnum('upload_session_status', [
   'uploading',

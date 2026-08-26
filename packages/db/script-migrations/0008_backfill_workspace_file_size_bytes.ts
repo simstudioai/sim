@@ -7,6 +7,7 @@ const logger = createLogger('WorkspaceFileSizeBytesBackfill')
 export const WORKSPACE_FILE_SIZE_BYTES_BATCH_SIZE = 1000
 
 export interface WorkspaceFileSizeBytesBackfillStore {
+  /** Treats `afterId` as an opaque cursor ordered by the backing database's collation. */
   listCandidateIds(afterId: string, limit: number): Promise<string[]>
   backfillCandidateIds(ids: readonly string[]): Promise<number>
 }
@@ -34,7 +35,7 @@ export async function backfillWorkspaceFileSizeBytes(
       throw new Error('Workspace file size_bytes backfill store returned an oversized page')
     }
     const lastId = ids.at(-1)
-    if (!lastId || lastId <= afterId) {
+    if (!lastId || lastId === afterId) {
       throw new Error('Workspace file size_bytes backfill store returned a non-advancing page')
     }
     backfilled += await store.backfillCandidateIds(ids)

@@ -58,7 +58,7 @@ function assetRecord(id: string, size: number) {
     originalName: `${id}.png`,
     contentType: 'image/png',
     context: 'workspace',
-    size,
+    sizeBytes: size,
     workspaceId: 'ws-1',
   }
 }
@@ -69,7 +69,7 @@ const DOC_RECORD = {
   originalName: 'doc.md',
   contentType: 'text/markdown',
   context: 'workspace',
-  size: 1024,
+  sizeBytes: 1024,
   workspaceId: 'ws-1',
 }
 

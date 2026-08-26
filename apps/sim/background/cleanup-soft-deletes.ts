@@ -328,12 +328,12 @@ async function deleteExpiredBillableWorkspaceFileRows(
             )
             .returning({
               id: workspaceFiles.id,
-              size: sql<number>`${workspaceFiles.sizeBytes}`.mapWith(Number),
+              sizeBytes: workspaceFiles.sizeBytes,
             })
-          if (deletedRows.some(({ size }) => size < 0)) {
-            throw new Error('Cannot delete workspace files with negative stored-byte metadata')
-          }
-          const deletedBytes = deletedRows.reduce((total, { size }) => total + size, 0)
+          const deletedBytes = deletedRows.reduce(
+            (total, row) => total + getWorkspaceFileSize(row),
+            0
+          )
           await decrementStorageUsageForBillingContextInTx(tx, billingContext, deletedBytes)
           return deletedRows.length
         })
