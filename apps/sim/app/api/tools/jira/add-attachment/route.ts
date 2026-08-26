@@ -4,6 +4,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { jiraAddAttachmentContract } from '@/lib/api/contracts/selectors/jira'
 import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
+import { validateJiraCloudId, validateJiraIssueKey } from '@/lib/core/security/input-validation'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
@@ -43,6 +44,16 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const cloudId =
       validatedData.cloudId ||
       (await getJiraCloudId(validatedData.domain, validatedData.accessToken))
+
+    const cloudIdValidation = validateJiraCloudId(cloudId, 'cloudId')
+    if (!cloudIdValidation.isValid) {
+      return NextResponse.json({ error: cloudIdValidation.error }, { status: 400 })
+    }
+
+    const issueKeyValidation = validateJiraIssueKey(validatedData.issueKey, 'issueKey')
+    if (!issueKeyValidation.isValid) {
+      return NextResponse.json({ error: issueKeyValidation.error }, { status: 400 })
+    }
 
     const formData = new FormData()
     // Every attachment lands in the same multipart body, so the ceiling covers the

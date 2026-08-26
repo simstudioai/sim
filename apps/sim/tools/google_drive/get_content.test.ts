@@ -59,6 +59,14 @@ function oversizedStreamedResponse(): Response {
   return new Response(stream, { status: 200 })
 }
 
+/** Resolves to the rejection value, so a failure prints a boolean, not 10 MB. */
+async function rejectionOf(mimeType: string): Promise<unknown> {
+  return run(mimeType).then(
+    () => new Error('expected the content read to be rejected'),
+    (error) => error
+  )
+}
+
 async function run(mimeType: string) {
   return getContentTool.transformResponse!(metadataResponse(mimeType), {
     accessToken: 'token-123',
@@ -76,19 +84,19 @@ describe('google_drive_get_content content cap', () => {
   it('rejects an export whose declared size exceeds the cap', async () => {
     mockFetch.mockResolvedValueOnce(oversizedDeclaredResponse())
 
-    await expect(run(DOC_MIME)).rejects.toSatisfy(isPayloadSizeLimitError)
+    expect(isPayloadSizeLimitError(await rejectionOf(DOC_MIME))).toBe(true)
   })
 
   it('rejects a download whose declared size exceeds the cap', async () => {
     mockFetch.mockResolvedValueOnce(oversizedDeclaredResponse())
 
-    await expect(run('application/pdf')).rejects.toSatisfy(isPayloadSizeLimitError)
+    expect(isPayloadSizeLimitError(await rejectionOf('application/pdf'))).toBe(true)
   })
 
   it('aborts a streamed download that grows past the cap with no content-length', async () => {
     mockFetch.mockResolvedValueOnce(oversizedStreamedResponse())
 
-    await expect(run('application/pdf')).rejects.toSatisfy(isPayloadSizeLimitError)
+    expect(isPayloadSizeLimitError(await rejectionOf('application/pdf'))).toBe(true)
   })
 
   it('returns content under the cap unchanged', async () => {

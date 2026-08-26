@@ -83,20 +83,23 @@ beforeEach(() => {
 })
 
 describe('POST /api/tools/google_drive/export traversal safety', () => {
-  it.each(REJECTED)('rejects fileId %j with a clean 400 and no outbound request', async (fileId) => {
-    mockSecureFetchWithPinnedIP
-      .mockResolvedValueOnce(metadataResponse('doc-1'))
-      .mockResolvedValueOnce(exportResponse())
+  it.each(REJECTED)(
+    'rejects fileId %j with a clean 400 and no outbound request',
+    async (fileId) => {
+      mockSecureFetchWithPinnedIP
+        .mockResolvedValueOnce(metadataResponse('doc-1'))
+        .mockResolvedValueOnce(exportResponse())
 
-    const response = await POST(createMockRequest('POST', bodyFor(fileId)))
+      const response = await POST(createMockRequest('POST', bodyFor(fileId)))
 
-    expect(response.status).toBe(400)
-    const data = (await response.json()) as { success: boolean; error: string }
-    expect(data.success).toBe(false)
-    expect(data.error).toMatch(/fileId/)
-    expect(mockValidateUrlWithDNS).not.toHaveBeenCalled()
-    expect(mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
-  })
+      expect(response.status).toBe(400)
+      const data = (await response.json()) as { success: boolean; error: string }
+      expect(data.success).toBe(false)
+      expect(data.error).toMatch(/fileId/)
+      expect(mockValidateUrlWithDNS).not.toHaveBeenCalled()
+      expect(mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
+    }
+  )
 
   it.each(NEUTRALIZED)('keeps fileId %j inside a single path segment', async (fileId) => {
     mockSecureFetchWithPinnedIP

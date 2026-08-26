@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { readResponseTextWithLimit } from '@/lib/core/utils/stream-limits'
 import type {
   GoogleDriveFile,
   GoogleDriveGetContentResponse,
@@ -10,12 +11,24 @@ import {
   ALL_REVISION_FIELDS,
   DEFAULT_EXPORT_FORMATS,
   GOOGLE_WORKSPACE_MIME_TYPES,
+  MAX_EXPORT_BYTES,
 } from '@/tools/google_drive/utils'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('GoogleDriveGetContentTool')
 
+/**
+ * Both content fetches below run inside `transformResponse` on global `fetch`,
+ * outside the shared tool transport, so the executor's own response-body bound
+ * never reaches them. `MAX_EXPORT_BYTES` (10 MB) is reused rather than a new
+ * number: it is the transport's own per-tool response ceiling and the limit the
+ * sibling `/api/tools/google_drive/export` route already enforces, so the two
+ * hops of this one tool stop contradicting each other. The download route's
+ * 100 MB `MAX_FILE_SIZE` is deliberately *not* copied — that route base64s
+ * bytes into a file artifact, whereas this tool decodes to a UTF-8 string that
+ * lands in a workflow variable and an LLM context, where 100 MB is unusable.
+ */
 export const getContentTool: ToolConfig<GoogleDriveToolParams, GoogleDriveGetContentResponse> = {
   id: 'google_drive_get_content',
   name: 'Get Content from Google Drive',
@@ -110,7 +123,10 @@ export const getContentTool: ToolConfig<GoogleDriveToolParams, GoogleDriveGetCon
           throw new Error(exportError.error?.message || 'Failed to export Google Workspace file')
         }
 
-        content = await exportResponse.text()
+        content = await readResponseTextWithLimit(exportResponse, {
+          maxBytes: MAX_EXPORT_BYTES,
+          label: `Google Drive export of file ${fileId}`,
+        })
       } else {
         logger.info('Downloading regular file', {
           fileId,
@@ -136,7 +152,10 @@ export const getContentTool: ToolConfig<GoogleDriveToolParams, GoogleDriveGetCon
           throw new Error(downloadError.error?.message || 'Failed to download file')
         }
 
-        content = await downloadResponse.text()
+        content = await readResponseTextWithLimit(downloadResponse, {
+          maxBytes: MAX_EXPORT_BYTES,
+          label: `Google Drive file ${fileId}`,
+        })
       }
 
       const includeRevisions = params?.includeRevisions !== false

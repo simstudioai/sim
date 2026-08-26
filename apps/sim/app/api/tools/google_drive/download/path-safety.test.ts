@@ -92,16 +92,19 @@ beforeEach(() => {
 })
 
 describe('POST /api/tools/google_drive/download traversal safety', () => {
-  it.each(REJECTED)('rejects fileId %j with a clean 400 and no outbound request', async (fileId) => {
-    const response = await POST(createMockRequest('POST', { accessToken: 'token-123', fileId }))
+  it.each(REJECTED)(
+    'rejects fileId %j with a clean 400 and no outbound request',
+    async (fileId) => {
+      const response = await POST(createMockRequest('POST', { accessToken: 'token-123', fileId }))
 
-    expect(response.status).toBe(400)
-    const data = (await response.json()) as { success: boolean; error: string }
-    expect(data.success).toBe(false)
-    expect(data.error).toMatch(/fileId/)
-    expect(mockValidateUrlWithDNS).not.toHaveBeenCalled()
-    expect(mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
-  })
+      expect(response.status).toBe(400)
+      const data = (await response.json()) as { success: boolean; error: string }
+      expect(data.success).toBe(false)
+      expect(data.error).toMatch(/fileId/)
+      expect(mockValidateUrlWithDNS).not.toHaveBeenCalled()
+      expect(mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
+    }
+  )
 
   it.each(NEUTRALIZED)('keeps fileId %j inside a single path segment', async (fileId) => {
     mockSecureFetchWithPinnedIP
@@ -143,7 +146,11 @@ describe('POST /api/tools/google_drive/download traversal safety', () => {
       .mockResolvedValueOnce(jsonResponse({ revisions: [] }))
 
     const response = await POST(
-      createMockRequest('POST', { accessToken: 'token-123', fileId: 'a..b', includeRevisions: true })
+      createMockRequest('POST', {
+        accessToken: 'token-123',
+        fileId: 'a..b',
+        includeRevisions: true,
+      })
     )
     expect(response.status).toBe(200)
 
