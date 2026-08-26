@@ -19,7 +19,7 @@ describe('table row TTL cleanup route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.useFakeTimers()
-    vi.setSystemTime(new Date('2026-08-22T17:12:00Z'))
+    vi.setSystemTime(new Date('2026-08-22T17:01:00Z'))
     mockVerifyCronAuth.mockReturnValue(null)
     mockEnqueue.mockResolvedValue('job-ttl-1')
     mockGetJobQueue.mockResolvedValue({ enqueue: mockEnqueue })
@@ -46,7 +46,7 @@ describe('table row TTL cleanup route', () => {
       {},
       expect.objectContaining({
         maxAttempts: 1,
-        jobId: 'cleanup-table-row-ttl:5958062',
+        jobId: 'cleanup-table-row-ttl:1986020',
         concurrencyKey: 'cleanup:table-row-ttl',
         concurrencyLimit: 1,
         runner: expect.any(Function),
@@ -54,7 +54,7 @@ describe('table row TTL cleanup route', () => {
     )
   })
 
-  it('deduplicates retries within the same five-minute schedule window', async () => {
+  it('deduplicates retries within the same fifteen-minute schedule window', async () => {
     const request = () =>
       createMockRequest(
         'GET',
@@ -64,7 +64,7 @@ describe('table row TTL cleanup route', () => {
       )
 
     await GET(request())
-    vi.advanceTimersByTime(2 * 60 * 1000)
+    vi.advanceTimersByTime(13 * 60 * 1000)
     await GET(request())
 
     expect(mockEnqueue.mock.calls[0]?.[2]?.jobId).toBe(mockEnqueue.mock.calls[1]?.[2]?.jobId)

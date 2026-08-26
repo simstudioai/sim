@@ -7,7 +7,7 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('CleanupTableRowTtlApi')
-const TTL_CLEANUP_INTERVAL_MS = 5 * 60 * 1000
+const TTL_CLEANUP_INTERVAL_MS = 15 * 60 * 1000
 
 export const GET = withRouteHandler(async (request: NextRequest) => {
   try {

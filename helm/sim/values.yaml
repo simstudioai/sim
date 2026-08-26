@@ -1458,7 +1458,7 @@ cronjobs:
     cleanupTableRowTtl:
       enabled: true
       name: cleanup-table-row-ttl
-      schedule: "*/5 * * * *"
+      schedule: "*/15 * * * *"
       path: "/api/cron/cleanup-table-row-ttl"
       concurrencyPolicy: Forbid
       successfulJobsHistoryLimit: 3
