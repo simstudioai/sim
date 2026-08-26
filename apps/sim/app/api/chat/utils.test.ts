@@ -92,12 +92,9 @@ describe('Chat API Utils', () => {
         password: 'encrypted-password',
       }
 
-      const mockRequest = {
-        method: 'POST',
-        cookies: {
-          get: vi.fn().mockReturnValue({ value: 'valid-token' }),
-        },
-      } as any
+      const mockRequest = createMockRequest('POST', undefined, {
+        cookie: 'chat_auth_chat-id=valid-token',
+      })
 
       const result = await validateChatAuth('request-id', deployment, mockRequest)
       expect(mockReadDeploymentAuthToken).toHaveBeenCalledWith({
@@ -116,12 +113,9 @@ describe('Chat API Utils', () => {
         password: 'encrypted-password',
       }
 
-      const mockRequest = {
-        method: 'GET',
-        cookies: {
-          get: vi.fn().mockReturnValue({ value: 'invalid-token' }),
-        },
-      } as any
+      const mockRequest = createMockRequest('GET', undefined, {
+        cookie: 'chat_auth_chat-id=invalid-token',
+      })
 
       const result = await validateChatAuth('request-id', deployment, mockRequest)
       expect(result.authorized).toBe(false)
@@ -136,12 +130,9 @@ describe('Chat API Utils', () => {
         id: 'chat-id',
         authType: 'email',
       }
-      const mockRequest = {
-        method: 'POST',
-        cookies: {
-          get: vi.fn().mockReturnValue({ value: 'valid-token' }),
-        },
-      } as any
+      const mockRequest = createMockRequest('POST', undefined, {
+        cookie: 'chat_auth_chat-id=valid-token',
+      })
 
       await expect(validateChatAuth('request-id', deployment, mockRequest)).resolves.toEqual({
         authorized: true,
