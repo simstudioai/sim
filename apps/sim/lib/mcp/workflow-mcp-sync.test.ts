@@ -251,6 +251,18 @@ const archivedRow = (id: string, serverId: string, toolName: string, updatedAt?:
   updatedAt,
 })
 
+/**
+ * Restore counts the workflow's live server memberships twice — once to bound
+ * the candidate query, once under the candidate locks to make the budget
+ * authoritative — so a fixture with no live registrations queues this twice.
+ */
+const NO_LIVE_SERVERS: unknown[] = []
+
+const liveServerRows = (count: number) =>
+  Array.from({ length: count }, (_, index) => ({
+    serverId: `srv-live-${String(index).padStart(3, '0')}`,
+  }))
+
 const toolRow = (id: string, serverId: string) => ({
   id,
   serverId,
@@ -293,7 +305,9 @@ describe('workflow MCP tool withdrawal and restore', () => {
    */
   it('restores archived registrations when the workflow is deployed again', async () => {
     const { tx, writes } = createFakeTx([
+      NO_LIVE_SERVERS,
       [archivedRow('t-1', 'srv-1', 'orders')],
+      NO_LIVE_SERVERS,
       [],
       [],
       [toolRow('t-1', 'srv-1')],
@@ -329,7 +343,9 @@ describe('workflow MCP tool withdrawal and restore', () => {
    */
   it('never restores onto a server that already carries a live registration', async () => {
     const { tx, writes } = createFakeTx([
+      NO_LIVE_SERVERS,
       [archivedRow('t-archived', 'srv-1', 'orders')],
+      NO_LIVE_SERVERS,
       [{ id: 't-live', toolName: 'invoices', workflowId: WORKFLOW_ID }],
       [],
       [],
@@ -360,11 +376,13 @@ describe('workflow MCP tool withdrawal and restore', () => {
     )
     const newestDuplicateId = `t-dup-${MAX_MCP_SERVERS_PER_WORKFLOW - 1}`
     const { tx, writes } = createFakeTx([
+      NO_LIVE_SERVERS,
       [
         ...duplicates,
         archivedRow('t-2', 'srv-2', 'orders', new Date(2020, 5, 1)),
         archivedRow('t-3', 'srv-3', 'orders', new Date(2020, 5, 2)),
       ],
+      NO_LIVE_SERVERS,
       [],
       [],
       [],
@@ -431,7 +449,7 @@ describe('workflow MCP tool withdrawal and restore', () => {
       )
     )
 
-    const { tx, writes } = createFakeTx([rows])
+    const { tx, writes } = createFakeTx([NO_LIVE_SERVERS, rows, NO_LIVE_SERVERS])
 
     await syncMcpToolsForWorkflow({
       workflowId: WORKFLOW_ID,
@@ -462,6 +480,98 @@ describe('workflow MCP tool withdrawal and restore', () => {
   })
 
   /**
+   * Archiving frees the server slot, so the servers a workflow is live on and
+   * the servers it has archived registrations on are disjoint budgets that both
+   * count towards `MAX_MCP_SERVERS_PER_WORKFLOW`. Bounding the candidate query
+   * at the whole limit let a workflow that had been partly re-registered by
+   * hand restore a full limit's worth on top of its live registrations; the
+   * fanout check that runs immediately afterwards in the same deploy
+   * transaction then threw and rolled the deployment back. The bound must be
+   * the REMAINING headroom, and the candidates that fit it must be the most
+   * recently used servers.
+   */
+  it('restores only as many servers as the workflow fanout budget still allows', async () => {
+    const headroom = 2
+    const liveServers = liveServerRows(MAX_MCP_SERVERS_PER_WORKFLOW - headroom)
+    const candidates = Array.from({ length: 5 }, (_, index) =>
+      archivedRow(
+        `t-arch-${index}`,
+        `srv-arch-${index}`,
+        `orders_${index}`,
+        new Date(2020, 0, 1 + index)
+      )
+    )
+
+    const { tx, writes } = createFakeTx([liveServers, candidates, liveServers, [], []])
+
+    await syncMcpToolsForWorkflow({
+      workflowId: WORKFLOW_ID,
+      requestId: REQUEST_ID,
+      state: { blocks: {} },
+      tx,
+      notify: false,
+      throwOnError: true,
+    })
+
+    expect(mocks.acquireLock.mock.calls.map((call) => call[1])).toEqual([
+      'srv-arch-3',
+      'srv-arch-4',
+    ])
+
+    const restore = writes.find((write) => write.values?.archivedAt === null)
+    const restoredIds = flattenMockConditions(restore?.where).find(
+      (node) => node.type === 'inArray'
+    )?.values as string[]
+    expect(restoredIds).toEqual(['t-arch-4', 't-arch-3'])
+    expect(liveServers.length + restoredIds.length).toBeLessThanOrEqual(
+      MAX_MCP_SERVERS_PER_WORKFLOW
+    )
+  })
+
+  /**
+   * The headroom that bounds the candidate query is read before any lock is
+   * taken, so a manual `tools create` on another server can consume part of it
+   * in between. The budget is therefore recounted once every candidate server
+   * is locked and spent one unit per accepted candidate, and the candidates
+   * that survive the smaller budget are still the most recent ones.
+   */
+  it('re-reads the fanout budget under the locks and drops the least recent candidate', async () => {
+    const preLockLiveServers = liveServerRows(MAX_MCP_SERVERS_PER_WORKFLOW - 2)
+    const underLockLiveServers = liveServerRows(MAX_MCP_SERVERS_PER_WORKFLOW - 1)
+    const candidates = Array.from({ length: 5 }, (_, index) =>
+      archivedRow(
+        `t-arch-${index}`,
+        `srv-arch-${index}`,
+        `orders_${index}`,
+        new Date(2020, 0, 1 + index)
+      )
+    )
+
+    const { tx, writes } = createFakeTx([
+      preLockLiveServers,
+      candidates,
+      underLockLiveServers,
+      [],
+      [],
+    ])
+
+    await syncMcpToolsForWorkflow({
+      workflowId: WORKFLOW_ID,
+      requestId: REQUEST_ID,
+      state: { blocks: {} },
+      tx,
+      notify: false,
+      throwOnError: true,
+    })
+
+    const restore = writes.find((write) => write.values?.archivedAt === null)
+    const restoredIds = flattenMockConditions(restore?.where).find(
+      (node) => node.type === 'inArray'
+    )?.values as string[]
+    expect(restoredIds).toEqual(['t-arch-4'])
+  })
+
+  /**
    * A manual `tools create` on the same server can commit between a pre-lock
    * uniqueness read and the lock. Reading live rows before the lock therefore
    * proves nothing: restore would un-archive a second live row for the same
@@ -477,7 +587,9 @@ describe('workflow MCP tool withdrawal and restore', () => {
     })
 
     const { tx, writes } = createFakeTx([
+      NO_LIVE_SERVERS,
       [archivedRow('t-archived', 'srv-1', 'orders')],
+      NO_LIVE_SERVERS,
       () =>
         concurrentCreateCommitted
           ? [{ id: 't-live', toolName: 'invoices', workflowId: WORKFLOW_ID }]
@@ -507,7 +619,9 @@ describe('workflow MCP tool withdrawal and restore', () => {
    */
   it('leaves a candidate archived when its tool name is taken by a live tool', async () => {
     const { tx, writes } = createFakeTx([
+      NO_LIVE_SERVERS,
       [archivedRow('t-archived', 'srv-1', 'orders')],
+      NO_LIVE_SERVERS,
       [{ id: 't-other', toolName: 'orders' }],
       [],
       [],
@@ -537,7 +651,9 @@ describe('workflow MCP tool withdrawal and restore', () => {
       toolName: `tool_${index}`,
     }))
     const { tx, writes } = createFakeTx([
+      NO_LIVE_SERVERS,
       [archivedRow('t-archived', 'srv-1', 'orders')],
+      NO_LIVE_SERVERS,
       liveTools,
       [],
       [],
@@ -564,7 +680,9 @@ describe('workflow MCP tool withdrawal and restore', () => {
   it('leaves a candidate archived when restoring it would exceed the metadata budget', async () => {
     mocks.exceedsBudget.mockReturnValue(true)
     const { tx, writes } = createFakeTx([
+      NO_LIVE_SERVERS,
       [archivedRow('t-archived', 'srv-1', 'orders')],
+      NO_LIVE_SERVERS,
       [],
       [],
       [],
