@@ -50,6 +50,9 @@ export function cursorSlot(
 /** Kinds the CLI can only accept as a JSON string. */
 const JSON_KINDS = new Set(['object', 'array', 'unknown'])
 
+/** Kinds read through `Number`, where a blank does not survive: `Number('')` is `0`. */
+const NUMERIC_KINDS: ReadonlySet<FieldSpec['kind']> = new Set(['number', 'integer'])
+
 export function flagSpecFor(operation: V2OperationName, field: string): FlagSpec {
   return CLI_CONTRACT[operation]?.flags?.[field] ?? {}
 }
@@ -375,7 +378,7 @@ export function coerce(raw: unknown, field: FieldSpec, flag: FlagSpec, flagName:
     }
   }
 
-  if (field.kind === 'number' || field.kind === 'integer') {
+  if (NUMERIC_KINDS.has(field.kind)) {
     const value = Number(raw)
     if (Number.isNaN(value)) throw new SimApiError(`--${flagName} must be a number`, 0)
     return value
@@ -515,14 +518,20 @@ export function buildRequest(
        * URL builder skips an empty value, so `logs list --status ""` searched
        * everything and answered `0`, a wider result set presented as an answer.
        * Refused here, before the request, the way an empty list entry and an
-       * empty path parameter already are. Scoped to the query, because an empty
-       * body string is meaningful — it clears a description.
+       * empty path parameter already are.
        *
        * Read from what the caller typed rather than from the coerced value,
        * because coercion erases the blank on a numeric field: `Number('')` is
        * `0`, so `--max-cost ""` reached the wire as a real "costing at most
        * nothing" filter that a check on the coerced value cannot see. An
        * explicit `--max-cost 0` is a value the caller chose and is still sent.
+       *
+       * That erasure is what a numeric *body* field suffers too, so the rule is
+       * the whole query slot plus every numeric field wherever it sits: `tables
+       * rows batch-delete --limit ""` sent `"limit":0`, a cap the caller never
+       * typed. The slot alone is not the distinction — a blank is meaningful
+       * only where it can survive as itself, which is a body *string*, where it
+       * clears a description.
        *
        * Blank is `trim()`-empty rather than exactly empty, matching both the
        * route — `blankQueryValueValidationError` reads `?status=%20` as blank —
@@ -532,7 +541,7 @@ export function buildRequest(
        * explicit `false`, `--status " "` as a `%20` the server answers `400`.
        */
       if (
-        slot === 'query' &&
+        (slot === 'query' || NUMERIC_KINDS.has(descriptor.kind)) &&
         typeof raw === 'string' &&
         raw.trim() === '' &&
         !(field === 'limit' && paginatedLimit)

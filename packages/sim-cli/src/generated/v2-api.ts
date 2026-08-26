@@ -12209,7 +12209,7 @@ export const V2_OPERATIONS = {
       includeJobRuns: {
         kind: 'boolean',
         describe:
-          'Whether Chat and Sim-agent job runs join the sequence alongside workflow runs. Job runs report `kind: "job"`, carry no `workflow` summary, and never carry a cost ledger. They are dropped entirely — not partially matched — whenever a filter they cannot answer is set (`workflowIds`, `workflowName`, `folderPaths`, `model`, or `status`), so a filter never means two different things across the union. Accepted only under `sortBy=startedAt`: job runs record cost as a document and no comparable status, so they cannot participate in the other orderings.',
+          'Whether Chat and Sim-agent job runs join the sequence alongside workflow runs. Job runs report `kind: "job"`, carry no `workflow` summary, and never carry a cost ledger. They are dropped entirely — not partially matched — whenever a filter they cannot answer is set: by workflow, workflow name, folder, model, or status. A filter therefore never means two different things across the union. Accepted only when sorting by `startedAt`: job runs record cost as a document and no comparable status, so they cannot participate in the other orderings.',
       },
       runId: { kind: 'string', describe: 'Exact run identifier to match.' },
       sortBy: {
@@ -12217,7 +12217,7 @@ export const V2_OPERATIONS = {
         values: ['startedAt', 'durationMs', 'cost', 'status'] as const,
         default: 'startedAt',
         describe:
-          'Field used to sort the result. `durationMs` and `cost` are null until a run settles; those runs order as though the value were below every recorded one, so they trail an ascending page and lead a descending one. Only `startedAt` can order Chat and Sim-agent job runs, so any other value is rejected together with `includeJobRuns=true`.',
+          'Field used to sort the result. `durationMs` and `cost` are null until a run settles; those runs order as though the value were below every recorded one, so they trail an ascending page and lead a descending one. Only `startedAt` can order Chat and Sim-agent job runs, so any other value is rejected when job runs are included.',
       },
       sortOrder: {
         kind: 'enum',
@@ -12764,7 +12764,7 @@ export const V2_OPERATIONS = {
         values: ['active', 'archived'] as const,
         default: 'active',
         describe:
-          'Which lifecycle set to list: `active` (default) for live workflows, `archived` for workflows a `DELETE` archived. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too.',
+          'Which lifecycle set to list: `active` (default) for live workflows, `archived` for workflows a `DELETE` archived. The folder filter resolves against active folders only, so pairing it with `archived` returns an empty page when the containing folder was archived too.',
       },
       folderPath: {
         kind: 'string',

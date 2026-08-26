@@ -393,10 +393,16 @@ function spellOut(flag: string): string {
  * `toolNamesTruncated` on `workflow-mcp-servers list` is a clip of each row's
  * tool names, not of the servers, so one wording about "this list" named the
  * wrong thing on the one endpoint whose subject is not the list. A bare
- * `truncated` carries no subject and stands for the whole answer.
+ * `truncated` carries no subject and stands for the whole answer — and so does
+ * `isTruncated`, whose `is` is a copula rather than a subject: dropping it is
+ * what keeps "the server clipped **the is** it returned" from being printed.
+ * Only that one prefix is stripped, and only where it stands alone or before a
+ * real subject (`isToolNamesTruncated`), so a field genuinely beginning `is`
+ * (`issuesTruncated`) keeps its name. Like the negation veto above, this is a
+ * spelling worth anticipating rather than a decision procedure for English.
  */
 function clippedSubject(flag: string): string {
-  const subject = flag.replace(/^truncated$|Truncated$/, '')
+  const subject = flag.replace(/^truncated$|Truncated$/, '').replace(/^is(?=[A-Z]|$)/, '')
   return subject ? `the ${spellOut(subject)} it returned` : 'this result'
 }
 

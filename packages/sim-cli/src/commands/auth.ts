@@ -748,10 +748,36 @@ export function profilesCommand(): Command {
     printList(output, rows, PROFILE_COLUMNS)
   }
 
-  command.action(printProfiles)
+  // `list` is registered as the default rather than the group carrying an action
+  // of its own. An action handler on a group is what took `profiles` out of the
+  // pure-dispatcher set that `refuseHelpAfterUnknownCommand` guards, so
+  // `sim profiles zzznope --help` printed the group's help and exited `0` while
+  // the same words under any of the other 54 groups exit `1` — the exit code a
+  // capability probe reads to ask whether a command exists. Only `files restore`
+  // genuinely needs that exemption, and it keeps it by taking a real operand.
   command.addCommand(
-    new Command('list').description('List configured profiles').action(printProfiles)
+    new Command('list')
+      // A stray operand here is a mistyped subcommand the group already refused
+      // below; refusing it again keeps `sim profiles list zzznope` honest.
+      .allowExcessArguments(false)
+      .description('List configured profiles')
+      .action(printProfiles),
+    { isDefault: true }
   )
   command.addCommand(addProfileCommand())
+
+  // Commander hands the default subcommand any operand that names no other one,
+  // so without this `sim profiles zzznope` listed profiles and exited `0`. The
+  // check runs before the dispatch and defers to commander's own reporting, so
+  // the message, the "did you mean" suggestion, and the exit code are the ones
+  // every other group produces.
+  const known = new Set(command.commands.flatMap((child) => [child.name(), ...child.aliases()]))
+  command.hook('preSubcommand', (group) => {
+    const first = group.args[0]
+    if (first !== undefined && !first.startsWith('-') && !known.has(first)) {
+      ;(group as Command & { unknownCommand: () => never }).unknownCommand()
+    }
+  })
+
   return command
 }

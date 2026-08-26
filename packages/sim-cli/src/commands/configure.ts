@@ -7,7 +7,7 @@ import {
   resolveAuthenticationProfileName,
   writeConfigProfile,
 } from '../config/index'
-import { normalizeEndpoint, normalizeWorkspaceId } from '../config/profile'
+import { normalizeEndpoint, normalizeWorkspaceId, redact } from '../config/profile'
 import { globalsOf, profileFrom } from '../context'
 import { SimApiError } from '../http/client'
 
@@ -109,7 +109,10 @@ export function configureCommand(): Command {
 
         for (const key of options.unset ?? []) {
           if (!['endpoint', 'workspace', 'output'].includes(key)) {
-            throw new SimApiError(`Cannot unset "${key}". Use endpoint, workspace, or output.`, 0)
+            throw new SimApiError(
+              `Cannot unset "${redact(key)}". Use endpoint, workspace, or output.`,
+              0
+            )
           }
           if (key === 'endpoint' && authProfile !== profile.name) {
             throw new SimApiError(
