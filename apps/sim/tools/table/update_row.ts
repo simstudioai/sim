@@ -38,6 +38,7 @@ export const tableUpdateRowTool: ToolConfig<TableRowUpdateParams, TableRowRespon
   },
 
   request: {
+    internal: true,
     internalAuth: 'executor_delegation',
     secretProvenance: {
       request: (params) => selectTableRowSecretProvenance([params.data]),

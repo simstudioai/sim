@@ -60,6 +60,7 @@ export const knowledgeUpsertDocumentTool: ToolConfig<
   },
 
   request: {
+    internal: true,
     internalAuth: 'executor_delegation',
     url: (params) => `/api/knowledge/${params.knowledgeBaseId}/documents/upsert`,
     method: 'POST',

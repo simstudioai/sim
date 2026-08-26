@@ -59,6 +59,7 @@ export const confluenceDeleteCommentTool: ToolConfig<
   },
 
   request: {
+    internal: true,
     url: () => '/api/tools/confluence/comment',
     method: 'DELETE',
     headers: (params: ConfluenceDeleteCommentParams) => {

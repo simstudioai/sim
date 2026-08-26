@@ -19,6 +19,7 @@ export const tableGetSchemaTool: ToolConfig<TableGetSchemaParams, TableGetSchema
   },
 
   request: {
+    internal: true,
     url: (params: TableGetSchemaParams) => {
       const workspaceId = params._context?.workspaceId
       if (!workspaceId) {

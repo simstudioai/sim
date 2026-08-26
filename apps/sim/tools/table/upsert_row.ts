@@ -39,6 +39,7 @@ export const tableUpsertRowTool: ToolConfig<TableRowInsertParams, TableUpsertRes
   },
 
   request: {
+    internal: true,
     internalAuth: 'executor_delegation',
     secretProvenance: {
       request: (params) => selectTableRowSecretProvenance([params.data]),

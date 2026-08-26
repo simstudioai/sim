@@ -50,6 +50,7 @@ export const tableQueryRowsTool: ToolConfig<TableRowQueryParams, TableQueryRespo
   },
 
   request: {
+    internal: true,
     secretProvenance: { response: { incomplete: 'propagate' } },
     url: (params: TableRowQueryParams) => {
       const workspaceId = params._context?.workspaceId

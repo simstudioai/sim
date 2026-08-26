@@ -24,6 +24,7 @@ export const knowledgeGetDocumentTool: ToolConfig<any, KnowledgeGetDocumentRespo
   },
 
   request: {
+    internal: true,
     internalAuth: 'executor_delegation',
     url: (params) => `/api/knowledge/${params.knowledgeBaseId}/documents/${params.documentId}`,
     method: 'GET',

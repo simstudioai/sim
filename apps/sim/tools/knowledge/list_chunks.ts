@@ -48,6 +48,7 @@ export const knowledgeListChunksTool: ToolConfig<any, KnowledgeListChunksRespons
   },
 
   request: {
+    internal: true,
     internalAuth: 'executor_delegation',
     url: (params) => {
       const queryParams = new URLSearchParams()

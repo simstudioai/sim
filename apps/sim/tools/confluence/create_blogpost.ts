@@ -91,6 +91,7 @@ export const confluenceCreateBlogPostTool: ToolConfig<
   },
 
   request: {
+    internal: true,
     url: () => '/api/tools/confluence/blogposts',
     method: 'POST',
     headers: (params: ConfluenceCreateBlogPostParams) => ({

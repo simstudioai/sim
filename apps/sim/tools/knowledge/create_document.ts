@@ -48,6 +48,7 @@ export const knowledgeCreateDocumentTool: ToolConfig<any, KnowledgeCreateDocumen
   },
 
   request: {
+    internal: true,
     internalAuth: 'executor_delegation',
     url: (params) => `/api/knowledge/${params.knowledgeBaseId}/documents`,
     method: 'POST',

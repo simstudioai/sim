@@ -84,6 +84,7 @@ export const confluenceListPagePropertiesTool: ToolConfig<
   },
 
   request: {
+    internal: true,
     url: (params: ConfluenceListPagePropertiesParams) => {
       const query = new URLSearchParams({
         domain: params.domain,

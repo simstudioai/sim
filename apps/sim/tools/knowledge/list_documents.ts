@@ -41,6 +41,7 @@ export const knowledgeListDocumentsTool: ToolConfig<any, KnowledgeListDocumentsR
   },
 
   request: {
+    internal: true,
     internalAuth: 'executor_delegation',
     url: (params) => {
       const queryParams = new URLSearchParams()

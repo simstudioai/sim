@@ -32,6 +32,7 @@ export const tableInsertRowTool: ToolConfig<TableRowInsertParams, TableRowRespon
   },
 
   request: {
+    internal: true,
     secretProvenance: {
       request: (params) => selectTableRowSecretProvenance([params.data]),
       response: { incomplete: 'propagate' },

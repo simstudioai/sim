@@ -56,6 +56,7 @@ export const uploadTool: ToolConfig<OneDriveToolParams, OneDriveUploadResponse> 
   },
 
   request: {
+    internal: true,
     url: (params) => {
       const isExcelFile =
         params.mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'

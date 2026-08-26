@@ -62,6 +62,7 @@ export const agiloftNlpSearchTool: ToolConfig<AgiloftNlpSearchParams, AgiloftNlp
   },
 
   request: {
+    internal: true,
     url: () => '/api/tools/agiloft/nlp_search',
     method: 'POST',
     headers: () => ({ 'Content-Type': 'application/json' }),

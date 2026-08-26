@@ -49,6 +49,7 @@ export const tableUpdateRowsByFilterTool: ToolConfig<
   },
 
   request: {
+    internal: true,
     secretProvenance: {
       request: (params) => selectTableRowSecretProvenance([params.data]),
     },

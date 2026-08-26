@@ -25,6 +25,19 @@ interface Violation {
   expression: string
 }
 
+export interface RequestTrustViolation {
+  file: string
+  line: number
+  toolId?: string
+  reason: 'missing-internal-policy' | 'internal-policy-without-internal-route'
+}
+
+export interface RequestTrustAudit {
+  violations: RequestTrustViolation[]
+  dynamicInternalRoutes: number
+  dynamicInternalPolicies: number
+}
+
 interface SyntaxNode extends Record<string, unknown> {
   type: string
   start?: number | null
@@ -90,6 +103,173 @@ function unwrapExpression(expression: SyntaxNode): SyntaxNode {
     current = current.expression
   }
   return current
+}
+
+function getStaticPropertyName(property: SyntaxNode): string | undefined {
+  if (!isSyntaxNode(property.key)) return undefined
+  const key = property.key
+  if (key.type === 'Identifier' && typeof key.name === 'string') return key.name
+  if (key.type === 'StringLiteral' && typeof key.value === 'string') return key.value
+  return undefined
+}
+
+function getObjectProperty(object: SyntaxNode, name: string): SyntaxNode | undefined {
+  if (object.type !== 'ObjectExpression' || !Array.isArray(object.properties)) return undefined
+  return object.properties.find(
+    (property): property is SyntaxNode =>
+      isSyntaxNode(property) &&
+      property.type === 'ObjectProperty' &&
+      getStaticPropertyName(property) === name
+  )
+}
+
+function getStringPrefix(expression: SyntaxNode): string | undefined {
+  const current = unwrapExpression(expression)
+  if (current.type === 'StringLiteral' && typeof current.value === 'string') {
+    return current.value
+  }
+  if (
+    current.type === 'TemplateLiteral' &&
+    Array.isArray(current.quasis) &&
+    current.quasis.length > 0 &&
+    isSyntaxNode(current.quasis[0])
+  ) {
+    const value = current.quasis[0].value
+    if (typeof value === 'object' && value !== null) {
+      if ('cooked' in value && typeof value.cooked === 'string') return value.cooked
+      if ('raw' in value && typeof value.raw === 'string') return value.raw
+    }
+  }
+  return undefined
+}
+
+function isInternalPathExpression(expression: SyntaxNode): boolean {
+  const current = unwrapExpression(expression)
+  const prefix = getStringPrefix(current)
+  if (prefix?.startsWith('/api/')) return true
+
+  if (current.type === 'ConditionalExpression') {
+    return (
+      (isSyntaxNode(current.consequent) && isInternalPathExpression(current.consequent)) ||
+      (isSyntaxNode(current.alternate) && isInternalPathExpression(current.alternate))
+    )
+  }
+  if (current.type === 'LogicalExpression') {
+    return (
+      (isSyntaxNode(current.left) && isInternalPathExpression(current.left)) ||
+      (isSyntaxNode(current.right) && isInternalPathExpression(current.right))
+    )
+  }
+  return false
+}
+
+function isInternalUrlConstruction(node: SyntaxNode): boolean {
+  const current = unwrapExpression(node)
+  if (
+    current.type !== 'NewExpression' ||
+    !isSyntaxNode(current.callee) ||
+    current.callee.type !== 'Identifier' ||
+    current.callee.name !== 'URL' ||
+    !Array.isArray(current.arguments) ||
+    current.arguments.length === 0 ||
+    !isSyntaxNode(current.arguments[0])
+  ) {
+    return false
+  }
+  return getStringPrefix(current.arguments[0])?.startsWith('/api/') === true
+}
+
+function functionContainsInternalRoute(fn: SyntaxNode): boolean {
+  const current = unwrapExpression(fn)
+  if (
+    !['ArrowFunctionExpression', 'FunctionExpression', 'FunctionDeclaration'].includes(current.type)
+  ) {
+    return false
+  }
+  if (current.type === 'ArrowFunctionExpression' && isSyntaxNode(current.body)) {
+    const body = unwrapExpression(current.body)
+    if (body.type !== 'BlockStatement' && isInternalPathExpression(body)) return true
+  }
+
+  let found = false
+  const visit = (node: SyntaxNode) => {
+    if (found) return
+    if (
+      node.type === 'ReturnStatement' &&
+      isSyntaxNode(node.argument) &&
+      isInternalPathExpression(node.argument)
+    ) {
+      found = true
+      return
+    }
+    if (isInternalUrlConstruction(node)) {
+      found = true
+      return
+    }
+    for (const child of getChildNodes(node)) visit(child)
+  }
+  visit(current)
+  return found
+}
+
+function getToolId(object: SyntaxNode): string | undefined {
+  const idProperty = getObjectProperty(object, 'id')
+  if (!idProperty || !isSyntaxNode(idProperty.value)) return undefined
+  const value = unwrapExpression(idProperty.value)
+  return value.type === 'StringLiteral' && typeof value.value === 'string' ? value.value : undefined
+}
+
+/** Audits dynamic tool URL builders for an explicit, definition-owned internal-route policy. */
+export function auditToolRequestTrust(source: string, file = 'source.ts'): RequestTrustAudit {
+  const extension = extname(file)
+  const syntaxTree = parse(source, {
+    sourceFilename: file,
+    sourceType: 'unambiguous',
+    errorRecovery: true,
+    plugins: [
+      ...(extension === '.jsx' || extension === '.tsx' ? (['jsx'] as const) : []),
+      ...(!['.js', '.jsx', '.mjs', '.cjs'].includes(extension) ? (['typescript'] as const) : []),
+    ],
+  })
+  const violations: RequestTrustViolation[] = []
+  let dynamicInternalRoutes = 0
+  let dynamicInternalPolicies = 0
+
+  const visit = (node: SyntaxNode) => {
+    if (node.type === 'ObjectExpression') {
+      const requestProperty = getObjectProperty(node, 'request')
+      if (requestProperty && isSyntaxNode(requestProperty.value)) {
+        const request = unwrapExpression(requestProperty.value)
+        const urlProperty = getObjectProperty(request, 'url')
+        const internalProperty = getObjectProperty(request, 'internal')
+        const url = urlProperty?.value
+        const isDynamic =
+          isSyntaxNode(url) &&
+          ['ArrowFunctionExpression', 'FunctionExpression'].includes(unwrapExpression(url).type)
+        if (isDynamic && isSyntaxNode(url)) {
+          const hasInternalRoute = functionContainsInternalRoute(url)
+          const hasInternalPolicy = internalProperty !== undefined
+          if (hasInternalRoute) dynamicInternalRoutes += 1
+          if (hasInternalPolicy) dynamicInternalPolicies += 1
+          if (hasInternalRoute !== hasInternalPolicy) {
+            const location = (hasInternalPolicy ? internalProperty : urlProperty)?.loc?.start.line
+            violations.push({
+              file,
+              line: location ?? requestProperty.loc?.start.line ?? 1,
+              toolId: getToolId(node),
+              reason: hasInternalRoute
+                ? 'missing-internal-policy'
+                : 'internal-policy-without-internal-route',
+            })
+          }
+        }
+      }
+    }
+    for (const child of getChildNodes(node)) visit(child)
+  }
+  visit(syntaxTree.program)
+
+  return { violations, dynamicInternalRoutes, dynamicInternalPolicies }
 }
 
 function getStaticMemberAccess(
@@ -250,9 +430,14 @@ function findToolRequestBoundaryViolations(source: string, file = 'source.ts'): 
 }
 
 function main(): void {
-  const violations = collectProductionSources(APP)
+  const productionSources = collectProductionSources(APP)
+  const violations = productionSources
     .filter((file) => file !== CANONICAL_TRANSPORT)
     .flatMap((file) => findToolRequestBoundaryViolations(readFileSync(file, 'utf8'), file))
+  const requestTrustAudits = productionSources
+    .filter((file) => file.startsWith(join(APP, 'tools')))
+    .map((file) => auditToolRequestTrust(readFileSync(file, 'utf8'), file))
+  const requestTrustViolations = requestTrustAudits.flatMap((audit) => audit.violations)
 
   if (violations.length > 0) {
     console.error('Direct ToolConfig request execution is forbidden outside the shared transport:')
@@ -265,7 +450,28 @@ function main(): void {
     process.exit(1)
   }
 
+  if (requestTrustViolations.length > 0) {
+    console.error('Dynamic internal tool routes must have an exact internal trust declaration:')
+    for (const violation of requestTrustViolations) {
+      const description =
+        violation.reason === 'missing-internal-policy'
+          ? 'dynamic /api route is missing request.internal'
+          : 'request.internal is declared but the URL builder has no /api route'
+      console.error(
+        `  ${relative(ROOT, violation.file)}:${violation.line}  ${violation.toolId ?? 'unknown tool'}: ${description}`
+      )
+    }
+    process.exit(1)
+  }
+
   console.log('✓ production tool requests are materialized only by the shared transport')
+  const dynamicInternalRoutes = requestTrustAudits.reduce(
+    (total, audit) => total + audit.dynamicInternalRoutes,
+    0
+  )
+  console.log(
+    `✓ ${dynamicInternalRoutes} dynamic internal tool routes declare exact trust policies`
+  )
 }
 
 if (import.meta.main) main()

@@ -2439,7 +2439,7 @@ describe('executeTool Function', () => {
   })
 })
 
-describe('Automatic Internal Route Detection', () => {
+describe('Internal Route Trust', () => {
   let cleanupEnvVars: () => void
 
   beforeEach(() => {
@@ -2510,6 +2510,21 @@ describe('Automatic Internal Route Detection', () => {
     expect(mockTool.transformResponse).toHaveBeenCalled()
 
     Object.assign(tools, originalTools)
+  })
+
+  it('rejects a caller-controlled relative URL without minting internal credentials', async () => {
+    global.fetch = Object.assign(vi.fn(), { preconnect: vi.fn() }) as typeof fetch
+
+    const result = await executeTool('http_request', {
+      url: '/api/auth/oauth/token',
+      method: 'GET',
+      _context: { userId: 'workflow-owner' },
+    })
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('External tool requests require an absolute HTTP(S) URL')
+    expect(mockGenerateInternalToken).not.toHaveBeenCalled()
+    expect(global.fetch).not.toHaveBeenCalled()
   })
 
   it('transports only active provenance selected for an internal model input', async () => {
@@ -3533,6 +3548,7 @@ describe('Automatic Internal Route Detection', () => {
         resourceId: { type: 'string', required: true },
       },
       request: {
+        internal: true,
         url: (params: any) => `/api/resources/${params.resourceId}`,
         method: 'GET',
         headers: () => ({ 'Content-Type': 'application/json' }),
@@ -5025,6 +5041,14 @@ describe('MCP Tool Execution', () => {
   })
 
   describe('Tool request retries', () => {
+    beforeAll(() => {
+      ;(tools.http_request.request as { internal?: true }).internal = true
+    })
+
+    afterAll(() => {
+      ;(tools.http_request.request as { internal?: true }).internal = undefined
+    })
+
     function makeJsonResponse(
       status: number,
       body: unknown,

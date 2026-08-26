@@ -67,6 +67,7 @@ export const uploadTool: ToolConfig<GoogleDriveToolParams, GoogleDriveUploadResp
   },
 
   request: {
+    internal: true,
     url: (params) => {
       // Use custom API route if file is provided, otherwise use Google Drive API directly
       if (params.file) {

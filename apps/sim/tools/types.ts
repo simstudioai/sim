@@ -179,6 +179,12 @@ export interface ToolConfig<P = any, R = any> {
     method: HttpMethod | ((params: P) => HttpMethod)
     headers: (params: P) => Record<string, string>
     body?: (params: P) => Record<string, any> | string | FormData | undefined
+    /**
+     * Trusts a dynamic URL builder to target only Sim API routes. Conditional builders may use a
+     * definition-owned policy. Literal `/api/...` URLs are internal by definition, and every
+     * resolved URL is validated against the declared policy.
+     */
+    internal?: true | ((params: P) => boolean)
     /** Selects the signed, workflow-scoped identity required by protected internal routes. */
     internalAuth?: 'executor_delegation'
     /** Defines the exact request fields that may become model-visible. */
