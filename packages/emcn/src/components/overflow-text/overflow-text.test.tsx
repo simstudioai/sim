@@ -18,7 +18,7 @@ beforeEach(() => {
   const fontEvents = new EventTarget()
   Object.defineProperty(fontEvents, 'ready', {
     configurable: true,
-    value: Promise.resolve(fontEvents),
+    value: new Promise(() => {}),
   })
   Object.defineProperty(document, 'fonts', {
     configurable: true,
