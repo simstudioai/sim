@@ -34,6 +34,7 @@ import {
   createResumeAttemptTimeoutController,
   extractResumeBillingAttributionFromSnapshot,
   PauseResumeManager,
+  requireResumeDeploymentVersion,
   updateResumeOutputInAggregationBuffers,
 } from '@/lib/workflows/executor/human-in-the-loop-manager'
 import { getAutomaticResumeWaitingMetadata } from '@/lib/workflows/executor/paused-execution-metadata'
@@ -1781,17 +1782,21 @@ describe('PauseResumeManager resume log claims', () => {
     parentExecutionId: string
     workflowId: string
     executionDeadlineAt?: Date
-  }) => Promise<void>
+  }) => Promise<{ deploymentVersionId: string | null }>
 
   it('atomically stamps the active attempt deadline while claiming a paused log', async () => {
     const executionDeadlineAt = new Date('2026-08-04T12:00:00.000Z')
-    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'log-1' }])
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      { id: 'log-1', deploymentVersionId: 'deployment-version-old' },
+    ])
 
-    await claimResumeExecutionLog({
-      parentExecutionId: 'execution-1',
-      workflowId: 'workflow-1',
-      executionDeadlineAt,
-    })
+    await expect(
+      claimResumeExecutionLog({
+        parentExecutionId: 'execution-1',
+        workflowId: 'workflow-1',
+        executionDeadlineAt,
+      })
+    ).resolves.toEqual({ deploymentVersionId: 'deployment-version-old' })
 
     expect(dbChainMockFns.set).toHaveBeenCalledWith({
       status: 'running',
@@ -1824,6 +1829,29 @@ describe('PauseResumeManager resume log claims', () => {
       retryable: false,
     })
   })
+
+  it('reuses the exact historical version claimed from a deployed run log', () => {
+    expect(requireResumeDeploymentVersion(false, 'deployment-version-old')).toBe(
+      'deployment-version-old'
+    )
+  })
+
+  it('keeps draft resumes version-free', () => {
+    expect(requireResumeDeploymentVersion(true, null)).toBeUndefined()
+  })
+
+  it.each([
+    { useDraftState: true, deploymentVersionId: 'deployment-version-1' },
+    { useDraftState: false, deploymentVersionId: null },
+    { useDraftState: undefined, deploymentVersionId: null },
+  ])(
+    'rejects an inconsistent paused mode/version binding',
+    ({ useDraftState, deploymentVersionId }) => {
+      expect(() => requireResumeDeploymentVersion(useDraftState, deploymentVersionId)).toThrowError(
+        expect.objectContaining({ name: 'ResumeAdmissionError', statusCode: 409, retryable: false })
+      )
+    }
+  )
 })
 
 /**

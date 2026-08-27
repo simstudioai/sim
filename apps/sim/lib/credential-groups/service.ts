@@ -7,6 +7,10 @@ import {
 } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
 import { and, desc, eq, inArray } from 'drizzle-orm'
+import {
+  credentialGroupWorkflowAccessPolicyCodec,
+  requireDefaultCredentialGroupWorkflowAccessPolicy,
+} from '@/lib/credential-groups/application/workflow-access-policy'
 import { credentialGroupScopePolicyVersion } from '@/lib/credential-groups/provider-adapter'
 import { decryptCredentialGroupProviderConfiguration } from '@/lib/credential-groups/provider-configuration'
 import { getCredentialGroupProviderAdapter } from '@/lib/credential-groups/provider-registry'
@@ -19,6 +23,10 @@ import type {
   UpdateCredentialGroupInput,
 } from '@/lib/credential-groups/types'
 import type { DbOrTx } from '@/lib/db/types'
+import {
+  deleteResourcePolicyForResource,
+  requireResourcePolicy,
+} from '@/lib/resource-policies/repository'
 
 function scopesEqual(left: string[], right: string[]): boolean {
   const normalizedLeft = [...new Set(left)].sort()
@@ -166,35 +174,66 @@ export async function createCredentialGroup(
 ): Promise<CredentialGroupRecord> {
   const now = new Date()
   const options = await Promise.all(body.options.map((option) => buildOption(workspaceId, option)))
-  const [created] = await db
-    .insert(credentialGroup)
-    .values({
-      id: generateId(),
-      workspaceId,
-      publicId: generateId(),
-      name: body.name,
-      description: body.description || null,
-      options,
-      status: 'active',
-      createdBy: userId,
-      createdAt: now,
-      updatedAt: now,
-    })
-    .returning()
+  return db.transaction(async (tx) => {
+    const [created] = await tx
+      .insert(credentialGroup)
+      .values({
+        id: generateId(),
+        workspaceId,
+        publicId: generateId(),
+        name: body.name,
+        description: body.description || null,
+        options,
+        status: 'active',
+        createdBy: userId,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .returning()
 
-  if (!created) throw new Error('Credential group insert returned no row')
-  return toCredentialGroup(created)
+    if (!created) throw new Error('Credential group insert returned no row')
+    const policy = await requireResourcePolicy(
+      {
+        workspaceId,
+        resourceType: 'credential_group',
+        resourceId: created.id,
+        codec: credentialGroupWorkflowAccessPolicyCodec,
+      },
+      tx
+    )
+    requireDefaultCredentialGroupWorkflowAccessPolicy({
+      revision: policy.revision,
+      document: policy.document,
+      credentialGroupId: created.id,
+    })
+    return toCredentialGroup(created)
+  })
 }
 
 export async function deleteCredentialGroup(
   workspaceId: string,
   groupId: string
 ): Promise<boolean> {
-  const deleted = await db
-    .delete(credentialGroup)
-    .where(and(eq(credentialGroup.id, groupId), eq(credentialGroup.workspaceId, workspaceId)))
-    .returning({ id: credentialGroup.id })
-  return deleted.length > 0
+  return db.transaction(async (tx) => {
+    const [existing] = await tx
+      .select({ id: credentialGroup.id })
+      .from(credentialGroup)
+      .where(and(eq(credentialGroup.id, groupId), eq(credentialGroup.workspaceId, workspaceId)))
+      .limit(1)
+      .for('update')
+    if (!existing) return false
+
+    await deleteResourcePolicyForResource(
+      { workspaceId, resourceType: 'credential_group', resourceId: groupId },
+      tx
+    )
+    const deleted = await tx
+      .delete(credentialGroup)
+      .where(and(eq(credentialGroup.id, groupId), eq(credentialGroup.workspaceId, workspaceId)))
+      .returning({ id: credentialGroup.id })
+    if (deleted.length !== 1) throw new Error('Locked Credential Group delete returned no row')
+    return true
+  })
 }
 
 export async function updateCredentialGroup(

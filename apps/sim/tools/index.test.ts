@@ -4002,6 +4002,11 @@ describe('Managed OAuth Credential Delegation', () => {
       subjectUserId: 'origin-user',
       workflowId: 'origin-workflow',
       executionId: 'origin-execution',
+      currentWorkflow: {
+        workflowId: 'current-workflow',
+        mode: 'deployment' as const,
+        deploymentVersionId: 'deployment-version-1',
+      },
     }
     const context = createToolExecutionContext({
       userId: 'current-user',
@@ -4028,6 +4033,47 @@ describe('Managed OAuth Credential Delegation', () => {
       toolId: 'gmail_read',
       scopes: ['https://www.googleapis.com/auth/gmail.readonly'],
     })
+  })
+
+  it('fails before transport when managed credential delegation lacks current workflow authority', async () => {
+    mockGenerateInternalDelegationToken.mockClear()
+    mockGenerateInternalToken.mockResolvedValueOnce('legacy-token')
+    const fetchMock = vi.fn()
+    global.fetch = Object.assign(fetchMock, { preconnect: vi.fn() }) as typeof fetch
+
+    const context = createToolExecutionContext({
+      userId: 'current-user',
+      workflowId: 'current-workflow',
+      executionId: 'current-execution',
+      principal: {
+        kind: 'session',
+        userId: 'current-user',
+        sessionId: 'session-1',
+      },
+      executorDelegationOrigin: {
+        subjectUserId: 'current-user',
+        workflowId: 'current-workflow',
+        executionId: 'current-execution',
+        principal: {
+          kind: 'session',
+          userId: 'current-user',
+          sessionId: 'session-1',
+        },
+      },
+    })
+
+    const result = await executeTool(
+      'gmail_read',
+      { oauthCredential: 'managed-credential-id' },
+      { executionContext: context }
+    )
+
+    expect(result).toMatchObject({
+      success: false,
+      error: 'Managed credential delegation is missing current workflow authority',
+    })
+    expect(mockGenerateInternalDelegationToken).not.toHaveBeenCalled()
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 })
 

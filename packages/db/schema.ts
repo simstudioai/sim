@@ -4378,6 +4378,32 @@ export const permissionGroupMember = pgTable(
   })
 )
 
+/** Versioned statement policy attached to one canonical workspace resource. */
+export const resourcePolicy = pgTable(
+  'resource_policy',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    resourceType: text('resource_type').notNull(),
+    resourceId: text('resource_id').notNull(),
+    revision: integer('revision').notNull().default(1),
+    document: jsonb('document').$type<unknown>().notNull(),
+    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+    updatedBy: text('updated_by').references(() => user.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    resourceUnique: uniqueIndex('resource_policy_resource_unique').on(
+      table.resourceType,
+      table.resourceId
+    ),
+    workspaceIdx: index('resource_policy_workspace_id_idx').on(table.workspaceId),
+  })
+)
+
 /**
  * Async Jobs - Queue for background job processing (Redis/DB backends)
  * Used when trigger.dev is not available for async workflow executions

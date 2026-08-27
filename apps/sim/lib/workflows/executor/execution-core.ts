@@ -32,6 +32,7 @@ import { waitForChildRuns } from '@/lib/workflows/custom-blocks/child-execution'
 import { getCustomBlockRowsForWorkspace } from '@/lib/workflows/custom-blocks/operations'
 import {
   loadDeployedWorkflowState,
+  loadWorkflowDeploymentVersionState,
   loadWorkflowFromNormalizedTables,
 } from '@/lib/workflows/persistence/utils'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
@@ -118,6 +119,8 @@ export interface ExecuteWorkflowCoreOptions {
   stopAfterBlockId?: string
   /** Trusted encrypted provenance captured by a server-only pre-execution boundary. */
   trustedInitialResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
+  /** Immutable deployment admitted by the durable parent log for a resumed execution. */
+  resumeDeploymentVersionId?: string
   /** Run-from-block mode: execute starting from a specific block using cached upstream outputs */
   runFromBlock?: {
     startBlockId: string
@@ -395,6 +398,7 @@ async function executeWorkflowCoreImpl(
     base64MaxBytes,
     stopAfterBlockId,
     runFromBlock,
+    resumeDeploymentVersionId,
   } = options
   loggingSession.setExecutionDeadlineAt(getExecutionDeadlineAt(abortSignal))
   const { metadata, input, workflowVariables, selectedOutputs } = snapshot
@@ -405,6 +409,16 @@ async function executeWorkflowCoreImpl(
   const providedWorkspaceId = metadata.workspaceId
   if (!providedWorkspaceId) {
     throw new Error(`Execution metadata missing workspaceId for workflow ${workflowId}`)
+  }
+  const resumeFromSnapshot = metadata.resumeFromSnapshot === true
+  if (!resumeFromSnapshot && resumeDeploymentVersionId !== undefined) {
+    throw new Error('Deployment version authority can only be supplied for a resumed execution')
+  }
+  if (resumeFromSnapshot && useDraftState && resumeDeploymentVersionId !== undefined) {
+    throw new Error('Draft resume cannot carry deployment version authority')
+  }
+  if (resumeFromSnapshot && !useDraftState && !resumeDeploymentVersionId) {
+    throw new Error('Deployed resume requires its admitted deployment version')
   }
 
   let processedInput = input || {}
@@ -481,6 +495,25 @@ async function executeWorkflowCoreImpl(
      * on the environment load, so the two are awaited concurrently below.
      */
     const loadWorkflowState = async () => {
+      if (resumeFromSnapshot && !useDraftState) {
+        if (!resumeDeploymentVersionId) {
+          throw new Error('Deployed resume requires its admitted deployment version')
+        }
+        const deployedData = await loadWorkflowDeploymentVersionState(
+          workflowId,
+          resumeDeploymentVersionId,
+          providedWorkspaceId
+        )
+        logger.info(`[${requestId}] Using admitted historical deployment state (resumed execution)`)
+        return {
+          blocks: deployedData.blocks,
+          edges: deployedData.edges,
+          loops: deployedData.loops,
+          parallels: deployedData.parallels,
+          deploymentVersionId: deployedData.deploymentVersionId,
+        }
+      }
+
       if (metadata.workflowStateOverride) {
         const override = metadata.workflowStateOverride
         logger.info(`[${requestId}] Using workflow state override (diff workflow execution)`, {
@@ -515,7 +548,7 @@ async function executeWorkflowCoreImpl(
         }
       }
 
-      const deployedData = await loadDeployedWorkflowState(workflowId)
+      const deployedData = await loadDeployedWorkflowState(workflowId, providedWorkspaceId)
       logger.info(`[${requestId}] Using deployed workflow state (deployed execution)`)
       return {
         blocks: deployedData.blocks,
@@ -553,7 +586,6 @@ async function executeWorkflowCoreImpl(
     // Use already-decrypted values for execution (no redundant decryption)
     const decryptedEnvVars: Record<string, string> = { ...personalDecrypted, ...workspaceDecrypted }
 
-    const resumeFromSnapshot = metadata.resumeFromSnapshot === true
     const restoredState =
       runFromBlock?.sourceSnapshot ?? (resumeFromSnapshot ? snapshot.state : undefined)
     const restoreTrusted = resumeFromSnapshot || Boolean(runFromBlock?.sourceExecutionId)
@@ -945,6 +977,9 @@ async function executeWorkflowCoreImpl(
         workflowId,
         ...(executionId ? { executionId } : {}),
         principal: metadata.principal,
+        currentWorkflow: deploymentVersionId
+          ? { workflowId, mode: 'deployment', deploymentVersionId }
+          : { workflowId, mode: 'draft' },
       },
       isDeployedContext: metadata.useDraftState !== true,
       enforceCredentialAccess: metadata.enforceCredentialAccess ?? false,

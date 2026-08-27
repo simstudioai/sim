@@ -1238,6 +1238,18 @@ export const schemaMock = {
     createdAt: 'credentialGroup.createdAt',
     updatedAt: 'credentialGroup.updatedAt',
   },
+  resourcePolicy: {
+    id: 'id',
+    workspaceId: 'workspaceId',
+    resourceType: 'resourceType',
+    resourceId: 'resourceId',
+    revision: 'revision',
+    document: 'document',
+    createdBy: 'createdBy',
+    updatedBy: 'updatedBy',
+    createdAt: 'createdAt',
+    updatedAt: 'updatedAt',
+  },
   credentialGroupEnrollmentStatusEnum: {
     enumValues: ['invited', 'delivery_failed', 'in_progress', 'completed', 'revoked'] as const,
   },

@@ -1,74 +1,112 @@
 import {
   type Principal,
-  requirePrincipalSubjectUserId,
   resolvePrincipalSubject,
-  type WorkflowExecutionDelegatedPrincipal,
+  type WorkflowExecutionAuthority,
+  type WorkflowExecutionPrincipal,
 } from '@sim/auth/principal'
 import type {
   WorkspaceAuthorizationContext,
   WorkspaceDelegationPolicy,
 } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import type { CredentialGroupCredentialListContext } from '@/lib/credential-groups/credentials'
 import {
-  type CredentialGroupEnrollmentAccess,
-  loadCredentialGroupEnrollmentAccessForSubject,
-} from '@/lib/credential-groups/credentials'
+  credentialGroupWorkflowAccessPolicyCodec,
+  evaluateCredentialGroupWorkflowAccess,
+} from '@/lib/credential-groups/application/workflow-access-policy'
+import type { CredentialGroupCredentialListContext } from '@/lib/credential-groups/credentials'
+import { loadCredentialGroupEnrollmentAccessForSubject } from '@/lib/credential-groups/credentials'
+import type { ResourcePolicyBindingFor } from '@/lib/resource-policies/registry'
+import { requireResourcePolicy } from '@/lib/resource-policies/repository'
 
 export const CREDENTIAL_GROUP_DELEGATION_AUDIENCE = 'sim:credential-groups'
 
-export interface CredentialGroupApplicationContext
-  extends WorkspaceAuthorizationContext,
-    CredentialGroupCredentialListContext {
-  enrollmentAccess?: CredentialGroupEnrollmentAccess
+export interface CredentialGroupAuthorizationContext extends WorkspaceAuthorizationContext {
+  credentialGroupId: string
 }
 
-function requireWorkflowExecutionPrincipal(principal: Principal) {
+export interface CredentialGroupApplicationContext
+  extends CredentialGroupAuthorizationContext,
+    CredentialGroupCredentialListContext {}
+
+function requireWorkflowExecutionPrincipal(principal: Principal): WorkflowExecutionPrincipal {
   if (principal.kind !== 'delegated' || principal.serviceId !== 'executor') {
     throw new Error('Credential Group use requires an executor delegation')
   }
-  const executionPrincipal = (principal as WorkflowExecutionDelegatedPrincipal).delegationContext
-    ?.principal
+  const executionPrincipal = principal.delegationContext?.principal
   if (!executionPrincipal) {
     throw new Error('Executor delegation is missing its workflow principal')
   }
   return executionPrincipal
 }
 
-export function requireCredentialGroupWorkflowSubject(principal: Principal): string {
-  const executionPrincipal = requireWorkflowExecutionPrincipal(principal)
-  let subjectUserId: string
-  try {
-    subjectUserId = requirePrincipalSubjectUserId(executionPrincipal)
-  } catch {
-    throw new OrchestrationError('forbidden', 'Credential Group user access required')
+function requireCurrentWorkflow(principal: Principal): WorkflowExecutionAuthority {
+  if (principal.kind !== 'delegated' || principal.serviceId !== 'executor') {
+    throw new Error('Credential Group use requires an executor delegation')
   }
-  if (principal.kind !== 'delegated' || principal.subjectUserId !== subjectUserId) {
-    throw new OrchestrationError('forbidden', 'Credential Group user access required')
+  const currentWorkflow = principal.delegationContext?.currentWorkflow
+  if (!currentWorkflow) {
+    throw new Error('Executor delegation is missing its current workflow authority')
   }
-  return subjectUserId
+  return currentWorkflow
 }
 
-export async function requireCredentialGroupEnrollmentAccess(
+function requireConsistentWorkflowSubject(
   principal: Principal,
-  credentialGroupId: string
-): Promise<CredentialGroupEnrollmentAccess> {
-  const executionPrincipal = requireWorkflowExecutionPrincipal(principal)
+  executionPrincipal: WorkflowExecutionPrincipal
+) {
+  if (principal.kind !== 'delegated' || principal.serviceId !== 'executor') {
+    throw new Error('Credential Group use requires an executor delegation')
+  }
   const subject = resolvePrincipalSubject(executionPrincipal)
-  if (!subject) {
-    throw new OrchestrationError('forbidden', 'Credential Group enrollment access required')
-  }
   if (
-    subject.kind === 'sim_user' &&
-    (principal.kind !== 'delegated' || principal.subjectUserId !== subject.userId)
+    (subject?.kind === 'sim_user' && principal.subjectUserId !== subject.userId) ||
+    (subject?.kind !== 'sim_user' && principal.subjectUserId !== undefined)
   ) {
-    throw new OrchestrationError('forbidden', 'Credential Group enrollment access required')
+    throw new OrchestrationError('forbidden', 'Credential Group actor access required')
   }
-  const access = await loadCredentialGroupEnrollmentAccessForSubject(credentialGroupId, subject)
-  if (!access) {
-    throw new OrchestrationError('forbidden', 'Credential Group enrollment access required')
+  return subject
+}
+
+export function requireCredentialGroupWorkflowSubject(principal: Principal): string {
+  const subject = resolvePrincipalSubject(requireWorkflowExecutionPrincipal(principal))
+  if (
+    subject?.kind !== 'sim_user' ||
+    principal.kind !== 'delegated' ||
+    principal.subjectUserId !== subject.userId
+  ) {
+    throw new OrchestrationError('forbidden', 'Credential Group user access required')
   }
-  return access
+  return subject.userId
+}
+
+export async function requireCredentialGroupCredentialAccess(
+  principal: Principal,
+  context: CredentialGroupAuthorizationContext & { credentialGroupEnrollmentId: string },
+  resourcePolicy: ResourcePolicyBindingFor<'credential_group'>
+): Promise<void> {
+  const executionPrincipal = requireWorkflowExecutionPrincipal(principal)
+  const currentWorkflow = requireCurrentWorkflow(principal)
+  const subject = requireConsistentWorkflowSubject(principal, executionPrincipal)
+  const policy = await requireResourcePolicy({
+    workspaceId: context.workspaceId,
+    resourceType: 'credential_group',
+    resourceId: context.credentialGroupId,
+    codec: credentialGroupWorkflowAccessPolicyCodec,
+  })
+  const actorAccess = subject
+    ? await loadCredentialGroupEnrollmentAccessForSubject(context.credentialGroupId, subject)
+    : null
+  const decision = evaluateCredentialGroupWorkflowAccess({
+    document: policy.document,
+    credentialGroupId: context.credentialGroupId,
+    selectedEnrollmentId: context.credentialGroupEnrollmentId,
+    ...(actorAccess ? { actorEnrollmentId: actorAccess.enrollmentId } : {}),
+    currentWorkflow,
+    resourcePolicy,
+  })
+  if (decision.decision !== 'allow') {
+    throw new OrchestrationError('forbidden', 'Credential Group credential access denied')
+  }
 }
 
 export const credentialGroupDelegationPolicy = {
