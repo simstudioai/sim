@@ -12,6 +12,7 @@ import { getSession } from '@/lib/auth'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { lockPersonalEnvMap } from '@/lib/credentials/env-locks'
 import { syncPersonalEnvCredentialsForUser } from '@/lib/credentials/environment'
 import type { EnvironmentVariable } from '@/lib/environment/api'
 import { captureServerEvent } from '@/lib/posthog/server'
@@ -53,21 +54,31 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       })
     ).then((entries) => Object.fromEntries(entries))
 
-    await db
-      .insert(environment)
-      .values({
-        id: generateId(),
-        userId: session.user.id,
-        variables: encryptedVariables,
-        updatedAt: new Date(),
-      })
-      .onConflictDoUpdate({
-        target: [environment.userId],
-        set: {
+    /**
+     * A wholesale replace still takes the map lock: without it this can land
+     * between another writer's read and its write-back, and that writer then
+     * persists a map derived from the pre-replace state, discarding this one
+     * entirely. The reconcile below matches the replace, so it stays outside.
+     */
+    await db.transaction(async (tx) => {
+      await lockPersonalEnvMap(tx, session.user.id)
+
+      await tx
+        .insert(environment)
+        .values({
+          id: generateId(),
+          userId: session.user.id,
           variables: encryptedVariables,
           updatedAt: new Date(),
-        },
-      })
+        })
+        .onConflictDoUpdate({
+          target: [environment.userId],
+          set: {
+            variables: encryptedVariables,
+            updatedAt: new Date(),
+          },
+        })
+    })
 
     await syncPersonalEnvCredentialsForUser({
       userId: session.user.id,

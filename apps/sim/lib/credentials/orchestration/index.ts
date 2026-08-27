@@ -32,8 +32,8 @@ import {
 import { slackCustomBotDisplayName } from '@/lib/credentials/display-name'
 import { lockPersonalEnvMap, lockWorkspaceEnvMap } from '@/lib/credentials/env-locks'
 import {
+  deletePersonalEnvCredentialForUser,
   deleteWorkspaceEnvCredentials,
-  syncPersonalEnvCredentialsForUser,
 } from '@/lib/credentials/environment'
 import type { ServiceAccountFieldId } from '@/lib/credentials/service-account-fields'
 import {
@@ -569,13 +569,15 @@ export async function deleteCredentialRecord(
     const { envKey, envOwnerUserId } = credentialRow
     /**
      * Same read-modify-write on the personal map, under the same lock its
-     * other writers take. The credential reconcile stays outside: it opens its
-     * own transaction and takes the user-identity fence, so nesting it here
-     * would have two transactions taking two locks in opposite orders. It is a
-     * reconcile against the stored keys, so a failure is repaired by the next
-     * one rather than entrenched.
+     * other writers take, with the mirrors removed in the same transaction.
+     *
+     * Targeted rather than a reconcile: the reconcile prunes every mirror
+     * absent from a caller-supplied key list, so a secret added between the
+     * read and the prune lost its mirror while its value survived. Deleting
+     * this one key's mirrors cannot strand another secret, and the lock order
+     * — map, then user identity — is the one `setPersonalSecret` already takes.
      */
-    const current = await db.transaction(async (tx) => {
+    await db.transaction(async (tx) => {
       await lockPersonalEnvMap(tx, envOwnerUserId)
 
       const [personalRow] = await tx
@@ -597,11 +599,7 @@ export async function deleteCredentialRecord(
           target: [environment.userId],
           set: { variables, updatedAt: new Date() },
         })
-      return variables
-    })
-    await syncPersonalEnvCredentialsForUser({
-      userId: credentialRow.envOwnerUserId,
-      envKeys: Object.keys(current),
+      await deletePersonalEnvCredentialForUser({ userId: envOwnerUserId, envKey, executor: tx })
     })
     return true
   }

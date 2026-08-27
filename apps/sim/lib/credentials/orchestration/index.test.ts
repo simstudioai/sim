@@ -21,7 +21,7 @@ const {
   mockDeleteConnectionCredential,
   mockDeleteOrphanedOAuthAccount,
   mockDeleteWorkspaceEnvCredentials,
-  mockSyncPersonalEnvCredentialsForUser,
+  mockDeletePersonalEnvCredentialForUser,
 } = vi.hoisted(() => ({
   mockRecordAudit: vi.fn(),
   mockGetCredentialActorContext: vi.fn(),
@@ -34,7 +34,7 @@ const {
   mockDeleteConnectionCredential: vi.fn(),
   mockDeleteOrphanedOAuthAccount: vi.fn(),
   mockDeleteWorkspaceEnvCredentials: vi.fn(),
-  mockSyncPersonalEnvCredentialsForUser: vi.fn(),
+  mockDeletePersonalEnvCredentialForUser: vi.fn(),
 }))
 
 vi.mock('@sim/audit', () => ({
@@ -62,7 +62,7 @@ vi.mock('@/lib/credentials/deletion', () => ({
 }))
 vi.mock('@/lib/credentials/environment', () => ({
   deleteWorkspaceEnvCredentials: mockDeleteWorkspaceEnvCredentials,
-  syncPersonalEnvCredentialsForUser: mockSyncPersonalEnvCredentialsForUser,
+  deletePersonalEnvCredentialForUser: mockDeletePersonalEnvCredentialForUser,
 }))
 vi.mock('@/lib/credentials/atlassian-service-account', () => ({
   AtlassianValidationError: class AtlassianValidationError extends Error {},
@@ -770,6 +770,15 @@ describe('deleteCredentialRecord', () => {
       return sql.includes('pg_advisory_xact_lock') && params.includes('user-1')
     })
     expect(locked).toBe(true)
+    /**
+     * Targeted, not a reconcile against a key list: a list read before the
+     * prune can miss a secret added since, and prune that secret's mirror
+     * while its value survives.
+     */
+    expect(mockDeletePersonalEnvCredentialForUser).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'user-1', envKey: 'MY_KEY' })
+    )
+    expect(mockDeletePersonalEnvCredentialForUser.mock.calls[0][0].executor).toBeDefined()
   })
 
   it('revokes the backing OAuth grant of a deleted oauth credential', async () => {

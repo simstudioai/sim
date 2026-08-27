@@ -7,7 +7,7 @@ import { generateId } from '@sim/utils/id'
 import { eq, inArray } from 'drizzle-orm'
 import { LRUCache } from 'lru-cache'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
-import { lockWorkspaceEnvMap } from '@/lib/credentials/env-locks'
+import { lockPersonalEnvMap, lockWorkspaceEnvMap } from '@/lib/credentials/env-locks'
 import {
   createWorkspaceEnvCredentials,
   getAccessibleEnvCredentials,
@@ -435,20 +435,37 @@ export async function upsertPersonalEnvVars(
     newlyEncrypted[key] = encrypted
   }
 
-  const finalEncrypted = { ...existingEncrypted, ...newlyEncrypted }
+  /**
+   * The read above only decides which values changed; the merge has to be made
+   * against a read taken under the lock, or a key written concurrently is
+   * absent from this map and dropped by the write-back.
+   */
+  const finalEncrypted = await db.transaction(async (tx) => {
+    await lockPersonalEnvMap(tx, userId)
 
-  await db
-    .insert(environment)
-    .values({
-      id: generateId(),
-      userId,
-      variables: finalEncrypted,
-      updatedAt: new Date(),
-    })
-    .onConflictDoUpdate({
-      target: [environment.userId],
-      set: { variables: finalEncrypted, updatedAt: new Date() },
-    })
+    const [currentRow] = await tx
+      .select({ variables: environment.variables })
+      .from(environment)
+      .where(eq(environment.userId, userId))
+      .limit(1)
+    const current = (currentRow?.variables as Record<string, string>) || {}
+    const finalEncrypted = { ...current, ...newlyEncrypted }
+
+    await tx
+      .insert(environment)
+      .values({
+        id: generateId(),
+        userId,
+        variables: finalEncrypted,
+        updatedAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: [environment.userId],
+        set: { variables: finalEncrypted, updatedAt: new Date() },
+      })
+
+    return finalEncrypted
+  })
 
   invalidateEffectiveDecryptedEnvCache({ userId })
   await syncPersonalEnvCredentialsForUser({
