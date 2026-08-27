@@ -35,9 +35,6 @@ const SCAN_DIRS = [join(ROOT, 'apps'), join(ROOT, 'packages'), join(ROOT, 'scrip
 const SKIP_DIRS = new Set(['node_modules', '.next', '.turbo', 'coverage', 'dist', 'build', 'out'])
 const SOURCE_EXTENSIONS = new Set(['.ts', '.tsx', '.mts', '.cts'])
 const MARKER = 'contract-pending('
-const TABLE_EXPORT = /^export const (\w+) = pgTable\(/
-const COLUMN_DECLARATION = /^\s+(\w+):/
-const DOOMED_TAG = /^\s*(?:\/\*\*\s*@deprecated|\/\*\*\s*contract-pending\()/
 
 interface Violation {
   file: string
@@ -48,12 +45,26 @@ interface Violation {
 
 interface SyntaxNode extends Record<string, unknown> {
   type: string
-  loc?: { start: { line: number } } | null
+  start?: number | null
+  end?: number | null
+  loc?: { start: { line: number }; end: { line: number } } | null
+}
+
+interface CommentNode extends SyntaxNode {
+  value: string
 }
 
 function isSyntaxNode(value: unknown): value is SyntaxNode {
   return (
     typeof value === 'object' && value !== null && 'type' in value && typeof value.type === 'string'
+  )
+}
+
+function isCommentNode(value: unknown): value is CommentNode {
+  return (
+    isSyntaxNode(value) &&
+    (value.type === 'CommentLine' || value.type === 'CommentBlock') &&
+    typeof value.value === 'string'
   )
 }
 
@@ -82,43 +93,120 @@ function unwrap(node: unknown): SyntaxNode | null {
   return current
 }
 
+/** Parses one source file, returning its program and detached comment list. */
+function parseSource(
+  file: string,
+  source: string
+): { program: SyntaxNode; comments: CommentNode[] } {
+  const syntaxTree = parse(source, {
+    sourceFilename: file,
+    sourceType: 'unambiguous',
+    errorRecovery: true,
+    plugins: [...(extname(file) === '.tsx' ? (['jsx'] as const) : []), 'typescript', 'decorators'],
+  })
+  const comments = Array.isArray(syntaxTree.comments)
+    ? syntaxTree.comments.filter(isCommentNode)
+    : []
+  return { program: syntaxTree.program as unknown as SyntaxNode, comments }
+}
+
+/**
+ * Merges runs of adjacent `//` comments into one text so a marker whose prose
+ * wraps across lines reads as a single sentence. Block comments already carry
+ * their whole body, so each stands alone.
+ */
+function groupCommentText(comments: CommentNode[]): string[] {
+  const ordered = [...comments].sort((a, b) => (a.start ?? 0) - (b.start ?? 0))
+  const groups: string[] = []
+  let run: CommentNode[] = []
+  const flush = () => {
+    if (run.length > 0) groups.push(run.map((comment) => comment.value).join('\n'))
+    run = []
+  }
+  for (const comment of ordered) {
+    if (comment.type === 'CommentBlock') {
+      flush()
+      groups.push(comment.value)
+      continue
+    }
+    const previous = run.at(-1)
+    const contiguous =
+      previous && (comment.loc?.start.line ?? 0) === (previous.loc?.end.line ?? 0) + 1
+    if (!contiguous) flush()
+    run.push(comment)
+  }
+  flush()
+  return groups
+}
+
+/**
+ * TSDoc blocks that sit on their own line(s) directly above `node`. Only block
+ * comments count as column documentation: a `//` run above a column is the
+ * table-level contract marker, which describes the table, not that column.
+ */
+function leadingDocBlocks(node: SyntaxNode): CommentNode[] {
+  const leading = Array.isArray(node.leadingComments) ? node.leadingComments : []
+  const startLine = node.loc?.start.line ?? 0
+  return leading.filter(
+    (comment): comment is CommentNode =>
+      isCommentNode(comment) &&
+      comment.type === 'CommentBlock' &&
+      (comment.loc?.end.line ?? 0) < startLine
+  )
+}
+
+/** Column properties whose TSDoc marks them for the pending drop. */
+function readDoomedColumns(columns: SyntaxNode): Set<string> {
+  const doomed = new Set<string>()
+  const properties = Array.isArray(columns.properties) ? columns.properties : []
+  for (const property of properties) {
+    if (!isSyntaxNode(property) || property.type !== 'ObjectProperty') continue
+    const name = propertyName(property.key)
+    if (!name) continue
+    const marked = leadingDocBlocks(property).some(
+      (comment) => comment.value.includes('@deprecated') || comment.value.includes(MARKER)
+    )
+    if (marked) doomed.add(name)
+  }
+  return doomed
+}
+
 /**
  * Tables owed a DROP contract, mapped to their doomed columns.
  *
- * A table is guarded when its body carries a `contract-pending(` marker that
- * mentions a drop; markers for non-drop contracts (e.g. a pending `SET NOT
- * NULL` normalization) don't make argless reads hazardous and are excluded. A
- * column is doomed when its declaration sits directly under an `@deprecated`
- * TSDoc line or carries the `contract-pending` marker itself.
+ * A table is guarded when a comment inside its `pgTable(...)` call carries a
+ * `contract-pending(` marker that mentions a drop; markers for non-drop
+ * contracts (e.g. a pending `SET NOT NULL` normalization) don't make argless
+ * reads hazardous and are excluded. A column is doomed when its own TSDoc says
+ * `@deprecated` or carries the marker — read from the parsed comment blocks, so
+ * single-line and multiline TSDoc are recognized alike.
  */
 function readPendingTables(): Map<string, Set<string>> {
-  const doomedByTable = new Map<string, Set<string>>()
-  const pending = new Set<string>()
-  const lines = readFileSync(SCHEMA_PATH, 'utf8').split('\n')
-  let currentTable: string | null = null
-  for (let i = 0; i < lines.length; i++) {
-    const exported = TABLE_EXPORT.exec(lines[i])
-    if (exported) {
-      currentTable = exported[1]
-      continue
-    }
-    if (!currentTable) continue
-    if (lines[i].includes(MARKER)) {
-      const markerText = `${lines[i]}\n${lines[i + 1] ?? ''}`
-      if (/\bdrop\b/i.test(markerText)) pending.add(currentTable)
-    }
-    if (DOOMED_TAG.test(lines[i])) {
-      const declaration = COLUMN_DECLARATION.exec(lines[i + 1] ?? '')
-      if (declaration) {
-        const doomed = doomedByTable.get(currentTable) ?? new Set<string>()
-        doomed.add(declaration[1])
-        doomedByTable.set(currentTable, doomed)
+  const { program, comments } = parseSource(SCHEMA_PATH, readFileSync(SCHEMA_PATH, 'utf8'))
+  const pending = new Map<string, Set<string>>()
+
+  const visit = (node: SyntaxNode) => {
+    if (node.type === 'VariableDeclarator') {
+      const init = unwrap(node.init)
+      const bound = propertyName(node.id)
+      if (bound && init?.type === 'CallExpression' && identifierName(init.callee) === 'pgTable') {
+        const columns = unwrap(Array.isArray(init.arguments) ? init.arguments[1] : undefined)
+        if (columns?.type === 'ObjectExpression') {
+          const within = comments.filter(
+            (comment) =>
+              (comment.start ?? -1) >= (init.start ?? 0) && (comment.end ?? -1) <= (init.end ?? 0)
+          )
+          const declaresDrop = groupCommentText(within).some(
+            (text) => text.includes(MARKER) && /\bdrop\b/i.test(text)
+          )
+          if (declaresDrop) pending.set(bound, readDoomedColumns(columns))
+        }
       }
     }
+    for (const child of getChildNodes(node)) visit(child)
   }
-  const result = new Map<string, Set<string>>()
-  for (const table of pending) result.set(table, doomedByTable.get(table) ?? new Set())
-  return result
+  visit(program)
+  return pending
 }
 
 function identifierName(node: unknown): string | null {
@@ -345,17 +433,7 @@ function auditFile(
   const violations: Violation[] = []
   let program: SyntaxNode
   try {
-    const syntaxTree = parse(source, {
-      sourceFilename: file,
-      sourceType: 'unambiguous',
-      errorRecovery: true,
-      plugins: [
-        ...(extname(file) === '.tsx' ? (['jsx'] as const) : []),
-        'typescript',
-        'decorators',
-      ],
-    })
-    program = syntaxTree.program as unknown as SyntaxNode
+    program = parseSource(file, source).program
   } catch (error) {
     violations.push({
       file,

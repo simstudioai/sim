@@ -55,6 +55,8 @@ const workflowExecutionLogsMock = {
   totalDurationMs: 'workflowExecutionLogs.totalDurationMs',
   executionData: 'workflowExecutionLogs.executionData',
   cost: 'workflowExecutionLogs.cost',
+  costTotal: 'workflowExecutionLogs.costTotal',
+  modelsUsed: 'workflowExecutionLogs.modelsUsed',
   files: 'workflowExecutionLogs.files',
   createdAt: 'workflowExecutionLogs.createdAt',
 }
@@ -90,6 +92,7 @@ const userStatsMock = {
   lastActive: 'userStats.lastActive',
   billingBlocked: 'userStats.billingBlocked',
   billingBlockedReason: 'userStats.billingBlockedReason',
+  limitNotifications: 'userStats.limitNotifications',
 }
 
 const organizationMock = {
@@ -102,6 +105,10 @@ const organizationMock = {
   orgUsageLimit: 'organization.orgUsageLimit',
   storageUsedBytes: 'organization.storageUsedBytes',
   departedMemberUsage: 'organization.departedMemberUsage',
+  sessionPolicySettings: 'organization.sessionPolicySettings',
+  securityPolicyVersion: 'organization.securityPolicyVersion',
+  dataRetentionSettings: 'organization.dataRetentionSettings',
+  limitNotifications: 'organization.limitNotifications',
   creditBalance: 'organization.creditBalance',
   createdAt: 'organization.createdAt',
   updatedAt: 'organization.updatedAt',
