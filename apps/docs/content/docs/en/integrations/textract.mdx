@@ -39,7 +39,6 @@ Integrate AWS Textract into your workflow to extract text, tables, forms, and ke
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `file` | file | No | Document to be processed \(JPEG, PNG, or single-page PDF\). |
 
 #### Output
 
@@ -90,7 +89,6 @@ Extract structured invoice and receipt fields using AWS Textract AnalyzeExpense
 | `secretAccessKey` | string | Yes | AWS Secret Access Key |
 | `region` | string | Yes | AWS region for Textract service \(e.g., us-east-1\) |
 | `processingMode` | string | No | Document type: single-page or multi-page. Defaults to single-page. |
-| `file` | file | No | Invoice or receipt to be processed \(JPEG, PNG, or single-page PDF\). |
 | `filePath` | string | No | URL to an invoice or receipt to be processed, if not uploaded directly. |
 | `s3Uri` | string | No | S3 URI for multi-page processing \(s3://bucket/key\). |
 
@@ -120,10 +118,7 @@ Extract identity document fields using AWS Textract AnalyzeID
 | `accessKeyId` | string | Yes | AWS Access Key ID |
 | `secretAccessKey` | string | Yes | AWS Secret Access Key |
 | `region` | string | Yes | AWS region for Textract service \(e.g., us-east-1\) |
-| `file` | file | No | Front of the identity document \(JPEG, PNG, or PDF\). |
 | `filePath` | string | No | URL to the front of the identity document, if not uploaded directly. |
-| `fileBack` | file | No | Back of the identity document, if applicable \(JPEG, PNG, or PDF\). |
-| `filePathBack` | string | No | URL to the back of the identity document, if not uploaded directly. |
 
 #### Output
 

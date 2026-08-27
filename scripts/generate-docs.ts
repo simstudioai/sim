@@ -200,6 +200,8 @@ interface BlockConfig {
     access?: string[]
   }
   operations?: OperationInfo[]
+  /** Param names the block exposes to the user via its own `subBlocks` (id or `canonicalParamId`). */
+  userSettableParamIds?: string[]
   docsLink?: string
   [key: string]: any
 }
@@ -647,6 +649,93 @@ ${mappingEntries}
 }
 
 /**
+ * Raised when a block's `subBlocks` array is present but cannot be read. Distinguishes
+ * a parse failure from a block that genuinely exposes no fields — both used to surface
+ * as an empty array, and the empty array silently strips documented rows.
+ */
+class SubBlockParseError extends Error {
+  override name = 'SubBlockParseError'
+}
+
+const subBlockParseFailures: string[] = []
+
+/**
+ * Collects the param names a block exposes to the user through its own `subBlocks`.
+ *
+ * A subBlock's `id` is the param it writes, unless it declares `canonicalParamId`,
+ * which is how a differently-named field maps onto a tool param. A tool param marked
+ * `visibility: 'hidden'` is not an LLM-settable tool argument, but when the block
+ * declares a matching field the value is still typed by the user (e.g. Mailchimp's
+ * `apiKey`) and must stay documented. Params with no matching field are genuinely
+ * server-derived (Jira's `cloudId`, Salesforce's `idToken`) and stay filtered out.
+ *
+ * Brace matching runs on a blanked copy so braces inside string literals and comments
+ * cannot skew it; only depth-1 properties of each subBlock are read, so `id` fields on
+ * nested `options`/`condition` objects are never mistaken for the subBlock's own id.
+ */
+export function extractUserSettableParamIds(blockContent: string, blockName = 'block'): string[] {
+  const scannable = blankStringsAndComments(blockContent)
+  const subBlocksMatch = /subBlocks\s*:\s*\[/.exec(scannable)
+  if (!subBlocksMatch) return []
+
+  const arrayStart = subBlocksMatch.index + subBlocksMatch[0].length - 1
+  const arrayEnd = findMatchingClose(scannable, arrayStart, '[', ']')
+  if (arrayEnd === -1) {
+    throw new SubBlockParseError(
+      `${blockName}: found a subBlocks array but could not locate its closing bracket`
+    )
+  }
+
+  const ids = new Set<string>()
+  let i = arrayStart + 1
+  while (i < arrayEnd - 1) {
+    if (scannable[i] !== '{') {
+      i++
+      continue
+    }
+
+    const objectEnd = findMatchingClose(scannable, i)
+    if (objectEnd === -1) break
+
+    let depth = 0
+    let topLevel = ''
+    for (let k = i; k < objectEnd; k++) {
+      const char = scannable[k]
+      if (char === '{' || char === '[') {
+        depth++
+        continue
+      }
+      if (char === '}' || char === ']') {
+        depth--
+        continue
+      }
+      if (depth === 1) topLevel += blockContent[k]
+    }
+
+    const idMatch = /\bid\s*:\s*['"]([^'"]+)['"]/.exec(topLevel)
+    if (idMatch) ids.add(idMatch[1])
+    const canonicalMatch = /\bcanonicalParamId\s*:\s*['"]([^'"]+)['"]/.exec(topLevel)
+    if (canonicalMatch) ids.add(canonicalMatch[1])
+
+    i = objectEnd
+  }
+
+  /**
+   * Zero ids is a legitimate answer only for a block whose array is nothing but
+   * `...getTrigger(...).subBlocks` spreads. If the array holds an object literal and
+   * still yields nothing, the scan failed — and the caller's fallback (strip every
+   * hidden param from the page) is the destructive one, so fail instead of guessing.
+   */
+  if (ids.size === 0 && scannable.slice(arrayStart, arrayEnd).includes('{')) {
+    throw new SubBlockParseError(
+      `${blockName}: subBlocks array holds object literals but no id was extracted`
+    )
+  }
+
+  return [...ids]
+}
+
+/**
  * Extract operation options from the subBlock with id: 'operation' (if present).
  * Returns { label, id } pairs — label is the display name, id is the option's id field
  * (used to construct the tool ID as `{blockType}_{id}`).
@@ -820,7 +909,17 @@ function extractAuthType(blockContent: string): 'oauth' | 'api-key' | 'none' {
 function blankStringsAndComments(content: string): string {
   return content.replace(
     /(['"`])(?:\\[\s\S]|(?!\1)[^\\])*\1|\/\/[^\n]*|\/\*[\s\S]*?\*\//g,
-    (match) => match[0] + match.slice(1, -1).replace(/[^\n]/g, ' ') + match[match.length - 1]
+    (match: string, quote: string | undefined) => {
+      const blanked = match.replace(/[^\n]/g, ' ')
+      /**
+       * A comment has no delimiters worth preserving, so it is blanked whole. Keeping
+       * its final character would leak arbitrary source text — commented-out code ending
+       * in `[` or `{` leaves an unbalanced bracket that derails every scan downstream.
+       * A quoted string keeps its own quotes so callers can still see where it began.
+       */
+      if (quote === undefined) return blanked
+      return quote + blanked.slice(1, -1) + quote
+    }
   )
 }
 
@@ -1334,6 +1433,21 @@ function extractBlockConfigFromContent(
 
     const operations = extractOperationsFromContent(blockContent)
     const triggerIds = extractTriggersAvailable(blockContent, fileContent)
+    let ownSettableParamIds: string[] = []
+    try {
+      ownSettableParamIds = extractUserSettableParamIds(blockContent, blockName)
+    } catch (error) {
+      /**
+       * Recorded rather than rethrown so one unreadable block cannot drop itself from the
+       * docs entirely. `generateAllBlockDocs` fails the run on any recorded failure.
+       */
+      if (!(error instanceof SubBlockParseError)) throw error
+      subBlockParseFailures.push(error.message)
+      console.error(`✗ ${error.message}`)
+    }
+    const userSettableParamIds = [
+      ...new Set([...ownSettableParamIds, ...((baseConfig as any)?.userSettableParamIds ?? [])]),
+    ]
     const docsLink =
       extractStringPropertyFromContent(blockContent, 'docsLink', true) ||
       baseConfig?.docsLink ||
@@ -1365,6 +1479,7 @@ function extractBlockConfigFromContent(
         access: finalToolsAccess.length > 0 ? finalToolsAccess : baseConfig?.tools?.access || [],
       },
       operations: operations.length > 0 ? operations : (baseConfig as any)?.operations || [],
+      userSettableParamIds,
       triggerIds: triggerIds.length > 0 ? triggerIds : (baseConfig as any)?.triggerIds || [],
       docsLink,
       ...(integrationType ? { integrationType } : {}),
@@ -2169,7 +2284,8 @@ function extractToolInfo(
   fileContent: string,
   factorySource = '',
   toolFilePath = '',
-  rootDir = ''
+  rootDir = '',
+  userSettableParamIdSet: ReadonlySet<string> = new Set()
 ): {
   description: string
   params: Array<{ name: string; type: string; required: boolean; description: string }>
@@ -2326,6 +2442,22 @@ function extractToolInfo(
         const paramBlock = param.content
 
         if (paramName === 'accessToken' || paramName === 'params' || paramName === 'tools') {
+          continue
+        }
+
+        /**
+         * `visibility: 'hidden'` means the param is not an LLM-settable tool argument, so
+         * it must not appear in the public Input table — emitting it tells integrators they
+         * can override a value they cannot reach, and several such params are credential-
+         * shaped (idToken, instanceUrl, apiToken). The exception is a param the owning block
+         * still exposes as a field the user types: Mailchimp's `apiKey` is hidden on every
+         * tool because the block injects it, yet the block's own `apiKey` subBlock is the
+         * only place the requirement is documented. Keep those; drop the rest.
+         */
+        if (
+          /visibility\s*:\s*['"]hidden['"]/.test(paramBlock) &&
+          !userSettableParamIdSet.has(paramName)
+        ) {
           continue
         }
 
@@ -2930,11 +3062,16 @@ export function parsePropertiesContent(
   return properties
 }
 
-async function getToolInfo(toolName: string): Promise<{
+export async function getToolInfo(
+  toolName: string,
+  userSettableParamIds: readonly string[] = []
+): Promise<{
   description: string
   params: Array<{ name: string; type: string; required: boolean; description: string }>
   outputs: Record<string, any>
 } | null> {
+  const userSettableParamIdSet = new Set(userSettableParamIds)
+
   try {
     const parts = toolName.split('_')
 
@@ -3064,7 +3201,8 @@ async function getToolInfo(toolName: string): Promise<{
       toolFileContent,
       resolveFactorySource(toolFileContent, foundFile, rootDir),
       foundFile,
-      rootDir
+      rootDir,
+      userSettableParamIdSet
     )
   } catch (error) {
     console.error(`Error getting info for tool ${toolName}:`, error)
@@ -3219,6 +3357,7 @@ async function generateMarkdownForBlock(
     bgColor,
     outputs = {},
     tools = { access: [] },
+    userSettableParamIds = [],
   } = blockConfig
 
   let outputsSection = ''
@@ -3281,7 +3420,7 @@ async function generateMarkdownForBlock(
       toolsSection += `### ${heading ?? stripVersionSuffix(tool)}\n\n`
 
       console.log(`Getting info for tool: ${tool}`)
-      const toolInfo = await getToolInfo(tool)
+      const toolInfo = await getToolInfo(tool, userSettableParamIds)
 
       if (toolInfo) {
         if (toolInfo.description && toolInfo.description !== 'No description available') {
@@ -4038,6 +4177,15 @@ async function generateAllBlockDocs() {
 
     // Write the integrations meta after both passes so trigger-only pages are included
     updateMetaJson()
+
+    if (subBlockParseFailures.length > 0) {
+      console.error(
+        `Could not read the subBlocks array of ${subBlockParseFailures.length} block(s):\n- ${[
+          ...new Set(subBlockParseFailures),
+        ].join('\n- ')}`
+      )
+      return false
+    }
 
     return true
   } catch (error) {
