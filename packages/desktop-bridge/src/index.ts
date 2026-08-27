@@ -1045,6 +1045,8 @@ export interface SimDesktopApi {
   /** Installed shell version (plain semver, e.g. `0.3.1`). */
   version: string
   openExternal(url: string): Promise<boolean>
+  /** Opens the operating system's microphone privacy settings when supported. */
+  openMicrophoneSettings?(): Promise<boolean>
   /**
    * Start the OAuth connect handoff for a provider: the whole flow runs in
    * the system browser and returns via loopback. Resolves false when the

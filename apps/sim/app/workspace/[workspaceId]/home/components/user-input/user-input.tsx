@@ -15,7 +15,7 @@ import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
 import { getMothershipAttachmentPreviewUrl } from '@/lib/copilot/chat/attachment-preview'
 import { SIM_RESOURCE_DRAG_TYPE, SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
-import { isDesktopApp } from '@/lib/desktop'
+import { getDesktopBridge } from '@/lib/desktop'
 import { MOTHERSHIP_ADD_CONTEXT_EVENT } from '@/lib/mothership/events'
 import { MOTHERSHIP_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
@@ -301,10 +301,19 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
 
   function handleSpeechError(error: SpeechToTextError) {
     if (error === 'microphone-blocked') {
+      const desktopBridge = getDesktopBridge()
       toast.error(
-        isDesktopApp()
+        desktopBridge
           ? 'Microphone access is blocked. Allow Sim to use the microphone in your system privacy settings.'
-          : 'Microphone access is blocked. Allow it for this site and try again.'
+          : 'Microphone access is blocked. Allow it for this site and try again.',
+        desktopBridge?.openMicrophoneSettings
+          ? {
+              action: {
+                label: 'Open Settings',
+                onClick: () => void desktopBridge.openMicrophoneSettings?.(),
+              },
+            }
+          : undefined
       )
       return
     }
@@ -316,6 +325,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
   }
 
   const {
+    audioLevelsRef,
     isListening,
     isSupported: isSttSupported,
     toggleListening: rawToggle,
@@ -635,7 +645,13 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
           </Tooltip.Root>
         </div>
         <div className='flex items-center gap-1.5'>
-          {isSttSupported && <MicButton isListening={isListening} onToggle={toggleListening} />}
+          {isSttSupported && (
+            <MicButton
+              audioLevelsRef={audioLevelsRef}
+              isListening={isListening}
+              onToggle={toggleListening}
+            />
+          )}
           <SendButton
             isSending={isSending}
             canSubmit={canSubmit}
