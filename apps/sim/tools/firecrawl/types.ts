@@ -135,29 +135,33 @@ export const SEARCH_RESULT_OUTPUT_PROPERTIES = {
   url: { type: 'string', description: 'URL of the search result' },
   markdown: {
     type: 'string',
-    description: 'Page content in markdown (when scrapeOptions.formats includes "markdown")',
+    description:
+      'Page content in markdown, present only when the search result includes scraped page content',
     optional: true,
   },
   html: {
     type: 'string',
-    description: 'Processed HTML content (when scrapeOptions.formats includes "html")',
+    description:
+      'Processed HTML content, present only when the search result includes scraped page content',
     optional: true,
   },
   rawHtml: {
     type: 'string',
-    description: 'Unprocessed raw HTML (when scrapeOptions.formats includes "rawHtml")',
+    description:
+      'Unprocessed raw HTML, present only when the search result includes scraped page content',
     optional: true,
   },
   links: {
     type: 'array',
-    description: 'Links found on the page (when scrapeOptions.formats includes "links")',
+    description:
+      'Links found on the page, present only when the search result includes scraped page content',
     optional: true,
     items: { type: 'string', description: 'URL found on the page' },
   },
   screenshot: {
     type: 'string',
     description:
-      'Screenshot URL (expires after 24 hours, when scrapeOptions.formats includes "screenshot")',
+      'Screenshot URL (expires after 24 hours), present only when the search result includes a page screenshot',
     optional: true,
   },
   metadata: SEARCH_METADATA_OUTPUT,

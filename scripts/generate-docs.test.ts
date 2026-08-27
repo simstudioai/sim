@@ -154,6 +154,24 @@ describe('subBlock param extraction', () => {
     }
   })
 
+  it('ignores an id inside a comment or string literal at the top level of a subBlock', () => {
+    expect(
+      extractUserSettableParamIds(`subBlocks: [\n  { // id: 'ghost',\n    id: 'real' },\n],`)
+    ).toEqual(['real'])
+
+    expect(
+      extractUserSettableParamIds(
+        `subBlocks: [\n  { placeholder: "id: 'ghost'",\n    id: 'real' },\n],`
+      )
+    ).toEqual(['real'])
+
+    expect(
+      extractUserSettableParamIds(
+        `subBlocks: [\n  { placeholder: "canonicalParamId: 'ghost'",\n    id: 'real',\n    canonicalParamId: 'canonical' },\n],`
+      )
+    ).toEqual(['real', 'canonical'])
+  })
+
   it('throws when the subBlocks array holds literal objects but yields no ids', () => {
     expect(() =>
       extractUserSettableParamIds(`subBlocks: [\n  { title: 'No id here' },\n],`)

@@ -702,6 +702,7 @@ export function extractUserSettableParamIds(blockContent: string, blockName = 'b
 
     let depth = 0
     let topLevel = ''
+    const sourceIndices: number[] = []
     for (let k = i; k < objectEnd; k++) {
       const char = scannable[k]
       if (char === '{' || char === '[') {
@@ -712,13 +713,31 @@ export function extractUserSettableParamIds(blockContent: string, blockName = 'b
         depth--
         continue
       }
-      if (depth === 1) topLevel += blockContent[k]
+      if (depth === 1) {
+        topLevel += char
+        sourceIndices.push(k)
+      }
+    }
+
+    /**
+     * Matching runs on the blanked characters, so an `id:` sitting inside a string value or a
+     * `//` comment cannot be mistaken for the subBlock's own id. Blanking keeps a string's
+     * quotes and its length, so the matched literal's value is read back character by character
+     * from the original content at the indices the blanked copy matched at.
+     */
+    const readLiteral = (match: RegExpExecArray): string => {
+      const valueStart = match.index + match[0].length - 1 - match[1].length
+      let value = ''
+      for (let offset = 0; offset < match[1].length; offset++) {
+        value += blockContent[sourceIndices[valueStart + offset]]
+      }
+      return value
     }
 
     const idMatch = /\bid\s*:\s*['"]([^'"]+)['"]/.exec(topLevel)
-    if (idMatch) ids.add(idMatch[1])
+    if (idMatch) ids.add(readLiteral(idMatch))
     const canonicalMatch = /\bcanonicalParamId\s*:\s*['"]([^'"]+)['"]/.exec(topLevel)
-    if (canonicalMatch) ids.add(canonicalMatch[1])
+    if (canonicalMatch) ids.add(readLiteral(canonicalMatch))
 
     i = objectEnd
   }
