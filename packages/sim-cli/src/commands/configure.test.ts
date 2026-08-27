@@ -232,10 +232,38 @@ describe('configure and the root globals', () => {
     )
   })
 
-  /** The profile name is caller-supplied, so it is redacted like the value. */
+  /**
+   * The profile name is caller-supplied, so it is redacted like the value —
+   * and redaction turns the separator into a space, which the suggestion then
+   * has to quote to stay one argument.
+   */
   it('redacts a control character out of the profile it suggests', async () => {
     await expect(run('-P', 'dev\u2028sim login', '--output', 'json')).rejects.toThrow(
-      'sim configure --profile dev sim login --set-output json'
+      "sim configure --profile 'dev sim login' --set-output json"
+    )
+  })
+
+  /**
+   * Profile-name validation is creation-only by design, so a hand-written
+   * `[profile my stack]` keeps resolving and reaches this suggestion. Unquoted,
+   * a name carrying a `;` would end the pasted command and start another.
+   */
+  it('quotes a profile name a pasted command would otherwise split', async () => {
+    await expect(run('-P', 'my stack', '--output', 'json')).rejects.toThrow(
+      "sim configure --profile 'my stack' --set-output json"
+    )
+    await expect(run('-P', 'a;rm -rf x', '--output', 'json')).rejects.toThrow(
+      "sim configure --profile 'a;rm -rf x' --set-output json"
+    )
+    await expect(run('-P', "it's mine", '--output', 'json')).rejects.toThrow(
+      "sim configure --profile 'it'\\''s mine' --set-output json"
+    )
+  })
+
+  /** A name that already satisfies the creation rule needs no quoting noise. */
+  it('leaves an ordinary profile name bare', async () => {
+    await expect(run('-P', 'dev.2_a-b', '--output', 'json')).rejects.toThrow(
+      'sim configure --profile dev.2_a-b --set-output json'
     )
   })
 
