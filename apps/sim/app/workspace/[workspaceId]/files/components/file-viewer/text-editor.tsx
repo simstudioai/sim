@@ -620,6 +620,7 @@ export const TextEditor = memo(function TextEditor({
       pastedText,
       currentText,
       selections: selectionOffsets,
+      multiCursorPaste: editor?.getRawOptions().multiCursorPaste ?? 'spread',
     })
     if (admission.accepted) return
 

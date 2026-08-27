@@ -43,4 +43,37 @@ describe('assessTextEditorPaste', () => {
       )
     ).toMatchObject({ accepted: false, reason: 'result-bytes', limit: 10 })
   })
+
+  it('projects one matching clipboard line per cursor in Monaco spread mode', () => {
+    expect(
+      assessTextEditorPaste(
+        {
+          pastedText: 'x\ny\n',
+          currentText: '12345678',
+          selections: [
+            { start: 2, end: 2 },
+            { start: 6, end: 6 },
+          ],
+        },
+        10
+      )
+    ).toMatchObject({ accepted: true, resultBytes: 10 })
+  })
+
+  it('projects the full clipboard at every cursor when Monaco spread mode is disabled', () => {
+    expect(
+      assessTextEditorPaste(
+        {
+          pastedText: 'x\ny',
+          currentText: '123456',
+          selections: [
+            { start: 2, end: 2 },
+            { start: 4, end: 4 },
+          ],
+          multiCursorPaste: 'full',
+        },
+        10
+      )
+    ).toMatchObject({ accepted: false, reason: 'result-bytes', limit: 10 })
+  })
 })

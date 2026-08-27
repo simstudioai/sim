@@ -14,6 +14,7 @@ interface TextEditorPasteInput {
   pastedText: string
   currentText: string
   selections: readonly TextEditorPasteSelection[]
+  multiCursorPaste?: 'spread' | 'full'
 }
 
 function normalizedSelections(
@@ -45,6 +46,30 @@ function mergedReplacementRanges(
   return ranges
 }
 
+function distributedPasteRanges(
+  text: string,
+  selectionCount: number
+): TextEditorPasteSelection[] | null {
+  if (selectionCount <= 1) return null
+
+  let textEnd = text.length
+  if (text.charCodeAt(textEnd - 1) === 10) textEnd -= 1
+  if (text.charCodeAt(textEnd - 1) === 13) textEnd -= 1
+
+  const ranges: TextEditorPasteSelection[] = []
+  let lineStart = 0
+  for (let index = 0; index < textEnd; index++) {
+    const code = text.charCodeAt(index)
+    if (code !== 10 && code !== 13) continue
+    ranges.push({ start: lineStart, end: index })
+    if (ranges.length >= selectionCount) return null
+    if (code === 13 && text.charCodeAt(index + 1) === 10) index += 1
+    lineStart = index + 1
+  }
+  ranges.push({ start: lineStart, end: textEnd })
+  return ranges.length === selectionCount ? ranges : null
+}
+
 /** Applies the workspace-file content contract to every selection in a projected Monaco paste. */
 export function assessTextEditorPaste(
   input: TextEditorPasteInput,
@@ -52,12 +77,27 @@ export function assessTextEditorPaste(
 ): TextPasteAdmission {
   const selections = normalizedSelections(input.selections, input.currentText.length)
   const replacementRanges = mergedReplacementRanges(selections)
+  const distributedRanges =
+    (input.multiCursorPaste ?? 'spread') === 'spread'
+      ? distributedPasteRanges(input.pastedText, selections.length)
+      : null
   const replacedCharacters = replacementRanges.reduce(
     (total, selection) => total + selection.end - selection.start,
     0
   )
-  const resultCharacters =
-    input.currentText.length - replacedCharacters + input.pastedText.length * selections.length
+  const insertedCharacters = distributedRanges
+    ? distributedRanges.reduce((total, range) => total + range.end - range.start, 0)
+    : input.pastedText.length * selections.length
+  const resultCharacters = input.currentText.length - replacedCharacters + insertedCharacters
+
+  if (input.pastedText.length > maxBytes) {
+    return {
+      accepted: false,
+      reason: 'pasted-bytes',
+      actual: input.pastedText.length,
+      limit: maxBytes,
+    }
+  }
 
   if (resultCharacters <= Math.floor(maxBytes / 3)) {
     return { accepted: true, resultCharacters }
@@ -68,7 +108,13 @@ export function assessTextEditorPaste(
     return { accepted: false, reason: 'pasted-bytes', actual: pastedBytes, limit: maxBytes }
   }
 
-  const insertedBytes = pastedBytes * selections.length
+  const insertedBytes = distributedRanges
+    ? distributedRanges.reduce(
+        (total, range) =>
+          total + utf8ByteLengthRange(input.pastedText, range.start, range.end, maxBytes - total),
+        0
+      )
+    : pastedBytes * selections.length
   if (insertedBytes > maxBytes) {
     return { accepted: false, reason: 'result-bytes', actual: insertedBytes, limit: maxBytes }
   }
