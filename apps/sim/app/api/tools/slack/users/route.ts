@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { slackUsersListOrDetailContract } from '@/lib/api/contracts/selectors/slack'
 import { parseRequest } from '@/lib/api/server'
@@ -29,6 +30,9 @@ interface SlackUsersResult {
 }
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
+  let providerRequestStarted = false
+  let reauthorizationAvailable = false
+
   try {
     const requestId = generateRequestId()
     const authentication = await authenticateSelectorRequest(request)
@@ -64,7 +68,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         { status: resolvedCredential.status }
       )
     }
-    const { accessToken, isBotToken } = resolvedCredential
+    const { accessToken, isBotToken, credentialAccess } = resolvedCredential
+    reauthorizationAvailable = credentialAccess !== undefined
+    providerRequestStarted = true
 
     if (userId) {
       const userData = await fetchSlackUser(accessToken, userId)
@@ -95,7 +101,17 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       tokenType: isBotToken ? 'bot_token' : 'oauth',
     })
     return NextResponse.json({ users })
-  } catch {
+  } catch (error) {
+    if (providerRequestStarted && getErrorMessage(error) === 'invalid_auth') {
+      logger.warn('Slack rejected selector authentication')
+      return NextResponse.json(
+        {
+          error: 'Slack authentication failed',
+          ...(reauthorizationAvailable ? { authRequired: true } : {}),
+        },
+        { status: 401 }
+      )
+    }
     logger.error('Error processing Slack users request')
     return NextResponse.json({ error: 'Failed to retrieve Slack users' }, { status: 500 })
   }

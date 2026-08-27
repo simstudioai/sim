@@ -218,4 +218,38 @@ describe('server-resolved Slack selectors', () => {
       users: [{ id: 'U111', name: 'bill', real_name: 'Bill' }],
     })
   })
+
+  it.each([
+    [
+      'stored credential',
+      {
+        ok: true,
+        accessToken: 'xoxb-stored',
+        isBotToken: false,
+        credentialAccess: { credentialType: 'oauth' },
+      },
+      { error: 'Slack authentication failed', authRequired: true },
+    ],
+    [
+      'direct token',
+      { ok: true, accessToken: 'xoxb-direct', isBotToken: true },
+      { error: 'Slack authentication failed' },
+    ],
+  ])('sanitizes invalid_auth for a %s', async (_name, credentialResult, expectedBody) => {
+    mocks.resolveSlackCredential.mockResolvedValue(credentialResult)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(Response.json({ ok: false, error: 'invalid_auth' }))
+    )
+
+    const response = await listUsers(
+      request('/api/tools/slack/users', {
+        credential: 'credential-or-token',
+        workflowId: 'workflow-1',
+      })
+    )
+
+    expect(response.status).toBe(401)
+    expect(await response.json()).toEqual(expectedBody)
+  })
 })
