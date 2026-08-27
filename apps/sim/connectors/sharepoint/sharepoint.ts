@@ -425,9 +425,9 @@ async function listChildFolders(
 
   for (let page = 0; page < MAX_CHILD_PAGES_PER_SEGMENT; page++) {
     const response = await graphGet(url, accessToken, retryOptions)
-    if (response.status === 404) break
     if (!response.ok) {
-      throw new Error(`Failed to list folder contents: ${response.status}`)
+      const errorText = await readBoundedHttpErrorBody(response)
+      throw new Error(`Failed to list folder contents: ${response.status} – ${errorText}`)
     }
 
     const rawData: unknown = await response.json()
@@ -455,11 +455,16 @@ async function listChildFolders(
       rawData['@odata.nextLink'] === undefined
         ? undefined
         : assertMicrosoftGraphNextLink(rawData['@odata.nextLink'])
-    if (!nextLink) break
+    if (!nextLink) return folders
+    if (page === MAX_CHILD_PAGES_PER_SEGMENT - 1) {
+      throw new Error(
+        `SharePoint folder listing exceeded the ${MAX_CHILD_PAGES_PER_SEGMENT}-page safety limit`
+      )
+    }
     url = nextLink
   }
 
-  return folders
+  throw new Error('SharePoint folder listing ended unexpectedly')
 }
 
 /**
@@ -668,15 +673,25 @@ async function listSiteDrives(
 
   for (let page = 0; page < MAX_DRIVE_PAGES; page++) {
     const response = await graphGet(url, accessToken, retryOptions)
-    if (!response.ok) break
+    if (!response.ok) {
+      const errorText = await readBoundedHttpErrorBody(response)
+      throw new Error(
+        `Failed to list SharePoint document libraries: ${response.status} – ${errorText}`
+      )
+    }
     const data = parseDriveListResponse(await response.json())
     drives.push(...data.value)
     const nextLink = data['@odata.nextLink']
-    if (!nextLink) break
+    if (!nextLink) return drives
+    if (page === MAX_DRIVE_PAGES - 1) {
+      throw new Error(
+        `SharePoint document-library listing exceeded the ${MAX_DRIVE_PAGES}-page safety limit`
+      )
+    }
     url = nextLink
   }
 
-  return drives
+  throw new Error('SharePoint document-library listing ended unexpectedly')
 }
 
 /**

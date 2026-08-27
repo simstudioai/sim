@@ -113,7 +113,15 @@ test.describe('desktop shell smoke', () => {
     await expect(window.locator('.wordmark')).toBeVisible()
     await expect(window.locator('.wordmark')).toHaveAttribute('aria-label', 'Sim')
     await expect(window.locator('#title')).toHaveText('Can’t connect to Sim')
-    await expect(window.locator('#status')).toHaveText('Check status')
+    // The recovery path for a self-hosted shell pointed at a server it cannot
+    // reach. Exercised end to end here because it is the only coverage of the
+    // `server:` local-page IPC gate: the bundled page reads the configuration
+    // over the real preload bridge, and status.sim.ai is withheld because this
+    // origin is not one of Sim's own. `toBeHidden` is load-bearing — the page's
+    // own `button { display: inline-flex }` outranks the UA `[hidden]` rule, so
+    // the attribute alone does not hide it.
+    await expect(window.locator('#server')).toBeVisible()
+    await expect(window.locator('#status')).toBeHidden()
     await expect
       .poll(() => window.evaluate(() => document.fonts.check('16px "Season Sans"')))
       .toBe(true)

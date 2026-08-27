@@ -10,6 +10,7 @@ import {
   NAVBAR_GLASS_SURFACE,
   useNavbarFrost,
 } from '@/app/(landing)/components/navbar/components/navbar-shell'
+import colorMixFallbacks from '@/app/(landing)/components/shared/color-mix-fallbacks/color-mix-fallbacks.module.css'
 import { DEMO_HREF, SIGNUP_HREF } from '@/app/(landing)/constants'
 
 /**
@@ -92,7 +93,10 @@ export function MobileNav({ stars }: MobileNavProps) {
           aria-hidden='true'
           tabIndex={-1}
           onClick={() => setOpen(false)}
-          className='fixed inset-0 top-full z-40 cursor-default bg-[color-mix(in_srgb,var(--text-primary)_8%,transparent)]'
+          className={cn(
+            'fixed inset-0 top-full z-40 cursor-default',
+            colorMixFallbacks.mobileBackdrop
+          )}
         />
       ) : null}
 

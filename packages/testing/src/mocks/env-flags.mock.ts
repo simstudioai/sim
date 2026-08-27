@@ -12,8 +12,6 @@ export interface EnvFlagsMockState {
   isDev: boolean
   isTest: boolean
   isHosted: boolean
-  isCopilotBillingAttributionV1Enabled: boolean
-  isCopilotBillingProtocolRequired: boolean
   isChatEnabled: boolean
   isStatusNoticePreviewEnabled: boolean
   isCopilotToolPermissionsEnabled: boolean
@@ -62,8 +60,6 @@ const defaultEnvFlagsState: EnvFlagsMockState = {
   isDev: false,
   isTest: true,
   isHosted: false,
-  isCopilotBillingAttributionV1Enabled: false,
-  isCopilotBillingProtocolRequired: false,
   isChatEnabled: true,
   isStatusNoticePreviewEnabled: false,
   isCopilotToolPermissionsEnabled: false,

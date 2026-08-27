@@ -4,6 +4,7 @@ import { clientFrom } from '../context'
 import type { CommandSpec } from '../contract/types'
 import { type SetSecretResponse, V2_OPERATIONS } from '../generated/v2-api'
 import { resolvePath, SimApiError } from '../http/client'
+import { describeOperation } from '../runtime/build'
 import { readArgumentSource } from '../runtime/request'
 import { renderResult } from '../runtime/result'
 import { promptSecret, SecretInputCancelledError } from '../terminal/secret-input'
@@ -160,7 +161,7 @@ export function attachSecretCommands(program: Command): void {
   secrets
     .command('set')
     .argument('<name>', 'Secret name, as referenced in workflows')
-    .description('Create or replace a named secret')
+    .description(describeOperation(V2_OPERATIONS.setSecret, 'Create or replace a named secret'))
     .addOption(
       new Option('--scope <scope>', 'Secret ownership scope (required)')
         .choices([...SECRET_SCOPES])

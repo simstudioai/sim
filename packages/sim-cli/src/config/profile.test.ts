@@ -6,9 +6,11 @@ import { configPath, credentialsPath } from './paths'
 import {
   DEFAULT_ENDPOINT,
   deleteProfile,
+  FORBIDDEN_IN_VALUE,
   listAuthenticationDependents,
   listProfiles,
   OUTPUT_FORMATS,
+  ProfileOverrideError,
   resolveAuthenticationProfileName,
   resolveProfile,
   validateProfileName,
@@ -499,5 +501,137 @@ describe('config file injection', () => {
 
     expect(listProfiles()).not.toContain('phantom')
     expect(() => resolveProfile({ profile: 'phantom' })).toThrow(/Unknown profile/)
+  })
+})
+
+/**
+ * A flag the user typed is not the same as one they left off, and `resolve`
+ * cannot tell the two apart once a blank has reached it: it treats the empty
+ * string as "not supplied", which is right for an environment variable and
+ * wrong for `sim --workspace "" …`, which ran against the profile's stored
+ * workspace instead of refusing.
+ */
+describe('blank root flags', () => {
+  it('refuses a blank --workspace instead of falling back to the profile', () => {
+    writeConfigProfile('default', { workspace: 'ws_stored' })
+
+    expect(() => resolveProfile({ workspaceId: '' })).toThrow(/--workspace requires a value/)
+    expect(() => resolveProfile({ workspaceId: '   ' })).toThrow(/--workspace requires a value/)
+  })
+
+  it('refuses a blank --endpoint and a blank --profile the same way', () => {
+    writeConfigProfile('default', { endpoint: 'https://stored.example' })
+
+    expect(() => resolveProfile({ endpoint: '' })).toThrow(/--endpoint requires a value/)
+    expect(() => resolveProfile({ profile: '' })).toThrow(/--profile requires a value/)
+  })
+
+  /**
+   * `profiles` tolerates a profile that will not resolve, so the refusal has to
+   * be tellable apart from a broken profile by something the wording cannot
+   * break — otherwise a blank flag is absorbed and the listing exits 0.
+   */
+  it('raises the refusal as its own error class', () => {
+    expect(() => resolveProfile({ workspaceId: '' })).toThrow(ProfileOverrideError)
+    expect(() => resolveProfile({ profile: 'unknown' })).not.toThrow(ProfileOverrideError)
+  })
+
+  it('still reads an exported-but-empty environment variable as unset', () => {
+    // The convention every profile-based CLI follows, and the reason the empty
+    // string cannot simply become significant everywhere.
+    writeConfigProfile('default', { workspace: 'ws_stored' })
+    process.env.SIM_WORKSPACE = ''
+
+    expect(resolveProfile()).toMatchObject({ workspaceId: 'ws_stored' })
+  })
+})
+
+/**
+ * `configSectionName` builds a header by prefixing `profile `, so a second trim
+ * on the way back out makes the listed name and the looked-up name disagree —
+ * and the disagreement failed silently, resolving a selection that names a real
+ * section to the built-in defaults.
+ */
+describe('a hand-written profile name carrying padding', () => {
+  const PADDED = '[profile   padded   ]\nworkspace = ws_padded\nendpoint = https://padded.example\n'
+
+  it('lists the name that actually selects it', () => {
+    writeFileSync(configPath(), PADDED)
+
+    expect(listProfiles()).toEqual(['  padded'])
+    expect(resolveProfile({ profile: '  padded' })).toMatchObject({
+      workspaceId: 'ws_padded',
+      endpoint: 'https://padded.example',
+    })
+  })
+
+  it('refuses the trimmed spelling loudly rather than resolving it to defaults', () => {
+    writeFileSync(configPath(), PADDED)
+
+    expect(() => resolveProfile({ profile: 'padded' })).toThrow(/Unknown profile "padded"/)
+  })
+})
+
+/**
+ * Every message that quotes text the CLI did not produce goes through the same
+ * redaction. These three did not, so a bare newline reached the terminal and
+ * appended lines that read as the CLI's own output.
+ */
+describe('redaction of rejected values', () => {
+  const messageOf = (run: () => unknown): string => {
+    try {
+      run()
+    } catch (error) {
+      return (error as Error).message
+    }
+    throw new Error('expected a refusal')
+  }
+
+  it('redacts the name in the unknown-profile refusal', () => {
+    writeConfigProfile('dev', { workspace: 'ws_1' })
+
+    const message = messageOf(() => resolveProfile({ profile: 'ev\nil' }))
+    expect(message).toContain('Unknown profile "ev il"')
+    expect(message).not.toMatch(FORBIDDEN_IN_VALUE)
+  })
+
+  it('redacts it in the variant printed when nothing is configured yet', () => {
+    const message = messageOf(() => resolveProfile({ profile: 'ev\nil' }))
+    expect(message).toContain('Unknown profile "ev il"')
+    expect(message).not.toMatch(FORBIDDEN_IN_VALUE)
+  })
+
+  /**
+   * The header line is split on `\n`, so a stored name cannot carry one — but
+   * U+2028 is a line separator the reader keeps and `sanitize` does not strip,
+   * which is why the same redaction the typed name already got has to cover the
+   * two halves of this message that come out of the config file.
+   */
+  it('redacts the suggestion and the configured list, not just the typed name', () => {
+    writeFileSync(configPath(), '[profile st\u2028aging]\nworkspace = ws_1\n')
+
+    const message = messageOf(() => resolveProfile({ profile: 'st\u2028agng' }))
+    expect(message).toBe(
+      'Unknown profile "st agng". Did you mean "st aging"? Configured profiles: st aging.'
+    )
+    expect(message).not.toMatch(FORBIDDEN_IN_VALUE)
+  })
+
+  it('redacts both names an auth_profile refusal quotes', () => {
+    // ESC rather than U+2028 here: the value reader drops a line separator, so
+    // the setting would never be seen at all.
+    writeFileSync(configPath(), '[profile de\u001bv]\nauth_profile = mis\u001bsing\n')
+
+    const message = messageOf(() => resolveAuthenticationProfileName('de\u001bv'))
+    expect(message).toBe('Profile "de v" references missing auth_profile "mis sing".')
+    expect(message).not.toMatch(FORBIDDEN_IN_VALUE)
+  })
+
+  it('redacts the format in the unknown-output-format refusal', () => {
+    process.env.SIM_OUTPUT = 'ev\nil'
+
+    const message = messageOf(() => resolveProfile())
+    expect(message).toContain('Unknown output format "ev il"')
+    expect(message).not.toMatch(FORBIDDEN_IN_VALUE)
   })
 })

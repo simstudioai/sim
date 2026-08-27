@@ -31,6 +31,16 @@ type Entry = { kind: 'kv'; key: string; value: string } | { kind: 'raw'; text: s
 
 interface Section {
   name: string
+  /**
+   * The header line exactly as it was read, re-emitted verbatim.
+   *
+   * {@link parseIni} trims the bracketed text to get {@link name}, so writing
+   * `[${name}]` back rewrote the header of every section in the file — a
+   * `configure --set-output` on `default` silently reformatted a hand-written
+   * `[profile   padded   ]` it was never asked to touch. Absent only on a
+   * section {@link setSectionValues} created, which has no original line.
+   */
+  header?: string
   entries: Entry[]
 }
 
@@ -118,7 +128,7 @@ export function parseIni(text: string): IniDocument {
   for (const line of lines) {
     const sectionMatch = SECTION_PATTERN.exec(line)
     if (sectionMatch) {
-      current = { name: sectionMatch[1].trim(), entries: [] }
+      current = { name: sectionMatch[1].trim(), header: line, entries: [] }
       doc.sections.push(current)
       continue
     }
@@ -148,7 +158,7 @@ export function serializeIni(doc: IniDocument): string {
     // across repeated writes.
     while (lines.length > 0 && lines[lines.length - 1].trim() === '') lines.pop()
     if (lines.length > 0) lines.push('')
-    lines.push(`[${section.name}]`)
+    lines.push(section.header ?? `[${section.name}]`)
     for (const entry of section.entries) {
       lines.push(entry.kind === 'kv' ? `${entry.key} = ${entry.value}` : entry.text)
     }

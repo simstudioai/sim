@@ -90,9 +90,7 @@ export function ItPlatformTeamsGraphic({
       >
         <div className='w-full max-w-[312px]'>
           <div className='mb-3 flex items-center justify-between gap-2'>
-            <span className='min-w-0 truncate font-medium text-[var(--text-primary)] text-base'>
-              {title}
-            </span>
+            <span className='min-w-0 truncate text-[var(--text-primary)] text-base'>{title}</span>
             <span className='flex shrink-0 items-center gap-1.5'>
               <span className='relative size-4 overflow-hidden rounded-full shadow-sm'>
                 <Image
@@ -111,7 +109,7 @@ export function ItPlatformTeamsGraphic({
 
           <div className='flex items-center gap-3 rounded-xl border border-[var(--border-1)] bg-[var(--white)] px-3 py-2.5 shadow-sm'>
             <span className='min-w-0 flex-1'>
-              <span className='block truncate font-medium text-[var(--text-primary)] text-small'>
+              <span className='block truncate text-[var(--text-primary)] text-small'>
                 {cardTitle}
               </span>
               <span className='block truncate text-[var(--text-muted)] text-caption'>

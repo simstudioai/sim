@@ -376,6 +376,7 @@ export const DOCS_MANIFEST: readonly string[] = [
   'platform/self-hosting/architecture.mdx',
   'platform/self-hosting/authentication.mdx',
   'platform/self-hosting/background-jobs.mdx',
+  'platform/self-hosting/desktop.mdx',
   'platform/self-hosting/docker.mdx',
   'platform/self-hosting/email.mdx',
   'platform/self-hosting/environment-variables.mdx',

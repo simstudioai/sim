@@ -31,6 +31,20 @@ const GROUP_ALIASES: Readonly<Record<string, string>> = {
   workspaces: 'workspace',
 }
 
+/**
+ * States the personal-key restriction the way every generated command states it.
+ *
+ * The suffix lives here, once, because a fully hand-written command renders its
+ * own `.description()` and never reaches the generated path — three commands
+ * (`secrets set`, `credentials create`, `credentials connect`/`reconnect`) sat
+ * beside siblings that carried the warning and silently read as accepting a
+ * workspace key. Taking the `OperationSpec` rather than a boolean means a
+ * caller has to name the operation it actually calls, so the two cannot drift.
+ */
+export function describeOperation(operationSpec: OperationSpec, described: string): string {
+  return operationSpec.personalKeyOnly ? `${described} (personal API key required)` : described
+}
+
 function argumentSyntax(command: Command): string {
   return command.registeredArguments
     .map((argument) => {
@@ -265,10 +279,11 @@ function configureOperation(
   // Appended after the whole fallback chain, not inside the summary branch: a
   // command with a hand-written `describe` needs the restriction stated just as
   // much as one falling back to the spec summary.
-  const described =
-    spec.describe ?? operationSpec.summary ?? `${operationSpec.method} ${operationSpec.path}`
   command.description(
-    operationSpec.personalKeyOnly ? `${described} (personal API key required)` : described
+    describeOperation(
+      operationSpec,
+      spec.describe ?? operationSpec.summary ?? `${operationSpec.method} ${operationSpec.path}`
+    )
   )
   addOperationOptions(command, operation, spec, operationSpec)
   assertNoReservedFlags(command, operation)

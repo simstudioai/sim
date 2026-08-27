@@ -87,6 +87,17 @@ function wireSpelledFlags(command: Command, prefix: string[] = []): string[] {
   return offenders
 }
 
+/** `commandAt`, but on the real program, so hand-written commands are present. */
+function builtCommandAt(...names: string[]): Command {
+  let current = buildProgram()
+  for (const name of names) {
+    const next = current.commands.find((command) => command.name() === name)
+    if (!next) throw new Error(`Missing command ${names.join(' ')}`)
+    current = next
+  }
+  return current
+}
+
 function commandAt(...names: string[]): Command {
   let current = program()
   for (const name of names) {
@@ -230,6 +241,59 @@ describe('commands parsed through commander', () => {
     it('leaves a workspace-key-capable sibling unsuffixed', () => {
       expect(commandAt('mcp-servers', 'list').description()).not.toContain('personal API key')
       expect(commandAt('workflows', 'list').description()).not.toContain('personal API key')
+    })
+
+    /**
+     * A fully hand-written command renders its own `.description()` and so
+     * never reaches the generated path. Left to itself it sits in a menu beside
+     * suffixed siblings, which reads as the one command that does take a
+     * workspace key — the exact confusion the suffix exists to remove.
+     */
+    it('says so on a fully hand-written command', () => {
+      for (const path of [
+        ['secrets', 'set'],
+        ['credentials', 'create'],
+        ['credentials', 'connect'],
+        ['credentials', 'reconnect'],
+      ]) {
+        expect(`${path.join(' ')}: ${builtCommandAt(...path).description()}`).toContain(
+          '(personal API key required)'
+        )
+      }
+    })
+
+    /**
+     * Catches the next hand-written command rather than only the four that
+     * exist: a restricted operation invoked from `src/commands` has to state
+     * the restriction through the one helper that owns the wording.
+     *
+     * Reading the source is what makes this general — a hand-written command
+     * declares nothing that ties it back to its operation at runtime, so the
+     * `V2_OPERATIONS.<name>` reference is the only link there is.
+     */
+    it('is enforced for every restricted operation a hand-written command calls', async () => {
+      const { readdirSync, readFileSync } = await import('node:fs')
+      const { join } = await import('node:path')
+      const root = join(import.meta.dirname, '..', 'commands')
+
+      const sources = readdirSync(root, { recursive: true, withFileTypes: true })
+        .filter((entry) => entry.isFile() && entry.name.endsWith('.ts'))
+        .filter((entry) => !entry.name.endsWith('.test.ts'))
+        .map((entry) => join(entry.parentPath, entry.name))
+
+      const unsuffixed: string[] = []
+      for (const source of sources) {
+        const text = readFileSync(source, 'utf8')
+        for (const [, operation] of text.matchAll(/V2_OPERATIONS\.([A-Za-z]+)/g)) {
+          const spec = (V2_OPERATIONS as Record<string, OperationSpec>)[operation]
+          if (!spec?.personalKeyOnly) continue
+          const suffixed = new RegExp(`describeOperation\\(\\s*V2_OPERATIONS\\.${operation}\\b`)
+          if (suffixed.test(text)) continue
+          unsuffixed.push(`${source.slice(root.length + 1)} calls ${operation}`)
+        }
+      }
+
+      expect([...new Set(unsuffixed)]).toEqual([])
     })
   })
 

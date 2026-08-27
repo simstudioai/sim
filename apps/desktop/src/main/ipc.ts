@@ -9,6 +9,8 @@ import {
 } from '@sim/browser-protocol'
 import {
   type DesktopNotificationPayload,
+  type DesktopServerChangeResult,
+  type DesktopServerConfiguration,
   type DesktopUpdateState,
   type DesktopWindowState,
   type DesktopZoomPercent,
@@ -300,6 +302,11 @@ export interface IpcDeps {
     getState: () => DesktopUpdateState
     check: () => void
     install: () => void
+  }
+  server: {
+    open: () => void
+    getConfiguration: () => DesktopServerConfiguration
+    setOrigin: (origin: string) => Promise<DesktopServerChangeResult>
   }
 }
 
@@ -1736,6 +1743,31 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       gate: 'local-page',
       passSender: true,
       handler: (sender) => deps.retryLoad(sender as WebContents),
+    },
+    // The `server:` family is local-page only, and deliberately so: the one
+    // surface that repoints the shell at another deployment must keep working
+    // when the current one is unreachable (the offline page is where a
+    // self-hoster with a typo'd origin actually lands), and must never be
+    // drivable by a page the current server serves.
+    'server:open': {
+      kind: 'send',
+      gate: 'local-page',
+      handler: () => deps.server.open(),
+    },
+    'server:get-configuration': {
+      kind: 'invoke',
+      gate: 'local-page',
+      denied: null,
+      handler: () => deps.server.getConfiguration(),
+    },
+    'server:set-origin': {
+      kind: 'invoke',
+      gate: 'local-page',
+      denied: { ok: false, error: 'The server can only be changed from the Sim app itself.' },
+      handler: (origin) =>
+        typeof origin === 'string'
+          ? deps.server.setOrigin(origin)
+          : { ok: false, error: 'Server URL is required' },
     },
   }
 

@@ -277,3 +277,30 @@ describe('ini write guards', () => {
     expect(serializeIni(doc)).toBe('')
   })
 })
+
+/**
+ * A write names one section, so it must leave every other section's bytes
+ * alone. The header was the exception: `parseIni` trims the bracketed text to
+ * get the name and the writer rebuilt `[${name}]` from it, so a `configure
+ * --set-output` on `default` silently reformatted a hand-written
+ * `[profile   padded   ]` it had never been asked to touch.
+ */
+describe('section headers survive a write to another section', () => {
+  it('re-emits an unrelated padded header byte for byte', () => {
+    const doc = parseIni(
+      '[default]\nendpoint = https://sim.ai\n\n[profile   padded   ]\nworkspace = ws_1\n'
+    )
+
+    setSectionValues(doc, 'default', { output: 'json' })
+
+    expect(serializeIni(doc)).toContain('[profile   padded   ]')
+  })
+
+  it('generates a header for a section the writer created', () => {
+    const doc = parseIni('[default]\nendpoint = https://sim.ai\n')
+
+    setSectionValues(doc, 'profile dev', { workspace: 'ws_2' })
+
+    expect(serializeIni(doc)).toContain('[profile dev]')
+  })
+})

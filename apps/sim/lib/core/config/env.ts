@@ -135,10 +135,6 @@ export const env = createEnv({
 
     // Copilot
     COPILOT_API_KEY:                       z.string().min(1).optional(),           // Secret for internal sim agent API authentication
-    /** Enables attributed-v1 only after compatible Copilot instances are deployed. */
-    COPILOT_BILLING_ATTRIBUTION_V1_ENABLED: z.boolean().optional(),
-    /** Rejects markerless old-Go billing traffic only when explicitly enabled. */
-    COPILOT_BILLING_PROTOCOL_REQUIRED:     z.boolean().optional(),
     /** Gates risky copilot tools behind an Allow / Skip prompt. Off by default. */
     COPILOT_TOOL_PERMISSIONS_ENABLED:      z.boolean().optional(),
     SIM_AGENT_API_URL:                     z.string().url().optional(),            // URL for internal sim agent API

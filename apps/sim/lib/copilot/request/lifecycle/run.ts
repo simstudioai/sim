@@ -19,10 +19,6 @@ import {
   prepareCopilotEnvironmentContext,
 } from '@/lib/copilot/environment-context'
 import {
-  COPILOT_BILLING_PROTOCOL,
-  COPILOT_BILLING_PROTOCOL_HEADER,
-} from '@/lib/copilot/generated/billing-protocol-v1'
-import {
   MothershipStreamV1CompletionStatus,
   MothershipStreamV1EventType,
   MothershipStreamV1RunKind,
@@ -66,11 +62,7 @@ import type { SecretMountPolicy } from '@/lib/copilot/secret-mount-policy'
 import { getMothershipBaseURL, getMothershipSourceEnvHeaders } from '@/lib/copilot/server/agent-url'
 import { prepareExecutionContext } from '@/lib/copilot/tools/handlers/context'
 import { env } from '@/lib/core/config/env'
-import {
-  isCopilotBillingAttributionV1Enabled,
-  isCopilotToolPermissionsEnabled,
-  isHosted,
-} from '@/lib/core/config/env-flags'
+import { isCopilotToolPermissionsEnabled, isHosted } from '@/lib/core/config/env-flags'
 import { filterModelSafeWorkspaceFileAttachments } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { refuseResolvedSecretProjection } from '@/executor/utils/resolved-secret-projection-refusal'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
@@ -295,12 +287,7 @@ export async function runCopilotLifecycle(
   } else {
     execContext.sandboxProfile = undefined
   }
-  const shouldUseHostedBillingProtocol = isHosted && isCopilotBillingAttributionV1Enabled
-  if (
-    shouldUseHostedBillingProtocol &&
-    execContext.workspaceId &&
-    !execContext.billingAttribution
-  ) {
+  if (isHosted && (!execContext.workspaceId || !execContext.billingAttribution)) {
     throw new Error('Billing attribution is required for hosted Copilot execution')
   }
   let hostedBillingRequest: AttributedBillingRequestEnvelope | undefined
@@ -313,7 +300,7 @@ export async function runCopilotLifecycle(
       throw new Error('Copilot billing attribution does not match its actor and workspace')
     }
     execContext.billingAttribution = billingAttribution
-    if (shouldUseHostedBillingProtocol) {
+    if (isHosted) {
       hostedBillingRequest = createAttributedBillingRequestEnvelope(billingAttribution)
     }
   }
@@ -481,13 +468,7 @@ function mothershipRequestHeaders(
     ...(env.COPILOT_API_KEY ? { 'x-api-key': env.COPILOT_API_KEY } : {}),
     ...getMothershipSourceEnvHeaders(),
     'X-Client-Version': SIM_AGENT_VERSION,
-    ...(hostedBillingRequest
-      ? hostedBillingRequest.headers
-      : isHosted && !isCopilotBillingAttributionV1Enabled
-        ? {
-            [COPILOT_BILLING_PROTOCOL_HEADER]: COPILOT_BILLING_PROTOCOL.legacy,
-          }
-        : {}),
+    ...(hostedBillingRequest ? hostedBillingRequest.headers : {}),
   }
 }
 

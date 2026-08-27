@@ -197,7 +197,7 @@ function LogsTableRow({ row, visible }: LogsTableRowProps) {
       <td className='px-6 align-middle'>
         <div className='flex items-center gap-2'>
           <Workflow className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
-          <span className='min-w-0 truncate font-medium text-[var(--text-primary)] text-caption'>
+          <span className='min-w-0 truncate text-[var(--text-primary)] text-caption'>
             {row.workflowName}
           </span>
         </div>
@@ -223,8 +223,8 @@ function LogsTableRow({ row, visible }: LogsTableRowProps) {
 
 /**
  * The logs hero's platform loop - the workflows editor loop's architecture
- * (fixed 1280x735 design-space layer scaled to the window via ResizeObserver
- * + `transform: scale`, a parent-owned clock, reduced-motion showing the
+ * (a fixed 1280x735 HTML design surface fitted to the window via the shared
+ * responsive stage, a parent-owned clock, reduced-motion showing the
  * finished frame) with the workspace pane replaced by a static rendering of
  * the real Logs surface: the 44px title bar (Library icon, "Logs", Export,
  * Logs/Dashboard tabs), the search/Filter/Sort options bar, and the runs
@@ -287,7 +287,7 @@ export function LogsHeroLoop() {
             <div className='flex w-full items-center justify-between'>
               <div className='flex items-center gap-3'>
                 <Library className='size-[14px] text-[var(--text-icon)]' />
-                <span className='font-medium text-[var(--text-body)] text-sm'>Logs</span>
+                <span className='text-[var(--text-body)] text-sm'>Logs</span>
               </div>
               <div className='flex items-center gap-1'>
                 <span className='flex items-center rounded-md px-2 py-1 text-[var(--text-secondary)] text-caption'>
@@ -352,7 +352,7 @@ export function LogsHeroLoop() {
                   <td className='px-6 align-middle'>
                     <div className='flex items-center gap-2'>
                       <Workflow className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
-                      <span className='min-w-0 truncate font-medium text-[var(--text-primary)] text-caption'>
+                      <span className='min-w-0 truncate text-[var(--text-primary)] text-caption'>
                         {LIVE_ROW.workflowName}
                       </span>
                     </div>

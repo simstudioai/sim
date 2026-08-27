@@ -169,6 +169,7 @@ function createWebContentsMock() {
     setIgnoreMenuShortcuts: vi.fn(),
     getZoomFactor: vi.fn(() => 1),
     setZoomFactor: vi.fn(),
+    forcefullyCrashRenderer: vi.fn(),
     copy: vi.fn(),
     paste: vi.fn(),
     capturePage: vi.fn(() => {
@@ -186,6 +187,7 @@ function createWebContentsMock() {
     navigationHistory: {
       canGoBack: vi.fn(() => false),
       canGoForward: vi.fn(() => false),
+      getActiveIndex: vi.fn(() => 0),
       goBack: vi.fn(),
       goForward: vi.fn(),
     },

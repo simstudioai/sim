@@ -23,7 +23,7 @@ export type AuthPollResult =
   | { status: 'complete'; apiKey: string }
 
 /** Opens a safely encoded URL across platforms, including Windows' cmd-backed `start`. */
-function openBrowser(url: string): void {
+export function openBrowser(url: string): void {
   if (process.env.SIM_SETUP_NO_BROWSER) return
   if (process.platform === 'win32') {
     spawnSync('cmd', ['/c', 'start', '""', `"${url}"`], {
