@@ -205,6 +205,36 @@ export async function getNextAvailableSlot(
  * Get all tag definitions for a knowledge base
  */
 /**
+ * The slots a write would put a nonempty value into.
+ *
+ * Clearing is not a write for this purpose: an empty value removes whatever a
+ * slot holds, so it can never leave a value stranded behind a missing
+ * definition.
+ */
+function collectWrittenTagSlots(slotValues: Record<string, unknown>): string[] {
+  return Object.entries(slotValues)
+    .filter(
+      ([slot, value]) =>
+        (VALID_TAG_SLOTS as readonly string[]).includes(slot) &&
+        value !== undefined &&
+        value !== null &&
+        String(value).trim().length > 0
+    )
+    .map(([slot]) => slot)
+}
+
+/**
+ * Whether a write touches a tag slot at all.
+ *
+ * A writer uses this to decide whether it needs the knowledge base's row lock:
+ * only a write that lands a nonempty slot value can race tag deletion, so a
+ * write that touches no slot must not take — or wait on — that lock.
+ */
+export function writesTagSlots(slotValues: Record<string, unknown>): boolean {
+  return collectWrittenTagSlots(slotValues).length > 0
+}
+
+/**
  * Refuses a slot-keyed tag write into a slot this knowledge base has not defined.
  *
  * Tag writes address slots (`tag1`..`tag7`) while tag reads and every filter
@@ -226,21 +256,21 @@ export async function getNextAvailableSlot(
  * Clearing is always allowed. An empty value removes whatever a slot holds,
  * including a value written before this guard existed, and needing a definition
  * to erase state would strand exactly the rows this is meant to prevent.
+ *
+ * This is a read, so on its own it is only check-then-act: tag deletion clears
+ * the slot and drops its definition under the knowledge base's row lock (see
+ * {@link lockKnowledgeBaseForTagMutation}), and a deletion that commits between
+ * an unlocked read here and the write it guards lands exactly the stranded
+ * value this refuses. Callers must therefore pass `txDb` from the transaction
+ * that already took that row lock and that performs the write, so the check and
+ * the write are one step against a snapshot deletion cannot move.
  */
 export async function assertTagSlotsAreDefined(
   knowledgeBaseId: string,
   slotValues: Record<string, unknown>,
   txDb?: DbOrTx
 ): Promise<void> {
-  const writtenSlots = Object.entries(slotValues)
-    .filter(
-      ([slot, value]) =>
-        (VALID_TAG_SLOTS as readonly string[]).includes(slot) &&
-        value !== undefined &&
-        value !== null &&
-        String(value).trim().length > 0
-    )
-    .map(([slot]) => slot)
+  const writtenSlots = collectWrittenTagSlots(slotValues)
   if (writtenSlots.length === 0) return
 
   const definitions = await getDocumentTagDefinitions(knowledgeBaseId, txDb)

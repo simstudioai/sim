@@ -596,7 +596,8 @@ describe('knowledge document application use cases', () => {
     expect(mocks.updateDocument).toHaveBeenCalledWith(
       'document-1',
       { filename: undefined, enabled: false },
-      expect.any(String)
+      expect.any(String),
+      { knowledgeBaseId: 'knowledge-1' }
     )
     expect(mocks.recordAudit).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -675,7 +676,8 @@ describe('knowledge document application use cases', () => {
         number1: '2',
         boolean1: 'false',
       },
-      expect.any(String)
+      expect.any(String),
+      { knowledgeBaseId: 'knowledge-1' }
     )
     expect(mocks.recordAudit).toHaveBeenCalledWith(
       expect.objectContaining({

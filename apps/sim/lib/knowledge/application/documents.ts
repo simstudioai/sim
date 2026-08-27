@@ -65,7 +65,7 @@ import {
   resolveKnowledgeTagFilters,
   toKnowledgeTagFilterConditions,
 } from '@/lib/knowledge/tags/filter-resolution'
-import { assertTagSlotsAreDefined, getDocumentTagDefinitions } from '@/lib/knowledge/tags/service'
+import { getDocumentTagDefinitions } from '@/lib/knowledge/tags/service'
 import { validateTagValue } from '@/lib/knowledge/tags/utils'
 import { StorageService } from '@/lib/uploads'
 import { generateKnowledgeBaseFileKey } from '@/lib/uploads/contexts/knowledge-base/knowledge-base-file-manager'
@@ -901,13 +901,6 @@ export const updateKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
         updates,
         await resolveKnowledgeDocumentTagValueUpdates(context.knowledgeBaseId, input.tagValues)
       )
-    } else {
-      /**
-       * `tagValues` addresses definitions by id and cannot name an undefined
-       * slot; `input.updates` carries the raw `tag1`..`tag7` the API surfaces
-       * accept, and can.
-       */
-      await assertTagSlotsAreDefined(context.knowledgeBaseId, updates)
     }
     const updatedFields = Object.keys(updates).filter(
       (key) => updates[key as keyof typeof updates] !== undefined
@@ -917,7 +910,19 @@ export const updateKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
     }
     return {
       kind: 'updated' as const,
-      document: await updateDocument(context.documentId, updates, generateRequestId()),
+      /**
+       * `knowledgeBaseId` is what asks the write to refuse a value bound for a
+       * slot this knowledge base has no definition for. Both branches above need
+       * it: `input.updates` carries the raw `tag1`..`tag7` the API surfaces
+       * accept and can name an undefined slot outright, and `tagValues`
+       * addresses definitions by id but resolves them to slots before the write,
+       * so a definition deleted after that resolution leaves the same stranded
+       * value. The check runs inside the write's transaction under the knowledge
+       * base's row lock, which is the lock tag deletion takes.
+       */
+      document: await updateDocument(context.documentId, updates, generateRequestId(), {
+        knowledgeBaseId: context.knowledgeBaseId,
+      }),
       tagDefinitions: await getDocumentTagDefinitions(context.knowledgeBaseId),
       updatedFields,
     }

@@ -122,7 +122,7 @@ import {
   rebindKnowledgeDocumentSecretProvenance,
   replaceKnowledgeDocumentSecretProvenanceInTx,
 } from '@/lib/knowledge/secret-provenance'
-import { assertTagSlotsAreDefined } from '@/lib/knowledge/tags/service'
+import { assertTagSlotsAreDefined, writesTagSlots } from '@/lib/knowledge/tags/service'
 import {
   buildUndefinedTagsError,
   parseBooleanValue,
@@ -2675,14 +2675,15 @@ export async function createSingleDocument(
         throw error
       }
     }
-  } else {
-    /**
-     * Only the slot-keyed branch needs this: `resolveDocumentTags` above already
-     * refuses a name it cannot resolve to a definition, so the name-keyed branch
-     * cannot reach an undefined slot.
-     */
-    await assertTagSlotsAreDefined(knowledgeBaseId, processedTags)
   }
+  /**
+   * Only the slot-keyed branch needs checking: `resolveDocumentTags` above
+   * already refuses a name it cannot resolve to a definition, so the name-keyed
+   * branch cannot reach an undefined slot. The check itself runs inside the
+   * transaction below, under the knowledge base's row lock, because tag
+   * deletion clears the slot and drops its definition under that same lock.
+   */
+  const validateTagSlots = !documentData.documentTagsData
 
   const newDocument = {
     id: documentId,
@@ -2706,6 +2707,10 @@ export async function createSingleDocument(
     let storageNotification: DocumentStorageNotification | null = null
 
     await tx.execute(sql`SELECT 1 FROM knowledge_base WHERE id = ${knowledgeBaseId} FOR UPDATE`)
+
+    if (validateTagSlots) {
+      await assertTagSlotsAreDefined(knowledgeBaseId, processedTags, tx)
+    }
 
     const kb = await tx
       .select({
@@ -3298,7 +3303,8 @@ export async function updateDocument(
     boolean2?: string
     boolean3?: string
   },
-  requestId: string
+  requestId: string,
+  options?: { knowledgeBaseId?: string }
 ): Promise<{
   id: string
   knowledgeBaseId: string
@@ -3427,6 +3433,23 @@ export async function updateDocument(
   })
 
   const doc = await db.transaction(async (tx) => {
+    /**
+     * Taken before anything else this transaction touches, and only when the
+     * update lands a nonempty tag slot. Tag deletion clears the slot and drops
+     * its definition under this same knowledge-base row lock, so without it the
+     * check below is check-then-act and a deletion can commit between the check
+     * and the write, stranding a value in a slot nothing can name. The lock is
+     * skipped for tag-free updates (processing status, filename, enabled) so
+     * they never serialize on the knowledge base, and every other writer in this
+     * area takes this lock first too, so the order is unchanged.
+     */
+    if (options?.knowledgeBaseId && writesTagSlots(updateData)) {
+      await tx.execute(
+        sql`SELECT 1 FROM knowledge_base WHERE id = ${options.knowledgeBaseId} FOR UPDATE`
+      )
+      await assertTagSlotsAreDefined(options.knowledgeBaseId, updateData, tx)
+    }
+
     const hasTagUpdates = ALL_TAG_SLOTS.some((field) => typedUpdateData[field] !== undefined)
 
     if (hasTagUpdates) {
