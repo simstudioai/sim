@@ -64,7 +64,7 @@ export const vantaUploadDocumentFileTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'MIME type of the file (e.g., application/pdf); used when uploading base64 content, since uploaded files already carry their own type',
+        'MIME type of the file (e.g., application/pdf); used only as a fallback when the uploaded file does not carry a content type of its own',
     },
     description: {
       type: 'string',

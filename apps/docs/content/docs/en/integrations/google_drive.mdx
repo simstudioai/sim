@@ -104,7 +104,7 @@ List files and folders in Google Drive with complete metadata
 |   ↳ `isAppAuthorized` | boolean | Whether created by requesting app |
 |   ↳ `contentRestrictions` | json | Content restrictions |
 |   ↳ `linkShareMetadata` | json | Link share metadata |
-| `nextPageToken` | string | Token for fetching the next page of results |
+| `nextPageToken` | string | Google Drive pagination cursor returned when more files remain beyond this response; empty when this is the last page |
 
 ### Get Google Drive File
 
@@ -516,7 +516,7 @@ Search for files in Google Drive using advanced query syntax (e.g., fullText con
 |   ↳ `driveId` | string | Shared drive ID |
 |   ↳ `capabilities` | json | User capabilities on file |
 |   ↳ `version` | string | Version number |
-| `nextPageToken` | string | Token for fetching the next page of results |
+| `nextPageToken` | string | Google Drive pagination cursor returned when more files remain beyond this response; empty when this is the last page |
 
 ### Update Google Drive File
 
@@ -689,7 +689,7 @@ List all permissions (who has access) for a file in Google Drive
 |   ↳ `allowFileDiscovery` | boolean | Whether file is discoverable by grantee |
 |   ↳ `pendingOwner` | boolean | Whether ownership transfer is pending |
 |   ↳ `permissionDetails` | json | Details about inherited permissions |
-| `nextPageToken` | string | Token for fetching the next page of permissions |
+| `nextPageToken` | string | Google Drive pagination cursor returned when more permissions remain beyond this response; empty when this is the last page |
 
 ### Export Google Drive File
 
@@ -737,7 +737,7 @@ List the revision history of a file in Google Drive
 |   ↳ `md5Checksum` | string | MD5 checksum for binary revisions |
 |   ↳ `size` | string | Size of the revision in bytes |
 |   ↳ `exportLinks` | json | Export format links for the revision |
-| `nextPageToken` | string | Token for fetching the next page of revisions |
+| `nextPageToken` | string | Google Drive pagination cursor returned when more revisions remain beyond this response; empty when this is the last page |
 
 ### Get Google Drive Revision
 
@@ -796,7 +796,7 @@ List comments on a file in Google Drive
 |   ↳ `anchor` | string | Region of the document the comment refers to |
 |   ↳ `quotedFileContent` | json | The file content the comment quotes |
 |   ↳ `replies` | json | Threaded replies to the comment |
-| `nextPageToken` | string | Token for fetching the next page of comments |
+| `nextPageToken` | string | Google Drive pagination cursor returned when more comments remain beyond this response; empty when this is the last page |
 
 ### Create Google Drive Comment
 

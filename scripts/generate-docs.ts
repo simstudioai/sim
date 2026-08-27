@@ -662,6 +662,13 @@ class SubBlockParseError extends Error {
 
 const subBlockParseFailures: string[] = []
 
+/** Set while the dry pre-scan runs, so the skip notices are not printed twice per run. */
+let PARSE_SCAN_ONLY = false
+
+/** Blocks already warned about. The same block is re-parsed by the pre-scan, the page pass and
+ * each spread-base recursion, so without this the same warning prints four times. */
+const subBlockParseWarnings = new Set<string>()
+
 /**
  * Collects the param names a block exposes to the user through its own `subBlocks`.
  *
@@ -678,10 +685,18 @@ const subBlockParseFailures: string[] = []
  */
 export function extractUserSettableParamIds(blockContent: string, blockName = 'block'): string[] {
   const scannable = blankStringsAndComments(blockContent)
-  const subBlocksMatch = /subBlocks\s*:\s*\[/.exec(scannable)
-  if (!subBlocksMatch) return []
+  const keyMatch = /\bsubBlocks\s*:/.exec(scannable)
+  if (!keyMatch) return []
 
-  const arrayStart = subBlocksMatch.index + subBlocksMatch[0].length - 1
+  const afterKey = keyMatch.index + keyMatch[0].length
+  const literalMatch = /^\s*\[/.exec(scannable.slice(afterKey))
+  if (!literalMatch) {
+    throw new SubBlockParseError(
+      `${blockName}: subBlocks is built by an expression rather than an array literal, so the fields it contributes cannot be read`
+    )
+  }
+
+  const arrayStart = afterKey + literalMatch[0].length - 1
   const arrayEnd = findMatchingClose(scannable, arrayStart, '[', ']')
   if (arrayEnd === -1) {
     throw new SubBlockParseError(
@@ -690,81 +705,142 @@ export function extractUserSettableParamIds(blockContent: string, blockName = 'b
   }
 
   const ids = new Set<string>()
+  let elementsWithoutIds = 0
+
+  /**
+   * Text of the array's own elements with every object literal, call argument and nested
+   * bracket elided, so each remaining comma-separated segment is one element's head. Used to
+   * tell an element that names an existing fields array from one that hides its fields behind
+   * a helper call.
+   */
+  let elementHeads = ''
+  let nesting = 0
   let i = arrayStart + 1
+
   while (i < arrayEnd - 1) {
-    if (scannable[i] !== '{') {
-      i++
+    const char = scannable[i]
+
+    if (nesting === 0 && char === '{') {
+      const objectEnd = findMatchingClose(scannable, i)
+      if (objectEnd === -1) break
+
+      let depth = 0
+      let topLevel = ''
+      const sourceIndices: number[] = []
+      for (let k = i; k < objectEnd; k++) {
+        const inner = scannable[k]
+        if (inner === '{' || inner === '[') {
+          depth++
+          continue
+        }
+        if (inner === '}' || inner === ']') {
+          depth--
+          continue
+        }
+        if (depth === 1) {
+          topLevel += inner
+          sourceIndices.push(k)
+        }
+      }
+
+      /**
+       * Matching runs on the blanked characters, so an `id:` sitting inside a string value or a
+       * `//` comment cannot be mistaken for the subBlock's own id. Blanking keeps a string's
+       * quotes and its length, so the matched literal's value is read back character by character
+       * from the original content at the indices the blanked copy matched at.
+       */
+      const readLiteral = (match: RegExpExecArray): string => {
+        const valueStart = match.index + match[0].length - 1 - match[1].length
+        let value = ''
+        for (let offset = 0; offset < match[1].length; offset++) {
+          value += blockContent[sourceIndices[valueStart + offset]]
+        }
+        return value
+      }
+
+      const idMatch = /\bid\s*:\s*['"]([^'"]+)['"]/.exec(topLevel)
+      if (idMatch) ids.add(readLiteral(idMatch))
+      const canonicalMatch = /\bcanonicalParamId\s*:\s*['"]([^'"]+)['"]/.exec(topLevel)
+      if (canonicalMatch) ids.add(readLiteral(canonicalMatch))
+
+      /**
+       * An object that spreads an existing subBlock to override one property
+       * (`{ ...sb, required: true }`) legitimately carries no id of its own — the id comes from
+       * the spread source. Only an object with neither an id nor a spread means the scan failed.
+       */
+      if (!idMatch && !canonicalMatch && !topLevel.includes('...')) elementsWithoutIds++
+
+      i = objectEnd
       continue
     }
 
-    const objectEnd = findMatchingClose(scannable, i)
-    if (objectEnd === -1) break
-
-    let depth = 0
-    let topLevel = ''
-    const sourceIndices: number[] = []
-    for (let k = i; k < objectEnd; k++) {
-      const char = scannable[k]
-      if (char === '{' || char === '[') {
-        depth++
-        continue
-      }
-      if (char === '}' || char === ']') {
-        depth--
-        continue
-      }
-      if (depth === 1) {
-        topLevel += char
-        sourceIndices.push(k)
-      }
+    if (char === '(' || char === '[') {
+      nesting++
+      i++
+      continue
     }
-
-    /**
-     * Matching runs on the blanked characters, so an `id:` sitting inside a string value or a
-     * `//` comment cannot be mistaken for the subBlock's own id. Blanking keeps a string's
-     * quotes and its length, so the matched literal's value is read back character by character
-     * from the original content at the indices the blanked copy matched at.
-     */
-    const readLiteral = (match: RegExpExecArray): string => {
-      const valueStart = match.index + match[0].length - 1 - match[1].length
-      let value = ''
-      for (let offset = 0; offset < match[1].length; offset++) {
-        value += blockContent[sourceIndices[valueStart + offset]]
-      }
-      return value
+    if (char === ')' || char === ']') {
+      nesting--
+      i++
+      continue
     }
-
-    const idMatch = /\bid\s*:\s*['"]([^'"]+)['"]/.exec(topLevel)
-    if (idMatch) ids.add(readLiteral(idMatch))
-    const canonicalMatch = /\bcanonicalParamId\s*:\s*['"]([^'"]+)['"]/.exec(topLevel)
-    if (canonicalMatch) ids.add(readLiteral(canonicalMatch))
-
-    i = objectEnd
+    if (nesting === 0) elementHeads += char
+    i++
   }
 
   /**
-   * Zero ids is a legitimate answer only for a block whose array is nothing but
-   * `...getTrigger(...).subBlocks` spreads. If the array holds an object literal and
-   * still yields nothing, the scan failed — and the caller's fallback (strip every
-   * hidden param from the page) is the destructive one, so fail instead of guessing.
+   * Any id at all means the array was read and the page keeps a populated Input table. An
+   * opaque element alongside real ids can only omit extra rows — the long-standing limitation
+   * that a spread contributes ids this scanner never sees — and is not this guard's business.
+   * The guard exists solely to stop an empty result, because empty is what strips every hidden
+   * param from the page.
    */
-  if (ids.size === 0 && scannable.slice(arrayStart, arrayEnd).includes('{')) {
+  if (ids.size > 0) return [...ids]
+
+  if (elementsWithoutIds > 0) {
     throw new SubBlockParseError(
       `${blockName}: subBlocks array holds object literals but no id was extracted`
     )
   }
 
-  return [...ids]
+  /**
+   * Zero ids is a legitimate answer only when every element names an existing fields array
+   * (`...NotionBlock.subBlocks`, `...getTrigger('x').subBlocks`, `...Base.subBlocks.filter(…)`),
+   * because those fields reach the page through the spread base instead. An element that is a
+   * bare helper call (`...getSlackV2ActionSubBlocks()`) hides whatever fields the helper builds,
+   * and used to yield a silent empty array indistinguishable from a spread-only block.
+   */
+  const opaque = elementHeads
+    .split(',')
+    .map((segment) => segment.trim())
+    .filter((segment) => segment.length > 0 && !segment.includes('.subBlocks'))
+  if (opaque.length > 0) {
+    throw new SubBlockParseError(
+      `${blockName}: subBlocks array yielded no ids and element${
+        opaque.length > 1 ? 's' : ''
+      } ${opaque.map((segment) => `\`${segment}\``).join(', ')} do not name a fields array`
+    )
+  }
+
+  return []
 }
 
 /**
  * Locates the bodies of every `tools.config.params` mapper in `scannable`.
  *
  * Returns `[start, end)` index pairs into `scannable` (a length-preserving blanked copy, so
- * the same indices address the original content). A file can hold several block configs
- * (Textract ships a v1 and a v2 block), so every `tools` object is scanned rather than only
- * the first. Handles both `params: (params) => { ... }` and the concise
- * `params: (params) => ({ ... })` form.
+ * the same indices address the original content).
+ *
+ * In production this only ever runs on a single block's slice, which holds at most one
+ * `subBlocks:` key — the loop over every `tools` object is defensive rather than required, and
+ * the multi-block file it was once justified by (Textract's v1 and v2) is split before it gets
+ * here. The tests do pass whole files, so the loop is exercised on wider input than production
+ * ever supplies.
+ *
+ * Handles `params: (params) => { ... }`, the concise `params: (params) => ({ ... })` form, the
+ * `async` and generic-annotated variants, and method shorthand. Candidates are tried in order
+ * rather than only the first, because a decoy key that is not a mapper at all
+ * (`params: (GitHubBlock.tools?.config as any)?.params`) would otherwise mask the real one.
  */
 function findMapperBodyRanges(scannable: string): [number, number][] {
   const ranges: [number, number][] = []
@@ -784,20 +860,24 @@ function findMapperBodyRanges(scannable: string): [number, number][] {
     if (configEnd === -1) continue
 
     const configRegion = scannable.slice(configStart, configEnd)
-    const paramsMatch = /\bparams\s*(?::\s*)?\(/.exec(configRegion)
-    if (!paramsMatch) continue
-    const argsStart = configStart + paramsMatch.index + paramsMatch[0].length - 1
-    const argsEnd = findMatchingClose(scannable, argsStart, '(', ')')
-    if (argsEnd === -1) continue
+    const paramsRegex = /\bparams\s*(?::\s*(?:async\s*)?(?:<[^<>]*>\s*)?)?\(/g
+    let paramsMatch: RegExpExecArray | null
 
-    const afterArgs = scannable.slice(argsEnd, configEnd)
-    const bodyMatch = /^\s*(?::[^=({]*)?(?:=>\s*)?([({])/.exec(afterArgs)
-    if (!bodyMatch) continue
-    const open = bodyMatch[1] as '(' | '{'
-    const bodyStart = argsEnd + bodyMatch[0].length - 1
-    const bodyEnd = findMatchingClose(scannable, bodyStart, open, open === '(' ? ')' : '}')
-    if (bodyEnd === -1) continue
-    ranges.push([bodyStart, bodyEnd])
+    while ((paramsMatch = paramsRegex.exec(configRegion)) !== null) {
+      const argsStart = configStart + paramsMatch.index + paramsMatch[0].length - 1
+      const argsEnd = findMatchingClose(scannable, argsStart, '(', ')')
+      if (argsEnd === -1) continue
+
+      const afterArgs = scannable.slice(argsEnd, configEnd)
+      const bodyMatch = /^\s*(?::[^=({]*)?(?:=>\s*)?([({])/.exec(afterArgs)
+      if (!bodyMatch) continue
+      const open = bodyMatch[1] as '(' | '{'
+      const bodyStart = argsEnd + bodyMatch[0].length - 1
+      const bodyEnd = findMatchingClose(scannable, bodyStart, open, open === '(' ? ')' : '}')
+      if (bodyEnd === -1) continue
+      ranges.push([bodyStart, bodyEnd])
+      break
+    }
   }
 
   return ranges
@@ -1453,7 +1533,7 @@ function extractAllBlockConfigs(fileContent: string): BlockConfig[] {
 
       const hideFromToolbar = /hideFromToolbar\s*:\s*true/.test(stripSourceComments(blockContent))
       if (hideFromToolbar) {
-        console.log(`Skipping ${blockName}Block - hideFromToolbar is true`)
+        if (!PARSE_SCAN_ONLY) console.log(`Skipping ${blockName}Block - hideFromToolbar is true`)
         continue
       }
 
@@ -1461,7 +1541,7 @@ function extractAllBlockConfigs(fileContent: string): BlockConfig[] {
       // .mdx pages, integrations.json (landing + workspace catalog + sitemap +
       // OG images), and the icon mapping.
       if (isPreviewSource(blockContent)) {
-        console.log(`Skipping ${blockName}Block - preview is true`)
+        if (!PARSE_SCAN_ONLY) console.log(`Skipping ${blockName}Block - preview is true`)
         continue
       }
 
@@ -1566,20 +1646,29 @@ function extractBlockConfigFromContent(
     const operations = extractOperationsFromContent(blockContent)
     const triggerIds = extractTriggersAvailable(blockContent, fileContent)
     let ownSettableParamIds: string[] = []
+    const baseSettableParamIds: string[] = (baseConfig as any)?.userSettableParamIds ?? []
     try {
       ownSettableParamIds = extractBlockSuppliedParamIds(blockContent, blockName)
     } catch (error) {
-      /**
-       * Recorded rather than rethrown so one unreadable block cannot drop itself from the
-       * docs entirely. `generateAllBlockDocs` fails the run on any recorded failure.
-       */
       if (!(error instanceof SubBlockParseError)) throw error
-      subBlockParseFailures.push(error.message)
-      console.error(`✗ ${error.message}`)
+      /**
+       * A block that spreads a base still documents the base's fields, so an unreadable
+       * own-`subBlocks` array cannot strip the page — it can only miss fields the block adds on
+       * top of the base. That is a warning. With no base to fall back on the empty array IS the
+       * destructive result, so it is recorded and `generateAllBlockDocs` aborts the run before
+       * anything is written.
+       */
+      if (baseSettableParamIds.length > 0) {
+        if (!subBlockParseWarnings.has(error.message)) {
+          subBlockParseWarnings.add(error.message)
+          console.warn(`⚠ ${error.message}; documenting the spread base's fields instead`)
+        }
+      } else {
+        subBlockParseFailures.push(error.message)
+        console.error(`✗ ${error.message}`)
+      }
     }
-    const userSettableParamIds = [
-      ...new Set([...ownSettableParamIds, ...((baseConfig as any)?.userSettableParamIds ?? [])]),
-    ]
+    const userSettableParamIds = [...new Set([...ownSettableParamIds, ...baseSettableParamIds])]
     const docsLink =
       extractStringPropertyFromContent(blockContent, 'docsLink', true) ||
       baseConfig?.docsLink ||
@@ -4282,8 +4371,58 @@ async function generateAllTriggerDocs(): Promise<void> {
   }
 }
 
+/**
+ * Reports the recorded parse failures. Kept separate from the run so both the pre-write abort
+ * and the belt-and-braces post-pass check phrase the failure identically.
+ */
+function reportSubBlockParseFailures(): void {
+  console.error(
+    `Could not read the subBlocks array of ${subBlockParseFailures.length} block(s):\n- ${[
+      ...new Set(subBlockParseFailures),
+    ].join('\n- ')}`
+  )
+}
+
+/**
+ * Runs the block-config extraction over every block file without emitting anything.
+ *
+ * `extractUserSettableParamIds` throws when a `subBlocks` array is present but unreadable, and
+ * the recorded failure used to surface only after `updateMetaJson` and after every page had
+ * already been written — so a parse failure left the destructive page (every hidden param
+ * stripped from the Input table) on disk and *then* exited 1. Check mode never writes, so the
+ * damage only ever landed on the developer running the generator for real, which is exactly
+ * backwards. Running the identical extraction as a dry pass first means a failure aborts before
+ * the write phase, matching what {@link extractUserSettableParamIds} documents. Reusing
+ * `extractAllBlockConfigs` rather than a bespoke walk keeps the pre-scan's coverage equal to the
+ * real pass's by construction, including the hideFromToolbar/preview skips and the recursion
+ * into spread bases.
+ */
+function scanBlockFilesForParseFailures(blockFiles: string[]): void {
+  PARSE_SCAN_ONLY = true
+  try {
+    for (const blockFile of blockFiles) {
+      if (path.basename(blockFile, '.ts').endsWith('.test')) continue
+      extractAllBlockConfigs(fs.readFileSync(blockFile, 'utf-8'))
+    }
+  } finally {
+    PARSE_SCAN_ONLY = false
+  }
+}
+
 async function generateAllBlockDocs() {
   try {
+    const blockFiles = (await glob(`${BLOCKS_PATH}/*.ts`)).sort()
+
+    /**
+     * Before anything is emitted. A recorded failure here means at least one page would be
+     * written with its hidden params stripped, so the run stops with the tree untouched.
+     */
+    scanBlockFilesForParseFailures(blockFiles)
+    if (subBlockParseFailures.length > 0) {
+      reportSubBlockParseFailures()
+      return false
+    }
+
     copyIconsFile()
 
     const docsIconMapping = await generateIconMapping({ includeHidden: true })
@@ -4298,8 +4437,6 @@ async function generateAllBlockDocs() {
     const validToolDocs = await getCanonicalToolDocNames()
     cleanupStaleToolDocs(validToolDocs)
 
-    const blockFiles = (await glob(`${BLOCKS_PATH}/*.ts`)).sort()
-
     for (const blockFile of blockFiles) {
       await generateBlockDoc(blockFile)
     }
@@ -4310,12 +4447,9 @@ async function generateAllBlockDocs() {
     // Write the integrations meta after both passes so trigger-only pages are included
     updateMetaJson()
 
+    /** Unreachable given the pre-scan, but a failure must never be able to outlive a write. */
     if (subBlockParseFailures.length > 0) {
-      console.error(
-        `Could not read the subBlocks array of ${subBlockParseFailures.length} block(s):\n- ${[
-          ...new Set(subBlockParseFailures),
-        ].join('\n- ')}`
-      )
+      reportSubBlockParseFailures()
       return false
     }
 

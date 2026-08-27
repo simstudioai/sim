@@ -134,7 +134,8 @@ export const listCommentsTool: ToolConfig<
     },
     nextPageToken: {
       type: 'string',
-      description: 'Token for fetching the next page of comments',
+      description:
+        'Google Drive pagination cursor returned when more comments remain beyond this response; empty when this is the last page',
     },
   },
 }

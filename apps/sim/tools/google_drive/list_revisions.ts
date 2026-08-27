@@ -120,7 +120,8 @@ export const listRevisionsTool: ToolConfig<
     },
     nextPageToken: {
       type: 'string',
-      description: 'Token for fetching the next page of revisions',
+      description:
+        'Google Drive pagination cursor returned when more revisions remain beyond this response; empty when this is the last page',
     },
   },
 }

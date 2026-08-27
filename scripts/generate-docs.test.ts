@@ -183,6 +183,64 @@ describe('subBlock param extraction', () => {
       /subBlocks/
     )
   })
+
+  /**
+   * Shapes taken verbatim from the blocks that ship them: `SlackV2Block`,
+   * `VideoGeneratorV3Block`, `NotionV2Block` and `LinearV2Block`.
+   */
+  describe('subBlocks shapes the array-literal scan cannot walk', () => {
+    it('reports a subBlocks value that is not an array literal at all', () => {
+      expect(() =>
+        extractUserSettableParamIds(
+          `subBlocks: withFalAIModelOptions(VideoGeneratorV2Block.subBlocks, MODELS),`,
+          'VideoGeneratorV3'
+        )
+      ).toThrow(/VideoGeneratorV3: subBlocks/)
+    })
+
+    it('reports an array whose only element is a bare helper call', () => {
+      expect(() =>
+        extractUserSettableParamIds(
+          `subBlocks: [...getSlackV2ActionSubBlocks(), ...getTrigger('slack_oauth').subBlocks],`,
+          'SlackV2'
+        )
+      ).toThrow(/SlackV2: subBlocks/)
+    })
+
+    it('still returns no ids for an array of nothing but named fields arrays', () => {
+      expect(
+        extractUserSettableParamIds(
+          `subBlocks: [\n  ...NotionBlock.subBlocks,\n  ...getTrigger('notion_page_created').subBlocks,\n],`,
+          'NotionV2'
+        )
+      ).toEqual([])
+
+      expect(
+        extractUserSettableParamIds(
+          `subBlocks: [\n  ...LinearBlock.subBlocks.filter((sb) => !sb.id?.startsWith('webhookSecret')),\n],`,
+          'LinearV2'
+        )
+      ).toEqual([])
+    })
+
+    it('does not fail a block that overrides a spread subBlock instead of naming an id', () => {
+      expect(
+        extractUserSettableParamIds(
+          `subBlocks: [\n  ...Base.subBlocks.map((sb) => (sb.id === 'x' ? { ...sb, required: true } : sb)),\n],`,
+          'OverridingV2'
+        )
+      ).toEqual([])
+    })
+
+    it('leaves a readable array alone even when it also spreads an opaque helper', () => {
+      expect(
+        extractUserSettableParamIds(
+          `subBlocks: [\n  ...SERVICE_ACCOUNT_SUBBLOCKS,\n  { id: 'operation' },\n],`,
+          'GoogleDrive'
+        )
+      ).toEqual(['operation'])
+    })
+  })
 })
 
 describe('hidden params supplied by the block mapper', () => {
@@ -246,6 +304,31 @@ describe('hidden params supplied by the block mapper', () => {
     await expect(paramNames('zoho_desk_list_tickets', 'zoho-desk.ts')).resolves.not.toContain(
       'apiDomain'
     )
+  })
+
+  it('finds the real mapper past a decoy params key that is not a mapper', () => {
+    const ids = extractBlockSuppliedParamIds(`
+      subBlocks: [{ id: 'operation' }],
+      tools: {
+        config: {
+          params: (GitHubBlock.tools?.config as any)?.params,
+          params: (params) => ({ renamed: params.original }),
+        },
+      },
+    `)
+    expect(ids).toContain('renamed')
+  })
+
+  it('reads an async mapper body', () => {
+    const ids = extractBlockSuppliedParamIds(`
+      subBlocks: [{ id: 'operation' }],
+      tools: {
+        config: {
+          params: async (params) => ({ renamed: params.original }),
+        },
+      },
+    `)
+    expect(ids).toContain('renamed')
   })
 
   it('ignores a commented-out mapper assignment', () => {
