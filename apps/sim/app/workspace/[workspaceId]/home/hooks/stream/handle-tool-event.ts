@@ -4,7 +4,11 @@ import {
   MothershipStreamV1ToolPhase,
   MothershipStreamV1ToolStatus,
 } from '@/lib/copilot/generated/mothership-stream-v1'
-import { ApplyFileEdit, PrepareFileEdit } from '@/lib/copilot/generated/tool-catalog-v1'
+import {
+  ApplyFileEdit,
+  PrepareFileEdit,
+  SetEnvironmentVariables,
+} from '@/lib/copilot/generated/tool-catalog-v1'
 import type { PersistedStreamEventEnvelope } from '@/lib/copilot/request/session/contract'
 import {
   extractResourcesFromToolResult,
@@ -26,8 +30,10 @@ import {
   type ToolNode,
 } from '@/app/workspace/[workspaceId]/home/hooks/stream/turn-model'
 import { deploymentKeys } from '@/hooks/queries/deployments'
+import { environmentKeys } from '@/hooks/queries/environment'
 import { folderKeys } from '@/hooks/queries/utils/folder-keys'
 import { invalidateWorkflowLists } from '@/hooks/queries/utils/invalidate-workflow-lists'
+import { invalidateEnvironmentDependentSelectorQueries } from '@/hooks/selectors/cache-invalidation'
 
 type ToolEvent = Extract<PersistedStreamEventEnvelope, { type: 'tool' }>
 
@@ -69,6 +75,23 @@ function runToolResultSideEffects(ctx: StreamLoopContext, node: ToolNode): void 
     // `rm` archives, so the archived list moves too — and the shared helper also
     // refreshes the workflow selector lists that `@`-mentions and pickers read.
     void invalidateWorkflowLists(deps.queryClient, deps.workspaceId, ['active', 'archived'])
+  }
+
+  if (name === SetEnvironmentVariables.id && isSuccess) {
+    const out = output as Record<string, unknown> | undefined
+    const isPersonal = out?.scope === 'personal'
+    const workspaceId = typeof out?.workspaceId === 'string' ? out.workspaceId : deps.workspaceId
+
+    void (async () => {
+      if (isPersonal) {
+        await deps.queryClient.invalidateQueries({ queryKey: environmentKeys.personal() })
+      } else {
+        await deps.queryClient.invalidateQueries({
+          queryKey: environmentKeys.workspace(workspaceId),
+        })
+      }
+      await invalidateEnvironmentDependentSelectorQueries(deps.queryClient)
+    })()
   }
 
   const extractedResources =

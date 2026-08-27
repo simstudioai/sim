@@ -15,8 +15,11 @@ vi.mock(
   () => ({ invalidateResourceQueries: vi.fn() })
 )
 
+import { SetEnvironmentVariables } from '@/lib/copilot/generated/tool-catalog-v1'
 import type { PersistedStreamEventEnvelope } from '@/lib/copilot/request/session/contract'
 import type { FilePreviewSession } from '@/lib/copilot/request/session/file-preview-session-contract'
+import { environmentKeys } from '@/hooks/queries/environment'
+import { environmentDependentSelectorKeys } from '@/hooks/selectors/cache-invalidation'
 import { dispatchStreamEvent } from './dispatch-stream-event'
 import { createStreamLoopContext, type StreamLoopContext } from './stream-context'
 import { makeStreamLoopDeps, ref } from './stream-test-helpers'
@@ -38,7 +41,7 @@ function toolEnv(payload: Record<string, unknown>): PersistedStreamEventEnvelope
 const toolCall = (id: string, name = 'my_tool') =>
   toolEnv({ phase: 'call', executor: 'go', mode: 'sync', toolCallId: id, toolName: name })
 
-const toolResult = (id: string, success: boolean, name = 'my_tool') =>
+const toolResult = (id: string, success: boolean, name = 'my_tool', output?: unknown) =>
   toolEnv({
     phase: 'result',
     executor: 'go',
@@ -47,6 +50,7 @@ const toolResult = (id: string, success: boolean, name = 'my_tool') =>
     toolName: name,
     success,
     status: success ? 'success' : 'error',
+    ...(output === undefined ? {} : { output }),
   })
 
 const workspaceFileCall = (id: string) =>
@@ -108,6 +112,61 @@ describe('tool events (dispatch → model + side effects)', () => {
     dispatchStreamEvent(ctx, toolCall('tc-3'))
     dispatchStreamEvent(ctx, toolResult('tc-3', false))
     expect(toolNode(ctx, 'tc-3').status).toBe('error')
+  })
+
+  it.each([
+    {
+      scope: 'personal',
+      output: { scope: 'personal' },
+      environmentQueryKey: environmentKeys.personal(),
+    },
+    {
+      scope: 'workspace',
+      output: { scope: 'workspace', workspaceId: 'workspace-from-result' },
+      environmentQueryKey: environmentKeys.workspace('workspace-from-result'),
+    },
+  ])(
+    'refreshes the $scope environment before selector caches after Copilot saves secrets',
+    async ({ output, environmentQueryKey }) => {
+      const deps = makeStreamLoopDeps()
+      const invalidateQueries = vi.mocked(deps.queryClient.invalidateQueries)
+      invalidateQueries.mockResolvedValue(undefined)
+      const ctx = createStreamLoopContext(deps)
+
+      dispatchStreamEvent(ctx, toolCall('environment-1', SetEnvironmentVariables.id))
+      dispatchStreamEvent(
+        ctx,
+        toolResult('environment-1', true, SetEnvironmentVariables.id, output)
+      )
+
+      await vi.waitFor(() => expect(invalidateQueries).toHaveBeenCalledTimes(5))
+      expect(invalidateQueries.mock.calls.map(([filters]) => filters?.queryKey)).toEqual([
+        environmentQueryKey,
+        environmentDependentSelectorKeys.primary,
+        environmentDependentSelectorKeys.dynamicDetails,
+        environmentDependentSelectorKeys.workflowDetails,
+        environmentDependentSelectorKeys.workflowReplacementOptions,
+      ])
+    }
+  )
+
+  it('does not refresh environment or selector caches when Copilot secret storage fails', async () => {
+    const deps = makeStreamLoopDeps()
+    const invalidateQueries = vi.mocked(deps.queryClient.invalidateQueries)
+    invalidateQueries.mockResolvedValue(undefined)
+    const ctx = createStreamLoopContext(deps)
+
+    dispatchStreamEvent(ctx, toolCall('environment-failed', SetEnvironmentVariables.id))
+    dispatchStreamEvent(
+      ctx,
+      toolResult('environment-failed', false, SetEnvironmentVariables.id, {
+        scope: 'workspace',
+        workspaceId: 'workspace-from-result',
+      })
+    )
+    await Promise.resolve()
+
+    expect(invalidateQueries).not.toHaveBeenCalled()
   })
 
   // The client starts terminal/browser/workflow tools straight off the call
