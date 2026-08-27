@@ -106,6 +106,7 @@ import {
   cancelWorkflowExecution,
   WorkflowExecutionNotFoundError,
 } from '@/lib/execution/cancel-workflow-execution'
+import { WorkflowRunAlreadyTerminalError } from '@/lib/execution/workflow-run-already-terminal-error'
 
 const INPUT: CancelWorkflowExecutionInput = {
   workflowId: 'wf-1',
@@ -1369,14 +1370,44 @@ describe('cancelWorkflowExecution', () => {
     await expect(response.json()).resolves.toEqual({ error: 'database unavailable' })
   })
 
-  it('returns 409 when the execution is already terminal', async () => {
+  it.each(['completed', 'failed'] as const)(
+    'raises a typed conflict when a standalone execution is already %s',
+    async (executionStatus) => {
+      dbChainMockFns.limit.mockResolvedValueOnce([
+        { status: executionStatus, workspaceId: 'workspace-1' },
+      ])
+
+      const error = await cancelWorkflowExecution(INPUT).catch((caught: unknown) => caught)
+
+      expect(error).toBeInstanceOf(WorkflowRunAlreadyTerminalError)
+      expect(error).toEqual(
+        expect.objectContaining({
+          code: 'conflict',
+          executionId: 'ex-1',
+          executionStatus,
+          redisAvailable: true,
+          locallyAborted: false,
+        })
+      )
+      expect(mockMarkExecutionCancelled).not.toHaveBeenCalled()
+      expect(mockCancelByExecution).not.toHaveBeenCalled()
+    }
+  )
+
+  it('keeps workflow-group terminal conflicts strict', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([
-      { status: 'completed', workspaceId: 'workspace-1' },
+      {
+        executionOrigin: 'workflow_group',
+        status: 'completed',
+        workspaceId: 'workspace-1',
+      },
     ])
 
-    const response = await POST(makeRequest(), makeParams())
-
-    expect(response.status).toBe(409)
+    await expect(cancelWorkflowExecution(INPUT)).rejects.toMatchObject({
+      name: 'OrchestrationError',
+      code: 'conflict',
+      message: 'Execution cannot be cancelled while completed',
+    })
     expect(mockMarkExecutionCancelled).not.toHaveBeenCalled()
     expect(mockCancelByExecution).not.toHaveBeenCalled()
   })
@@ -1392,12 +1423,18 @@ describe('cancelWorkflowExecution', () => {
       ])
       .mockResolvedValueOnce([{ status: 'completed' }])
 
-    const response = await POST(makeRequest(), makeParams())
+    const error = await cancelWorkflowExecution(INPUT).catch((caught: unknown) => caught)
 
-    expect(response.status).toBe(409)
-    await expect(response.json()).resolves.toEqual({
-      error: 'Execution cannot be cancelled while completed',
-    })
+    expect(error).toBeInstanceOf(WorkflowRunAlreadyTerminalError)
+    expect(error).toEqual(
+      expect.objectContaining({
+        code: 'conflict',
+        executionId: 'ex-1',
+        executionStatus: 'completed',
+        redisAvailable: true,
+        locallyAborted: false,
+      })
+    )
     expect(returning).toHaveBeenCalledOnce()
     expect(mockClearExecutionCancellation).toHaveBeenCalledWith('ex-1')
     expect(mockWriteTerminalEvent).not.toHaveBeenCalled()

@@ -12,7 +12,7 @@ export const POST = defineV2JsonRoute({
   auth: v2ApiKeyAuth,
   operation: workflowOperations.cancelRun,
   rateLimit: v2RateLimits.publicApi,
-  errorPolicy: v2WorkflowErrorPolicies.concealRunAuthorization,
+  errorPolicy: v2WorkflowErrorPolicies.cancelRun,
   mapInput: ({ params }) => ({ workflowId: params.workflowId, runId: params.runId }),
   useCase: cancelWorkflowRun,
   present: (result) => ({

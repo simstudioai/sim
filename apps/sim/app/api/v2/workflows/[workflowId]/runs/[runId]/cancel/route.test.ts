@@ -11,6 +11,7 @@ import {
 } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { WorkflowRunAlreadyTerminalError } from '@/lib/execution/workflow-run-already-terminal-error'
 
 const mocks = vi.hoisted(() => ({
   cancel: vi.fn(),
@@ -104,4 +105,36 @@ describe('POST /api/v2/workflows/[workflowId]/runs/[runId]/cancel', () => {
       reason: 'already_cancelled',
     })
   })
+
+  it.each([
+    ['completed', 'already_completed'],
+    ['failed', 'already_failed'],
+  ] as const)(
+    'preserves the v2 terminal no-op response when a standalone run is already %s',
+    async (executionStatus, reason) => {
+      mocks.cancel.mockRejectedValue(
+        new WorkflowRunAlreadyTerminalError({
+          executionId: RUN_ID,
+          executionStatus,
+          redisAvailable: true,
+          locallyAborted: false,
+        })
+      )
+
+      const response = await POST(request(), context)
+
+      expect(response.status).toBe(200)
+      await expect(response.json()).resolves.toEqual({
+        data: {
+          success: true,
+          runId: RUN_ID,
+          redisAvailable: true,
+          durablyRecorded: false,
+          locallyAborted: false,
+          pausedCancelled: false,
+          reason,
+        },
+      })
+    }
+  )
 })

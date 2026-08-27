@@ -15,6 +15,10 @@ import {
 } from '@/lib/execution/cancellation'
 import { createExecutionEventWriter, readExecutionMetaState } from '@/lib/execution/event-buffer'
 import { abortManualExecution } from '@/lib/execution/manual-cancellation'
+import {
+  isWorkflowRunAlreadyTerminalStatus,
+  WorkflowRunAlreadyTerminalError,
+} from '@/lib/execution/workflow-run-already-terminal-error'
 import { cancelledExecutionLogFields } from '@/lib/logs/execution/cancellation'
 import { workflowExecutionOriginSql } from '@/lib/logs/execution-origin'
 import {
@@ -622,6 +626,14 @@ export async function cancelWorkflowExecution({
     }
 
     if (execution.status !== 'running' && execution.status !== 'pending') {
+      if (!isWorkflowGroupExecution && isWorkflowRunAlreadyTerminalStatus(execution.status)) {
+        throw new WorkflowRunAlreadyTerminalError({
+          executionId,
+          executionStatus: execution.status,
+          redisAvailable: true,
+          locallyAborted: false,
+        })
+      }
       throw new OrchestrationError(
         'conflict',
         `Execution cannot be cancelled while ${execution.status}`
@@ -858,6 +870,17 @@ export async function cancelWorkflowExecution({
             })
           }
         )
+      }
+      if (
+        !isWorkflowGroupExecution &&
+        isWorkflowRunAlreadyTerminalStatus(competingTerminalStatus)
+      ) {
+        throw new WorkflowRunAlreadyTerminalError({
+          executionId,
+          executionStatus: competingTerminalStatus,
+          redisAvailable: stopSummary.cancellation.reason !== 'redis_unavailable',
+          locallyAborted: stopSummary.locallyAborted,
+        })
       }
       throw new OrchestrationError(
         'conflict',

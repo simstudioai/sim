@@ -1865,21 +1865,21 @@ export const v2CancelWorkflowRunDataSchema = z
     durablyRecorded: z
       .boolean()
       .describe(
-        'Whether this request durably recorded a cancellation. False when an already-cancelled run needed no further durable write.'
+        'Whether this request durably recorded a cancellation. Always false for a run that was already terminal, where the request is satisfied but nothing was written.'
       ),
     locallyAborted: z.boolean().describe('Whether an in-process execution was aborted.'),
     pausedCancelled: z.boolean().describe('Whether a paused execution was cancelled.'),
     reason: cancelWorkflowExecutionReasonSchema
       .optional()
       .describe(
-        'Machine-readable cancellation outcome. `recorded`, `queue_cancelled`, and `already_cancelled` are successful outcomes; the remaining values identify a degraded or incomplete cancellation step.'
+        'Machine-readable cancellation outcome, present on every cancellation including full successes. `recorded` and `queue_cancelled` are successful cancellation values. `already_cancelled`, `already_completed`, and `already_failed` mean the run had already reached that terminal state, so nothing was cancelled and `durablyRecorded` is false. The remaining values identify a degraded or incomplete cancellation step.'
       ),
   })
   .meta({
     id: 'CancelWorkflowRunResult',
     title: 'Cancel workflow run result',
     description:
-      'Outcome of the shared workflow-run cancellation lifecycle used by internal UI, Copilot, and v2 callers.',
+      'Outcome of a workflow run cancellation request. Cancellation is best-effort: a run already in a terminal state succeeds with no effect, reported as `durablyRecorded: false` with an `already_*` reason naming the state observed.',
   })
 export type V2CancelWorkflowRunData = z.output<typeof v2CancelWorkflowRunDataSchema>
 

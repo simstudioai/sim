@@ -3,6 +3,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ExecutionContext } from '@/lib/copilot/request/types'
+import { WorkflowRunAlreadyTerminalError } from '@/lib/execution/workflow-run-already-terminal-error'
 
 const { mocks } = vi.hoisted(() => ({
   mocks: {
@@ -205,8 +206,11 @@ describe('workflow mutation Copilot adapters', () => {
 
   it('returns a cancellation application error to the Run agent', async () => {
     mocks.executeWorkflowUseCase.mockRejectedValue(
-      Object.assign(new Error('Execution cannot be cancelled while completed'), {
-        code: 'conflict',
+      new WorkflowRunAlreadyTerminalError({
+        executionId: 'execution-1',
+        executionStatus: 'completed',
+        redisAvailable: true,
+        locallyAborted: false,
       })
     )
 

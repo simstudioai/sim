@@ -3,7 +3,7 @@
  */
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { WorkflowRunAlreadyTerminalError } from '@/lib/execution/workflow-run-already-terminal-error'
 
 const mocks = vi.hoisted(() => ({
   cancel: vi.fn(),
@@ -83,7 +83,12 @@ describe('POST /api/workflows/[id]/executions/[executionId]/cancel', () => {
 
   it('projects application conflicts without reimplementing cancellation errors', async () => {
     mocks.cancel.mockRejectedValue(
-      new OrchestrationError('conflict', 'Execution cannot be cancelled while completed')
+      new WorkflowRunAlreadyTerminalError({
+        executionId: 'execution-1',
+        executionStatus: 'completed',
+        redisAvailable: true,
+        locallyAborted: false,
+      })
     )
 
     const response = await POST(request(), context)
