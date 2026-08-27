@@ -122,6 +122,7 @@ import {
   rebindKnowledgeDocumentSecretProvenance,
   replaceKnowledgeDocumentSecretProvenanceInTx,
 } from '@/lib/knowledge/secret-provenance'
+import { assertTagSlotsAreDefined } from '@/lib/knowledge/tags/service'
 import {
   buildUndefinedTagsError,
   parseBooleanValue,
@@ -2674,6 +2675,13 @@ export async function createSingleDocument(
         throw error
       }
     }
+  } else {
+    /**
+     * Only the slot-keyed branch needs this: `resolveDocumentTags` above already
+     * refuses a name it cannot resolve to a definition, so the name-keyed branch
+     * cannot reach an undefined slot.
+     */
+    await assertTagSlotsAreDefined(knowledgeBaseId, processedTags)
   }
 
   const newDocument = {
@@ -2916,6 +2924,7 @@ export async function bulkDocumentOperation(
 ): Promise<{
   success: boolean
   successCount: number
+  errors: string[]
   updatedDocuments: Array<{
     id: string
     enabled?: boolean
@@ -2943,14 +2952,33 @@ export async function bulkDocumentOperation(
       )
     )
 
-  if (documentsToUpdate.length === 0) {
-    throw new OrchestrationError('not_found', 'No valid documents found to update')
-  }
+  /**
+   * One rule, matching {@link batchChunkOperation}: an id naming no updatable
+   * document in this knowledge base is reported in `errors[]` and never fails
+   * the request, so a caller can tell which ids it named were wrong instead of
+   * inferring it from the count.
+   *
+   * This is a report of what already happened, not a relaxation. The selection
+   * below has always applied to the documents it matched and dropped the rest —
+   * an unmatched id only ever produced the `logger.warn` this replaces — so
+   * there is no atomicity a caller could have been depending on. The one
+   * all-or-nothing case was an empty match, which answered `404` and discarded
+   * a request that had nothing to discard; a zero-match sweep now reports
+   * `successCount: 0` with the ids in `errors[]`, which is the same answer the
+   * one-match sweep beside it already gave.
+   */
+  const matchedIds = new Set(documentsToUpdate.map(({ id }) => id))
+  const unmatchedIds = documentIds.filter((documentId) => !matchedIds.has(documentId))
+  const errors =
+    unmatchedIds.length > 0
+      ? [`No matching documents found to ${operation}: ${unmatchedIds.join(', ')}`]
+      : []
 
-  if (documentsToUpdate.length !== documentIds.length) {
-    logger.warn(
-      `[${requestId}] Some documents not found or don't belong to knowledge base. Requested: ${documentIds.length}, Found: ${documentsToUpdate.length}`
+  if (documentsToUpdate.length === 0) {
+    logger.info(
+      `[${requestId}] Bulk ${operation} operation matched no documents in knowledge base ${knowledgeBaseId}`
     )
+    return { success: false, successCount: 0, errors, updatedDocuments: [] }
   }
 
   let updateResult: Array<{
@@ -2987,12 +3015,13 @@ export async function bulkDocumentOperation(
   const successCount = updateResult.length
 
   logger.info(
-    `[${requestId}] Bulk ${operation} operation completed: ${successCount} documents updated in knowledge base ${knowledgeBaseId}`
+    `[${requestId}] Bulk ${operation} operation completed: ${successCount} documents updated in knowledge base ${knowledgeBaseId}, ${errors.length} errors`
   )
 
   return {
-    success: true,
+    success: errors.length === 0,
     successCount,
+    errors,
     updatedDocuments: updateResult,
   }
 }
@@ -3005,6 +3034,12 @@ export async function bulkDocumentOperationByFilter(
 ): Promise<{
   success: boolean
   successCount: number
+  /**
+   * Always empty. A filter selection names no identifier, so it has none that
+   * could have missed; the field is present so both bulk selections return one
+   * shape and a surface never has to branch on which produced the result.
+   */
+  errors: string[]
   updatedDocuments: Array<{
     id: string
     enabled?: boolean
@@ -3064,6 +3099,7 @@ export async function bulkDocumentOperationByFilter(
   return {
     success: true,
     successCount,
+    errors: [],
     updatedDocuments: updateResult,
   }
 }

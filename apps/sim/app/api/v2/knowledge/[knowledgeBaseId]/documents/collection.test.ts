@@ -209,6 +209,7 @@ describe('PATCH /api/v2/knowledge/[knowledgeBaseId]/documents', () => {
     mockBulkUpdate.mockResolvedValue({
       operation: 'disable',
       successCount: 2,
+      errors: [],
       updatedDocuments: [
         { id: 'doc-1', enabled: false },
         { id: 'doc-2', enabled: false },
@@ -227,6 +228,7 @@ describe('PATCH /api/v2/knowledge/[knowledgeBaseId]/documents', () => {
     mockBulkUpdate.mockResolvedValueOnce({
       operation: 'disable',
       successCount: 100_000,
+      errors: [],
       updatedDocuments: Array.from({ length: 100_000 }, (_, index) => ({
         id: `doc-${index}`,
         enabled: false,
@@ -241,7 +243,7 @@ describe('PATCH /api/v2/knowledge/[knowledgeBaseId]/documents', () => {
 
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({
-      data: { operation: 'disable', updatedCount: 100_000 },
+      data: { operation: 'disable', processed: 100_000, errors: [] },
     })
   })
 
@@ -257,7 +259,7 @@ describe('PATCH /api/v2/knowledge/[knowledgeBaseId]/documents', () => {
 
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({
-      data: { operation: 'disable', updatedCount: 2, documentIds: ['doc-1', 'doc-2'] },
+      data: { operation: 'disable', processed: 2, errors: [], documentIds: ['doc-1', 'doc-2'] },
     })
     expect(mockBulkUpdate).toHaveBeenCalledWith(
       expect.objectContaining({

@@ -116,6 +116,22 @@ describe('workspace file folder paths', () => {
     )
   })
 
+  it('rejects interior control characters that would render differently than they are stored', () => {
+    expect(() => normalizeWorkspaceFileItemName('a\tb.txt', 'File')).toThrow(
+      'File name cannot contain control characters'
+    )
+    expect(() => normalizeWorkspaceFileItemName('a\u0000b', 'Folder')).toThrow(
+      'Folder name cannot contain control characters'
+    )
+    expect(() => normalizeWorkspaceFileItemName('a\u007fb', 'File')).toThrow(
+      'File name cannot contain control characters'
+    )
+    expect(normalizeWorkspaceFileItemName('\treport.txt\n', 'File')).toBe('report.txt')
+    expect(normalizeWorkspaceFileItemName('Q3 report — final.txt', 'File')).toBe(
+      'Q3 report — final.txt'
+    )
+  })
+
   it('rejects oversized ensured paths before persisting any folders', async () => {
     await expect(
       ensureWorkspaceFileFolderPath({

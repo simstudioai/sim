@@ -30,6 +30,7 @@ const mocks = vi.hoisted(() => ({
   recordKnowledgeBaseFileOwnership: vi.fn(),
   recordAudit: vi.fn(),
   captureServerEvent: vi.fn(),
+  assertTagSlotsAreDefined: vi.fn(),
   getDocumentTagDefinitions: vi.fn(),
 }))
 
@@ -78,6 +79,7 @@ vi.mock('@/lib/knowledge/documents/service', () => ({
 }))
 
 vi.mock('@/lib/knowledge/tags/service', () => ({
+  assertTagSlotsAreDefined: mocks.assertTagSlotsAreDefined,
   getDocumentTagDefinitions: mocks.getDocumentTagDefinitions,
 }))
 

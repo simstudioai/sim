@@ -18,6 +18,7 @@ import {
   SUPPORTED_FIELD_TYPES,
 } from '@/lib/knowledge/constants'
 import type { BulkTagDefinitionsData, DocumentTagDefinition } from '@/lib/knowledge/tags/types'
+import { buildUndefinedTagsError } from '@/lib/knowledge/tags/utils'
 import type {
   CreateTagDefinitionData,
   TagDefinition,
@@ -203,6 +204,53 @@ export async function getNextAvailableSlot(
 /**
  * Get all tag definitions for a knowledge base
  */
+/**
+ * Refuses a slot-keyed tag write into a slot this knowledge base has not defined.
+ *
+ * Tag writes address slots (`tag1`..`tag7`) while tag reads and every filter
+ * address display names, and `GET /knowledge/{id}/tags` is the mapping between
+ * them. A value written into a slot with no definition has no name on either
+ * side of that mapping: the document list projects it under its raw slot name,
+ * the knowledge UI hides it outright (it renders only slots a definition
+ * covers), and a `tagFilters` entry naming either spelling is rejected because
+ * neither is a defined tag. The value is reachable by nothing, which is why
+ * this refuses the write rather than letting it land.
+ *
+ * Rejecting, not auto-creating: the sibling name-keyed write path already
+ * rejects an undefined name, so does every filter, and a slot write carries no
+ * display name a definition could be created from — inventing one called
+ * "tag2" would put a name the caller never chose into the knowledge base's
+ * vocabulary and into every subsequent read. The knowledge UI auto-creates a
+ * definition only because the user typed a name for it first.
+ *
+ * Clearing is always allowed. An empty value removes whatever a slot holds,
+ * including a value written before this guard existed, and needing a definition
+ * to erase state would strand exactly the rows this is meant to prevent.
+ */
+export async function assertTagSlotsAreDefined(
+  knowledgeBaseId: string,
+  slotValues: Record<string, unknown>,
+  txDb?: DbOrTx
+): Promise<void> {
+  const writtenSlots = Object.entries(slotValues)
+    .filter(
+      ([slot, value]) =>
+        (VALID_TAG_SLOTS as readonly string[]).includes(slot) &&
+        value !== undefined &&
+        value !== null &&
+        String(value).trim().length > 0
+    )
+    .map(([slot]) => slot)
+  if (writtenSlots.length === 0) return
+
+  const definitions = await getDocumentTagDefinitions(knowledgeBaseId, txDb)
+  const definedSlots = new Set(definitions.map((definition) => definition.tagSlot))
+  const undefinedSlots = writtenSlots.filter((slot) => !definedSlots.has(slot))
+  if (undefinedSlots.length === 0) return
+
+  throw new OrchestrationError('validation', buildUndefinedTagsError(undefinedSlots))
+}
+
 export async function getDocumentTagDefinitions(
   knowledgeBaseId: string,
   txDb?: DbOrTx

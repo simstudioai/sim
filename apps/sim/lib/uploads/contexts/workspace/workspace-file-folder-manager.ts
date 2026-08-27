@@ -203,6 +203,14 @@ export interface WorkspaceFileFolderRestoreResult {
   restoredItems: WorkspaceFileArchiveResult
 }
 
+/**
+ * C0 controls and DEL. `trim()` already drops them at the edges, so this catches
+ * the interior ones — a tab inside a name renders as a space everywhere the name
+ * is displayed and is sanitized out of the storage key, so the stored name and
+ * every rendering of it disagree with no way for a caller to tell.
+ */
+const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f]/
+
 export function normalizeWorkspaceFileItemName(name: string, itemLabel: 'File' | 'Folder'): string {
   const trimmed = name.trim()
   if (!trimmed) {
@@ -210,6 +218,9 @@ export function normalizeWorkspaceFileItemName(name: string, itemLabel: 'File' |
   }
   if (trimmed === '.' || trimmed === '..' || trimmed.includes('/') || trimmed.includes('\\')) {
     throw new Error(`${itemLabel} name cannot contain path separators or dot segments`)
+  }
+  if (CONTROL_CHARACTERS.test(trimmed)) {
+    throw new Error(`${itemLabel} name cannot contain control characters`)
   }
   return trimmed
 }

@@ -50,10 +50,6 @@ const ALLOWED = new Map<string, string>([
     'not touched here: lives in v2/knowledge.ts',
   ],
   [
-    'Which lifecycle set to list: `active` (default) for live knowledge bases, `archived` for knowledge bases a `DELETE` archived and `POST /knowledge/{knowledgeBaseId}/restore` can bring back. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too.',
-    'not touched here: lives in v2/knowledge.ts',
-  ],
-  [
     'Structured tag filters, at most 10 of them. Every filter must hold, including two that name the same tag: repeating one tag narrows the result rather than widening it, matching `GET /api/v2/knowledge/{knowledgeBaseId}/documents`. To match either of two values for one tag, issue a search per value. Each filtered tag must resolve to the same slot and field type in every knowledge base selected; one missing from any of them, or defined inconsistently across them, is rejected rather than ignored, and those knowledge bases must be searched separately. List the available names with `GET /api/v2/knowledge/{knowledgeBaseId}/tags`.',
     'not touched here: lives in v2/knowledge.ts',
   ],

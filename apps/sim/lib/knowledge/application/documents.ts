@@ -65,7 +65,7 @@ import {
   resolveKnowledgeTagFilters,
   toKnowledgeTagFilterConditions,
 } from '@/lib/knowledge/tags/filter-resolution'
-import { getDocumentTagDefinitions } from '@/lib/knowledge/tags/service'
+import { assertTagSlotsAreDefined, getDocumentTagDefinitions } from '@/lib/knowledge/tags/service'
 import { validateTagValue } from '@/lib/knowledge/tags/utils'
 import { StorageService } from '@/lib/uploads'
 import { generateKnowledgeBaseFileKey } from '@/lib/uploads/contexts/knowledge-base/knowledge-base-file-manager'
@@ -901,6 +901,13 @@ export const updateKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
         updates,
         await resolveKnowledgeDocumentTagValueUpdates(context.knowledgeBaseId, input.tagValues)
       )
+    } else {
+      /**
+       * `tagValues` addresses definitions by id and cannot name an undefined
+       * slot; `input.updates` carries the raw `tag1`..`tag7` the API surfaces
+       * accept, and can.
+       */
+      await assertTagSlotsAreDefined(context.knowledgeBaseId, updates)
     }
     const updatedFields = Object.keys(updates).filter(
       (key) => updates[key as keyof typeof updates] !== undefined
@@ -962,6 +969,12 @@ export const bulkUpdateKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
     return {
       operation: input.operation,
       successCount: result.successCount,
+      /**
+       * Only an explicit selection can name an id that matched nothing, so a
+       * `selectAll` sweep reports an empty array rather than omitting the field:
+       * one response shape for both selections.
+       */
+      errors: result.errors,
       updatedDocuments: result.updatedDocuments,
       /**
        * Reported so a surface can tell a bounded selection from an unbounded

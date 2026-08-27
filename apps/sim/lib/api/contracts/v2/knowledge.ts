@@ -627,7 +627,7 @@ export const v2ListKnowledgeBasesQuerySchema = z
     scope: v2KnowledgeBaseScopeSchema
       .default('active')
       .describe(
-        'Which lifecycle set to list: `active` (default) for live knowledge bases, `archived` for knowledge bases a `DELETE` archived and `POST /knowledge/{knowledgeBaseId}/restore` can bring back. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too.'
+        'Which lifecycle set to list: `active` (default) for live knowledge bases, `archived` for knowledge bases a delete archived and the restore operation can bring back. The folder filter resolves against active folders only, so pairing it with `archived` returns an empty page when the containing folder was archived too.'
       ),
     folderPath: v2FolderPathInputSchema
       .optional()
@@ -755,10 +755,24 @@ export const v2CreateKnowledgeBaseContract = defineRouteContract({
   },
 })
 
+/**
+ * Reads the active lifecycle only, which is why the identifier redescribes
+ * itself here rather than reusing the shared params schema: an archived
+ * knowledge base answers `404` from this route the same way a nonexistent one
+ * does, and nothing else on the read surface says which of the two lifecycles
+ * it addresses. `GET /api/v2/knowledge?scope=archived` is what resolves an
+ * archived base, and `POST /knowledge/{knowledgeBaseId}/restore` brings it back.
+ */
+const v2GetKnowledgeBaseParamsSchema = v2KnowledgeBaseParamsSchema.extend({
+  knowledgeBaseId: v2KnowledgeBaseParamsSchema.shape.knowledgeBaseId.describe(
+    'Knowledge base to read. Active knowledge bases only: an archived one answers 404 here, is listed by `scope=archived`, and is brought back by the restore endpoint.'
+  ),
+})
+
 export const v2GetKnowledgeBaseContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/knowledge/[knowledgeBaseId]',
-  params: v2KnowledgeBaseParamsSchema,
+  params: v2GetKnowledgeBaseParamsSchema,
   query: v1KnowledgeWorkspaceQuerySchema
     .extend({
       workspaceId: v1KnowledgeWorkspaceQuerySchema.shape.workspaceId.describe(
@@ -1482,22 +1496,43 @@ export const v2BulkKnowledgeDocumentsBodySchema = z
   })
 export type V2BulkKnowledgeDocumentsBody = z.input<typeof v2BulkKnowledgeDocumentsBodySchema>
 
-/** Bulk update outcome — one object, not a page. */
+/**
+ * Bulk update outcome — one object, not a page.
+ *
+ * Best-effort, and reported the same way {@link v2BulkKnowledgeChunksDataSchema}
+ * reports it: an identifier naming no updatable document in the knowledge base
+ * lands in `errors` rather than failing the request, and a request whose every
+ * identifier missed answers `200` with `processed: 0` instead of `404`. The
+ * selection has always applied to what it matched, so the shared shape describes
+ * what the operation already did rather than changing it.
+ *
+ * `processed`, not `updatedCount`: the count is the documents the selection
+ * matched, and disabling a document that was already disabled counts it, so it
+ * is not a count of changes. That is the same quantity `processed` names on the
+ * chunk sibling, and naming it the same way keeps the two readable side by side.
+ */
 export const v2BulkKnowledgeDocumentsDataSchema = z
   .object({
     operation: z.enum(['enable', 'disable']).describe('Operation that was applied.'),
-    updatedCount: z
+    processed: z
       .number()
       .int()
       .nonnegative()
-      .describe('Number of documents the operation changed.')
+      .describe(
+        'Number of documents in this knowledge base the operation matched. Documents already in the requested state are counted too, so this is not a count of changes.'
+      )
       .meta({ examples: [42] }),
+    errors: z
+      .array(z.string())
+      .describe(
+        'Per-document failures, including any identifier that named no updatable document in the knowledge base. A populated array still answers 200, and a `selectAll` request reports an empty one.'
+      ),
     documentIds: z
       .array(z.string())
       .optional()
       .describe(
-        'Identifiers of the documents the operation changed. Present only for an explicit `documentIds` request, which is bounded to ' +
-          `${MAX_V2_BULK_KNOWLEDGE_DOCUMENTS} documents; a \`selectAll\` request omits it because the selection is unbounded, and reports \`updatedCount\` instead.`
+        'Identifiers of the documents the operation matched. Present only for an explicit `documentIds` request, which is bounded to ' +
+          `${MAX_V2_BULK_KNOWLEDGE_DOCUMENTS} documents; a \`selectAll\` request omits it because the selection is unbounded, and reports \`processed\` instead.`
       ),
   })
   .strict()

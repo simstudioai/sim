@@ -156,12 +156,13 @@ export const PATCH = defineV2JsonRoute({
      * bounds. A `selectAll` request has no such bound: a knowledge base with
      * 100k documents would otherwise materialize and element-wise validate a
      * multi-megabyte identifier array nobody asked for. That caller reads
-     * `updatedCount` and re-lists if it needs the identifiers.
+     * `processed` and re-lists if it needs the identifiers.
      */
     return {
       data: {
         operation: result.operation,
-        updatedCount: result.successCount,
+        processed: result.successCount,
+        errors: result.errors,
         documentIds: result.selectAll
           ? undefined
           : result.updatedDocuments.map((document) => document.id),
