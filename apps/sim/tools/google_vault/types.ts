@@ -84,7 +84,8 @@ export interface GoogleVaultAddMatterPermissionsParams {
   accessToken: string
   matterId: string
   accountId: string
-  role: 'COLLABORATOR' | 'OWNER'
+  /** `AddMatterPermissionsRequest`: "The role cannot be owner." */
+  role: 'COLLABORATOR'
   sendEmails?: boolean
   ccMe?: boolean
 }

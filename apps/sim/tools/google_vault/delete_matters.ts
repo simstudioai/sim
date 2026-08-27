@@ -6,7 +6,8 @@ import { safeUrlPathSegment } from '@/tools/url-path'
 export const deleteMattersTool: ToolConfig<GoogleVaultMatterActionParams> = {
   id: 'google_vault_delete_matters',
   name: 'Vault Delete Matter',
-  description: 'Permanently delete a matter (must be closed first)',
+  description:
+    'Soft-delete a matter (must be closed first). The matter moves to the DELETED state and can be restored with Undelete Matter',
   version: '1.0.0',
 
   oauth: {

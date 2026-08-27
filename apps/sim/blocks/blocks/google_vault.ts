@@ -104,7 +104,7 @@ export const GoogleVaultBlock: BlockConfig = {
         ],
         delete_matters: [
           {
-            text: 'Permanently delete matter',
+            text: 'Delete matter',
             field: 'matterId',
             core: true,
           },
@@ -714,7 +714,6 @@ Return ONLY the description text - no explanations, no quotes, no extra text.`,
       type: 'dropdown',
       options: [
         { id: 'COLLABORATOR', label: 'Collaborator' },
-        { id: 'OWNER', label: 'Owner' },
       ],
       condition: { field: 'operation', value: 'add_matters_permissions' },
       required: true,
@@ -941,7 +940,10 @@ Return ONLY the description text - no explanations, no quotes, no extra text.`,
 
     // Matter collaborator inputs
     accountId: { type: 'string', description: 'Admin SDK account ID for collaborator management' },
-    role: { type: 'string', description: 'Matter permission role (COLLABORATOR or OWNER)' },
+    role: {
+      type: 'string',
+      description: 'Matter permission role to grant. The API accepts COLLABORATOR only',
+    },
     sendEmails: { type: 'boolean', description: 'Send a notification email to the added account' },
     ccMe: { type: 'boolean', description: 'CC the requestor on the notification email' },
 
@@ -1135,9 +1137,9 @@ export const GoogleVaultBlockMeta = {
     {
       name: 'close-out-matter',
       description:
-        'Wind down a resolved matter by closing it, and permanently delete it once retention requirements are satisfied.',
+        'Wind down a resolved matter by closing it, and delete it once retention requirements are satisfied.',
       content:
-        '# Close Out Matter\n\nRetire a matter once the underlying investigation or litigation is resolved.\n\n## Steps\n1. List the holds on the matter and confirm none still need to be preserved; delete any holds that are no longer required.\n2. Close the matter.\n3. If the matter should be permanently removed and your retention policy allows it, delete the closed matter (reopen or undelete if this was done in error).\n\n## Output\nReturn the matterId, its final state, and which holds (if any) were deleted before close-out.',
+        '# Close Out Matter\n\nRetire a matter once the underlying investigation or litigation is resolved.\n\n## Steps\n1. List the holds on the matter and confirm none still need to be preserved; delete any holds that are no longer required.\n2. Close the matter.\n3. If the matter should be removed and your retention policy allows it, delete the closed matter. Deleting is reversible: the matter moves to the DELETED state and can be restored with undelete (or reopened) if this was done in error.\n\n## Output\nReturn the matterId, its final state, and which holds (if any) were deleted before close-out.',
     },
     {
       name: 'manage-hold-scope',

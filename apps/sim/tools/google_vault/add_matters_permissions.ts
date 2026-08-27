@@ -6,7 +6,7 @@ import { safeUrlPathSegment } from '@/tools/url-path'
 export const addMattersPermissionsTool: ToolConfig<GoogleVaultAddMatterPermissionsParams> = {
   id: 'google_vault_add_matters_permissions',
   name: 'Vault Add Matter Collaborator',
-  description: 'Add a collaborator (or transfer ownership) to a matter',
+  description: 'Add a collaborator to a matter',
   version: '1.0.0',
 
   oauth: {
@@ -31,13 +31,13 @@ export const addMattersPermissionsTool: ToolConfig<GoogleVaultAddMatterPermissio
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Admin SDK account ID of the user to add as a collaborator/owner',
+      description: 'Admin SDK account ID of the user to add as a collaborator',
     },
     role: {
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: 'Permission level to grant: COLLABORATOR or OWNER',
+      description: 'Permission level to grant. The API accepts COLLABORATOR only',
     },
     sendEmails: {
       type: 'boolean',

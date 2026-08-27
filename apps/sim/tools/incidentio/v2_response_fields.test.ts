@@ -10,17 +10,26 @@
  * - `CustomFieldV2` has no `options` (only `CustomFieldV1` does).
  * - `UsersListResultV2.pagination_meta` is `PaginationMetaResultV2` — `{after, page_size}` — so
  *   `total_record_count` is v1/`...WithTotal` only. `IncidentsListResultV2` DOES use
- *   `PaginationMetaResultWithTotalV2`, so incidents_list keeps it.
+ *   `PaginationMetaResultWithTotalV2`, so incidents_list keeps it. `CatalogListEntriesResultV2`
+ *   uses the plain `PaginationMetaResultV2`, while `SchedulesListResultV2` uses the
+ *   `...WithTotal` variant — hence on_call_now keeps the count and catalog_entries_list must not.
+ * - `IncidentV2` has no `description`. `summary` is the field documented as "Detailed description
+ *   of the incident", and it is already surfaced under its own name, so the phantom is dropped
+ *   rather than repointed.
  */
 import { describe, expect, it } from 'vitest'
+import { actionsCreateTool } from '@/tools/incidentio/actions_create'
 import { actionsListTool } from '@/tools/incidentio/actions_list'
 import { actionsShowTool } from '@/tools/incidentio/actions_show'
+import { actionsUpdateTool } from '@/tools/incidentio/actions_update'
+import { catalogEntriesListTool } from '@/tools/incidentio/catalog_entries_list'
 import { customFieldsListTool } from '@/tools/incidentio/custom_fields_list'
 import { customFieldsShowTool } from '@/tools/incidentio/custom_fields_show'
 import { incidentsCreateTool } from '@/tools/incidentio/incidents_create'
 import { incidentsListTool } from '@/tools/incidentio/incidents_list'
 import { incidentsShowTool } from '@/tools/incidentio/incidents_show'
 import { incidentsUpdateTool } from '@/tools/incidentio/incidents_update'
+import { onCallNowTool } from '@/tools/incidentio/on_call_now'
 import { usersListTool } from '@/tools/incidentio/users_list'
 import type { ToolConfig } from '@/tools/types'
 
@@ -53,6 +62,15 @@ const ACTION_V2 = {
   incident_id: '01FDAG4SAP5TYPT98WGR2N7W91',
   assignee: { id: 'u1', name: 'Lisa', email: 'lisa@incident.io' },
   creator: { id: 'u2', name: 'Martha', email: 'martha@incident.io' },
+}
+
+/**
+ * The same incident with a field `IncidentV2` does not have. Nothing may read it: a tool that
+ * does would leak the sentinel into its output instead of simply omitting the key.
+ */
+const INCIDENT_V2_WITH_PHANTOMS = {
+  ...INCIDENT_V2,
+  description: 'PHANTOM_INCIDENT_DESCRIPTION',
 }
 
 const CUSTOM_FIELD_V2 = {
@@ -110,6 +128,12 @@ function declaredProperties(tool: ToolConfig<any, any>): Set<string> {
     collectDeclaredProperties(output, into)
   }
   return into
+}
+
+/** Reads the property map a tool declares under one top-level output key. */
+function propertiesOf(tool: ToolConfig<any, any>, key: string): Record<string, unknown> {
+  const output = (tool.outputs as Record<string, any>)[key]
+  return (output.items?.properties ?? output.properties) as Record<string, unknown>
 }
 
 describe('incident.io incident tools surface the real v2 link field', () => {
@@ -218,5 +242,102 @@ describe('the fixes leave untouched fields byte-identical', () => {
     expect(action.incident_id).toBe(ACTION_V2.incident_id)
     expect(action.assignee).toEqual(ACTION_V2.assignee)
     expect(action.creator).toEqual(ACTION_V2.creator)
+  })
+})
+
+describe('incident.io incident tools do not invent a description field', () => {
+  const cases: Array<[string, ToolConfig<any, any>, unknown, (out: any) => any, string]> = [
+    [
+      'incidents_list',
+      incidentsListTool,
+      { incidents: [INCIDENT_V2_WITH_PHANTOMS] },
+      (o) => o.incidents[0],
+      'incidents',
+    ],
+    [
+      'incidents_show',
+      incidentsShowTool,
+      { incident: INCIDENT_V2_WITH_PHANTOMS },
+      (o) => o.incident,
+      'incident',
+    ],
+    [
+      'incidents_create',
+      incidentsCreateTool,
+      { incident: INCIDENT_V2_WITH_PHANTOMS },
+      (o) => o.incident,
+      'incident',
+    ],
+    [
+      'incidents_update',
+      incidentsUpdateTool,
+      { incident: INCIDENT_V2_WITH_PHANTOMS },
+      (o) => o.incident,
+      'incident',
+    ],
+  ]
+
+  for (const [name, tool, body, pick, outputKey] of cases) {
+    it(`${name} never emits a description key`, async () => {
+      const incident = pick(await runTransform(tool, body))
+
+      expect(Object.keys(incident)).not.toContain('description')
+      expect(JSON.stringify(incident)).not.toContain('PHANTOM_INCIDENT_DESCRIPTION')
+    })
+
+    it(`${name} does not declare description, and still declares summary`, () => {
+      const declared = propertiesOf(tool, outputKey)
+
+      expect(Object.keys(declared)).not.toContain('description')
+      expect(Object.keys(declared)).toContain('summary')
+    })
+
+    it(`${name} still surfaces summary, the field that carries the detailed text`, async () => {
+      const incident = pick(await runTransform(tool, body))
+
+      expect(incident.summary).toBe(INCIDENT_V2.summary)
+    })
+  }
+})
+
+describe('incident.io action write tools drop the v1-only external issue reference', () => {
+  const cases: Array<[string, ToolConfig<any, any>]> = [
+    ['actions_create', actionsCreateTool],
+    ['actions_update', actionsUpdateTool],
+  ]
+
+  for (const [name, tool] of cases) {
+    it(`${name} does not declare external_issue_reference`, () => {
+      const declared = propertiesOf(tool, 'action')
+
+      expect(Object.keys(declared)).not.toContain('external_issue_reference')
+    })
+
+    it(`${name} still declares description, which ActionV2 genuinely carries`, () => {
+      const declared = propertiesOf(tool, 'action')
+
+      expect(Object.keys(declared)).toContain('description')
+      expect(Object.keys(declared)).toContain('assignee')
+      expect(Object.keys(declared)).toContain('incident_id')
+    })
+  }
+})
+
+describe('incident.io pagination declarations follow the WithTotal split', () => {
+  it('catalog_entries_list drops total_record_count, which /v2/catalog_entries never returns', async () => {
+    const declared = propertiesOf(catalogEntriesListTool, 'pagination_meta')
+    expect(Object.keys(declared).sort()).toEqual(['after', 'page_size'])
+
+    const output = await runTransform(catalogEntriesListTool, {
+      catalog_entries: [],
+      catalog_type: null,
+      pagination_meta: { after: 'cursor', page_size: 25 },
+    })
+    expect(collectKeys(output).has('total_record_count')).toBe(false)
+  })
+
+  it('on_call_now keeps total_record_count, because /v2/schedules is the WithTotal variant', () => {
+    const declared = propertiesOf(onCallNowTool, 'pagination_meta')
+    expect(Object.keys(declared)).toContain('total_record_count')
   })
 })

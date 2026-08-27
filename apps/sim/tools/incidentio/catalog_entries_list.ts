@@ -133,11 +133,6 @@ export const catalogEntriesListTool: ToolConfig<
       properties: {
         after: { type: 'string', description: 'Cursor for next page', optional: true },
         page_size: { type: 'number', description: 'Number of results per page' },
-        total_record_count: {
-          type: 'number',
-          description: 'Total number of entries',
-          optional: true,
-        },
       },
     },
   },

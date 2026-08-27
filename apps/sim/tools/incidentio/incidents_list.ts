@@ -92,7 +92,6 @@ export const incidentsListTool: ToolConfig<
             id: incident.id,
             name: incident.name,
             summary: incident.summary,
-            description: incident.description,
             mode: incident.mode,
             call_url: incident.call_url,
             severity: incident.severity

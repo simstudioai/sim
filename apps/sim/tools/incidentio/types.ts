@@ -61,8 +61,11 @@ export const INCIDENTIO_USER_OUTPUT_PROPERTIES = {
 export const INCIDENTIO_INCIDENT_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Incident ID' },
   name: { type: 'string', description: 'Incident name/title' },
-  summary: { type: 'string', description: 'Incident summary', optional: true },
-  description: { type: 'string', description: 'Incident description', optional: true },
+  summary: {
+    type: 'string',
+    description: 'Detailed description of the incident',
+    optional: true,
+  },
   mode: {
     type: 'string',
     description: 'Incident mode (standard, retrospective, test)',
@@ -1825,8 +1828,8 @@ export const INCIDENTIO_FOLLOW_UP_RECORD_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Output definition for an action exactly as the API returns it, including the fields the legacy
- * list/show tools drop.
+ * Output definition for an action exactly as `ActionV2` returns it.
+ * @see https://api.incident.io/v1/openapiV3.json — `ActionV2`
  */
 export const INCIDENTIO_ACTION_RECORD_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Action ID' },
@@ -1837,7 +1840,6 @@ export const INCIDENTIO_ACTION_RECORD_OUTPUT_PROPERTIES = {
     description: 'Action status (outstanding, completed, deleted, not_doing)',
   },
   assignee: INCIDENTIO_ASSIGNEE_OUTPUT,
-  external_issue_reference: INCIDENTIO_EXTERNAL_ISSUE_REFERENCE_OUTPUT,
   creator: {
     type: 'object',
     description: 'Who created the action',
