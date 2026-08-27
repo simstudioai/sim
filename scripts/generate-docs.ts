@@ -649,6 +649,17 @@ ${mappingEntries}
 }
 
 /**
+ * Raised when a block's `subBlocks` array is present but cannot be read. Distinguishes
+ * a parse failure from a block that genuinely exposes no fields — both used to surface
+ * as an empty array, and the empty array silently strips documented rows.
+ */
+class SubBlockParseError extends Error {
+  override name = 'SubBlockParseError'
+}
+
+const subBlockParseFailures: string[] = []
+
+/**
  * Collects the param names a block exposes to the user through its own `subBlocks`.
  *
  * A subBlock's `id` is the param it writes, unless it declares `canonicalParamId`,
@@ -662,14 +673,18 @@ ${mappingEntries}
  * cannot skew it; only depth-1 properties of each subBlock are read, so `id` fields on
  * nested `options`/`condition` objects are never mistaken for the subBlock's own id.
  */
-export function extractUserSettableParamIds(blockContent: string): string[] {
+export function extractUserSettableParamIds(blockContent: string, blockName = 'block'): string[] {
   const scannable = blankStringsAndComments(blockContent)
   const subBlocksMatch = /subBlocks\s*:\s*\[/.exec(scannable)
   if (!subBlocksMatch) return []
 
   const arrayStart = subBlocksMatch.index + subBlocksMatch[0].length - 1
   const arrayEnd = findMatchingClose(scannable, arrayStart, '[', ']')
-  if (arrayEnd === -1) return []
+  if (arrayEnd === -1) {
+    throw new SubBlockParseError(
+      `${blockName}: found a subBlocks array but could not locate its closing bracket`
+    )
+  }
 
   const ids = new Set<string>()
   let i = arrayStart + 1
@@ -703,6 +718,18 @@ export function extractUserSettableParamIds(blockContent: string): string[] {
     if (canonicalMatch) ids.add(canonicalMatch[1])
 
     i = objectEnd
+  }
+
+  /**
+   * Zero ids is a legitimate answer only for a block whose array is nothing but
+   * `...getTrigger(...).subBlocks` spreads. If the array holds an object literal and
+   * still yields nothing, the scan failed — and the caller's fallback (strip every
+   * hidden param from the page) is the destructive one, so fail instead of guessing.
+   */
+  if (ids.size === 0 && scannable.slice(arrayStart, arrayEnd).includes('{')) {
+    throw new SubBlockParseError(
+      `${blockName}: subBlocks array holds object literals but no id was extracted`
+    )
   }
 
   return [...ids]
@@ -882,7 +909,17 @@ function extractAuthType(blockContent: string): 'oauth' | 'api-key' | 'none' {
 function blankStringsAndComments(content: string): string {
   return content.replace(
     /(['"`])(?:\\[\s\S]|(?!\1)[^\\])*\1|\/\/[^\n]*|\/\*[\s\S]*?\*\//g,
-    (match) => match[0] + match.slice(1, -1).replace(/[^\n]/g, ' ') + match[match.length - 1]
+    (match: string, quote: string | undefined) => {
+      const blanked = match.replace(/[^\n]/g, ' ')
+      /**
+       * A comment has no delimiters worth preserving, so it is blanked whole. Keeping
+       * its final character would leak arbitrary source text — commented-out code ending
+       * in `[` or `{` leaves an unbalanced bracket that derails every scan downstream.
+       * A quoted string keeps its own quotes so callers can still see where it began.
+       */
+      if (quote === undefined) return blanked
+      return quote + blanked.slice(1, -1) + quote
+    }
   )
 }
 
@@ -1396,11 +1433,20 @@ function extractBlockConfigFromContent(
 
     const operations = extractOperationsFromContent(blockContent)
     const triggerIds = extractTriggersAvailable(blockContent, fileContent)
+    let ownSettableParamIds: string[] = []
+    try {
+      ownSettableParamIds = extractUserSettableParamIds(blockContent, blockName)
+    } catch (error) {
+      /**
+       * Recorded rather than rethrown so one unreadable block cannot drop itself from the
+       * docs entirely. `generateAllBlockDocs` fails the run on any recorded failure.
+       */
+      if (!(error instanceof SubBlockParseError)) throw error
+      subBlockParseFailures.push(error.message)
+      console.error(`✗ ${error.message}`)
+    }
     const userSettableParamIds = [
-      ...new Set([
-        ...extractUserSettableParamIds(blockContent),
-        ...((baseConfig as any)?.userSettableParamIds ?? []),
-      ]),
+      ...new Set([...ownSettableParamIds, ...((baseConfig as any)?.userSettableParamIds ?? [])]),
     ]
     const docsLink =
       extractStringPropertyFromContent(blockContent, 'docsLink', true) ||
@@ -4131,6 +4177,15 @@ async function generateAllBlockDocs() {
 
     // Write the integrations meta after both passes so trigger-only pages are included
     updateMetaJson()
+
+    if (subBlockParseFailures.length > 0) {
+      console.error(
+        `Could not read the subBlocks array of ${subBlockParseFailures.length} block(s):\n- ${[
+          ...new Set(subBlockParseFailures),
+        ].join('\n- ')}`
+      )
+      return false
+    }
 
     return true
   } catch (error) {

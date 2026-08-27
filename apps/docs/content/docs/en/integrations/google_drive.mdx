@@ -153,6 +153,7 @@ Get content from a file in Google Drive with complete metadata (exports Google W
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `fileId` | string | Yes | The ID of the file to get content from |
+| `mimeType` | string | No | The MIME type to export Google Workspace files to \(optional\) |
 | `includeRevisions` | boolean | No | Whether to include revision history in the metadata \(default: true, returns first 100 revisions\) |
 
 #### Output
@@ -280,6 +281,7 @@ Upload a file to Google Drive with complete metadata returned
 | `fileName` | string | Yes | The name of the file to upload |
 | `file` | file | No | Binary file to upload \(UserFile object\) |
 | `content` | string | No | Text content to upload \(use this OR file, not both\) |
+| `mimeType` | string | No | The MIME type of the file to upload \(auto-detected from file if not provided\) |
 | `folderSelector` | string | No | Google Drive folder ID to upload the file to \(e.g., 1ABCxyz...\) |
 
 #### Output
@@ -349,6 +351,7 @@ Download a file from Google Drive with complete metadata (exports Google Workspa
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `fileId` | string | Yes | The ID of the file to download |
+| `mimeType` | string | No | The MIME type to export Google Workspace files to \(optional\) |
 | `fileName` | string | No | Optional filename override |
 | `includeRevisions` | boolean | No | Whether to include revision history in the metadata \(default: true, returns first 100 revisions\) |
 

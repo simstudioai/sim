@@ -118,3 +118,50 @@ describe('hidden tool params in the Input table', () => {
     )
   })
 })
+
+describe('subBlock param extraction', () => {
+  const blockSource = (blockFile: string) =>
+    fs.readFileSync(path.join(import.meta.dirname, '../apps/sim/blocks/blocks', blockFile), 'utf-8')
+
+  it('extracts ids from a block whose subBlocks array contains commented-out code', () => {
+    const ids = extractUserSettableParamIds(blockSource('google_drive.ts'))
+
+    expect(ids).toContain('operation')
+    expect(ids).toContain('mimeType')
+    expect(ids).toContain('fileName')
+    expect(ids).toContain('uploadFolderSelector')
+  })
+
+  it('extracts ids past a commented-out subBlock that ends a line on an open bracket', () => {
+    const ids = extractUserSettableParamIds(blockSource('human_in_the_loop.ts'))
+
+    expect(ids).toContain('notification')
+    expect(ids).toContain('inputFormat')
+  })
+
+  it('returns no ids for blocks whose subBlocks array holds only spreads', () => {
+    for (const blockFile of [
+      'imap.ts',
+      'chat_trigger.ts',
+      'generic_webhook.ts',
+      'manual_trigger.ts',
+      'circleback.ts',
+      'rss.ts',
+      'sim_workspace_event.ts',
+    ]) {
+      expect(extractUserSettableParamIds(blockSource(blockFile))).toEqual([])
+    }
+  })
+
+  it('throws when the subBlocks array holds literal objects but yields no ids', () => {
+    expect(() =>
+      extractUserSettableParamIds(`subBlocks: [\n  { title: 'No id here' },\n],`)
+    ).toThrow(/subBlocks/)
+  })
+
+  it('throws when the subBlocks array bracket scan fails', () => {
+    expect(() => extractUserSettableParamIds(`subBlocks: [\n  { id: 'operation' },\n`)).toThrow(
+      /subBlocks/
+    )
+  })
+})
