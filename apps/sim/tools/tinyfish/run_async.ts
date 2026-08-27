@@ -1,4 +1,8 @@
-import type { TinyFishRunAsyncParams, TinyFishRunAsyncResponse } from '@/tools/tinyfish/types'
+import type {
+  TinyFishRawRunAsync,
+  TinyFishRunAsyncParams,
+  TinyFishRunAsyncResponse,
+} from '@/tools/tinyfish/types'
 import {
   AUTOMATION_TOOL_PARAMS,
   buildAutomationBody,
@@ -49,12 +53,12 @@ export const runAsyncTool: ToolConfig<TinyFishRunAsyncParams, TinyFishRunAsyncRe
       throw new Error(await tinyfishErrorMessage(response))
     }
 
-    const data = await response.json()
+    const data = (await response.json()) as TinyFishRawRunAsync
 
     return {
       success: !data.error,
       output: { runId: data.run_id ?? null },
-      error: data.error?.message,
+      error: data.error?.message ?? undefined,
     }
   },
 

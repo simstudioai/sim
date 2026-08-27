@@ -1,4 +1,8 @@
-import type { TinyFishCancelRunParams, TinyFishCancelRunResponse } from '@/tools/tinyfish/types'
+import type {
+  TinyFishCancelRunParams,
+  TinyFishCancelRunResponse,
+  TinyFishRawCancel,
+} from '@/tools/tinyfish/types'
 import {
   TINYFISH_AGENT_API_BASE,
   tinyfishErrorMessage,
@@ -45,13 +49,13 @@ export const cancelRunTool: ToolConfig<TinyFishCancelRunParams, TinyFishCancelRu
       throw new Error(await tinyfishErrorMessage(response))
     }
 
-    const data = await response.json()
+    const data = (await response.json()) as TinyFishRawCancel
 
     return {
       success: true,
       output: {
         runId: data.run_id ?? '',
-        status: data.status,
+        status: data.status ?? 'CANCELLED',
         cancelledAt: data.cancelled_at ?? null,
         message: data.message ?? null,
       },

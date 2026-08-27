@@ -246,6 +246,144 @@ export interface TinyFishFetchResponse extends ToolResponse {
   }
 }
 
+/**
+ * Raw snake_case shapes TinyFish returns on the wire.
+ *
+ * Every field is optional and nullable: these describe what a response may
+ * legally omit, so the mapping helpers narrow them into the camelCase output
+ * types above rather than trusting the payload.
+ */
+interface TinyFishRawSchemaValidation {
+  valid?: boolean | null
+  re_prompt_attempts?: number | null
+  errors?: Array<{
+    path?: string | null
+    expected?: string | null
+    received?: string | null
+    message?: string | null
+  }> | null
+}
+
+interface TinyFishRawRunError {
+  code?: string | null
+  message?: string | null
+  category?: TinyFishErrorCategory | null
+  retry_after?: number | null
+  help_url?: string | null
+  help_message?: string | null
+}
+
+interface TinyFishRawBrowserConfig {
+  proxy_enabled?: boolean | null
+  proxy_country_code?: string | null
+}
+
+export interface TinyFishRawRunSummary {
+  run_id?: string | null
+  status?: TinyFishRunStatus | null
+  goal?: string | null
+  created_at?: string | null
+  started_at?: string | null
+  finished_at?: string | null
+  num_of_steps?: number | null
+  result?: Record<string, unknown> | null
+  schema_validation?: TinyFishRawSchemaValidation | null
+  error?: TinyFishRawRunError | null
+  streaming_url?: string | null
+  browser_config?: TinyFishRawBrowserConfig | null
+}
+
+export interface TinyFishRawRunDetail extends TinyFishRawRunSummary {
+  video_url?: string | null
+  steps?: Array<{
+    id?: string | null
+    timestamp?: string | null
+    status?: TinyFishRunStatus | null
+    action?: string | null
+    duration?: string | null
+  }> | null
+}
+
+export interface TinyFishRawRun {
+  run_id?: string | null
+  status?: 'COMPLETED' | 'FAILED'
+  started_at?: string | null
+  finished_at?: string | null
+  num_of_steps?: number | null
+  result?: Record<string, unknown> | null
+  schema_validation?: TinyFishRawSchemaValidation | null
+  error?: TinyFishRawRunError | null
+}
+
+export interface TinyFishRawRunAsync {
+  run_id?: string | null
+  error?: { code?: string | null; message?: string | null } | null
+}
+
+export interface TinyFishRawCancel {
+  run_id?: string | null
+  status?: 'CANCELLED' | 'COMPLETED' | 'FAILED'
+  cancelled_at?: string | null
+  message?: string | null
+}
+
+export interface TinyFishRawRunList {
+  data?: TinyFishRawRunSummary[] | null
+  pagination?: {
+    total?: number | null
+    next_cursor?: string | null
+    has_more?: boolean | null
+  } | null
+}
+
+export interface TinyFishRawSearch {
+  query?: string | null
+  results?: Array<{
+    position?: number | null
+    site_name?: string | null
+    snippet?: string | null
+    title?: string | null
+    url?: string | null
+  }> | null
+  total_results?: number | null
+}
+
+export interface TinyFishRawFetch {
+  results?: Array<{
+    url?: string | null
+    final_url?: string | null
+    title?: string | null
+    description?: string | null
+    language?: string | null
+    format?: TinyFishFetchFormat | null
+    text?: string | Record<string, unknown> | null
+    author?: string | null
+    published_date?: string | null
+    links?: string[] | null
+    image_links?: string[] | null
+    latency_ms?: number | null
+  }> | null
+  errors?: Array<{ url?: string | null; error?: string | null }> | null
+}
+
+export interface TinyFishRawVaultItems {
+  items?: Array<{
+    itemId?: string | null
+    connectionId?: string | null
+    label?: string | null
+    vaultName?: string | null
+    domains?: string[] | null
+    fieldMetadata?: Array<{
+      fieldId?: string | null
+      label?: string | null
+      type?: 'STRING' | 'CONCEALED' | 'OTP' | null
+    }> | null
+    hasTotp?: boolean | null
+  }> | null
+}
+
+export type { TinyFishRawBrowserConfig, TinyFishRawRunError, TinyFishRawSchemaValidation }
+
 /** Output property descriptions for the run-error object, shared by run-returning tools. */
 export const RUN_ERROR_OUTPUT_PROPERTIES = {
   code: { type: 'string', description: 'Machine-readable error code', optional: true },

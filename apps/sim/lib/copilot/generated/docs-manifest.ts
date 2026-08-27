@@ -314,6 +314,7 @@ export const DOCS_MANIFEST: readonly string[] = [
   'integrations/thrive.mdx',
   'integrations/tiktok.mdx',
   'integrations/tinybird.mdx',
+  'integrations/tinyfish.mdx',
   'integrations/trello-service-account.mdx',
   'integrations/trello.mdx',
   'integrations/trigger_dev.mdx',

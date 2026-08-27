@@ -108,6 +108,16 @@ describe('parseJsonSchema', () => {
   it('rejects a schema that is not a JSON object', () => {
     expect(() => parseJsonSchema('[1, 2]')).toThrow('Output Schema must be a JSON object')
   })
+
+  it('rejects an already-parsed array, which the executor can hand a json input', () => {
+    expect(() => parseJsonSchema([1, 2] as unknown as Record<string, unknown>)).toThrow(
+      'Output Schema must be a JSON object'
+    )
+  })
+
+  it('names malformed JSON instead of leaking a bare SyntaxError', () => {
+    expect(() => parseJsonSchema('{"type":')).toThrow('Output Schema is not valid JSON')
+  })
 })
 
 describe('parseList', () => {

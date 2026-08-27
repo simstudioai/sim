@@ -2,6 +2,7 @@ import {
   RUN_SUMMARY_OUTPUT_PROPERTIES,
   type TinyFishListRunsParams,
   type TinyFishListRunsResponse,
+  type TinyFishRawRunList,
 } from '@/tools/tinyfish/types'
 import {
   mapRunSummary,
@@ -94,12 +95,12 @@ export const listRunsTool: ToolConfig<TinyFishListRunsParams, TinyFishListRunsRe
       throw new Error(await tinyfishErrorMessage(response))
     }
 
-    const data = await response.json()
+    const data = (await response.json()) as TinyFishRawRunList
 
     return {
       success: true,
       output: {
-        runs: Array.isArray(data.data) ? data.data.map(mapRunSummary) : [],
+        runs: (data.data ?? []).map(mapRunSummary),
         total: data.pagination?.total ?? 0,
         nextCursor: data.pagination?.next_cursor ?? null,
         hasMore: data.pagination?.has_more ?? false,

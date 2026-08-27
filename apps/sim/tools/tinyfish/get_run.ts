@@ -2,6 +2,7 @@ import {
   RUN_SUMMARY_OUTPUT_PROPERTIES,
   type TinyFishGetRunParams,
   type TinyFishGetRunResponse,
+  type TinyFishRawRunDetail,
 } from '@/tools/tinyfish/types'
 import {
   mapRunSummary,
@@ -45,22 +46,20 @@ export const getRunTool: ToolConfig<TinyFishGetRunParams, TinyFishGetRunResponse
       throw new Error(await tinyfishErrorMessage(response))
     }
 
-    const data = await response.json()
+    const data = (await response.json()) as TinyFishRawRunDetail
 
     return {
       success: true,
       output: {
         ...mapRunSummary(data),
         videoUrl: data.video_url ?? null,
-        steps: Array.isArray(data.steps)
-          ? data.steps.map((step: any) => ({
-              id: step?.id ?? '',
-              timestamp: step?.timestamp ?? '',
-              status: step?.status ?? 'PENDING',
-              action: step?.action ?? null,
-              duration: step?.duration ?? null,
-            }))
-          : [],
+        steps: (data.steps ?? []).map((step) => ({
+          id: step?.id ?? '',
+          timestamp: step?.timestamp ?? '',
+          status: step?.status ?? 'PENDING',
+          action: step?.action ?? null,
+          duration: step?.duration ?? null,
+        })),
       },
     }
   },

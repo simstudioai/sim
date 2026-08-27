@@ -55,7 +55,8 @@ export const TinyFishBlock: BlockConfig<TinyFishRunResponse> = {
         tinyfish_get_run: [{ text: 'Get run', field: 'runId', core: true }],
         tinyfish_cancel_run: [{ text: 'Cancel run', field: 'runId', core: true }],
         tinyfish_list_runs: [
-          { text: 'List runs matching', field: 'goalFilter', core: true },
+          'List runs',
+          { text: 'matching', field: 'goalFilter' },
           { text: ', with status', field: 'status' },
         ],
         tinyfish_search: [{ text: 'Search the web for', field: 'query', core: true }],

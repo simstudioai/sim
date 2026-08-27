@@ -1,5 +1,9 @@
 import { tinyfishFetchHosting } from '@/tools/tinyfish/hosting'
-import type { TinyFishFetchParams, TinyFishFetchResponse } from '@/tools/tinyfish/types'
+import type {
+  TinyFishFetchParams,
+  TinyFishFetchResponse,
+  TinyFishRawFetch,
+} from '@/tools/tinyfish/types'
 import {
   MAX_FETCH_URLS,
   parseList,
@@ -81,33 +85,29 @@ export const fetchUrlsTool: ToolConfig<TinyFishFetchParams, TinyFishFetchRespons
       throw new Error(await tinyfishErrorMessage(response))
     }
 
-    const data = await response.json()
+    const data = (await response.json()) as TinyFishRawFetch
 
     return {
       success: true,
       output: {
-        results: Array.isArray(data.results)
-          ? data.results.map((result: any) => ({
-              url: result?.url ?? '',
-              finalUrl: result?.final_url ?? null,
-              title: result?.title ?? null,
-              description: result?.description ?? null,
-              language: result?.language ?? null,
-              format: result?.format ?? 'markdown',
-              text: result?.text ?? null,
-              author: result?.author ?? null,
-              publishedDate: result?.published_date ?? null,
-              links: result?.links ?? [],
-              imageLinks: result?.image_links ?? [],
-              latencyMs: result?.latency_ms ?? null,
-            }))
-          : [],
-        errors: Array.isArray(data.errors)
-          ? data.errors.map((issue: any) => ({
-              url: issue?.url ?? '',
-              error: issue?.error ?? '',
-            }))
-          : [],
+        results: (data.results ?? []).map((result) => ({
+          url: result?.url ?? '',
+          finalUrl: result?.final_url ?? null,
+          title: result?.title ?? null,
+          description: result?.description ?? null,
+          language: result?.language ?? null,
+          format: result?.format ?? 'markdown',
+          text: result?.text ?? null,
+          author: result?.author ?? null,
+          publishedDate: result?.published_date ?? null,
+          links: result?.links ?? [],
+          imageLinks: result?.image_links ?? [],
+          latencyMs: result?.latency_ms ?? null,
+        })),
+        errors: (data.errors ?? []).map((issue) => ({
+          url: issue?.url ?? '',
+          error: issue?.error ?? '',
+        })),
       },
     }
   },

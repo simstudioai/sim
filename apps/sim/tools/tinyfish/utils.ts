@@ -1,6 +1,10 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import type {
   TinyFishBrowserConfig,
+  TinyFishRawBrowserConfig,
+  TinyFishRawRunError,
+  TinyFishRawRunSummary,
+  TinyFishRawSchemaValidation,
   TinyFishRunError,
   TinyFishRunSummary,
   TinyFishSchemaValidation,
@@ -65,7 +69,13 @@ export function parseJsonSchema(
   input: string | Record<string, unknown> | undefined
 ): Record<string, unknown> | undefined {
   if (!input) return undefined
-  if (typeof input !== 'string') return input
+
+  if (typeof input !== 'string') {
+    if (Array.isArray(input)) {
+      throw new Error('Output Schema must be a JSON object')
+    }
+    return input
+  }
 
   const trimmed = input.trim()
   if (!trimmed) return undefined
@@ -83,23 +93,23 @@ export function parseJsonSchema(
   return parsed as Record<string, unknown>
 }
 
-export function mapSchemaValidation(raw: any): TinyFishSchemaValidation | null {
+export function mapSchemaValidation(
+  raw: TinyFishRawSchemaValidation | null | undefined
+): TinyFishSchemaValidation | null {
   if (!raw) return null
   return {
     valid: raw.valid ?? false,
     rePromptAttempts: raw.re_prompt_attempts ?? 0,
-    errors: Array.isArray(raw.errors)
-      ? raw.errors.map((issue: any) => ({
-          path: issue?.path ?? '',
-          expected: issue?.expected ?? '',
-          received: issue?.received ?? '',
-          message: issue?.message ?? '',
-        }))
-      : [],
+    errors: (raw.errors ?? []).map((issue) => ({
+      path: issue?.path ?? '',
+      expected: issue?.expected ?? '',
+      received: issue?.received ?? '',
+      message: issue?.message ?? '',
+    })),
   }
 }
 
-export function mapRunError(raw: any): TinyFishRunError | null {
+export function mapRunError(raw: TinyFishRawRunError | null | undefined): TinyFishRunError | null {
   if (!raw) return null
   return {
     code: raw.code ?? null,
@@ -111,7 +121,9 @@ export function mapRunError(raw: any): TinyFishRunError | null {
   }
 }
 
-function mapBrowserConfig(raw: any): TinyFishBrowserConfig | null {
+function mapBrowserConfig(
+  raw: TinyFishRawBrowserConfig | null | undefined
+): TinyFishBrowserConfig | null {
   if (!raw) return null
   return {
     proxyEnabled: raw.proxy_enabled ?? null,
@@ -120,20 +132,20 @@ function mapBrowserConfig(raw: any): TinyFishBrowserConfig | null {
 }
 
 /** Maps a run object from `GET /v1/runs` or `GET /v1/runs/{id}` to Sim's camelCase shape. */
-export function mapRunSummary(raw: any): TinyFishRunSummary {
+export function mapRunSummary(raw: TinyFishRawRunSummary): TinyFishRunSummary {
   return {
-    runId: raw?.run_id ?? '',
-    status: raw?.status ?? 'PENDING',
-    goal: raw?.goal ?? '',
-    createdAt: raw?.created_at ?? '',
-    startedAt: raw?.started_at ?? null,
-    finishedAt: raw?.finished_at ?? null,
-    numOfSteps: raw?.num_of_steps ?? null,
-    result: raw?.result ?? null,
-    schemaValidation: mapSchemaValidation(raw?.schema_validation),
-    error: mapRunError(raw?.error),
-    streamingUrl: raw?.streaming_url ?? null,
-    browserConfig: mapBrowserConfig(raw?.browser_config),
+    runId: raw.run_id ?? '',
+    status: raw.status ?? 'PENDING',
+    goal: raw.goal ?? '',
+    createdAt: raw.created_at ?? '',
+    startedAt: raw.started_at ?? null,
+    finishedAt: raw.finished_at ?? null,
+    numOfSteps: raw.num_of_steps ?? null,
+    result: raw.result ?? null,
+    schemaValidation: mapSchemaValidation(raw.schema_validation),
+    error: mapRunError(raw.error),
+    streamingUrl: raw.streaming_url ?? null,
+    browserConfig: mapBrowserConfig(raw.browser_config),
   }
 }
 

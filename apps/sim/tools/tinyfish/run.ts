@@ -2,6 +2,7 @@ import { tinyfishAgentHosting } from '@/tools/tinyfish/hosting'
 import {
   RUN_ERROR_OUTPUT_PROPERTIES,
   SCHEMA_VALIDATION_OUTPUT_PROPERTIES,
+  type TinyFishRawRun,
   type TinyFishRunParams,
   type TinyFishRunResponse,
 } from '@/tools/tinyfish/types'
@@ -44,7 +45,7 @@ export const runTool: ToolConfig<TinyFishRunParams, TinyFishRunResponse> = {
       throw new Error(await tinyfishErrorMessage(response))
     }
 
-    const data = await response.json()
+    const data = (await response.json()) as TinyFishRawRun
 
     return {
       /**
@@ -54,7 +55,7 @@ export const runTool: ToolConfig<TinyFishRunParams, TinyFishRunResponse> = {
       success: data.status === 'COMPLETED',
       output: {
         runId: data.run_id ?? null,
-        status: data.status,
+        status: data.status ?? 'FAILED',
         startedAt: data.started_at ?? null,
         finishedAt: data.finished_at ?? null,
         numOfSteps: data.num_of_steps ?? null,
@@ -62,7 +63,7 @@ export const runTool: ToolConfig<TinyFishRunParams, TinyFishRunResponse> = {
         schemaValidation: mapSchemaValidation(data.schema_validation),
         error: mapRunError(data.error),
       },
-      error: data.error?.message,
+      error: data.error?.message ?? undefined,
     }
   },
 

@@ -1,6 +1,7 @@
 import type {
   TinyFishListVaultItemsParams,
   TinyFishListVaultItemsResponse,
+  TinyFishRawVaultItems,
 } from '@/tools/tinyfish/types'
 import {
   TINYFISH_AGENT_API_BASE,
@@ -45,28 +46,24 @@ export const listVaultItemsTool: ToolConfig<
       throw new Error(await tinyfishErrorMessage(response))
     }
 
-    const data = await response.json()
+    const data = (await response.json()) as TinyFishRawVaultItems
 
     return {
       success: true,
       output: {
-        items: Array.isArray(data.items)
-          ? data.items.map((item: any) => ({
-              itemId: item?.itemId ?? '',
-              connectionId: item?.connectionId ?? null,
-              label: item?.label ?? '',
-              vaultName: item?.vaultName ?? '',
-              domains: item?.domains ?? [],
-              fieldMetadata: Array.isArray(item?.fieldMetadata)
-                ? item.fieldMetadata.map((field: any) => ({
-                    fieldId: field?.fieldId ?? '',
-                    label: field?.label ?? '',
-                    type: field?.type ?? 'STRING',
-                  }))
-                : [],
-              hasTotp: item?.hasTotp ?? false,
-            }))
-          : [],
+        items: (data.items ?? []).map((item) => ({
+          itemId: item?.itemId ?? '',
+          connectionId: item?.connectionId ?? null,
+          label: item?.label ?? '',
+          vaultName: item?.vaultName ?? '',
+          domains: item?.domains ?? [],
+          fieldMetadata: (item?.fieldMetadata ?? []).map((field) => ({
+            fieldId: field?.fieldId ?? '',
+            label: field?.label ?? '',
+            type: field?.type ?? 'STRING',
+          })),
+          hasTotp: item?.hasTotp ?? false,
+        })),
       },
     }
   },

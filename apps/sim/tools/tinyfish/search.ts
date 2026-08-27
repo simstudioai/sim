@@ -1,5 +1,9 @@
 import { tinyfishSearchHosting } from '@/tools/tinyfish/hosting'
-import type { TinyFishSearchParams, TinyFishSearchResponse } from '@/tools/tinyfish/types'
+import type {
+  TinyFishRawSearch,
+  TinyFishSearchParams,
+  TinyFishSearchResponse,
+} from '@/tools/tinyfish/types'
 import {
   TINYFISH_SEARCH_API_BASE,
   tinyfishErrorMessage,
@@ -59,21 +63,19 @@ export const searchTool: ToolConfig<TinyFishSearchParams, TinyFishSearchResponse
       throw new Error(await tinyfishErrorMessage(response))
     }
 
-    const data = await response.json()
+    const data = (await response.json()) as TinyFishRawSearch
 
     return {
       success: true,
       output: {
         query: data.query ?? '',
-        results: Array.isArray(data.results)
-          ? data.results.map((result: any) => ({
-              position: result?.position ?? 0,
-              siteName: result?.site_name ?? '',
-              snippet: result?.snippet ?? '',
-              title: result?.title ?? '',
-              url: result?.url ?? '',
-            }))
-          : [],
+        results: (data.results ?? []).map((result) => ({
+          position: result?.position ?? 0,
+          siteName: result?.site_name ?? '',
+          snippet: result?.snippet ?? '',
+          title: result?.title ?? '',
+          url: result?.url ?? '',
+        })),
         totalResults: data.total_results ?? 0,
       },
     }

@@ -171,7 +171,27 @@ vi.mock('@/hooks/queries/byok-keys', () => ({
   useDeleteOrganizationBYOKKey: mocks.mutation,
 }))
 
-import { BYOK } from '@/app/workspace/[workspaceId]/settings/components/byok/byok'
+import {
+  BYOK,
+  PROVIDER_SECTIONS,
+  PROVIDERS,
+} from '@/app/workspace/[workspaceId]/settings/components/byok/byok'
+
+describe('BYOK provider sections', () => {
+  it('renders every provider, since the sectioned list drops unlisted ids', () => {
+    const sectioned = new Set(PROVIDER_SECTIONS.flatMap((section) => section.ids))
+    const missing = PROVIDERS.map((provider) => provider.id).filter((id) => !sectioned.has(id))
+    expect(missing).toEqual([])
+  })
+
+  it('has no section entry without a matching provider', () => {
+    const known = new Set(PROVIDERS.map((provider) => provider.id))
+    const orphaned = PROVIDER_SECTIONS.flatMap((section) => section.ids).filter(
+      (id) => !known.has(id)
+    )
+    expect(orphaned).toEqual([])
+  })
+})
 
 describe('BYOK scope access', () => {
   let container: HTMLDivElement
