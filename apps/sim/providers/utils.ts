@@ -50,7 +50,7 @@ import {
   supportsToolUsageControl as supportsToolUsageControlFromDefinitions,
   updateOllamaModels as updateOllamaModelsInDefinitions,
 } from '@/providers/models'
-import { collectToolResourceBindings, registerProviderToolBindings } from '@/providers/tool-binding'
+import { collectToolPinnedFields, registerToolPinnedFields } from '@/providers/tool-binding'
 import {
   getProviderToolInputProvenance,
   getProviderToolModelInputRegistry,
@@ -780,7 +780,7 @@ export async function transformBlockTool(
     return null
   }
 
-  const { createLLMToolSchema } = await import('@/tools/params')
+  const { createLLMToolSchema, formatParameterLabel } = await import('@/tools/params')
 
   const userProvidedParams = block.params || {}
 
@@ -901,14 +901,16 @@ export async function transformBlockTool(
       ? toolConfig.toolEnrichment?.dependsOn
       : undefined
 
-  registerProviderToolBindings(
+  registerToolPinnedFields(
     providerTool,
-    collectToolResourceBindings({
+    collectToolPinnedFields({
       subBlocks: blockDef?.subBlocks,
       userProvidedParams,
       resolvedResourceParams,
+      toolParams: toolConfig.params,
       selfDescribedParamId,
       workflowLabel,
+      formatParamLabel: formatParameterLabel,
     })
   )
 

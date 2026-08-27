@@ -16,7 +16,7 @@ import type { PiToolResult, PiToolSpec } from '@/executor/handlers/pi/core/backe
 import type { ExecutionContext } from '@/executor/types'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
-import { annotateDuplicateToolBindings } from '@/executor/utils/tool-binding-labels'
+import { annotateToolPinnedParams } from '@/executor/utils/tool-pinned-params'
 import { assignProviderToolIdentities } from '@/providers/tool-identity'
 import type { ProviderToolConfig } from '@/providers/types'
 import { transformBlockTool } from '@/providers/utils'
@@ -233,7 +233,13 @@ export async function buildSimToolSpecs(
   }
 
   const providers = configuredTools.map(({ provider }) => provider)
-  await annotateDuplicateToolBindings(ctx, providers)
+  // Pi resolves secret provenance per tool CALL rather than per format, so it cannot say which
+  // individual tool carries one. Withhold literal values for the whole run when any input
+  // resolved a secret — coarse, but it errs toward stating less.
+  const runResolvedSecrets = Boolean(ctx.resolvedSecretTraceRegistry?.hasResolvedInputProjections())
+  await annotateToolPinnedParams(ctx, providers, {
+    hasResolvedSecretInputs: () => runResolvedSecrets,
+  })
   assignProviderToolIdentities(providers)
   return configuredTools.map(({ provider, toolIndex }) =>
     buildSimToolSpec(ctx, inputTools, provider, toolIndex)

@@ -68,7 +68,7 @@ import type {
   ResolvedSecretInputPath,
   ResolvedSecretTraceRegistry,
 } from '@/executor/utils/resolved-secret-trace-registry'
-import { annotateDuplicateToolBindings } from '@/executor/utils/tool-binding-labels'
+import { annotateToolPinnedParams } from '@/executor/utils/tool-pinned-params'
 import { resolveVertexCredential } from '@/executor/utils/vertex-credential'
 import { executeProviderRequest } from '@/providers'
 import {
@@ -808,7 +808,11 @@ export class AgentBlockHandler implements BlockHandler {
     const tools = allTools.filter(
       (tool): tool is ProviderToolConfig => tool !== null && tool !== undefined
     )
-    await annotateDuplicateToolBindings(ctx, tools)
+    await annotateToolPinnedParams(ctx, tools, {
+      // A tool whose params resolved an environment secret must not have its literal values
+      // stated; the provenance map already identifies exactly those tools.
+      hasResolvedSecretInputs: (tool) => inputProvenance.has(tool),
+    })
     return { tools, inputProvenance }
   }
 
