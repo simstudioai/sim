@@ -10,6 +10,7 @@ import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { useHorizontalWheelScroll } from '@/app/workspace/[workspaceId]/files/components/file-viewer/use-horizontal-wheel-scroll'
 import {
   readXlsxPreviewData,
+  XLSX_MAX_COLUMNS,
   XLSX_MAX_ROWS,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer/xlsx-preview-data'
 import { DataTable } from './data-table'
@@ -22,7 +23,8 @@ interface XlsxSheet {
   name: string
   headers: string[]
   rows: string[][]
-  truncated: boolean
+  rowTruncated: boolean
+  columnTruncated: boolean
 }
 
 export const XlsxPreview = memo(function XlsxPreview({
@@ -85,13 +87,14 @@ export const XlsxPreview = memo(function XlsxPreview({
         const workbook = workbookRef.current!
         const name = sheetNames[activeSheet]
         const sheet = workbook.Sheets[name]
-        const { headers, rows, truncated } = readXlsxPreviewData(XLSX, sheet)
+        const { headers, rows, rowTruncated, columnTruncated } = readXlsxPreviewData(XLSX, sheet)
         if (!cancelled) {
           setCurrentSheet({
             name,
             headers,
             rows,
-            truncated,
+            rowTruncated,
+            columnTruncated,
           })
         }
       } catch (err) {
@@ -133,9 +136,14 @@ export const XlsxPreview = memo(function XlsxPreview({
       </div>
       <div ref={scrollRef} className='flex-1 overflow-auto p-6'>
         <DataTable headers={currentSheet.headers} rows={currentSheet.rows} />
-        {currentSheet.truncated && (
+        {(currentSheet.rowTruncated || currentSheet.columnTruncated) && (
           <p className='mt-3 text-center text-[12px] text-[var(--text-muted)]'>
-            Showing first {XLSX_MAX_ROWS.toLocaleString()} rows. Download the file to view all data.
+            {currentSheet.rowTruncated && currentSheet.columnTruncated
+              ? `Showing first ${XLSX_MAX_ROWS.toLocaleString()} rows and ${XLSX_MAX_COLUMNS.toLocaleString()} columns.`
+              : currentSheet.rowTruncated
+                ? `Showing first ${XLSX_MAX_ROWS.toLocaleString()} rows.`
+                : `Showing first ${XLSX_MAX_COLUMNS.toLocaleString()} columns.`}{' '}
+            Download the file to view all data.
           </p>
         )}
       </div>
