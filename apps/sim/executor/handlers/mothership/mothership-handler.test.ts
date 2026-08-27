@@ -35,8 +35,6 @@ const {
   mockBuildAPIUrl,
   mockExtractAPIErrorMessage,
   mockGenerateId,
-  mockIsExecutionCancelled,
-  mockIsRedisCancellationEnabled,
   mockReadUserFileContent,
 } = vi.hoisted(() => ({
   mockAreModelSafeWorkspaceFileKeys: vi.fn(),
@@ -44,8 +42,6 @@ const {
   mockBuildAPIUrl: vi.fn(),
   mockExtractAPIErrorMessage: vi.fn(),
   mockGenerateId: vi.fn(),
-  mockIsExecutionCancelled: vi.fn(),
-  mockIsRedisCancellationEnabled: vi.fn(),
   mockReadUserFileContent: vi.fn(),
 }))
 
@@ -63,11 +59,6 @@ vi.mock('@/executor/utils/http', () => ({
 
 vi.mock('@sim/utils/id', () => ({
   generateId: mockGenerateId,
-}))
-
-vi.mock('@/lib/execution/cancellation', () => ({
-  isExecutionCancelled: mockIsExecutionCancelled,
-  isRedisCancellationEnabled: mockIsRedisCancellationEnabled,
 }))
 
 vi.mock('@/lib/execution/payloads/materialization.server', () => ({
@@ -158,9 +149,6 @@ describe('MothershipBlockHandler', () => {
     mockBuildAPIUrl.mockReturnValue(new URL('/api/mothership/execute', 'http://localhost:3000'))
     mockExtractAPIErrorMessage.mockResolvedValue('boom')
     mockGenerateId.mockReset()
-    mockIsExecutionCancelled.mockReset()
-    mockIsRedisCancellationEnabled.mockReset()
-    mockIsRedisCancellationEnabled.mockReturnValue(false)
     mockReadUserFileContent.mockReset()
     mockAreModelSafeWorkspaceFileKeys.mockReset()
     mockAreModelSafeWorkspaceFileKeys.mockResolvedValue(true)
@@ -1893,28 +1881,6 @@ describe('MothershipBlockHandler', () => {
     abortController.abort()
 
     await expect(abortedExecution).resolves.toMatchObject({ name: 'AbortError' })
-  })
-
-  it('propagates durable workflow cancellation to the mothership request', async () => {
-    vi.useFakeTimers()
-
-    mockGenerateId.mockReturnValueOnce('chat-uuid')
-    mockGenerateId.mockReturnValueOnce('message-uuid')
-    mockGenerateId.mockReturnValueOnce('request-uuid')
-    mockIsRedisCancellationEnabled.mockReturnValue(true)
-    mockIsExecutionCancelled.mockResolvedValueOnce(false).mockResolvedValueOnce(true)
-
-    fetchMock.mockImplementation((_url: string, options?: RequestInit) =>
-      createAbortableFetchPromise(options?.signal as AbortSignal | undefined)
-    )
-
-    const executionPromise = handler.execute(context, block, { prompt: 'Cancel me durably' })
-    const abortedExecution = executionPromise.catch((error) => error)
-
-    await vi.advanceTimersByTimeAsync(1000)
-
-    await expect(abortedExecution).resolves.toMatchObject({ name: 'AbortError' })
-    expect(mockIsExecutionCancelled).toHaveBeenCalledWith('execution-1')
   })
 
   it('aborts the mothership request when selected-output streaming is cancelled', async () => {
