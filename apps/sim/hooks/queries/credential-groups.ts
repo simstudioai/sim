@@ -4,17 +4,21 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tansta
 import { requestJson } from '@/lib/api/client/request'
 import type { ContractBodyInput } from '@/lib/api/contracts'
 import {
+  type CredentialGroupAccessResponse,
   createCredentialGroupContract,
   deleteCredentialGroupContract,
   deleteCredentialGroupEnrollmentContract,
+  getCredentialGroupAccessContract,
   getCredentialGroupContract,
   inviteCredentialGroupEnrollmentsContract,
   resendCredentialGroupEnrollmentContract,
   startSlackCredentialGroupConfigurationContract,
+  updateCredentialGroupAccessContract,
   updateCredentialGroupContract,
 } from '@/lib/api/contracts/credential-groups'
 import type { ContractJsonResponse } from '@/lib/api/contracts/types'
 import {
+  CREDENTIAL_GROUP_ACCESS_STALE_TIME,
   CREDENTIAL_GROUP_DETAIL_STALE_TIME,
   CREDENTIAL_GROUP_LIST_STALE_TIME,
   credentialGroupKeys,
@@ -53,6 +57,72 @@ export function useCredentialGroupDetail(workspaceId?: string, groupId?: string)
     // An infinite staleTime never goes stale, so the app-wide `retryOnMount: false`
     // would cache one transient failure for the life of the QueryClient.
     retryOnMount: true,
+  })
+}
+
+interface UseCredentialGroupAccessOptions {
+  enabled?: boolean
+}
+
+export function useCredentialGroupAccess(
+  workspaceId?: string,
+  groupId?: string,
+  { enabled = true }: UseCredentialGroupAccessOptions = {}
+) {
+  return useQuery({
+    queryKey: credentialGroupKeys.access(workspaceId, groupId),
+    queryFn: ({ signal }) => {
+      if (!workspaceId || !groupId) {
+        throw new Error('Credential Group access identifiers are required')
+      }
+      return requestJson(getCredentialGroupAccessContract, {
+        params: { id: workspaceId, groupId },
+        signal,
+      })
+    },
+    enabled: Boolean(workspaceId && groupId && enabled),
+    staleTime: CREDENTIAL_GROUP_ACCESS_STALE_TIME,
+    retryOnMount: true,
+  })
+}
+
+export function useUpdateCredentialGroupAccess() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      workspaceId,
+      groupId,
+      body,
+    }: {
+      workspaceId: string
+      groupId: string
+      body: ContractBodyInput<typeof updateCredentialGroupAccessContract>
+    }) =>
+      requestJson(updateCredentialGroupAccessContract, {
+        params: { id: workspaceId, groupId },
+        body,
+      }),
+    onMutate: async (variables) => {
+      const queryKey = credentialGroupKeys.access(variables.workspaceId, variables.groupId)
+      await queryClient.cancelQueries({ queryKey, exact: true })
+      const cachedAccess = queryClient.getQueryData<CredentialGroupAccessResponse>(queryKey)
+      if (!cachedAccess) {
+        throw new Error('Credential Group access must be loaded before it can be updated')
+      }
+      return { queryKey, workflows: cachedAccess.workflows }
+    },
+    onSuccess: (access, _variables, context) => {
+      if (!context) throw new Error('Credential Group access mutation context is unavailable')
+      queryClient.setQueryData<CredentialGroupAccessResponse>(context.queryKey, {
+        ...access,
+        workflows: context.workflows,
+      })
+    },
+    onSettled: (_data, _error, variables) =>
+      queryClient.invalidateQueries({
+        queryKey: credentialGroupKeys.access(variables.workspaceId, variables.groupId),
+        exact: true,
+      }),
   })
 }
 

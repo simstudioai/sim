@@ -47,7 +47,10 @@ export const getLogStats = defineAuthorizedWorkspaceUseCase({
     )
 
     const bounds = await readLogStatsBounds(where)
-    const window = resolveLogStatsWindow(bounds, input.segmentCount)
+    const window = resolveLogStatsWindow(bounds, input.segmentCount, {
+      requestedStart: input.filters.startDate,
+      requestedEnd: input.filters.endDate,
+    })
     const rows = await readLogStatsSegments(where, window.startTime.toISOString(), window.segmentMs)
     return buildDashboardStats(rows, window, input.segmentCount, {
       maxWorkflows: MAX_STATS_WORKFLOWS,

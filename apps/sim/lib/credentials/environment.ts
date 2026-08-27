@@ -17,7 +17,7 @@ import {
   hasWorkspaceAdminAccess,
 } from '@/lib/workspaces/permissions/utils'
 
-const PERSONAL_ENV_CREDENTIAL_WRITE_CHUNK_SIZE = 500
+const ENV_CREDENTIAL_WRITE_CHUNK_SIZE = 500
 
 export interface WorkspaceMembership {
   ownerId: string | null
@@ -437,27 +437,35 @@ export async function createWorkspaceEnvCredentials(params: {
 
   const now = params.updatedAt ?? new Date()
 
-  const inserted = await executor
-    .insert(credential)
-    .values(
-      keys.map((envKey) => ({
-        id: generateId(),
-        workspaceId,
-        type: 'env_workspace' as const,
-        displayName: envKey,
-        envKey,
-        createdBy: actingUserId,
-        createdAt: now,
-        updatedAt: now,
-      }))
-    )
-    .onConflictDoNothing()
-    .returning({ id: credential.id })
-  const createdIds = inserted.map((row) => row.id)
+  const credentialValues = keys.map((envKey) => ({
+    id: generateId(),
+    workspaceId,
+    type: 'env_workspace' as const,
+    displayName: envKey,
+    envKey,
+    createdBy: actingUserId,
+    createdAt: now,
+    updatedAt: now,
+  }))
+  const createdIds: string[] = []
+  for (const values of chunkArray(credentialValues, ENV_CREDENTIAL_WRITE_CHUNK_SIZE)) {
+    const inserted = await executor
+      .insert(credential)
+      .values(values)
+      .onConflictDoNothing()
+      .returning({ id: credential.id })
+    createdIds.push(...inserted.map((row) => row.id))
+  }
 
   if (createdIds.length === 0 || memberUserIds.length === 0) return
 
-  // Bulk-insert memberships for all new credentials × all workspace members in one query
+  /**
+   * Chunked because the row count is keys × members and neither side is
+   * bounded: a wide enough save exceeds Postgres's 65535 bind parameters and
+   * throws. Unchunked that was a partial success — the value was already
+   * committed — but this now runs inside the value's transaction, so it would
+   * roll the save back, deterministically, on every retry.
+   */
   const membershipValues = createdIds.flatMap((credentialId) =>
     memberUserIds.map((memberUserId) => ({
       id: generateId(),
@@ -472,7 +480,9 @@ export async function createWorkspaceEnvCredentials(params: {
     }))
   )
 
-  await executor.insert(credentialMember).values(membershipValues).onConflictDoNothing()
+  for (const values of chunkArray(membershipValues, ENV_CREDENTIAL_WRITE_CHUNK_SIZE)) {
+    await executor.insert(credentialMember).values(values).onConflictDoNothing()
+  }
 }
 
 /**
@@ -529,7 +539,7 @@ export async function upsertPersonalEnvCredentialForUser(params: {
       createdAt: updatedAt,
       updatedAt,
     }))
-    for (const values of chunkArray(credentialValues, PERSONAL_ENV_CREDENTIAL_WRITE_CHUNK_SIZE)) {
+    for (const values of chunkArray(credentialValues, ENV_CREDENTIAL_WRITE_CHUNK_SIZE)) {
       await tx.insert(credential).values(values).onConflictDoNothing()
     }
 
@@ -570,7 +580,7 @@ export async function upsertPersonalEnvCredentialForUser(params: {
       createdAt: updatedAt,
       updatedAt,
     }))
-    for (const values of chunkArray(membershipValues, PERSONAL_ENV_CREDENTIAL_WRITE_CHUNK_SIZE)) {
+    for (const values of chunkArray(membershipValues, ENV_CREDENTIAL_WRITE_CHUNK_SIZE)) {
       await tx
         .insert(credentialMember)
         .values(values)
@@ -696,7 +706,7 @@ export async function syncPersonalEnvCredentialsForUser(params: {
           updatedAt: now,
         }))
       )
-      for (const values of chunkArray(credentialValues, PERSONAL_ENV_CREDENTIAL_WRITE_CHUNK_SIZE)) {
+      for (const values of chunkArray(credentialValues, ENV_CREDENTIAL_WRITE_CHUNK_SIZE)) {
         await tx.insert(credential).values(values).onConflictDoNothing()
       }
 
@@ -724,10 +734,7 @@ export async function syncPersonalEnvCredentialsForUser(params: {
           createdAt: now,
           updatedAt: now,
         }))
-        for (const values of chunkArray(
-          membershipValues,
-          PERSONAL_ENV_CREDENTIAL_WRITE_CHUNK_SIZE
-        )) {
+        for (const values of chunkArray(membershipValues, ENV_CREDENTIAL_WRITE_CHUNK_SIZE)) {
           await tx
             .insert(credentialMember)
             .values(values)

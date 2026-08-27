@@ -22,6 +22,8 @@ const mocks = vi.hoisted(() => ({
   preValidate: vi.fn(),
   collectReferences: vi.fn(),
   collectToolReferences: vi.fn(),
+  assertIdsUnclaimed: vi.fn(),
+  collectGraphIds: vi.fn(),
 }))
 
 vi.mock('@sim/audit', () => ({
@@ -46,12 +48,15 @@ vi.mock('@/lib/workflows/application/context', () => ({
 vi.mock('@/lib/realtime/notify', () => ({ notifyWorkflowUpdated: mocks.notify }))
 vi.mock('@/lib/workflows/persistence/replace-normalized-state', () => ({
   replaceWorkflowNormalizedState: mocks.replace,
+  assertWorkflowGraphIdsUnclaimed: mocks.assertIdsUnclaimed,
+  collectWorkflowGraphIds: mocks.collectGraphIds,
 }))
 vi.mock('@/lib/workflows/persistence/utils', () => ({
   loadWorkflowFromNormalizedTables: mocks.loadNormalized,
 }))
 vi.mock('@/lib/workflows/sanitization/validation', () => ({
   validateWorkflowState: mocks.validate,
+  sanitizeAgentToolsInBlocks: (blocks: Record<string, unknown>) => ({ blocks, warnings: [] }),
 }))
 vi.mock('@/lib/workflows/deployment-status', () => ({
   checkNeedsRedeployment: mocks.needsRedeployment,
@@ -104,6 +109,7 @@ vi.mock('@/lib/workflows/autolayout', () => ({
 }))
 
 import { ForbiddenOperationError } from '@/lib/core/application'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { applyWorkflowOperations } from '@/lib/workflows/application/apply-workflow-operations'
 import { WorkflowOperationsNotAppliedError } from '@/lib/workflows/application/workflow-operations-error'
 
@@ -150,6 +156,8 @@ function graph(blocks: Record<string, unknown> = { 'block-1': BLOCK }) {
   return { blocks, edges: [], loops: {}, parallels: {} }
 }
 
+const GRAPH_IDS = { blockIds: ['block-1'], edgeIds: [], subflowIds: [] }
+
 describe('applyWorkflowOperations', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -172,6 +180,8 @@ describe('applyWorkflowOperations', () => {
     mocks.validate.mockReturnValue({ valid: true, errors: [], warnings: [] })
     mocks.replace.mockResolvedValue({ warnings: [], state: graph() })
     mocks.needsRedeployment.mockResolvedValue(true)
+    mocks.collectGraphIds.mockReturnValue(GRAPH_IDS)
+    mocks.assertIdsUnclaimed.mockResolvedValue(undefined)
   })
 
   it('writes once, through the shared persistence primitive', async () => {
@@ -230,6 +240,75 @@ describe('applyWorkflowOperations', () => {
       expect(mocks.replace).not.toHaveBeenCalled()
       expect(mocks.recordAudit).not.toHaveBeenCalled()
       expect(mocks.notify).not.toHaveBeenCalled()
+    })
+
+    /**
+     * The commit goes through `replaceWorkflowNormalizedState`, whose in-
+     * transaction pre-check refuses a graph id another workflow already owns.
+     * A dry run that skips it reports success for a body whose commit is a 409.
+     */
+    it('checks the ids the commit would insert before reporting success', async () => {
+      await applyWorkflowOperations.execute({
+        principal: sessionPrincipal,
+        input: { workflowId: 'workflow-1', operations, dryRun: true },
+      })
+
+      expect(mocks.collectGraphIds).toHaveBeenCalledWith(
+        expect.objectContaining({
+          blocks: { 'block-1': { ...BLOCK, height: 0, horizontalHandles: true } },
+          edges: [],
+        })
+      )
+      expect(mocks.assertIdsUnclaimed).toHaveBeenCalledWith(
+        expect.anything(),
+        'workflow-1',
+        GRAPH_IDS
+      )
+    })
+
+    it('refuses a dry run whose commit would conflict on a claimed id', async () => {
+      const conflict = new OrchestrationError(
+        'conflict',
+        'Block ids already used by another workflow: block-1'
+      )
+      mocks.assertIdsUnclaimed.mockRejectedValue(conflict)
+
+      await expect(
+        applyWorkflowOperations.execute({
+          principal: sessionPrincipal,
+          input: { workflowId: 'workflow-1', operations, dryRun: true },
+        })
+      ).rejects.toBe(conflict)
+    })
+
+    /**
+     * A committed apply reports `[...validation.warnings, ...persisted.warnings]`,
+     * the second half raised by the preparation step inside the write. A dry run
+     * that dropped that half would not tell a caller its dangling edge is about
+     * to disappear — the one thing a preview exists to say.
+     */
+    it('reports the preparation warnings the committed apply would', async () => {
+      mocks.applyOperations.mockReturnValue({
+        state: {
+          blocks: { 'block-1': BLOCK },
+          edges: [{ id: 'edge-9', source: 'block-1', target: 'block-missing' }],
+          loops: {},
+          parallels: {},
+        },
+        validationErrors: [],
+        skippedItems: [],
+      })
+      mocks.validate.mockReturnValue({ valid: true, errors: [], warnings: ['validation note'] })
+
+      const dry = await applyWorkflowOperations.execute({
+        principal: sessionPrincipal,
+        input: { workflowId: 'workflow-1', operations, dryRun: true },
+      })
+
+      expect(dry.warnings).toEqual([
+        'validation note',
+        'Dropped edge "edge-9": edge references a missing block',
+      ])
     })
 
     /** The preview is worthless if it does not carry the findings. */

@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import { isPlainRecord } from '@sim/utils/object'
+import { z } from 'zod'
 import { isPayloadSizeLimitError, readResponseTextWithLimit } from '@/lib/core/utils/stream-limits'
 import {
   isRetryableError,
@@ -50,43 +50,92 @@ function parsePaginationCursor(cursor?: string): number {
   return parsed
 }
 
-interface FirefliesTranscript {
-  id: string
-  title: string
-  /** Milliseconds since EPOCH (UTC), per the Fireflies Transcript schema. */
-  date: number
-  /** Duration of the audio in **minutes**, per the Fireflies Transcript schema. */
-  duration: number
-  host_email?: string
-  organizer_email?: string
-  participants?: string[]
-  transcript_url?: string
-  speakers?: { name: string }[]
-  is_live?: boolean
-  meeting_info?: {
-    summary_status?: string
-  }
-  sentences?: { speaker_name: string; text: string }[]
-  summary?: {
-    /** Fireflies documents a string; tolerate the historical array shape defensively. */
-    keywords?: string | string[]
-    action_items?: string
-    overview?: string
-    short_summary?: string
-  }
+const nullableStringSchema = z.string().nullable().optional()
+const nullableFiniteNumberSchema = z.number().finite().nullable().optional()
+
+const firefliesSpeakerSchema = z
+  .object({
+    name: nullableStringSchema,
+  })
+  .passthrough()
+  .nullable()
+
+const firefliesSentenceSchema = z
+  .object({
+    speaker_name: nullableStringSchema,
+    text: nullableStringSchema,
+  })
+  .passthrough()
+  .nullable()
+
+const firefliesTranscriptSchema = z
+  .object({
+    /** A stable source ID is the only field the connector requires for document identity. */
+    id: z.string().min(1),
+    title: nullableStringSchema,
+    /** Milliseconds since EPOCH (UTC), per the Fireflies Transcript schema. */
+    date: z
+      .number()
+      .finite()
+      .refine((value) => !Number.isNaN(new Date(value).getTime()))
+      .nullable()
+      .optional(),
+    /** Duration of the audio in **minutes**, per the Fireflies Transcript schema. */
+    duration: nullableFiniteNumberSchema,
+    host_email: nullableStringSchema,
+    organizer_email: nullableStringSchema,
+    participants: z.array(z.string().nullable()).nullable().optional(),
+    transcript_url: nullableStringSchema,
+    speakers: z.array(firefliesSpeakerSchema).nullable().optional(),
+    is_live: z.boolean().nullable().optional(),
+    meeting_info: z
+      .object({
+        summary_status: nullableStringSchema,
+      })
+      .passthrough()
+      .nullable()
+      .optional(),
+    sentences: z.array(firefliesSentenceSchema).nullable().optional(),
+    summary: z
+      .object({
+        /** Fireflies documents a string; tolerate the historical array shape defensively. */
+        keywords: z
+          .union([z.string(), z.array(z.string().nullable())])
+          .nullable()
+          .optional(),
+        action_items: nullableStringSchema,
+        overview: nullableStringSchema,
+        short_summary: nullableStringSchema,
+      })
+      .passthrough()
+      .nullable()
+      .optional(),
+  })
+  .passthrough()
+
+type FirefliesTranscript = z.infer<typeof firefliesTranscriptSchema>
+
+function parseFirefliesTranscript(value: unknown): FirefliesTranscript {
+  const parsed = firefliesTranscriptSchema.safeParse(value)
+  if (parsed.success) return parsed.data
+
+  const invalidPaths = [
+    ...new Set(
+      parsed.error.issues.map((issue) =>
+        issue.path.length > 0 ? issue.path.join('.') : 'transcript'
+      )
+    ),
+  ].slice(0, 3)
+  const detail = invalidPaths.length > 0 ? ` (${invalidPaths.join(', ')})` : ''
+  throw new Error(`Fireflies API returned malformed transcript metadata${detail}`)
 }
 
-function isFirefliesTranscript(value: unknown): value is FirefliesTranscript {
-  return (
-    isPlainRecord(value) &&
-    typeof value.id === 'string' &&
-    value.id.length > 0 &&
-    typeof value.title === 'string' &&
-    typeof value.date === 'number' &&
-    Number.isFinite(value.date) &&
-    typeof value.duration === 'number' &&
-    Number.isFinite(value.duration)
-  )
+function compactStrings(values: (string | null)[] | null | undefined): string[] {
+  return values?.filter((value): value is string => Boolean(value)) ?? []
+}
+
+function transcriptDateToIso(date: number | null | undefined): string | undefined {
+  return date == null ? undefined : new Date(date).toISOString()
 }
 
 interface FirefliesGraphQLError {
@@ -267,11 +316,12 @@ function formatTranscriptContent(transcript: FirefliesTranscript): string {
     push(`Meeting: ${transcript.title}`)
   }
 
-  if (transcript.date) {
-    push(`Date: ${new Date(transcript.date).toISOString()}`)
+  const meetingDate = transcriptDateToIso(transcript.date)
+  if (meetingDate) {
+    push(`Date: ${meetingDate}`)
   }
 
-  if (transcript.duration) {
+  if (transcript.duration != null) {
     push(`Duration: ${Math.round(transcript.duration)} minutes`)
   }
 
@@ -280,8 +330,9 @@ function formatTranscriptContent(transcript: FirefliesTranscript): string {
     push(`Host: ${host}`)
   }
 
-  if (transcript.participants && transcript.participants.length > 0) {
-    push(`Participants: ${transcript.participants.join(', ')}`)
+  const participants = compactStrings(transcript.participants)
+  if (participants.length > 0) {
+    push(`Participants: ${participants.join(', ')}`)
   }
 
   const overview = transcript.summary?.overview || transcript.summary?.short_summary
@@ -299,7 +350,7 @@ function formatTranscriptContent(transcript: FirefliesTranscript): string {
 
   const keywords = transcript.summary?.keywords
   const formattedKeywords = Array.isArray(keywords)
-    ? keywords.filter((keyword): keyword is string => typeof keyword === 'string').join(', ')
+    ? compactStrings(keywords).join(', ')
     : typeof keywords === 'string'
       ? keywords
       : ''
@@ -308,12 +359,15 @@ function formatTranscriptContent(transcript: FirefliesTranscript): string {
     push(`Keywords: ${formattedKeywords}`)
   }
 
-  if (transcript.sentences && transcript.sentences.length > 0) {
-    push('')
-    push('--- Transcript ---')
-    for (const sentence of transcript.sentences) {
-      push(`${sentence.speaker_name}: ${sentence.text}`)
+  let transcriptHeaderAdded = false
+  for (const sentence of transcript.sentences ?? []) {
+    if (!sentence?.text) continue
+    if (!transcriptHeaderAdded) {
+      push('')
+      push('--- Transcript ---')
+      transcriptHeaderAdded = true
     }
+    push(`${sentence.speaker_name || 'Unknown speaker'}: ${sentence.text}`)
   }
 
   return parts.join('\n')
@@ -325,15 +379,18 @@ function formatTranscriptContent(transcript: FirefliesTranscript): string {
  * paths and a hydrated transcript is never seen as changed.
  */
 async function transcriptToStub(transcript: FirefliesTranscript): Promise<ExternalDocument> {
-  const meetingDate = transcript.date ? new Date(transcript.date).toISOString() : undefined
-  const speakerNames = transcript.speakers?.map((s) => s.name).filter(Boolean) ?? []
+  const meetingDate = transcriptDateToIso(transcript.date)
+  const hostEmail = transcript.host_email || transcript.organizer_email || undefined
+  const participants = compactStrings(transcript.participants)
+  const speakerNames =
+    transcript.speakers?.flatMap((speaker) => (speaker?.name ? [speaker.name] : [])) ?? []
   const lifecycleHash = await computeContentHash(
     JSON.stringify({
       date: transcript.date ?? null,
       duration: transcript.duration ?? null,
       title: transcript.title ?? null,
-      host: transcript.host_email || transcript.organizer_email || null,
-      participants: transcript.participants ?? [],
+      host: hostEmail ?? null,
+      participants,
       speakers: speakerNames,
       isLive: transcript.is_live ?? null,
       summaryStatus: transcript.meeting_info?.summary_status ?? null,
@@ -349,10 +406,10 @@ async function transcriptToStub(transcript: FirefliesTranscript): Promise<Extern
     sourceUrl: transcript.transcript_url || undefined,
     contentHash: `fireflies:v2:${transcript.id}:${lifecycleHash}`,
     metadata: {
-      hostEmail: transcript.host_email || transcript.organizer_email,
+      hostEmail,
       duration: transcript.duration,
       meetingDate,
-      participants: transcript.participants,
+      participants,
       speakers: speakerNames,
     },
   }
@@ -466,14 +523,9 @@ export const firefliesConnector: ConnectorConfig = {
     if (!Array.isArray(data.transcripts)) {
       throw new Error('Fireflies API returned malformed transcript-list data')
     }
-    if (!data.transcripts.every(isFirefliesTranscript)) {
-      throw new Error('Fireflies API returned malformed transcript metadata')
-    }
-    const transcripts = data.transcripts as FirefliesTranscript[]
+    const transcripts = data.transcripts.map(parseFirefliesTranscript)
 
-    const allStubs = await Promise.all(
-      transcripts.filter((t) => Boolean(t?.id)).map(transcriptToStub)
-    )
+    const allStubs = await Promise.all(transcripts.map(transcriptToStub))
     const documents = maxTranscripts > 0 ? allStubs.slice(0, remaining) : allStubs
 
     const totalFetched = prevFetched + documents.length
@@ -495,9 +547,8 @@ export const firefliesConnector: ConnectorConfig = {
       documents,
       /**
        * `skip` is an offset over the raw API result set, so it must advance by the
-       * rows Fireflies returned — not by the stubs kept. Advancing by the kept
-       * count would re-request any row dropped for a missing `id`. `hasMore` is
-       * only ever true on the uncapped path, where nothing is sliced off.
+       * rows Fireflies returned — not by the documents retained under a configured
+       * cap. `hasMore` is only ever true on the uncapped path, where nothing is sliced off.
        */
       nextCursor: hasMore ? String(skip + transcripts.length) : undefined,
       hasMore,
@@ -550,8 +601,8 @@ export const firefliesConnector: ConnectorConfig = {
         { id: externalId }
       )
 
-      const transcript = data.transcript
-      if (!isFirefliesTranscript(transcript) || transcript.id !== externalId) {
+      const transcript = parseFirefliesTranscript(data.transcript)
+      if (transcript.id !== externalId) {
         throw new Error('Fireflies API returned malformed transcript metadata')
       }
 

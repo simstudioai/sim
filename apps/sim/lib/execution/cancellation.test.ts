@@ -1,23 +1,31 @@
 import { redisConfigMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockRedisSet, mockPublish, mockSubscribe, mockRecordCancellationResult } = vi.hoisted(
-  () => ({
-    mockRedisSet: vi.fn(),
-    mockPublish: vi.fn(),
-    mockSubscribe: vi.fn(),
-    mockRecordCancellationResult: vi.fn(),
-  })
-)
+const {
+  mockRedisEval,
+  mockRedisExists,
+  mockRedisPublish,
+  mockSignalSubscribe,
+  mockSignalUnsubscribe,
+  mockPublishLocalSignal,
+  mockRecordCancellationResult,
+} = vi.hoisted(() => ({
+  mockRedisEval: vi.fn(),
+  mockRedisExists: vi.fn(),
+  mockRedisPublish: vi.fn(),
+  mockSignalSubscribe: vi.fn(),
+  mockSignalUnsubscribe: vi.fn(),
+  mockPublishLocalSignal: vi.fn(),
+  mockRecordCancellationResult: vi.fn(),
+}))
 
 const mockGetRedisClient = redisConfigMockFns.mockGetRedisClient
 
-vi.mock('@/lib/events/pubsub', () => ({
-  createPubSubChannel: () => ({
-    publish: mockPublish,
-    subscribe: mockSubscribe,
-    dispose: vi.fn(),
-  }),
+vi.mock('@/lib/execution/execution-signal', () => ({
+  getExecutionSignalChannel: (executionId: string) => `execution:signal:${executionId}`,
+  getExecutionSignalHub: () => ({ subscribe: mockSignalSubscribe }),
+  LEGACY_EXECUTION_CANCEL_CHANNEL: 'execution:cancel',
+  publishLocalExecutionSignal: mockPublishLocalSignal,
 }))
 
 vi.mock('@/lib/core/execution-limits/metrics', () => ({
@@ -26,8 +34,8 @@ vi.mock('@/lib/core/execution-limits/metrics', () => ({
 
 import {
   EXECUTION_CANCEL_MIN_RETENTION_MS,
-  getCancellationChannel,
   markExecutionCancelled,
+  subscribeToExecutionCancellation,
 } from './cancellation'
 import {
   abortManualExecution,
@@ -38,6 +46,9 @@ import {
 describe('markExecutionCancelled', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockSignalSubscribe.mockResolvedValue(mockSignalUnsubscribe)
+    mockRedisExists.mockResolvedValue(0)
+    mockRedisPublish.mockResolvedValue(1)
   })
 
   it('returns redis_unavailable when no Redis client exists', async () => {
@@ -47,97 +58,248 @@ describe('markExecutionCancelled', () => {
       durablyRecorded: false,
       reason: 'redis_unavailable',
     })
+    expect(mockPublishLocalSignal).toHaveBeenCalledWith('execution-1', 'cancelled')
   })
 
   it('returns recorded when Redis write succeeds', async () => {
-    mockRedisSet.mockResolvedValue('OK')
-    mockGetRedisClient.mockReturnValue({ set: mockRedisSet })
+    mockRedisEval.mockResolvedValue(1)
+    mockGetRedisClient.mockReturnValue({ eval: mockRedisEval })
 
     await expect(markExecutionCancelled('execution-1')).resolves.toEqual({
       durablyRecorded: true,
       reason: 'recorded',
     })
 
-    const expiryAt = mockRedisSet.mock.calls[0]?.[3]
-    expect(mockRedisSet).toHaveBeenCalledWith(
+    expect(mockRedisEval).toHaveBeenCalledWith(
+      expect.stringContaining("redis.call('PUBLISH'"),
+      1,
       'execution:cancel:execution-1',
-      '1',
-      'PXAT',
-      expect.any(Number)
+      expect.any(Number),
+      'execution:signal:execution-1',
+      'execution:cancel',
+      JSON.stringify({ executionId: 'execution-1', executionSignalPublished: true })
     )
-    expect(expiryAt).toBeGreaterThanOrEqual(Date.now() + EXECUTION_CANCEL_MIN_RETENTION_MS - 100)
+    const redisExpiryAt = mockRedisEval.mock.calls[0]?.[3]
+    expect(redisExpiryAt).toBeGreaterThanOrEqual(
+      Date.now() + EXECUTION_CANCEL_MIN_RETENTION_MS - 100
+    )
   })
 
   it('uses the exact execution deadline when it is later than queue retention', async () => {
     const executionDeadlineAt = new Date(Date.now() + EXECUTION_CANCEL_MIN_RETENTION_MS * 2)
-    mockRedisSet.mockResolvedValue('OK')
-    mockGetRedisClient.mockReturnValue({ set: mockRedisSet })
+    mockRedisEval.mockResolvedValue(1)
+    mockGetRedisClient.mockReturnValue({ eval: mockRedisEval })
 
     await markExecutionCancelled('execution-deadline', { executionDeadlineAt })
 
-    expect(mockRedisSet).toHaveBeenCalledWith(
+    expect(mockRedisEval).toHaveBeenCalledWith(
+      expect.any(String),
+      1,
       'execution:cancel:execution-deadline',
-      '1',
-      'PXAT',
-      executionDeadlineAt.getTime()
+      executionDeadlineAt.getTime(),
+      'execution:signal:execution-deadline',
+      'execution:cancel',
+      JSON.stringify({ executionId: 'execution-deadline', executionSignalPublished: true })
     )
   })
 
   it('keeps the 14-day minimum when the execution deadline is sooner', async () => {
     const before = Date.now()
     const executionDeadlineAt = new Date(before + 60_000)
-    mockRedisSet.mockResolvedValue('OK')
-    mockGetRedisClient.mockReturnValue({ set: mockRedisSet })
+    mockRedisEval.mockResolvedValue(1)
+    mockGetRedisClient.mockReturnValue({ eval: mockRedisEval })
 
     await markExecutionCancelled('execution-short-deadline', { executionDeadlineAt })
 
-    const expiryAt = mockRedisSet.mock.calls[0]?.[3]
+    const expiryAt = mockRedisEval.mock.calls[0]?.[3]
     expect(expiryAt).toBeGreaterThanOrEqual(before + EXECUTION_CANCEL_MIN_RETENTION_MS)
   })
 
   it('returns redis_write_failed when Redis write throws', async () => {
-    mockRedisSet.mockRejectedValue(new Error('set failed'))
-    mockGetRedisClient.mockReturnValue({ set: mockRedisSet })
+    mockRedisEval.mockRejectedValue(new Error('set failed'))
+    mockGetRedisClient.mockReturnValue({ eval: mockRedisEval, publish: mockRedisPublish })
 
     await expect(markExecutionCancelled('execution-1')).resolves.toEqual({
       durablyRecorded: false,
       reason: 'redis_write_failed',
     })
-  })
-
-  it('publishes even when the Redis write fails so local subscribers wake up', async () => {
-    mockRedisSet.mockRejectedValue(new Error('set failed'))
-    mockGetRedisClient.mockReturnValue({ set: mockRedisSet })
-
-    await markExecutionCancelled('execution-write-failed')
-
-    expect(mockPublish).toHaveBeenCalledWith({ executionId: 'execution-write-failed' })
-  })
-
-  it('publishes a cancellation event after a successful Redis write', async () => {
-    mockRedisSet.mockResolvedValue('OK')
-    mockGetRedisClient.mockReturnValue({ set: mockRedisSet })
-
-    await markExecutionCancelled('execution-2')
-
-    expect(mockPublish).toHaveBeenCalledWith({ executionId: 'execution-2' })
-    expect(mockRedisSet.mock.invocationCallOrder[0]).toBeLessThan(
-      mockPublish.mock.invocationCallOrder[0]
+    await vi.waitFor(() => expect(mockRedisPublish).toHaveBeenCalledTimes(2))
+    expect(mockRedisPublish).toHaveBeenNthCalledWith(1, 'execution:signal:execution-1', 'cancelled')
+    expect(mockRedisPublish).toHaveBeenNthCalledWith(
+      2,
+      'execution:cancel',
+      JSON.stringify({ executionId: 'execution-1', executionSignalPublished: true })
     )
   })
 
-  it('publishes even when Redis is unavailable so local subscribers wake up', async () => {
+  it('uses the legacy signal when the exact best-effort signal also fails', async () => {
+    mockRedisEval.mockRejectedValue(new Error('set failed'))
+    mockRedisPublish
+      .mockRejectedValueOnce(new Error('exact publish failed'))
+      .mockResolvedValueOnce(1)
+    mockGetRedisClient.mockReturnValue({ eval: mockRedisEval, publish: mockRedisPublish })
+
+    await expect(markExecutionCancelled('execution-1')).resolves.toEqual({
+      durablyRecorded: false,
+      reason: 'redis_write_failed',
+    })
+    await vi.waitFor(() => expect(mockRedisPublish).toHaveBeenCalledTimes(2))
+    expect(mockRedisPublish).toHaveBeenNthCalledWith(
+      2,
+      'execution:cancel',
+      JSON.stringify({ executionId: 'execution-1' })
+    )
+  })
+
+  it('does not wait for best-effort notification after the Redis write fails', async () => {
+    mockRedisEval.mockRejectedValue(new Error('set failed'))
+    let resolveExactPublish!: (value: number) => void
+    mockRedisPublish
+      .mockReturnValueOnce(
+        new Promise<number>((resolve) => {
+          resolveExactPublish = resolve
+        })
+      )
+      .mockResolvedValueOnce(1)
+    mockGetRedisClient.mockReturnValue({ eval: mockRedisEval, publish: mockRedisPublish })
+
+    await expect(markExecutionCancelled('execution-1')).resolves.toEqual({
+      durablyRecorded: false,
+      reason: 'redis_write_failed',
+    })
+    expect(mockRedisPublish).toHaveBeenCalledOnce()
+
+    resolveExactPublish(1)
+    await vi.waitFor(() => expect(mockRedisPublish).toHaveBeenCalledTimes(2))
+  })
+
+  it('publishes through the configured process-local provider when Redis is unavailable', async () => {
     mockGetRedisClient.mockReturnValue(null)
 
     await markExecutionCancelled('execution-3')
 
-    expect(mockPublish).toHaveBeenCalledWith({ executionId: 'execution-3' })
+    expect(mockRedisEval).not.toHaveBeenCalled()
+    expect(mockPublishLocalSignal).toHaveBeenCalledWith('execution-3', 'cancelled')
+  })
+
+  it('still reports Redis unavailable when the local signal provider rejects the notification', async () => {
+    mockGetRedisClient.mockReturnValue(null)
+    mockPublishLocalSignal.mockImplementationOnce(() => {
+      throw new Error('local signal unavailable')
+    })
+
+    await expect(markExecutionCancelled('execution-local-signal-error')).resolves.toEqual({
+      durablyRecorded: false,
+      reason: 'redis_unavailable',
+    })
+  })
+
+  it('expires process-local cancellation records after their retention window', async () => {
+    vi.useFakeTimers()
+    try {
+      mockGetRedisClient.mockReturnValue(null)
+      const onCancelled = vi.fn()
+
+      await markExecutionCancelled('execution-expiring-local-record')
+      await vi.advanceTimersByTimeAsync(EXECUTION_CANCEL_MIN_RETENTION_MS)
+      await subscribeToExecutionCancellation('execution-expiring-local-record', onCancelled)
+
+      expect(onCancelled).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
 
-describe('getCancellationChannel', () => {
-  it('returns the same channel instance across calls', () => {
-    expect(getCancellationChannel()).toBe(getCancellationChannel())
+describe('subscribeToExecutionCancellation', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockSignalSubscribe.mockResolvedValue(mockSignalUnsubscribe)
+    mockRedisExists.mockResolvedValue(0)
+    mockGetRedisClient.mockReturnValue({ exists: mockRedisExists })
+  })
+
+  it('subscribes before reading the durable cancellation flag', async () => {
+    const order: string[] = []
+    mockSignalSubscribe.mockImplementation(async () => {
+      order.push('subscribe')
+      return mockSignalUnsubscribe
+    })
+    mockRedisExists.mockImplementation(async () => {
+      order.push('read')
+      return 0
+    })
+
+    await subscribeToExecutionCancellation('execution-1', vi.fn())
+
+    expect(order).toEqual(['subscribe', 'read'])
+  })
+
+  it('delivers a durable cancellation that predates the subscription', async () => {
+    mockRedisExists.mockResolvedValue(1)
+    const onCancelled = vi.fn()
+
+    const unsubscribe = await subscribeToExecutionCancellation('execution-1', onCancelled)
+
+    expect(onCancelled).toHaveBeenCalledTimes(1)
+    unsubscribe()
+    expect(mockSignalUnsubscribe).toHaveBeenCalledTimes(1)
+  })
+
+  it('re-reads the durable cancellation flag after the signal connection recovers', async () => {
+    let signalHandler: ((reason: string) => void) | undefined
+    mockSignalSubscribe.mockImplementation(async (_executionId, handler) => {
+      signalHandler = handler
+      return mockSignalUnsubscribe
+    })
+    mockRedisExists.mockResolvedValueOnce(0).mockResolvedValueOnce(1)
+    const onCancelled = vi.fn()
+    await subscribeToExecutionCancellation('execution-1', onCancelled)
+
+    signalHandler?.('reconnected')
+
+    await vi.waitFor(() => expect(onCancelled).toHaveBeenCalledOnce())
+    expect(mockRedisExists).toHaveBeenCalledTimes(2)
+  })
+
+  it('queues a fresh durable read when reconnect occurs during an in-flight read', async () => {
+    let signalHandler: ((reason: string) => void) | undefined
+    mockSignalSubscribe.mockImplementation(async (_executionId, handler) => {
+      signalHandler = handler
+      return mockSignalUnsubscribe
+    })
+    let resolveInitialRead!: (value: number) => void
+    mockRedisExists
+      .mockReturnValueOnce(
+        new Promise<number>((resolve) => {
+          resolveInitialRead = resolve
+        })
+      )
+      .mockResolvedValueOnce(1)
+    const onCancelled = vi.fn()
+
+    const subscription = subscribeToExecutionCancellation('execution-1', onCancelled)
+    await vi.waitFor(() => expect(mockRedisExists).toHaveBeenCalledOnce())
+    signalHandler?.('reconnected')
+    resolveInitialRead(0)
+    await subscription
+
+    expect(mockRedisExists).toHaveBeenCalledTimes(2)
+    expect(onCancelled).toHaveBeenCalledOnce()
+  })
+
+  it('fails closed when the signal subscription cannot be restored', async () => {
+    let signalHandler: ((reason: string) => void) | undefined
+    mockSignalSubscribe.mockImplementation(async (_executionId, handler) => {
+      signalHandler = handler
+      return mockSignalUnsubscribe
+    })
+    const onCancelled = vi.fn()
+    await subscribeToExecutionCancellation('execution-1', onCancelled)
+
+    signalHandler?.('unavailable')
+
+    expect(onCancelled).toHaveBeenCalledOnce()
   })
 })
 

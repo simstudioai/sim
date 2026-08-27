@@ -48,6 +48,7 @@
         "safe-regex2": "5.1.0",
       },
       "devDependencies": {
+        "@electron/fuses": "1.8.0",
         "@playwright/test": "1.61.1",
         "@sim/tsconfig": "workspace:*",
         "@types/micromatch": "4.0.10",
@@ -288,7 +289,7 @@
         "input-otp": "^1.4.2",
         "ioredis": "^5.6.0",
         "ipaddr.js": "2.3.0",
-        "isolated-vm": "6.1.2",
+        "isolated-vm": "6.2.0",
         "jose": "6.0.11",
         "js-tiktoken": "1.0.21",
         "js-yaml": "4.3.1",
@@ -3309,7 +3310,7 @@
 
     "isexe": ["isexe@4.0.0", "", {}, "sha512-FFUtZMpoZ8RqHS3XeXEmHWLA4thH+ZxCv2lOiPIn1Xc7CxrqhWzNSDzD+/chS/zbYezmiwWLdQC09JdQKmthOw=="],
 
-    "isolated-vm": ["isolated-vm@6.1.2", "", { "dependencies": { "node-gyp-build": "^4.8.4" } }, "sha512-GGfsHqtlZiiurZaxB/3kY7LLAXR3sgzDul0fom4cSyBjx6ZbjpTrFWiH3z/nUfLJGJ8PIq9LQmQFiAxu24+I7A=="],
+    "isolated-vm": ["isolated-vm@6.2.0", "", { "dependencies": { "node-gyp-build": "^4.8.4" } }, "sha512-UuSlxSHWt2QuJ5WvBhzlIJx2VVZN/a44SqBbEZFKNdvuSyhOvhmyDo8SQ+njVbhnh/njoL/aW0bUTiFYlpweGQ=="],
 
     "isomorphic-unfetch": ["isomorphic-unfetch@3.1.0", "", { "dependencies": { "node-fetch": "^2.6.1", "unfetch": "^4.2.0" } }, "sha512-geDJjpoZ8N0kWexiwkX8F9NkTsXhetLPVbZFQ+JTW239QNOwvB0gniuR1Wc6f0AMTn7/mFGyXvHTifrCp/GH8Q=="],
 

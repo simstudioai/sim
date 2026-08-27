@@ -10,6 +10,7 @@ import {
   ChipSelect,
   type ComboboxOption,
   Download,
+  OverflowText,
   Popover,
   PopoverAnchor,
   PopoverContent,
@@ -419,8 +420,13 @@ export function AuditLogs({ organizationId }: AuditLogsProps) {
             value={timeRange}
             onChange={handleTimeRangeChange}
             placeholder='All time'
+            overlayLabel={timeDisplayLabel}
             overlayContent={
-              <span className='truncate text-[var(--text-primary)]'>{timeDisplayLabel}</span>
+              <OverflowText
+                label={timeDisplayLabel}
+                className='block w-full text-[var(--text-primary)]'
+                tooltipEnabled={false}
+              />
             }
             maxHeight={320}
             align='start'

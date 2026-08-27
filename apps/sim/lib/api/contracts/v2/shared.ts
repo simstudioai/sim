@@ -471,10 +471,10 @@ export const v2SearchSchema = z
  * to nothing, exactly as `workflowIds` naming no workflow does. These lists used
  * to answer `404 Folder not found` instead, which reported a missing collection
  * for a collection that exists, broke a pagination walk when a folder was
- * deleted mid-walk, and made a list a folder-existence oracle. The sibling
- * folder lists already answered a non-matching `parentPath` with an empty page.
- * Mutations keep their 404 — creating into or moving to a folder that does not
- * exist has no empty-set reading.
+ * deleted mid-walk, and made a list a folder-existence oracle. The folder lists
+ * answer a non-matching `parentPath` the same way, so one rule covers every
+ * folder filter in the family. Mutations keep their 404 — creating into or
+ * moving to a folder that does not exist has no empty-set reading.
  */
 export const V2_FOLDER_FILTER_MISS =
   'A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.'
@@ -593,7 +593,9 @@ export const v2ListFoldersQuerySchema = z
     workspaceId: workspaceIdSchema.describe('Workspace whose folders should be listed.'),
     parentPath: v2FolderPathInputSchema
       .optional()
-      .describe('Restrict results to direct children of this parent path.'),
+      .describe(
+        `Restrict results to direct children of this parent path. ${V2_FOLDER_FILTER_MISS}`
+      ),
     search: v2SearchSchema.describe('Case-insensitive substring match against the folder name.'),
     ...v2SortFields(v2FolderSortFields, { sortBy: 'name', sortOrder: 'asc' }),
   })

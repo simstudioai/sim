@@ -30,9 +30,10 @@ import {
   deleteOrphanedOAuthAccount,
 } from '@/lib/credentials/deletion'
 import { slackCustomBotDisplayName } from '@/lib/credentials/display-name'
+import { lockPersonalEnvMap, lockWorkspaceEnvMap } from '@/lib/credentials/env-locks'
 import {
+  deletePersonalEnvCredentialForUser,
   deleteWorkspaceEnvCredentials,
-  syncPersonalEnvCredentialsForUser,
 } from '@/lib/credentials/environment'
 import type { ServiceAccountFieldId } from '@/lib/credentials/service-account-fields'
 import {
@@ -565,29 +566,44 @@ export async function deleteCredentialRecord(
     if (!credentialRow.envKey || !credentialRow.envOwnerUserId) {
       throw new Error('Personal environment credential is missing its source identity')
     }
-    const [personalRow] = await db
-      .select({ variables: environment.variables })
-      .from(environment)
-      .where(eq(environment.userId, credentialRow.envOwnerUserId))
-      .limit(1)
-    const current = { ...((personalRow?.variables as Record<string, string> | null) ?? {}) }
-    delete current[credentialRow.envKey]
-    await db
-      .insert(environment)
-      .values({
-        id: credentialRow.envOwnerUserId,
-        userId: credentialRow.envOwnerUserId,
-        variables: current,
-        updatedAt: new Date(),
-      })
-      .onConflictDoUpdate({
-        target: [environment.userId],
-        set: { variables: current, updatedAt: new Date() },
-      })
-    await syncPersonalEnvCredentialsForUser({
-      userId: credentialRow.envOwnerUserId,
-      envKeys: Object.keys(current),
+    const { envKey, envOwnerUserId } = credentialRow
+    /**
+     * Same read-modify-write on the personal map, under the same lock its
+     * other writers take, with the mirrors removed in the same transaction.
+     *
+     * Targeted rather than a reconcile: the reconcile prunes every mirror
+     * absent from a caller-supplied key list, so a secret added between the
+     * read and the prune lost its mirror while its value survived. Deleting
+     * this one key's mirrors cannot strand another secret, and the lock order
+     * — map, then user identity — is the one `setPersonalSecret` already takes.
+     */
+    await db.transaction(async (tx) => {
+      await lockPersonalEnvMap(tx, envOwnerUserId)
+
+      const [personalRow] = await tx
+        .select({ variables: environment.variables })
+        .from(environment)
+        .where(eq(environment.userId, envOwnerUserId))
+        .limit(1)
+      const variables = { ...((personalRow?.variables as Record<string, string> | null) ?? {}) }
+      delete variables[envKey]
+      await tx
+        .insert(environment)
+        .values({
+          id: envOwnerUserId,
+          userId: envOwnerUserId,
+          variables,
+          updatedAt: new Date(),
+        })
+        .onConflictDoUpdate({
+          target: [environment.userId],
+          set: { variables, updatedAt: new Date() },
+        })
+      await deletePersonalEnvCredentialForUser({ userId: envOwnerUserId, envKey, executor: tx })
     })
+    // The value is gone; without this it stays resolvable from the cache for
+    // its TTL, as the dedicated delete paths already recognise.
+    invalidateEffectiveDecryptedEnvCache({ userId: envOwnerUserId })
     return true
   }
 
@@ -595,34 +611,48 @@ export async function deleteCredentialRecord(
     if (!credentialRow.envKey) {
       throw new Error('Workspace environment credential is missing its source identity')
     }
-    const [workspaceRow] = await db
-      .select({
-        id: workspaceEnvironment.id,
-        createdAt: workspaceEnvironment.createdAt,
-        variables: workspaceEnvironment.variables,
+    const { envKey, workspaceId } = credentialRow
+    /**
+     * The whole variables map is read, edited and written back, so this has to
+     * hold the same lock every other writer of that map takes — without it a
+     * secret written concurrently is read before the write and dropped by this
+     * write-back. The credential row goes in the same transaction so the row
+     * and the value it describes cannot outlive each other.
+     */
+    await db.transaction(async (tx) => {
+      await lockWorkspaceEnvMap(tx, workspaceId)
+
+      const [workspaceRow] = await tx
+        .select({
+          id: workspaceEnvironment.id,
+          createdAt: workspaceEnvironment.createdAt,
+          variables: workspaceEnvironment.variables,
+        })
+        .from(workspaceEnvironment)
+        .where(eq(workspaceEnvironment.workspaceId, workspaceId))
+        .limit(1)
+      const current = { ...((workspaceRow?.variables as Record<string, string> | null) ?? {}) }
+      delete current[envKey]
+      await tx
+        .insert(workspaceEnvironment)
+        .values({
+          id: workspaceRow?.id ?? generateId(),
+          workspaceId,
+          variables: current,
+          createdAt: workspaceRow?.createdAt ?? new Date(),
+          updatedAt: new Date(),
+        })
+        .onConflictDoUpdate({
+          target: [workspaceEnvironment.workspaceId],
+          set: { variables: current, updatedAt: new Date() },
+        })
+      await deleteWorkspaceEnvCredentials({
+        workspaceId,
+        removedKeys: [envKey],
+        executor: tx,
       })
-      .from(workspaceEnvironment)
-      .where(eq(workspaceEnvironment.workspaceId, credentialRow.workspaceId))
-      .limit(1)
-    const current = { ...((workspaceRow?.variables as Record<string, string> | null) ?? {}) }
-    delete current[credentialRow.envKey]
-    await db
-      .insert(workspaceEnvironment)
-      .values({
-        id: workspaceRow?.id ?? generateId(),
-        workspaceId: credentialRow.workspaceId,
-        variables: current,
-        createdAt: workspaceRow?.createdAt ?? new Date(),
-        updatedAt: new Date(),
-      })
-      .onConflictDoUpdate({
-        target: [workspaceEnvironment.workspaceId],
-        set: { variables: current, updatedAt: new Date() },
-      })
-    await deleteWorkspaceEnvCredentials({
-      workspaceId: credentialRow.workspaceId,
-      removedKeys: [credentialRow.envKey],
     })
+    invalidateEffectiveDecryptedEnvCache({ workspaceId })
     return true
   }
 

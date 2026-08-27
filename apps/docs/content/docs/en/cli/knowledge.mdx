@@ -15,6 +15,8 @@ Every command below also accepts the [global options](/cli/commands#global-optio
 sim knowledge from-workspace-files create <knowledgeBaseId> [options]
 ```
 
+Index files the workspace already stores (personal API key required)
+
 **Arguments**
 
 <CommandTable>
@@ -31,7 +33,7 @@ sim knowledge from-workspace-files create <knowledgeBaseId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--file <value...>` | Yes | Workspace file ID or key (repeatable) (space-separated, or @path / @- with one value per line). |
+| `--file <value...>` | Yes | Workspace file ID or key (repeatable) (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
 
 </CommandTable>
 
@@ -40,6 +42,8 @@ sim knowledge from-workspace-files create <knowledgeBaseId> [options]
 ```bash
 sim knowledge tags save <knowledgeBaseId> [options]
 ```
+
+Declare the tag definitions a knowledge base needs (personal API key required)
 
 **Arguments**
 
@@ -66,6 +70,8 @@ sim knowledge tags save <knowledgeBaseId> [options]
 ```bash
 sim knowledge tags create <knowledgeBaseId> [options]
 ```
+
+Create Tag (personal API key required)
 
 **Arguments**
 
@@ -95,6 +101,8 @@ sim knowledge tags create <knowledgeBaseId> [options]
 sim knowledge tags delete <knowledgeBaseId> <tagId> [options]
 ```
 
+Delete Tag (personal API key required)
+
 **Arguments**
 
 <CommandTable>
@@ -112,7 +120,7 @@ sim knowledge tags delete <knowledgeBaseId> <tagId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -121,6 +129,8 @@ sim knowledge tags delete <knowledgeBaseId> <tagId> [options]
 ```bash
 sim knowledge tags cleanup <knowledgeBaseId> [options]
 ```
+
+Remove tag definitions no document still uses (personal API key required)
 
 **Arguments**
 
@@ -140,7 +150,7 @@ sim knowledge tags cleanup <knowledgeBaseId> [options]
 | --- | --- | --- |
 | `--unused` | No | Whether to remove only the tag definitions no document in the knowledge base still carries a value for. Defaults to true. Pass --no-unused to delete every definition on the knowledge base, which also clears its slot on every document and chunk and is not recoverable. |
 | `--no-unused` | No | Send --unused as false. |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -149,6 +159,8 @@ sim knowledge tags cleanup <knowledgeBaseId> [options]
 ```bash
 sim knowledge tags next-slot <knowledgeBaseId> [options]
 ```
+
+Show which tag slot a create would take for a field type (personal API key required)
 
 **Arguments**
 
@@ -192,6 +204,8 @@ sim knowledge tags list <knowledgeBaseId>
 sim knowledge tags usage <knowledgeBaseId>
 ```
 
+Show how many documents and chunks carry each tag (personal API key required)
+
 **Arguments**
 
 <CommandTable>
@@ -207,6 +221,8 @@ sim knowledge tags usage <knowledgeBaseId>
 ```bash
 sim knowledge tags update <knowledgeBaseId> <tagId> [options]
 ```
+
+Update Tag (personal API key required)
 
 **Arguments**
 
@@ -236,6 +252,8 @@ sim knowledge tags update <knowledgeBaseId> <tagId> [options]
 sim knowledge chunks batch-update <knowledgeBaseId> <documentId> [options]
 ```
 
+Enable, disable, or delete many chunks at once (personal API key required)
+
 **Arguments**
 
 <CommandTable>
@@ -254,8 +272,8 @@ sim knowledge chunks batch-update <knowledgeBaseId> <documentId> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--operation <value>` | Yes | What to do with the selected chunks. Accepted values: `enable`, `disable`, `delete`. |
-| `--chunk <value...>` | Yes | Chunks to operate on, by identifier. Ids outside the document are ignored. (space-separated, or @path / @- with one value per line). |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `--chunk <value...>` | Yes | Chunks to operate on, by identifier. An id naming no chunk in the document is reported in errors and does not fail the request. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -264,6 +282,8 @@ sim knowledge chunks batch-update <knowledgeBaseId> <documentId> [options]
 ```bash
 sim knowledge chunks create <knowledgeBaseId> <documentId> [options]
 ```
+
+Create Chunk (personal API key required)
 
 **Arguments**
 
@@ -294,6 +314,8 @@ sim knowledge chunks create <knowledgeBaseId> <documentId> [options]
 sim knowledge chunks delete <knowledgeBaseId> <documentId> <chunkId> [options]
 ```
 
+Delete Chunk (personal API key required)
+
 **Arguments**
 
 <CommandTable>
@@ -312,7 +334,7 @@ sim knowledge chunks delete <knowledgeBaseId> <documentId> <chunkId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -321,6 +343,8 @@ sim knowledge chunks delete <knowledgeBaseId> <documentId> <chunkId> [options]
 ```bash
 sim knowledge chunks get <knowledgeBaseId> <documentId> <chunkId>
 ```
+
+Get Chunk (personal API key required)
 
 **Arguments**
 
@@ -339,6 +363,8 @@ sim knowledge chunks get <knowledgeBaseId> <documentId> <chunkId>
 ```bash
 sim knowledge chunks list <knowledgeBaseId> <documentId> [options]
 ```
+
+List Chunks (personal API key required)
 
 **Arguments**
 
@@ -371,6 +397,8 @@ sim knowledge chunks list <knowledgeBaseId> <documentId> [options]
 sim knowledge chunks update <knowledgeBaseId> <documentId> <chunkId> [options]
 ```
 
+Update Chunk (personal API key required)
+
 **Arguments**
 
 <CommandTable>
@@ -401,6 +429,8 @@ sim knowledge chunks update <knowledgeBaseId> <documentId> <chunkId> [options]
 sim knowledge documents batch-update <knowledgeBaseId> [options]
 ```
 
+Enable or disable every matching document (personal API key required)
+
 **Arguments**
 
 <CommandTable>
@@ -418,7 +448,7 @@ sim knowledge documents batch-update <knowledgeBaseId> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--operation <value>` | Yes | Whether the selected documents become enabled or disabled for search. Accepted values: `enable`, `disable`. |
-| `--document <value...>` | No | Documents to update, by identifier. (space-separated, or @path / @- with one value per line). |
+| `--document <value...>` | No | Documents to update, by identifier. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
 | `--select-all` | No | Apply to every document in the knowledge base. |
 | `--enabled-filter <value>` | No | With `selectAll`, restrict the update to documents in this state. Accepted values: `all`, `enabled`, `disabled`. |
 
@@ -447,7 +477,7 @@ sim knowledge documents delete <knowledgeBaseId> <documentId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -504,6 +534,8 @@ sim knowledge documents list <knowledgeBaseId> [options]
 ```bash
 sim knowledge documents update <knowledgeBaseId> <documentId> [options]
 ```
+
+Update Document (personal API key required)
 
 **Arguments**
 
@@ -574,8 +606,8 @@ sim knowledge documents upload <knowledgeBaseId> <path> [options]
 | --- | --- | --- |
 | `--name <name>` | No | Store it under a different name. |
 | `--tag <value...>` | No | Document tags, in tag1 through tag7 order. |
-| `--recipe <name>` | No | Document processing recipe. |
-| `--lang <code>` | No | Document language code. |
+| `--recipe <name>` | No | Document processing recipe. Accepted values: `default`, `plain`, `markdown`, `code`. |
+| `--lang <code>` | No | Document language tag: hyphen-separated letter and digit subtags, for example en or en-US. |
 
 </CommandTable>
 
@@ -603,6 +635,8 @@ sim knowledge create [options]
 ```bash
 sim knowledge connectors create <knowledgeBaseId> [options]
 ```
+
+Create Knowledge Connector (personal API key required)
 
 **Arguments**
 
@@ -634,6 +668,8 @@ sim knowledge connectors create <knowledgeBaseId> [options]
 sim knowledge connectors delete <knowledgeBaseId> <connectorId> [options]
 ```
 
+Delete Knowledge Connector (personal API key required)
+
 **Arguments**
 
 <CommandTable>
@@ -653,7 +689,7 @@ sim knowledge connectors delete <knowledgeBaseId> <connectorId> [options]
 | --- | --- | --- |
 | `--delete-documents` | No | Also permanently delete documents produced by this connector. |
 | `--no-delete-documents` | No | Send --delete-documents as false. |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -662,6 +698,8 @@ sim knowledge connectors delete <knowledgeBaseId> <connectorId> [options]
 ```bash
 sim knowledge connectors get <knowledgeBaseId> <connectorId>
 ```
+
+Get Knowledge Connector (personal API key required)
 
 **Arguments**
 
@@ -679,6 +717,8 @@ sim knowledge connectors get <knowledgeBaseId> <connectorId>
 ```bash
 sim knowledge connectors documents list <knowledgeBaseId> <connectorId> [options]
 ```
+
+List Knowledge Connector Documents (personal API key required)
 
 **Arguments**
 
@@ -709,6 +749,8 @@ sim knowledge connectors documents list <knowledgeBaseId> <connectorId> [options
 sim knowledge connectors documents update <knowledgeBaseId> <connectorId> [options]
 ```
 
+Update Knowledge Connector Documents (personal API key required)
+
 **Arguments**
 
 <CommandTable>
@@ -727,7 +769,7 @@ sim knowledge connectors documents update <knowledgeBaseId> <connectorId> [optio
 | Option | Required | Description |
 | --- | --- | --- |
 | `--operation <value>` | Yes | Whether to restore or exclude the selected documents. Accepted values: `restore`, `exclude`. |
-| `--document <value...>` | Yes | Connector document identifiers to update. (space-separated, or @path / @- with one value per line). |
+| `--document <value...>` | Yes | Connector document identifiers to update. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
 
 </CommandTable>
 
@@ -736,6 +778,8 @@ sim knowledge connectors documents update <knowledgeBaseId> <connectorId> [optio
 ```bash
 sim knowledge connectors list <knowledgeBaseId> [options]
 ```
+
+List Knowledge Connectors (personal API key required)
 
 **Arguments**
 
@@ -765,6 +809,8 @@ sim knowledge connectors list <knowledgeBaseId> [options]
 sim knowledge connectors sync <knowledgeBaseId> <connectorId> [options]
 ```
 
+Queue a knowledge connector synchronization (personal API key required)
+
 **Arguments**
 
 <CommandTable>
@@ -792,6 +838,8 @@ sim knowledge connectors sync <knowledgeBaseId> <connectorId> [options]
 ```bash
 sim knowledge connectors update <knowledgeBaseId> <connectorId> [options]
 ```
+
+Update Knowledge Connector (personal API key required)
 
 **Arguments**
 
@@ -855,11 +903,11 @@ sim knowledge folders delete <path> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--recursive` | No | Delete the folder and its descendants. |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
-## List folders
+## List knowledge folders
 
 ```bash
 sim knowledge folders list [options]
@@ -921,7 +969,7 @@ sim knowledge delete <knowledgeBaseId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -990,7 +1038,7 @@ sim knowledge search [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--kb <value...>` | Yes | Knowledge base ID (repeatable) (space-separated, or @path / @- with one value per line). |
+| `--kb <value...>` | Yes | Knowledge base ID (repeatable) (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
 | `--query <value>` | No | Text to search for. |
 | `--top-k <value>` | No | Maximum number of search results to return. Must be a whole number between 1 and 100; the boundary schema only bounds the range, so a fractional value is admitted here and then rejected with 400 during search. |
 | `--tag-filters <json\|@file>` | No | Tag filters as [&#123;"tagName":"...","operator":"...","value":"..."&#125;] (JSON, or @path / @- to read a file or stdin). |

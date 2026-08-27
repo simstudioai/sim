@@ -164,6 +164,11 @@ export {
   useNativeSurfaceOcclusionReady,
 } from './modal/modal'
 export {
+  OverflowText,
+  type OverflowTextProps,
+  overflowTextFadeClass,
+} from './overflow-text/overflow-text'
+export {
   Popover,
   PopoverAnchor,
   PopoverBackButton,

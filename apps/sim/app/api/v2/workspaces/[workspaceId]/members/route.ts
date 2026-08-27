@@ -3,13 +3,9 @@ import {
   v2WorkspaceMemberCursorSchema,
 } from '@/lib/api/contracts/v2/workspaces'
 import { cursorRoute, cursorScopeKey, UNREADABLE_CURSOR_MESSAGE } from '@/lib/api/cursor-binding'
-import {
-  defineV2JsonRoute,
-  v2ApiKeyAuth,
-  v2OrchestrationErrorPolicy,
-  v2RateLimits,
-} from '@/lib/api/server/routes'
+import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { v2WorkspaceErrorPolicies } from '@/lib/workspaces/api/route-policies'
 import { listPublicWorkspaceMembers } from '@/lib/workspaces/application/list-public-workspace-members'
 import { workspaceOperations } from '@/lib/workspaces/application/operations'
 import {
@@ -39,7 +35,7 @@ export const GET = defineV2JsonRoute({
   auth: v2ApiKeyAuth,
   operation: workspaceOperations.listPublicMembers,
   rateLimit: v2RateLimits.publicApi,
-  errorPolicy: v2OrchestrationErrorPolicy,
+  errorPolicy: v2WorkspaceErrorPolicies.concealWorkspaceAuthorization,
   mapInput: ({ params, query }) => {
     const inner = readScopedCursor(query.cursor, memberCursorScope(params.workspaceId))
     const decoded = inner ? v2WorkspaceMemberCursorSchema.safeParse(decodeCursor(inner)) : undefined

@@ -1,6 +1,6 @@
 'use client'
 
-import { Badge, cn } from '@sim/emcn'
+import { Badge, cn, OverflowText } from '@sim/emcn'
 import type { ColumnDefinition, SelectOption } from '@/lib/table'
 
 /** Reads the raw stored option ids from a cell value (single string or array). */
@@ -38,7 +38,7 @@ interface SelectPillProps {
 export function SelectPill({ option, size = 'sm', className }: SelectPillProps) {
   return (
     <Badge variant='gray' size={size} className={cn('max-w-full', className)}>
-      <span className='truncate'>{option.name}</span>
+      <OverflowText label={option.name} />
     </Badge>
   )
 }

@@ -310,6 +310,12 @@ export const POST = withRouteHandler(
               resolvedActorUserId,
               {
                 enabled: true,
+                principal: {
+                  kind: 'system',
+                  serviceId: 'chat',
+                  workspaceId,
+                  workflowId: deployment.workflowId,
+                },
                 selectedOutputs,
                 isSecureMode: true,
                 workflowTriggerType: 'chat',

@@ -1,5 +1,6 @@
 import { ChipTag, cn } from '@sim/emcn'
 import { Clock } from '@sim/emcn/icons'
+import colorMixFallbacks from '@/app/(landing)/components/shared/color-mix-fallbacks/color-mix-fallbacks.module.css'
 import { FeatureGraphicShell } from '@/app/(landing)/enterprise/components/feature-graphics/feature-graphic-shell'
 import styles from '@/app/(landing)/enterprise/components/feature-graphics/lifecycle-graphic.module.css'
 
@@ -47,7 +48,7 @@ export function LifecycleGraphic() {
           <span className='flex size-6 items-center justify-center rounded-md border border-[var(--border-1)]'>
             <Clock className='size-[14px] text-[var(--text-icon)]' />
           </span>
-          <span className='font-medium text-[var(--text-primary)] text-base'>Versions</span>
+          <span className='text-[var(--text-primary)] text-base'>Versions</span>
         </div>
         <div className='flex flex-col p-4 [mask-image:linear-gradient(to_bottom,black_45%,transparent_98%)]'>
           <div className='flex items-center gap-3'>
@@ -58,7 +59,7 @@ export function LifecycleGraphic() {
             </span>
             <span className='flex min-w-0 flex-1 items-center gap-2'>
               <span className='flex items-center gap-1.5 rounded-[12px] bg-[var(--white)] py-1.5 pr-1.5 pl-2.5 shadow-sm'>
-                <span className='font-medium text-[var(--text-primary)] text-small'>v3</span>
+                <span className='text-[var(--text-primary)] text-small'>v3</span>
                 <ChipTag variant='solid'>Live</ChipTag>
               </span>
               <span className='truncate text-[var(--text-muted)] text-caption'>
@@ -69,7 +70,7 @@ export function LifecycleGraphic() {
 
           <div className='flex gap-3'>
             <span className='flex w-2.5 justify-center'>
-              <span className='h-9 w-px bg-[color:color-mix(in_srgb,var(--text-muted)_35%,transparent)]' />
+              <span className={cn('h-9 w-px', colorMixFallbacks.mutedBackground35)} />
             </span>
           </div>
 
@@ -78,7 +79,7 @@ export function LifecycleGraphic() {
               <span className='size-2 rounded-full border border-[var(--text-muted)] bg-[var(--surface-3)]' />
             </span>
             <span className='flex min-w-0 flex-1 items-center gap-2'>
-              <span className='font-medium text-[var(--text-secondary)] text-small'>v2</span>
+              <span className='text-[var(--text-secondary)] text-small'>v2</span>
               <ChipTag variant='mono' className='bg-[var(--surface-6)]'>
                 Saved
               </ChipTag>
@@ -92,12 +93,17 @@ export function LifecycleGraphic() {
             <div key={version.label} className='flex flex-col'>
               <div className='flex gap-3'>
                 <span className='flex w-2.5 justify-center'>
-                  <span className='h-9 w-px bg-[color:color-mix(in_srgb,var(--text-muted)_35%,transparent)]' />
+                  <span className={cn('h-9 w-px', colorMixFallbacks.mutedBackground35)} />
                 </span>
               </div>
               <div className='flex items-center gap-3'>
                 <span className='flex w-2.5 justify-center'>
-                  <span className='size-2 rounded-full border border-[color:color-mix(in_srgb,var(--text-muted)_60%,transparent)] bg-[var(--surface-3)]' />
+                  <span
+                    className={cn(
+                      'size-2 rounded-full border bg-[var(--surface-3)]',
+                      colorMixFallbacks.mutedBorder60
+                    )}
+                  />
                 </span>
                 <span className='flex min-w-0 flex-1 items-center gap-2'>
                   <span className='text-[var(--text-muted)] text-small'>{version.label}</span>

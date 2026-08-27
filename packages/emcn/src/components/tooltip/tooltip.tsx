@@ -83,11 +83,10 @@ const HIDDEN_STATE: FloatingTooltipState = {
 }
 
 /**
- * Drives a pointer-reactive floating tooltip. `canShow` is queried on every
- * gesture with the event target, letting the caller gate the tooltip on its own
- * overflow measurement. Returns the current {@link FloatingTooltipState} to feed
- * a {@link FloatingTooltip} and a stable set of {@link FloatingTooltipHandlers}
- * to spread onto the trigger element.
+ * Drives a pointer-reactive floating tooltip. `canShow` is checked on each
+ * gesture and while visible, allowing callers to dismiss the tooltip when its
+ * eligibility changes. Returns the current state and stable pointer/focus
+ * handlers; `getFocusTarget` may supply a separate keyboard-focus trigger.
  */
 export interface UseFloatingTooltipOptions {
   /**
@@ -95,6 +94,10 @@ export interface UseFloatingTooltipOptions {
    * pointer is too close to the top of the viewport.
    */
   preferAbove?: boolean
+  /** Resolves an external control whose keyboard focus should reveal this tooltip. */
+  getFocusTarget?: () => HTMLElement | null
+  /** Semantic value whose changes should revalidate a visible tooltip. */
+  revalidateKey?: unknown
 }
 
 export function useFloatingTooltip(
@@ -126,41 +129,49 @@ export function useFloatingTooltip(
     setState((current) => (current.visible ? HIDDEN_STATE : current))
   }, [reset])
 
-  const handlers = React.useMemo<FloatingTooltipHandlers>(() => {
-    const apply = (clientX: number, clientY: number, motion: TooltipMotion) => {
-      const next = { ...getTooltipPosition(clientX, clientY, preferAboveRef.current), ...motion }
-      setState((current) =>
-        current.visible &&
-        current.x === next.x &&
-        current.y === next.y &&
-        current.alignX === next.alignX &&
-        current.alignY === next.alignY &&
-        current.skew === next.skew &&
-        current.scaleX === next.scaleX &&
-        current.scaleY === next.scaleY
-          ? current
-          : { visible: true, ...next }
-      )
-    }
+  const apply = React.useCallback((clientX: number, clientY: number, motion: TooltipMotion) => {
+    const next = { ...getTooltipPosition(clientX, clientY, preferAboveRef.current), ...motion }
+    setState((current) =>
+      current.visible &&
+      current.x === next.x &&
+      current.y === next.y &&
+      current.alignX === next.alignX &&
+      current.alignY === next.alignY &&
+      current.skew === next.skew &&
+      current.scaleX === next.scaleX &&
+      current.scaleY === next.scaleY
+        ? current
+        : { visible: true, ...next }
+    )
+  }, [])
 
-    /** Reveals the tooltip at the pointer, seeding velocity tracking from it. */
-    const showFromPointer = (clientX: number, clientY: number) => {
+  const showFromPointer = React.useCallback(
+    (clientX: number, clientY: number) => {
       reset()
       lastPointerRef.current = { x: clientX, y: clientY, time: performance.now() }
       apply(clientX, clientY, NEUTRAL_MOTION)
-    }
+    },
+    [apply, reset]
+  )
 
-    /**
-     * Reveals the tooltip anchored to an element's box rather than the pointer.
-     * Velocity tracking stays cleared: seeding it from the box would make the next
-     * `pointermove` read the box-to-cursor delta as velocity and spike the flourish
-     * when the pointer already happens to be over the trigger.
-     */
-    const showFromElement = (clientX: number, clientY: number) => {
+  /**
+   * Anchors the tooltip to an element without seeding pointer velocity; using the
+   * box position would make the next pointer move produce a false motion spike.
+   */
+  const showFromElement = React.useCallback(
+    (target: HTMLElement) => {
       reset()
-      apply(clientX, clientY, NEUTRAL_MOTION)
-    }
+      const rect = target.getBoundingClientRect()
+      apply(
+        rect.left + rect.width / 2,
+        preferAboveRef.current ? rect.top : rect.bottom,
+        NEUTRAL_MOTION
+      )
+    },
+    [apply, reset]
+  )
 
+  const handlers = React.useMemo<FloatingTooltipHandlers>(() => {
     return {
       onPointerEnter: (event) => {
         if (!canShowRef.current(event.currentTarget)) return
@@ -200,14 +211,32 @@ export function useFloatingTooltip(
         if (!canShowRef.current(target)) return
         if (!isFocusVisible(target)) return
         triggerRef.current = target
-        const rect = target.getBoundingClientRect()
-        /* Anchor on the edge the bubble grows away from, so a `preferAbove`
-           tooltip measures from the trigger's top rather than its bottom. */
-        showFromElement(rect.left + rect.width / 2, preferAboveRef.current ? rect.top : rect.bottom)
+        showFromElement(target)
       },
       onBlur: hide,
     }
-  }, [hide, reset])
+  }, [apply, hide, showFromElement, showFromPointer])
+
+  React.useEffect(() => {
+    const target = options.getFocusTarget?.()
+    if (!target) return undefined
+    const show = () => {
+      if (!canShowRef.current(target) || !isFocusVisible(target)) return
+      triggerRef.current = target
+      showFromElement(target)
+    }
+    target.addEventListener('focus', show)
+    target.addEventListener('blur', hide)
+    return () => {
+      target.removeEventListener('focus', show)
+      target.removeEventListener('blur', hide)
+    }
+  }, [hide, options.getFocusTarget, showFromElement])
+
+  React.useEffect(() => {
+    const trigger = triggerRef.current
+    if (state.visible && (!trigger || !canShowRef.current(trigger))) hide()
+  }, [hide, options.revalidateKey, state.visible])
 
   /**
    * A keyboard- or script-driven UI change can hide the trigger with no pointer or focus event —
@@ -227,23 +256,77 @@ export function useFloatingTooltip(
   return { state, handlers }
 }
 
+const overflowMeasureByElement = new WeakMap<Element, () => void>()
+const observedOverflowElements = new Set<Element>()
+let sharedOverflowObserver: ResizeObserver | null = null
+let sharedOverflowFontSet: FontFaceSet | null = null
+
+function measureObservedOverflow() {
+  for (const element of observedOverflowElements) overflowMeasureByElement.get(element)?.()
+}
+
+function observeOverflowFontChanges() {
+  if (typeof document === 'undefined' || !document.fonts || sharedOverflowFontSet) return
+  const fontSet = document.fonts
+  sharedOverflowFontSet = fontSet
+  fontSet.addEventListener('loadingdone', measureObservedOverflow)
+  fontSet.addEventListener('loadingerror', measureObservedOverflow)
+  void fontSet.ready.then(() => {
+    if (sharedOverflowFontSet === fontSet) measureObservedOverflow()
+  })
+}
+
+function unobserveOverflowFontChanges() {
+  sharedOverflowFontSet?.removeEventListener('loadingdone', measureObservedOverflow)
+  sharedOverflowFontSet?.removeEventListener('loadingerror', measureObservedOverflow)
+  sharedOverflowFontSet = null
+}
+
+function observeOverflow(element: Element, measure: () => void): boolean {
+  overflowMeasureByElement.set(element, measure)
+  observedOverflowElements.add(element)
+  observeOverflowFontChanges()
+  if (typeof ResizeObserver === 'undefined') return false
+  sharedOverflowObserver ??= new ResizeObserver((entries) => {
+    for (const entry of entries) overflowMeasureByElement.get(entry.target)?.()
+  })
+  sharedOverflowObserver.observe(element)
+  return true
+}
+
+function unobserveOverflow(element: Element | null) {
+  if (!element) return
+  sharedOverflowObserver?.unobserve(element)
+  overflowMeasureByElement.delete(element)
+  observedOverflowElements.delete(element)
+  if (observedOverflowElements.size === 0) {
+    sharedOverflowObserver?.disconnect()
+    sharedOverflowObserver = null
+    unobserveOverflowFontChanges()
+  }
+}
+
 /**
- * Tracks whether an element's text is horizontally clipped, re-measuring via a
- * `ResizeObserver` and window resizes.
+ * Tracks whether an element's text is horizontally clipped, re-measuring when
+ * `measurementKey` or loaded fonts change and via a shared `ResizeObserver` (or
+ * window resizes when the API is unavailable).
  *
  * Returns a callback `ref` to attach to the element — the observer follows the
  * element across mount, unmount, and reassignment, so it is safe to use on
  * conditionally rendered children. `node` is a stable ref for reading the
  * current element (e.g. for live measurements in event handlers).
+ *
+ * @param measurementKey - Value whose changes may alter the element's rendered width.
  */
-export function useIsOverflowing<T extends HTMLElement = HTMLElement>(): {
+export function useIsOverflowing<T extends HTMLElement = HTMLElement>(
+  measurementKey?: unknown
+): {
   ref: (node: T | null) => void
   node: React.RefObject<T | null>
   isOverflowing: boolean
 } {
   const [isOverflowing, setIsOverflowing] = React.useState(false)
   const nodeRef = React.useRef<T | null>(null)
-  const observerRef = React.useRef<ResizeObserver | null>(null)
 
   const measure = React.useCallback(() => {
     const element = nodeRef.current
@@ -252,26 +335,30 @@ export function useIsOverflowing<T extends HTMLElement = HTMLElement>(): {
 
   const ref = React.useCallback(
     (node: T | null) => {
-      observerRef.current?.disconnect()
-      observerRef.current = null
+      unobserveOverflow(nodeRef.current)
       nodeRef.current = node
       if (!node) return
 
       measure()
-      const observer = new ResizeObserver(measure)
-      observer.observe(node)
-      observerRef.current = observer
+      observeOverflow(node, measure)
     },
     [measure]
   )
 
   React.useEffect(() => {
-    window.addEventListener('resize', measure)
+    const element = nodeRef.current
+    if (!element) return undefined
+    const usesResizeObserver = observeOverflow(element, measure)
+    if (!usesResizeObserver) window.addEventListener('resize', measure)
     return () => {
-      window.removeEventListener('resize', measure)
-      observerRef.current?.disconnect()
+      if (!usesResizeObserver) window.removeEventListener('resize', measure)
+      unobserveOverflow(element)
     }
   }, [measure])
+
+  React.useLayoutEffect(() => {
+    measure()
+  }, [measure, measurementKey])
 
   return { ref, node: nodeRef, isOverflowing }
 }

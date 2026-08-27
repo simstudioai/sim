@@ -180,6 +180,16 @@ describe('PDF OCR triage', () => {
 
     await expect(parse()).rejects.toThrow('OCR provider returned no page results')
   })
+
+  it('classifies an OCR request-size rejection as a permanent document failure', async () => {
+    mockParseBuffer.mockResolvedValue({ content: '', metadata: {} })
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('', { status: 413 })))
+
+    const error = await parse().catch((caught: unknown) => caught)
+
+    expect(error).toBeInstanceOf(PermanentDocumentProcessingError)
+    expect(error).toMatchObject({ code: 'document_complexity_limit' })
+  })
 })
 
 describe('Azure OCR chunking', () => {
@@ -215,6 +225,31 @@ describe('Azure OCR chunking', () => {
 
     expect(result.metadata.processingMethod).toBe('mistral-ocr')
     // 1001 pages against a 1000-page request cap: two chunks, two requests.
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('uses the current Azure model 30-page request envelope', async () => {
+    Object.assign(env, {
+      OCR_PROVIDER: 'azure-mistral',
+      OCR_AZURE_API_KEY: 'key',
+      OCR_AZURE_ENDPOINT: 'https://example.openai.azure.com',
+      OCR_AZURE_MODEL_NAME: 'mistral-document-ai-2512',
+    })
+    mockParseBuffer.mockResolvedValue({ content: '', metadata: {} })
+    mockDownload.mockResolvedValue(await pdfOfPages(31))
+    let request = 0
+    const fetchMock = vi.fn().mockImplementation(async () => {
+      const pageCount = request++ === 0 ? 30 : 1
+      return new Response(
+        JSON.stringify({ pages: ocrPages(pageCount), usage_info: { pages_processed: pageCount } }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await parse()
+
+    expect(result.metadata.processingMethod).toBe('mistral-ocr')
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
   /**

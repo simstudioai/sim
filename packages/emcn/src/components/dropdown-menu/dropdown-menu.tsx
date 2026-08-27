@@ -26,6 +26,7 @@ import { Check, ChevronRight, Circle, Search } from '../../icons'
 import { cn } from '../../lib/cn'
 import { chipContentGap, chipFieldSurfaceClass } from '../chip/chip-chrome'
 import { InsideModalContext } from '../modal/modal'
+import { OverflowText } from '../overflow-text/overflow-text'
 
 const ANIMATION_CLASSES =
   'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:animate-out data-[state=open]:animate-in motion-reduce:animate-none'
@@ -76,30 +77,32 @@ const MENU_ROW_SELECTED_CLASS =
 /**
  * Rows are a fixed height, so a label that wraps overflows its row and paints
  * over its neighbours instead of growing the row. Every row is therefore held
- * to one line, and its label ellipsizes — see {@link withEllipsizedLabel}.
+ * to one line, and its label uses the shared overflow treatment — see
+ * {@link withOverflowLabel}.
  */
-const MENU_ROW_SINGLE_LINE_CLASS = 'whitespace-nowrap [&>span]:min-w-0 [&>span]:truncate'
+const MENU_ROW_SINGLE_LINE_CLASS =
+  'whitespace-nowrap [&>span]:min-w-0 [&>span:not([data-overflow-text])]:truncate'
 
 /**
  * Wraps a row's bare text children in a truncating box so a label wider than
- * the menu ends in an ellipsis rather than being cut mid-word at the surface
- * edge. Consumers that already wrap their label in a `<span>` are unaffected —
- * the row's `[&>span]` rule truncates those in place.
+ * the menu uses the platform overflow treatment rather than being cut mid-word
+ * at the surface edge. Consumer-provided direct `<span>` labels retain an
+ * ellipsis fallback; a canonical {@link OverflowText} owns its fade and tooltip.
  *
  * Adjacent text is coalesced into a single box: a row is a flex container, so
  * wrapping `Insert row {n}` as two boxes would make them two flex items and
  * open the row's `gap` between the words. `React.Children.toArray` keys the
  * element children it returns, so the rebuilt array needs no keys of its own.
  */
-function withEllipsizedLabel(children: React.ReactNode): React.ReactNode {
+function withOverflowLabel(children: React.ReactNode): React.ReactNode {
   const rebuilt: React.ReactNode[] = []
-  let text: React.ReactNode[] = []
+  let text: Array<string | number> = []
   const flushText = () => {
     if (text.length === 0) return
     rebuilt.push(
-      <span key={`label-${rebuilt.length}`} className='min-w-0 truncate'>
+      <OverflowText key={`label-${rebuilt.length}`} label={text.join('')}>
         {text}
-      </span>
+      </OverflowText>
     )
     text = []
   }
@@ -212,7 +215,7 @@ const DropdownMenuSubTrigger = React.forwardRef<
       )}
       {...props}
     >
-      {withEllipsizedLabel(children)}
+      {withOverflowLabel(children)}
       <ChevronRight className='ml-auto size-[14px] shrink-0' />
     </DropdownMenuPrimitive.SubTrigger>
   )
@@ -303,7 +306,7 @@ const DropdownMenuItem = React.forwardRef<
     action?: React.ReactNode
   }
 >(({ className, inset, active, action, asChild, children, ...props }, ref) => {
-  const content = asChild ? children : withEllipsizedLabel(children)
+  const content = asChild ? children : withOverflowLabel(children)
   const stateClasses = active ? MENU_ROW_SELECTED_CLASS : MENU_ROW_HIGHLIGHT_CLASS
   if (action) {
     return (
@@ -389,7 +392,7 @@ const DropdownMenuCheckboxItem = React.forwardRef<
         <Check className='size-[14px]' />
       </DropdownMenuPrimitive.ItemIndicator>
     </span>
-    {withEllipsizedLabel(children)}
+    {withOverflowLabel(children)}
   </DropdownMenuPrimitive.CheckboxItem>
 ))
 DropdownMenuCheckboxItem.displayName = DropdownMenuPrimitive.CheckboxItem.displayName
@@ -411,7 +414,7 @@ const DropdownMenuRadioItem = React.forwardRef<
         <Circle className='size-[6px] fill-current' />
       </DropdownMenuPrimitive.ItemIndicator>
     </span>
-    {withEllipsizedLabel(children)}
+    {withOverflowLabel(children)}
   </DropdownMenuPrimitive.RadioItem>
 ))
 DropdownMenuRadioItem.displayName = DropdownMenuPrimitive.RadioItem.displayName

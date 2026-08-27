@@ -213,6 +213,41 @@ describe('knowledge documents upload', () => {
     expect(mockRequest).not.toHaveBeenCalled()
   })
 
+  /**
+   * The route enforces both, and neither said so: the help read "Document
+   * processing recipe" / "Document language code" and the CLI uploaded the file
+   * before the server refused the value. Every other constrained flag in this
+   * CLI uses commander `choices`.
+   */
+  it('states what --recipe and --lang accept, and refuses a recipe before uploading', async () => {
+    const path = join(dir, 'notes.txt')
+    writeFileSync(path, 'hello')
+
+    const help = program()
+      .commands.find((command) => command.name() === 'knowledge')
+      ?.commands.find((command) => command.name() === 'documents')
+      ?.commands.find((command) => command.name() === 'upload')
+      ?.helpInformation()
+      .replace(/\s+/g, ' ')
+    expect(help).toContain('choices: "default", "plain", "markdown", "code"')
+    expect(help).toContain('hyphen-separated letter and digit subtags')
+
+    await expect(
+      program().parseAsync([
+        'node',
+        'sim',
+        'kb',
+        'documents',
+        'upload',
+        'kb_1',
+        path,
+        '--recipe',
+        'super-chunker-9000',
+      ])
+    ).rejects.toThrow(/super-chunker-9000/)
+    expect(mockRequest).not.toHaveBeenCalled()
+  })
+
   it('requires the knowledge-base argument before reading the file', async () => {
     const path = join(dir, 'notes.txt')
     writeFileSync(path, 'hello')

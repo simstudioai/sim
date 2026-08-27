@@ -10,7 +10,7 @@ export const RESOURCE_TAB_ICON_CLASS = 'size-[16px] text-[var(--text-icon)]'
 /** Shared geometry for the resource header and controls positioned over it. */
 export const RESOURCE_HEADER_CLASSES = {
   layout:
-    '[--resource-header-controls-height:40px] [--resource-header-end-inset:16px] [--resource-header-fixed-reserve:54px] [--resource-header-toggle-size:30px]',
+    '[--resource-header-controls-height:40px] [--resource-header-end-inset:16px] [--resource-header-fixed-reserve:52px] [--resource-header-toggle-hit-size:40px] [--resource-header-toggle-size:30px]',
   /**
    * Drives the tab strip from this header's own tokens rather than restating the
    * strip's defaults, so the height the overlaid controls below are positioned
@@ -38,11 +38,10 @@ export const RESOURCE_HEADER_CLASSES = {
   overlay: 'absolute top-0 flex h-[var(--resource-header-controls-height)] items-center',
   endPosition: 'right-[var(--resource-header-end-inset)]',
   /**
-   * Sits a control 1px clear of the overlaid 30px collapse toggle — the same
-   * chip-to-chip gap the sidebar header cluster uses (`gap-[1px]`), so the
-   * credits chip and the toggle read as one cluster across both surfaces.
+   * Clears the collapse toggle's 40px hit target so adjacent controls never
+   * compete for the same pointer area. The visible toggle remains 30px.
    */
   adjacentEndPosition:
-    'right-[calc(var(--resource-header-end-inset)_+_var(--resource-header-toggle-size)_+_1px)]',
+    'right-[calc(var(--resource-header-end-inset)_+_var(--resource-header-toggle-hit-size)_+_1px)]',
   emptyAddOffset: '-translate-x-1.5',
 } as const

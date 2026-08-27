@@ -153,6 +153,20 @@ export interface ColumnSpec {
   /** Dot path into the row. Defaults to `header`. */
   path?: string
   /**
+   * Narrowest this column may lock to when a renderer fixes its widths before
+   * it has seen the rows.
+   *
+   * `logs list` sizes every column from the page it is about to print, so it
+   * never needs this. A follow cannot: it locks the widths on its first batch so
+   * the stream reads as one table, and `logs follow -n 0` locks them on no rows
+   * at all — every column collapsed to its header label, and a run id printed as
+   * `9f…`. The floor is what the column's own rendering is known to need (a
+   * timestamp is 19 characters, a run id 36), so it is stated here beside the
+   * `format` that produces it rather than guessed by the renderer. Capped by the
+   * renderer's own maximum cell width; a floor above that is a spec bug.
+   */
+  minWidth?: number
+  /**
    * Rendering hint; `auto` inspects the value.
    *
    * `folder-path` is the display half of `FlagSpec.folderPath`: it undoes the
@@ -254,8 +268,9 @@ export interface CommandSpec {
    * key the whole workspace ledger — and the response says which. The value
    * belongs to the query rather than to any row, so it is not a column; it goes
    * to stderr so that a `--output text` consumer cutting tab-separated fields
-   * still reads only rows. The machine formats print the envelope whole and
-   * carry it already.
+   * still reads only rows. `json` and `yaml` print the unwrapped `data` array
+   * and so drop the field too, which is why the note is not limited to the
+   * human formats — see `runtime/result`.
    */
   pageNote?: { path: string; label: string }
   /** Allow an optional workspaceId field to omit the configured workspace filter. */

@@ -17,6 +17,7 @@ const {
   mockE2BCreate,
   mockE2BRunCode,
   mockE2BCommandsRun,
+  mockE2BCommandsConnect,
   mockE2BFilesGetInfo,
   mockE2BFilesRead,
   mockE2BFilesRemove,
@@ -37,6 +38,7 @@ const {
   mockExecuteSessionCommand,
   mockGetSessionCommandLogs,
   mockGetSessionCommand,
+  mockSendSessionCommandInput,
   mockDeleteSession,
   mockRecordSandboxProviderLimit,
   mockRecordSandboxTeardownFailure,
@@ -64,6 +66,7 @@ const {
   mockE2BCreate: vi.fn(),
   mockE2BRunCode: vi.fn(),
   mockE2BCommandsRun: vi.fn(),
+  mockE2BCommandsConnect: vi.fn(),
   mockE2BFilesGetInfo: vi.fn(),
   mockE2BFilesRead: vi.fn(),
   mockE2BFilesRemove: vi.fn(),
@@ -84,6 +87,7 @@ const {
   mockExecuteSessionCommand: vi.fn(),
   mockGetSessionCommandLogs: vi.fn(),
   mockGetSessionCommand: vi.fn(),
+  mockSendSessionCommandInput: vi.fn(),
   mockDeleteSession: vi.fn(),
   mockRecordSandboxProviderLimit: vi.fn(),
   mockRecordSandboxTeardownFailure: vi.fn(),
@@ -145,6 +149,13 @@ function providerTimeoutError(provider: Provider): Error {
   return error
 }
 
+function emitDaytonaStreamReady(onStdout: (chunk: string) => void): void {
+  const command = mockExecuteSessionCommand.mock.calls.at(-1)?.[1]?.command
+  if (typeof command === 'string' && command.includes('__SIM_DAYTONA_STREAM_READY__')) {
+    onStdout('__SIM_DAYTONA_STREAM_READY__\n')
+  }
+}
+
 /** Stubs a code execution that prints `stdout` and emits `result` via the marker. */
 function stubCodeRun(provider: Provider, stdout: string) {
   if (provider === 'e2b') {
@@ -152,6 +163,7 @@ function stubCodeRun(provider: Provider, stdout: string) {
   } else {
     mockGetSessionCommandLogs.mockImplementation(
       async (_sessionId: string, _commandId: string, onStdout: (chunk: string) => void) => {
+        emitDaytonaStreamReady(onStdout)
         if (stdout) onStdout(stdout)
       }
     )
@@ -200,6 +212,7 @@ function stubShellCommand(provider: Provider, stdout: string, stderr: string, ex
       onStdout: (chunk: string) => void,
       onStderr: (chunk: string) => void
     ) => {
+      emitDaytonaStreamReady(onStdout)
       if (stdout) onStdout(stdout)
       if (stderr) onStderr(stderr)
     }
@@ -221,7 +234,7 @@ function capturedSandboxWrites(provider: Provider): CapturedSandboxWrite[] {
         content: call[1],
         order: mockE2BFilesWrite.mock.invocationCallOrder[index],
       }))
-      .filter((write) => !write.path.startsWith('.sim-function-'))
+      .filter((write) => !write.path.includes('.sim-function-'))
   }
   return mockUploadFile.mock.calls
     .map((call, index) => ({
@@ -229,7 +242,7 @@ function capturedSandboxWrites(provider: Provider): CapturedSandboxWrite[] {
       content: call[0],
       order: mockUploadFile.mock.invocationCallOrder[index],
     }))
-    .filter((write) => !write.path.startsWith('.sim-function-'))
+    .filter((write) => !write.path.includes('.sim-function-'))
 }
 
 function sandboxWriteBuffer(content: unknown): Buffer {
@@ -247,7 +260,7 @@ beforeEach(() => {
   mockE2BCreate.mockResolvedValue({
     sandboxId: 'sb_1',
     runCode: mockE2BRunCode,
-    commands: { run: mockE2BCommandsRun },
+    commands: { run: mockE2BCommandsRun, connect: mockE2BCommandsConnect },
     files: {
       getInfo: mockE2BFilesGetInfo,
       read: mockE2BFilesRead,
@@ -257,6 +270,9 @@ beforeEach(() => {
     kill: mockE2BKill,
   })
   mockE2BCommandsRun.mockResolvedValue({ stdout: '', stderr: '', exitCode: 0 })
+  mockE2BCommandsConnect.mockResolvedValue({
+    wait: vi.fn().mockResolvedValue({ stdout: '', stderr: '', exitCode: 0 }),
+  })
   mockE2BFilesRemove.mockResolvedValue(undefined)
   mockE2BKill.mockResolvedValue(undefined)
 
@@ -270,6 +286,7 @@ beforeEach(() => {
       executeSessionCommand: mockExecuteSessionCommand,
       getSessionCommandLogs: mockGetSessionCommandLogs,
       getSessionCommand: mockGetSessionCommand,
+      sendSessionCommandInput: mockSendSessionCommandInput,
       deleteSession: mockDeleteSession,
     },
     fs: {
@@ -292,6 +309,7 @@ beforeEach(() => {
   mockProvisionRuntime.mockResolvedValue(undefined)
   mockExecuteSessionCommand.mockResolvedValue({ cmdId: 'cmd_1' })
   mockGetSessionCommand.mockResolvedValue({ exitCode: 0 })
+  mockSendSessionCommandInput.mockResolvedValue(undefined)
 })
 
 /** Headroom for the note `tailStreamedSandboxOutput` prepends when it truncates. */
@@ -363,6 +381,7 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
       })
     } else {
       mockGetSessionCommandLogs.mockImplementationOnce(async (_sessionId, _commandId, onStdout) => {
+        emitDaytonaStreamReady(onStdout)
         onStdout(oversized)
       })
     }
@@ -812,6 +831,7 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
       })
     } else {
       mockGetSessionCommandLogs.mockImplementationOnce(async (_sessionId, _commandId, onStdout) => {
+        emitDaytonaStreamReady(onStdout)
         onStdout(oversized)
       })
     }
@@ -1181,6 +1201,220 @@ describe('E2B streamed output safety', () => {
     expect(streamed).toEqual(['1234'])
     expect(mockE2BKill).toHaveBeenCalledTimes(1)
   })
+})
+
+describe('provider stream recovery', () => {
+  it('fails an at-most-once E2B run closed when its output stream disconnects', async () => {
+    const wait = vi.fn().mockRejectedValueOnce(new Error('stream disconnected'))
+    mockE2BCommandsRun.mockResolvedValueOnce({ pid: 42, wait })
+    const sandbox = await e2bProvider.create('code')
+
+    await expect(
+      sandbox.runCommand('node function.js', { timeoutMs: 1000, atMostOnce: true })
+    ).rejects.toMatchObject({
+      name: 'SandboxLaunchIndeterminateError',
+      retryable: false,
+      code: 'sandbox_launch_indeterminate',
+    })
+
+    expect(mockE2BCommandsRun).toHaveBeenCalledTimes(1)
+    expect(mockE2BCommandsConnect).not.toHaveBeenCalled()
+  })
+
+  it('forwards E2B output received after reconnecting to the exact process', async () => {
+    const wait = vi.fn().mockRejectedValueOnce(new Error('stream disconnected'))
+    mockE2BCommandsRun.mockImplementationOnce(async (_command, options) => {
+      options.onStdout?.('before')
+      return { pid: 42, wait }
+    })
+    mockE2BCommandsConnect.mockImplementationOnce(async (_pid, options) => {
+      options.onStdout?.('after')
+      options.onStderr?.('warning')
+      return {
+        wait: vi.fn().mockResolvedValue({ stdout: 'after', stderr: 'warning', exitCode: 0 }),
+      }
+    })
+    const sandbox = await e2bProvider.create('code')
+    const stdout: string[] = []
+    const stderr: string[] = []
+
+    await expect(
+      sandbox.runCommand('node function.js', {
+        timeoutMs: 1000,
+        onStdout: (chunk) => stdout.push(chunk),
+        onStderr: (chunk) => stderr.push(chunk),
+      })
+    ).resolves.toMatchObject({ stdout: 'beforeafter', stderr: 'warning', exitCode: 0 })
+
+    expect(stdout).toEqual(['before', 'after'])
+    expect(stderr).toEqual(['warning'])
+    expect(mockE2BCommandsRun).toHaveBeenCalledTimes(1)
+    expect(mockE2BCommandsConnect).toHaveBeenCalledWith(42, expect.any(Object))
+  })
+
+  it('bounds E2B output received while reconnecting to the exact process', async () => {
+    const wait = vi.fn().mockRejectedValueOnce(new Error('stream disconnected'))
+    mockE2BCommandsRun.mockResolvedValueOnce({ pid: 42, wait })
+    mockE2BCommandsConnect.mockImplementationOnce(async (_pid, options) => {
+      options.onStdout?.('12345')
+      return { wait: vi.fn() }
+    })
+    const sandbox = await e2bProvider.create('code')
+
+    await expect(
+      sandbox.runCommand('pi run', {
+        timeoutMs: 1000,
+        maxOutputBytes: 4,
+      })
+    ).rejects.toMatchObject({
+      code: 'sandbox_output_limit_exceeded',
+      attemptedBytes: 5,
+      limitBytes: 4,
+    })
+    expect(mockE2BCommandsRun).toHaveBeenCalledTimes(1)
+    expect(mockE2BCommandsConnect).toHaveBeenCalledTimes(1)
+  })
+
+  it('marks an ambiguous E2B start as indeterminate without retrying', async () => {
+    mockE2BCommandsRun.mockRejectedValueOnce(new Error('connection reset during start'))
+    const sandbox = await e2bProvider.create('code')
+
+    await expect(
+      sandbox.runCommand('node function.js', { timeoutMs: 1000, atMostOnce: true })
+    ).rejects.toMatchObject({
+      name: 'SandboxLaunchIndeterminateError',
+      retryable: false,
+      code: 'sandbox_launch_indeterminate',
+    })
+    expect(mockE2BCommandsRun).toHaveBeenCalledTimes(1)
+    expect(mockE2BCommandsConnect).not.toHaveBeenCalled()
+  })
+
+  it('reattaches to the exact Daytona session command after a stream disconnect', async () => {
+    mockGetSessionCommandLogs
+      .mockRejectedValueOnce(new Error('stream disconnected'))
+      .mockImplementationOnce(
+        async (_sessionId: string, _commandId: string, onStdout: (chunk: string) => void) => {
+          onStdout('__SIM_DAYTONA_STREAM_READY__\ndone')
+        }
+      )
+    const sandbox = await daytonaProvider.create('code')
+
+    await expect(
+      sandbox.runCommand('node function.js', { timeoutMs: 1000, atMostOnce: true })
+    ).resolves.toMatchObject({ stdout: 'done', exitCode: 0 })
+
+    expect(mockExecuteSessionCommand).toHaveBeenCalledTimes(1)
+    expect(mockExecuteSessionCommand.mock.calls[0]?.[1]).toMatchObject({
+      runAsync: true,
+      suppressInputEcho: true,
+    })
+    expect(mockGetSessionCommandLogs).toHaveBeenCalledTimes(2)
+    expect(mockGetSessionCommand).toHaveBeenCalledWith(expect.any(String), 'cmd_1')
+  })
+
+  it('keeps the original Daytona deadline while recovering a disconnected stream', async () => {
+    mockGetSessionCommandLogs
+      .mockRejectedValueOnce(new Error('stream disconnected'))
+      .mockImplementationOnce(() => new Promise<void>(() => {}))
+    const sandbox = await daytonaProvider.create('code')
+
+    await expect(
+      sandbox.runCommand('node function.js', { timeoutMs: 25, atMostOnce: true })
+    ).resolves.toMatchObject({ exitCode: 124, timedOut: true })
+
+    expect(mockExecuteSessionCommand).toHaveBeenCalledTimes(1)
+    expect(mockGetSessionCommandLogs).toHaveBeenCalledTimes(2)
+    expect(mockGetSessionCommand).not.toHaveBeenCalled()
+    expect(mockDeleteSession).toHaveBeenCalledTimes(1)
+  })
+
+  it('preserves a legitimate leading newline in Daytona stdout', async () => {
+    mockGetSessionCommandLogs.mockImplementationOnce(
+      async (_sessionId: string, _commandId: string, onStdout: (chunk: string) => void) => {
+        onStdout('__SIM_DAYTONA_STREAM_READY__\n')
+        onStdout('\nhello')
+      }
+    )
+    const sandbox = await daytonaProvider.create('code')
+
+    await expect(
+      sandbox.runCommand('printf "\\nhello"', { timeoutMs: 1000, atMostOnce: true })
+    ).resolves.toMatchObject({ stdout: '\nhello', exitCode: 0 })
+  })
+
+  it('bounds Daytona output replayed while reconnecting to the exact command', async () => {
+    mockGetSessionCommandLogs
+      .mockRejectedValueOnce(new Error('stream disconnected'))
+      .mockImplementationOnce(
+        async (_sessionId: string, _commandId: string, onStdout: (chunk: string) => void) => {
+          onStdout('__SIM_DAYTONA_STREAM_READY__\n12345')
+        }
+      )
+    const sandbox = await daytonaProvider.create('code')
+
+    await expect(
+      sandbox.runCommand('node function.js', {
+        timeoutMs: 1000,
+        maxOutputBytes: 4,
+        atMostOnce: true,
+      })
+    ).rejects.toMatchObject({
+      code: 'sandbox_output_limit_exceeded',
+      attemptedBytes: 5,
+      limitBytes: 4,
+    })
+    expect(mockExecuteSessionCommand).toHaveBeenCalledTimes(1)
+    expect(mockGetSessionCommandLogs).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not redeliver callback-consumed Daytona output beyond the retained diagnostic tail', async () => {
+    const beforeDisconnect = 'x'.repeat(MAX_SANDBOX_STREAMED_OUTPUT_TAIL_BYTES * 2)
+    mockGetSessionCommandLogs
+      .mockImplementationOnce(
+        async (_sessionId: string, _commandId: string, onStdout: (chunk: string) => void) => {
+          onStdout('__SIM_DAYTONA_STREAM_READY__\n')
+          onStdout(beforeDisconnect)
+          throw new Error('stream disconnected')
+        }
+      )
+      .mockImplementationOnce(
+        async (_sessionId: string, _commandId: string, onStdout: (chunk: string) => void) => {
+          onStdout(`__SIM_DAYTONA_STREAM_READY__\n${beforeDisconnect}after`)
+        }
+      )
+    const sandbox = await daytonaProvider.create('code')
+    const stdout: string[] = []
+
+    await expect(
+      sandbox.runCommand('node function.js', {
+        timeoutMs: 1000,
+        atMostOnce: true,
+        onStdout: (chunk) => stdout.push(chunk),
+      })
+    ).resolves.toMatchObject({ stdout: expect.stringContaining('after'), exitCode: 0 })
+
+    expect(stdout.join('')).toBe(`${beforeDisconnect}after`)
+    expect(mockExecuteSessionCommand).toHaveBeenCalledTimes(1)
+    expect(mockGetSessionCommandLogs).toHaveBeenCalledTimes(2)
+  })
+
+  it.each([{}, null, undefined])(
+    'marks a Daytona start without a command identity as indeterminate',
+    async (started) => {
+      mockExecuteSessionCommand.mockResolvedValueOnce(started)
+      const sandbox = await daytonaProvider.create('code')
+
+      await expect(
+        sandbox.runCommand('node function.js', { timeoutMs: 1000, atMostOnce: true })
+      ).rejects.toMatchObject({
+        name: 'SandboxLaunchIndeterminateError',
+        retryable: false,
+        code: 'sandbox_launch_indeterminate',
+      })
+      expect(mockExecuteSessionCommand).toHaveBeenCalledTimes(1)
+    }
+  )
 })
 
 describe('custom dependency sets', () => {
@@ -1702,11 +1936,28 @@ describe('provider selection', () => {
         /^\.\/\.sim-function-[A-Za-z0-9_-]+\.cjs$/
       )
     } else {
+      const uploadedFunctionPaths = mockUploadFile.mock.calls
+        .map(([, path]) => String(path))
+        .filter((path) => path.includes('.sim-function-'))
+      expect(uploadedFunctionPaths).toHaveLength(3)
+      expect(uploadedFunctionPaths).toEqual(
+        expect.arrayContaining([
+          expect.stringMatching(/^\.sim-function-[A-Za-z0-9_-]+\.mjs$/),
+          expect.stringMatching(/^\.sim-function-[A-Za-z0-9_-]+\.cjs$/),
+          expect.stringMatching(/^\.sim-function-[A-Za-z0-9_-]+\.sh$/),
+        ])
+      )
       const environmentWrite = mockUploadFile.mock.calls.find(([, path]) =>
         String(path).startsWith('/tmp/.sim-env-')
       )?.[0]
-      expect(sandboxWriteBuffer(environmentWrite).toString('utf8')).toMatch(
-        /SIM_PRELOAD_PATH='\.\/\.sim-function-[A-Za-z0-9_-]+\.cjs'/
+      const environment = sandboxWriteBuffer(environmentWrite).toString('utf8')
+      expect(environment).toMatch(/SIM_CODE_PATH='\.sim-function-[A-Za-z0-9_-]+\.mjs'/)
+      expect(environment).toMatch(/SIM_PRELOAD_PATH='\.\/\.sim-function-[A-Za-z0-9_-]+\.cjs'/)
+      const launcher = mockUploadFile.mock.calls.find(([, path]) =>
+        String(path).endsWith('.sh')
+      )?.[0]
+      expect(sandboxWriteBuffer(launcher).toString('utf8')).toContain(
+        'ln -s "$SIM_NODE_MODULES_PATH" node_modules'
       )
     }
   })
@@ -1715,6 +1966,7 @@ describe('provider selection', () => {
     useProvider('daytona')
     const oversized = 'x'.repeat(MAX_SANDBOX_PROCESS_OUTPUT_BYTES + 1)
     mockGetSessionCommandLogs.mockImplementationOnce(async (_sessionId, _commandId, onStdout) => {
+      emitDaytonaStreamReady(onStdout)
       onStdout(oversized)
     })
 
@@ -1729,7 +1981,7 @@ describe('provider selection', () => {
       outputKind: 'process',
     })
     expect(mockProcessCodeRun).not.toHaveBeenCalled()
-    expect(mockDeleteFile).toHaveBeenCalledTimes(2)
+    expect(mockDeleteFile).toHaveBeenCalledTimes(3)
     expect(mockDelete).toHaveBeenCalledTimes(1)
   })
 
@@ -1737,6 +1989,7 @@ describe('provider selection', () => {
     useProvider('daytona')
     const oversized = 'x'.repeat(MAX_SANDBOX_PROCESS_OUTPUT_BYTES + 1)
     mockGetSessionCommandLogs.mockImplementationOnce(async (_sessionId, _commandId, onStdout) => {
+      emitDaytonaStreamReady(onStdout)
       onStdout(oversized)
     })
     const sandbox = await daytonaProvider.create('shell')

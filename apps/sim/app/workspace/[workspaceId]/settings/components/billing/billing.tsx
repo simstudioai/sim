@@ -8,6 +8,7 @@ import {
   chipVariants,
   cn,
   Label,
+  OverflowText,
   Switch,
   Tooltip,
   toast,
@@ -480,8 +481,8 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
             </div>
           </div>
           <div className='flex min-w-0 flex-col'>
-            <span className='truncate text-[var(--text-body)] text-sm'>{planTitle}</span>
-            <span className='truncate text-[var(--text-muted)] text-caption'>{priceText}</span>
+            <OverflowText label={planTitle} className='text-[var(--text-body)] text-sm' />
+            <OverflowText label={priceText} className='text-[var(--text-muted)] text-caption' />
           </div>
         </div>
         {!subscription.isEnterprise &&

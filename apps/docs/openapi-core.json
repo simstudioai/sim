@@ -211,7 +211,7 @@
             "description": "Comma-separated block-output selectors. A bare `blockId` returns that block's full output; a dot-path like `blockId.field` or `blockId.nested.path` returns just that value. Results are returned in the `blockOutputs` map keyed by the selector string.",
             "schema": {
               "type": "string",
-              "example": "c1b90bce-8a82-42a5-b6a5-5762846c2eaf,c1b90bce-8a82-42a5-b6a5-5762846c2eaf.waitDuration"
+              "example": "a6f0c8d2-3e57-4b19-8d4a-1c9e2f6b0a35,a6f0c8d2-3e57-4b19-8d4a-1c9e2f6b0a35.waitDuration"
             }
           }
         ],
@@ -227,8 +227,8 @@
                   "completed": {
                     "summary": "Completed run",
                     "value": {
-                      "executionId": "9254f1c9-5a11-4a12-91e3-8065293f3609",
-                      "workflowId": "81f661e1-d704-4861-b5c1-5bb3cf57e6a7",
+                      "executionId": "e4f8d2b6-9a1c-4e3d-8b7f-5c0a2d9e6f13",
+                      "workflowId": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
                       "status": "completed",
                       "trigger": "api",
                       "level": "info",
@@ -247,8 +247,8 @@
                   "paused": {
                     "summary": "Currently paused run",
                     "value": {
-                      "executionId": "772749f6-ee81-414c-a2c3-671549dd62b8",
-                      "workflowId": "81f661e1-d704-4861-b5c1-5bb3cf57e6a7",
+                      "executionId": "d5e1a3c7-8f60-4b29-9c4d-2a6e0f8b3d17",
+                      "workflowId": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
                       "status": "paused",
                       "trigger": "manual",
                       "level": "info",
@@ -259,8 +259,8 @@
                         "pausedAt": "2026-05-15T22:25:57.216Z",
                         "resumeAt": "2026-05-16T18:25:57.200Z",
                         "pauseKind": "time",
-                        "blockedOnBlockId": "c1b90bce-8a82-42a5-b6a5-5762846c2eaf",
-                        "pausedExecutionId": "438bf05b-bd3c-4011-b78e-b19c112eeb66",
+                        "blockedOnBlockId": "a6f0c8d2-3e57-4b19-8d4a-1c9e2f6b0a35",
+                        "pausedExecutionId": "9d3b7f10-2c8e-4a56-b0f4-6e1a8c5d2b97",
                         "pausePointCount": 1,
                         "resumedCount": 0
                       },
@@ -275,8 +275,8 @@
                   "failed": {
                     "summary": "Failed run",
                     "value": {
-                      "executionId": "3ccfdeed-a63c-4e86-98e2-8bec723bca52",
-                      "workflowId": "81f661e1-d704-4861-b5c1-5bb3cf57e6a7",
+                      "executionId": "b8c2e60f-1a47-4d35-9e8b-3f0d5a7c2e19",
+                      "workflowId": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
                       "status": "failed",
                       "trigger": "api",
                       "level": "error",
@@ -1537,12 +1537,12 @@
           "executionId": {
             "type": "string",
             "description": "The unique identifier of the execution.",
-            "example": "9254f1c9-5a11-4a12-91e3-8065293f3609"
+            "example": "e4f8d2b6-9a1c-4e3d-8b7f-5c0a2d9e6f13"
           },
           "workflowId": {
             "type": "string",
             "description": "The unique identifier of the workflow.",
-            "example": "81f661e1-d704-4861-b5c1-5bb3cf57e6a7"
+            "example": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36"
           },
           "status": {
             "type": "string",
@@ -1610,12 +1610,12 @@
                 "type": "string",
                 "nullable": true,
                 "description": "The block currently blocking resume.",
-                "example": "c1b90bce-8a82-42a5-b6a5-5762846c2eaf"
+                "example": "a6f0c8d2-3e57-4b19-8d4a-1c9e2f6b0a35"
               },
               "pausedExecutionId": {
                 "type": "string",
                 "description": "ID of the paused-execution row, useful for cross-referencing with the human-in-the-loop endpoints.",
-                "example": "438bf05b-bd3c-4011-b78e-b19c112eeb66"
+                "example": "9d3b7f10-2c8e-4a56-b0f4-6e1a8c5d2b97"
               },
               "pausePointCount": {
                 "type": "integer",
@@ -1659,8 +1659,8 @@
             "description": "Per-block outputs keyed by the selector string. Returned only when `?selectedOutputs` is set.",
             "additionalProperties": true,
             "example": {
-              "c1b90bce-8a82-42a5-b6a5-5762846c2eaf.waitDuration": 60000,
-              "c1b90bce-8a82-42a5-b6a5-5762846c2eaf.status": "completed"
+              "a6f0c8d2-3e57-4b19-8d4a-1c9e2f6b0a35.waitDuration": 60000,
+              "a6f0c8d2-3e57-4b19-8d4a-1c9e2f6b0a35.status": "completed"
             }
           }
         }

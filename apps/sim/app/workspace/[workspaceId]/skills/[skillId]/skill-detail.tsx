@@ -58,7 +58,7 @@ export function SkillDetail({ workspaceId, skillId }: SkillDetailProps) {
   const editors = useSkillEditorsController({
     skillId,
     workspaceId,
-    // Built-ins have no editors; skip the roster fetch (it would 404).
+    // Built-ins have no editors; skip the roster fetch (it would be refused).
     enabled: !!skill && !isBuiltin,
   })
   const canEdit = !isBuiltin && !!skill?.canEdit

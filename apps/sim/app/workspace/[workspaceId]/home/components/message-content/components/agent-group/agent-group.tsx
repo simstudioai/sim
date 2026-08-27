@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { ChevronDown, cn, Expandable, ExpandableContent } from '@sim/emcn'
+import { ChevronDown, cn, Expandable, ExpandableContent, OverflowText } from '@sim/emcn'
 import { ShimmerText } from '@/components/ui'
 import { isBrowserAgentAvailable } from '@/lib/browser-agent/transport'
 import { RETIRED_BROWSER_REQUEST_TAKEOVER_ID } from '@/lib/copilot/tools/retired-tools'
@@ -209,7 +209,7 @@ export function AgentGroup({
           {isWorking ? (
             <ShimmerText className='min-w-0 truncate text-sm'>{headerText}</ShimmerText>
           ) : (
-            <span className='min-w-0 truncate text-[var(--text-body)] text-sm'>{headerText}</span>
+            <OverflowText label={headerText} className='text-[var(--text-body)] text-sm' />
           )}
           <ChevronDown
             className={cn(
@@ -226,7 +226,7 @@ export function AgentGroup({
           {isWorking ? (
             <ShimmerText className='min-w-0 truncate text-sm'>{headerText}</ShimmerText>
           ) : (
-            <span className='min-w-0 truncate text-[var(--text-body)] text-sm'>{headerText}</span>
+            <OverflowText label={headerText} className='text-[var(--text-body)] text-sm' />
           )}
         </div>
       )}

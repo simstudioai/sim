@@ -113,6 +113,18 @@ describe('secrets set', () => {
     })
   })
 
+  it('marks --scope required in the help it renders', () => {
+    // Commander enforces `makeOptionMandatory` but renders nothing to say so:
+    // the marker is the literal suffix the generated flags carry.
+    const secrets = program().commands.find((command) => command.name() === 'secrets')
+    const set = secrets?.commands.find((command) => command.name() === 'set')
+    if (!set) throw new Error('Missing secrets set command')
+
+    expect(set.helpInformation().replace(/\s+/g, ' ')).toContain(
+      'Secret ownership scope (required)'
+    )
+  })
+
   it('keeps --value optional in help and rejects an empty direct value', async () => {
     const secrets = program().commands.find((command) => command.name() === 'secrets')
     const set = secrets?.commands.find((command) => command.name() === 'set')
@@ -161,6 +173,38 @@ describe('secrets set --unredacted', () => {
   it('leaves the stored setting untouched when neither flag is passed', async () => {
     await set('--scope', 'workspace', '--value', 'v')
     expect('unredacted' in sentBody()).toBe(false)
+  })
+
+  it('changes only the redaction setting, without prompting for a value', async () => {
+    // The shape a CI job runs: the secret already exists and only its redaction
+    // setting is changing, so there is no value to read and nothing to prompt.
+    await set('--scope', 'workspace', '--no-unredacted')
+
+    expect(mockPromptSecret).not.toHaveBeenCalled()
+    expect(sentBody()).toEqual({ workspaceId: 'ws_local', scope: 'workspace', unredacted: false })
+    expect('value' in sentBody()).toBe(false)
+  })
+
+  it('changes only the description, without prompting for a value', async () => {
+    await set('--scope', 'workspace', '--description', 'Billing key')
+
+    expect(mockPromptSecret).not.toHaveBeenCalled()
+    expect(sentBody().description).toBe('Billing key')
+    expect('value' in sentBody()).toBe(false)
+  })
+
+  it('refuses both spellings of the redaction setting in one invocation', async () => {
+    // They share one commander attribute, so the loser is dropped silently —
+    // on the flag governing whether the value is readable in plaintext.
+    await expect(
+      set('--scope', 'workspace', '--value', 'v', '--unredacted', '--no-unredacted')
+    ).rejects.toThrow(/either --unredacted or --no-unredacted, not both/)
+    expect(mockRequest).not.toHaveBeenCalled()
+
+    await expect(
+      set('--scope', 'workspace', '--value', 'v', '--no-unredacted', '--unredacted')
+    ).rejects.toThrow(/either --unredacted or --no-unredacted, not both/)
+    expect(mockRequest).not.toHaveBeenCalled()
   })
 
   it('rejects the flag for a personal secret before reading the value', async () => {

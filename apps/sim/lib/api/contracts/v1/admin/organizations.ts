@@ -25,7 +25,6 @@ export const adminV1OrganizationSchema = z.object({
   logo: z.string().nullable(),
   orgUsageLimit: z.string().nullable(),
   storageUsedBytes: z.number(),
-  departedMemberUsage: z.string(),
   createdAt: z.string(),
   updatedAt: z.string(),
 })

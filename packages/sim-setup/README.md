@@ -153,6 +153,22 @@ npx sim-setup doctor --json
 Use `config` to answer “what is configured?” and `status` to answer “what is
 running and healthy?”
 
+### Install the desktop app
+
+`desktop` resolves the macOS installer from your own deployment and prints the
+server URL to enter in the app:
+
+```bash
+npx sim-setup desktop
+npx sim-setup desktop --url https://sim.example.com
+npx sim-setup desktop --no-open
+```
+
+The desktop app is not tied to sim.ai — it bakes in only a default server, and
+every Sim deployment already serves `/api/desktop/update/download` and the
+update feed installed apps poll. Install the signed build, then point it at your
+deployment with **Sim → Server…**. Nothing has to be built or signed by you.
+
 ### Add or change capabilities
 
 Configure one capability without walking through the complete wizard:

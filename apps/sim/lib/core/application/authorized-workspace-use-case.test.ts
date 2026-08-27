@@ -34,6 +34,7 @@ vi.mock('@sim/platform-authz/workspace', () => ({
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { defineAuthorizedWorkspaceUseCase, defineWorkspaceOperation } from '@/lib/core/application'
 import type { OrchestrationError } from '@/lib/core/orchestration/types'
+import { CREDENTIAL_GROUP_CREDENTIAL_USE_ACTION } from '@/lib/resource-policies/registry'
 
 const operation = defineWorkspaceOperation({
   id: 'test.rename',
@@ -55,6 +56,17 @@ const workspaceKeyOperation = defineWorkspaceOperation({
   minimumRole: 'read',
   workspaceApiKey: 'allow',
   principalKinds: ['workspace_api_key'],
+})
+
+const resourcePolicyOperation = defineWorkspaceOperation({
+  id: 'test.resource_policy',
+  minimumRole: 'write',
+  workspaceApiKey: 'deny',
+  principalKinds: ['session'],
+  resourcePolicy: {
+    resourceType: 'credential_group',
+    action: CREDENTIAL_GROUP_CREDENTIAL_USE_ACTION,
+  },
 })
 
 interface TestInput {
@@ -191,13 +203,14 @@ describe('defineAuthorizedWorkspaceUseCase', () => {
       return { ok: true as const }
     })
     const useCase = defineAuthorizedWorkspaceUseCase({
-      operation,
+      operation: resourcePolicyOperation,
       resolveContext: async (_args: { principal: SessionPrincipal; input: TestInput }) => {
         mocks.events.push('canonicalLoad')
         return canonicalContext
       },
       authorizationOptions: {},
-      authorizeResource() {
+      authorizeResource({ resourcePolicy }) {
+        expect(resourcePolicy).toBe(resourcePolicyOperation.resourcePolicy)
         mocks.events.push('resourceAuthorization')
       },
       execute,
@@ -238,6 +251,45 @@ describe('defineAuthorizedWorkspaceUseCase', () => {
       'audit',
       'afterSuccess',
     ])
+  })
+
+  it('requires policy-bound operations to define resource authorization', async () => {
+    const execute = vi.fn(async () => ({ ok: true as const }))
+    expect(() =>
+      defineAuthorizedWorkspaceUseCase({
+        operation: resourcePolicyOperation,
+        resolveContext: async (_args: { principal: SessionPrincipal; input: TestInput }) =>
+          canonicalContext,
+        authorizationOptions: {},
+        execute,
+      })
+    ).toThrow('Operation test.resource_policy requires resource policy authorization')
+
+    expect(execute).not.toHaveBeenCalled()
+  })
+
+  it('keeps non-policy resource authorization available to ordinary operations', async () => {
+    const authorizeResource = vi.fn()
+    const useCase = defineAuthorizedWorkspaceUseCase({
+      operation,
+      resolveContext: async (_args: { principal: SessionPrincipal; input: TestInput }) =>
+        canonicalContext,
+      authorizationOptions: {},
+      authorizeResource,
+      async execute() {
+        return { ok: true as const }
+      },
+    })
+
+    await expect(
+      useCase.execute({
+        principal: sessionPrincipal,
+        input: { resourceId: 'resource-1' },
+      })
+    ).resolves.toEqual({ ok: true })
+    expect(authorizeResource).toHaveBeenCalledWith(
+      expect.objectContaining({ context: canonicalContext })
+    )
   })
 
   it('supports zero or many semantic audit entries', async () => {

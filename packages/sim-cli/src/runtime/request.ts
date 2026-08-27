@@ -4,6 +4,7 @@ import type { CommandSpec, FlagSpec } from '../contract/types'
 import { V2_OPERATIONS, type V2OperationName } from '../generated/v2-api'
 import { type QueryValue, SimApiError } from '../http/client'
 import { camel, kebab } from './derive'
+import type { OperationSpec } from './types'
 
 /** One request field, as the generator describes it. */
 export interface FieldSpec {
@@ -29,8 +30,28 @@ export function isProfileWorkspacePath(commandSpec: CommandSpec, param: string):
   return commandSpec.profileWorkspacePath === true && param === PROFILE_INJECTED_FIELD
 }
 
+/**
+ * The slot a cursor-paginated operation carries its `cursor` field in.
+ *
+ * Pagination, not the name of a field, is what makes `limit` a page size. It
+ * lives here rather than beside its reader in `execute.ts` because `options.ts`
+ * has to ask the same question while it builds the flag, and importing
+ * `execute.ts` from `options.ts` would close a module cycle — `execute.ts`
+ * already reads `DEFAULT_LIMIT` from `options.ts`.
+ */
+export function cursorSlot(
+  operationSpec: Pick<OperationSpec, 'query' | 'body'>
+): 'query' | 'body' | null {
+  if (operationSpec.query && 'cursor' in operationSpec.query) return 'query'
+  if (operationSpec.body && 'cursor' in operationSpec.body) return 'body'
+  return null
+}
+
 /** Kinds the CLI can only accept as a JSON string. */
 const JSON_KINDS = new Set(['object', 'array', 'unknown'])
+
+/** Kinds read through `Number`, where a blank does not survive: `Number('')` is `0`. */
+const NUMERIC_KINDS: ReadonlySet<FieldSpec['kind']> = new Set(['number', 'integer'])
 
 export function flagSpecFor(operation: V2OperationName, field: string): FlagSpec {
   return CLI_CONTRACT[operation]?.flags?.[field] ?? {}
@@ -162,6 +183,21 @@ function readStdin(): string {
  * at all, because it can only be read as a request to open a file named
  * `urgent`.
  */
+/**
+ * Points at `@@` when an `@value` names nothing on disk.
+ *
+ * `--allowed-emails @example.org` is the natural spelling of a domain pattern
+ * and reads here as a request to open a file, and "cannot read example.org"
+ * alone gives no clue the value has a literal spelling at all. Gated on ENOENT
+ * so a real file that cannot be read (EACCES, EISDIR) is not answered with
+ * advice about escaping.
+ */
+function literalAtHint(error: unknown, path: string): string {
+  return (error as NodeJS.ErrnoException)?.code === 'ENOENT'
+    ? `. To pass the literal value @${path}, write @@${path}`
+    : ''
+}
+
 export function readArgumentSource(raw: string, flagName: string): { text: string; from: string } {
   if (raw.startsWith('@@')) return { text: raw.slice(1), from: '' }
   if (!raw.startsWith('@')) return { text: raw, from: '' }
@@ -181,7 +217,10 @@ export function readArgumentSource(raw: string, flagName: string): { text: strin
   try {
     return { text: readFileSync(path, 'utf8'), from: ` (read from ${path})` }
   } catch (error) {
-    throw new SimApiError(`--${flagName} cannot read ${path}: ${(error as Error).message}`, 0)
+    throw new SimApiError(
+      `--${flagName} cannot read ${path}: ${(error as Error).message}${literalAtHint(error, path)}`,
+      0
+    )
   }
 }
 
@@ -280,6 +319,17 @@ export function encodeFolderPath(value: string): string {
 }
 
 /**
+ * A fractional part `Number` cannot keep.
+ *
+ * Above 2^52 a double's spacing is 1, so `Number('4503599627370496.5')` is an
+ * integer — `Number.isInteger` passes and the API receives a value the caller
+ * did not type. Read the text as well as the parsed number so the refusal
+ * covers the range where the parse itself loses the fraction. Digits that are
+ * all zero are not a fraction, so `1.0` stays a whole number.
+ */
+const FRACTIONAL_DIGITS = /\.\d*[1-9]/
+
+/**
  * Points at `@` when a value that failed to parse looks like a filename.
  *
  * `--workflow export.json` is the natural first guess, and "must be valid JSON"
@@ -339,9 +389,30 @@ export function coerce(raw: unknown, field: FieldSpec, flag: FlagSpec, flagName:
     }
   }
 
-  if (field.kind === 'number' || field.kind === 'integer') {
+  if (NUMERIC_KINDS.has(field.kind)) {
     const value = Number(raw)
     if (Number.isNaN(value)) throw new SimApiError(`--${flagName} must be a number`, 0)
+    /**
+     * An `integer` field said so in the contract, and every other constraint on
+     * one is already refused here by hand. Leaving integrality to the server
+     * answered `--max-bytes 5.5` with `Invalid input: expected int, received
+     * number` and `--max-bytes 999999999999999999999` with `Too big: expected
+     * int to be <=9007199254740991` — library wording naming neither the flag
+     * nor anything the caller typed, on the one flag whose blank, zero and
+     * non-numeric cases all had a sentence written for them.
+     */
+    if (
+      field.kind === 'integer' &&
+      (!Number.isInteger(value) || FRACTIONAL_DIGITS.test(String(raw)))
+    ) {
+      throw new SimApiError(`--${flagName} must be a whole number`, 0)
+    }
+    if (field.kind === 'integer' && !Number.isSafeInteger(value)) {
+      throw new SimApiError(
+        `--${flagName} is outside the whole-number range the API accepts (±${Number.MAX_SAFE_INTEGER})`,
+        0
+      )
+    }
     return value
   }
 
@@ -356,6 +427,16 @@ export function coerce(raw: unknown, field: FieldSpec, flag: FlagSpec, flagName:
 
   return raw
 }
+
+/**
+ * The workspace precondition as stated when the profile is not at hand.
+ *
+ * `executeOperation` resolves the workspace through `SimClient.requireWorkspace`
+ * first, which names the profile and checks the API key, so this is a defensive
+ * floor rather than the wording a caller sees.
+ */
+const NO_WORKSPACE_FALLBACK =
+  'No workspace set. Pass --workspace, or run: sim configure --set-workspace <id>'
 
 export interface BuiltRequest {
   path: string
@@ -417,10 +498,7 @@ export function buildRequest(
         : positional[positionalIndex++]
     if (value === undefined || value === null) {
       if (profileWorkspacePath) {
-        throw new SimApiError(
-          'No workspace set. Pass --workspace, or run: sim configure --set-workspace <id>',
-          0
-        )
+        throw new SimApiError(NO_WORKSPACE_FALLBACK, 0)
       }
       throw new SimApiError(pathFlag ? `--${flagName} is required` : `Missing <${argumentName}>`, 0)
     }
@@ -437,6 +515,14 @@ export function buildRequest(
   const query: Record<string, QueryValue> = {}
   const body: Record<string, unknown> = {}
   const headers: Record<string, string> = {}
+
+  /**
+   * On a paginating operation `limit` is the walk size rather than a filter,
+   * and the pager reads it from the flags itself — including refusing a blank
+   * one, in wording that says what `0` means there. Left to it, so the caller
+   * gets that message instead of the generic refusal below.
+   */
+  const paginatedLimit = cursorSlot(spec) !== null
 
   for (const slot of ['query', 'body', 'headers'] as const) {
     for (const [field, descriptor] of Object.entries(spec[slot] ?? {})) {
@@ -457,14 +543,67 @@ export function buildRequest(
       // typing the flag — including typing the server's own default back — still
       // decides. It is validated like any other value, enum choices included.
       const raw = provided ?? flag.requestDefault
+
+      /**
+       * A blank filter is a mistake, and every v2 JSON route says so
+       * (`rejectBlankQueryValues`). The CLI never let one reach the wire: the
+       * URL builder skips an empty value, so `logs list --status ""` searched
+       * everything and answered `0`, a wider result set presented as an answer.
+       * Refused here, before the request, the way an empty list entry and an
+       * empty path parameter already are.
+       *
+       * Read from what the caller typed rather than from the coerced value,
+       * because coercion erases the blank on a numeric field: `Number('')` is
+       * `0`, so `--max-cost ""` reached the wire as a real "costing at most
+       * nothing" filter that a check on the coerced value cannot see. An
+       * explicit `--max-cost 0` is a value the caller chose and is still sent.
+       *
+       * That erasure is what a numeric *body* field suffers too, so the rule is
+       * the whole query slot plus every numeric field wherever it sits: `tables
+       * rows batch-delete --limit ""` sent `"limit":0`, a cap the caller never
+       * typed. The slot alone is not the distinction — a blank is meaningful
+       * only where it can survive as itself, which is a body *string*, where it
+       * clears a description.
+       *
+       * Blank is `trim()`-empty rather than exactly empty, matching both the
+       * route — `blankQueryValueValidationError` reads `?status=%20` as blank —
+       * and the list flag beside it, which trims each entry before refusing it.
+       * A quoted space is invisible in a shell and read as every blank the
+       * empty string did: `--max-cost " "` as `0`, `--deployed-only " "` as an
+       * explicit `false`, `--status " "` as a `%20` the server answers `400`.
+       */
+      if (
+        (slot === 'query' || NUMERIC_KINDS.has(descriptor.kind)) &&
+        typeof raw === 'string' &&
+        raw.trim() === '' &&
+        !(field === 'limit' && paginatedLimit)
+      ) {
+        throw new SimApiError(`--${flagName} cannot be empty`, 0)
+      }
+
       const value = coerce(raw ?? undefined, descriptor, flag, flagName)
+
+      /**
+       * A non-paginated `limit` is a row cap the route bounds at `1`, which is
+       * what `--help` already tells the caller ("note 0 is not accepted") — so
+       * `--limit 0`, `-1` and `1.5` were shipping a round trip to be told
+       * something the CLI had documented. The ceiling stays with the server:
+       * it is per-route policy, and nothing in the terminal states it.
+       */
+      if (
+        field === 'limit' &&
+        !paginatedLimit &&
+        NUMERIC_KINDS.has(descriptor.kind) &&
+        typeof value === 'number' &&
+        value < 1
+      ) {
+        throw new SimApiError(`--${flagName} must be 1 or more`, 0)
+      }
 
       if (value === undefined) {
         if (descriptor.required) {
           throw new SimApiError(
-            field === PROFILE_INJECTED_FIELD
-              ? 'No workspace set. Pass --workspace, or run: sim configure --set-workspace <id>'
-              : `--${flagName} is required`,
+            field === PROFILE_INJECTED_FIELD ? NO_WORKSPACE_FALLBACK : `--${flagName} is required`,
             0
           )
         }

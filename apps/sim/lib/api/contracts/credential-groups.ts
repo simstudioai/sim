@@ -1,10 +1,15 @@
 import { z } from 'zod'
-import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import { workflowIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
   CREDENTIAL_GROUP_PROVIDER_IDS,
   CREDENTIAL_GROUP_STANDARD_OAUTH_PROVIDER_IDS,
 } from '@/lib/credential-groups/providers'
+import {
+  CREDENTIAL_GROUP_WORKFLOW_ACCESS_LIMIT,
+  CREDENTIAL_GROUP_WORKFLOW_CATALOG_LIMIT,
+  CREDENTIAL_GROUP_WORKFLOW_NAME_MAX_LENGTH,
+} from '@/lib/credential-groups/workflow-access-limits'
 
 export const credentialGroupProviderSchema = z.enum(CREDENTIAL_GROUP_PROVIDER_IDS)
 export const credentialGroupStatusSchema = z.enum(['active', 'disabled'])
@@ -114,6 +119,61 @@ export type CredentialGroupEnrollmentConnection = z.output<
   typeof credentialGroupEnrollmentConnectionSchema
 >
 export type CredentialGroupEnrollmentDetail = z.output<typeof credentialGroupEnrollmentDetailSchema>
+
+export const credentialGroupAccessPolicySchema = z
+  .object({
+    revision: z.number().int().positive(),
+    allowedWorkflowIds: z
+      .array(
+        workflowIdSchema
+          .max(128, 'Workflow ID is too long')
+          .refine((workflowId) => workflowId === workflowId.trim(), {
+            message: 'Workflow ID must not have surrounding whitespace',
+          })
+      )
+      .max(
+        CREDENTIAL_GROUP_WORKFLOW_ACCESS_LIMIT,
+        `Select at most ${CREDENTIAL_GROUP_WORKFLOW_ACCESS_LIMIT} workflows`
+      )
+      .superRefine((workflowIds, ctx) => {
+        const seen = new Set<string>()
+        for (const [index, workflowId] of workflowIds.entries()) {
+          if (seen.has(workflowId)) {
+            ctx.addIssue({
+              code: 'custom',
+              path: [index],
+              message: 'Workflow selections must be unique',
+            })
+          }
+          seen.add(workflowId)
+        }
+      }),
+  })
+  .strict()
+
+export type CredentialGroupAccessPolicy = z.output<typeof credentialGroupAccessPolicySchema>
+
+export const resourcePolicyWorkflowSchema = z
+  .object({
+    id: z.string().min(1).max(128),
+    name: z.string().max(CREDENTIAL_GROUP_WORKFLOW_NAME_MAX_LENGTH),
+  })
+  .strict()
+
+export const credentialGroupAccessResponseSchema = credentialGroupAccessPolicySchema.extend({
+  workflows: z.array(resourcePolicyWorkflowSchema).max(CREDENTIAL_GROUP_WORKFLOW_CATALOG_LIMIT),
+})
+
+export type CredentialGroupAccessResponse = z.output<typeof credentialGroupAccessResponseSchema>
+
+export const updateCredentialGroupAccessBodySchema = z
+  .object({
+    expectedRevision: z.number().int().positive(),
+    allowedWorkflowIds: credentialGroupAccessPolicySchema.shape.allowedWorkflowIds,
+  })
+  .strict()
+
+export type UpdateCredentialGroupAccessBody = z.input<typeof updateCredentialGroupAccessBodySchema>
 
 export const credentialGroupWorkspaceParamsSchema = z.object({
   id: workspaceIdSchema,
@@ -388,6 +448,21 @@ export const updateCredentialGroupContract = defineRouteContract({
     mode: 'json',
     schema: z.object({ credentialGroup: credentialGroupSchema }),
   },
+})
+
+export const getCredentialGroupAccessContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/workspaces/[id]/credential-groups/[groupId]/access',
+  params: credentialGroupDetailParamsSchema,
+  response: { mode: 'json', schema: credentialGroupAccessResponseSchema },
+})
+
+export const updateCredentialGroupAccessContract = defineRouteContract({
+  method: 'PUT',
+  path: '/api/workspaces/[id]/credential-groups/[groupId]/access',
+  params: credentialGroupDetailParamsSchema,
+  body: updateCredentialGroupAccessBodySchema,
+  response: { mode: 'json', schema: credentialGroupAccessPolicySchema },
 })
 
 export const startSlackCredentialGroupConfigurationContract = defineRouteContract({

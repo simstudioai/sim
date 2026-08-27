@@ -129,6 +129,36 @@ describe('getLogStats', () => {
     )
   })
 
+  /**
+   * The wiring, not the arithmetic: `resolveLogStatsWindow` is exercised for
+   * real here, so a requested window that never reaches it shows up as both a
+   * wrong segment origin on the read and a wrong `timeBounds` on the response.
+   */
+  it('spans the requested window rather than the rows that happen to exist', async () => {
+    const { stats } = await getLogStats.execute({
+      principal: workspacePrincipal,
+      input: {
+        workspaceId: 'workspace-1',
+        filters: {
+          startDate: new Date('2026-08-01T00:00:00.000Z'),
+          endDate: new Date('2026-08-02T00:00:00.000Z'),
+        },
+        segmentCount: 2,
+      },
+    })
+
+    expect(mocks.readSegments).toHaveBeenCalledWith(
+      expect.anything(),
+      '2026-08-01T00:00:00.000Z',
+      12 * 60 * 60 * 1000
+    )
+    expect(stats.timeBounds).toEqual({
+      start: '2026-08-01T00:00:00.000Z',
+      end: '2026-08-02T00:00:00.000Z',
+    })
+    expect(stats.segmentMs).toBe(12 * 60 * 60 * 1000)
+  })
+
   it('resolves the folder scope only after authorization, and only when asked', async () => {
     await getLogStats.execute({
       principal: workspacePrincipal,

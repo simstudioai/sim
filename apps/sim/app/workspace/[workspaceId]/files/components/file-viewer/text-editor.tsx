@@ -1,8 +1,17 @@
 'use client'
 
-import { memo, useCallback, useEffect, useRef, useState } from 'react'
+import {
+  memo,
+  type ClipboardEvent as ReactClipboardEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import type { OnMount } from '@monaco-editor/react'
-import { cn } from '@sim/emcn'
+import { cn, toast } from '@sim/emcn'
+import { formatPasteLimit, PASTE_LIMITS } from '@sim/utils/paste'
 import type { editor as MonacoEditorTypes } from 'monaco-editor'
 import dynamic from 'next/dynamic'
 import {
@@ -12,6 +21,7 @@ import {
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
 import { isSimPageSource, SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
+import { assessTextEditorPaste } from '@/app/workspace/[workspaceId]/files/components/file-viewer/text-editor-paste'
 import { useAddToChat } from '@/hooks/use-add-to-chat'
 import type { ChatContext } from '@/stores/panel'
 import { EditorContextMenu } from './editor-context-menu'
@@ -23,6 +33,44 @@ import { useSelectionCopyBridge } from './use-selection-copy-bridge'
 
 /** File ids observed rendering as Sim pages this session (see the sticky lock). */
 const KNOWN_PAGE_FILE_IDS = new Set<string>()
+
+const TEXT_EDITOR_OPTIONS = {
+  largeFileOptimizations: true,
+  maxTokenizationLineLength: 20_000,
+  minimap: { enabled: false },
+  scrollBeyondLastLine: false,
+  wordWrap: 'on',
+  fontSize: 13,
+  lineNumbers: 'on',
+  padding: { top: 24, bottom: 24 },
+  fontFamily:
+    'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace',
+  tabSize: 2,
+  automaticLayout: true,
+  renderLineHighlight: 'line',
+  occurrencesHighlight: 'singleFile',
+  overviewRulerLanes: 0,
+  hideCursorInOverviewRuler: true,
+  scrollbar: {
+    verticalScrollbarSize: 6,
+    horizontalScrollbarSize: 6,
+  },
+  quickSuggestions: false,
+  suggestOnTriggerCharacters: false,
+  wordBasedSuggestions: 'currentDocument',
+  parameterHints: { enabled: false },
+  codeLens: false,
+  lightbulb: {
+    enabled: 'off' as MonacoEditorTypes.ShowLightbulbIconMode,
+  },
+  inlayHints: { enabled: 'off' },
+  contextmenu: false,
+  fixedOverflowWidgets: true,
+  glyphMargin: false,
+  stickyScroll: { enabled: false },
+  bracketPairColorization: { enabled: false },
+  unicodeHighlight: { ambiguousCharacters: false },
+} satisfies MonacoEditorTypes.IStandaloneEditorConstructionOptions
 
 const SIM_DARK_RULES: MonacoEditorTypes.ITokenThemeRule[] = [
   { token: 'comment', foreground: '606060', fontStyle: 'italic' },
@@ -373,6 +421,7 @@ export const TextEditor = memo(function TextEditor({
 }: TextEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const monacoEditorRef = useRef<Parameters<OnMount>[0] | null>(null)
+  const lastEditorValueRef = useRef('')
   const lastSyncedContentRef = useRef('')
   const hasAutoFocusedRef = useRef(false)
   const contentRef = useRef('')
@@ -447,11 +496,14 @@ export const TextEditor = memo(function TextEditor({
   useSelectionCopyBridge(containerRef, buildSelectionContext, !isContentLoading)
 
   useEffect(() => {
+    if (lastEditorValueRef.current === content) return
+
     const editor = monacoEditorRef.current
     if (!editor) return
     const model = editor.getModel()
     if (!model) return
     const monacoValue = model.getValue()
+    lastEditorValueRef.current = monacoValue
     if (monacoValue === content) return
 
     if (isStreamInteractionLocked || monacoValue === lastSyncedContentRef.current) {
@@ -482,6 +534,7 @@ export const TextEditor = memo(function TextEditor({
         model.applyEdits([{ range: model.getFullModelRange(), text: content }])
       }
       suppressScrollListenerRef.current = false
+      lastEditorValueRef.current = content
       lastSyncedContentRef.current = content
     }
   }, [content, isStreamInteractionLocked])
@@ -554,9 +607,12 @@ export const TextEditor = memo(function TextEditor({
 
     const model = editor.getModel()
     const currentContent = contentRef.current
-    if (model && currentContent && model.getValue() !== currentContent) {
-      model.setValue(currentContent)
+    if (model) {
+      if (model.getValue() !== currentContent) {
+        model.setValue(currentContent)
+      }
       lastSyncedContentRef.current = currentContent
+      lastEditorValueRef.current = currentContent
     }
 
     if (autoFocus && !hasAutoFocusedRef.current) {
@@ -578,13 +634,57 @@ export const TextEditor = memo(function TextEditor({
 
   const handleEditorChange = useCallback(
     (value: string | undefined) => {
-      setDraftContent(value ?? '')
+      const nextValue = value ?? ''
+      lastEditorValueRef.current = nextValue
+      contentRef.current = nextValue
+      setDraftContent(nextValue)
     },
     [setDraftContent]
   )
 
+  const handleEditorPasteCapture = (event: ReactClipboardEvent<HTMLDivElement>) => {
+    const pastedText = event.clipboardData.getData('text/plain')
+    if (!pastedText) return
+
+    const editor = monacoEditorRef.current
+    const model = editor?.getModel()
+    const selections = editor?.getSelections()
+    const currentText = contentRef.current
+    const selectionOffsets =
+      model && selections?.length
+        ? selections.map((selection) => ({
+            start: model.getOffsetAt({
+              lineNumber: selection.startLineNumber,
+              column: selection.startColumn,
+            }),
+            end: model.getOffsetAt({
+              lineNumber: selection.endLineNumber,
+              column: selection.endColumn,
+            }),
+          }))
+        : [{ start: currentText.length, end: currentText.length }]
+
+    const admission = assessTextEditorPaste({
+      pastedText,
+      currentText,
+      selections: selectionOffsets,
+      multiCursorPaste: editor?.getRawOptions().multiCursorPaste ?? 'spread',
+    })
+    if (admission.accepted) return
+
+    event.preventDefault()
+    event.stopPropagation()
+    toast.warning('Paste would make this file too large to edit', {
+      description: `Inline editing supports files up to ${formatPasteLimit(PASTE_LIMITS.TEXT_EDITOR_BYTES)}. Import or replace the file to keep larger content available without loading it into the editor.`,
+    })
+  }
+
   const isStreaming = isStreamInteractionLocked
   const isEditorReadOnly = isStreamInteractionLocked || !canEdit
+  const editorOptions = useMemo(
+    () => ({ ...TEXT_EDITOR_OPTIONS, readOnly: isEditorReadOnly }),
+    [isEditorReadOnly]
+  )
 
   const previewType = resolvePreviewType(file.type, file.name)
   const isIframeRendered = previewType === 'html' || previewType === 'svg'
@@ -634,6 +734,9 @@ export const TextEditor = memo(function TextEditor({
       <style>{FIND_TOOLTIP_FIX_CSS}</style>
       {showEditor && (
         <div
+          data-paste-max-bytes={PASTE_LIMITS.TEXT_EDITOR_BYTES}
+          data-paste-projects-text-result='true'
+          onPasteCapture={handleEditorPasteCapture}
           style={showPreviewPane ? { width: `${splitPct}%`, flexShrink: 0 } : undefined}
           className={cn(
             'min-w-0',
@@ -646,42 +749,7 @@ export const TextEditor = memo(function TextEditor({
             defaultValue={content}
             language={monacoLanguage}
             theme={monacoTheme}
-            options={{
-              readOnly: isEditorReadOnly,
-              minimap: { enabled: false },
-              scrollBeyondLastLine: false,
-              wordWrap: 'on',
-              fontSize: 13,
-              lineNumbers: 'on',
-              padding: { top: 24, bottom: 24 },
-              fontFamily:
-                'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace',
-              tabSize: 2,
-              automaticLayout: true,
-              renderLineHighlight: 'line',
-              occurrencesHighlight: 'singleFile',
-              overviewRulerLanes: 0,
-              hideCursorInOverviewRuler: true,
-              scrollbar: {
-                verticalScrollbarSize: 6,
-                horizontalScrollbarSize: 6,
-              },
-              quickSuggestions: false,
-              suggestOnTriggerCharacters: false,
-              wordBasedSuggestions: 'currentDocument',
-              parameterHints: { enabled: false },
-              codeLens: false,
-              lightbulb: {
-                enabled: 'off' as MonacoEditorTypes.ShowLightbulbIconMode,
-              },
-              inlayHints: { enabled: 'off' },
-              contextmenu: false,
-              fixedOverflowWidgets: true,
-              glyphMargin: false,
-              stickyScroll: { enabled: false },
-              bracketPairColorization: { enabled: false },
-              unicodeHighlight: { ambiguousCharacters: false },
-            }}
+            options={editorOptions}
             onChange={handleEditorChange}
             onMount={handleEditorMount}
             className='h-full'

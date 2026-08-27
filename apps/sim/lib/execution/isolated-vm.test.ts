@@ -498,7 +498,7 @@ describe('isolated-vm scheduler', () => {
     expect(result.error?.message).toContain('Too many concurrent')
   })
 
-  it('falls back to local execution when Redis is configured but unavailable', async () => {
+  it('fails closed when Redis is configured but unavailable', async () => {
     const { executeInIsolatedVM } = await loadExecutionModule({
       envOverrides: {
         REDIS_URL: 'redis://localhost:6379',
@@ -516,11 +516,14 @@ describe('isolated-vm scheduler', () => {
       ownerKey: 'user:redis-down',
     })
 
-    expect(result.error).toBeUndefined()
-    expect(result.result).toBe('ok')
+    expect(result.error).toMatchObject({
+      isSystemError: true,
+      message: 'Code execution coordination is temporarily unavailable. Please try again later.',
+    })
+    expect(result.result).toBeNull()
   })
 
-  it('falls back to local execution when Redis lease evaluation errors', async () => {
+  it('fails closed when Redis lease evaluation errors', async () => {
     const { executeInIsolatedVM } = await loadExecutionModule({
       envOverrides: {
         REDIS_URL: 'redis://localhost:6379',
@@ -545,8 +548,59 @@ describe('isolated-vm scheduler', () => {
       ownerKey: 'user:redis-error',
     })
 
-    expect(result.error).toBeUndefined()
-    expect(result.result).toBe('ok')
+    expect(result.error).toMatchObject({
+      isSystemError: true,
+      message: 'Code execution coordination is temporarily unavailable. Please try again later.',
+    })
+    expect(result.result).toBeNull()
+  })
+
+  it('reports cancellation when abort races a rejected distributed lease', async () => {
+    let resolveLease!: (value: number) => void
+    let markLeaseRequested!: () => void
+    const leaseResult = new Promise<number>((resolve) => {
+      resolveLease = resolve
+    })
+    const leaseRequested = new Promise<void>((resolve) => {
+      markLeaseRequested = resolve
+    })
+    const { executeInIsolatedVM, spawnMock } = await loadExecutionModule({
+      envOverrides: {
+        REDIS_URL: 'redis://localhost:6379',
+      },
+      spawns: [() => createReadyProc('unused')],
+      redisEvalImpl: (...args: unknown[]) => {
+        const script = String(args[0] ?? '')
+        if (script.includes('ZREMRANGEBYSCORE')) {
+          markLeaseRequested()
+          return leaseResult
+        }
+        return 1
+      },
+    })
+    const controller = new AbortController()
+
+    const execution = executeInIsolatedVM(
+      {
+        code: 'return "unused"',
+        params: {},
+        envVars: {},
+        contextVariables: {},
+        timeoutMs: 100,
+        requestId: 'req-abort-lease',
+        ownerKey: 'user:cancelled',
+      },
+      { signal: controller.signal }
+    )
+    await leaseRequested
+    controller.abort(new DOMException('user', 'AbortError'))
+    resolveLease(0)
+
+    await expect(execution).resolves.toMatchObject({
+      termination: 'cancelled',
+      error: { name: 'AbortError' },
+    })
+    expect(spawnMock).not.toHaveBeenCalled()
   })
 
   it('applies weighted owner scheduling when draining queued executions', async () => {

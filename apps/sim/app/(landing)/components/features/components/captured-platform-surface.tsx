@@ -1,6 +1,8 @@
 'use client'
 
 import Image from 'next/image'
+import { PLATFORM_LOOP_DESIGN } from '@/app/(landing)/components/shared/platform-loop-constants'
+import { ResponsiveDesignStage } from '@/app/(landing)/components/shared/responsive-design-stage'
 import {
   PREVIEW_SIDEBAR_CHATS,
   PREVIEW_SIDEBAR_WORKFLOWS,
@@ -26,23 +28,22 @@ export function CapturedPlatformSurface({ src, sizes, activeItem }: CapturedPlat
   return (
     <div className='absolute inset-0 overflow-hidden'>
       <Image src={src} alt='' fill sizes={sizes} className='object-cover' />
-      <svg
-        aria-hidden='true'
-        className='pointer-events-none absolute inset-0 size-full overflow-hidden'
-        viewBox='0 0 1280 735'
-        preserveAspectRatio='xMinYMin meet'
+      <ResponsiveDesignStage
+        width={PLATFORM_LOOP_DESIGN.width}
+        height={PLATFORM_LOOP_DESIGN.height}
+        align='start'
+        className='pointer-events-none absolute inset-0'
+        contentClassName='flex'
       >
-        <foreignObject width='1280' height='735'>
-          <div className='flex h-full w-[249px] border-[var(--border)] border-r bg-[var(--surface-1)]'>
-            <EnterpriseSidebar
-              chats={PREVIEW_SIDEBAR_CHATS}
-              workflows={PREVIEW_SIDEBAR_WORKFLOWS}
-              activeItem={activeItem}
-            />
-            <div className='min-w-0 flex-1 bg-[var(--surface-1)]' />
-          </div>
-        </foreignObject>
-      </svg>
+        <div className='flex h-full w-[249px] border-[var(--border)] border-r bg-[var(--surface-1)]'>
+          <EnterpriseSidebar
+            chats={PREVIEW_SIDEBAR_CHATS}
+            workflows={PREVIEW_SIDEBAR_WORKFLOWS}
+            activeItem={activeItem}
+          />
+          <div className='min-w-0 flex-1 bg-[var(--surface-1)]' />
+        </div>
+      </ResponsiveDesignStage>
     </div>
   )
 }

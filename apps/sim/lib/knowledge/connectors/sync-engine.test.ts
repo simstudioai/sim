@@ -515,6 +515,23 @@ describe('classifyExternalDoc', () => {
     ).toEqual({ type: 'update', existingId: 'doc-1' })
   })
 
+  it('uses the same skip replacement rule after deferred hydration', async () => {
+    const { shouldReplaceExistingWithSkippedDocument } = await import(
+      '@/lib/knowledge/connectors/sync-engine'
+    )
+
+    expect(shouldReplaceExistingWithSkippedDocument({ storageKey: null }, {})).toBe(true)
+    expect(shouldReplaceExistingWithSkippedDocument({ storageKey: 'kb/indexed.txt' }, {})).toBe(
+      false
+    )
+    expect(
+      shouldReplaceExistingWithSkippedDocument(
+        { storageKey: 'kb/indexed.txt' },
+        { skippedExistingDisposition: 'replace' }
+      )
+    ).toBe(true)
+  })
+
   it('replaces stale indexed content for an authoritative skip', async () => {
     const { classifyExternalDoc } = await import('@/lib/knowledge/connectors/sync-engine')
 

@@ -1,4 +1,7 @@
-import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
+import {
+  type BoundWorkflowExecutionDelegatedPrincipal,
+  requirePrincipalSubjectUserId,
+} from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -53,16 +56,16 @@ const windchillSessionOrExecutorAuth = createInternalSessionOrExecutorAuth({
 
 async function authenticateWindchillExecutor(
   request: NextRequest
-): Promise<WorkflowExecutionDelegatedPrincipal> {
+): Promise<BoundWorkflowExecutionDelegatedPrincipal> {
   const principal = await windchillSessionOrExecutorAuth.authenticate(request, {})
   if (
     principal.kind !== 'delegated' ||
     principal.serviceId !== 'executor' ||
-    !('delegationContext' in principal)
+    !principal.delegationContext
   ) {
     throw new InternalUnauthenticatedError('Authentication required')
   }
-  return principal
+  return { ...principal, delegationContext: principal.delegationContext }
 }
 
 type WindchillRouteOutput = Extract<WindchillOperationResponse, { success: true }>['output']
@@ -485,7 +488,7 @@ async function storeDownloadedFile({
   fileName,
   contentType,
 }: {
-  principal: WorkflowExecutionDelegatedPrincipal
+  principal: BoundWorkflowExecutionDelegatedPrincipal
   buffer: Buffer
   fileName: string
   contentType: string
@@ -501,14 +504,14 @@ async function storeDownloadedFile({
       buffer,
       fileName,
       contentType,
-      principal.subjectUserId
+      requirePrincipalSubjectUserId(principal)
     )
   }
   return uploadCopilotFile({
     buffer,
     fileName,
     contentType,
-    userId: principal.subjectUserId,
+    userId: requirePrincipalSubjectUserId(principal),
   })
 }
 
@@ -518,7 +521,7 @@ async function executeDownload(
     | { operation: 'windchill_download_primary_content' }
     | { operation: 'windchill_download_attachment' }
   >,
-  principal: WorkflowExecutionDelegatedPrincipal,
+  principal: BoundWorkflowExecutionDelegatedPrincipal,
   signal: AbortSignal
 ): Promise<WindchillRouteOutput> {
   const documentUrl = windchillDocumentUrl(body.baseUrl, body.documentOid)
@@ -562,7 +565,7 @@ async function executeDownload(
 export const POST = withRouteHandler(
   async (request: NextRequest) => {
     const requestId = generateRequestId()
-    let principal: WorkflowExecutionDelegatedPrincipal
+    let principal: BoundWorkflowExecutionDelegatedPrincipal
     try {
       principal = await authenticateWindchillExecutor(request)
     } catch (error) {
@@ -603,7 +606,11 @@ export const POST = withRouteHandler(
           body.operation === 'windchill_upload_primary_content'
             ? [body.primaryFile]
             : body.attachmentFiles
-        const files = await loadUploadFiles(inputs, principal.subjectUserId, requestId)
+        const files = await loadUploadFiles(
+          inputs,
+          requirePrincipalSubjectUserId(principal),
+          requestId
+        )
         if (files instanceof NextResponse) return files
         const uploadedFileNames = await uploadWindchillContent({
           params: body,

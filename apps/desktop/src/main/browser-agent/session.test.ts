@@ -1,18 +1,24 @@
 import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { MenuItemConstructorOptions } from 'electron'
+import type { MenuItemConstructorOptions, WebContents } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => import('@/test/electron-mock'))
 
-import { BrowserWindow, session as electronSession, Menu, shell } from 'electron'
+import { BrowserWindow, session as electronSession, Menu, shell, systemPreferences } from 'electron'
 import { BASE_ZOOM_FACTOR, steppedZoomFactor } from '@/main/browser-agent/context-menu'
 import * as panel from '@/main/browser-agent/panel'
 import * as sessionModule from '@/main/browser-agent/session'
 import type { BrowserSessionSnapshot } from '@/main/desktop-chat-session-store'
 
 type SessionModule = typeof import('@/main/browser-agent/session')
+
+const realPlatform = process.platform
+
+function setPlatform(platform: NodeJS.Platform): void {
+  Object.defineProperty(process, 'platform', { configurable: true, value: platform })
+}
 
 interface MockView {
   webContents: {
@@ -25,6 +31,7 @@ interface MockView {
     setWindowOpenHandler: ReturnType<typeof vi.fn>
     loadURL: ReturnType<typeof vi.fn>
     reload: ReturnType<typeof vi.fn>
+    forcefullyCrashRenderer: ReturnType<typeof vi.fn>
     getURL: ReturnType<typeof vi.fn>
     getTitle: ReturnType<typeof vi.fn>
     close: ReturnType<typeof vi.fn>
@@ -40,6 +47,13 @@ interface MockView {
     capturePage: ReturnType<typeof vi.fn>
     findInPage: ReturnType<typeof vi.fn>
     stopFindInPage: ReturnType<typeof vi.fn>
+    navigationHistory: {
+      canGoBack: ReturnType<typeof vi.fn>
+      canGoForward: ReturnType<typeof vi.fn>
+      getActiveIndex: ReturnType<typeof vi.fn>
+      goBack: ReturnType<typeof vi.fn>
+      goForward: ReturnType<typeof vi.fn>
+    }
   }
   setBackgroundColor: ReturnType<typeof vi.fn>
   setBounds: ReturnType<typeof vi.fn>
@@ -77,6 +91,7 @@ function freshSession(
       onSessionClosed: vi.fn(),
       onTabCreated: vi.fn(),
       onActiveTabChanged: vi.fn(),
+      onPageStateChanged: vi.fn(),
       onTabsChanged: vi.fn(),
       onTabThemeChanged: vi.fn(),
       onTabNavigated: vi.fn(),
@@ -123,6 +138,17 @@ function hostResizeHandler(win: BrowserWindow): () => void {
   const handler = calls.find(([event]) => event === 'resize')?.[1]
   if (typeof handler !== 'function') throw new Error('no host resize listener bound')
   return handler as () => void
+}
+
+function mainFrameNavigationStarted(
+  contents: MockView['webContents'],
+  isSameDocument = false
+): void {
+  const handler = contents.on.mock.calls
+    .filter(([eventName]) => eventName === 'did-start-navigation')
+    .at(-1)?.[1]
+  if (typeof handler !== 'function') throw new Error('no navigation-start listener bound')
+  handler({ isMainFrame: true, isSameDocument })
 }
 
 describe('browser-agent session', () => {
@@ -244,7 +270,12 @@ describe('browser-agent session', () => {
     )?.[1] as ((event: unknown, details: { reason: string }) => void) | undefined
     renderGone?.({}, { reason: 'crashed' })
 
-    expect(session.withBrowserScope('chat-a', () => session.listTabs())).toEqual([])
+    expect(session.withBrowserScope('chat-a', () => session.listTabs())).toEqual([
+      expect.objectContaining({
+        tabId: first.id,
+        issue: expect.objectContaining({ kind: 'crashed', reason: 'crashed' }),
+      }),
+    ])
     expect(session.withBrowserScope('chat-b', () => session.listTabs())).toHaveLength(1)
   })
 
@@ -453,6 +484,133 @@ describe('browser-agent session', () => {
       url: 'https://tab-11.example/',
       active: true,
     })
+  })
+
+  it('bounds restored tabs while retaining pinned tabs and the active page', () => {
+    const tabs = Array.from({ length: 40 }, (_, index) => ({
+      url: `https://tab-${index}.example/`,
+      pinned: index < 5,
+    }))
+    const { persistence } = memoryBrowserPersistence({
+      'chat-bounded-tabs': {
+        v: 1,
+        tabs,
+        activeIndex: tabs.length - 1,
+        downloads: [],
+      },
+    })
+    session = freshSession(win, {}, persistence)
+
+    const restored = session.withBrowserScope('chat-bounded-tabs', () => {
+      session.restoreBrowserSession()
+      return session.getTabsState()
+    })
+
+    expect(restored.tabs).toHaveLength(32)
+    expect(restored.tabs.filter((tab) => tab.pinned)).toHaveLength(5)
+    expect(restored.tabs.find((tab) => tab.active)?.url).toBe('https://tab-39.example/')
+  })
+
+  it('refuses to materialize more than the per-task live tab budget', () => {
+    session.ensureTab()
+    for (let index = 1; index < 32; index++) session.addTab()
+
+    expect(() => session.addTab()).toThrow('at most 32 open tabs')
+    expect(session.getTabsState().tabs).toHaveLength(32)
+  })
+
+  it('bounds the total number of live browser WebContents across tasks', () => {
+    for (let scopeIndex = 0; scopeIndex < 3; scopeIndex++) {
+      session.withBrowserScope(`chat-cap-${scopeIndex}`, () => {
+        session.ensureTab()
+        for (let tabIndex = 1; tabIndex < 32; tabIndex++) session.addTab()
+      })
+    }
+
+    expect(() => session.withBrowserScope('chat-cap-overflow', () => session.ensureTab())).toThrow(
+      'at most 96 live browser tabs'
+    )
+  })
+
+  it('does not truncate a saved browser session while the global tab budget is occupied', () => {
+    const savedTabs = [
+      { url: 'https://saved-one.example/', pinned: false },
+      { url: 'https://saved-two.example/', pinned: false },
+    ]
+    const { persistence, snapshots } = memoryBrowserPersistence({
+      'chat-pending-restore': {
+        v: 1,
+        tabs: savedTabs,
+        activeIndex: 1,
+        downloads: [],
+      },
+    })
+    session = freshSession(win, {}, persistence)
+    for (let scopeIndex = 0; scopeIndex < 3; scopeIndex++) {
+      session.withBrowserScope(`chat-cap-${scopeIndex}`, () => {
+        session.ensureTab()
+        for (let tabIndex = 1; tabIndex < 32; tabIndex++) session.addTab()
+      })
+    }
+
+    expect(() =>
+      session.withBrowserScope('chat-pending-restore', () => session.restoreBrowserSession())
+    ).toThrow('at most 96 live browser tabs')
+    expect(snapshots.get('chat-pending-restore')?.tabs).toEqual(savedTabs)
+
+    session.withBrowserScope('chat-cap-0', () => {
+      const [first, second] = session.getTabsState().tabs
+      session.closeTab(first.tabId)
+      session.closeTab(second.tabId)
+    })
+    const restored = session.withBrowserScope('chat-pending-restore', () => {
+      session.restoreBrowserSession()
+      return session.getTabsState()
+    })
+
+    expect(restored.tabs.map(({ url }) => url)).toEqual(savedTabs.map(({ url }) => url))
+    expect(restored.tabs.find((tab) => tab.active)?.url).toBe('https://saved-two.example/')
+  })
+
+  it('rolls back a failed restore and retries without duplicating tabs', () => {
+    const { persistence } = memoryBrowserPersistence({
+      'chat-retry': {
+        v: 1,
+        tabs: [
+          { url: 'https://one.example/', pinned: false },
+          { url: 'https://two.example/', pinned: true },
+          { url: 'https://three.example/', pinned: false },
+        ],
+        activeIndex: 2,
+        downloads: [],
+      },
+    })
+    const createdContents: MockView['webContents'][] = []
+    const onTabCreated = vi.fn((contents: WebContents) => {
+      createdContents.push(contents as unknown as MockView['webContents'])
+      if (createdContents.length === 2) throw new Error('instrumentation failed')
+    })
+    session = freshSession(win, { onTabCreated }, persistence)
+
+    expect(() =>
+      session.withBrowserScope('chat-retry', () => session.restoreBrowserSession())
+    ).toThrow('instrumentation failed')
+    expect(session.withBrowserScope('chat-retry', () => session.peekTabsState().tabs)).toEqual([])
+    expect(createdContents).toHaveLength(2)
+    expect(createdContents.every((contents) => contents.close.mock.calls.length === 1)).toBe(true)
+
+    session.withBrowserScope('chat-retry', () => session.restoreBrowserSession())
+    expect(session.withBrowserScope('chat-retry', () => session.getTabsState())).toMatchObject({
+      activeTabId: '3',
+      tabs: [
+        { tabId: '2', url: 'https://two.example/', pinned: true, active: false },
+        { tabId: '1', url: 'https://one.example/', pinned: false, active: false },
+        { tabId: '3', url: 'https://three.example/', pinned: false, active: true },
+      ],
+    })
+
+    session.withBrowserScope('chat-retry', () => session.restoreBrowserSession())
+    expect(createdContents).toHaveLength(5)
   })
 
   it('quiesces live scopes without publishing session closure', () => {
@@ -850,6 +1008,150 @@ describe('browser-agent session', () => {
     gone?.({}, { reason: 'crashed' })
 
     expect(win.webContents.send).toHaveBeenCalledWith('browser-agent:close-find', 'chat-test')
+  })
+
+  it('treats a failed navigation as a synthetic Back and Forward history entry', async () => {
+    const mockContents = (session.ensureTab().view as unknown as MockView).webContents
+    const contents = mockContents as unknown as WebContents
+    mockContents.getURL.mockReturnValue('https://example.com/committed')
+    mockContents.navigationHistory.getActiveIndex.mockReturnValue(3)
+    session.recordPageLoadFailure(contents, {
+      kind: 'load-error',
+      code: -102,
+      description: 'ERR_CONNECTION_REFUSED',
+      url: 'https://example.com/failed',
+    })
+
+    expect(session.canGoBack(contents)).toBe(true)
+    expect(session.listTabs()[0]).toMatchObject({
+      url: 'https://example.com/failed',
+      issue: { kind: 'load-error' },
+    })
+
+    expect(session.goBack(contents)).toBe(true)
+    expect(session.listTabs()[0]).toMatchObject({ url: 'https://example.com/committed' })
+    expect(session.listTabs()[0]).not.toHaveProperty('issue')
+    expect(session.canGoForward(contents)).toBe(true)
+
+    mockContents.navigationHistory.getActiveIndex.mockReturnValue(2)
+    mockContents.navigationHistory.canGoForward.mockReturnValue(true)
+    expect(session.goForward(contents)).toBe(true)
+    expect(mockContents.navigationHistory.goForward).toHaveBeenCalledTimes(1)
+    mainFrameNavigationStarted(mockContents)
+
+    mockContents.navigationHistory.getActiveIndex.mockReturnValue(3)
+    expect(session.goForward(contents)).toBe(true)
+    expect(mockContents.loadURL).toHaveBeenCalledWith('https://example.com/failed')
+  })
+
+  it('discards a dismissed failed navigation when a fresh navigation starts', () => {
+    const mockContents = (session.ensureTab().view as unknown as MockView).webContents
+    const contents = mockContents as unknown as WebContents
+    session.recordPageLoadFailure(contents, {
+      kind: 'load-error',
+      code: -105,
+      description: 'ERR_NAME_NOT_RESOLVED',
+      url: 'https://missing.invalid',
+    })
+    session.goBack(contents)
+
+    mainFrameNavigationStarted(mockContents)
+
+    expect(session.canGoForward(contents)).toBe(false)
+  })
+
+  it('discards synthetic Forward after same-document traversal and a fresh navigation', () => {
+    const mockContents = (session.ensureTab().view as unknown as MockView).webContents
+    const contents = mockContents as unknown as WebContents
+    mockContents.navigationHistory.getActiveIndex.mockReturnValue(3)
+    session.recordPageLoadFailure(contents, {
+      kind: 'load-error',
+      code: -102,
+      description: 'ERR_CONNECTION_REFUSED',
+      url: 'https://example.com/failed',
+    })
+
+    session.goBack(contents)
+    mockContents.navigationHistory.canGoBack.mockReturnValue(true)
+    expect(session.goBack(contents)).toBe(true)
+
+    mainFrameNavigationStarted(mockContents, true)
+
+    expect(session.canGoForward(contents)).toBe(true)
+
+    mainFrameNavigationStarted(mockContents)
+
+    expect(session.canGoForward(contents)).toBe(false)
+  })
+
+  it('keeps recovery state scoped to its tab while the user switches tabs', () => {
+    const first = session.ensureTab()
+    const second = session.addTab()
+    const firstContents = (first.view as unknown as MockView).webContents as unknown as WebContents
+    session.recordPageLoadFailure(firstContents, {
+      kind: 'load-error',
+      code: -105,
+      description: 'ERR_NAME_NOT_RESOLVED',
+      url: 'https://missing.invalid',
+    })
+
+    session.switchTab(second.id)
+    expect(session.listTabs().find((tab) => tab.tabId === first.id)?.issue).toMatchObject({
+      kind: 'load-error',
+    })
+    expect(session.listTabs().find((tab) => tab.tabId === second.id)).not.toHaveProperty('issue')
+
+    session.switchTab(first.id)
+    expect(session.requireTab().id).toBe(first.id)
+    expect(session.pageIssueForContents(firstContents)).toMatchObject({ kind: 'load-error' })
+  })
+
+  it('hands focus to an accessible recovery page for active-tab failures', () => {
+    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
+    const onPageStateChanged = vi.fn()
+    session = freshSession(win, { onPageStateChanged })
+    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
+    const mockContents = (session.ensureTab().view as unknown as MockView).webContents
+    const contents = mockContents as unknown as WebContents
+
+    session.recordPageLoadFailure(contents, {
+      kind: 'load-error',
+      code: -7,
+      description: 'ERR_TIMED_OUT',
+      url: 'https://slow.example.com',
+    })
+
+    expect(win.webContents.focus).toHaveBeenCalled()
+    expect(onPageStateChanged).toHaveBeenCalledWith(contents)
+  })
+
+  it('recovers unresponsive tabs and clears the issue when Chromium responds again', () => {
+    const mockContents = (session.ensureTab().view as unknown as MockView).webContents
+    const contents = mockContents as unknown as WebContents
+    mockContents.getURL.mockReturnValue('https://example.com')
+    const unresponsive = mockContents.on.mock.calls.find(
+      ([eventName]) => eventName === 'unresponsive'
+    )?.[1] as (() => void) | undefined
+    const responsive = mockContents.on.mock.calls.find(
+      ([eventName]) => eventName === 'responsive'
+    )?.[1] as (() => void) | undefined
+    const gone = mockContents.on.mock.calls.find(
+      ([eventName]) => eventName === 'render-process-gone'
+    )?.[1] as ((event: unknown, details: { reason: string }) => void) | undefined
+
+    unresponsive?.()
+    expect(session.pageIssueForContents(contents)).toEqual({
+      kind: 'unresponsive',
+      url: 'https://example.com',
+    })
+    responsive?.()
+    expect(session.pageIssueForContents(contents)).toBeUndefined()
+
+    unresponsive?.()
+    session.reloadPage(contents)
+    expect(mockContents.forcefullyCrashRenderer).toHaveBeenCalled()
+    gone?.({}, { reason: 'killed' })
+    expect(mockContents.reload).toHaveBeenCalled()
   })
 
   it('drops the find when the user switches to another tab', () => {
@@ -1785,9 +2087,18 @@ describe('browser-agent session', () => {
     expect(event.preventDefault).toHaveBeenCalledOnce()
   })
 
-  it('permission handlers deny everything on the agent partition but the copy button and media', async () => {
+  it('grants media only after an active-page, origin-scoped user decision', async () => {
+    vi.mocked(win.isFocused).mockReturnValue(true)
+    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
     const tab = session.ensureTab()
-    const ses = (tab.view as unknown as MockView).webContents.session
+    const contents = (tab.view as unknown as MockView).webContents
+    contents.isFocused.mockReturnValue(true)
+    const gestureHandler = contents.on.mock.calls.find(
+      ([eventName]) => eventName === 'before-mouse-event'
+    )?.[1] as ((_event: unknown, mouse: { type: string }) => void) | undefined
+    gestureHandler?.({}, { type: 'mouseDown' })
+
+    const ses = contents.session
     const requestHandler = ses.setPermissionRequestHandler.mock.calls[0][0] as (
       wc: unknown,
       permission: string,
@@ -1810,13 +2121,67 @@ describe('browser-agent session', () => {
       expect(checkHandler(null, permission)).toBe(false)
     }
 
-    // Media is the deliberate exception — the agent browser joins real
-    // meetings — but the grant is gated on the OS grant (mocked as granted
-    // here), so System Settings remains the real authority.
     const mediaCallback = vi.fn()
-    requestHandler(null, 'media', mediaCallback, { mediaTypes: ['audio', 'video'] })
-    await vi.waitFor(() => expect(mediaCallback).toHaveBeenCalledWith(true))
-    expect(checkHandler(null, 'media', undefined, { mediaType: 'audio' })).toBe(true)
+    requestHandler(contents, 'media', mediaCallback, {
+      isMainFrame: true,
+      mediaTypes: ['audio'],
+      requestingUrl: 'https://example.com/',
+      securityOrigin: 'https://example.com',
+    })
+    expect(mediaCallback).not.toHaveBeenCalled()
+    const prompt = session.mediaPermissionRequestForContents(contents as unknown as WebContents)
+    expect(prompt).toMatchObject({
+      origin: 'https://example.com',
+      devices: ['microphone'],
+    })
+
+    await session.respondToMediaPermission(prompt?.requestId ?? '', true)
+
+    expect(mediaCallback).toHaveBeenCalledWith(true)
+    expect(
+      checkHandler(contents, 'media', 'https://example.com', {
+        isMainFrame: true,
+        mediaType: 'audio',
+      })
+    ).toBe(true)
+    expect(
+      checkHandler(contents, 'media', 'https://example.com', {
+        isMainFrame: true,
+        mediaType: 'video',
+      })
+    ).toBe(false)
+    expect(
+      checkHandler(contents, 'media', 'https://other.example', {
+        isMainFrame: true,
+        mediaType: 'audio',
+      })
+    ).toBe(false)
+    expect(
+      checkHandler(contents, 'media', 'https://example.com', {
+        isMainFrame: false,
+        mediaType: 'audio',
+      })
+    ).toBe(false)
+
+    mainFrameNavigationStarted(contents)
+    expect(
+      checkHandler(contents, 'media', 'https://example.com', {
+        isMainFrame: true,
+        mediaType: 'audio',
+      })
+    ).toBe(false)
+
+    const staleGestureCallback = vi.fn()
+    requestHandler(contents, 'media', staleGestureCallback, {
+      isMainFrame: true,
+      mediaTypes: ['audio'],
+      requestingUrl: 'https://example.com/',
+      securityOrigin: 'https://example.com',
+    })
+    expect(staleGestureCallback).toHaveBeenCalledWith(false)
+    expect(
+      session.mediaPermissionRequestForContents(contents as unknown as WebContents)
+    ).toBeUndefined()
 
     // Chromium routes navigator.clipboard.writeText through this one; denying
     // it silently broke every copy button that does not use execCommand.
@@ -1824,6 +2189,174 @@ describe('browser-agent session', () => {
     requestHandler(null, 'clipboard-sanitized-write', writeCallback)
     expect(writeCallback).toHaveBeenCalledWith(true)
     expect(checkHandler(null, 'clipboard-sanitized-write')).toBe(true)
+  })
+
+  it('default-denies hidden, subframe, origin-mismatched, and untyped media requests', () => {
+    const tab = session.ensureTab()
+    const contents = (tab.view as unknown as MockView).webContents
+    const requestHandler = contents.session.setPermissionRequestHandler.mock.calls[0][0] as (
+      wc: unknown,
+      permission: string,
+      callback: (granted: boolean) => void,
+      details?: unknown
+    ) => void
+
+    vi.mocked(win.isFocused).mockReturnValue(true)
+    contents.isFocused.mockReturnValue(true)
+    const gestureHandler = contents.on.mock.calls.find(
+      ([eventName]) => eventName === 'before-mouse-event'
+    )?.[1] as ((_event: unknown, mouse: { type: string }) => void) | undefined
+    gestureHandler?.({}, { type: 'mouseDown' })
+    const hidden = vi.fn()
+    requestHandler(contents, 'media', hidden, {
+      isMainFrame: true,
+      mediaTypes: ['audio'],
+      requestingUrl: 'https://example.com/',
+      securityOrigin: 'https://example.com',
+    })
+    expect(hidden).toHaveBeenCalledWith(false)
+
+    for (const details of [
+      {
+        isMainFrame: false,
+        mediaTypes: ['audio'],
+        requestingUrl: 'https://example.com/',
+        securityOrigin: 'https://example.com',
+      },
+      {
+        isMainFrame: true,
+        mediaTypes: [],
+        requestingUrl: 'https://example.com/',
+        securityOrigin: 'https://example.com',
+      },
+      {
+        isMainFrame: true,
+        mediaTypes: ['audio'],
+        requestingUrl: 'https://other.example/',
+        securityOrigin: 'https://other.example',
+      },
+    ]) {
+      const callback = vi.fn()
+      requestHandler(contents, 'media', callback, details)
+      expect(callback).toHaveBeenCalledWith(false)
+    }
+
+    expect(
+      session.mediaPermissionRequestForContents(contents as unknown as WebContents)
+    ).toBeFalsy()
+  })
+
+  it('denies a pending media request when its document navigates or tab closes', () => {
+    vi.mocked(win.isFocused).mockReturnValue(true)
+    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
+    const tab = session.ensureTab()
+    const contents = (tab.view as unknown as MockView).webContents
+    contents.isFocused.mockReturnValue(true)
+    const gestureHandler = contents.on.mock.calls.find(
+      ([eventName]) => eventName === 'before-mouse-event'
+    )?.[1] as ((_event: unknown, mouse: { type: string }) => void) | undefined
+    const requestHandler = contents.session.setPermissionRequestHandler.mock.calls[0][0] as (
+      wc: unknown,
+      permission: string,
+      callback: (granted: boolean) => void,
+      details?: unknown
+    ) => void
+    const request = (callback: (granted: boolean) => void) => {
+      gestureHandler?.({}, { type: 'mouseDown' })
+      requestHandler(contents, 'media', callback, {
+        isMainFrame: true,
+        mediaTypes: ['audio', 'video'],
+        requestingUrl: 'https://example.com/',
+        securityOrigin: 'https://example.com',
+      })
+    }
+
+    const navigated = vi.fn()
+    request(navigated)
+    mainFrameNavigationStarted(contents)
+    expect(navigated).toHaveBeenCalledWith(false)
+
+    const closed = vi.fn()
+    request(closed)
+    session.closeTab(tab.id)
+    expect(closed).toHaveBeenCalledWith(false)
+  })
+
+  it('keeps the site denied when the operating system rejects an approved device', async () => {
+    setPlatform('darwin')
+    try {
+      vi.mocked(systemPreferences.getMediaAccessStatus).mockReturnValue('not-determined')
+      vi.mocked(systemPreferences.askForMediaAccess).mockResolvedValue(false)
+      win.isFocused = vi.fn(() => true)
+      panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
+      const tab = session.ensureTab()
+      const contents = (tab.view as unknown as MockView).webContents
+      contents.isFocused.mockReturnValue(true)
+      const gestureHandler = contents.on.mock.calls.find(
+        ([eventName]) => eventName === 'before-mouse-event'
+      )?.[1] as ((_event: unknown, mouse: { type: string }) => void) | undefined
+      gestureHandler?.({}, { type: 'mouseDown' })
+      const requestHandler = contents.session.setPermissionRequestHandler.mock.calls[0][0] as (
+        wc: unknown,
+        permission: string,
+        callback: (granted: boolean) => void,
+        details?: unknown
+      ) => void
+      const callback = vi.fn()
+      requestHandler(contents, 'media', callback, {
+        isMainFrame: true,
+        mediaTypes: ['video'],
+        requestingUrl: 'https://example.com/',
+        securityOrigin: 'https://example.com',
+      })
+
+      const prompt = session.mediaPermissionRequestForContents(contents as unknown as WebContents)
+      await session.respondToMediaPermission(prompt?.requestId ?? '', true)
+
+      expect(systemPreferences.askForMediaAccess).toHaveBeenCalledWith('camera')
+      expect(callback).toHaveBeenCalledWith(false)
+    } finally {
+      setPlatform(realPlatform)
+      vi.mocked(systemPreferences.getMediaAccessStatus).mockReturnValue('granted')
+      vi.mocked(systemPreferences.askForMediaAccess).mockResolvedValue(true)
+    }
+  })
+
+  it('fails a media prompt closed when the user does not answer it', async () => {
+    vi.useFakeTimers()
+    try {
+      win.isFocused = vi.fn(() => true)
+      panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
+      const tab = session.ensureTab()
+      const contents = (tab.view as unknown as MockView).webContents
+      contents.isFocused.mockReturnValue(true)
+      const gestureHandler = contents.on.mock.calls.find(
+        ([eventName]) => eventName === 'before-mouse-event'
+      )?.[1] as ((_event: unknown, mouse: { type: string }) => void) | undefined
+      gestureHandler?.({}, { type: 'mouseDown' })
+      const requestHandler = contents.session.setPermissionRequestHandler.mock.calls[0][0] as (
+        wc: unknown,
+        permission: string,
+        callback: (granted: boolean) => void,
+        details?: unknown
+      ) => void
+      const callback = vi.fn()
+      requestHandler(contents, 'media', callback, {
+        isMainFrame: true,
+        mediaTypes: ['audio'],
+        requestingUrl: 'https://example.com/',
+        securityOrigin: 'https://example.com',
+      })
+
+      await vi.advanceTimersByTimeAsync(30_000)
+
+      expect(callback).toHaveBeenCalledWith(false)
+      expect(
+        session.mediaPermissionRequestForContents(contents as unknown as WebContents)
+      ).toBeUndefined()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('leaves nothing of the signed-out user behind in the browser profile', async () => {
@@ -1888,7 +2421,7 @@ describe('browser-agent session', () => {
     )
   })
 
-  it('drops a tab whose renderer crashed instead of wedging the session', () => {
+  it('keeps a crashed tab recoverable without disturbing sibling tabs', () => {
     const first = session.ensureTab()
     const second = session.addTab()
     const crashed = (second.view as unknown as MockView).webContents
@@ -1898,14 +2431,17 @@ describe('browser-agent session', () => {
 
     onGone({}, { reason: 'crashed' })
 
-    // Left in place, activeTab() filters the dead view out while activeTabId
-    // still names it, so requireTab() reports "no page is open" even though
-    // another tab is right there.
-    expect(session.listTabs().map((tab) => tab.tabId)).toEqual([first.id])
-    expect(session.requireTab().id).toBe(first.id)
+    expect(session.listTabs()).toEqual([
+      expect.objectContaining({ tabId: first.id }),
+      expect.objectContaining({
+        tabId: second.id,
+        issue: expect.objectContaining({ kind: 'crashed', reason: 'crashed' }),
+      }),
+    ])
+    expect(session.requireTab().id).toBe(second.id)
   })
 
-  it('reports the session closed when the only tab crashes', async () => {
+  it('keeps the only crashed tab open for recovery', async () => {
     const onSessionClosed = vi.fn()
     session = freshSession(win, { onSessionClosed })
     const contents = (session.ensureTab().view as unknown as MockView).webContents
@@ -1915,8 +2451,12 @@ describe('browser-agent session', () => {
 
     onGone({}, { reason: 'oom' })
 
-    expect(session.listTabs()).toHaveLength(0)
-    expect(onSessionClosed).toHaveBeenCalled()
+    expect(session.listTabs()).toEqual([
+      expect.objectContaining({
+        issue: expect.objectContaining({ kind: 'crashed', reason: 'oom' }),
+      }),
+    ])
+    expect(onSessionClosed).not.toHaveBeenCalled()
   })
 
   it('hides the panel when the renderer stops renewing its bounds lease', async () => {
@@ -2058,6 +2598,41 @@ describe('browser-agent session', () => {
       filename: 'report.csv',
       state: 'completed',
     })
+  })
+
+  it('does not recreate a disposed scope when a download finishes later', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'sim-browser-downloads-'))
+    const { persistence, snapshots } = memoryBrowserPersistence()
+    session = freshSession(win, {}, persistence, { getDirectory: () => directory })
+    const contents = (session.ensureTab().view as unknown as MockView).webContents
+    const webSession = contents.session as typeof contents.session & {
+      on: ReturnType<typeof vi.fn>
+    }
+    const willDownload = webSession.on.mock.calls.find(
+      ([eventName]) => eventName === 'will-download'
+    )?.[1] as
+      | ((event: unknown, item: Record<string, unknown>, contents: unknown) => void)
+      | undefined
+    const item = {
+      getFilename: vi.fn(() => 'late.txt'),
+      getMimeType: vi.fn(() => 'text/plain'),
+      getReceivedBytes: vi.fn(() => 4),
+      getTotalBytes: vi.fn(() => 4),
+      setSavePath: vi.fn(),
+      cancel: vi.fn(),
+      on: vi.fn(),
+      once: vi.fn(),
+    }
+    willDownload?.({}, item, contents)
+    const done = item.once.mock.calls.find(([eventName]) => eventName === 'done')?.[1] as
+      | ((event: unknown, state: 'completed') => void)
+      | undefined
+
+    session.disposeBrowserScope('chat-test')
+    done?.({}, 'completed')
+
+    expect(session.getBrowserDownloadsState('chat-test').downloads).toEqual([])
+    expect(snapshots.has('chat-test')).toBe(false)
   })
 })
 

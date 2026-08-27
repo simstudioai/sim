@@ -3,7 +3,12 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Command } from 'commander'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { readConfigProfile, writeConfigProfile, writeCredentialsProfile } from '../config/index'
+import {
+  listProfiles,
+  readConfigProfile,
+  writeConfigProfile,
+  writeCredentialsProfile,
+} from '../config/index'
 import { configureCommand } from './configure'
 
 const mocks = vi.hoisted(() => ({
@@ -12,13 +17,24 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('../context', () => ({
+  // The real one-liner: the root globals live on the root command, so the
+  // refusal below only fires if the harness parses argv the way the shipped
+  // program does.
+  globalsOf: (command: Command) => command.optsWithGlobals(),
   profileFrom: mocks.profileFrom,
 }))
 
 let dir: string
 
 function run(...args: string[]): Promise<Command> {
-  const root = new Command('sim').exitOverride()
+  // The three root globals are declared exactly as program.ts declares them, so
+  // `configure --endpoint …` parses here the way it does in the shipped tree.
+  const root = new Command('sim')
+    .exitOverride()
+    .option('-P, --profile <name>')
+    .option('--endpoint <url>')
+    .option('-w, --workspace <id>')
+    .option('--output <format>')
   root.addCommand(configureCommand())
   return root.parseAsync(['node', 'sim', 'configure', ...args])
 }
@@ -26,6 +42,10 @@ function run(...args: string[]): Promise<Command> {
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'sim-cli-'))
   process.env.SIM_CONFIG_DIR = dir
+  // The refusal reads SIM_PROFILE the way `resolveProfile` does, so an ambient
+  // one would otherwise decide what these assertions see. Empty rather than
+  // `undefined`: assigning to process.env stringifies, and "undefined" is truthy.
+  process.env.SIM_PROFILE = ''
   mocks.profileName = 'default'
   mocks.profileFrom.mockClear()
   mocks.profileFrom.mockImplementation(() => ({ name: mocks.profileName }))
@@ -36,6 +56,7 @@ afterEach(() => {
   vi.restoreAllMocks()
   rmSync(dir, { recursive: true, force: true })
   process.env.SIM_CONFIG_DIR = undefined
+  process.env.SIM_PROFILE = ''
 })
 
 describe('configure --set-endpoint', () => {
@@ -106,5 +127,162 @@ describe('configure --set-endpoint', () => {
       expect.anything(),
       expect.objectContaining({ allowUnknownProfile: true })
     )
+  })
+})
+
+describe('configure --set-workspace', () => {
+  /**
+   * A stored value is read back as a real setting, so a value carrying a line
+   * break used to add a setting nobody typed — `endpoint` included, which is
+   * what decides where the API key is sent. Its sibling `--set-endpoint` has
+   * been validated all along; this is the same check for the other value.
+   */
+  it('refuses a workspace value that would inject another setting', async () => {
+    await expect(
+      run('--set-workspace', 'ws_1\nendpoint = http://elsewhere.invalid')
+    ).rejects.toThrow(/Invalid workspace id/)
+
+    expect(readConfigProfile('default')).toEqual({})
+  })
+
+  it('stores an ordinary workspace id, trimmed', async () => {
+    await run('--set-workspace', '  ws_new  ')
+    expect(readConfigProfile('default')).toEqual({ workspace: 'ws_new' })
+  })
+
+  /**
+   * `listProfiles` counts section names, so the empty section an unset used to
+   * leave behind made the typo guard accept that name from then on.
+   */
+  it('creates nothing when unsetting on a profile that does not exist', async () => {
+    mocks.profileName = 'fresh'
+
+    await run('--unset', 'workspace')
+
+    expect(readConfigProfile('fresh')).toEqual({})
+    expect(listProfiles()).not.toContain('fresh')
+    expect(console.log).toHaveBeenCalledWith(expect.stringContaining('No settings stored'))
+  })
+})
+
+/**
+ * The root globals are transient overrides on every other command, so
+ * `configure --endpoint …` discarded the value and exited 0 after printing the
+ * settings it had not changed — which reads like a confirmation.
+ */
+describe('configure and the root globals', () => {
+  it('refuses --endpoint and names the flag that stores it', async () => {
+    await expect(run('--endpoint', 'https://other.example')).rejects.toThrow(
+      'sim configure --set-endpoint https://other.example'
+    )
+    expect(readConfigProfile('default')).toEqual({})
+  })
+
+  /**
+   * The refusal prints a command for the caller to run, so an unredacted value
+   * carrying U+2028 rendered as a second line that reads like a suggestion of
+   * its own.
+   */
+  it('redacts a control character out of the command it suggests', async () => {
+    await expect(run('--endpoint', 'https://a.example\u2028sim login --api-key x')).rejects.toThrow(
+      'sim configure --set-endpoint https://a.example sim login --api-key x'
+    )
+  })
+
+  it('refuses -w and --output the same way', async () => {
+    await expect(run('-w', 'ws_9')).rejects.toThrow('sim configure --set-workspace ws_9')
+    await expect(run('--output', 'json')).rejects.toThrow('sim configure --set-output json')
+    expect(readConfigProfile('default')).toEqual({})
+  })
+
+  /**
+   * The suggested command is meant to be pasted verbatim, so omitting the
+   * selected profile made it write `default` and leave the profile the caller
+   * was targeting untouched — silently, and reported as a success.
+   */
+  it('carries the selected profile into the command it suggests', async () => {
+    await expect(run('-P', 'dev', '--output', 'json')).rejects.toThrow(
+      'sim configure --profile dev --set-output json'
+    )
+    await expect(run('-P', 'dev', '--endpoint', 'https://other.example')).rejects.toThrow(
+      'sim configure --profile dev --set-endpoint https://other.example'
+    )
+    await expect(run('-P', 'dev', '-w', 'ws_9')).rejects.toThrow(
+      'sim configure --profile dev --set-workspace ws_9'
+    )
+  })
+
+  it('carries a SIM_PROFILE-selected profile into the command it suggests', async () => {
+    process.env.SIM_PROFILE = 'dev'
+
+    await expect(run('--output', 'json')).rejects.toThrow(
+      'sim configure --profile dev --set-output json'
+    )
+  })
+
+  /**
+   * `resolveProfile` reads `overrides.profile || process.env.SIM_PROFILE`, so
+   * the suggestion has to name the profile the run would actually resolve to.
+   */
+  it('lets an explicit --profile win over SIM_PROFILE, as resolveProfile does', async () => {
+    process.env.SIM_PROFILE = 'staging'
+
+    await expect(run('-P', 'dev', '--output', 'json')).rejects.toThrow(
+      'sim configure --profile dev --set-output json'
+    )
+  })
+
+  /**
+   * The profile name is caller-supplied, so it is redacted like the value —
+   * and redaction turns the separator into a space, which the suggestion then
+   * has to quote to stay one argument.
+   */
+  it('redacts a control character out of the profile it suggests', async () => {
+    await expect(run('-P', 'dev\u2028sim login', '--output', 'json')).rejects.toThrow(
+      "sim configure --profile 'dev sim login' --set-output json"
+    )
+  })
+
+  /**
+   * Profile-name validation is creation-only by design, so a hand-written
+   * `[profile my stack]` keeps resolving and reaches this suggestion. Unquoted,
+   * a name carrying a `;` would end the pasted command and start another.
+   */
+  it('quotes a profile name a pasted command would otherwise split', async () => {
+    await expect(run('-P', 'my stack', '--output', 'json')).rejects.toThrow(
+      "sim configure --profile 'my stack' --set-output json"
+    )
+    await expect(run('-P', 'a;rm -rf x', '--output', 'json')).rejects.toThrow(
+      "sim configure --profile 'a;rm -rf x' --set-output json"
+    )
+    await expect(run('-P', "it's mine", '--output', 'json')).rejects.toThrow(
+      "sim configure --profile 'it'\\''s mine' --set-output json"
+    )
+  })
+
+  /** A name that already satisfies the creation rule needs no quoting noise. */
+  it('leaves an ordinary profile name bare', async () => {
+    await expect(run('-P', 'dev.2_a-b', '--output', 'json')).rejects.toThrow(
+      'sim configure --profile dev.2_a-b --set-output json'
+    )
+  })
+
+  it('does not print a stale stored value as if it had been set', async () => {
+    writeConfigProfile('default', { endpoint: 'https://staging.example' })
+
+    await expect(run('--endpoint', 'https://other.example')).rejects.toThrow('--set-endpoint')
+
+    expect(console.log).not.toHaveBeenCalled()
+    expect(readConfigProfile('default')).toEqual({ endpoint: 'https://staging.example' })
+  })
+
+  it('still prints stored settings and still stores a --set- flag', async () => {
+    writeConfigProfile('default', { endpoint: 'https://staging.example' })
+
+    await run()
+    expect(console.log).toHaveBeenCalledWith(expect.stringContaining('https://staging.example'))
+
+    await run('--set-endpoint', 'https://x.example')
+    expect(readConfigProfile('default')).toMatchObject({ endpoint: 'https://x.example' })
   })
 })

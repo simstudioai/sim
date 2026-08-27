@@ -14,7 +14,7 @@ import {
   findArchivedFolderIdByPath,
   listActiveFolderRows,
   loadActiveFolderPathIndex,
-  resolveFolderPathFromIndex,
+  resolveFolderPathFilter,
 } from '@/lib/folders/queries'
 import { defineAuthorizedTableUseCase } from '@/lib/table/application/authorized-table-use-case'
 import { resolveTableWorkspaceContext } from '@/lib/table/application/context'
@@ -37,15 +37,10 @@ export const listTableFoldersUseCase = defineAuthorizedTableUseCase({
     const index = await loadActiveFolderPathIndex(context.workspaceId, 'table', undefined, {
       maxRows: MAX_FOLDERS_PER_WORKSPACE,
     })
-    const parentId =
-      input.parentPath === undefined
-        ? undefined
-        : resolveFolderPathFromIndex(index, input.parentPath)
-    if (input.parentPath !== undefined && parentId === undefined) {
-      throw new OrchestrationError('not_found', 'Folder not found')
-    }
+    const parentFilter = resolveFolderPathFilter(index, input.parentPath)
+    if (parentFilter.kind === 'noMatch') return { folders: [], index }
     const folders = await listActiveFolderRows(context.workspaceId, 'table', {
-      parentId,
+      parentId: parentFilter.kind === 'folder' ? parentFilter.folderId : undefined,
       search: input.search,
       sortBy: input.sortBy,
       sortOrder: input.sortOrder,

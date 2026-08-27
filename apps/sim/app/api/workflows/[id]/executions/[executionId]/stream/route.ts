@@ -1,7 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/platform-authz/workflow'
 import { toError } from '@sim/utils/errors'
-import { sleep } from '@sim/utils/helpers'
 import { type NextRequest, NextResponse } from 'next/server'
 import { streamWorkflowExecutionContract } from '@/lib/api/contracts/workflows'
 import { parseRequest } from '@/lib/api/server'
@@ -9,18 +8,23 @@ import { getSession } from '@/lib/auth'
 import { SSE_HEADERS } from '@/lib/core/utils/sse'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
+  EXECUTION_STREAM_PROTOCOL_VERSION,
   type ExecutionEventEntry,
   type ExecutionStreamStatus,
   readExecutionEventsState,
   readExecutionMetaState,
 } from '@/lib/execution/event-buffer'
-import type { ExecutionEvent } from '@/lib/workflows/executor/execution-events'
-import { formatSSEEvent } from '@/lib/workflows/executor/execution-events'
+import { type ExecutionSignalReason, getExecutionSignalHub } from '@/lib/execution/execution-signal'
+import {
+  type ExecutionEvent,
+  formatSSEEvent,
+  getBlockInvocationKey,
+} from '@/lib/workflows/executor/execution-events'
 
 const logger = createLogger('ExecutionStreamReconnectAPI')
 
-const POLL_INTERVAL_MS = 500
-const MAX_POLL_DURATION_MS = 55 * 60 * 1000 // 55 minutes (just under Redis 1hr TTL)
+const HEARTBEAT_INTERVAL_MS = 15_000
+const LEGACY_REPLAY_INTERVAL_MS = 500
 
 function isTerminalStatus(status: ExecutionStreamStatus): boolean {
   return status === 'complete' || status === 'error' || status === 'cancelled'
@@ -71,6 +75,7 @@ export const GET = withRouteHandler(
         return NextResponse.json({ error: 'Run buffer not found or expired' }, { status: 404 })
       }
       const { meta } = metaResult
+      const legacyProducer = meta.protocolVersion !== EXECUTION_STREAM_PROTOCOL_VERSION
 
       if (meta.workflowId && meta.workflowId !== workflowId) {
         return NextResponse.json({ error: 'Run does not belong to this workflow' }, { status: 403 })
@@ -86,11 +91,17 @@ export const GET = withRouteHandler(
       const encoder = new TextEncoder()
 
       let closed = false
+      let unsubscribe: (() => void) | undefined
+      let wakeStream: (() => void) | undefined
 
       const stream = new ReadableStream<Uint8Array>({
         async start(controller) {
           let lastEventId = fromEventId
-          const pollDeadline = Date.now() + MAX_POLL_DURATION_MS
+          let wakePending = false
+          let signalError: Error | undefined
+          let lastHeartbeatAt = Date.now()
+          const deliveredActiveInvocationKeys = new Set<string>()
+          const settledBlockInvocationKeys = new Set<string>()
 
           const enqueue = (text: string) => {
             if (closed) return
@@ -131,10 +142,52 @@ export const GET = withRouteHandler(
               if (closed) break
               entry.event.eventId = entry.eventId
               enqueue(formatSSEEvent(entry.event))
+              if (entry.event.type === 'block:started') {
+                const invocationKey = getBlockInvocationKey(entry.event.data)
+                deliveredActiveInvocationKeys.add(invocationKey)
+                settledBlockInvocationKeys.delete(invocationKey)
+              } else if (
+                entry.event.type === 'block:completed' ||
+                entry.event.type === 'block:error'
+              ) {
+                const invocationKey = getBlockInvocationKey(entry.event.data)
+                deliveredActiveInvocationKeys.delete(invocationKey)
+                settledBlockInvocationKeys.add(invocationKey)
+              }
               lastEventId = entry.eventId
               sawTerminalEvent ||= isTerminalEvent(entry.event)
             }
             return sawTerminalEvent
+          }
+
+          const enqueueActiveBlockStarts = (activeBlockStarts = meta.activeBlockStarts ?? []) => {
+            const snapshotInvocationKeys = new Set<string>()
+            for (const active of activeBlockStarts) {
+              const invocationKey = getBlockInvocationKey(active.data)
+              snapshotInvocationKeys.add(invocationKey)
+              if (
+                active.eventId > lastEventId ||
+                deliveredActiveInvocationKeys.has(invocationKey) ||
+                settledBlockInvocationKeys.has(invocationKey)
+              ) {
+                continue
+              }
+              enqueue(
+                formatSSEEvent({
+                  type: 'block:started',
+                  timestamp: new Date().toISOString(),
+                  executionId,
+                  workflowId,
+                  data: active.data,
+                })
+              )
+              deliveredActiveInvocationKeys.add(invocationKey)
+            }
+            for (const invocationKey of settledBlockInvocationKeys) {
+              if (!snapshotInvocationKeys.has(invocationKey)) {
+                settledBlockInvocationKeys.delete(invocationKey)
+              }
+            }
           }
 
           const closeWithDone = () => {
@@ -142,44 +195,97 @@ export const GET = withRouteHandler(
             if (!closed) controller.close()
           }
 
-          /**
-           * Terminal metadata is the authoritative end-of-run signal. The
-           * happy path writes it atomically with the terminal event, and a run
-           * whose terminal event could not be buffered records the status on
-           * its own — so metadata without a matching event means the buffer
-           * degraded, not that the run is still going. End the stream cleanly:
-           * the reader has already received every event that was buffered, and
-           * failing here would turn a degraded replay into a broken one.
-           */
+          const waitForWake = (): Promise<'signal' | 'heartbeat' | 'legacy-poll'> => {
+            if (wakePending) {
+              wakePending = false
+              return Promise.resolve('signal')
+            }
+            return new Promise<'signal' | 'heartbeat' | 'legacy-poll'>((resolve) => {
+              const heartbeatTimer = setTimeout(
+                () => {
+                  wakeStream = undefined
+                  resolve(legacyProducer ? 'legacy-poll' : 'heartbeat')
+                },
+                legacyProducer ? LEGACY_REPLAY_INTERVAL_MS : HEARTBEAT_INTERVAL_MS
+              )
+              wakeStream = () => {
+                clearTimeout(heartbeatTimer)
+                resolve('signal')
+              }
+            })
+          }
+
+          const signal = (reason: ExecutionSignalReason) => {
+            if (reason === 'unavailable') {
+              signalError = new Error('Execution signal subscription became unavailable')
+            }
+            if (wakeStream) {
+              const resolve = wakeStream
+              wakeStream = undefined
+              resolve()
+              return
+            }
+            wakePending = true
+          }
+
           const closeAfterTerminalEvent = (events: ExecutionEventEntry[]) => {
             if (!enqueueEvents(events)) {
               logger.warn('Execution reached terminal metadata without a terminal event', {
                 executionId,
               })
+              enqueue(
+                formatSSEEvent({
+                  type: 'execution:error',
+                  timestamp: new Date().toISOString(),
+                  executionId,
+                  workflowId,
+                  data: {
+                    error:
+                      'Execution reached a terminal state, but its final event could not be recovered',
+                    duration: 0,
+                  },
+                })
+              )
             }
             closeWithDone()
           }
 
           try {
+            const subscribed = await getExecutionSignalHub().subscribe(executionId, signal)
+            if (closed) {
+              subscribed()
+              return
+            }
+            unsubscribe = subscribed
+            const initialMeta = await readExecutionMetaState(executionId)
+            if (initialMeta.status === 'unavailable') {
+              throw new Error(`Execution metadata unavailable: ${initialMeta.error}`)
+            }
+            if (initialMeta.status === 'found' && fromEventId > 0) {
+              enqueueActiveBlockStarts(initialMeta.meta.activeBlockStarts)
+            }
             const events = await readEventsOrThrow(lastEventId)
             if (enqueueEvents(events)) {
               closeWithDone()
               return
             }
 
-            const currentMeta = await readExecutionMetaState(executionId)
-            if (currentMeta.status === 'unavailable') {
-              throw new Error(`Execution metadata unavailable: ${currentMeta.error}`)
-            }
+            const currentMeta = initialMeta
             if (currentMeta.status === 'missing' || isTerminalStatus(currentMeta.meta.status)) {
               const finalEvents = await readEventsOrThrow(lastEventId)
               closeAfterTerminalEvent(finalEvents)
               return
             }
 
-            while (!closed && Date.now() < pollDeadline) {
-              await sleep(POLL_INTERVAL_MS)
+            while (!closed) {
+              const wakeReason = await waitForWake()
               if (closed) return
+              if (signalError) throw signalError
+              if (wakeReason === 'heartbeat') {
+                enqueue(`: ping ${Date.now()}\n\n`)
+                lastHeartbeatAt = Date.now()
+                continue
+              }
 
               const newEvents = await readEventsOrThrow(lastEventId)
               if (enqueueEvents(newEvents)) {
@@ -187,20 +293,28 @@ export const GET = withRouteHandler(
                 return
               }
 
-              const polledMeta = await readExecutionMetaState(executionId)
-              if (polledMeta.status === 'unavailable') {
-                throw new Error(`Execution metadata unavailable: ${polledMeta.error}`)
+              const signalledMeta = await readExecutionMetaState(executionId)
+              if (signalledMeta.status === 'unavailable') {
+                throw new Error(`Execution metadata unavailable: ${signalledMeta.error}`)
               }
-              if (polledMeta.status === 'missing' || isTerminalStatus(polledMeta.meta.status)) {
+              if (signalledMeta.status === 'found') {
+                enqueueActiveBlockStarts(signalledMeta.meta.activeBlockStarts)
+              }
+              if (
+                signalledMeta.status === 'missing' ||
+                isTerminalStatus(signalledMeta.meta.status)
+              ) {
                 const finalEvents = await readEventsOrThrow(lastEventId)
                 closeAfterTerminalEvent(finalEvents)
                 return
               }
-            }
-
-            if (!closed) {
-              logger.warn('Reconnection stream poll deadline reached', { executionId })
-              throw new Error('Execution stream ended before a terminal event was available')
+              if (
+                wakeReason === 'legacy-poll' &&
+                Date.now() - lastHeartbeatAt >= HEARTBEAT_INTERVAL_MS
+              ) {
+                enqueue(`: ping ${Date.now()}\n\n`)
+                lastHeartbeatAt = Date.now()
+              }
             }
           } catch (error) {
             logger.error('Error in reconnection stream', {
@@ -212,10 +326,17 @@ export const GET = withRouteHandler(
                 controller.error(error)
               } catch {}
             }
+          } finally {
+            unsubscribe?.()
+            unsubscribe = undefined
           }
         },
         cancel() {
           closed = true
+          wakeStream?.()
+          wakeStream = undefined
+          unsubscribe?.()
+          unsubscribe = undefined
           logger.info('Client disconnected from reconnection stream', { executionId })
         },
       })

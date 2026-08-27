@@ -1,9 +1,11 @@
+import type { DelegatedPrincipal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { describeError, findCause, getErrorMessage, toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { isPlainRecord, isRecordLike } from '@sim/utils/object'
 import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
 import { DrizzleQueryError } from 'drizzle-orm/errors'
+import type { FunctionExecuteBody } from '@/lib/api/contracts'
 import { MANAGED_OAUTH_DELEGATION_HEADER } from '@/lib/api/contracts/oauth-connections'
 import { getBYOKKey } from '@/lib/api-key/byok'
 import {
@@ -55,6 +57,7 @@ import {
   RESOLVED_SECRET_PROVENANCE_FIELD,
   RESOLVED_SECRET_PROVENANCE_METADATA_V1,
 } from '@/lib/execution/private-tool-metadata'
+import { FUNCTION_EXECUTION_DELEGATION_AUDIENCE } from '@/lib/function-execution/application/authorization'
 import { parseMcpToolId } from '@/lib/mcp/utils'
 import { hostedKeyMetrics } from '@/lib/monitoring/metrics'
 import type { CredentialTokenPayload } from '@/lib/oauth/token-resolution'
@@ -206,25 +209,28 @@ function resolveInternalExecutorDelegation(
 ): GenerateInternalDelegationTokenInput | undefined {
   if (tool.request.internalAuth !== 'executor_delegation') return undefined
   if (supplied) {
-    if (!supplied.subjectUserId || !supplied.workflowId) {
-      throw new Error('Executor delegation requires an authenticated user and workflow')
+    if (!supplied.workflowId) {
+      throw new Error('Executor delegation requires a workflow')
     }
     return supplied
   }
-  if (!executionContext?.userId || !executionContext.workflowId) {
+  if (!executionContext?.workflowId) {
     throw new Error('Executor delegation requires a trusted workflow execution context')
   }
   if (executionContext.executorDelegationOrigin) {
     const origin = executionContext.executorDelegationOrigin
-    if (!origin.subjectUserId || !origin.workflowId) {
-      throw new Error('Executor delegation origin requires an authenticated user and workflow')
+    if (!origin.workflowId) {
+      throw new Error('Executor delegation origin requires a workflow')
     }
     return origin
   }
+  if (!executionContext.principal) {
+    throw new Error('Executor delegation requires a workflow principal')
+  }
   return {
-    subjectUserId: executionContext.userId,
     workflowId: executionContext.workflowId,
     ...(executionContext.executionId ? { executionId: executionContext.executionId } : {}),
+    principal: executionContext.principal,
   }
 }
 
@@ -1795,21 +1801,16 @@ async function executeToolImplementation(
          */
         const tokenHeaders: Record<string, string> = { 'Content-Type': 'application/json' }
         if (typeof window === 'undefined') {
+          const managedCredentialDelegation = executionContext?.executorDelegationOrigin
+          if (managedCredentialDelegation && !managedCredentialDelegation.currentWorkflow) {
+            throw new Error('Managed credential delegation is missing current workflow authority')
+          }
           try {
             const internalToken = await generateInternalToken(userId)
             tokenHeaders.Authorization = `Bearer ${internalToken}`
           } catch (_e) {
             // Swallow token generation errors; the request will fail and be reported upstream
           }
-          const managedCredentialDelegation =
-            executionContext?.executorDelegationOrigin ??
-            (workflowId && userId
-              ? {
-                  subjectUserId: userId,
-                  workflowId,
-                  ...(scope.executionId ? { executionId: scope.executionId } : {}),
-                }
-              : undefined)
           if (managedCredentialDelegation) {
             const delegationHeaders = await buildExecutorDelegationHeaders(
               managedCredentialDelegation
@@ -1919,6 +1920,7 @@ async function executeToolImplementation(
           abortSignal: effectiveSignal,
           resolvedSecretTraceRegistry,
           executorDelegationOrigin: executionContext?.executorDelegationOrigin,
+          principal: executionContext?.principal,
           // Trusted `executionContext`, never `_context` — that bag spreads
           // model-reachable `contextParams._context` first, so a model could otherwise
           // inject its own env map or disable redaction.
@@ -1970,6 +1972,7 @@ async function executeToolImplementation(
         {
           abortSignal: effectiveSignal,
           resolvedSecretTraceRegistry,
+          principal: executionContext?.principal,
         }
       )
       const endTime = new Date()
@@ -2276,10 +2279,14 @@ async function executeToolImplementation(
     const endTime = new Date()
     const endTimeISO = endTime.toISOString()
     const duration = endTime.getTime() - startTime.getTime()
+    const rawResponseData =
+      error instanceof Error && 'data' in error ? (error as { data?: unknown }).data : undefined
+    const responseData = isRecordLike(rawResponseData) ? rawResponseData : undefined
     return {
       success: false,
       output: errorDetails,
       error: errorMessage,
+      ...(responseData?.retryable === false ? { retryable: false } : {}),
       // Sim's own status (hosted-key 429/503) survives the flattening from a
       // thrown error into a result object; an upstream provider's status stays
       // on `output` where it cannot be mistaken for ours.
@@ -2470,7 +2477,16 @@ async function executeToolRequest(
     const requestParams = prepareToolRequest(tool, params, resolvedSecretTraceRegistry)
     const endpointUrl = requestParams.url
     const { headers, isInternalRoute } = requestParams
-    const baseUrl = isInternalRoute ? getInternalApiBaseUrl() : getBaseUrl()
+    const runFunctionInProcess =
+      isInternalRoute &&
+      normalizeToolId(toolId) === 'function_execute' &&
+      typeof params._context?.userId === 'string' &&
+      typeof params._context?.workspaceId === 'string'
+    const baseUrl = runFunctionInProcess
+      ? 'http://sim.internal'
+      : isInternalRoute
+        ? getInternalApiBaseUrl()
+        : getBaseUrl()
 
     const fullUrlObj = new URL(endpointUrl, baseUrl)
 
@@ -2517,15 +2533,17 @@ async function executeToolRequest(
         }
       }
     }
-    await addInternalAuthIfNeeded(
-      headers,
-      isInternalRoute,
-      requestId,
-      toolId,
-      params._context?.userId,
-      internalSandboxProfile ? { sandboxProfile: internalSandboxProfile } : undefined,
-      internalExecutorDelegation
-    )
+    if (!runFunctionInProcess) {
+      await addInternalAuthIfNeeded(
+        headers,
+        isInternalRoute,
+        requestId,
+        toolId,
+        params._context?.userId,
+        internalSandboxProfile ? { sandboxProfile: internalSandboxProfile } : undefined,
+        internalExecutorDelegation
+      )
+    }
     if (isInternalRoute && params._context?.billingAttribution) {
       headers.set(
         BILLING_ATTRIBUTION_HEADER,
@@ -2559,10 +2577,51 @@ async function executeToolRequest(
       headersRecord[key] = value
     })
 
-    const retryConfig = getRetryConfig(tool.request.retry, params, requestParams.method)
-    const maxAttempts = retryConfig ? 1 + retryConfig.maxRetries : 1
+    const retryConfig = runFunctionInProcess
+      ? null
+      : getRetryConfig(tool.request.retry, params, requestParams.method)
+    const maxAttempts = runFunctionInProcess ? 0 : retryConfig ? 1 + retryConfig.maxRetries : 1
 
     let response: Response | undefined
+    if (runFunctionInProcess) {
+      if (!requestParams.body) {
+        throw new Error('Function execution requires a request body')
+      }
+      const body = JSON.parse(requestParams.body) as FunctionExecuteBody
+      const issuedAt = new Date()
+      const serializedDeadline = serializeExecutionDeadlineHeader(signal)
+      const requestedTimeout =
+        typeof body.timeout === 'number' ? body.timeout : DEFAULT_EXECUTION_TIMEOUT_MS
+      const expiresAt = serializedDeadline
+        ? new Date(Number(serializedDeadline))
+        : new Date(issuedAt.getTime() + requestedTimeout)
+      const serviceId = params._context?.copilotToolExecution === true ? 'copilot' : 'executor'
+      const principal: DelegatedPrincipal = {
+        kind: 'delegated',
+        serviceId,
+        subjectUserId: params._context.userId,
+        workspaceId: params._context.workspaceId,
+        delegationId: `function-execute:${requestId}`,
+        audience: FUNCTION_EXECUTION_DELEGATION_AUDIENCE,
+        issuedAt,
+        expiresAt,
+        ...(body.executionId ? { resourceScope: { executionId: body.executionId } } : {}),
+      }
+      const { executeFunction } = await import(
+        '@/lib/function-execution/application/execute-function'
+      )
+      response = await executeFunction.execute({
+        principal,
+        input: {
+          workspaceId: params._context.workspaceId,
+          body,
+          headers,
+          ...(signal ? { signal } : {}),
+          ...(internalSandboxProfile ? { sandboxProfile: internalSandboxProfile } : {}),
+        },
+      })
+    }
+
     let lastError: unknown
     const nullBodyStatuses = new Set([101, 204, 205, 304])
 

@@ -70,6 +70,24 @@ function createResolvedSecretTraceProvenance(userId: string, workspaceId = 'ws-1
   }
 }
 
+const SESSION_PRINCIPAL = {
+  kind: 'session',
+  userId: 'user-1',
+  sessionId: 'session-1',
+} as const
+
+const PERSONAL_API_KEY_PRINCIPAL = {
+  kind: 'personal_api_key',
+  userId: 'user-1',
+  keyId: 'personal-key-1',
+} as const
+
+const WORKSPACE_API_KEY_PRINCIPAL = {
+  kind: 'workspace_api_key',
+  workspaceId: 'ws-1',
+  keyId: 'workspace-key-1',
+} as const
+
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 vi.mock('@/lib/auth/internal', () => ({
@@ -215,6 +233,7 @@ describe('MCP Serve Route', () => {
       success: true,
       userId: 'user-1',
       authType: 'session',
+      principal: SESSION_PRINCIPAL,
     })
     mockGetUserEntityPermissions.mockResolvedValueOnce('read')
 
@@ -273,6 +292,7 @@ describe('MCP Serve Route', () => {
       userId: 'user-1',
       authType: 'api_key',
       apiKeyType: 'personal',
+      principal: PERSONAL_API_KEY_PRINCIPAL,
     })
     mockGetUserEntityPermissions.mockResolvedValueOnce('write')
     mockExecuteWorkflowService.mockResolvedValueOnce({
@@ -334,6 +354,7 @@ describe('MCP Serve Route', () => {
       userId: 'user-1',
       authType: 'api_key',
       apiKeyType: 'personal',
+      principal: PERSONAL_API_KEY_PRINCIPAL,
     })
     mockGetUserEntityPermissions.mockResolvedValueOnce('write')
 
@@ -375,6 +396,7 @@ describe('MCP Serve Route', () => {
       authType: 'api_key',
       apiKeyType: 'workspace',
       workspaceId: 'ws-1',
+      principal: WORKSPACE_API_KEY_PRINCIPAL,
     })
     mockGetUserEntityPermissions.mockResolvedValueOnce('write')
     mockExecuteWorkflowService.mockResolvedValueOnce({
@@ -477,6 +499,7 @@ describe('MCP Serve Route', () => {
       success: true,
       userId: 'user-1',
       authType: 'session',
+      principal: SESSION_PRINCIPAL,
     })
     mockGetUserEntityPermissions.mockResolvedValueOnce('read')
     mockExecuteWorkflowService.mockResolvedValueOnce({
@@ -1096,6 +1119,7 @@ describe('MCP Serve Route', () => {
       userId: 'user-1',
       authType: 'api_key',
       apiKeyType: 'personal',
+      principal: PERSONAL_API_KEY_PRINCIPAL,
     })
     mockGetUserEntityPermissions.mockResolvedValueOnce('write')
     mockExecuteWorkflowService.mockResolvedValueOnce({
@@ -1193,6 +1217,7 @@ describe('MCP Serve Route', () => {
       authType: 'api_key',
       apiKeyType: 'workspace',
       workspaceId: 'ws-1',
+      principal: WORKSPACE_API_KEY_PRINCIPAL,
     })
     mockGetUserEntityPermissions.mockResolvedValueOnce('write')
     mockExecuteWorkflowService.mockResolvedValueOnce({

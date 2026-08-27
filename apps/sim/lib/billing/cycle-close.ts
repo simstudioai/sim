@@ -646,13 +646,6 @@ export async function closeElapsedBillingPeriod(
           })
           .where(inArray(userStats.userId, memberIds))
       }
-      if (orgScoped) {
-        await tx
-          .update(organization)
-          .set({ departedMemberUsage: '0' })
-          .where(eq(organization.id, sub.referenceId))
-      }
-
       const advanced = await claimCloseMarker(tx, sub.id, periodStart)
       if (!advanced) {
         throw new Error(
@@ -794,12 +787,6 @@ export async function writeFinalPeriodBookkeeping(sub: {
           billedOverageThisPeriod: '0',
         })
         .where(inArray(userStats.userId, memberIds))
-    }
-    if (orgScoped) {
-      await tx
-        .update(organization)
-        .set({ departedMemberUsage: '0' })
-        .where(eq(organization.id, sub.referenceId))
     }
   })
 }

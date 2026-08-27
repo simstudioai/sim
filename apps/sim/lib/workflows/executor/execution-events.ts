@@ -326,6 +326,25 @@ export type StreamDoneData = StreamDoneEvent['data']
 export type StreamThinkingData = StreamThinkingEvent['data']
 export type StreamToolData = StreamToolEvent['data']
 
+export function getBlockInvocationKey(
+  data: Pick<
+    BlockStartedData,
+    | 'blockId'
+    | 'executionOrder'
+    | 'iterationContainerId'
+    | 'iterationCurrent'
+    | 'childWorkflowBlockId'
+  >
+): string {
+  return [
+    data.blockId,
+    data.executionOrder,
+    data.iterationContainerId ?? '',
+    data.iterationCurrent ?? '',
+    data.childWorkflowBlockId ?? '',
+  ].join(':')
+}
+
 /**
  * Helper to create SSE formatted message
  */

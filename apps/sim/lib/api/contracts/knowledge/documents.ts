@@ -17,6 +17,7 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
 import { PRIVATE_SECRET_PROVENANCE_FIELD } from '@/lib/execution/private-tool-metadata'
 import { getFieldTypeForSlot, MAX_KNOWLEDGE_DOCUMENTS_PER_CREATE } from '@/lib/knowledge/constants'
 import { getOperatorsForFieldType, isValidFilterValue } from '@/lib/knowledge/filters/types'
+import { knowledgeDocumentUploadMetadataSchema } from '@/lib/knowledge/upload-metadata'
 
 export const documentTagFilterSchema = z
   .object({
@@ -136,12 +137,7 @@ export const bulkCreateDocumentsBodySchema = z.object({
       MAX_KNOWLEDGE_DOCUMENTS_PER_CREATE,
       `At most ${MAX_KNOWLEDGE_DOCUMENTS_PER_CREATE} documents may be created at once`
     ),
-  processingOptions: z
-    .object({
-      recipe: z.string().optional(),
-      lang: z.string().optional(),
-    })
-    .optional(),
+  processingOptions: knowledgeDocumentUploadMetadataSchema.shape.processingOptions,
   bulk: z.literal(true),
   workflowId: z.string().optional(),
   [PRIVATE_SECRET_PROVENANCE_FIELD]: privateSecretProvenanceBundleSchema.optional(),
@@ -173,12 +169,7 @@ export const upsertDocumentBodySchema = z.object({
   fileSize: z.number().min(1, 'File size must be greater than 0'),
   mimeType: z.string().min(1, 'MIME type is required'),
   documentTagsData: z.string().optional(),
-  processingOptions: z
-    .object({
-      recipe: z.string().optional(),
-      lang: z.string().optional(),
-    })
-    .optional(),
+  processingOptions: knowledgeDocumentUploadMetadataSchema.shape.processingOptions,
   workflowId: z.string().optional(),
   [PRIVATE_SECRET_PROVENANCE_FIELD]: privateSecretProvenanceBundleSchema.optional(),
 })

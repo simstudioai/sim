@@ -224,6 +224,78 @@ describe('fireflies listDocuments', () => {
     )
   })
 
+  it('accepts documented nullable transcript metadata without aborting the listing', async () => {
+    mockGraphQL([
+      {
+        body: {
+          data: {
+            transcripts: [
+              transcript('nullable', {
+                title: null,
+                date: null,
+                duration: null,
+                host_email: null,
+                organizer_email: null,
+                participants: [null],
+                transcript_url: null,
+                speakers: [null, { name: null }],
+                is_live: null,
+                meeting_info: null,
+              }),
+            ],
+          },
+        },
+      },
+    ])
+
+    const result = await firefliesConnector.listDocuments('key', {}, undefined, {})
+
+    expect(result.documents).toEqual([
+      expect.objectContaining({
+        externalId: 'nullable',
+        title: 'Untitled Meeting',
+        sourceUrl: undefined,
+        metadata: {
+          hostEmail: undefined,
+          duration: null,
+          meetingDate: undefined,
+          participants: [],
+          speakers: [],
+        },
+      }),
+    ])
+  })
+
+  it('accepts a transcript when optional metadata fields are omitted', async () => {
+    mockGraphQL([{ body: { data: { transcripts: [{ id: 'minimal' }] } } }])
+
+    const result = await firefliesConnector.listDocuments('key', {}, undefined, {})
+
+    expect(result.documents[0]).toMatchObject({
+      externalId: 'minimal',
+      title: 'Untitled Meeting',
+      metadata: {
+        participants: [],
+        speakers: [],
+      },
+    })
+  })
+
+  it.each([
+    ['title', { title: 42 }],
+    ['date', { date: '2024-07-08' }],
+    ['duration', { duration: '45' }],
+    ['participants', { participants: {} }],
+    ['speakers', { speakers: [42] }],
+    ['meeting_info', { meeting_info: 'processed' }],
+  ])('rejects a malformed non-null %s value', async (_field, extra) => {
+    mockGraphQL([{ body: { data: { transcripts: [transcript('t0', extra)] } } }])
+
+    await expect(firefliesConnector.listDocuments('key', {}, undefined, {})).rejects.toThrow(
+      'Fireflies API returned malformed transcript metadata'
+    )
+  })
+
   it('retries one malformed page without discarding the sync', async () => {
     vi.useFakeTimers()
     mockGraphQL([{ body: {} }, page(2)])
@@ -425,6 +497,71 @@ describe('fireflies getDocument', () => {
     expect(full?.contentDeferred).toBe(false)
     expect(full?.content).toContain('Ada: Hello')
     expect(full?.content).toContain('An overview')
+  })
+
+  it('normalizes documented nullable nested transcript fields during hydration', async () => {
+    mockGraphQL([
+      {
+        body: {
+          data: {
+            transcript: transcript('nullable', {
+              title: null,
+              date: null,
+              duration: null,
+              host_email: null,
+              organizer_email: null,
+              participants: [null, 'participant@example.test'],
+              transcript_url: null,
+              speakers: [null, { name: null }, { name: 'Ada' }],
+              is_live: null,
+              meeting_info: { summary_status: null },
+              sentences: [
+                null,
+                { speaker_name: null, text: 'Hello' },
+                { speaker_name: 'Ada', text: null },
+              ],
+              summary: {
+                keywords: null,
+                action_items: null,
+                overview: null,
+                short_summary: null,
+              },
+            }),
+          },
+        },
+      },
+    ])
+
+    const result = await firefliesConnector.getDocument('key', {}, 'nullable')
+
+    expect(result).toMatchObject({
+      externalId: 'nullable',
+      title: 'Untitled Meeting',
+      sourceUrl: undefined,
+      contentDeferred: false,
+      metadata: {
+        hostEmail: undefined,
+        duration: null,
+        meetingDate: undefined,
+        participants: ['participant@example.test'],
+        speakers: ['Ada'],
+        keywords: null,
+      },
+    })
+    expect(result?.content).toContain('Unknown speaker: Hello')
+    expect(result?.content).not.toContain('Ada: null')
+  })
+
+  it.each([
+    ['sentences', { sentences: [42] }],
+    ['summary', { summary: { overview: 42 } }],
+    ['summary keywords', { summary: { keywords: [42] } }],
+  ])('rejects malformed non-null hydrated %s metadata', async (_field, extra) => {
+    mockGraphQL([{ body: { data: { transcript: transcript('t0', extra) } } }])
+
+    await expect(firefliesConnector.getDocument('key', {}, 't0')).rejects.toThrow(
+      'Fireflies API returned malformed transcript metadata'
+    )
   })
 
   it('renders duration as minutes, not seconds', async () => {

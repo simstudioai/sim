@@ -5,6 +5,7 @@ import {
   requirePrincipalSubjectUserId,
   resolvePrincipalAttribution,
 } from '@sim/auth/principal'
+import { db } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import type { BlockState, WorkflowState } from '@sim/workflow-types/workflow'
 import { principalAuditSource } from '@/lib/core/application'
@@ -19,7 +20,12 @@ import { normalizeWorkflowVariables } from '@/lib/workflows/application/workflow
 import { checkNeedsRedeployment } from '@/lib/workflows/deployment-status'
 import type { WorkflowLintReport } from '@/lib/workflows/editing/lint'
 import { buildWorkflowLintReport } from '@/lib/workflows/editing/lint-report'
-import { replaceWorkflowNormalizedState } from '@/lib/workflows/persistence/replace-normalized-state'
+import { prepareWorkflowStateForPersistence } from '@/lib/workflows/persistence/prepare-state'
+import {
+  assertWorkflowGraphIdsUnclaimed,
+  collectWorkflowGraphIds,
+  replaceWorkflowNormalizedState,
+} from '@/lib/workflows/persistence/replace-normalized-state'
 import { validateWorkflowState } from '@/lib/workflows/sanitization/validation'
 
 const logger = createLogger('ReplaceWorkflowState')
@@ -136,6 +142,19 @@ export const replaceWorkflowState = defineAuthorizedWorkflowUseCase({
     })
 
     if (input.dryRun) {
+      /**
+       * The same preparation the committed write runs, so a dry run reports the
+       * notes that write would produce and checks the ids it would actually
+       * insert — the prepared graph, not the caller's body. Preparing here and
+       * again inside the write is the cost of the two paths never disagreeing.
+       */
+      const prepared = prepareWorkflowStateForPersistence(graph)
+      await assertWorkflowGraphIdsUnclaimed(
+        db,
+        context.workflowId,
+        collectWorkflowGraphIds(prepared.state)
+      )
+
       logger.info('Validated workflow state without persisting', {
         workflowId: context.workflowId,
         workspaceId: context.workspaceId,
@@ -147,7 +166,7 @@ export const replaceWorkflowState = defineAuthorizedWorkflowUseCase({
         workspaceId: context.workspaceId,
         blocksCount: Object.keys(graph.blocks).length,
         edgesCount: graph.edges.length,
-        warnings: validation.warnings,
+        warnings: [...validation.warnings, ...prepared.warnings],
         needsRedeployment: await checkNeedsRedeployment(context.workflowId),
         lint,
         dryRun: true,

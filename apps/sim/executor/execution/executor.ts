@@ -422,6 +422,7 @@ export class DAGExecutor {
       fileKeys: this.contextExtensions.fileKeys,
       allowLargeValueWorkflowScope: this.contextExtensions.allowLargeValueWorkflowScope,
       userId: this.contextExtensions.userId,
+      principal: this.contextExtensions.principal,
       executorDelegationOrigin: this.contextExtensions.executorDelegationOrigin,
       isDeployedContext: this.contextExtensions.isDeployedContext,
       enforceCredentialAccess: this.contextExtensions.enforceCredentialAccess,

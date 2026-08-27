@@ -1,7 +1,7 @@
 'use client'
 
 import type { ElementType, ReactNode } from 'react'
-import { cn } from '@sim/emcn'
+import { cn, OverflowText } from '@sim/emcn'
 import {
   Connections,
   Database,
@@ -54,13 +54,13 @@ function WorkflowDropdownItem({ item }: DropdownItemRenderProps) {
   return (
     <>
       <Workflow className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
-      <span className='truncate'>{item.name}</span>
+      <OverflowText label={item.name} />
     </>
   )
 }
 
 function DefaultDropdownItem({ item }: DropdownItemRenderProps) {
-  return <span className='truncate'>{item.name}</span>
+  return <OverflowText label={item.name} />
 }
 
 function FileDropdownItem({ item }: DropdownItemRenderProps) {
@@ -68,7 +68,7 @@ function FileDropdownItem({ item }: DropdownItemRenderProps) {
   return (
     <>
       <DocIcon className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
-      <span className='truncate'>{item.name}</span>
+      <OverflowText label={item.name} />
     </>
   )
 }
@@ -77,7 +77,7 @@ function IconDropdownItem({ item, icon: Icon }: DropdownItemRenderProps & { icon
   return (
     <>
       <Icon className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
-      <span className='truncate'>{item.name}</span>
+      <OverflowText label={item.name} />
     </>
   )
 }
@@ -90,11 +90,11 @@ function IconDropdownItem({ item, icon: Icon }: DropdownItemRenderProps & { icon
  */
 function IntegrationDropdownItem({ item }: DropdownItemRenderProps) {
   const Icon = item.iconComponent as StyleableIcon | undefined
-  if (!Icon) return <span className='truncate'>{item.name}</span>
+  if (!Icon) return <OverflowText label={item.name} />
   return (
     <>
       <BrandIcon icon={Icon} className='size-[14px] flex-shrink-0' />
-      <span className='truncate'>{item.name}</span>
+      <OverflowText label={item.name} />
     </>
   )
 }
@@ -115,7 +115,7 @@ function LogDropdownItem({ item }: DropdownItemRenderProps) {
   return (
     <>
       <Library className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
-      <span className='truncate'>{workflowName}</span>
+      <OverflowText label={workflowName} />
       {statusColor && (
         <div
           aria-hidden

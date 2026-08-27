@@ -239,9 +239,13 @@ describe('WorkflowBlockHandler', () => {
     mockContext = {
       workflowId: 'parent-workflow-id',
       userId: 'user-1',
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
       blockStates: new Map(),
       blockLogs: [],
-      metadata: { duration: 0 },
+      metadata: {
+        duration: 0,
+        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      },
       environmentVariables: {},
       decisions: { router: new Map(), condition: new Map() },
       loopExecutions: new Map(),
@@ -386,6 +390,7 @@ describe('WorkflowBlockHandler', () => {
         subjectUserId: 'user-1',
         workflowId: 'parent-workflow-id',
         executionId: 'parent-execution-id',
+        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
       })
     })
 
@@ -403,7 +408,13 @@ describe('WorkflowBlockHandler', () => {
             json: () =>
               Promise.resolve({
                 data: {
-                  deployedState: { blocks: {}, edges: [], loops: {}, parallels: {} },
+                  deployedState: {
+                    blocks: {},
+                    edges: [],
+                    loops: {},
+                    parallels: {},
+                    deploymentVersionId: 'deployment-version-1',
+                  },
                 },
               }),
           }
@@ -595,7 +606,13 @@ describe('WorkflowBlockHandler', () => {
             json: () =>
               Promise.resolve({
                 data: {
-                  deployedState: { blocks: {}, edges: [], loops: {}, parallels: {} },
+                  deployedState: {
+                    blocks: {},
+                    edges: [],
+                    loops: {},
+                    parallels: {},
+                    deploymentVersionId: 'deployment-version-1',
+                  },
                 },
               }),
           }
@@ -630,9 +647,19 @@ describe('WorkflowBlockHandler', () => {
       expect(executorOptions[0].contextExtensions.userId).toBe('owner-9')
       expect(executorOptions[0].contextExtensions.workspaceId).toBe('workspace-source')
       expect(executorOptions[0].contextExtensions.executorDelegationOrigin).toEqual({
-        subjectUserId: 'owner-9',
         workflowId: 'source-workflow-id',
         executionId: loggingSessionArgs[0][1],
+        currentWorkflow: {
+          workflowId: 'source-workflow-id',
+          mode: 'deployment',
+          deploymentVersionId: 'deployment-version-1',
+        },
+        principal: {
+          kind: 'system',
+          serviceId: 'internal',
+          workspaceId: 'workspace-source',
+          workflowId: 'source-workflow-id',
+        },
       })
     })
 
@@ -690,6 +717,7 @@ describe('WorkflowBlockHandler', () => {
                     edges: [],
                     loops: {},
                     parallels: {},
+                    deploymentVersionId: 'deployment-version-1',
                   },
                 },
               }),
@@ -788,6 +816,7 @@ describe('WorkflowBlockHandler', () => {
                     edges: [],
                     loops: {},
                     parallels: {},
+                    deploymentVersionId: 'deployment-version-1',
                   },
                 },
               }),
@@ -1193,7 +1222,15 @@ describe('WorkflowBlockHandler', () => {
             ok: true,
             json: () =>
               Promise.resolve({
-                data: { deployedState: { blocks: {}, edges: [], loops: {}, parallels: {} } },
+                data: {
+                  deployedState: {
+                    blocks: {},
+                    edges: [],
+                    loops: {},
+                    parallels: {},
+                    deploymentVersionId: 'deployment-version-1',
+                  },
+                },
               }),
           }
         }
@@ -1523,6 +1560,7 @@ describe('WorkflowBlockHandler', () => {
       expect(mockSafeStart).toHaveBeenCalledTimes(1)
       const params = mockSafeStart.mock.calls[0][0]
       expect(params.workspaceId).toBe('workspace-source')
+      expect(params.deploymentVersionId).toBe('deployment-version-1')
       expect(params.actorUserId).toBe('owner-9')
       expect(params.billingAttribution).toEqual({
         actorUserId: 'owner-9',
@@ -1605,9 +1643,19 @@ describe('WorkflowBlockHandler', () => {
       await handler.execute(ctx, customBlock(), {})
 
       expect(executorOptions[0].contextExtensions.executorDelegationOrigin).toEqual({
-        subjectUserId: 'owner-9',
         workflowId: 'source-workflow-id',
         executionId: executorOptions[0].contextExtensions.executionId,
+        currentWorkflow: {
+          workflowId: 'source-workflow-id',
+          mode: 'deployment',
+          deploymentVersionId: 'deployment-version-1',
+        },
+        principal: {
+          kind: 'system',
+          serviceId: 'internal',
+          workspaceId: 'workspace-source',
+          workflowId: 'source-workflow-id',
+        },
       })
     })
 
@@ -1928,6 +1976,7 @@ describe('WorkflowBlockHandler', () => {
                     edges: [],
                     loops: {},
                     parallels: {},
+                    deploymentVersionId: 'deployment-version-1',
                   },
                 },
               }),
@@ -1984,10 +2033,15 @@ describe('WorkflowBlockHandler', () => {
         subjectUserId: 'user-1',
         workflowId: 'parent-workflow-id',
         executionId: 'parent-execution-id',
+        currentWorkflow: { workflowId: 'child-workflow-id', mode: 'draft' },
+        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
       })
-      expect(mockBuildExecutorDelegationHeaders).toHaveBeenCalledWith(
-        extensions.executorDelegationOrigin
-      )
+      expect(mockBuildExecutorDelegationHeaders).toHaveBeenCalledWith({
+        subjectUserId: 'user-1',
+        workflowId: 'parent-workflow-id',
+        executionId: 'parent-execution-id',
+        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      })
       expect(extensions.onStream).toBe(ctx.onStream)
       expect(extensions.childWorkflowContext).toBeDefined()
     })
@@ -2019,9 +2073,10 @@ describe('WorkflowBlockHandler', () => {
       await handler.execute(ctx, mockBlock, { workflowId: 'grandchild-workflow-id' })
 
       expect(mockBuildExecutorDelegationHeaders).toHaveBeenCalledWith(ctx.executorDelegationOrigin)
-      expect(executorOptions[0].contextExtensions.executorDelegationOrigin).toBe(
-        ctx.executorDelegationOrigin
-      )
+      expect(executorOptions[0].contextExtensions.executorDelegationOrigin).toEqual({
+        ...ctx.executorDelegationOrigin,
+        currentWorkflow: { workflowId: 'grandchild-workflow-id', mode: 'draft' },
+      })
     })
   })
 

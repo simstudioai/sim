@@ -100,9 +100,12 @@ function written(spy: WriteSpy): string {
   return spy.mock.calls.map((call) => String(call[0])).join('')
 }
 
+/** A conversation id in the shape the route accepts and the command prints. */
+const CONVERSATION_ID = '3f2a1c4e-0000-4000-8000-000000000000'
+
 const FINAL = {
   type: 'final',
-  data: { content: 'Hello there', conversationId: 'conv-1', model: 'mothership' },
+  data: { content: 'Hello there', conversationId: 'conv-1', model: 'sim' },
 }
 
 describe('sim chat', () => {
@@ -127,17 +130,35 @@ describe('sim chat', () => {
     expect(written(stderr)).toContain('conversation: conv-1')
   })
 
+  /**
+   * The route's own refusals name `message` and `conversationId`, and this
+   * command builds its request by hand so nothing retypes them into what the
+   * caller typed. A blank `-c` was worse than misnamed: it is falsy, so it was
+   * dropped from the body and silently started a NEW conversation.
+   */
+  it('refuses a blank message and a blank -c before the request', async () => {
+    await expect(run('   ')).rejects.toThrow('<message> cannot be empty')
+    await expect(run('-c', '', 'hello')).rejects.toThrow('-c/--conversation cannot be empty')
+    await expect(run('-c', '   ', 'hello')).rejects.toThrow('-c/--conversation cannot be empty')
+    expect(requestRaw).not.toHaveBeenCalled()
+  })
+
+  /**
+   * A conversation id as the command prints it. The shape is the route's rule
+   * to enforce — the CLI refuses only a blank `-c`, which is falsy and would
+   * otherwise be dropped from the body and start a new conversation.
+   */
   it('passes -c through as the conversation to continue', async () => {
     requestRaw.mockResolvedValue(ndjson([FINAL]))
 
-    await run('-c', 'conv-1', 'And which run on a schedule?')
+    await run('-c', CONVERSATION_ID, 'And which run on a schedule?')
 
     expect(requestRaw).toHaveBeenCalledWith('/api/v2/chat', {
       method: 'POST',
       body: {
         workspaceId: 'ws_local',
         message: 'And which run on a schedule?',
-        conversationId: 'conv-1',
+        conversationId: CONVERSATION_ID,
       },
       headers: { accept: 'application/x-ndjson' },
     })

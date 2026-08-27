@@ -28,6 +28,7 @@ vi.mock('@/lib/workflows/persistence/replace-normalized-state', async () => {
 })
 vi.mock('@/lib/realtime/notify', () => ({ notifyWorkflowUpdated: mocks.notify }))
 
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { WorkflowStatePersistenceError } from '@/lib/workflows/persistence/replace-normalized-state'
 import { saveWorkflowNormalizedState } from '@/lib/workflows/persistence/save-normalized-state'
 
@@ -158,6 +159,61 @@ describe('saveWorkflowNormalizedState', () => {
       details: 'constraint violation',
     })
     expect(mocks.notify).not.toHaveBeenCalled()
+  })
+
+  it('reports a claimed graph id as 409 carrying the ids to change', async () => {
+    mocks.replace.mockRejectedValue(
+      new OrchestrationError(
+        'conflict',
+        'Block ids already used by another workflow: block-1, block-2'
+      )
+    )
+
+    await expect(saveWorkflowNormalizedState(params())).resolves.toEqual({
+      success: false,
+      status: 409,
+      error: 'Block ids already used by another workflow: block-1, block-2',
+    })
+    expect(mocks.notify).not.toHaveBeenCalled()
+  })
+
+  it('reports a workflow archived since the authorization check as 404', async () => {
+    mocks.replace.mockRejectedValue(new OrchestrationError('not_found', 'Workflow not found'))
+
+    await expect(saveWorkflowNormalizedState(params())).resolves.toEqual({
+      success: false,
+      status: 404,
+      error: 'Workflow not found',
+    })
+    expect(mocks.notify).not.toHaveBeenCalled()
+  })
+
+  it('classifies through the wrapper drizzle puts around a throw inside the transaction', async () => {
+    const wrapped = new Error('insert into "workflow_blocks" ...', {
+      cause: new OrchestrationError(
+        'conflict',
+        'Edge ids already used by another workflow: edge-1'
+      ),
+    })
+    mocks.replace.mockRejectedValue(wrapped)
+
+    await expect(saveWorkflowNormalizedState(params())).resolves.toEqual({
+      success: false,
+      status: 409,
+      error: 'Edge ids already used by another workflow: edge-1',
+    })
+  })
+
+  it('hides the text of an unclassified orchestration failure behind the generic wording', async () => {
+    mocks.replace.mockRejectedValue(
+      new OrchestrationError('internal', 'insert into "workflow_blocks" values ($1, $2)')
+    )
+
+    await expect(saveWorkflowNormalizedState(params())).resolves.toEqual({
+      success: false,
+      status: 500,
+      error: 'Failed to save workflow state',
+    })
   })
 
   it('propagates an unclassified fault rather than turning it into a status', async () => {

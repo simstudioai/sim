@@ -6,11 +6,11 @@ export interface ApplicationOperation<Id extends string = string> {
 }
 
 /**
- * Every principal kind an operation can name. `credential_group_enrollment` is
- * excluded: it authenticates one enrollment flow and never performs a semantic
- * resource operation.
+ * Every principal kind an operation can name. `credential_group_enrollment`
+ * authenticates one enrollment flow, while `system` is an infrastructure-owned
+ * workflow execution identity; neither performs a semantic resource operation.
  */
-export type PrincipalKind = Exclude<Principal['kind'], 'credential_group_enrollment'>
+export type PrincipalKind = Exclude<Principal['kind'], 'credential_group_enrollment' | 'system'>
 
 /**
  * A principal kind a non-workspace operation may name. `delegated` is excluded

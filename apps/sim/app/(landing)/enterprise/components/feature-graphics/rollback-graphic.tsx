@@ -1,5 +1,6 @@
-import { Button, ChipTag } from '@sim/emcn'
+import { Button, ChipTag, cn } from '@sim/emcn'
 import { Undo } from '@sim/emcn/icons'
+import colorMixFallbacks from '@/app/(landing)/components/shared/color-mix-fallbacks/color-mix-fallbacks.module.css'
 import { FeatureGraphicShell } from '@/app/(landing)/enterprise/components/feature-graphics/feature-graphic-shell'
 
 /**
@@ -47,7 +48,7 @@ export function RollbackGraphic() {
         className='absolute top-5 right-0 bottom-0 left-0 rounded-tl-xl border-[var(--border-1)] border-t border-l'
       >
         <div className='flex h-12 items-center justify-between gap-2 border-[var(--border-1)] border-b px-4 pr-12 max-lg:pr-10'>
-          <span className='min-w-0 truncate font-medium text-[var(--text-primary)] text-base'>
+          <span className='min-w-0 truncate text-[var(--text-primary)] text-base'>
             Version history
           </span>
           <ChipTag variant='mono' className='bg-[var(--surface-6)]'>
@@ -61,7 +62,7 @@ export function RollbackGraphic() {
               <span className='size-2 rounded-full border border-[var(--text-muted)] bg-[var(--surface-3)]' />
             </span>
             <span className='flex min-w-0 flex-1 items-center gap-2'>
-              <span className='font-medium text-[var(--text-secondary)] text-small'>v4</span>
+              <span className='text-[var(--text-secondary)] text-small'>v4</span>
               <ChipTag variant='mono' className='bg-[var(--surface-6)]'>
                 Current
               </ChipTag>
@@ -71,7 +72,12 @@ export function RollbackGraphic() {
 
           <div className='flex'>
             <span className='relative flex h-[38px] w-2.5 shrink-0 justify-center'>
-              <span className='-top-[4px] -bottom-[24px] absolute w-px bg-[color:color-mix(in_srgb,var(--text-muted)_35%,transparent)]' />
+              <span
+                className={cn(
+                  '-top-[4px] -bottom-[24px] absolute w-px',
+                  colorMixFallbacks.mutedBackground35
+                )}
+              />
             </span>
           </div>
 
@@ -82,7 +88,7 @@ export function RollbackGraphic() {
             <div className='flex min-w-0 flex-1 items-center gap-3 rounded-lg border border-[var(--border-1)] bg-[var(--white)] px-3 py-2.5 shadow-sm'>
               <span className='min-w-0 flex-1'>
                 <span className='flex items-center gap-2'>
-                  <span className='font-medium text-[var(--text-primary)] text-small'>v3</span>
+                  <span className='text-[var(--text-primary)] text-small'>v3</span>
                   <ChipTag variant='mono'>Stable</ChipTag>
                 </span>
                 <span className='mt-0.5 block truncate text-[var(--text-muted)] text-caption'>
@@ -103,13 +109,23 @@ export function RollbackGraphic() {
 
           <div className='flex'>
             <span className='relative flex h-[28px] w-2.5 shrink-0 justify-center'>
-              <span className='-top-[24px] -bottom-[4px] absolute w-px bg-[color:color-mix(in_srgb,var(--text-muted)_35%,transparent)]' />
+              <span
+                className={cn(
+                  '-top-[24px] -bottom-[4px] absolute w-px',
+                  colorMixFallbacks.mutedBackground35
+                )}
+              />
             </span>
           </div>
 
           <div className='flex items-center gap-3'>
             <span className='flex w-2.5 shrink-0 justify-center'>
-              <span className='size-2 rounded-full border border-[color:color-mix(in_srgb,var(--text-muted)_60%,transparent)] bg-[var(--surface-3)]' />
+              <span
+                className={cn(
+                  'size-2 rounded-full border bg-[var(--surface-3)]',
+                  colorMixFallbacks.mutedBorder60
+                )}
+              />
             </span>
             <span className='flex min-w-0 flex-1 items-center gap-2'>
               <span className='text-[var(--text-muted)] text-small'>v2</span>

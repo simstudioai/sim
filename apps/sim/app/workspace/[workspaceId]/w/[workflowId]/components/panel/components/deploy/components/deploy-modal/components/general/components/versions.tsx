@@ -5,6 +5,7 @@ import {
   Button,
   cn,
   Input,
+  OverflowText,
   Popover,
   PopoverContent,
   PopoverItem,
@@ -296,7 +297,7 @@ export function Versions({
                       <span className='shrink-0 text-[var(--text-tertiary)] tabular-nums'>
                         v{v.version}
                       </span>
-                      {v.name && <span className='truncate'>{v.name}</span>}
+                      {v.name && <OverflowText label={v.name} />}
                       {rowLabel && (
                         <span className='shrink-0 text-[var(--text-tertiary)]'>({rowLabel})</span>
                       )}

@@ -120,6 +120,7 @@ describe('manual workflow execution application operations', () => {
     expect(mocks.executeService).toHaveBeenCalledWith(
       expect.objectContaining({
         workflowId: 'workflow-1',
+        principal,
         userId: 'user-1',
         input: { event: 'created' },
         triggerType: 'manual',

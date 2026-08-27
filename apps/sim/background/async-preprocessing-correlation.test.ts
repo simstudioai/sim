@@ -21,6 +21,7 @@ import { ADMISSION_ERROR_CODE } from '@/lib/core/admission/transient-failure'
 const {
   mockTask,
   mockExecuteWorkflowCore,
+  mockExecutionSnapshot,
   mockWasExecutionFinalizedByCore,
   mockHasExecutionResult,
   mockRefreshExecutionSlotExpiry,
@@ -30,6 +31,7 @@ const {
 } = vi.hoisted(() => ({
   mockTask: vi.fn((config) => config),
   mockExecuteWorkflowCore: vi.fn(),
+  mockExecutionSnapshot: vi.fn(),
   mockWasExecutionFinalizedByCore: vi.fn(),
   mockHasExecutionResult: vi.fn(),
   mockRefreshExecutionSlotExpiry: vi.fn().mockResolvedValue(true),
@@ -106,7 +108,7 @@ vi.mock('@/lib/workflows/schedules/utils', () => ({
 }))
 
 vi.mock('@/executor/execution/snapshot', () => ({
-  ExecutionSnapshot: vi.fn(),
+  ExecutionSnapshot: mockExecutionSnapshot,
 }))
 
 vi.mock('@/executor/utils/errors', () => ({
@@ -136,6 +138,11 @@ const billingAttribution = {
     end: '2025-02-01T00:00:00.000Z',
   },
   payerSubscription: null,
+}
+
+const principal = {
+  version: 1 as const,
+  principal: { kind: 'session' as const, userId: 'actor-1', sessionId: 'session-1' },
 }
 
 describe('async preprocessing correlation threading', () => {
@@ -191,6 +198,7 @@ describe('async preprocessing correlation threading', () => {
     })
 
     await executeWorkflowJob({
+      principal,
       workflowId: 'workflow-1',
       userId: 'actor-1',
       workspaceId: 'workspace-1',
@@ -207,6 +215,107 @@ describe('async preprocessing correlation threading', () => {
       expect.objectContaining({
         loggingSession,
       })
+    )
+    expect(mockExecutionSnapshot).toHaveBeenCalledWith(
+      expect.objectContaining({
+        principal: { kind: 'session', userId: 'actor-1', sessionId: 'session-1' },
+      }),
+      expect.anything(),
+      undefined,
+      expect.any(Object),
+      expect.any(Array)
+    )
+  })
+
+  it('restores a legacy authenticated workflow job as its recorded user actor', async () => {
+    mockPreprocessExecution.mockResolvedValueOnce({
+      success: true,
+      actorUserId: 'actor-1',
+      workflowRecord: {
+        id: 'workflow-1',
+        userId: 'owner-1',
+        workspaceId: 'workspace-1',
+        variables: {},
+      },
+      billingAttribution,
+      executionTimeout: {},
+    })
+    mockExecuteWorkflowCore.mockResolvedValueOnce({
+      success: true,
+      status: 'success',
+      output: { ok: true },
+      metadata: { duration: 10, userId: 'actor-1' },
+    })
+
+    await executeWorkflowJob({
+      workflowId: 'workflow-1',
+      userId: 'actor-1',
+      workspaceId: 'workspace-1',
+      billingAttribution,
+      triggerType: 'api',
+      executionId: 'legacy-user-execution',
+      requestId: 'legacy-user-request',
+      enforceCredentialAccess: true,
+    })
+
+    expect(mockExecutionSnapshot).toHaveBeenCalledWith(
+      expect.objectContaining({
+        principal: {
+          kind: 'session',
+          userId: 'actor-1',
+          sessionId: 'legacy-queued-workflow',
+        },
+      }),
+      expect.anything(),
+      undefined,
+      expect.any(Object),
+      expect.any(Array)
+    )
+  })
+
+  it('restores an identity-ambiguous legacy workflow job as actorless', async () => {
+    mockPreprocessExecution.mockResolvedValueOnce({
+      success: true,
+      actorUserId: 'actor-1',
+      workflowRecord: {
+        id: 'workflow-1',
+        userId: 'owner-1',
+        workspaceId: 'workspace-1',
+        variables: {},
+      },
+      billingAttribution,
+      executionTimeout: {},
+    })
+    mockExecuteWorkflowCore.mockResolvedValueOnce({
+      success: true,
+      status: 'success',
+      output: { ok: true },
+      metadata: { duration: 10, userId: 'actor-1' },
+    })
+
+    await executeWorkflowJob({
+      workflowId: 'workflow-1',
+      userId: 'actor-1',
+      workspaceId: 'workspace-1',
+      billingAttribution,
+      triggerType: 'api',
+      executionId: 'legacy-actorless-execution',
+      requestId: 'legacy-actorless-request',
+    })
+
+    expect(mockExecutionSnapshot).toHaveBeenCalledWith(
+      expect.objectContaining({
+        principal: {
+          kind: 'system',
+          serviceId: 'internal',
+          workspaceId: 'workspace-1',
+          workflowId: 'workflow-1',
+        },
+      }),
+      expect.anything(),
+      undefined,
+      expect.any(Object),
+      expect.any(Array)
     )
   })
 
@@ -237,6 +346,7 @@ describe('async preprocessing correlation threading', () => {
     })
 
     await executeWorkflowJob({
+      principal,
       workflowId: 'workflow-1',
       userId: 'actor-1',
       workspaceId: 'workspace-1',
@@ -278,6 +388,7 @@ describe('async preprocessing correlation threading', () => {
 
     await expect(
       executeWorkflowJob({
+        principal,
         workflowId: 'workflow-1',
         userId: 'actor-1',
         workspaceId: 'workspace-1',
@@ -316,6 +427,7 @@ describe('async preprocessing correlation threading', () => {
 
     await expect(
       executeWorkflowJob({
+        principal,
         workflowId: 'workflow-1',
         userId: 'actor-1',
         workspaceId: 'workspace-1',
@@ -362,6 +474,7 @@ describe('async preprocessing correlation threading', () => {
 
     await expect(
       executeWorkflowJob({
+        principal,
         workflowId: 'workflow-1',
         userId: 'actor-1',
         workspaceId: 'workspace-1',
@@ -442,6 +555,7 @@ describe('async preprocessing correlation threading', () => {
 
     await expect(
       executeWorkflowJob({
+        principal,
         workflowId: 'workflow-1',
         userId: 'actor-1',
         workspaceId: 'workspace-1',
@@ -476,6 +590,7 @@ describe('async preprocessing correlation threading', () => {
 
     await expect(
       executeWorkflowJob({
+        principal,
         workflowId: 'workflow-1',
         userId: 'actor-1',
         workspaceId: 'workspace-1',

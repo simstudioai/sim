@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
-import { dialog, systemPreferences } from 'electron'
+import type { MessageBoxOptions } from 'electron'
+import { BrowserWindow, dialog, systemPreferences } from 'electron'
 
 const logger = createLogger('BrowserCredentialAuth')
 
@@ -130,15 +131,20 @@ async function promptForSecret(reason: string, action: string): Promise<boolean>
   }
 
   try {
-    const { response } = await dialog.showMessageBox({
+    const options: MessageBoxOptions = {
       type: 'warning',
       buttons: ['Cancel', action],
-      defaultId: 1,
+      defaultId: 0,
       cancelId: 0,
       message: `${action}?`,
       detail: `Sim is about to ${reason}. Make sure nobody can see your screen.`,
       noLink: true,
-    })
+    }
+    const parent = BrowserWindow.getFocusedWindow()
+    const { response } =
+      parent && !parent.isDestroyed()
+        ? await dialog.showMessageBox(parent, options)
+        : await dialog.showMessageBox(options)
     return response === 1
   } catch (error) {
     // Fail closed: if the confirmation cannot be shown, nothing is revealed.

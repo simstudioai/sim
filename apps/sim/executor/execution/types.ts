@@ -1,3 +1,4 @@
+import type { WorkflowExecutionPrincipal } from '@sim/auth/principal'
 import type { Edge } from 'reactflow'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
@@ -24,6 +25,8 @@ export interface ExecutionMetadata {
   workflowId: string
   workspaceId: string
   userId: string
+  /** Original authenticated caller. Billing and executor user IDs never replace it. */
+  principal: WorkflowExecutionPrincipal
   /** Immutable actor/payer decision captured before execution. */
   billingAttribution?: BillingAttributionSnapshot
   sessionUserId?: string
@@ -242,6 +245,7 @@ export interface ContextExtensions {
   fileKeys?: string[]
   allowLargeValueWorkflowScope?: boolean
   userId?: string
+  principal?: WorkflowExecutionPrincipal
   /** Canonical signed execution identity inherited by regular nested workflows. */
   executorDelegationOrigin?: ExecutorDelegationOrigin
   /**

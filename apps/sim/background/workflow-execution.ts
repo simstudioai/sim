@@ -1,3 +1,8 @@
+import {
+  parsePrincipal,
+  type SerializedPrincipalV1,
+  type WorkflowExecutionPrincipal,
+} from '@sim/auth/principal'
 import { createLogger, runWithRequestContext } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -37,9 +42,10 @@ import type { ResolvedSecretTraceProvenanceV1 } from '@/executor/utils/resolved-
 import type { CoreTriggerType } from '@/stores/logs/filters/types'
 
 const logger = createLogger('TriggerWorkflowExecution')
+const LEGACY_WORKFLOW_JOB_SESSION_ID = 'legacy-queued-workflow'
 
 export function buildWorkflowCorrelation(
-  payload: WorkflowExecutionPayload
+  payload: WorkflowExecutionJobPayload
 ): AsyncExecutionCorrelation {
   const executionId = payload.executionId || generateId()
   const requestId = payload.requestId || payload.correlation?.requestId || executionId.slice(0, 8)
@@ -58,6 +64,7 @@ export function buildWorkflowCorrelation(
 
 export type WorkflowExecutionPayload = {
   workflowId: string
+  principal: SerializedPrincipalV1
   userId: string
   billingAttribution: BillingAttributionSnapshot
   workspaceId: string
@@ -86,21 +93,54 @@ export type WorkflowExecutionPayload = {
   isPublicApiAccess?: boolean
 }
 
+type LegacyWorkflowExecutionPayload = Omit<WorkflowExecutionPayload, 'principal'> & {
+  /** Jobs queued before execution principals were introduced omit this field. */
+  principal?: undefined
+}
+
+type WorkflowExecutionJobPayload = WorkflowExecutionPayload | LegacyWorkflowExecutionPayload
+
+function requireLegacyWorkflowJobString(value: unknown, field: string): string {
+  if (typeof value !== 'string' || !value.trim()) {
+    throw new Error(`Legacy workflow job ${field} must be a non-empty string`)
+  }
+  return value
+}
+
+/** Restores only the actor decision recorded by the pre-principal queue payload. */
+function parseWorkflowJobPrincipal(
+  payload: WorkflowExecutionJobPayload
+): WorkflowExecutionPrincipal {
+  if (payload.principal !== undefined) return parsePrincipal(payload.principal)
+  const workflowId = requireLegacyWorkflowJobString(payload.workflowId, 'workflowId')
+  const workspaceId = requireLegacyWorkflowJobString(payload.workspaceId, 'workspaceId')
+  if (payload.enforceCredentialAccess === true) {
+    return {
+      kind: 'session',
+      userId: requireLegacyWorkflowJobString(payload.userId, 'userId'),
+      sessionId: LEGACY_WORKFLOW_JOB_SESSION_ID,
+    }
+  }
+  return { kind: 'system', serviceId: 'internal', workspaceId, workflowId }
+}
+
 /**
  * Background workflow execution job
  * @see preprocessExecution For detailed information on preprocessing checks
  * @see executeWorkflowCore For the core workflow execution logic
  */
 export async function executeWorkflowJob(
-  payload: WorkflowExecutionPayload,
+  payload: WorkflowExecutionJobPayload,
   externalAbortSignal?: AbortSignal
 ) {
   const workflowId = payload.workflowId
   const correlation = buildWorkflowCorrelation(payload)
   const executionId = correlation.executionId
   const requestId = correlation.requestId
+  let principal
   let billingAttribution: BillingAttributionSnapshot
   try {
+    principal = parseWorkflowJobPrincipal(payload)
     billingAttribution = assertBillingAttributionSnapshot(payload.billingAttribution)
     if (
       billingAttribution.actorUserId !== payload.userId ||
@@ -193,6 +233,7 @@ export async function executeWorkflowJob(
           workflowId,
           workspaceId,
           userId: actorUserId,
+          principal,
           billingAttribution: preprocessResult.billingAttribution,
           sessionUserId: undefined,
           workflowUserId: workflow.userId,
@@ -304,5 +345,5 @@ export const workflowExecutionTask = task({
   queue: {
     concurrencyLimit: WORKFLOW_EXECUTION_CONCURRENCY_LIMIT,
   },
-  run: (payload: WorkflowExecutionPayload, { signal }) => executeWorkflowJob(payload, signal),
+  run: (payload: WorkflowExecutionJobPayload, { signal }) => executeWorkflowJob(payload, signal),
 })

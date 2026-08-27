@@ -29,7 +29,6 @@ export const adminV1UserBillingSchema = z.object({
   billedOverageThisPeriod: z.string(),
   storageUsedBytes: z.number(),
   billingBlocked: z.boolean(),
-  currentPeriodCopilotCost: z.string(),
   lastPeriodCopilotCost: z.string().nullable(),
 })
 

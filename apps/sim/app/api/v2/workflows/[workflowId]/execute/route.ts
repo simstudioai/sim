@@ -363,8 +363,17 @@ export const POST = withRouteHandler(
             `Unexpected workflow authorization status: ${workflowAuthorization.status}`
           )
         }
+        if (!workflowAuthorization.workflow.workspaceId) {
+          throw new Error(`Workflow ${workflowId} has no workspace`)
+        }
         result = await executeWorkflowService({
           workflowId,
+          principal: {
+            kind: 'system',
+            serviceId: 'public_api',
+            workspaceId: workflowAuthorization.workflow.workspaceId,
+            workflowId,
+          },
           userId: publicApiUserId,
           isPublicApiAccess,
           input: body.input ?? {},

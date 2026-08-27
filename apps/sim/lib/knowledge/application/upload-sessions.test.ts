@@ -362,6 +362,46 @@ describe('knowledge-document upload application lifecycle', () => {
     )
   })
 
+  it('completes a session whose persisted recipe and lang predate their validation', async () => {
+    mocks.getUpload.mockResolvedValue({
+      ...SESSION,
+      metadata: {
+        ...SESSION.metadata,
+        processingOptions: { recipe: 'super-chunker-9000', lang: 'en_US' },
+      },
+    })
+    mocks.completeUpload.mockImplementation(
+      async (params: {
+        session: UploadSessionRecord
+        finalize: (session: UploadSessionRecord) => Promise<{
+          value: { document: typeof DOCUMENT; created: boolean; knowledgeBaseName: string | null }
+          completedFileId?: string
+        }>
+      }) => {
+        const finalized = await params.finalize(params.session)
+        return {
+          session: { ...params.session, status: 'completed' as const },
+          value: finalized.value,
+          alreadyCompleted: false,
+        }
+      }
+    )
+
+    const result = await completeKnowledgeDocumentUpload.execute({
+      principal: PRINCIPAL,
+      input: {
+        knowledgeBaseId: 'knowledge-1',
+        assertedWorkspaceId: 'workspace-1',
+        uploadId: 'upload-1',
+        uploadToken: 'token',
+        source: 'api',
+      },
+      request: REQUEST,
+    })
+
+    expect(result.value.created).toBe(true)
+  })
+
   it('returns an already-bound document without re-billing, re-registering, or auditing', async () => {
     mocks.findBound.mockResolvedValue({ status: 'bound', document: DOCUMENT })
     mocks.completeUpload.mockImplementation(

@@ -14,6 +14,7 @@ import {
 } from '@/lib/copilot/chat/persisted-message'
 import { generateWorkspaceContext } from '@/lib/copilot/chat/workspace-context'
 import { chatPubSub } from '@/lib/copilot/chat-status'
+import { MOTHERSHIP_CHAT_DEFAULT_MODEL } from '@/lib/copilot/constants'
 import { computeWorkspaceEntitlements } from '@/lib/copilot/entitlements'
 import { runHeadlessCopilotLifecycle } from '@/lib/copilot/request/lifecycle/headless'
 import { requestChatTitle } from '@/lib/copilot/request/lifecycle/start'
@@ -146,7 +147,7 @@ export async function executeInboxTask(taskId: string): Promise<void> {
       const chatResult = await resolveOrCreateChat({
         userId,
         workspaceId: ws.id,
-        model: 'claude-opus-4-8',
+        model: MOTHERSHIP_CHAT_DEFAULT_MODEL,
         type: 'mothership',
       })
       chatId = chatResult.chatId

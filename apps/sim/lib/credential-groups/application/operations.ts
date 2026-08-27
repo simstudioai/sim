@@ -25,6 +25,18 @@ export const credentialGroupOperations = {
     workspaceApiKey: 'deny',
     principalKinds: ['session'],
   }),
+  readAccess: defineWorkspaceOperation({
+    id: 'credential_groups.access.read',
+    minimumRole: 'admin',
+    workspaceApiKey: 'deny',
+    principalKinds: ['session'],
+  }),
+  updateAccess: defineWorkspaceOperation({
+    id: 'credential_groups.access.update',
+    minimumRole: 'admin',
+    workspaceApiKey: 'deny',
+    principalKinds: ['session'],
+  }),
   delete: defineWorkspaceOperation({
     id: 'credential_groups.delete',
     minimumRole: 'admin',

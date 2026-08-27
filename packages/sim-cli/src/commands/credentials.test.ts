@@ -156,6 +156,24 @@ describe('credential connection commands', () => {
     expect(help).not.toContain('--service-account-json')
   })
 
+  it('marks its mandatory flags required in the help it renders', () => {
+    // Commander enforces `requiredOption` but renders nothing to say so — the
+    // marker is literal text the generated flags carry, so a hand-written
+    // command is the one place a required flag can look optional.
+    const flat = (...names: string[]) =>
+      commandAt(...names)
+        .helpInformation()
+        .replace(/\s+/g, ' ')
+
+    expect(flat('credentials', 'create')).toContain(
+      'Name shown for the credential in Sim (required)'
+    )
+    expect(flat('credentials', 'create')).toContain('read a file or stdin) (required)')
+    expect(flat('credentials', 'connect')).toContain(
+      'Name shown for the new credential in Sim (required)'
+    )
+  })
+
   it('rejects missing and unsupported provider fields before creation', async () => {
     mockRequest.mockReset().mockResolvedValue({
       data: [

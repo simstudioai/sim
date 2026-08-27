@@ -22,6 +22,8 @@ export const app = {
   on: vi.fn(),
   once: vi.fn(),
   quit: vi.fn(),
+  exit: vi.fn(),
+  relaunch: vi.fn(),
   focus: vi.fn(),
   enableSandbox: vi.fn(),
   requestSingleInstanceLock: vi.fn(() => true),
@@ -169,6 +171,7 @@ function createWebContentsMock() {
     setIgnoreMenuShortcuts: vi.fn(),
     getZoomFactor: vi.fn(() => 1),
     setZoomFactor: vi.fn(),
+    forcefullyCrashRenderer: vi.fn(),
     copy: vi.fn(),
     paste: vi.fn(),
     capturePage: vi.fn(() => {
@@ -186,6 +189,7 @@ function createWebContentsMock() {
     navigationHistory: {
       canGoBack: vi.fn(() => false),
       canGoForward: vi.fn(() => false),
+      getActiveIndex: vi.fn(() => 0),
       goBack: vi.fn(),
       goForward: vi.fn(),
     },
@@ -220,9 +224,11 @@ export class WebContentsView {
 export class BrowserWindow {
   static fromWebContents = vi.fn(() => null)
   static getFocusedWindow = vi.fn(() => null)
+  static nextId = 1
   /** Constructor tracking for tests (the class itself is not a vi.fn mock). */
   static instances: BrowserWindow[] = []
   static lastOptions: Record<string, unknown> | undefined
+  readonly id = BrowserWindow.nextId++
   constructor(options?: Record<string, unknown>) {
     BrowserWindow.instances.push(this)
     BrowserWindow.lastOptions = options
