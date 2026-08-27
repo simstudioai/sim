@@ -149,6 +149,7 @@ function main(): void {
   let appSession: Session | null = null
   let sessionLifecycle: ReturnType<typeof createSessionLifecycleCoordinator> | null = null
   let resumingQuitAfterTeardown = false
+  let mandatoryRelaunchPending = false
   let tray: TrayHandle | null = null
   let updater: UpdaterHandle | null = null
   let startupReady: Promise<void> | null = null
@@ -374,6 +375,7 @@ function main(): void {
       preloadPath,
       isPackaged: app.isPackaged,
       restorePosition,
+      isMandatoryRelaunchPending: () => mandatoryRelaunchPending,
       onFullScreenChange: (isFullScreen) => {
         if (!win.isDestroyed()) {
           win.webContents.send('desktop:window-state:changed', { isFullScreen })
@@ -408,6 +410,7 @@ function main(): void {
         }
       },
       allowHttpLocalhost: allowHttpLocalhost(),
+      isMandatoryRelaunchPending: () => mandatoryRelaunchPending,
     })
     attachContextMenu(win.webContents, {
       isDev: !app.isPackaged,
@@ -541,9 +544,11 @@ function main(): void {
         return [stores[index].label]
       })
     },
-    canCompleteDeploymentScopedStateChange: () => getAccountDataTeardownKind() === 'deployment',
     completeDeploymentScopedStateChange: completeDeploymentScopedTeardown,
-    relaunch: relaunchApp,
+    relaunch: () => {
+      mandatoryRelaunchPending = true
+      relaunchApp()
+    },
   })
 
   /**

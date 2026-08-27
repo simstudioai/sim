@@ -109,9 +109,10 @@ export function completeAccountDataTeardown(): void {
   teardownKind = null
 }
 
-/** Clears a server-switch marker without weakening an interrupted account wipe. */
-export function completeDeploymentScopedTeardown(): boolean {
+/** Commits a server switch and clears its marker without weakening an account wipe. */
+export function completeDeploymentScopedTeardown(commit: () => boolean): boolean {
   if (teardownKind !== 'deployment') return false
+  if (!commit()) return false
   completeAccountDataTeardown()
   return true
 }

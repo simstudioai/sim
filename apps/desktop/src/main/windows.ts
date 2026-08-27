@@ -44,6 +44,7 @@ export interface WindowPolicyDeps {
   appOrigin: () => string
   openAppWindow: (url: string) => void
   allowHttpLocalhost: boolean
+  isMandatoryRelaunchPending: () => boolean
 }
 
 /**
@@ -79,6 +80,11 @@ export function attachWindowOpenPolicy(contents: WebContents, deps: WindowPolicy
   contents.on('did-create-window', (child, details) => {
     registerPopupContents(child.webContents)
     attachWindowOpenPolicy(child.webContents, deps)
+    child.webContents.on('will-prevent-unload', (event) => {
+      if (deps.isMandatoryRelaunchPending()) {
+        event.preventDefault()
+      }
+    })
     const kind = classifyWindowOpen(details.url, details.frameName, deps.appOrigin())
     if (kind === 'popup-blank') {
       attachBlankChildGuards(child, deps)

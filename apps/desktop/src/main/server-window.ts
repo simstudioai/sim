@@ -69,10 +69,8 @@ export interface ServerWindowDeps {
    * failure not hide another's, and lets the caller refuse to move.
    */
   clearDeploymentScopedState: () => Promise<readonly string[]>
-  /** Checks that this server wipe has not been superseded by an account wipe. */
-  canCompleteDeploymentScopedStateChange: () => boolean
-  /** Completes this server wipe only when no stronger account wipe is pending. */
-  completeDeploymentScopedStateChange: () => boolean
+  /** Atomically commits the new configuration and completes this server wipe. */
+  completeDeploymentScopedStateChange: (commit: () => boolean) => boolean
   /**
    * Relaunches the shell against the newly stored origin. A full restart rather
    * than an in-place swap: the origin decides the cookie partition, the update
@@ -219,42 +217,41 @@ export function createServerWindow(deps: ServerWindowDeps): ServerWindowHandle {
         }
       }
 
-      if (!deps.canCompleteDeploymentScopedStateChange()) {
-        logger.error('Refusing to change server while account-data recovery is active')
-        return {
-          ok: false,
-          error: 'Finish signing out or restart Sim before changing servers.',
+      const transaction: {
+        stored: ReturnType<ConfigStore['setOrigin']> | null
+      } = { stored: null }
+      try {
+        const completed = deps.completeDeploymentScopedStateChange(() => {
+          for (const key of ORIGIN_SCOPED_SETTINGS) {
+            deps.config.set(key, undefined)
+          }
+          transaction.stored = deps.config.setOrigin(raw)
+          return transaction.stored.ok
+        })
+        if (!completed) {
+          if (transaction.stored && !transaction.stored.ok) return transaction.stored
+          logger.error('Refusing to change server while account-data recovery is active')
+          return {
+            ok: false,
+            error: 'Finish signing out or restart Sim before changing servers.',
+          }
+        }
+      } catch (error) {
+        if (transaction.stored?.ok) {
+          logger.error('Server changed but deployment-scoped recovery remains pending', {
+            error: getErrorMessage(error),
+          })
+        } else {
+          logger.error('Could not persist the new server origin', {
+            error: getErrorMessage(error),
+          })
+          return {
+            ok: false,
+            error: 'Could not save the new server URL. Try again.',
+          }
         }
       }
 
-      try {
-        for (const key of ORIGIN_SCOPED_SETTINGS) {
-          deps.config.set(key, undefined)
-        }
-        const stored = deps.config.setOrigin(raw)
-        if (!stored.ok) return stored
-      } catch (error) {
-        logger.error('Could not persist the new server origin', {
-          error: getErrorMessage(error),
-        })
-        return {
-          ok: false,
-          error: 'Could not save the new server URL. Try again.',
-        }
-      }
-
-      try {
-        if (!deps.completeDeploymentScopedStateChange()) {
-          logger.error('Server changed while account-data recovery remained active')
-        }
-      } catch (error) {
-        // The origin is already durably committed, so returning without a
-        // relaunch would mix the old process partition with the new origin.
-        // Keep the marker for startup recovery and finish the committed move.
-        logger.error('Server changed but deployment-scoped recovery remains pending', {
-          error: getErrorMessage(error),
-        })
-      }
       logger.info('Server origin changed; relaunching', { from: current, to: origin })
       close()
       deps.relaunch()

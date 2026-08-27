@@ -198,6 +198,8 @@ export interface CreateMainWindowDeps {
   preloadPath: string
   isPackaged: boolean
   onClosed: () => void
+  /** A committed process restart must not be cancelled by a renderer's beforeunload handler. */
+  isMandatoryRelaunchPending: () => boolean
   onFullScreenChange?: (isFullScreen: boolean) => void
   /**
    * Restores the persisted screen position for the first window. Secondary
@@ -283,6 +285,10 @@ export function createMainWindow(deps: CreateMainWindowDeps): BrowserWindow {
   })
 
   win.webContents.on('will-prevent-unload', (event) => {
+    if (deps.isMandatoryRelaunchPending()) {
+      event.preventDefault()
+      return
+    }
     const choice = dialog.showMessageBoxSync(win, {
       type: 'question',
       buttons: ['Stay', 'Leave'],

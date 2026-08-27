@@ -120,9 +120,31 @@ describe('account data generation', () => {
   it('never downgrades or clears an account recovery marker for a server switch', () => {
     beginAccountDataTeardown('account')
     beginAccountDataTeardown('deployment')
+    const commit = vi.fn(() => true)
 
     expect(getAccountDataTeardownKind()).toBe('account')
-    expect(completeDeploymentScopedTeardown()).toBe(false)
+    expect(completeDeploymentScopedTeardown(commit)).toBe(false)
+    expect(commit).not.toHaveBeenCalled()
+    expect(existsSync(markerPath)).toBe(true)
+    expect(isAccountDataTeardownRequired()).toBe(true)
+  })
+
+  it('keeps deployment recovery armed when the server configuration commit fails', () => {
+    beginAccountDataTeardown('deployment')
+
+    expect(completeDeploymentScopedTeardown(() => false)).toBe(false)
+    expect(existsSync(markerPath)).toBe(true)
+    expect(isAccountDataTeardownRequired()).toBe(true)
+  })
+
+  it('keeps deployment recovery armed when the server configuration commit throws', () => {
+    beginAccountDataTeardown('deployment')
+
+    expect(() =>
+      completeDeploymentScopedTeardown(() => {
+        throw new Error('disk unavailable')
+      })
+    ).toThrow('disk unavailable')
     expect(existsSync(markerPath)).toBe(true)
     expect(isAccountDataTeardownRequired()).toBe(true)
   })
@@ -130,7 +152,7 @@ describe('account data generation', () => {
   it('reports successful completion of a deployment-scoped teardown', () => {
     beginAccountDataTeardown('deployment')
 
-    expect(completeDeploymentScopedTeardown()).toBe(true)
+    expect(completeDeploymentScopedTeardown(() => true)).toBe(true)
     expect(isAccountDataTeardownRequired()).toBe(false)
   })
 

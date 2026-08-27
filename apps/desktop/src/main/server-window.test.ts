@@ -36,8 +36,7 @@ function makeDeps(overrides: Partial<ServerWindowDeps> = {}): ServerWindowDeps {
     isPackaged: false,
     getParentWindow: () => null,
     clearDeploymentScopedState: vi.fn(async (): Promise<readonly string[]> => []),
-    canCompleteDeploymentScopedStateChange: vi.fn(() => true),
-    completeDeploymentScopedStateChange: vi.fn(() => true),
+    completeDeploymentScopedStateChange: vi.fn((commit) => commit()),
     relaunch: vi.fn(),
     ...overrides,
   }
@@ -108,12 +107,15 @@ describe('server window', () => {
     expect(vi.mocked(deps.clearDeploymentScopedState).mock.invocationCallOrder[0]).toBeLessThan(
       vi.mocked(deps.relaunch).mock.invocationCallOrder[0]
     )
+    expect(vi.mocked(deps.clearDeploymentScopedState).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(deps.completeDeploymentScopedStateChange).mock.invocationCallOrder[0]
+    )
     expect(
       vi.mocked(deps.completeDeploymentScopedStateChange).mock.invocationCallOrder[0]
-    ).toBeGreaterThan(vi.mocked(deps.config.set).mock.invocationCallOrder[0])
+    ).toBeLessThan(vi.mocked(deps.config.set).mock.invocationCallOrder[0])
     expect(
       vi.mocked(deps.completeDeploymentScopedStateChange).mock.invocationCallOrder[0]
-    ).toBeGreaterThan(vi.mocked(deps.config.setOrigin).mock.invocationCallOrder[0])
+    ).toBeLessThan(vi.mocked(deps.config.setOrigin).mock.invocationCallOrder[0])
     expect(
       vi.mocked(deps.completeDeploymentScopedStateChange).mock.invocationCallOrder[0]
     ).toBeLessThan(vi.mocked(deps.relaunch).mock.invocationCallOrder[0])
@@ -212,13 +214,14 @@ describe('server window', () => {
     const result = await createServerWindow(failing).setOrigin('https://sim.other.example')
 
     expect(result).toEqual({ ok: false, error: 'disk is read-only' })
-    expect(failing.completeDeploymentScopedStateChange).not.toHaveBeenCalled()
+    expect(failing.completeDeploymentScopedStateChange).toHaveBeenCalledOnce()
     expect(failing.relaunch).not.toHaveBeenCalled()
   })
 
   it('relaunches against the committed server when completing teardown fails', async () => {
     const failing = makeDeps({
-      completeDeploymentScopedStateChange: vi.fn(() => {
+      completeDeploymentScopedStateChange: vi.fn((commit) => {
+        commit()
         throw new Error('marker is read-only')
       }),
     })
@@ -235,21 +238,9 @@ describe('server window', () => {
     expect(failing.relaunch).toHaveBeenCalledOnce()
   })
 
-  it('relaunches when teardown completion remains pending after the commit', async () => {
-    const pending = makeDeps({
-      completeDeploymentScopedStateChange: vi.fn(() => false),
-    })
-
-    const result = await createServerWindow(pending).setOrigin('https://sim.other.example')
-
-    expect(result).toMatchObject({ ok: true, unchanged: false })
-    expect(pending.config.getOrigin()).toBe('https://sim.other.example')
-    expect(pending.relaunch).toHaveBeenCalledOnce()
-  })
-
   it('refuses the change while a stronger account teardown is active', async () => {
     const failing = makeDeps({
-      canCompleteDeploymentScopedStateChange: vi.fn(() => false),
+      completeDeploymentScopedStateChange: vi.fn(() => false),
     })
 
     const result = await createServerWindow(failing).setOrigin('https://sim.other.example')
@@ -257,7 +248,7 @@ describe('server window', () => {
     expect(result).toMatchObject({ ok: false })
     expect(failing.config.set).not.toHaveBeenCalled()
     expect(failing.config.setOrigin).not.toHaveBeenCalled()
-    expect(failing.completeDeploymentScopedStateChange).not.toHaveBeenCalled()
+    expect(failing.completeDeploymentScopedStateChange).toHaveBeenCalledOnce()
     expect(failing.relaunch).not.toHaveBeenCalled()
   })
 

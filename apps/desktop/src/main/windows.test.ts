@@ -29,13 +29,14 @@ describe('attachWindowOpenPolicy', () => {
     vi.mocked(shell.openExternal).mockClear()
   })
 
-  function setup() {
+  function setup(isMandatoryRelaunchPending: () => boolean = () => false) {
     const contents = makeContents()
     const openAppWindow = vi.fn()
     attachWindowOpenPolicy(contents as unknown as WebContents, {
       appOrigin: () => APP,
       openAppWindow,
       allowHttpLocalhost: false,
+      isMandatoryRelaunchPending,
     })
     return { contents, openAppWindow }
   }
@@ -95,6 +96,38 @@ describe('attachWindowOpenPolicy', () => {
     const { contents } = setup()
     const didCreateWindow = contents.on.mock.calls.find(([event]) => event === 'did-create-window')
     expect(didCreateWindow).toBeDefined()
+  })
+
+  it('allows a mandatory relaunch through a child beforeunload', () => {
+    const { contents } = setup(() => true)
+    const childContents = makeContents()
+    const child = { webContents: childContents }
+    const didCreateWindow = contents.on.mock.calls.find(([event]) => event === 'did-create-window')
+    const event = { preventDefault: vi.fn() }
+
+    didCreateWindow?.[1](child, { url: 'https://mcp.example/authorize', frameName: 'mcp-oauth-s1' })
+    const willPreventUnload = childContents.on.mock.calls.find(
+      ([eventName]) => eventName === 'will-prevent-unload'
+    )
+    willPreventUnload?.[1](event)
+
+    expect(event.preventDefault).toHaveBeenCalledOnce()
+  })
+
+  it('leaves child beforeunload untouched during ordinary use', () => {
+    const { contents } = setup()
+    const childContents = makeContents()
+    const child = { webContents: childContents }
+    const didCreateWindow = contents.on.mock.calls.find(([event]) => event === 'did-create-window')
+    const event = { preventDefault: vi.fn() }
+
+    didCreateWindow?.[1](child, { url: 'https://mcp.example/authorize', frameName: 'mcp-oauth-s1' })
+    const willPreventUnload = childContents.on.mock.calls.find(
+      ([eventName]) => eventName === 'will-prevent-unload'
+    )
+    willPreventUnload?.[1](event)
+
+    expect(event.preventDefault).not.toHaveBeenCalled()
   })
 })
 

@@ -248,7 +248,7 @@ describe('createMainWindow', () => {
     vi.clearAllMocks()
   })
 
-  function createTestWindow() {
+  function createTestWindow(isMandatoryRelaunchPending: () => boolean = () => false) {
     const config = {
       filePath: '/tmp/settings.json',
       getOrigin: vi.fn(() => APP),
@@ -268,6 +268,7 @@ describe('createMainWindow', () => {
       preloadPath: '/tmp/preload.cjs',
       isPackaged: false,
       onClosed: vi.fn(),
+      isMandatoryRelaunchPending,
     })
     const contentHandlers = new Map(
       vi.mocked(win.webContents.on).mock.calls as unknown as Array<
@@ -298,6 +299,17 @@ describe('createMainWindow', () => {
     vi.mocked(dialog.showMessageBoxSync).mockReturnValueOnce(1)
     handler?.(event as never)
     expect(event.preventDefault).toHaveBeenCalledOnce()
+  })
+
+  it('allows a committed mandatory relaunch through beforeunload', () => {
+    const { contentHandlers } = createTestWindow(() => true)
+    const handler = contentHandlers.get('will-prevent-unload')
+    const event = { preventDefault: vi.fn() }
+
+    handler?.(event as never)
+
+    expect(event.preventDefault).toHaveBeenCalledOnce()
+    expect(dialog.showMessageBoxSync).not.toHaveBeenCalled()
   })
 
   it('queues crash recovery behind an open hang dialog without stacking dialogs', async () => {
@@ -352,6 +364,7 @@ describe('createMainWindow', () => {
       preloadPath: '/tmp/preload.cjs',
       isPackaged: false,
       onClosed: vi.fn(),
+      isMandatoryRelaunchPending: () => false,
       platform: 'darwin',
     })
 
@@ -418,6 +431,7 @@ describe('createMainWindow', () => {
       preloadPath: '/tmp/preload.cjs',
       isPackaged: false,
       onClosed: vi.fn(),
+      isMandatoryRelaunchPending: () => false,
       restorePosition: false,
     })
 
