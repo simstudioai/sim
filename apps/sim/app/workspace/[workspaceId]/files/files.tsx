@@ -11,6 +11,7 @@ import {
   Folder,
   FolderPlus,
   Loader,
+  OverflowText,
   Pencil,
   Plus,
   Trash,
@@ -1968,8 +1969,13 @@ export function Files() {
             multiSelect
             multiSelectValues={typeFilter}
             onMultiSelectChange={setTypeFilter}
+            overlayLabel={typeDisplayLabel}
             overlayContent={
-              <span className='truncate text-[var(--text-primary)]'>{typeDisplayLabel}</span>
+              <OverflowText
+                label={typeDisplayLabel}
+                className='block w-full text-[var(--text-primary)]'
+                tooltipEnabled={false}
+              />
             }
             showAllOption
             allOptionLabel='All'
@@ -1987,8 +1993,13 @@ export function Files() {
             multiSelect
             multiSelectValues={sizeFilter}
             onMultiSelectChange={setSizeFilter}
+            overlayLabel={sizeDisplayLabel}
             overlayContent={
-              <span className='truncate text-[var(--text-primary)]'>{sizeDisplayLabel}</span>
+              <OverflowText
+                label={sizeDisplayLabel}
+                className='block w-full text-[var(--text-primary)]'
+                tooltipEnabled={false}
+              />
             }
             showAllOption
             allOptionLabel='All'

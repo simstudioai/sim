@@ -48,6 +48,9 @@ vi.mock('@sim/emcn', () => ({
   Label: ({ children, htmlFor }: { children: ReactNode; htmlFor?: string }) => (
     <label htmlFor={htmlFor}>{children}</label>
   ),
+  OverflowText: ({ label, children }: { label: string; children?: ReactNode }) => (
+    <span>{children ?? label}</span>
+  ),
   Switch: ({
     checked,
     disabled,

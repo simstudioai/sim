@@ -35,7 +35,7 @@ afterEach(() => {
 })
 
 describe('SortDropdown', () => {
-  it('renders long option labels in the truncatable span between both icons', () => {
+  it('renders long option labels in the overflow span between both icons', () => {
     act(() => {
       root.render(
         <SortDropdown
@@ -63,7 +63,8 @@ describe('SortDropdown', () => {
     const label = item?.querySelector('span')
     expect(label).not.toBeNull()
     expect(label).toHaveTextContent(LONG_COLUMN_LABEL)
-    expect(label).toHaveClass('min-w-0', 'block', 'truncate')
+    expect(label).toHaveClass('min-w-0', 'block', 'overflow-hidden', 'text-clip')
+    expect(label).not.toHaveClass('truncate')
     expect(item?.querySelector('[data-testid="column-icon"]')).not.toBeNull()
     expect(item?.querySelectorAll('svg')).toHaveLength(2)
   })

@@ -19,6 +19,7 @@ import {
   ExpandableContent,
   handleKeyboardActivation,
   Info,
+  OverflowText,
 } from '@sim/emcn'
 import { ChevronDown, Search } from '@sim/emcn/icons'
 import clsx from 'clsx'
@@ -134,7 +135,7 @@ const ToolbarItem = memo(function ToolbarItem({
         bgColor={item.bgColor}
         data-toolbar-item-icon=''
       />
-      <span className='min-w-0 flex-1 truncate text-[var(--text-body)]'>{item.name}</span>
+      <OverflowText label={item.name} className='flex-1 text-[var(--text-body)]' />
     </div>
   )
 })

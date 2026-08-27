@@ -11,6 +11,7 @@ import {
   ChipSwitch,
   ChipTag,
   Info,
+  OverflowText,
   Search,
   toast,
 } from '@sim/emcn'
@@ -336,7 +337,7 @@ function EntityCheckboxGrid({
                       checked={selected.includes(entity.value)}
                       onCheckedChange={() => toggle(entity.value)}
                     />
-                    <span className='truncate text-sm'>{entity.label}</span>
+                    <OverflowText label={entity.label} className='text-sm' />
                   </label>
                 )
               })}

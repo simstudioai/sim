@@ -17,6 +17,7 @@ import {
   ChipTag,
   cn,
   Info,
+  OverflowText,
   Search,
   Skeleton,
   Switch,
@@ -305,10 +306,14 @@ function AddMembersModal({
                           <Checkbox checked={isSelected} />
                           <MemberAvatar name={name} image={member.user?.image ?? null} />
                           <div className='min-w-0 flex-1'>
-                            <div className='truncate text-[var(--text-body)] text-sm'>{name}</div>
-                            <div className='truncate text-[var(--text-muted)] text-caption'>
-                              {email}
-                            </div>
+                            <OverflowText
+                              label={name}
+                              className='block text-[var(--text-body)] text-sm'
+                            />
+                            <OverflowText
+                              label={email}
+                              className='block text-[var(--text-muted)] text-caption'
+                            />
                           </div>
                         </button>
                       )
@@ -428,7 +433,7 @@ function CheckboxGrid({
                 checked={isAllowed(item.id)}
                 onCheckedChange={() => onToggle(item.id)}
               />
-              <span className='truncate text-sm'>{item.label}</span>
+              <OverflowText label={item.label} className='text-sm' />
             </label>
           )
         })}
@@ -524,7 +529,7 @@ function ProviderRow({
             isProviderAllowed ? 'cursor-pointer' : 'cursor-default opacity-60'
           )}
         >
-          <span className='truncate text-sm'>{providerName}</span>
+          <OverflowText label={providerName} className='text-sm' />
           {isProviderAllowed && deniedCount > 0 && (
             <ChipTag variant='gray' className='flex-shrink-0'>
               {deniedCount} blocked
@@ -611,7 +616,7 @@ function BlockToolRow({
             !isBlockAllowed && 'opacity-60'
           )}
         >
-          <span className='truncate text-sm'>{block.name}</span>
+          <OverflowText label={block.name} className='text-sm' />
           {/* An org running one custom block per environment has prod/uat/sandbox copies
               sharing a name and differing only by an opaque type slug. The source workspace
               is the only thing that tells them apart, so an allowlist decision made without
@@ -1651,7 +1656,7 @@ export function GroupDetail({
                           >
                             {BlockIcon && <BlockIcon className='!size-[9px] text-white' />}
                           </div>
-                          <span className='truncate text-sm'>{block.name}</span>
+                          <OverflowText label={block.name} className='text-sm' />
                           {block.sourceWorkspaceName && (
                             <span className='flex-shrink-0 text-[var(--text-muted)] text-caption'>
                               {block.sourceWorkspaceName}

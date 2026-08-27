@@ -1,7 +1,7 @@
 'use client'
 
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
-import { chipVariants, cn } from '@sim/emcn'
+import { chipVariants, cn, OverflowText } from '@sim/emcn'
 import { Lock, MoreHorizontal } from '@sim/emcn/icons'
 import clsx from 'clsx'
 import Link from 'next/link'
@@ -441,11 +441,8 @@ export const WorkflowItem = memo(function WorkflowItem({
                 spellCheck='false'
               />
             ) : (
-              <div
-                className='min-w-0 truncate text-[var(--text-body)]'
-                onDoubleClick={handleDoubleClick}
-              >
-                {workflow.name}
+              <div className='min-w-0' onDoubleClick={handleDoubleClick}>
+                <OverflowText label={workflow.name} className='block text-[var(--text-body)]' />
               </div>
             )}
             {!isEditing && <Avatars workflowId={workflow.id} />}

@@ -24,6 +24,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
   FloatingTooltip,
+  OverflowText,
+  overflowTextFadeClass,
   POPOVER_ANIMATION_CLASSES,
   Popover,
   PopoverAnchor,
@@ -664,7 +666,7 @@ function BreadcrumbLocationItem({
           <span className='size-1.5 rounded-full bg-[var(--text-muted)]' />
         )}
       </span>
-      <span className='min-w-0 flex-1 truncate text-left'>{label}</span>
+      <OverflowText label={label} className='flex-1 text-left' />
     </>
   )
 
@@ -702,8 +704,9 @@ const BreadcrumbLabel = memo(
         ref={ref}
         className={cn(
           'min-w-0 truncate text-[var(--text-body)]',
+          isOverflowing && overflowTextFadeClass,
           isOverflowing &&
-            '[mask-image:linear-gradient(to_right,black_calc(100%-18px),transparent)] group-hover:[mask-image:none] group-focus-visible:[mask-image:none]'
+            'group-hover:[-webkit-mask-image:none] group-hover:[mask-image:none] group-focus-visible:[-webkit-mask-image:none] group-focus-visible:[mask-image:none]'
         )}
       >
         {label}

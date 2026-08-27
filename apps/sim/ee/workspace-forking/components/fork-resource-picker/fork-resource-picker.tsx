@@ -1,7 +1,7 @@
 'use client'
 
 import { useId, useMemo, useState } from 'react'
-import { Checkbox, ChevronDown, cn } from '@sim/emcn'
+import { Checkbox, ChevronDown, cn, OverflowText } from '@sim/emcn'
 import {
   ForkFileTree,
   type ForkFlatFile,
@@ -69,9 +69,10 @@ export function ResourceKindRow({
           className='flex min-w-0 flex-1 items-center gap-1 text-left hover:text-[var(--text-primary)]'
           onClick={() => setExpanded((value) => !value)}
         >
-          <span className='min-w-0 flex-1 truncate'>
-            {label} ({selectedCount > 0 ? `${selectedCount}/${total}` : total})
-          </span>
+          <OverflowText
+            label={`${label} (${selectedCount > 0 ? `${selectedCount}/${total}` : total})`}
+            className='flex-1'
+          />
           <ChevronDown
             className={cn(
               'size-[14px] flex-shrink-0 text-[var(--text-icon)] transition-transform',
@@ -105,7 +106,7 @@ export function ResourceKindRow({
                     onCheckedChange={(checked) => onToggleItem(item.id, checked === true)}
                     disabled={disabled}
                   />
-                  <span className='truncate'>{item.label}</span>
+                  <OverflowText label={item.label} />
                 </label>
               )
             })}
@@ -164,9 +165,10 @@ export function FileKindRow({
           className='flex min-w-0 flex-1 items-center gap-1 text-left hover:text-[var(--text-primary)]'
           onClick={() => setExpanded((value) => !value)}
         >
-          <span className='min-w-0 flex-1 truncate'>
-            {label} ({selectedCount > 0 ? `${selectedCount}/${total}` : total})
-          </span>
+          <OverflowText
+            label={`${label} (${selectedCount > 0 ? `${selectedCount}/${total}` : total})`}
+            className='flex-1'
+          />
           <ChevronDown
             className={cn(
               'size-[14px] flex-shrink-0 text-[var(--text-icon)] transition-transform',

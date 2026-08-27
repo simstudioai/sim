@@ -2,6 +2,7 @@
 
 import type { ComponentType } from 'react'
 import { memo } from 'react'
+import { OverflowText } from '@sim/emcn'
 import { File, Workflow } from '@sim/emcn/icons'
 import { Command } from 'cmdk'
 import { HEX_COLOR_REGEX } from '@/lib/branding'
@@ -33,13 +34,14 @@ function ItemFolderPath({ folderPath }: ItemFolderPathProps) {
     <span className='ml-auto flex min-w-0 pl-2 text-[var(--text-subtle)] text-small'>
       {folderPath.length > 1 && (
         <>
-          <span className='min-w-0 truncate [flex-shrink:9999]'>
-            {folderPath.slice(0, -1).join(' / ')}
-          </span>
+          <OverflowText
+            label={folderPath.slice(0, -1).join(' / ')}
+            className='[flex-shrink:9999]'
+          />
           <span className='flex-shrink-0 whitespace-pre'> / </span>
         </>
       )}
-      <span className='min-w-0 truncate'>{folderPath[folderPath.length - 1]}</span>
+      <OverflowText label={folderPath[folderPath.length - 1]} />
     </span>
   )
 }
@@ -91,10 +93,13 @@ export const MemoizedCommandItem = memo(
     return (
       <Command.Item value={value} onSelect={onSelect} className={COMMAND_ITEM_CLASSNAME}>
         <BlockTile blockType={blockType} icon={Icon} bgColor={bgColor} />
-        <span className='truncate text-[var(--text-body)]'>
+        <OverflowText
+          label={`${labelPrefix ? `${labelPrefix} ` : ''}${label}`}
+          className='text-[var(--text-body)]'
+        >
           {labelPrefix && <span className='text-[var(--text-subtle)]'>{labelPrefix} </span>}
           {label}
-        </span>
+        </OverflowText>
         {meta ? <ItemMeta meta={meta} /> : null}
       </Command.Item>
     )
@@ -127,7 +132,7 @@ export const MemoizedActionItem = memo(
     return (
       <Command.Item value={value} onSelect={onSelect} className={COMMAND_ITEM_CLASSNAME}>
         <Icon className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
-        <span className='truncate text-[var(--text-body)]'>{name}</span>
+        <OverflowText label={name} className='text-[var(--text-body)]' />
         {meta ? <ItemMeta meta={meta} /> : shortcut ? <ShortcutHint shortcut={shortcut} /> : null}
       </Command.Item>
     )
@@ -161,7 +166,7 @@ export const MemoizedWorkflowItem = memo(
           <Workflow className='size-[14px] text-[var(--text-icon)]' />
         </div>
         <span className='flex min-w-0 max-w-[75%] flex-shrink-0 text-[var(--text-body)]'>
-          <span className='truncate'>{name}</span>
+          <OverflowText label={name} />
           {isCurrent && <span className='flex-shrink-0 whitespace-pre'> (current)</span>}
         </span>
         {meta ? (
@@ -199,7 +204,7 @@ export const MemoizedFileItem = memo(
           <File className='size-[14px] text-[var(--text-icon)]' />
         </div>
         <span className='flex min-w-0 max-w-[75%] flex-shrink-0 text-[var(--text-body)]'>
-          <span className='truncate'>{name}</span>
+          <OverflowText label={name} />
         </span>
         {meta ? (
           <ItemMeta meta={meta} />
@@ -229,7 +234,7 @@ export const MemoizedTaskItem = memo(
   } & ResultMetaProps) {
     return (
       <Command.Item value={value} onSelect={onSelect} className={COMMAND_ITEM_CLASSNAME}>
-        <span className='truncate text-[var(--text-body)]'>{name}</span>
+        <OverflowText label={name} className='text-[var(--text-body)]' />
         {meta && <ItemMeta meta={meta} />}
       </Command.Item>
     )
@@ -278,7 +283,7 @@ export const MemoizedWorkspaceItem = memo(
           </span>
         )}
         <span className='flex min-w-0 text-[var(--text-body)]'>
-          <span className='truncate'>{name}</span>
+          <OverflowText label={name} />
           {isCurrent && <span className='flex-shrink-0 whitespace-pre'> (current)</span>}
         </span>
         {meta && <ItemMeta meta={meta} />}
@@ -312,7 +317,7 @@ export const MemoizedPageItem = memo(
     return (
       <Command.Item value={value} onSelect={onSelect} className={COMMAND_ITEM_CLASSNAME}>
         <Icon className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
-        <span className='truncate text-[var(--text-body)]'>{name}</span>
+        <OverflowText label={name} className='text-[var(--text-body)]' />
         {meta ? <ItemMeta meta={meta} /> : shortcut ? <ShortcutHint shortcut={shortcut} /> : null}
       </Command.Item>
     )
@@ -344,7 +349,7 @@ export const MemoizedIconItem = memo(
       <Command.Item value={value} onSelect={onSelect} className={COMMAND_ITEM_CLASSNAME}>
         <Icon className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
         <span className='flex min-w-0 max-w-[75%] flex-shrink-0 text-[var(--text-body)]'>
-          <span className='truncate'>{name}</span>
+          <OverflowText label={name} />
         </span>
         {meta ? (
           <ItemMeta meta={meta} />

@@ -60,6 +60,9 @@ vi.mock('@sim/emcn', () => ({
   DropdownMenuContent: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
   DropdownMenuItem: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
   DropdownMenuTrigger: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+  OverflowText: ({ label, children }: { label: string; children?: ReactNode }) => (
+    <span>{children ?? label}</span>
+  ),
   Tooltip: {
     Root: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
     Trigger: ({ children }: { children?: ReactNode }) => <div>{children}</div>,

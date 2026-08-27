@@ -34,6 +34,9 @@ vi.mock('@sim/emcn', () => ({
       </div>
     ) : null,
   Key: () => <span />,
+  OverflowText: ({ label, children }: { label: string; children?: ReactNode }) => (
+    <span>{children ?? label}</span>
+  ),
   Plus: () => <span />,
   toast: mockToast,
 }))

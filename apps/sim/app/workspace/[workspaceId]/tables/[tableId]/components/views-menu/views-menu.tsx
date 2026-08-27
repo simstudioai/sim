@@ -8,6 +8,7 @@ import {
   chipContentLabelClass,
   chipVariants,
   cn,
+  OverflowText,
   POPOVER_ANIMATION_CLASSES,
   Popover,
   PopoverAnchor,
@@ -197,7 +198,7 @@ export const ViewsMenu = memo(function ViewsMenu({
               <span className='flex size-[14px] shrink-0 items-center justify-center'>
                 <Plus className='size-3 text-[var(--text-icon)]' />
               </span>
-              <span className='min-w-0 flex-1 truncate text-left'>New view</span>
+              <OverflowText label='New view' className='flex-1 text-left' />
             </PopoverItem>
           </>
         )}
@@ -268,7 +269,7 @@ function ViewRow({ label, isActive, onSelect, defaultState, actions }: ViewRowPr
         <span className='flex size-[14px] shrink-0 items-center justify-center'>
           {isActive && <Check className='size-3 text-[var(--text-icon)]' />}
         </span>
-        <span className='min-w-0 flex-1 truncate text-left'>{label}</span>
+        <OverflowText label={label} className='flex-1 text-left' />
         {actionCount > 0 && (
           <span
             aria-hidden

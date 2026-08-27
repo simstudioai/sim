@@ -63,7 +63,7 @@ export function SecretUsagePanel({ workspaceId, secretName, scope }: SecretUsage
          */
         description: (
           <span className='flex min-w-0 items-center gap-2'>
-            <FloatingOverflowText label={usedBy(entry)} className='block truncate' />
+            <FloatingOverflowText label={usedBy(entry)} className='block' />
             {entry.useCount > 1 && (
               <span className='flex-shrink-0 text-[var(--text-muted)]'>{entry.useCount} runs</span>
             )}

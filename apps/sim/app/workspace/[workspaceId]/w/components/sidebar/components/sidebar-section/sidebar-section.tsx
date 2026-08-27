@@ -1,7 +1,7 @@
 'use client'
 
 import { type ReactNode, useState } from 'react'
-import { cn, disclosureChevronClass, Expandable, ExpandableContent } from '@sim/emcn'
+import { cn, disclosureChevronClass, Expandable, ExpandableContent, OverflowText } from '@sim/emcn'
 import { ChevronDown } from '@sim/emcn/icons'
 
 /**
@@ -60,9 +60,10 @@ export function SidebarSection({
   }
 
   const label = (
-    <span className='sidebar-collapse-hide min-w-0 truncate text-[var(--text-muted)] text-caption'>
-      {title}
-    </span>
+    <OverflowText
+      label={title}
+      className='sidebar-collapse-hide text-[var(--text-muted)] text-caption'
+    />
   )
 
   return (
