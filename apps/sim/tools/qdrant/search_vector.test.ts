@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
+import { QdrantBlock } from '@/blocks/blocks/qdrant'
 import { fetchPointsTool } from '@/tools/qdrant/fetch_points'
 import { searchVectorTool } from '@/tools/qdrant/search_vector'
 import { upsertPointsTool } from '@/tools/qdrant/upsert_points'
@@ -125,5 +126,59 @@ describe('qdrant_upsert_points transformResponse', () => {
     expect(result.success).toBe(true)
     expect(result.output.data).toEqual({ operation_id: 42, status: 'completed' })
     expect(result.output.status).toBe('ok')
+  })
+})
+
+describe('qdrant_upsert_points transformResponse success flag', () => {
+  /**
+   * `transformResponse` is only ever reached for a 2xx: both execution paths
+   * (`tools/index.ts` and `tools/utils.server.ts`) throw on `!response.ok` before
+   * calling it. Re-checking `response.ok` here is therefore dead, and the only
+   * signal that decides success is Qdrant's own `status` field.
+   */
+  it('derives success from the Qdrant status alone, not from Response.ok', async () => {
+    const response = qdrantResponse(
+      { time: 0.004, status: 'ok', result: { operation_id: 42, status: 'completed' } },
+      { status: 500 }
+    )
+
+    const result = await upsertPointsTool.transformResponse!(response, {} as never)
+
+    expect(result.success).toBe(true)
+    expect(result.output.status).toBe('ok')
+  })
+
+  it('reports failure when Qdrant answers with a non-ok status', async () => {
+    const response = qdrantResponse({ time: 0.004, status: 'error', result: null })
+
+    const result = await upsertPointsTool.transformResponse!(response, {} as never)
+
+    expect(result.success).toBe(false)
+  })
+})
+
+describe('QdrantBlock declaration', () => {
+  it('declares only the outputs its tools actually return', () => {
+    const toolOutputKeys = new Set([
+      ...Object.keys(upsertPointsTool.outputs ?? {}),
+      ...Object.keys(searchVectorTool.outputs ?? {}),
+      ...Object.keys(fetchPointsTool.outputs ?? {}),
+    ])
+
+    expect(Object.keys(QdrantBlock.outputs).sort()).toEqual([...toolOutputKeys].sort())
+  })
+
+  it('leaves the API key optional, matching the tools and self-hosted Qdrant', () => {
+    const apiKeySubBlock = QdrantBlock.subBlocks.find((subBlock) => subBlock.id === 'apiKey')
+
+    expect(apiKeySubBlock?.required).toBeFalsy()
+    expect(upsertPointsTool.params.apiKey.required).toBeFalsy()
+  })
+
+  it('has no duplicate subBlock ids', () => {
+    const ids = QdrantBlock.subBlocks.map((subBlock) => subBlock.id)
+    const duplicates = ids.filter((id, index) => ids.indexOf(id) !== index)
+
+    expect(duplicates).toEqual([])
   })
 })

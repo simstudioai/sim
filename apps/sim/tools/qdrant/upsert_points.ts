@@ -6,6 +6,20 @@ import {
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
+/**
+ * Renders a non-ok Qdrant envelope status as a user-facing reason. The status is
+ * either the literal `"ok"` or an `{ error: string }` object.
+ */
+function qdrantStatusError(status: unknown): string {
+  if (typeof status === 'string') {
+    return `Qdrant upsert returned status "${status}"`
+  }
+  if (status && typeof status === 'object' && 'error' in status) {
+    return `Qdrant upsert failed: ${String((status as { error: unknown }).error)}`
+  }
+  return 'Qdrant upsert failed with an unknown status'
+}
+
 export const upsertPointsTool: ToolConfig<QdrantUpsertParams, QdrantResponse> = {
   id: 'qdrant_upsert_points',
   name: 'Qdrant Upsert Points',
@@ -50,14 +64,21 @@ export const upsertPointsTool: ToolConfig<QdrantUpsertParams, QdrantResponse> = 
     body: (params) => ({ points: params.points }),
   },
 
+  /**
+   * Only reached for a 2xx response: both execution paths throw on a non-ok
+   * response before `transformResponse` runs, so Qdrant's own `status` field is
+   * the sole success signal here.
+   */
   transformResponse: async (response) => {
     const data = await response.json()
+    const succeeded = data.status === 'ok'
     return {
-      success: response.ok && data.status === 'ok',
+      success: succeeded,
       output: {
         status: data.status,
         data: data.result,
       },
+      ...(succeeded ? {} : { error: qdrantStatusError(data.status) }),
     }
   },
 

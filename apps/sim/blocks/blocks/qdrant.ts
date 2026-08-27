@@ -44,13 +44,11 @@ export const QdrantBlock: BlockConfig<QdrantResponse> = {
       ],
       value: () => 'upsert',
     },
-    // Upsert fields
     {
       id: 'url',
       title: 'Qdrant URL',
       type: 'short-input',
       placeholder: 'http://localhost:6333',
-      condition: { field: 'operation', value: 'upsert' },
       required: true,
     },
     {
@@ -58,9 +56,9 @@ export const QdrantBlock: BlockConfig<QdrantResponse> = {
       title: 'Collection',
       type: 'short-input',
       placeholder: 'my-collection',
-      condition: { field: 'operation', value: 'upsert' },
       required: true,
     },
+    // Upsert fields
     {
       id: 'points',
       title: 'Points',
@@ -95,22 +93,6 @@ Return ONLY the JSON array.`,
       },
     },
     // Search fields
-    {
-      id: 'url',
-      title: 'Qdrant URL',
-      type: 'short-input',
-      placeholder: 'http://localhost:6333',
-      condition: { field: 'operation', value: 'search' },
-      required: true,
-    },
-    {
-      id: 'collection',
-      title: 'Collection',
-      type: 'short-input',
-      placeholder: 'my-collection',
-      condition: { field: 'operation', value: 'search' },
-      required: true,
-    },
     {
       id: 'vector',
       title: 'Query Vector',
@@ -176,22 +158,6 @@ Return ONLY the JSON object.`,
     },
     // Fetch fields
     {
-      id: 'url',
-      title: 'Qdrant URL',
-      type: 'short-input',
-      placeholder: 'http://localhost:6333',
-      condition: { field: 'operation', value: 'fetch' },
-      required: true,
-    },
-    {
-      id: 'collection',
-      title: 'Collection',
-      type: 'short-input',
-      placeholder: 'my-collection',
-      condition: { field: 'operation', value: 'fetch' },
-      required: true,
-    },
-    {
       id: 'ids',
       title: 'IDs',
       type: 'long-input',
@@ -218,7 +184,6 @@ Return ONLY the JSON object.`,
       type: 'short-input',
       placeholder: 'Your Qdrant API key (optional)',
       password: true,
-      required: true,
     },
   ],
 
@@ -257,8 +222,6 @@ Return ONLY the JSON object.`,
   },
 
   outputs: {
-    matches: { type: 'json', description: 'Search matches' },
-    upsertedCount: { type: 'number', description: 'Upserted count' },
     data: { type: 'json', description: 'Response data' },
     status: { type: 'string', description: 'Operation status' },
   },

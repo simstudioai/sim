@@ -100,15 +100,7 @@ export interface QdrantFetchParams extends QdrantBaseParams {
 
 export interface QdrantResponse extends ToolResponse {
   output: {
-    result?: any
     status?: string
-    matches?: Array<{
-      id: string
-      score: number
-      payload?: Record<string, any>
-      vector?: number[]
-    }>
-    upsertedCount?: number
     data?: any
   }
 }
