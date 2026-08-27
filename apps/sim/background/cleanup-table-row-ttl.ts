@@ -25,12 +25,17 @@ interface ExpiredTtlTableRef {
 interface DeletedTtlBatch {
   attempted: boolean
   deleted: number
-  lastId: string | null
+  cursor: TtlCleanupCursor | null
+}
+
+interface TtlCleanupCursor {
+  createdAt: string
+  id: string
 }
 
 interface TtlTableCleanupState {
   ref: ExpiredTtlTableRef
-  afterId?: string
+  after?: TtlCleanupCursor
   deleted: number
   complete: boolean
 }
@@ -81,7 +86,11 @@ async function listExpiredTtlTables(nowEpochSeconds: number): Promise<ExpiredTtl
 
 function parseDeletedBatch(rows: unknown): Omit<DeletedTtlBatch, 'attempted'> {
   const [row] = Array.isArray(rows)
-    ? (rows as Array<{ count?: number | string; lastId?: string | null }>)
+    ? (rows as Array<{
+        count?: number | string
+        createdAt?: string | null
+        lastId?: string | null
+      }>)
     : []
   if (!row) throw new Error('Table row TTL cleanup did not return a deleted count')
 
@@ -89,10 +98,21 @@ function parseDeletedBatch(rows: unknown): Omit<DeletedTtlBatch, 'attempted'> {
   if (!Number.isSafeInteger(deleted) || deleted < 0 || deleted > TTL_CLEANUP_BATCH_SIZE) {
     throw new Error('Table row TTL cleanup returned an invalid deleted count')
   }
-  if (deleted > 0 && typeof row.lastId !== 'string') {
-    throw new Error('Table row TTL cleanup did not return a row cursor')
+  if (deleted > 0) {
+    if (typeof row.lastId !== 'string') {
+      throw new Error('Table row TTL cleanup did not return a row cursor')
+    }
+    if (typeof row.createdAt !== 'string') {
+      throw new Error('Table row TTL cleanup did not return a creation-time cursor')
+    }
   }
-  return { deleted, lastId: row.lastId ?? null }
+  return {
+    deleted,
+    cursor:
+      typeof row.createdAt === 'string' && typeof row.lastId === 'string'
+        ? { createdAt: row.createdAt, id: row.lastId }
+        : null,
+  }
 }
 
 async function deleteExpiredTableRowBatch(
@@ -101,29 +121,43 @@ async function deleteExpiredTableRowBatch(
   workspaceId: string,
   columnKey: string,
   nowEpochSeconds: number,
-  afterId?: string
+  after?: TtlCleanupCursor
 ): Promise<Omit<DeletedTtlBatch, 'attempted'>> {
-  const rows = await trx.execute<{ count: number | string; lastId: string | null }>(sql`
+  const rows = await trx.execute<{
+    count: number | string
+    createdAt: string | null
+    lastId: string | null
+  }>(sql`
     WITH candidates AS MATERIALIZED (
       SELECT table_row.id
       FROM ${userTableRows} AS table_row
       WHERE table_row.table_id = ${tableId}
         AND table_row.workspace_id = ${workspaceId}
-        ${afterId ? sql`AND table_row.id > ${afterId}` : sql``}
+        ${
+          after
+            ? sql`AND (table_row.created_at, table_row.id) > (${after.createdAt}::timestamp, ${after.id})`
+            : sql``
+        }
         AND jsonb_typeof(table_row.data->${columnKey}) = 'number'
         AND (table_row.data->>${columnKey})::numeric <= ${nowEpochSeconds}
-      ORDER BY table_row.id
+      ORDER BY table_row.created_at, table_row.id
       LIMIT ${TTL_CLEANUP_BATCH_SIZE}
       FOR UPDATE OF table_row SKIP LOCKED
     ), deleted AS (
       DELETE FROM ${userTableRows} AS table_row
       USING candidates
       WHERE table_row.id = candidates.id
-      RETURNING table_row.id
+      RETURNING table_row.id, table_row.created_at
     )
     SELECT
       count(*)::integer AS count,
-      max(id) AS "lastId"
+      (array_agg(id ORDER BY created_at DESC, id DESC))[1] AS "lastId",
+      (
+        array_agg(
+          to_char(created_at, 'YYYY-MM-DD"T"HH24:MI:SS.US')
+          ORDER BY created_at DESC, id DESC
+        )
+      )[1] AS "createdAt"
     FROM deleted
   `)
   return parseDeletedBatch(rows)
@@ -132,7 +166,7 @@ async function deleteExpiredTableRowBatch(
 async function deleteExpiredRowsForTable(
   ref: ExpiredTtlTableRef,
   nowEpochSeconds: number,
-  afterId?: string
+  after?: TtlCleanupCursor
 ): Promise<DeletedTtlBatch> {
   try {
     return await withLockedTable(
@@ -142,13 +176,13 @@ async function deleteExpiredRowsForTable(
           assertRowDelete(table)
         } catch (error) {
           if (error instanceof TableLockedError) {
-            return { attempted: false, deleted: 0, lastId: null }
+            return { attempted: false, deleted: 0, cursor: null }
           }
           throw error
         }
 
         const ttlColumn = table.schema.columns.find((column) => column.type === 'ttl')
-        if (!ttlColumn) return { attempted: false, deleted: 0, lastId: null }
+        if (!ttlColumn) return { attempted: false, deleted: 0, cursor: null }
 
         const batch = await deleteExpiredTableRowBatch(
           trx,
@@ -156,7 +190,7 @@ async function deleteExpiredRowsForTable(
           table.workspaceId,
           getColumnId(ttlColumn),
           nowEpochSeconds,
-          afterId
+          after
         )
         return { attempted: true, ...batch }
       },
@@ -164,7 +198,7 @@ async function deleteExpiredRowsForTable(
     )
   } catch (error) {
     if (asOrchestrationError(error)?.code === 'not_found') {
-      return { attempted: false, deleted: 0, lastId: null }
+      return { attempted: false, deleted: 0, cursor: null }
     }
     throw error
   }
@@ -195,7 +229,7 @@ export async function runCleanupTableRowTtl(
       if (state.complete) continue
       if (batches === TTL_CLEANUP_MAX_BATCHES || signal?.aborted) break
 
-      const batch = await deleteExpiredRowsForTable(state.ref, nowEpochSeconds, state.afterId)
+      const batch = await deleteExpiredRowsForTable(state.ref, nowEpochSeconds, state.after)
       if (!batch.attempted) {
         state.complete = true
         continue
@@ -204,7 +238,7 @@ export async function runCleanupTableRowTtl(
       batches++
       deleted += batch.deleted
       state.deleted += batch.deleted
-      state.afterId = batch.lastId ?? undefined
+      state.after = batch.cursor ?? undefined
       if (batch.deleted < TTL_CLEANUP_BATCH_SIZE) state.complete = true
     }
   }

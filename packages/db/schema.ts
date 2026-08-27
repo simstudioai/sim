@@ -4706,6 +4706,11 @@ export const userTableRows = pgTable(
       table.orderKey,
       table.id
     ),
+    tableCreatedIdIdx: index('user_table_rows_table_created_id_idx').on(
+      table.tableId,
+      table.createdAt,
+      table.id
+    ),
     /**
      * Keyset pagination by id within one table (the delete-job worker's page walk). Without it
      * the planner scans the global pkey in id order, filtering out every other table's rows —
