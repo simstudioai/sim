@@ -20,8 +20,9 @@
  *   `const { doomed, ...live } = getTableColumns(t)` — are validated against that
  *   doomed set, so an omit list that misses a doomed column (including one deprecated
  *   later) fails here, in schema.ts's own `<table>Columns` helpers too;
- * - `alias(t, ...)` is resolved through both `const u = alias(t, 'u')` bindings and
- *   inline `.from(alias(t, 'u'))` expressions.
+ * - table references resolve through every way a file can name one: a direct import, a
+ *   renamed import, an `import * as schema` member, a `const u = alias(t, 'u')` binding,
+ *   and an inline `.from(alias(t, 'u'))` expression.
  */
 import { readdirSync, readFileSync } from 'node:fs'
 import { dirname, extname, join, relative, resolve } from 'node:path'
@@ -236,53 +237,105 @@ function objectKeys(node: unknown): Set<string> | null {
 }
 
 /**
+ * How a file can name a pending table: `locals` maps a local binding (a renamed
+ * import or an `alias()` result) to its canonical table, and `namespaces` holds
+ * `import * as schema` bindings whose members are canonical tables.
+ */
+interface TableBindings {
+  locals: Map<string, string>
+  namespaces: Set<string>
+}
+
+/**
  * Resolves an expression to the canonical pending-table name it reads, seeing
- * through file-local alias bindings and inline `alias(t, 'name')` calls.
+ * through renamed imports, `import * as schema` members, file-local alias
+ * bindings, and inline `alias(t, 'name')` calls.
  */
 function resolveTable(
   node: unknown,
   pendingTables: Map<string, Set<string>>,
-  aliases: Map<string, string>
+  bindings: TableBindings
 ): string | null {
   const unwrapped = unwrap(node)
   if (!unwrapped) return null
   if (unwrapped.type === 'Identifier' && typeof unwrapped.name === 'string') {
     if (pendingTables.has(unwrapped.name)) return unwrapped.name
-    return aliases.get(unwrapped.name) ?? null
+    return bindings.locals.get(unwrapped.name) ?? null
+  }
+  if (unwrapped.type === 'MemberExpression' && !unwrapped.computed) {
+    const namespace = identifierName(unwrapped.object)
+    const member = propertyName(unwrapped.property)
+    if (namespace && member && bindings.namespaces.has(namespace) && pendingTables.has(member)) {
+      return member
+    }
+    return null
   }
   if (
     unwrapped.type === 'CallExpression' &&
     identifierName(unwrapped.callee) === 'alias' &&
     Array.isArray(unwrapped.arguments)
   ) {
-    return resolveTable(unwrapped.arguments[0], pendingTables, aliases)
+    return resolveTable(unwrapped.arguments[0], pendingTables, bindings)
   }
   return null
 }
 
-/** Maps `const u = alias(pendingTable, ...)` bindings to their canonical table. */
-function collectAliasBindings(
+/** A module that can export the schema's table objects. */
+function isSchemaModule(source: unknown): boolean {
+  const value = isSyntaxNode(source) && typeof source.value === 'string' ? source.value : null
+  return value !== null && (/@sim\/db(\/|$)/.test(value) || /(^|\/)schema(\.ts)?$/.test(value))
+}
+
+/**
+ * Collects every way this file can name a pending table: renamed imports,
+ * namespace imports, and `const u = alias(pendingTable, ...)` bindings.
+ */
+function collectTableBindings(
   program: SyntaxNode,
   pendingTables: Map<string, Set<string>>
-): Map<string, string> {
-  const aliases = new Map<string, string>()
-  const visit = (node: SyntaxNode) => {
+): TableBindings {
+  const bindings: TableBindings = { locals: new Map(), namespaces: new Set() }
+
+  const visitImports = (node: SyntaxNode) => {
+    if (node.type === 'ImportDeclaration' && isSchemaModule(node.source)) {
+      const specifiers = Array.isArray(node.specifiers) ? node.specifiers : []
+      for (const specifier of specifiers) {
+        if (!isSyntaxNode(specifier)) continue
+        const local = propertyName(specifier.local)
+        if (!local) continue
+        if (specifier.type === 'ImportNamespaceSpecifier') {
+          bindings.namespaces.add(local)
+          continue
+        }
+        if (specifier.type !== 'ImportSpecifier') continue
+        const imported = propertyName(specifier.imported)
+        if (imported && imported !== local && pendingTables.has(imported)) {
+          bindings.locals.set(local, imported)
+        }
+      }
+    }
+    for (const child of getChildNodes(node)) visitImports(child)
+  }
+  visitImports(program)
+
+  const visitAliases = (node: SyntaxNode) => {
     if (node.type === 'VariableDeclarator' && isSyntaxNode(node.init)) {
       const init = unwrap(node.init)
       if (init?.type === 'CallExpression' && identifierName(init.callee) === 'alias') {
         const canonical = resolveTable(
           Array.isArray(init.arguments) ? init.arguments[0] : undefined,
           pendingTables,
-          aliases
+          bindings
         )
         const bound = propertyName(node.id)
-        if (canonical && bound) aliases.set(bound, canonical)
+        if (canonical && bound) bindings.locals.set(bound, canonical)
       }
     }
-    for (const child of getChildNodes(node)) visit(child)
+    for (const child of getChildNodes(node)) visitAliases(child)
   }
-  visit(program)
-  return aliases
+  visitAliases(program)
+
+  return bindings
 }
 
 /**
@@ -333,12 +386,12 @@ function checkCall(
   call: SyntaxNode,
   parent: SyntaxNode | null,
   pendingTables: Map<string, Set<string>>,
-  aliases: Map<string, string>,
+  bindings: TableBindings,
   report: (node: SyntaxNode, table: string, pattern: string) => void
 ): void {
   const callee = isSyntaxNode(call.callee) ? call.callee : null
   const args = Array.isArray(call.arguments) ? call.arguments : []
-  const resolveArg = (node: unknown) => resolveTable(node, pendingTables, aliases)
+  const resolveArg = (node: unknown) => resolveTable(node, pendingTables, bindings)
 
   // getTableColumns(pendingTable) — spreads every declared column unless the
   // doomed ones are verifiably named away on the spot.
@@ -444,7 +497,7 @@ function auditFile(
     return violations
   }
 
-  const aliases = collectAliasBindings(program, pendingTables)
+  const bindings = collectTableBindings(program, pendingTables)
 
   const report = (node: SyntaxNode, table: string, pattern: string) => {
     violations.push({ file, line: node.loc?.start.line ?? 1, table, pattern })
@@ -452,7 +505,7 @@ function auditFile(
 
   const visit = (node: SyntaxNode, parent: SyntaxNode | null) => {
     if (node.type === 'CallExpression') {
-      checkCall(node, parent, pendingTables, aliases, report)
+      checkCall(node, parent, pendingTables, bindings, report)
     }
     for (const child of getChildNodes(node)) visit(child, node)
   }
