@@ -492,6 +492,23 @@ describe('effect disclosure on a withheld result', () => {
     ).toEqual({ success: false, error: TOOL_RESULT_UNAVAILABLE_ERROR })
   })
 
+  it.each(['effect', 'resultWithheld'])(
+    'voids the disclosure when an id would take the reserved key %s',
+    (reserved) => {
+      expect(
+        projectToolResultForCopilot(
+          {
+            success: false,
+            error: 'why',
+            effect: { phase: 'performed', ids: { [reserved]: EXECUTION_ID } },
+          },
+          undefined,
+          'run_workflow'
+        )
+      ).toEqual({ success: false, error: TOOL_RESULT_UNAVAILABLE_ERROR })
+    }
+  )
+
   it('reports the phase and ids when every id is vouchable', () => {
     expect(
       projectToolResultForCopilot(

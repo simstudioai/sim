@@ -1,6 +1,5 @@
 import type { WorkflowExecutionPrincipal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import {
   assertBillingAttributionSnapshot,
@@ -14,7 +13,6 @@ import { handlePostExecutionPauseState } from '@/lib/workflows/executor/pause-pe
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { ExecutionMetadata, SerializableExecutionState } from '@/executor/execution/types'
 import type { ExecutionResult, StreamingExecution } from '@/executor/types'
-import { attachAttemptedExecutionId } from '@/executor/utils/errors'
 import type { ResolvedSecretTraceProvenanceV1 } from '@/executor/utils/resolved-secret-trace-registry'
 import type { CoreTriggerType } from '@/stores/logs/filters/types'
 
@@ -130,7 +128,6 @@ export async function executeWorkflow(
     loggingSession.setTrustedExecutionCorrelation(streamConfig.trustedExecutionCorrelation)
   }
   let postExecutionOwnershipTransferred = false
-  let dispatched = false
 
   try {
     const metadata: ExecutionMetadata = {
@@ -172,13 +169,6 @@ export async function executeWorkflow(
 
     const executionStartMs = Date.now()
 
-    /**
-     * Entering the core is the point past which an execution row may exist. Everything above
-     * it — workspace and billing preflight, snapshot construction — fails without creating
-     * anything, so a caller can read the absence of this id as "nothing was started" rather
-     * than as an admission of not knowing.
-     */
-    dispatched = true
     const result = await executeWorkflowCore({
       snapshot,
       callbacks: {
@@ -250,14 +240,7 @@ export async function executeWorkflow(
     }
 
     return result
-  } catch (thrown: unknown) {
-    /**
-     * A thrown primitive has nowhere to carry the dispatched-run id, and losing it would make
-     * a real run read as never started. Normalizing only past the dispatch boundary keeps the
-     * rethrown value identical on every other path.
-     */
-    const error = dispatched && typeof thrown !== 'object' ? toError(thrown) : thrown
-    if (dispatched) attachAttemptedExecutionId(error, executionId)
+  } catch (error: unknown) {
     const errorDiagnostic = loggingSession.projectDiagnosticError(error)
     logger.error(`[${requestId}] Workflow execution failed`, errorDiagnostic)
 

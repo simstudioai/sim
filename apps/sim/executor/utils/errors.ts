@@ -52,13 +52,17 @@ const ATTEMPTED_EXECUTION_ID = 'attemptedExecutionId'
  */
 export function attachAttemptedExecutionId(error: unknown, executionId: string): void {
   if (!isAttachableThrown(error) || !executionId) return
-  if (ATTEMPTED_EXECUTION_ID in error) return
+  if (Object.hasOwn(error, ATTEMPTED_EXECUTION_ID)) return
   Object.assign(error, { [ATTEMPTED_EXECUTION_ID]: executionId })
 }
 
 /** Reads the dispatched-run id a thrown value carries, if dispatch was reached at all. */
 export function readAttemptedExecutionId(error: unknown): string | undefined {
-  if (!isAttachableThrown(error) || !(ATTEMPTED_EXECUTION_ID in error)) return undefined
+  /**
+   * Own property only. `in` would accept one reached through the prototype chain, which
+   * would let an unrelated run's id be disclosed for a refusal that started nothing.
+   */
+  if (!isAttachableThrown(error) || !Object.hasOwn(error, ATTEMPTED_EXECUTION_ID)) return undefined
   const value = (error as Record<string, unknown>)[ATTEMPTED_EXECUTION_ID]
   return typeof value === 'string' && value.length > 0 ? value : undefined
 }

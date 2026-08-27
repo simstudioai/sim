@@ -326,7 +326,7 @@ describe('Copilot workflow run application commands', () => {
 
     it('passes through the id executeWorkflow attached at its dispatch boundary', async () => {
       mocks.executeWorkflow.mockImplementationOnce(() => {
-        // Exactly what executeWorkflow does once it enters the core.
+        // Exactly what the execution core does once its logging session has started.
         const dispatchFailure = new Error('database unavailable')
         Object.assign(dispatchFailure, { attemptedExecutionId: 'child-execution-1' })
         throw dispatchFailure

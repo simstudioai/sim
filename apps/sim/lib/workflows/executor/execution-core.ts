@@ -49,7 +49,7 @@ import type {
   SerializableExecutionState,
 } from '@/executor/execution/types'
 import type { ExecutionResult, StartBlockRunMetadata } from '@/executor/types'
-import { hasExecutionResult } from '@/executor/utils/errors'
+import { attachAttemptedExecutionId, hasExecutionResult } from '@/executor/utils/errors'
 import { projectResolvedSecretDiagnosticError } from '@/executor/utils/resolved-secret-content-projection'
 import {
   createResolvedSecretTraceRegistry,
@@ -1097,6 +1097,18 @@ async function executeWorkflowCoreImpl(
 
     return result
   } catch (error: unknown) {
+    /**
+     * Whether the run had started when it failed, read before the recovery `safeStart` below
+     * writes a row for the failure itself. This — not entry into this function — is what says
+     * blocks may have executed: everything above it (custom-block loading, state loading,
+     * environment and secret setup) fails having run nothing, and a caller told otherwise
+     * would refuse a retry that was safe.
+     *
+     * The thrown value is rethrown exactly as received, including a non-Error one, because
+     * the finalization guard below identifies it. A primitive therefore carries no id, which
+     * costs nothing today: every throw site past `safeStart` raises an Error.
+     */
+    if (loggingStarted) attachAttemptedExecutionId(error, executionId)
     const errorCause = describeErrorCause(error)
     logger.error(
       `[${requestId}] Execution failed:`,
