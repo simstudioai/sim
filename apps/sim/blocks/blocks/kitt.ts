@@ -2,6 +2,14 @@ import { KittIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
 import type { KittResponse } from '@/tools/kitt/types'
 
+function removeEmptyParams(params: Record<string, unknown>): Record<string, unknown> {
+  const result: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== null && value !== '') result[key] = value
+  }
+  return result
+}
+
 export const KittBlock: BlockConfig<KittResponse> = {
   type: 'kitt',
   name: 'Kitt',
@@ -128,27 +136,31 @@ export const KittBlock: BlockConfig<KittResponse> = {
         throw new Error(`Unsupported Kitt operation: ${String(params.operation)}`)
       },
       params: (params) => {
-        const { operation: _operation, ...rest } = params
-        const idToParam: Record<string, string> = {
-          fe_customData: 'customData',
-          fe_domain: 'domain',
-          fe_fullName: 'fullName',
-          fe_linkedinStandardProfileURL: 'linkedinStandardProfileURL',
-          fe_strictNameMatches: 'strictNameMatches',
-          ve_customData: 'customData',
-          ve_email: 'email',
-          ve_treatAliasesAsValid: 'treatAliasesAsValid',
+        const result: Record<string, unknown> = {
+          apiKey: params.apiKey,
         }
-        const booleanFields = new Set(['strictNameMatches', 'treatAliasesAsValid'])
-        const result: Record<string, unknown> = {}
-        for (const [key, value] of Object.entries(rest)) {
-          if (value === undefined || value === null || value === '') continue
-          const mappedKey = idToParam[key] ?? key
-          result[mappedKey] = booleanFields.has(mappedKey)
-            ? value === true || value === 'true'
-            : value
+
+        if (params.operation === 'kitt_find_email') {
+          result.fullName = params.fe_fullName
+          result.domain = params.fe_domain
+          result.linkedinStandardProfileURL = params.fe_linkedinStandardProfileURL
+          result.customData = params.fe_customData
+          if (params.fe_strictNameMatches !== undefined && params.fe_strictNameMatches !== '') {
+            result.strictNameMatches =
+              params.fe_strictNameMatches === true || params.fe_strictNameMatches === 'true'
+          }
+        } else if (params.operation === 'kitt_verify_email') {
+          result.email = params.ve_email
+          result.customData = params.ve_customData
+          if (params.ve_treatAliasesAsValid !== undefined && params.ve_treatAliasesAsValid !== '') {
+            result.treatAliasesAsValid =
+              params.ve_treatAliasesAsValid === true || params.ve_treatAliasesAsValid === 'true'
+          }
+        } else {
+          throw new Error(`Unsupported Kitt operation: ${String(params.operation)}`)
         }
-        return result
+
+        return removeEmptyParams(result)
       },
     },
   },

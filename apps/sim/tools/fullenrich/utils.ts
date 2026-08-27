@@ -48,7 +48,7 @@ export async function extractFullEnrichError(response: Response): Promise<string
 }
 
 export function requireFullEnrichString(value: unknown, label: string): string {
-  if (typeof value !== 'string' || value.length === 0) {
+  if (typeof value !== 'string' || value.trim().length === 0) {
     throw new Error(`${label} must be a non-empty string`)
   }
   return value

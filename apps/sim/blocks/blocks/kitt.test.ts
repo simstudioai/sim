@@ -59,6 +59,51 @@ describe('Kitt block tool wiring', () => {
     })
   })
 
+  it('excludes inactive verifier fields from finder requests', () => {
+    expect(
+      mapParams({
+        operation: 'kitt_find_email',
+        apiKey: 'test-key',
+        fe_fullName: 'Erol Toker',
+        fe_domain: 'trykitt.ai',
+        fe_customData: 'finder-metadata',
+        ve_email: 'stale@example.com',
+        ve_treatAliasesAsValid: 'true',
+        ve_customData: 'stale-verifier-metadata',
+      })
+    ).toEqual({
+      apiKey: 'test-key',
+      fullName: 'Erol Toker',
+      domain: 'trykitt.ai',
+      customData: 'finder-metadata',
+    })
+  })
+
+  it('excludes inactive finder fields from verifier requests', () => {
+    expect(
+      mapParams({
+        operation: 'kitt_verify_email',
+        apiKey: 'test-key',
+        fe_fullName: 'Stale Person',
+        fe_domain: 'stale.example',
+        fe_strictNameMatches: 'true',
+        fe_customData: 'stale-finder-metadata',
+        ve_email: 'erol@trykitt.ai',
+        ve_customData: 'verifier-metadata',
+      })
+    ).toEqual({
+      apiKey: 'test-key',
+      email: 'erol@trykitt.ai',
+      customData: 'verifier-metadata',
+    })
+  })
+
+  it('fails fast when parameter mapping receives an unknown operation', () => {
+    expect(() => mapParams({ operation: 'unsupported', apiKey: 'test-key' })).toThrow(
+      /Unsupported Kitt operation/
+    )
+  })
+
   it('hides the required API key field on hosted Sim', () => {
     const apiKey = KittBlock.subBlocks.find((subBlock) => subBlock.id === 'apiKey')
     expect(apiKey).toMatchObject({ required: true, password: true, hideWhenHosted: true })

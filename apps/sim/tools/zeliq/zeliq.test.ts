@@ -144,6 +144,11 @@ describe('Zeliq hosted pricing', () => {
 })
 
 describe('Zeliq request validation', () => {
+  it('keeps callback destinations user-controlled', () => {
+    expect(zeliqEnrichEmailTool.params.callbackUrl.visibility).toBe('user-only')
+    expect(zeliqEnrichPhoneTool.params.callbackUrl.visibility).toBe('user-only')
+  })
+
   it('uses the documented API endpoints and x-api-key authentication', () => {
     expect(zeliqEnrichEmailTool.request.url).toBe('https://api.zeliq.com/api/contact/enrich/email')
     expect(zeliqEnrichPhoneTool.request.url).toBe('https://api.zeliq.com/api/contact/enrich/phone')

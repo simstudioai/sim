@@ -50,6 +50,10 @@ function assertAcceptedSubmission(output: Record<string, unknown>): void {
  * Starter permits 200 requests/minute, 400/hour, and 2,000/day per organization.
  * Sim limits each workspace to 1 request/minute so one continuously active
  * workspace remains below the plan's hourly and daily ceilings before pooling.
+ * The hosted-key limiter currently scopes buckets to a billing actor and supports
+ * only per-minute windows, so this integration cannot enforce Zeliq's aggregate
+ * organization-wide hourly and daily quotas. Correct aggregate enforcement requires
+ * a provider/key-scoped multi-window limiter rather than a lower per-workspace value.
  */
 export function zeliqHosting<P>(options: ZeliqHostingOptions<P>): ToolHostingConfig<P> {
   return {

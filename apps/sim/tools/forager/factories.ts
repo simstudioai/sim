@@ -162,6 +162,7 @@ interface ContactToolOptions {
   pricingBasis: string
   includeContactsEnrichment?: boolean
   allowEmptyResponse?: boolean
+  chargeOnlyWhenNonempty?: boolean
 }
 
 export function createForagerContactTool(
@@ -176,11 +177,9 @@ export function createForagerContactTool(
     name: options.name,
     description: options.description,
     version: '1.0.0',
-    hosting: successfulArrayForagerCredits(
-      options.outputKey,
-      options.credits,
-      options.pricingBasis
-    ),
+    hosting: options.chargeOnlyWhenNonempty
+      ? successfulArrayForagerCredits(options.outputKey, options.credits, options.pricingBasis)
+      : fixedForagerCredits(options.credits, options.pricingBasis),
     params: {
       ...FORAGER_AUTH_PARAMS,
       personId: {
@@ -236,7 +235,7 @@ function personInfoBody(
   includeContactsEnrichment: boolean
 ): Record<string, unknown> {
   const personId =
-    params.personId === undefined || params.personId === ''
+    params.personId === undefined || params.personId === null || params.personId === ''
       ? undefined
       : parseForagerInteger(params.personId, 'personId')
   const linkedinPublicIdentifier = params.linkedinPublicIdentifier?.trim() || undefined
@@ -405,7 +404,9 @@ export function createForagerWebsiteTool(options: {
     directExecution: async (params, signal) => {
       const domain = params.domain?.trim() || undefined
       const organizationId =
-        params.organizationId === undefined || params.organizationId === ''
+        params.organizationId === undefined ||
+        params.organizationId === null ||
+        params.organizationId === ''
           ? undefined
           : parseForagerInteger(params.organizationId, 'organizationId')
       const organizationLinkedinPublicIdentifier =

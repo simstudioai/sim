@@ -43,6 +43,36 @@ function parseJsonObject(value: unknown, fieldName: string): Record<string, unkn
   }
 }
 
+function hasLookupValue(value: unknown): boolean {
+  if (value === undefined || value === null) return false
+  return typeof value !== 'string' || value.trim().length > 0
+}
+
+function assertLookupRequirements(operation: unknown, params: Record<string, unknown>): void {
+  if (
+    typeof operation === 'string' &&
+    PERSON_IDENTIFIER_OPERATIONS.includes(
+      operation as (typeof PERSON_IDENTIFIER_OPERATIONS)[number]
+    )
+  ) {
+    if (!hasLookupValue(params.personId) && !hasLookupValue(params.linkedinPublicIdentifier)) {
+      throw new Error('Forager person lookup requires Person ID or LinkedIn Public Identifier')
+    }
+  }
+
+  if (operation === 'forager_website_detail') {
+    if (
+      !hasLookupValue(params.domain) &&
+      !hasLookupValue(params.organizationId) &&
+      !hasLookupValue(params.organizationLinkedinPublicIdentifier)
+    ) {
+      throw new Error(
+        'Forager website lookup requires Domain, Organization ID, or Organization LinkedIn Public Identifier'
+      )
+    }
+  }
+}
+
 export const ForagerBlock: BlockConfig<ForagerResponse> = {
   type: 'forager',
   name: 'Forager',
@@ -186,6 +216,8 @@ export const ForagerBlock: BlockConfig<ForagerResponse> = {
       title: 'Person ID',
       type: 'short-input',
       placeholder: '12345',
+      description: 'Required unless LinkedIn Public Identifier is provided',
+      required: false,
       condition: { field: 'operation', value: [...PERSON_IDENTIFIER_OPERATIONS] },
     },
     {
@@ -193,6 +225,8 @@ export const ForagerBlock: BlockConfig<ForagerResponse> = {
       title: 'LinkedIn Public Identifier',
       type: 'short-input',
       placeholder: 'jane-doe',
+      description: 'Required unless Person ID is provided',
+      required: false,
       condition: { field: 'operation', value: [...PERSON_IDENTIFIER_OPERATIONS] },
     },
     {
@@ -228,6 +262,9 @@ export const ForagerBlock: BlockConfig<ForagerResponse> = {
       title: 'Domain',
       type: 'short-input',
       placeholder: 'example.com',
+      description:
+        'Required unless Organization ID or Organization LinkedIn Public Identifier is provided',
+      required: false,
       condition: { field: 'operation', value: 'forager_website_detail' },
     },
     {
@@ -235,6 +272,8 @@ export const ForagerBlock: BlockConfig<ForagerResponse> = {
       title: 'Organization ID',
       type: 'short-input',
       placeholder: '12345',
+      description: 'Required unless Domain or Organization LinkedIn Public Identifier is provided',
+      required: false,
       condition: { field: 'operation', value: 'forager_website_detail' },
       mode: 'advanced',
     },
@@ -243,6 +282,8 @@ export const ForagerBlock: BlockConfig<ForagerResponse> = {
       title: 'Organization LinkedIn Public Identifier',
       type: 'short-input',
       placeholder: 'example-company',
+      description: 'Required unless Domain or Organization ID is provided',
+      required: false,
       condition: { field: 'operation', value: 'forager_website_detail' },
       mode: 'advanced',
     },
@@ -293,6 +334,7 @@ export const ForagerBlock: BlockConfig<ForagerResponse> = {
             result[key] = value
           }
         }
+        assertLookupRequirements(params.operation, result)
         return result
       },
     },

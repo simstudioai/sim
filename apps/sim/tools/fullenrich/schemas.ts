@@ -2,10 +2,23 @@ import { z } from 'zod'
 
 const nonEmptyStringSchema = z.string().trim().min(1)
 const customValuesSchema = z.record(z.string(), z.string())
+const normalizeOptionalNumberInput = (value: unknown): unknown => {
+  if (value === undefined || value === null || value === '') return undefined
+  if (typeof value === 'string' && value.trim().length === 0) return undefined
+  return typeof value === 'string' ? Number(value) : value
+}
+const optionalIntegerSchema = z.preprocess(
+  normalizeOptionalNumberInput,
+  z.number().int().optional()
+)
 
 export const fullEnrichNameSchema = nonEmptyStringSchema
 export const fullEnrichIdSchema = nonEmptyStringSchema
-export const fullEnrichWebhookUrlSchema = z.url()
+export const fullEnrichWebhookUrlSchema = z
+  .url()
+  .refine((value) => new URL(value).protocol === 'https:', {
+    message: 'Webhook URL must use HTTPS',
+  })
 
 export const fullEnrichContactSchema = z
   .object({
@@ -124,8 +137,8 @@ export const fullEnrichCompanyFiltersSchema = z
   .strict()
 
 export const fullEnrichSearchPaginationSchema = z.object({
-  offset: z.number().int().min(0).max(10000).optional(),
-  limit: z.number().int().min(1).max(100).optional(),
+  offset: z.preprocess(normalizeOptionalNumberInput, z.number().int().min(0).max(10000).optional()),
+  limit: z.preprocess(normalizeOptionalNumberInput, z.number().int().min(1).max(100).optional()),
   search_after: nonEmptyStringSchema.optional(),
 })
 
@@ -133,21 +146,27 @@ export const fullEnrichLookupPersonSchema = z
   .object({
     person_name: nonEmptyStringSchema.optional(),
     person_professional_network_url: nonEmptyStringSchema.optional(),
-    person_professional_network_id: z.number().int().optional(),
+    person_professional_network_id: optionalIntegerSchema,
     company_professional_network_url: nonEmptyStringSchema.optional(),
-    company_professional_network_id: z.number().int().optional(),
+    company_professional_network_id: optionalIntegerSchema,
     company_domain: nonEmptyStringSchema.optional(),
   })
   .strict()
-  .refine((value) => Object.values(value).some((item) => item !== undefined), {
-    message: 'At least one person identifier is required',
-  })
+  .refine(
+    (value) =>
+      value.person_name !== undefined ||
+      value.person_professional_network_url !== undefined ||
+      value.person_professional_network_id !== undefined,
+    {
+      message: 'At least one person identifier is required',
+    }
+  )
 
 export const fullEnrichLookupCompanySchema = z
   .object({
     domain: nonEmptyStringSchema.optional(),
     professional_network_url: nonEmptyStringSchema.optional(),
-    professional_network_id: z.number().int().optional(),
+    professional_network_id: optionalIntegerSchema,
   })
   .strict()
   .refine((value) => Object.values(value).some((item) => item !== undefined), {

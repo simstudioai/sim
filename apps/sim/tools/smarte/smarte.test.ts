@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
+import { DEFAULT_MAX_ERROR_BODY_BYTES } from '@/lib/core/utils/stream-limits'
 import {
   smarteEnrichCompanyTool,
   smarteEnrichEmailTool,
@@ -19,6 +20,7 @@ import {
 import {
   normalizeEmailRecords,
   normalizePersonRecords,
+  parseSmarteResponse,
   readCreditsDeducted,
 } from '@/tools/smarte/response'
 
@@ -111,5 +113,13 @@ describe('SMARTe documented contracts', () => {
     expect(() =>
       readCreditsDeducted(new Response(null, { headers: { 'credits-deducted': 'invalid' } }))
     ).toThrow('must be a non-negative number')
+  })
+
+  it('bounds provider error response bodies before materializing them', async () => {
+    const response = new Response('x'.repeat(DEFAULT_MAX_ERROR_BODY_BYTES + 1), { status: 500 })
+
+    await expect(parseSmarteResponse(response, 'email', normalizeEmailRecords)).rejects.toThrow(
+      /SMARTe email error response exceeds maximum size/
+    )
   })
 })

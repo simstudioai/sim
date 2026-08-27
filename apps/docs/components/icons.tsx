@@ -9839,7 +9839,7 @@ export function SmarteIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
       {...props}
-      viewBox='0 0 44 44'
+      viewBox='-1 -1 46 46'
       fill='currentColor'
       xmlns='http://www.w3.org/2000/svg'
       aria-hidden='true'

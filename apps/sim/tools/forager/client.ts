@@ -1,5 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { truncate } from '@sim/utils/string'
+import {
+  DEFAULT_MAX_ERROR_BODY_BYTES,
+  readResponseTextWithLimit,
+} from '@/lib/core/utils/stream-limits'
+import { MAX_INLINE_MATERIALIZATION_BYTES } from '@/lib/execution/payloads/limits'
 import { currentUserSchema, type ForagerResponseSchema } from '@/tools/forager/schemas'
 import type { ForagerAuthParams } from '@/tools/forager/types'
 
@@ -15,7 +20,10 @@ function parseAccountId(value: number | string, fieldName = 'accountId'): number
 }
 
 async function parseResponseBody(response: Response, allowEmptyArray: boolean): Promise<unknown> {
-  const text = await response.text()
+  const text = await readResponseTextWithLimit(response, {
+    maxBytes: response.ok ? MAX_INLINE_MATERIALIZATION_BYTES : DEFAULT_MAX_ERROR_BODY_BYTES,
+    label: response.ok ? 'Forager response' : 'Forager error response',
+  })
   if (!response.ok) {
     const detail = text.trim() ? `: ${truncate(text.trim(), 500)}` : ''
     throw new Error(

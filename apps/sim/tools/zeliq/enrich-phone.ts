@@ -43,7 +43,7 @@ export const zeliqEnrichPhoneTool: ToolConfig<
     callbackUrl: {
       type: 'string',
       required: true,
-      visibility: 'user-or-llm',
+      visibility: 'user-only',
       description: 'HTTP or HTTPS URL where Zeliq posts the completed enrichment result',
     },
     apiKey: {

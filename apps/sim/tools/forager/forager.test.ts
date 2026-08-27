@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { DEFAULT_MAX_ERROR_BODY_BYTES } from '@/lib/core/utils/stream-limits'
 import {
   foragerJobSearchTool,
   foragerJobSearchTotalsTool,
@@ -123,25 +124,24 @@ describe('Forager hosted billing', () => {
     expect(getCustomCost(foragerPersonReversePhoneTool, {}).cost).toBeCloseTo(15 / 45)
   })
 
-  it('charges contact credits only for a nonempty successful contact array', () => {
-    expect(getCustomCost(foragerPersonWorkEmailsTool, { emails: [] }).cost).toBe(0)
+  it('charges personal-email credits only for documented nonempty successes', () => {
+    expect(getCustomCost(foragerPersonPersonalEmailsTool, { emails: [] }).cost).toBe(0)
     expect(
-      getCustomCost(foragerPersonWorkEmailsTool, {
+      getCustomCost(foragerPersonPersonalEmailsTool, {
         emails: [{ email: 'person@example.com' }],
       }).cost
     ).toBeCloseTo(5 / 45)
-    expect(
-      getCustomCost(foragerPersonPhoneNumbersTool, {
-        phoneNumbers: [{ phone_number: '+14155550123' }],
-      }).cost
-    ).toBeCloseTo(15 / 45)
   })
 
-  it('fails hosted billing when a billing-dependent contact output is malformed', () => {
-    expect(() => getCustomCost(foragerPersonPersonalEmailsTool, {})).toThrow(/missing emails array/)
-    expect(() => getCustomCost(foragerPersonPhoneNumbersTool, {})).toThrow(
-      /missing phoneNumbers array/
+  it('charges the documented fixed work-email and phone lookup prices', () => {
+    expect(getCustomCost(foragerPersonWorkEmailsTool, { emails: [] }).cost).toBeCloseTo(5 / 45)
+    expect(getCustomCost(foragerPersonPhoneNumbersTool, { phoneNumbers: [] }).cost).toBeCloseTo(
+      15 / 45
     )
+  })
+
+  it('fails hosted billing when the personal-email billing output is malformed', () => {
+    expect(() => getCustomCost(foragerPersonPersonalEmailsTool, {})).toThrow(/missing emails array/)
   })
 })
 
@@ -237,5 +237,38 @@ describe('Forager execution', () => {
     await expect(
       foragerJobSearchTotalsTool.directExecution!({ apiKey: 'secret', accountId: 42 })
     ).rejects.toThrow()
+  })
+
+  it('bounds provider error response bodies before materializing them', async () => {
+    mockFetch([
+      {
+        status: 500,
+        text: 'x'.repeat(DEFAULT_MAX_ERROR_BODY_BYTES + 1),
+      },
+    ])
+
+    await expect(
+      foragerJobSearchTotalsTool.directExecution!({ apiKey: 'secret', accountId: 42 })
+    ).rejects.toThrow(/Forager error response exceeds maximum size/)
+  })
+
+  it('treats null person and organization IDs as omitted lookup alternatives', async () => {
+    mockFetch([])
+
+    await expect(
+      foragerPersonDetailTool.directExecution!({
+        apiKey: 'secret',
+        accountId: 42,
+        personId: null,
+      })
+    ).rejects.toThrow(/requires personId or linkedinPublicIdentifier/)
+    await expect(
+      foragerWebsiteDetailTool.directExecution!({
+        apiKey: 'secret',
+        accountId: 42,
+        organizationId: null,
+      })
+    ).rejects.toThrow(/requires domain, organizationId, or organizationLinkedinPublicIdentifier/)
+    expect(calls).toHaveLength(0)
   })
 })

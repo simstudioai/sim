@@ -5,6 +5,14 @@ import type { ZeliqResponse } from '@/tools/zeliq/types'
 const EMAIL_OPERATION = 'zeliq_enrich_email'
 const PHONE_OPERATION = 'zeliq_enrich_phone'
 
+function removeEmptyParams(params: Record<string, unknown>): Record<string, unknown> {
+  const result: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== null && value !== '') result[key] = value
+  }
+  return result
+}
+
 export const ZeliqBlock: BlockConfig<ZeliqResponse> = {
   type: 'zeliq',
   name: 'Zeliq',
@@ -200,25 +208,39 @@ export const ZeliqBlock: BlockConfig<ZeliqResponse> = {
         return params.operation
       },
       params: (params) => {
-        const result: Record<string, unknown> = {}
-        const idToParam: Record<string, string> = {
-          emailLinkedInUrl: 'linkedinUrl',
-          emailFirstName: 'firstName',
-          emailLastName: 'lastName',
-          emailCompany: 'company',
-          emailDomain: 'domain',
-          phoneLinkedInUrl: 'linkedinUrl',
-          phoneEmail: 'email',
+        const result: Record<string, unknown> = {
+          apiKey: params.apiKey,
+          callbackUrl: params.callbackUrl,
         }
-        const uiOnlyFields = new Set(['operation', 'emailLookupMethod', 'phoneLookupMethod'])
 
-        for (const [key, value] of Object.entries(params)) {
-          if (uiOnlyFields.has(key) || value === undefined || value === null || value === '') {
-            continue
+        if (params.operation === EMAIL_OPERATION) {
+          if (params.emailLookupMethod === 'linkedin') {
+            result.linkedinUrl = params.emailLinkedInUrl
+          } else if (params.emailLookupMethod === 'person_details') {
+            result.firstName = params.emailFirstName
+            result.lastName = params.emailLastName
+            result.company = params.emailCompany
+            result.domain = params.emailDomain
+          } else {
+            throw new Error(
+              `Unsupported Zeliq email lookup method: ${String(params.emailLookupMethod)}`
+            )
           }
-          result[idToParam[key] ?? key] = value
+        } else if (params.operation === PHONE_OPERATION) {
+          if (params.phoneLookupMethod === 'linkedin') {
+            result.linkedinUrl = params.phoneLinkedInUrl
+          } else if (params.phoneLookupMethod === 'email') {
+            result.email = params.phoneEmail
+          } else {
+            throw new Error(
+              `Unsupported Zeliq phone lookup method: ${String(params.phoneLookupMethod)}`
+            )
+          }
+        } else {
+          throw new Error(`Unsupported Zeliq operation: ${String(params.operation)}`)
         }
-        return result
+
+        return removeEmptyParams(result)
       },
     },
   },

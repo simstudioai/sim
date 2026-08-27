@@ -11,4 +11,5 @@ export const personPersonalEmailsTool = createForagerContactTool({
   credits: 5,
   pricingBasis: FORAGER_PRICING_BASIS.personalEmail,
   allowEmptyResponse: true,
+  chargeOnlyWhenNonempty: true,
 })

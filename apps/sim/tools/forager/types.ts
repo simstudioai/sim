@@ -10,7 +10,7 @@ export interface ForagerSearchParams extends ForagerAuthParams {
 }
 
 export interface ForagerPersonLookupParams extends ForagerAuthParams {
-  personId?: number | string
+  personId?: number | string | null
   linkedinPublicIdentifier?: string
 }
 
@@ -28,7 +28,7 @@ export interface ForagerReversePhoneLookupParams extends ForagerAuthParams {
 
 export interface ForagerWebsiteLookupParams extends ForagerAuthParams {
   domain?: string
-  organizationId?: number | string
+  organizationId?: number | string | null
   organizationLinkedinPublicIdentifier?: string
 }
 

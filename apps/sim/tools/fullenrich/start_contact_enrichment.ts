@@ -88,8 +88,10 @@ export const startContactEnrichmentTool: ToolConfig<
         name: fullEnrichNameSchema.parse(params.name),
         data: parseFullEnrichInput(params.data, fullEnrichContactsSchema, 'Contacts'),
       }
-      if (params.webhookUrl) body.webhook_url = fullEnrichWebhookUrlSchema.parse(params.webhookUrl)
-      if (params.contactFinishedWebhookUrl) {
+      if (params.webhookUrl !== undefined) {
+        body.webhook_url = fullEnrichWebhookUrlSchema.parse(params.webhookUrl)
+      }
+      if (params.contactFinishedWebhookUrl !== undefined) {
         body.webhook_events = {
           contact_finished: fullEnrichWebhookUrlSchema.parse(params.contactFinishedWebhookUrl),
         }

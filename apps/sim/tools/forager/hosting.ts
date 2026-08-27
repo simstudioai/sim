@@ -42,10 +42,8 @@ export const FORAGER_PRICING_BASIS = {
     'Explicit estimate: Organization Search Totals uses the same search contract and infrastructure as Organization Search, so it is billed at the documented Organization Search API call rate of 1 credit',
   personalEmail:
     'Official Forager credit table: Personal Email = 5 credits; zero when the documented successful response is empty',
-  phoneNumber:
-    'Official Forager credit table: Phone = 15 credits; zero is assumed when no phone record is returned',
-  workEmail:
-    'Official Forager credit table: Work Email = 5 credits; zero is assumed when no email record is returned',
+  phoneNumber: 'Official Forager credit table: Phone = 15 credits per lookup',
+  workEmail: 'Official Forager credit table: Work Email = 5 credits per lookup',
   personDetail: 'Official Forager credit table: Person Details = 1 credit',
   reverseEmail: 'Official Forager credit table: Reverse Email = 5 credits',
   reversePhone: 'Official Forager credit table: Reverse Phone = 15 credits',

@@ -1,3 +1,8 @@
+import {
+  DEFAULT_MAX_ERROR_BODY_BYTES,
+  readResponseTextWithLimit,
+} from '@/lib/core/utils/stream-limits'
+import { MAX_INLINE_MATERIALIZATION_BYTES } from '@/lib/execution/payloads/limits'
 import type {
   SmarteCompanyRecord,
   SmarteCurrentExperience,
@@ -322,15 +327,23 @@ export async function parseSmarteResponse<T>(
   endpoint: string,
   normalizeRecords: (value: unknown) => T[]
 ): Promise<{ records: T[]; creditsDeducted: number | null }> {
+  const body = await readResponseTextWithLimit(response, {
+    maxBytes: response.ok ? MAX_INLINE_MATERIALIZATION_BYTES : DEFAULT_MAX_ERROR_BODY_BYTES,
+    label: response.ok ? `SMARTe ${endpoint} response` : `SMARTe ${endpoint} error response`,
+  })
   if (!response.ok) {
-    const body = await response.text()
     throw new Error(
       `SMARTe ${endpoint} request failed with ${response.status} ${response.statusText}: ${body}`
     )
   }
 
   const creditsDeducted = readCreditsDeducted(response)
-  const data: unknown = await response.json()
+  let data: unknown
+  try {
+    data = JSON.parse(body)
+  } catch {
+    throw new Error(`SMARTe ${endpoint} response returned malformed JSON`)
+  }
   return {
     records: normalizeRecords(data),
     creditsDeducted,

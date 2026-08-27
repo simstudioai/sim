@@ -3,7 +3,7 @@
  */
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
-import { DropboxIcon } from '@/components/icons'
+import { DropboxIcon, SmarteIcon } from '@/components/icons'
 import { OAUTH_PROVIDERS } from '@/lib/oauth'
 import { BrandIcon, withBrandIcon } from '@/blocks/brand-icon'
 import { getAllBlocks } from '@/blocks/registry'
@@ -40,6 +40,12 @@ describe('BrandIcon', () => {
     const markup = renderToStaticMarkup(<BrandIcon icon={serviceIcon} />)
 
     expect(markup).toContain('color:#0061FF')
+  })
+
+  it('preserves padding around the SMARTe glyph bounds', () => {
+    const markup = renderToStaticMarkup(<SmarteIcon />)
+
+    expect(markup).toContain('viewBox="-1 -1 46 46"')
   })
 })
 
