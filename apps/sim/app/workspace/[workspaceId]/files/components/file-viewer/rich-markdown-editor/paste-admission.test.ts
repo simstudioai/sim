@@ -4,8 +4,11 @@
 import { Editor } from '@tiptap/core'
 import { TextSelection } from '@tiptap/pm/state'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createMarkdownContentExtensions } from './extensions'
-import { assessRawMarkdownPaste, createRichMarkdownPasteAdmission } from './paste-admission'
+import { createMarkdownContentExtensions } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/extensions'
+import {
+  assessRawMarkdownPaste,
+  createRichMarkdownPasteAdmission,
+} from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/paste-admission'
 
 let editor: Editor | null = null
 

@@ -600,28 +600,26 @@ export const TextEditor = memo(function TextEditor({
 
     const editor = monacoEditorRef.current
     const model = editor?.getModel()
-    const selection = editor?.getSelection()
+    const selections = editor?.getSelections()
     const currentText = contentRef.current
-    const selectionStart =
-      model && selection
-        ? model.getOffsetAt({
-            lineNumber: selection.startLineNumber,
-            column: selection.startColumn,
-          })
-        : currentText.length
-    const selectionEnd =
-      model && selection
-        ? model.getOffsetAt({
-            lineNumber: selection.endLineNumber,
-            column: selection.endColumn,
-          })
-        : selectionStart
+    const selectionOffsets =
+      model && selections?.length
+        ? selections.map((selection) => ({
+            start: model.getOffsetAt({
+              lineNumber: selection.startLineNumber,
+              column: selection.startColumn,
+            }),
+            end: model.getOffsetAt({
+              lineNumber: selection.endLineNumber,
+              column: selection.endColumn,
+            }),
+          }))
+        : [{ start: currentText.length, end: currentText.length }]
 
     const admission = assessTextEditorPaste({
       pastedText,
       currentText,
-      selectionStart,
-      selectionEnd,
+      selections: selectionOffsets,
     })
     if (admission.accepted) return
 

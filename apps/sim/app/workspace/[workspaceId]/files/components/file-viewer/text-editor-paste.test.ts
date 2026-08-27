@@ -8,8 +8,7 @@ describe('assessTextEditorPaste', () => {
         {
           pastedText: '56789',
           currentText: '123456',
-          selectionStart: 6,
-          selectionEnd: 6,
+          selections: [{ start: 6, end: 6 }],
         },
         10
       )
@@ -22,11 +21,26 @@ describe('assessTextEditorPaste', () => {
         {
           pastedText: '56789',
           currentText: '123456',
-          selectionStart: 1,
-          selectionEnd: 6,
+          selections: [{ start: 1, end: 6 }],
         },
         6
       )
     ).toMatchObject({ accepted: true, resultBytes: 6 })
+  })
+
+  it('projects the clipboard text at every Monaco cursor', () => {
+    expect(
+      assessTextEditorPaste(
+        {
+          pastedText: 'xy',
+          currentText: '12345678',
+          selections: [
+            { start: 2, end: 2 },
+            { start: 6, end: 6 },
+          ],
+        },
+        10
+      )
+    ).toMatchObject({ accepted: false, reason: 'result-bytes', limit: 10 })
   })
 })
