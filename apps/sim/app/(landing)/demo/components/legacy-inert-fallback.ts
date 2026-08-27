@@ -21,6 +21,9 @@ export function applyLegacyInertFallback(node: HTMLElement): () => void {
   const previousAriaHidden = node.getAttribute('aria-hidden')
   const previousPointerEvents = node.style.pointerEvents
   const previousTabIndexes = new Map<HTMLElement, string | null>()
+  const activeElement = node.ownerDocument.activeElement
+
+  if (activeElement instanceof HTMLElement && node.contains(activeElement)) activeElement.blur()
 
   node.setAttribute('aria-hidden', 'true')
   node.style.pointerEvents = 'none'

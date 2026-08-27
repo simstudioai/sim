@@ -33,4 +33,21 @@ describe('applyLegacyInertFallback', () => {
     expect(button?.getAttribute('tabindex')).toBeNull()
     expect(link?.getAttribute('tabindex')).toBe('2')
   })
+
+  it('moves focus out of a panel before hiding it', () => {
+    const panel = document.createElement('div')
+    const button = document.createElement('button')
+    panel.append(button)
+    document.body.append(panel)
+    button.focus()
+
+    expect(document.activeElement).toBe(button)
+
+    const restore = applyLegacyInertFallback(panel)
+
+    expect(document.activeElement).not.toBe(button)
+
+    restore()
+    panel.remove()
+  })
 })
