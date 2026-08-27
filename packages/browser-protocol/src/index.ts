@@ -178,7 +178,31 @@ export interface BrowserPageState {
   loading: boolean
   canGoBack: boolean
   canGoForward: boolean
+  /** Recoverable problem replacing the native page surface. Optional for older shells. */
+  issue?: BrowserPageIssue
 }
+
+/** A recoverable top-level page problem rendered by Sim instead of a blank native view. */
+export type BrowserPageIssue =
+  | {
+      kind: 'load-error'
+      /** Chromium network error number, such as -102 for connection refused. */
+      code: number
+      /** Chromium network error name, such as ERR_CONNECTION_REFUSED. */
+      description: string
+      /** The attempted URL, which may never have committed in WebContents. */
+      url: string
+    }
+  | {
+      kind: 'crashed'
+      /** Chromium renderer exit reason, such as crashed or oom. */
+      reason: string
+      url: string
+    }
+  | {
+      kind: 'unresponsive'
+      url: string
+    }
 
 /**
  * One find-in-page request against the active tab. Backed by Chromium's own
@@ -222,6 +246,8 @@ export interface BrowserTabState {
   title: string
   loading: boolean
   active: boolean
+  /** Recoverable problem currently replacing this tab's native page surface. */
+  issue?: BrowserPageIssue
   /** Pinned tabs are ordered before regular tabs and cannot be closed. */
   pinned: boolean
 }
