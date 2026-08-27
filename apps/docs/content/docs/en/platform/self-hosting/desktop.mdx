@@ -39,7 +39,9 @@ The Sim server needs outbound access to `api.github.com` and `github.com` for th
 npx sim-setup desktop
 ```
 
-This reads your deployment URL from your configuration, checks that the installer and update feed both resolve, and prints the download link plus the server URL to enter. Pass `--url https://sim.example.com` when running the CLI somewhere that reaches Sim at a different address.
+This reads your deployment URL from your configuration, checks that the installer and update feed both resolve, and prints the download link plus the server URL to enter.
+
+Pass `--url https://sim.example.com` when running the CLI somewhere that reaches Sim at a different address — or when the machine has more than one Sim configuration, in which case the command lists what it found and asks you to say which deployment you mean rather than guessing.
 
 Without the CLI, open `https://your-sim-url/api/desktop/update/download` in a browser.
 
@@ -61,7 +63,18 @@ Launch Sim, then choose **Sim → Server…** in the menu bar. Enter your deploy
 
 The app relaunches against your server and stays there — the setting persists across updates, and every later update is fetched from your deployment's feed.
 
-Each server keeps its own session, so you sign in again on the new one, and the relaunched app opens on the workspace picker rather than whatever workspace the old server had open. Everything else — window size, zoom, notification preferences, and the built-in browser's own profile — is device state and is kept.
+Changing servers deliberately clears what the previous deployment was trusted with, so the new one cannot inherit it:
+
+- **Your session.** Each server gets its own storage, so you sign in again.
+- **The saved route.** The app opens on the workspace picker, not the workspace the old server had open.
+- **Folder access.** Directories you let the agent read are forgotten; grant them again when you need them.
+- **Built-in browser sessions.** Sites you were signed into in the built-in browser are signed out.
+
+The last two are capabilities you granted to a *specific* Sim server, so carrying them across would hand the new deployment access it was never given — the same reasoning that clears them when you sign out.
+
+Device settings are kept: window size, zoom, theme, notification preferences, tray, and launch-at-login.
+
+If something cannot be cleared, the change is refused and the app stays on your current server rather than switching with the old deployment's access still in place. Retrying finishes the job.
 
 </Step>
 
@@ -81,19 +94,25 @@ Each server gets its own isolated cookie and storage partition, so you can move 
 
 ## Recovering from a wrong server URL
 
-If the app is pointed at a server it cannot reach, it shows its **Can't connect** page. That page has a **Change server** button that opens the same picker, so a typo is always recoverable without touching the filesystem.
+If the app is pointed at a server it cannot reach, it shows its **Can't connect** page, which names the reason — a DNS failure, a timeout, or a TLS problem. That page has a **Change server** button that opens the same picker, pre-filled with the current value, so a typo is always recoverable without touching the filesystem.
+
+<Callout type="warn">
+  **Your TLS certificate must be trusted by the operating system.** The app rejects certificate errors outright and offers no "continue anyway" — a self-signed certificate or a private CA that is not in the system trust store shows `Connection isn't secure` and will not load, however correct the URL is. Install your CA in the system keychain, or use a publicly trusted certificate.
+</Callout>
 
 ## Building your own shell
 
 You almost certainly do not need this. It is worth it only if you need your own bundle identity or your own signing identity — for example, to distribute through MDM under your organization's Developer ID.
+
+Packaging needs **macOS with Xcode 26 or newer** — the app icon is an Icon Composer asset, and an older toolchain fails with `Failed to check actool version`.
 
 ```bash
 cd apps/desktop
 SIM_DESKTOP_DEFAULT_ORIGIN=https://sim.example.com bun run package:share
 ```
 
-This bakes your origin in as the default for fresh installs, so users never see the server picker. Artifacts land in `apps/desktop/release/sim/`, named `sim-<version>-<arch>.dmg`.
+This bakes your origin in as the default for fresh installs, so nobody has to set the server by hand (the picker stays available in the menu). Artifacts land in `apps/desktop/release/sim/`, named `sim-<version>-<arch>.dmg`.
 
 <Callout type="warn">
-  A build packaged this way is signed with whatever identity is on the build machine, and without App Store Connect credentials it is **not** notarized — so macOS quarantines it on download. Before distributing it, supply your own Developer ID via `CSC_LINK` and `CSC_KEY_PASSWORD`, and notarization credentials via `APPLE_API_KEY`, `APPLE_API_KEY_ID`, `APPLE_API_ISSUER`, and `APPLE_TEAM_ID`.
+  Signing and notarization become your responsibility with this route, and macOS quarantines anything downloaded that is not notarized. Supply your own Developer ID via `CSC_LINK` and `CSC_KEY_PASSWORD`, and App Store Connect notarization credentials via `APPLE_API_KEY`, `APPLE_API_KEY_ID`, `APPLE_API_ISSUER`, and `APPLE_TEAM_ID`.
 </Callout>
