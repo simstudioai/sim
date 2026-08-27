@@ -84,6 +84,7 @@ import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useChatStore } from '@/stores/chat/store'
+import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 import type { ChatContext, PanelTab } from '@/stores/panel'
 import { usePanelStore } from '@/stores/panel'
 import { useVariablesModalStore } from '@/stores/variables/modal'
@@ -97,6 +98,22 @@ import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('Panel')
 const EMPTY_COPILOT_CHATS: readonly CopilotChatListItem[] = []
+
+/**
+ * Builds the persisted draft key for a workflow-copilot chat.
+ *
+ * Scoped per chat, not per workflow: a draft is cleared only on submit, so a
+ * workflow-wide key carries one chat's typed text, contexts, and attachments
+ * into the next chat selected. The workflow segment stays so each workflow
+ * keeps its own unselected-chat (`new`) draft.
+ */
+function copilotDraftKey(
+  workspaceId: string,
+  workflowId: string | undefined,
+  chatId: string | undefined
+): string | undefined {
+  return workflowId ? `${workspaceId}:workflow-copilot:${workflowId}:${chatId ?? 'new'}` : undefined
+}
 /**
  * Panel component with resizable width and tab navigation that persists across page refreshes.
  *
@@ -274,6 +291,9 @@ export const Panel = memo(function Panel() {
     activeWorkflowId ?? undefined
   )
 
+  const copilotDraftWorkflowId = activeWorkflowId ?? routeWorkflowId
+  const copilotDraftScopeKey = copilotDraftKey(workspaceId, copilotDraftWorkflowId, copilotChatId)
+
   const { data: copilotChatList = EMPTY_COPILOT_CHATS } = useCopilotChats(
     isCopilotTabAvailable ? (activeWorkflowId ?? undefined) : undefined
   )
@@ -332,13 +352,16 @@ export const Panel = memo(function Panel() {
           if (copilotChatId === chatId) {
             setCopilotChatId(undefined)
           }
+          // The draft store is persisted, so an unpruned key survives forever.
+          const draftKey = copilotDraftKey(workspaceId, copilotDraftWorkflowId, chatId)
+          if (draftKey) useMothershipDraftsStore.getState().clearDraft(draftKey)
           loadCopilotChats()
         })
         .catch((err) => {
           logger.error('Failed to delete copilot chat', { error: toError(err).message, chatId })
         })
     },
-    [copilotChatId, loadCopilotChats, setCopilotChatId]
+    [copilotChatId, loadCopilotChats, setCopilotChatId, workspaceId, copilotDraftWorkflowId]
   )
 
   const handleCopilotToolResult = useCallback(
@@ -398,10 +421,6 @@ export const Panel = memo(function Panel() {
       },
     })
   )
-  const copilotDraftWorkflowId = activeWorkflowId ?? routeWorkflowId
-  const copilotDraftScopeKey = copilotDraftWorkflowId
-    ? `${workspaceId}:workflow-copilot:${copilotDraftWorkflowId}`
-    : undefined
 
   const handleCopilotNewChat = useCallback(() => {
     if (!activeWorkflowId || !workspaceId) return
