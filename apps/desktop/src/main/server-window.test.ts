@@ -34,7 +34,7 @@ function makeDeps(overrides: Partial<ServerWindowDeps> = {}): ServerWindowDeps {
     preloadPath: '/tmp/preload.cjs',
     isPackaged: false,
     getParentWindow: () => null,
-    clearDeploymentScopedState: vi.fn(async () => {}),
+    clearDeploymentScopedState: vi.fn(async (): Promise<readonly string[]> => []),
     relaunch: vi.fn(),
     ...overrides,
   }
@@ -114,25 +114,46 @@ describe('server window', () => {
     expect(deps.clearDeploymentScopedState).not.toHaveBeenCalled()
   })
 
-  // The origin is already persisted by this point, so a failed clear must not
-  // strand the shell on the old server — but it is logged, not swallowed.
-  it('still relaunches when the teardown fails', async () => {
+  // Fail closed. A store that could not be emptied is access the incoming
+  // deployment would inherit and that startup would restore, so the change is
+  // refused outright — and because nothing is persisted until the teardown
+  // succeeds, refusing leaves the shell exactly where it was.
+  it('refuses the change when a store could not be cleared', async () => {
     const failing = makeDeps({
+      clearDeploymentScopedState: vi.fn(async () => ['local file access']),
+    })
+
+    const result = await createServerWindow(failing).setOrigin('https://sim.other.example')
+
+    expect(result).toMatchObject({ ok: false })
+    expect(result).toHaveProperty('error', expect.stringContaining('local file access'))
+    expect(failing.relaunch).not.toHaveBeenCalled()
+    expect(failing.config.setOrigin).not.toHaveBeenCalled()
+    expect(failing.config.getOrigin()).toBe(CURRENT)
+  })
+
+  it('refuses the change when the teardown throws outright', async () => {
+    const throwing = makeDeps({
       clearDeploymentScopedState: vi.fn(async () => {
         throw new Error('keychain unavailable')
       }),
     })
 
-    const result = await createServerWindow(failing).setOrigin('https://sim.other.example')
+    const result = await createServerWindow(throwing).setOrigin('https://sim.other.example')
 
-    expect(result).toMatchObject({ ok: true, unchanged: false })
-    expect(failing.relaunch).toHaveBeenCalledTimes(1)
+    expect(result).toMatchObject({ ok: false })
+    expect(throwing.relaunch).not.toHaveBeenCalled()
+    expect(throwing.config.getOrigin()).toBe(CURRENT)
   })
 
-  it('surfaces a rejected origin without relaunching', async () => {
+  // Validated up front with the shell's own rule, before anything is torn down
+  // or written, so a typo costs nothing.
+  it('surfaces a rejected origin without tearing anything down', async () => {
     const result = await createServerWindow(deps).setOrigin('ftp://sim.example.com')
 
-    expect(result).toEqual({ ok: false, error: 'bad origin' })
+    expect(result).toMatchObject({ ok: false })
+    expect(result).toHaveProperty('error', expect.stringContaining('HTTPS'))
+    expect(deps.clearDeploymentScopedState).not.toHaveBeenCalled()
     expect(deps.relaunch).not.toHaveBeenCalled()
     expect(deps.config.getOrigin()).toBe(CURRENT)
   })

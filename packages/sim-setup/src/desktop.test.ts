@@ -49,6 +49,19 @@ describe('resolveDeploymentUrl', () => {
     ).toThrow(SetupError)
   })
 
+  // These spell one deployment four ways. Treating them as a conflict would
+  // demand a --url override to settle an ambiguity that does not exist.
+  it('treats equivalent spellings of one deployment as agreement', () => {
+    expect(
+      resolveDeploymentUrl([
+        source('https://sim.example.com'),
+        source('https://sim.example.com/'),
+        source('https://SIM.example.com'),
+        source('https://sim.example.com:443/workspace'),
+      ])
+    ).toBe('https://sim.example.com')
+  })
+
   it('accepts agreeing sources and an override that settles the ambiguity', () => {
     expect(
       resolveDeploymentUrl([source('https://sim.example.com'), source('https://sim.example.com')])
@@ -145,6 +158,16 @@ describe('sanitizeForTerminal', () => {
     expect(sanitizeForTerminal('Sim\u001b[2K\u001b[1G forged.dmg')).toBe('Sim[2K[1G forged.dmg')
     expect(sanitizeForTerminal('a\u0000b\u007fc\u009fd')).toBe('abcd')
     expect(sanitizeForTerminal('Sim-1.2.3-universal.dmg')).toBe('Sim-1.2.3-universal.dmg')
+  })
+
+  // Bidi overrides and isolates reorder what the reader sees without emitting a
+  // single control byte, so a range-based C0/C1 filter lets them straight
+  // through — `gpj.dmg` can be made to render as `dmg.jpg`.
+  it('strips bidi controls, not just cursor controls', () => {
+    expect(sanitizeForTerminal('Sim\u202e gmd.eno\u202c.dmg')).toBe('Sim gmd.eno.dmg')
+    for (const control of ['\u200e', '\u200f', '\u202a', '\u202d', '\u2066', '\u2069', '\u061c']) {
+      expect(sanitizeForTerminal(`a${control}b`)).toBe('ab')
+    }
   })
 
   it('caps a name that would overrun the spinner line', () => {

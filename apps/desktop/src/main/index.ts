@@ -483,8 +483,23 @@ function main(): void {
     isPackaged: app.isPackaged,
     getParentWindow: getMainWindow,
     clearDeploymentScopedState: async () => {
-      await localFilesystem.forgetAll()
-      await clearAgentBrowserProfile()
+      // allSettled, not sequential awaits: these are independent stores, and a
+      // rejection from the first must not skip the second — leaving the store
+      // that would have cleared fine still holding the outgoing deployment's
+      // access. Each failure is named so the picker can say what survived.
+      const stores = [
+        { label: 'local file access', clear: () => localFilesystem.forgetAll() },
+        { label: 'built-in browser sessions', clear: () => clearAgentBrowserProfile() },
+      ]
+      const outcomes = await Promise.allSettled(stores.map((store) => store.clear()))
+      return outcomes.flatMap((outcome, index) => {
+        if (outcome.status === 'fulfilled') return []
+        logger.error('Could not clear deployment-scoped state', {
+          store: stores[index].label,
+          error: getErrorMessage(outcome.reason),
+        })
+        return [stores[index].label]
+      })
     },
     relaunch: relaunchApp,
   })

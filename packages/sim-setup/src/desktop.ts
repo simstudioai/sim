@@ -24,19 +24,35 @@ const REDIRECT_STATUSES: ReadonlySet<number> = new Set([301, 302, 307, 308])
 /** The env var every deployment sets to its own public origin. */
 const APP_URL_KEY = 'NEXT_PUBLIC_APP_URL'
 
+/**
+ * The deployment a configured URL names, for comparison only. Unparseable
+ * values fall back to their raw text so they compare equal to themselves and
+ * unequal to everything else.
+ */
+function deploymentKey(value: string): string {
+  try {
+    return new URL(value).origin.toLowerCase()
+  } catch {
+    return value
+  }
+}
+
 /** Keeps a rendered artifact name from overrunning the spinner line. */
 const MAX_INSTALLER_NAME = 120
 
 /**
- * Strips anything that could move the cursor, repaint, or retitle the terminal.
+ * Strips anything that could move the cursor, repaint or retitle the terminal,
+ * or reorder what the reader sees.
  *
  * The artifact name is read out of a redirect the deployment chose, so it is
- * remote input on its way to a TTY: percent-encoded ANSI or OSC bytes survive
- * `decodeURIComponent` as real control characters and would let a compromised
- * deployment forge CLI output. C0 (including ESC), DEL, and C1 all go.
+ * remote input on its way to a TTY, and `decodeURIComponent` turns percent-
+ * encoded bytes into the real characters. Matched by Unicode class rather than
+ * by hand-listed ranges: `Cc` covers C0 (including ESC), DEL, and C1, while
+ * `Cf` covers the bidi overrides and isolates that would otherwise survive and
+ * let a name render in an order it is not written in.
  */
 export function sanitizeForTerminal(value: string): string {
-  return truncate(value.replace(/[\u0000-\u001f\u007f-\u009f]/g, ''), MAX_INSTALLER_NAME)
+  return truncate(value.replace(/[\p{Cc}\p{Cf}]/gu, ''), MAX_INSTALLER_NAME)
 }
 
 export interface DesktopFlags {
@@ -62,20 +78,30 @@ export function resolveDeploymentUrl(
   sources: readonly { label?: string; values?: Map<string, string> | null }[],
   override?: string
 ): string {
-  const discovered = sources.filter((source) => source.values?.get(APP_URL_KEY))
-  const distinct = new Set(discovered.map((source) => source.values?.get(APP_URL_KEY)?.trim()))
-  if (!override && distinct.size > 1) {
+  const discovered = sources.flatMap((source) => {
+    const value = source.values?.get(APP_URL_KEY)?.trim()
+    return value ? [{ label: source.label ?? 'configuration', value }] : []
+  })
+  // Compared on the parsed origin, which is what the command ultimately uses:
+  // a trailing slash, a default port, a different host case, or an ignored path
+  // all name the same deployment, and calling those a conflict would demand a
+  // --url override to resolve an ambiguity that does not exist. A value that
+  // will not parse is its own bucket so it still reaches the error below,
+  // which says something more useful than "these disagree".
+  const byDeployment = new Map<string, string>()
+  for (const { value } of discovered) {
+    byDeployment.set(deploymentKey(value), value)
+  }
+  if (!override && byDeployment.size > 1) {
     throw new SetupError(
-      `Found ${distinct.size} configurations naming different ${APP_URL_KEY} values.`,
+      `Found ${byDeployment.size} configurations naming different ${APP_URL_KEY} values.`,
       [
-        ...discovered.map(
-          (source) => `${source.label ?? 'configuration'}: ${source.values?.get(APP_URL_KEY)}`
-        ),
+        ...discovered.map(({ label, value }) => `${label}: ${value}`),
         'Re-run with --url <deployment url> to say which one the desktop app should use.',
       ]
     )
   }
-  const raw = override ?? discovered[0]?.values?.get(APP_URL_KEY)
+  const raw = override ?? byDeployment.values().next().value
   if (!raw) {
     // A wizard-provisioned local install has the compose interpolation default
     // rather than an explicit value, so an absent key is not a misconfiguration.

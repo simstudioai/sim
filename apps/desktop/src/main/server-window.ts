@@ -3,7 +3,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { app, BrowserWindow, nativeTheme, session } from 'electron'
 import type { ConfigStore, DesktopSettings } from '@/main/config'
-import { isSimCloudOrigin } from '@/main/config'
+import { canonicalOrigin, isSimCloudOrigin, validateOriginInput } from '@/main/config'
 import {
   backgroundColorFor,
   createSecureWebPreferences,
@@ -54,18 +54,21 @@ export interface ServerWindowDeps {
   isPackaged: boolean
   getParentWindow: () => BrowserWindow | null
   /**
-   * Drops the capabilities the OUTGOING deployment was granted, before the new
-   * one can inherit them.
+   * Drops the capabilities the OUTGOING deployment was granted, and reports
+   * what it could not drop.
    *
    * Local-filesystem grants and the agent browser's cookie jar live in
    * device-global stores with no origin key, and both are capabilities the user
    * handed to a specific Sim server: directories its agent may read, and live
    * third-party sessions its agent may drive. Carrying them across would let
    * the next deployment act with authority it was never given — which is why
-   * sign-out clears exactly this pair. Awaited before the relaunch, since a
-   * quit racing an async clear could leave either behind.
+   * sign-out clears exactly this pair.
+   *
+   * Returns the human-readable name of each store that survived; empty means
+   * everything is gone. Reporting rather than throwing is what lets one store's
+   * failure not hide another's, and lets the caller refuse to move.
    */
-  clearDeploymentScopedState: () => Promise<void>
+  clearDeploymentScopedState: () => Promise<readonly string[]>
   /**
    * Relaunches the shell against the newly stored origin. A full restart rather
    * than an in-place swap: the origin decides the cookie partition, the update
@@ -160,35 +163,50 @@ export function createServerWindow(deps: ServerWindowDeps): ServerWindowHandle {
   }
 
   const setOrigin = async (raw: string): Promise<DesktopServerChangeResult> => {
-    const current = deps.config.getOrigin()
-    const validated = deps.config.setOrigin(raw)
+    const validated = validateOriginInput(raw)
     if (!validated.ok) {
       return validated
     }
-    if (validated.origin === current) {
-      // Nothing moved, so nothing is torn down. Relaunching anyway would make
+    // Same canonicalization the store applies, so the comparison below matches
+    // what would actually be written.
+    const origin = canonicalOrigin(validated.origin)
+    const current = deps.config.getOrigin()
+    if (origin === current) {
+      // Nothing moves, so nothing is torn down. Relaunching anyway would make
       // "confirm the URL I already use" restart the app for no reason.
-      return { ok: true, origin: validated.origin, unchanged: true }
+      return { ok: true, origin, unchanged: true }
     }
-    logger.info('Server origin changed; relaunching', { from: current, to: validated.origin })
+
+    // Fail closed, and clear BEFORE persisting. If a store cannot be emptied,
+    // the shell must not move: the incoming deployment would otherwise inherit
+    // folder grants and authenticated browser sessions the outgoing one was
+    // given, and they are restored on the next startup. Nothing has been
+    // written at this point, so refusing leaves the shell exactly where it was
+    // rather than stranding it on a half-applied change.
+    const surviving = await deps.clearDeploymentScopedState().catch((error) => {
+      logger.error('Deployment-scoped teardown threw', { error: getErrorMessage(error) })
+      return ['local file access and built-in browser sessions']
+    })
+    if (surviving.length > 0) {
+      logger.error('Refusing to change server; deployment-scoped state survived', { surviving })
+      return {
+        ok: false,
+        error: `Could not clear ${surviving.join(' or ')} from the current server, so the server was not changed. Try again, or sign out first.`,
+      }
+    }
+
+    logger.info('Server origin changed; relaunching', { from: current, to: origin })
+    deps.config.setOrigin(raw)
     for (const key of ORIGIN_SCOPED_SETTINGS) {
       deps.config.set(key, undefined)
     }
-    // Failing to clear must not strand the shell on the old origin — that is
-    // already persisted — but it must be loud, because what survives is access
-    // the next deployment did not earn.
-    await deps.clearDeploymentScopedState().catch((error) => {
-      logger.error('Could not clear deployment-scoped state before relaunch', {
-        error: getErrorMessage(error),
-      })
-    })
     // setOrigin writes through immediately; the clears above are debounced like
     // every other setting. `before-quit` flushes too, but doing it here keeps
     // the write independent of the Electron quit sequence.
     deps.config.flush()
     close()
     deps.relaunch()
-    return { ok: true, origin: validated.origin, unchanged: false }
+    return { ok: true, origin, unchanged: false }
   }
 
   return { open, getConfiguration, setOrigin }
