@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ComboboxOption } from '@sim/emcn'
-import { ChipCombobox, ChipConfirmModal, Plus, toast, Upload } from '@sim/emcn'
+import { ChipCombobox, ChipConfirmModal, OverflowText, Plus, toast, Upload } from '@sim/emcn'
 import { Columns3, FolderPlus, Pencil, Rows3, Table as TableIcon, Trash } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -693,7 +693,7 @@ export function Tables() {
             multiSelectValues={rowCountFilter}
             onMultiSelectChange={setRowCountFilter}
             overlayContent={
-              <span className='truncate text-[var(--text-primary)]'>{rowCountDisplayLabel}</span>
+              <OverflowText label={rowCountDisplayLabel} className='text-[var(--text-primary)]' />
             }
             showAllOption
             allOptionLabel='All'
@@ -709,7 +709,7 @@ export function Tables() {
               multiSelectValues={ownerFilter}
               onMultiSelectChange={setOwnerFilter}
               overlayContent={
-                <span className='truncate text-[var(--text-primary)]'>{ownerDisplayLabel}</span>
+                <OverflowText label={ownerDisplayLabel} className='text-[var(--text-primary)]' />
               }
               searchable
               searchPlaceholder='Search members...'

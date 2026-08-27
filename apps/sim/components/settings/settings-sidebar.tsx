@@ -1,7 +1,14 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { ChipConfirmModal, chipIconSlotClass, chipVariants, cn, Tooltip } from '@sim/emcn'
+import {
+  ChipConfirmModal,
+  chipIconSlotClass,
+  chipVariants,
+  cn,
+  OverflowText,
+  Tooltip,
+} from '@sim/emcn'
 import { ChevronLeft } from '@sim/emcn/icons'
 import { useRouter } from 'next/navigation'
 import {
@@ -119,7 +126,7 @@ export function SettingsSidebar<Section extends SettingsSection>({
               <span aria-hidden className={cn(chipIconSlotClass, 'text-[var(--text-icon)]')}>
                 <ChevronLeft className='size-[14px]' />
               </span>
-              <span className='sidebar-collapse-hide truncate text-[var(--text-body)]'>Back</span>
+              <span className='sidebar-collapse-hide text-[var(--text-body)]'>Back</span>
             </button>
           </SidebarTooltip>
         )}
@@ -175,9 +182,10 @@ export function SettingsSidebar<Section extends SettingsSection>({
                           }}
                         >
                           <Icon className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
-                          <span className='sidebar-collapse-hide min-w-0 truncate text-[var(--text-body)]'>
-                            {item.label}
-                          </span>
+                          <OverflowText
+                            label={item.label}
+                            className='sidebar-collapse-hide text-[var(--text-body)]'
+                          />
                           {item.locked && (
                             <span className='sidebar-collapse-hide ml-auto shrink-0 rounded-[3px] bg-[var(--surface-5)] px-1 py-[1px] font-medium text-[var(--text-icon)] text-micro uppercase tracking-wide'>
                               Plan

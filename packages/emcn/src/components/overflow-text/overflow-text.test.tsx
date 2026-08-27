@@ -1,0 +1,140 @@
+/**
+ * @vitest-environment jsdom
+ */
+import { act } from 'react'
+import { createRoot, type Root } from 'react-dom/client'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { OverflowText } from './overflow-text'
+
+let host: HTMLDivElement
+let root: Root
+let resizeObserverCallback: ResizeObserverCallback
+let resizeObserverCount: number
+
+beforeEach(() => {
+  resizeObserverCount = 0
+  ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+  vi.stubGlobal(
+    'ResizeObserver',
+    class ResizeObserver {
+      constructor(callback: ResizeObserverCallback) {
+        resizeObserverCount += 1
+        resizeObserverCallback = callback
+      }
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    }
+  )
+  host = document.createElement('div')
+  document.body.appendChild(host)
+  root = createRoot(host)
+})
+
+afterEach(() => {
+  act(() => root.unmount())
+  host.remove()
+  vi.unstubAllGlobals()
+})
+
+function setWidths(element: HTMLElement, clientWidth: number, scrollWidth: number) {
+  Object.defineProperties(element, {
+    clientWidth: { configurable: true, value: clientWidth },
+    scrollWidth: { configurable: true, value: scrollWidth },
+  })
+  act(() =>
+    resizeObserverCallback(
+      [
+        {
+          target: element,
+          contentRect: element.getBoundingClientRect(),
+          borderBoxSize: [],
+          contentBoxSize: [],
+          devicePixelContentBoxSize: [],
+        },
+      ],
+      {} as ResizeObserver
+    )
+  )
+}
+
+describe('OverflowText', () => {
+  it('fades and reveals the full value only when clipped', () => {
+    act(() =>
+      root.render(<OverflowText label='A long workflow name' className='truncate text-sm' />)
+    )
+    const label = host.querySelector<HTMLElement>('span')
+    if (!label) throw new Error('Overflow label did not render')
+
+    setWidths(label, 80, 180)
+
+    expect(label.classList.contains('overflow-hidden')).toBe(true)
+    expect(label.classList.contains('text-clip')).toBe(true)
+    expect(label.classList.contains('whitespace-nowrap')).toBe(true)
+    expect(label.classList.contains('truncate')).toBe(false)
+    expect(label.classList.contains('text-sm')).toBe(true)
+    expect(label.className).toContain('-webkit-mask-image:linear-gradient')
+    expect(label.className).toContain('mask-image:linear-gradient')
+
+    act(() => {
+      label.dispatchEvent(
+        new MouseEvent('pointerover', { bubbles: true, clientX: 100, clientY: 100 })
+      )
+    })
+    expect(document.querySelector('[data-native-surface-overlay]')?.textContent).toBe(
+      'A long workflow name'
+    )
+  })
+
+  it('leaves a fitting label unmasked and does not open a tooltip', () => {
+    act(() => root.render(<OverflowText label='Short' />))
+    const label = host.querySelector<HTMLElement>('span')
+    if (!label) throw new Error('Overflow label did not render')
+
+    setWidths(label, 100, 60)
+    expect(label.className).not.toContain('mask-image:linear-gradient')
+
+    act(() => {
+      label.dispatchEvent(
+        new MouseEvent('pointerover', { bubbles: true, clientX: 100, clientY: 100 })
+      )
+    })
+    expect(document.querySelector('[data-native-surface-overlay]')).toBeNull()
+  })
+
+  it('keeps decorated visible content out of the plain tooltip label', () => {
+    act(() =>
+      root.render(
+        <OverflowText label='Workflow production'>
+          Workflow <mark>production</mark>
+        </OverflowText>
+      )
+    )
+    const label = host.querySelector<HTMLElement>('span')
+    if (!label) throw new Error('Overflow label did not render')
+    setWidths(label, 80, 180)
+
+    act(() => {
+      label.dispatchEvent(
+        new MouseEvent('pointerover', { bubbles: true, clientX: 100, clientY: 100 })
+      )
+    })
+
+    const tooltip = document.querySelector('[data-native-surface-overlay]')
+    expect(tooltip?.textContent).toBe('Workflow production')
+    expect(tooltip?.querySelector('mark')).toBeNull()
+  })
+
+  it('shares one resize observer across overflow labels', () => {
+    act(() =>
+      root.render(
+        <>
+          <OverflowText label='First workflow' />
+          <OverflowText label='Second workflow' />
+        </>
+      )
+    )
+
+    expect(resizeObserverCount).toBe(1)
+  })
+})

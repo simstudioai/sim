@@ -227,9 +227,35 @@ export function useFloatingTooltip(
   return { state, handlers }
 }
 
+const overflowMeasureByElement = new WeakMap<Element, () => void>()
+const observedOverflowElements = new Set<Element>()
+let sharedOverflowObserver: ResizeObserver | null = null
+
+function observeOverflow(element: Element, measure: () => void): boolean {
+  if (typeof ResizeObserver === 'undefined') return false
+  sharedOverflowObserver ??= new ResizeObserver((entries) => {
+    for (const entry of entries) overflowMeasureByElement.get(entry.target)?.()
+  })
+  overflowMeasureByElement.set(element, measure)
+  observedOverflowElements.add(element)
+  sharedOverflowObserver.observe(element)
+  return true
+}
+
+function unobserveOverflow(element: Element | null) {
+  if (!element) return
+  sharedOverflowObserver?.unobserve(element)
+  overflowMeasureByElement.delete(element)
+  observedOverflowElements.delete(element)
+  if (observedOverflowElements.size === 0) {
+    sharedOverflowObserver?.disconnect()
+    sharedOverflowObserver = null
+  }
+}
+
 /**
  * Tracks whether an element's text is horizontally clipped, re-measuring via a
- * `ResizeObserver` and window resizes.
+ * shared `ResizeObserver` (or window resizes when the API is unavailable).
  *
  * Returns a callback `ref` to attach to the element — the observer follows the
  * element across mount, unmount, and reassignment, so it is safe to use on
@@ -243,7 +269,7 @@ export function useIsOverflowing<T extends HTMLElement = HTMLElement>(): {
 } {
   const [isOverflowing, setIsOverflowing] = React.useState(false)
   const nodeRef = React.useRef<T | null>(null)
-  const observerRef = React.useRef<ResizeObserver | null>(null)
+  const usesResizeObserverRef = React.useRef(false)
 
   const measure = React.useCallback(() => {
     const element = nodeRef.current
@@ -252,24 +278,22 @@ export function useIsOverflowing<T extends HTMLElement = HTMLElement>(): {
 
   const ref = React.useCallback(
     (node: T | null) => {
-      observerRef.current?.disconnect()
-      observerRef.current = null
+      unobserveOverflow(nodeRef.current)
       nodeRef.current = node
       if (!node) return
 
       measure()
-      const observer = new ResizeObserver(measure)
-      observer.observe(node)
-      observerRef.current = observer
+      usesResizeObserverRef.current = observeOverflow(node, measure)
     },
     [measure]
   )
 
   React.useEffect(() => {
+    if (usesResizeObserverRef.current) return () => unobserveOverflow(nodeRef.current)
     window.addEventListener('resize', measure)
     return () => {
       window.removeEventListener('resize', measure)
-      observerRef.current?.disconnect()
+      unobserveOverflow(nodeRef.current)
     }
   }, [measure])
 

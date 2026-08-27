@@ -13,6 +13,7 @@ import {
   FieldDivider,
   Label,
   Loader,
+  OverflowText,
   Switch,
   Tooltip,
   toast,
@@ -763,7 +764,7 @@ export function WorkflowSidebarBody({
               <ArrowLeft className='size-[14px]' />
             </Button>
           )}
-          <h2 className='truncate text-[var(--text-primary)] text-small'>{title}</h2>
+          <OverflowText label={title} className='text-[var(--text-primary)] text-small' />
         </div>
         <Button
           variant='ghost'

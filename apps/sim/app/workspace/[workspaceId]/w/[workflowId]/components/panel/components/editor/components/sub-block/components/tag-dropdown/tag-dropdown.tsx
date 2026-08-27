@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import {
   cn,
+  OverflowText,
   Popover,
   PopoverAnchor,
   PopoverContent,
@@ -442,7 +443,7 @@ const FolderContentsInner: React.FC<FolderContentsProps> = ({
             }
           }}
         >
-          <span className='flex-1 truncate'>{currentNestedTag.display}</span>
+          <OverflowText label={currentNestedTag.display} className='flex-1' />
         </PopoverItem>
       )}
 
@@ -482,7 +483,7 @@ const FolderContentsInner: React.FC<FolderContentsProps> = ({
               }
             }}
           >
-            <span className='flex-1 truncate'>{child.display}</span>
+            <OverflowText label={child.display} className='flex-1' />
             {childType && childType !== 'any' && (
               <span className='ml-auto text-[var(--text-muted-inverse)] text-micro'>
                 {childType}
@@ -518,7 +519,7 @@ const FolderContentsInner: React.FC<FolderContentsProps> = ({
               }
             }}
           >
-            <span className='flex-1 truncate'>{nestedChild.display}</span>
+            <OverflowText label={nestedChild.display} className='flex-1' />
             <span className='ml-auto text-[var(--text-muted-inverse)] text-micro'>{'>'}</span>
           </PopoverItem>
         )
@@ -673,7 +674,7 @@ const NestedTagRenderer: React.FC<NestedTagRendererProps> = ({
         }
       }}
     >
-      <span className='flex-1 truncate'>{nestedTag.display}</span>
+      <OverflowText label={nestedTag.display} className='flex-1' />
       {tagDescription && tagDescription !== 'any' && (
         <span className='ml-auto text-[var(--text-muted-inverse)] text-micro'>
           {tagDescription}
@@ -741,9 +742,12 @@ const VariableTagItem: React.FC<{
         }
       }}
     >
-      <span className='flex-1 truncate'>
-        {tag.startsWith(TAG_PREFIXES.VARIABLE) ? tag.substring(TAG_PREFIXES.VARIABLE.length) : tag}
-      </span>
+      <OverflowText
+        label={
+          tag.startsWith(TAG_PREFIXES.VARIABLE) ? tag.substring(TAG_PREFIXES.VARIABLE.length) : tag
+        }
+        className='flex-1'
+      />
       {variableInfo && (
         <span className='ml-auto text-[var(--text-muted-inverse)] text-micro'>
           {variableInfo.type}
@@ -800,7 +804,7 @@ const BlockRootTagItem: React.FC<{
         fallbackLabel={blockName.charAt(0).toUpperCase()}
         size='sm'
       />
-      <span className='flex-1 truncate'>{blockName}</span>
+      <OverflowText label={blockName} className='flex-1' />
     </PopoverItem>
   )
 }

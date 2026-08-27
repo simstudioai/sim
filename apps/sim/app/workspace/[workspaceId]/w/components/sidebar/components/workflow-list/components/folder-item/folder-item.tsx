@@ -1,7 +1,14 @@
 'use client'
 
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
-import { chipContentIconClass, chipVariants, cn, disclosureChevronClass, toast } from '@sim/emcn'
+import {
+  chipContentIconClass,
+  chipVariants,
+  cn,
+  disclosureChevronClass,
+  OverflowText,
+  toast,
+} from '@sim/emcn'
 import { ChevronRight, Folder, FolderOpen, Lock, MoreHorizontal } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -535,13 +542,11 @@ export const FolderItem = memo(function FolderItem({ workspaceId, folder }: Fold
           />
         ) : (
           <div className='flex min-w-0 flex-1 items-center gap-2'>
-            <div className='flex min-w-0 flex-1 items-center gap-1'>
-              <span
-                className='min-w-0 truncate text-[var(--text-body)]'
-                onDoubleClick={handleDoubleClick}
-              >
-                {folder.name}
-              </span>
+            <div
+              className='flex min-w-0 flex-1 items-center gap-1'
+              onDoubleClick={handleDoubleClick}
+            >
+              <OverflowText label={folder.name} className='flex-1 text-[var(--text-body)]' />
             </div>
             <div className='relative size-[18px] flex-shrink-0'>
               {folder.locked && (

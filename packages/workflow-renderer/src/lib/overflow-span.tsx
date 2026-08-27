@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { FloatingTooltip, isTextClipped, useFloatingTooltip } from '@sim/emcn'
+import { OverflowText } from '@sim/emcn'
 import type { CodePreview } from '../types'
 import { CodeHoverCard } from './code-hover-card'
 
@@ -41,14 +41,9 @@ export function OverflowSpan({ value, className, codePreview, children }: Overfl
 
 /** Plain clipped text keeps the platform tooltip behavior unchanged. */
 function TextOverflowSpan({ value, className, children }: Omit<OverflowSpanProps, 'codePreview'>) {
-  const { state, handlers } = useFloatingTooltip(isTextClipped)
-
   return (
-    <>
-      <span className={className} {...handlers}>
-        {children ?? value}
-      </span>
-      <FloatingTooltip label={value} state={state} />
-    </>
+    <OverflowText label={value} className={className}>
+      {children}
+    </OverflowText>
   )
 }

@@ -1,5 +1,5 @@
 import { type ReactNode, useId } from 'react'
-import { cn } from '@sim/emcn'
+import { cn, OverflowText } from '@sim/emcn'
 import { ArrowRight } from '@sim/emcn/icons'
 import Link from 'next/link'
 import {
@@ -157,12 +157,24 @@ export function SettingsResourceRow({
         </div>
       )}
       <div className='flex min-w-0 flex-col justify-center gap-[1px] text-left'>
-        <span className='truncate text-[var(--text-body)] text-sm'>{title}</span>
-        {description != null && (
-          <span id={describedById} className='truncate text-[var(--text-muted)] text-caption'>
-            {description}
-          </span>
+        {typeof title === 'string' ? (
+          <OverflowText label={title} className='text-[var(--text-body)] text-sm' />
+        ) : (
+          <span className='truncate text-[var(--text-body)] text-sm'>{title}</span>
         )}
+        {description != null &&
+          (typeof description === 'string' ? (
+            <span id={describedById} className='min-w-0'>
+              <OverflowText
+                label={description}
+                className='block text-[var(--text-muted)] text-caption'
+              />
+            </span>
+          ) : (
+            <span id={describedById} className='truncate text-[var(--text-muted)] text-caption'>
+              {description}
+            </span>
+          ))}
       </div>
     </>
   )

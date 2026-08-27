@@ -32,6 +32,7 @@ The menu surface intentionally diverges from the pill: `dropdown-menu.tsx` items
 - **`ChipDatePicker`** — chip-styled date field.
 - **`ChipTimePicker`** — minute-granular time sibling of `ChipDatePicker`, a `ChipInput` that leniently parses typed input (`9:47`, `947`, `2:05pm`, `14:30`), commits on Enter/blur, and re-renders the canonical `9:47 AM` label.
 - **`DropdownMenu`** — the canonical context/action menu (Radix-backed). Not a chip, but the standard menu for command/action lists; reach for it instead of a hand-rolled popover. Its surface intentionally diverges from the chip pill (`text-small`, `gap-2`) — keep them distinct. For a pill that opens a value picker, use `ChipDropdown`/`ChipSelect` instead.
+- **`OverflowText`** — the canonical single-line overflow treatment for read-only human labels and titles. It owns `min-w-0`, single-line clipping, the conditional 18px edge fade, and the full-value floating tooltip; consumers pass only layout/typography through `className`. Never combine the fade with `truncate`, which paints an ellipsis beneath the mask. Keep ordinary `truncate` for editable or mirrored input values, code/log/path content, dense or virtualized grids, and composite rows where masking the container would also fade icons or actions. Multiline copy uses an intentional `line-clamp-*` treatment instead.
 
 ## Modal keyboard defaults
 

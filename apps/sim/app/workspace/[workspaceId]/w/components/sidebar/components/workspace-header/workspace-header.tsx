@@ -14,6 +14,7 @@ import {
   DropdownMenuContent,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  OverflowText,
   Plus,
   Send,
   Skeleton,
@@ -760,9 +761,10 @@ function WorkspaceHeaderImpl({
                                 {initial}
                               </div>
                             )}
-                            <span className='min-w-0 flex-1 truncate text-[var(--text-body)] text-sm'>
-                              {workspace.name}
-                            </span>
+                            <OverflowText
+                              label={workspace.name}
+                              className='flex-1 text-[var(--text-body)] text-sm'
+                            />
                             {/* Pin and options share one fixed slot, as the chat rows do:
                                 the trailing width never changes, so pinning cannot re-truncate
                                 the name under the user's cursor. */}

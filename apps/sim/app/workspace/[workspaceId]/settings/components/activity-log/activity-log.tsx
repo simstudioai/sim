@@ -65,14 +65,14 @@ function ActivityLogRow({
       </span>
       <span className='min-w-0 flex-1 text-[var(--text-primary)] text-small'>
         {typeof entry.description === 'string' ? (
-          <FloatingOverflowText label={entry.description} className='block truncate' />
+          <FloatingOverflowText label={entry.description} className='block' />
         ) : (
           entry.description
         )}
       </span>
       <span className='flex w-[160px] flex-shrink-0 items-center justify-end gap-1.5 text-[var(--text-secondary)] text-small'>
         {typeof entry.actor === 'string' ? (
-          <FloatingOverflowText label={entry.actor} className='block min-w-0 truncate' />
+          <FloatingOverflowText label={entry.actor} className='block' />
         ) : (
           <span className='min-w-0 truncate'>{entry.actor}</span>
         )}

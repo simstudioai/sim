@@ -14,6 +14,7 @@ import {
   Home,
   Library,
   Loader,
+  OverflowText,
   Skeleton,
   Tooltip,
   Upload,
@@ -275,7 +276,7 @@ const SidebarChatItem = memo(function SidebarChatItem({
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        <div className='min-w-0 flex-1 truncate text-[var(--text-body)]'>{chat.name}</div>
+        <OverflowText label={chat.name} className='flex-1 text-[var(--text-body)]' />
         {chat.id !== 'new' && (
           <div className='relative flex size-[18px] flex-shrink-0 items-center justify-center'>
             {showStatusDot && (
