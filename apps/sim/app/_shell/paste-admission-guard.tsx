@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react'
 import { useToast } from '@sim/emcn'
 import { assessTextPaste, formatPasteLimit, PASTE_LIMITS } from '@sim/utils/paste'
+import { readSelectionContextFromClipboard } from '@/lib/copilot/chat/selection-clipboard'
 
 const EDITABLE_TARGET_SELECTOR =
   'input:not([type="file"]):not([type="checkbox"]):not([type="radio"]):not([type="button"]):not([type="submit"]):not([type="hidden"]), textarea, [contenteditable]:not([contenteditable="false"]), .monaco-editor, .xterm'
@@ -31,6 +32,8 @@ export function PasteAdmissionGuard() {
       if (!(event.target instanceof Element) || !event.target.closest(EDITABLE_TARGET_SELECTOR)) {
         return
       }
+
+      if (readSelectionContextFromClipboard(event.clipboardData)) return
 
       const text = event.clipboardData?.getData('text/plain') ?? ''
       if (!text) return

@@ -991,26 +991,6 @@ export function usePromptEditor({
   const handlePaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const textarea = e.currentTarget
     const pastedPlainText = e.clipboardData?.getData('text/plain') ?? ''
-    if (pastedPlainText) {
-      const admission = assessTextPaste({
-        pastedText: pastedPlainText,
-        maxPastedBytes: PASTE_LIMITS.CHAT_BYTES,
-        maxPastedCharacters: PASTE_LIMITS.CHAT_CHARACTERS,
-        currentText: textarea.value,
-        selectionStart: textarea.selectionStart,
-        selectionEnd: textarea.selectionEnd,
-        maxResultBytes: PASTE_LIMITS.CHAT_BYTES,
-        maxResultCharacters: PASTE_LIMITS.CHAT_CHARACTERS,
-      })
-      if (!admission.accepted) {
-        e.preventDefault()
-        toast.warning('Paste is too large for a message', {
-          description: `Messages support up to ${PASTE_LIMITS.CHAT_CHARACTERS.toLocaleString()} characters. Attach the content as a file to send more without slowing the editor.`,
-        })
-        return
-      }
-    }
-
     // A selection copied from a file/table (Cmd+C) carries its context on a
     // custom clipboard type — paste it as a reference chip instead of plain text.
     // Registers via `addContext` (not the notified path) so paste never opens a
@@ -1037,6 +1017,26 @@ export function usePromptEditor({
       setValueState(textarea.value)
       requestAnimationFrame(() => textarea.setSelectionRange(caret, caret))
       return
+    }
+
+    if (pastedPlainText) {
+      const admission = assessTextPaste({
+        pastedText: pastedPlainText,
+        maxPastedBytes: PASTE_LIMITS.CHAT_BYTES,
+        maxPastedCharacters: PASTE_LIMITS.CHAT_CHARACTERS,
+        currentText: textarea.value,
+        selectionStart: textarea.selectionStart,
+        selectionEnd: textarea.selectionEnd,
+        maxResultBytes: PASTE_LIMITS.CHAT_BYTES,
+        maxResultCharacters: PASTE_LIMITS.CHAT_CHARACTERS,
+      })
+      if (!admission.accepted) {
+        e.preventDefault()
+        toast.warning('Paste is too large for a message', {
+          description: `Messages support up to ${PASTE_LIMITS.CHAT_CHARACTERS.toLocaleString()} characters. Attach the content as a file to send more without slowing the editor.`,
+        })
+        return
+      }
     }
 
     // Portable chip links (`[label](sim:kind/id)`) re-create their chip on

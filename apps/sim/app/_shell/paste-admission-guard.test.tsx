@@ -11,15 +11,26 @@ vi.mock('@sim/emcn', () => ({
   useToast: () => ({ toast: { warning } }),
 }))
 
+import { SIM_SELECTION_MIME } from '@/lib/copilot/chat/selection-clipboard'
 import { PasteAdmissionGuard } from '@/app/_shell/paste-admission-guard'
 
 let host: HTMLDivElement
 let root: Root
 
-function dispatchPaste(target: Element, text: string): Event {
-  const event = new Event('paste', { bubbles: true, cancelable: true, composed: true })
+function dispatchPaste(target: Element, text: string, selectionContext?: string): Event {
+  const event = new Event('paste', {
+    bubbles: true,
+    cancelable: true,
+    composed: true,
+  })
   Object.defineProperty(event, 'clipboardData', {
-    value: { getData: (type: string) => (type === 'text/plain' ? text : '') },
+    value: {
+      getData: (type: string) => {
+        if (type === 'text/plain') return text
+        if (type === SIM_SELECTION_MIME) return selectionContext ?? ''
+        return ''
+      },
+    },
   })
   target.dispatchEvent(event)
   return event
@@ -80,5 +91,20 @@ describe('PasteAdmissionGuard', () => {
     host.appendChild(editable)
 
     expect(dispatchPaste(editable, 'a').defaultPrevented).toBe(false)
+  })
+
+  it('lets a compact Sim selection reference bypass its large plain-text representation', () => {
+    const input = document.createElement('textarea')
+    input.dataset.pasteMaxBytes = '4'
+    host.appendChild(input)
+    const selectionContext = JSON.stringify({
+      kind: 'table_selection',
+      tableId: 'table-1',
+      tableName: 'Large table',
+      rowIds: ['row-1'],
+      label: 'Large table (1 row)',
+    })
+
+    expect(dispatchPaste(input, '12345', selectionContext).defaultPrevented).toBe(false)
   })
 })

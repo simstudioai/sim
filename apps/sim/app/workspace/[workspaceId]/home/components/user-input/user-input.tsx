@@ -536,6 +536,11 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
     )
     currentEditor.clear()
     sttPrefixRef.current = ''
+    if (draftSaveTimerRef.current !== null) {
+      window.clearTimeout(draftSaveTimerRef.current)
+      draftSaveTimerRef.current = null
+    }
+    pendingDraftRef.current = null
     if (draftScopeKeyRef.current) {
       useMothershipDraftsStore.getState().clearDraft(draftScopeKeyRef.current)
     }
