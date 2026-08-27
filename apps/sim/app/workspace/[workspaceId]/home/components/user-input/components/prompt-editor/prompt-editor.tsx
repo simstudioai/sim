@@ -257,7 +257,6 @@ export function PromptEditor({
           placeholder={placeholder}
           aria-label={ariaLabel}
           rows={1}
-          maxLength={PASTE_LIMITS.CHAT_CHARACTERS}
           className={cn(
             TEXTAREA_BASE_CLASSES,
             usePlainTextMode && '!text-[var(--text-primary)]',

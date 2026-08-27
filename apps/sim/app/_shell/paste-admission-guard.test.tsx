@@ -53,17 +53,14 @@ describe('PasteAdmissionGuard', () => {
     expect(warning).toHaveBeenCalledOnce()
   })
 
-  it('uses projected native value size and accounts for the selection', () => {
+  it('does not reject a small payload because the existing native value is large', () => {
     const input = document.createElement('textarea')
     input.dataset.pasteMaxBytes = '6'
     input.value = '123456'
     host.appendChild(input)
 
-    input.setSelectionRange(1, 5)
-    expect(dispatchPaste(input, 'abcd').defaultPrevented).toBe(false)
-
     input.setSelectionRange(6, 6)
-    expect(dispatchPaste(input, 'a').defaultPrevented).toBe(true)
+    expect(dispatchPaste(input, 'a').defaultPrevented).toBe(false)
   })
 
   it('honors a surface-specific character contract', () => {
@@ -75,19 +72,13 @@ describe('PasteAdmissionGuard', () => {
     expect(dispatchPaste(input, '💡💡').defaultPrevented).toBe(true)
   })
 
-  it('uses a contenteditable selection when projecting the result', () => {
+  it('does not reject a small payload because contenteditable text is already large', () => {
     const editable = document.createElement('div')
     editable.contentEditable = 'true'
     editable.dataset.pasteMaxBytes = '6'
     editable.textContent = '123456'
     host.appendChild(editable)
-    const range = document.createRange()
-    range.setStart(editable.firstChild as Text, 1)
-    range.setEnd(editable.firstChild as Text, 5)
-    const selection = document.getSelection()
-    selection?.removeAllRanges()
-    selection?.addRange(range)
 
-    expect(dispatchPaste(editable, 'abcd').defaultPrevented).toBe(false)
+    expect(dispatchPaste(editable, 'a').defaultPrevented).toBe(false)
   })
 })

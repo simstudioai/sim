@@ -39,7 +39,7 @@ const logger = createLogger('SecretsManager')
 
 const GRID_COLS = 'grid grid-cols-[minmax(0,1fr)_8px_minmax(0,1fr)_auto] items-center'
 const COL_SPAN_ALL = 'col-span-4'
-const MAX_ENV_PASTE_ROWS = 1_000
+const MAX_ENV_PASTE_ROWS = 10_000
 
 /** Copies a secret's name and confirms with a toast. */
 function copyName(key: string) {

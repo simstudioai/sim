@@ -14,38 +14,12 @@ function finitePositiveAttribute(element: Element | null, name: string): number 
   return Number.isFinite(value) && value > 0 ? value : undefined
 }
 
-function contentEditableSelection(element: HTMLElement): {
-  currentText: string
-  selectionStart: number
-  selectionEnd: number
-} {
-  const currentText = element.textContent ?? ''
-  const selection = document.getSelection()
-  if (!selection || selection.rangeCount === 0) {
-    return { currentText, selectionStart: currentText.length, selectionEnd: currentText.length }
-  }
-
-  const range = selection.getRangeAt(0)
-  if (!element.contains(range.startContainer) || !element.contains(range.endContainer)) {
-    return { currentText, selectionStart: currentText.length, selectionEnd: currentText.length }
-  }
-
-  const before = document.createRange()
-  before.selectNodeContents(element)
-  before.setEnd(range.startContainer, range.startOffset)
-  const selectionStart = before.toString().length
-  return {
-    currentText,
-    selectionStart,
-    selectionEnd: selectionStart + range.toString().length,
-  }
-}
-
 /**
- * Last-resort admission for every editable workspace surface. Specialized editors publish a larger
- * or smaller payload ceiling on an ancestor with `data-paste-max-bytes`; controls without one inherit
- * the Socket.IO-sized default. The capture listener runs before React, ProseMirror, Monaco, and xterm
- * can parse or render the clipboard value.
+ * Last-resort admission for every editable workspace surface. Specialized editors publish their
+ * downstream ceiling on an ancestor with `data-paste-max-bytes`; controls without one inherit a
+ * crash-only fallback. This layer bounds only the clipboard payload, so a small paste into an already
+ * large field keeps native behavior. Editors with a real result-size contract enforce it themselves.
+ * The capture listener runs before React, ProseMirror, Monaco, and xterm parse the clipboard value.
  */
 export function PasteAdmissionGuard() {
   const { toast: notify } = useToast()
@@ -68,31 +42,10 @@ export function PasteAdmissionGuard() {
         policyElement,
         'data-paste-max-characters'
       )
-      const nativeControl =
-        event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement
-      const editableElement = event.target.closest<HTMLElement>(
-        '[contenteditable]:not([contenteditable="false"])'
-      )
-      const projectedValue = nativeControl
-        ? {
-            currentText: event.target.value,
-            selectionStart: event.target.selectionStart ?? event.target.value.length,
-            selectionEnd: event.target.selectionEnd ?? event.target.value.length,
-          }
-        : editableElement
-          ? contentEditableSelection(editableElement)
-          : null
       const admission = assessTextPaste({
         pastedText: text,
         maxPastedBytes,
         maxPastedCharacters,
-        ...(projectedValue
-          ? {
-              ...projectedValue,
-              maxResultBytes: maxPastedBytes,
-              maxResultCharacters: maxPastedCharacters,
-            }
-          : {}),
       })
       if (admission.accepted) return
 

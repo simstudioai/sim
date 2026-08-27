@@ -593,18 +593,11 @@ export const TextEditor = memo(function TextEditor({
 
   const handleEditorPasteCapture = (event: ReactClipboardEvent<HTMLDivElement>) => {
     const pastedText = event.clipboardData.getData('text/plain')
-    const editor = monacoEditorRef.current
-    const model = editor?.getModel()
-    const selection = editor?.getSelection()
-    if (!pastedText || !model || !selection) return
+    if (!pastedText) return
 
     const admission = assessTextPaste({
       pastedText,
       maxPastedBytes: PASTE_LIMITS.TEXT_EDITOR_BYTES,
-      currentText: model.getValue(),
-      selectionStart: model.getOffsetAt(selection.getStartPosition()),
-      selectionEnd: model.getOffsetAt(selection.getEndPosition()),
-      maxResultBytes: PASTE_LIMITS.TEXT_EDITOR_BYTES,
     })
     if (admission.accepted) return
 

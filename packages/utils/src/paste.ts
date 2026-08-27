@@ -1,18 +1,18 @@
 export const PASTE_LIMITS = {
-  /** Fallback for controls without a more specific downstream contract. */
-  DEFAULT_BYTES: 1_000_000,
-  /** Matches the realtime collaboration transport's single-message boundary. */
-  RICH_MARKDOWN_BYTES: 1_000_000,
-  /** Matches the existing inline CSV editor boundary. */
-  TEXT_EDITOR_BYTES: 5 * 1024 * 1024,
+  /** Crash-only fallback for controls without a more specific downstream contract. */
+  DEFAULT_BYTES: 32 * 1024 * 1024,
+  /** Matches the existing collaborative-document seed boundary. */
+  RICH_MARKDOWN_BYTES: 5 * 1024 * 1024,
+  /** Stays below the 50 MiB JSON request boundary while allowing genuinely large source files. */
+  TEXT_EDITOR_BYTES: 32 * 1024 * 1024,
   /** Matches the deployed chat request contract. */
   CHAT_CHARACTERS: 1_000_000,
   /** A Unicode scalar can occupy at most four UTF-8 bytes. */
   CHAT_BYTES: 4_000_000,
-  /** Keeps a single terminal input below the Socket.IO single-message boundary. */
-  TERMINAL_BYTES: 1_000_000,
-  /** Allows a sizeable grid while row and cell limits provide the primary bound. */
-  STRUCTURED_BYTES: 5 * 1024 * 1024,
+  /** Crash-only bound; admitted input is streamed to the PTY in 64 KiB chunks. */
+  TERMINAL_BYTES: 8 * 1024 * 1024,
+  /** The server's row ceiling remains the primary table bound. */
+  STRUCTURED_BYTES: 32 * 1024 * 1024,
 } as const
 
 export const PASTE_RENDER_THRESHOLDS = {
