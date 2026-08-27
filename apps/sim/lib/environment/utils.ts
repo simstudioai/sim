@@ -21,7 +21,6 @@ import {
 } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('EnvironmentUtils')
-const WORKSPACE_ENV_LOCK_TIMEOUT_MS = 5_000
 const EFFECTIVE_ENVIRONMENT_CACHE_TTL_MS = 2_000
 const EFFECTIVE_ENVIRONMENT_CACHE_MAX_ENTRIES = 1_000
 
@@ -439,6 +438,12 @@ export async function upsertPersonalEnvVars(
    * The read above only decides which values changed; the merge has to be made
    * against a read taken under the lock, or a key written concurrently is
    * absent from this map and dropped by the write-back.
+   *
+   * One consequence worth naming: a key whose submitted value already matched
+   * the earlier read is not re-encrypted, so a value written concurrently for
+   * that key now survives instead of being overwritten with the identical
+   * plaintext. `added`/`updated` describe the earlier read and are reporting
+   * only — the keys actually written are exactly the re-encrypted ones.
    */
   const finalEncrypted = await db.transaction(async (tx) => {
     await lockPersonalEnvMap(tx, userId)
@@ -449,22 +454,22 @@ export async function upsertPersonalEnvVars(
       .where(eq(environment.userId, userId))
       .limit(1)
     const current = (currentRow?.variables as Record<string, string>) || {}
-    const finalEncrypted = { ...current, ...newlyEncrypted }
+    const merged = { ...current, ...newlyEncrypted }
 
     await tx
       .insert(environment)
       .values({
         id: generateId(),
         userId,
-        variables: finalEncrypted,
+        variables: merged,
         updatedAt: new Date(),
       })
       .onConflictDoUpdate({
         target: [environment.userId],
-        set: { variables: finalEncrypted, updatedAt: new Date() },
+        set: { variables: merged, updatedAt: new Date() },
       })
 
-    return finalEncrypted
+    return merged
   })
 
   invalidateEffectiveDecryptedEnvCache({ userId })

@@ -601,6 +601,9 @@ export async function deleteCredentialRecord(
         })
       await deletePersonalEnvCredentialForUser({ userId: envOwnerUserId, envKey, executor: tx })
     })
+    // The value is gone; without this it stays resolvable from the cache for
+    // its TTL, as the dedicated delete paths already recognise.
+    invalidateEffectiveDecryptedEnvCache({ userId: envOwnerUserId })
     return true
   }
 
@@ -649,6 +652,7 @@ export async function deleteCredentialRecord(
         executor: tx,
       })
     })
+    invalidateEffectiveDecryptedEnvCache({ workspaceId })
     return true
   }
 

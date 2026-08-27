@@ -58,7 +58,14 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
      * A wholesale replace still takes the map lock: without it this can land
      * between another writer's read and its write-back, and that writer then
      * persists a map derived from the pre-replace state, discarding this one
-     * entirely. The reconcile below matches the replace, so it stays outside.
+     * entirely.
+     *
+     * The reconcile below stays outside because it opens its own transaction.
+     * That leaves a known gap: it prunes mirrors against this request's key
+     * list, so a secret added after the commit loses its mirror while its
+     * value survives. Closing it means having the reconcile read the map
+     * itself rather than trust a caller's list, across all four of its
+     * callers.
      */
     await db.transaction(async (tx) => {
       await lockPersonalEnvMap(tx, session.user.id)
