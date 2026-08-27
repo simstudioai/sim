@@ -14,7 +14,7 @@
  */
 
 /** Bun version mirrored from the root packageManager field. */
-export const PI_BUN_VERSION = '1.3.14'
+export const PI_BUN_VERSION = '1.4.0'
 
 /** Exact global package versions mirrored from package.json and bun.lock. */
 export const PI_GLOBAL_NPM_PACKAGES = [
