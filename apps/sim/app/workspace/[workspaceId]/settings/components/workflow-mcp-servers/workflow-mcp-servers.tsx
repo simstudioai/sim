@@ -621,15 +621,21 @@ function ServerDetailView({
                         </a>
                       )}
                     </div>
-                    {activeConfigTab === 'codex' && (
+                    {activeConfigTab === 'codex' && server.isPublic && (
                       <p className='mt-2 text-[var(--text-muted)] text-caption'>
-                        Add this to <span className='font-mono'>~/.codex/config.toml</span>
-                        {!server.isPublic && ' and set the SIM_API_KEY environment variable'}.
+                        Add this to <span className='font-mono'>~/.codex/config.toml</span>.
                       </p>
                     )}
-                    {activeConfigTab !== 'codex' && !server.isPublic && (
+                    {!server.isPublic && (
                       <p className='mt-2 text-[var(--text-muted)] text-caption'>
-                        Replace $SIM_API_KEY with your API key
+                        {activeConfigTab === 'codex' ? (
+                          <>
+                            Add this to <span className='font-mono'>~/.codex/config.toml</span> and
+                            set the SIM_API_KEY environment variable with an existing API key
+                          </>
+                        ) : (
+                          'Replace $SIM_API_KEY with your API key'
+                        )}
                         {canManage && (
                           <>
                             , or{' '}
@@ -642,6 +648,7 @@ function ServerDetailView({
                             </button>
                           </>
                         )}
+                        {activeConfigTab === 'codex' && '.'}
                       </p>
                     )}
                   </div>
