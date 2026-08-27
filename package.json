@@ -54,6 +54,7 @@
     "check:utils": "bun run scripts/check-utils-enforcement.ts",
     "check:canvas-sentences": "bun run apps/sim/scripts/check-canvas-sentences.ts --require-coverage",
     "check:bare-icons": "bun run scripts/check-bare-icons.ts",
+    "check:byok-providers": "bun run scripts/check-byok-providers.ts",
     "check:icon-paths": "bun run scripts/check-icon-paths.ts",
     "check:icon-path-precision": "bun run scripts/check-icon-path-precision.ts",
     "check:migrations": "bun run scripts/check-migrations-safety.ts",
