@@ -55,19 +55,19 @@ export const salesforceGetAccountsTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum number of results (default: 100, max: 2000)',
+      description: 'Maximum number of results (default: 100)',
     },
     fields: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Comma-separated field API names (e.g., "Id,Name,Industry,Phone")',
+      description: 'Comma-separated field API names (e.g., "Id,Name,Industry,Phone") Also accepts FIELDS(STANDARD|CUSTOM|ALL) and toLabel()/FORMAT()/convertCurrency() around a single field.',
     },
     orderBy: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Field and direction for sorting (e.g., "Name ASC" or "CreatedDate DESC")',
+      description: 'Field and direction for sorting (e.g., "Name ASC" or "CreatedDate DESC") Bare field API names only, optionally with ASC/DESC and NULLS FIRST/LAST; SOQL functions such as DISTANCE() are not accepted here — use the Salesforce Query tool for those.',
     },
   },
 

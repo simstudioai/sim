@@ -340,7 +340,10 @@ export class SoqlValidationError extends Error {
 
 /**
  * Maximum child-to-parent relationship levels SOQL allows in a field path.
- * `Contact.Account.Owner.FirstName` is three levels.
+ *
+ * The reference counts *relationship hops*, not dot-separated segments — it
+ * calls `Contact.Account.Owner.FirstName` (four segments) three levels. A legal
+ * path therefore spans up to `MAX_RELATIONSHIP_LEVELS + 1` segments.
  * @see https://developer.salesforce.com/docs/atlas.en-us.soql_sosl.meta/soql_sosl/sforce_api_calls_soql_relationships_query_limits.htm
  */
 const MAX_RELATIONSHIP_LEVELS = 5
@@ -352,11 +355,47 @@ const MAX_RELATIONSHIP_LEVELS = 5
  */
 const SOQL_IDENTIFIER = /^[A-Za-z][A-Za-z0-9_]*$/
 
-/** Salesforce's documented per-batch ceiling for the REST `query` resource. */
-const SOQL_MAX_LIMIT = 2000
+/**
+ * Sanity ceiling on the SOQL `LIMIT` clause.
+ *
+ * SOQL documents no maximum for `LIMIT`; the 2,000 figure belongs to the REST
+ * `query` resource's synchronous *batch* size, which is a paging boundary
+ * rather than a cap on the result set. `LIMIT 5000` is a legal statement:
+ * Salesforce returns the first batch with `done: false` plus a
+ * `nextRecordsUrl`, and `salesforce_query_more` fetches the rest. This number
+ * exists only to catch a typo or an overflowed value before it reaches the org,
+ * so it is set far above any plausible intentional request.
+ * @see https://developer.salesforce.com/docs/atlas.en-us.soql_sosl.meta/soql_sosl/sforce_api_calls_soql_select_limit.htm
+ */
+const SOQL_MAX_LIMIT = 50_000
 
 /** Default row count when the caller does not supply `limit`. */
 const SOQL_DEFAULT_LIMIT = 100
+
+/**
+ * Field-group selectors the SELECT `fieldList` accepts in place of a field
+ * name. Each is a closed keyword with no caller-controlled argument.
+ * @see https://developer.salesforce.com/docs/atlas.en-us.soql_sosl.meta/soql_sosl/sforce_api_calls_soql_select_fields.htm
+ */
+const SOQL_FIELD_GROUPS = new Set(['FIELDS(ALL)', 'FIELDS(CUSTOM)', 'FIELDS(STANDARD)'])
+
+/**
+ * SELECT-only functions that wrap exactly one field path, keyed by lower-case
+ * name and valued with the documented spelling so the emitted statement is
+ * stable. All three are legal alongside the ORDER BY these tools always append
+ * (unlike `COUNT()`, and unlike `toLabel()` inside ORDER BY itself).
+ */
+const SOQL_SELECT_FUNCTIONS = new Map([
+  ['tolabel', 'toLabel'],
+  ['format', 'FORMAT'],
+  ['convertcurrency', 'convertCurrency'],
+])
+
+/** `FORMAT(convertCurrency(Amount))` is the deepest documented nesting. */
+const MAX_SELECT_FUNCTION_DEPTH = 2
+
+/** One function call with a single argument and nothing outside the parentheses. */
+const SOQL_FUNCTION_CALL = /^([A-Za-z]+)\(\s*([^()]*(?:\([^()]*\))?[^()]*)\s*\)$/
 
 const ORDER_DIRECTIONS = new Set(['ASC', 'DESC'])
 const NULLS_POSITIONS = new Set(['FIRST', 'LAST'])
@@ -376,9 +415,10 @@ const ESCAPE_HATCH_HINT =
  */
 function assertFieldPath(path: string, label: string): void {
   const segments = path.split('.')
-  if (segments.length > MAX_RELATIONSHIP_LEVELS) {
+  const levels = segments.length - 1
+  if (levels > MAX_RELATIONSHIP_LEVELS) {
     throw new SoqlValidationError(
-      `Invalid ${label}: "${path}" spans ${segments.length} relationship levels; SOQL allows at most ${MAX_RELATIONSHIP_LEVELS}.`
+      `Invalid ${label}: "${path}" spans ${levels} relationship levels; SOQL allows at most ${MAX_RELATIONSHIP_LEVELS}.`
     )
   }
   for (const segment of segments) {
@@ -391,13 +431,48 @@ function assertFieldPath(path: string, label: string): void {
 }
 
 /**
+ * Normalizes one SELECT `fieldList` entry: a bare field path, a documented
+ * field-group selector, or a documented single-field function wrapping one.
+ *
+ * The wrapper allowlist is closed — the function name must be one of three
+ * documented spellings and its argument recurses back into this same check, so
+ * the only thing that can reach the emitted statement is still a validated
+ * field API name. Anything else (`COUNT()`, `DISTANCE()`, a subquery) falls
+ * through to `assertFieldPath` and is rejected.
+ * @param entry - One trimmed comma-separated entry
+ * @param depth - Current wrapper nesting depth
+ * @returns The normalized entry
+ * @throws SoqlValidationError if the entry is not an allowed SELECT expression
+ * @see https://developer.salesforce.com/docs/atlas.en-us.soql_sosl.meta/soql_sosl/sforce_api_calls_soql_select_fields.htm
+ */
+function normalizeSelectEntry(entry: string, depth: number): string {
+  if (depth === 0 && SOQL_FIELD_GROUPS.has(entry.toUpperCase())) {
+    return entry.toUpperCase()
+  }
+  const call = SOQL_FUNCTION_CALL.exec(entry)
+  if (call) {
+    const name = SOQL_SELECT_FUNCTIONS.get(call[1].toLowerCase())
+    if (!name || depth >= MAX_SELECT_FUNCTION_DEPTH) {
+      throw new SoqlValidationError(
+        `Invalid fields: "${entry}" is not an allowed SELECT expression. Allowed functions are toLabel(), FORMAT(), and convertCurrency(), plus FIELDS(STANDARD|CUSTOM|ALL). ${ESCAPE_HATCH_HINT}`
+      )
+    }
+    return `${name}(${normalizeSelectEntry(call[2].trim(), depth + 1)})`
+  }
+  assertFieldPath(entry, 'fields')
+  return entry
+}
+
+/**
  * Validates a comma-separated SELECT field list before it is interpolated into
  * a SOQL statement.
  *
  * `fields` is `visibility: 'user-or-llm'`, so a prompt-injected agent controls
- * it. Because each entry must be a bare field API name — no spaces, quotes,
- * parentheses, or operators — there is no room to append a clause, open a
- * subquery, or retarget the FROM object. Anything richer belongs in the
+ * it. Each entry must be a bare field API name, a `FIELDS(...)` group selector,
+ * or one of three documented single-field functions whose argument is itself a
+ * validated field path — no spaces, quotes, operators, or free parentheses
+ * reach the statement, so there is no room to append a clause, open a subquery,
+ * or retarget the FROM object. Anything richer belongs in the
  * separately-permissioned `salesforce_query` tool.
  * @param value - The raw `fields` param
  * @param fallback - The tool's default field list, used when `value` is unset
@@ -415,10 +490,7 @@ export function sanitizeSoqlFieldList(value: string | undefined, fallback: strin
   if (fields.length === 0) {
     throw new SoqlValidationError('Invalid fields: at least one field API name is required.')
   }
-  for (const field of fields) {
-    assertFieldPath(field, 'fields')
-  }
-  return fields.join(', ')
+  return fields.map((field) => normalizeSelectEntry(field, 0)).join(', ')
 }
 
 /**
@@ -482,11 +554,13 @@ export function sanitizeSoqlOrderBy(value: string | undefined, fallback: string)
  * Validates the row limit before interpolation.
  *
  * `Number.parseInt` alone yields `NaN` for junk, which previously emitted
- * `LIMIT NaN` and an opaque Salesforce 400. This rejects non-integers up front
- * and enforces the REST `query` resource's documented 2,000-row batch ceiling.
+ * `LIMIT NaN` and an opaque Salesforce 400. This rejects non-integers up front.
+ * It deliberately does *not* cap the value at the REST batch size: a `LIMIT`
+ * larger than one batch is how a caller asks for a full result set, which
+ * `salesforce_query_more` then pages through via `nextRecordsUrl`.
  * @param value - The raw `limit` param (string from block inputs, number from the LLM)
  * @returns The validated row count, or the default when unset
- * @throws SoqlValidationError if the value is not an integer in 1..2000
+ * @throws SoqlValidationError if the value is not a positive integer within the sanity ceiling
  * @see https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/resources_query.htm
  */
 export function sanitizeSoqlLimit(value: string | number | undefined): number {
@@ -496,13 +570,13 @@ export function sanitizeSoqlLimit(value: string | number | undefined): number {
   const raw = String(value).trim()
   if (!/^\d+$/.test(raw)) {
     throw new SoqlValidationError(
-      `Invalid limit: "${raw}" is not a whole number. Provide an integer between 1 and ${SOQL_MAX_LIMIT}.`
+      `Invalid limit: "${raw}" is not a whole number. Provide a positive integer (at most ${SOQL_MAX_LIMIT}).`
     )
   }
   const parsed = Number(raw)
   if (parsed < 1 || parsed > SOQL_MAX_LIMIT) {
     throw new SoqlValidationError(
-      `Invalid limit: ${parsed} is out of range. Salesforce returns at most ${SOQL_MAX_LIMIT} rows per query batch.`
+      `Invalid limit: ${parsed} is out of range. Provide a positive integer of at most ${SOQL_MAX_LIMIT}.`
     )
   }
   return parsed

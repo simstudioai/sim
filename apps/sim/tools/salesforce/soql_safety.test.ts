@@ -59,8 +59,14 @@ const INJECTIONS = [
   "Id WHERE Name != ''",
   'Id LIMIT 2000',
   'Id) UNION (SELECT Id',
-  'Id,toLabel(Status)',
   'Id,COUNT(Id)',
+  'toLabel(Id) UNION (SELECT Id)',
+  'FIELDS(ALL) FROM User',
+  'FORMAT(Id) FROM User',
+  'toLabel(Name) LIMIT 1',
+  'toLabel(Id),(SELECT Id FROM Contacts)',
+  'toLabel(Id;DROP)',
+  'FIELDS(EVERYTHING)',
   "Id,'literal'",
   'Id;DROP',
   'Id\nFROM User',
@@ -76,6 +82,14 @@ const LEGITIMATE_FIELDS = [
   'Custom_Field__c',
   'Account__r.Region__c',
   'A.B.C.D.E',
+  'A.B.C.D.E.FieldName',
+  'FIELDS(STANDARD)',
+  'FIELDS(ALL)',
+  'Id,FIELDS(CUSTOM)',
+  'toLabel(Status)',
+  'FORMAT(Amount)',
+  'convertCurrency(Amount)',
+  'FORMAT(convertCurrency(Amount))',
 ] as const
 
 const LEGITIMATE_ORDER_BY = [
@@ -146,7 +160,7 @@ describe.each(LIST_TOOLS)('$name SOQL safety', ({ tool, object }) => {
     )
   })
 
-  it.each(['abc', '', ' ', '10; DROP', '-1', '0', '2001', '1.5', 'NaN'] as const)(
+  it.each(['abc', '', ' ', '10; DROP', '-1', '0', '1.5', 'NaN'] as const)(
     'rejects %j as a limit rather than emitting LIMIT NaN',
     (value) => {
       // An unset limit legitimately falls back to the default; only junk throws.
@@ -158,8 +172,9 @@ describe.each(LIST_TOOLS)('$name SOQL safety', ({ tool, object }) => {
     }
   )
 
-  it('accepts the documented 2000-row ceiling', () => {
+  it('accepts a LIMIT above the 2000-row REST batch size so query_more can page', () => {
     expect(buildQuery(tool, { limit: '2000' })).toContain('LIMIT 2000')
+    expect(buildQuery(tool, { limit: '5000' })).toContain('LIMIT 5000')
   })
 })
 
@@ -169,10 +184,51 @@ describe('sanitizeSoqlFieldList', () => {
     expect(sanitizeSoqlFieldList('   ', 'Id,Name')).toBe('Id, Name')
   })
 
+  it('accepts the five relationship levels SOQL allows (six dotted segments)', () => {
+    expect(sanitizeSoqlFieldList('A.B.C.D.E.F', 'Id')).toBe('A.B.C.D.E.F')
+  })
+
   it('rejects a path deeper than the five relationship levels SOQL allows', () => {
-    expect(() => sanitizeSoqlFieldList('A.B.C.D.E.F', 'Id')).toThrow(
-      /at most 5|relationship levels/
+    expect(() => sanitizeSoqlFieldList('A.B.C.D.E.F.G', 'Id')).toThrow(
+      /6 relationship levels; SOQL allows at most 5/
     )
+  })
+
+  it('accepts the documented field-group selectors, normalized to upper case', () => {
+    expect(sanitizeSoqlFieldList('fields(standard)', 'Id')).toBe('FIELDS(STANDARD)')
+    expect(sanitizeSoqlFieldList('Id,FIELDS(custom)', 'Id')).toBe('Id, FIELDS(CUSTOM)')
+  })
+
+  it('accepts the documented single-field SELECT functions, normalized to documented casing', () => {
+    expect(sanitizeSoqlFieldList('tolabel(Status)', 'Id')).toBe('toLabel(Status)')
+    expect(sanitizeSoqlFieldList('format(Amount)', 'Id')).toBe('FORMAT(Amount)')
+    expect(sanitizeSoqlFieldList('CONVERTCURRENCY(Amount)', 'Id')).toBe('convertCurrency(Amount)')
+    expect(sanitizeSoqlFieldList('FORMAT(convertCurrency(Amount))', 'Id')).toBe(
+      'FORMAT(convertCurrency(Amount))'
+    )
+  })
+
+  it('still validates the inner argument of an allowed wrapper as a field path', () => {
+    expect(() => sanitizeSoqlFieldList("toLabel(Id WHERE Name != '')", 'Id')).toThrow(
+      SoqlValidationError
+    )
+    expect(() => sanitizeSoqlFieldList('FORMAT(A.B.C.D.E.F.G)', 'Id')).toThrow(SoqlValidationError)
+  })
+
+  it('rejects wrapper nesting deeper than the documented FORMAT(convertCurrency(field)) form', () => {
+    expect(() => sanitizeSoqlFieldList('FORMAT(FORMAT(convertCurrency(Amount)))', 'Id')).toThrow(
+      SoqlValidationError
+    )
+  })
+
+  it('still rejects COUNT(), which cannot be combined with the ORDER BY these tools always emit', () => {
+    expect(() => sanitizeSoqlFieldList('COUNT()', 'Id')).toThrow(SoqlValidationError)
+    expect(() => sanitizeSoqlFieldList('COUNT(Id)', 'Id')).toThrow(SoqlValidationError)
+  })
+
+  it('rejects SELECT-only functions in ORDER BY, which SOQL forbids there', () => {
+    expect(() => sanitizeSoqlOrderBy('toLabel(Status) ASC', 'Id ASC')).toThrow(SoqlValidationError)
+    expect(() => sanitizeSoqlOrderBy('FIELDS(STANDARD)', 'Id ASC')).toThrow(SoqlValidationError)
   })
 
   it('rejects a list that is only separators', () => {
@@ -210,5 +266,15 @@ describe('sanitizeSoqlLimit', () => {
   it('names the failure instead of emitting LIMIT NaN', () => {
     expect(() => sanitizeSoqlLimit('abc')).toThrow(SoqlValidationError)
     expect(() => sanitizeSoqlLimit('abc')).toThrow(/not a whole number/)
+  })
+
+  it('allows a LIMIT past the 2000-row REST batch size, which query_more pages through', () => {
+    expect(sanitizeSoqlLimit('2001')).toBe(2001)
+    expect(sanitizeSoqlLimit(5000)).toBe(5000)
+    expect(sanitizeSoqlLimit('50000')).toBe(50000)
+  })
+
+  it('still rejects a value past the sanity ceiling', () => {
+    expect(() => sanitizeSoqlLimit('50001')).toThrow(SoqlValidationError)
   })
 })

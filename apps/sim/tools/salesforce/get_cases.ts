@@ -46,19 +46,19 @@ export const salesforceGetCasesTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum number of results to return (default: 100, max: 2000)',
+      description: 'Maximum number of results to return (default: 100)',
     },
     fields: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Comma-separated list of field API names to return',
+      description: 'Comma-separated list of field API names to return Also accepts FIELDS(STANDARD|CUSTOM|ALL) and toLabel()/FORMAT()/convertCurrency() around a single field.',
     },
     orderBy: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Field and direction for sorting (e.g., CreatedDate DESC)',
+      description: 'Field and direction for sorting (e.g., CreatedDate DESC) Bare field API names only, optionally with ASC/DESC and NULLS FIRST/LAST; SOQL functions such as DISTANCE() are not accepted here — use the Salesforce Query tool for those.',
     },
   },
 
