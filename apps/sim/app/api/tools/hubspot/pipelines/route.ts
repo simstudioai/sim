@@ -18,6 +18,14 @@ const logger = createLogger('HubSpotPipelinesAPI')
  * only to a non-empty string. That value lands in a path segment, so it is
  * validated before use — `encodeURIComponent` alone leaves a `.`/`..` segment
  * intact and the WHATWG parser removes it, re-aiming the authenticated request.
+ *
+ * The lookup goes through `Object.hasOwn` rather than plain indexing: on a
+ * plain object literal, `objectType = 'constructor'` (or `'__proto__'`,
+ * `'toString'`, …) resolves through the prototype chain to a function, the
+ * `?? objectType` fallback never fires, and `validatePathSegment` then calls a
+ * string method on a non-string and throws — turning caller-controlled input
+ * into a 500. Those names are legal HubSpot custom-object spellings, so they
+ * must reach the validator as the strings they are.
  */
 const BUILT_IN_PATH: Record<string, string> = {
   contact: 'contacts',
@@ -64,7 +72,9 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'Failed to obtain valid access token' }, { status: 401 })
     }
 
-    const pathSegment = BUILT_IN_PATH[objectType] ?? objectType
+    const pathSegment = Object.hasOwn(BUILT_IN_PATH, objectType)
+      ? BUILT_IN_PATH[objectType]
+      : objectType
     const pathSegmentValidation = validatePathSegment(pathSegment, { paramName: 'objectType' })
     if (!pathSegmentValidation.isValid) {
       logger.warn(`[${requestId}] Invalid objectType: ${pathSegmentValidation.error}`)

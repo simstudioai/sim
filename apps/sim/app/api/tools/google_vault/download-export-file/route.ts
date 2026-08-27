@@ -29,13 +29,17 @@ const logger = createLogger('GoogleVaultDownloadExportFileAPI')
  * token attached. Only rejection closes that, and only the whole value can do
  * it: an interior `..` is encoded into the same segment and stays inert.
  *
- * The check trims before comparing but the caller still sends the untrimmed
- * value, so no legitimate name is silently rewritten.
+ * The comparison is against the **raw** value, deliberately not a trimmed one.
+ * GCS documents any Unicode character as legal in an object name and does not
+ * trim, so `' ..'` is a real object distinct from `'..'`; rejecting it is a
+ * false rejection of a legal name. It is also unnecessary — the padding
+ * encodes to `%20`/`%09` and the WHATWG parser removes only a segment that is
+ * *exactly* `.` or `..`, so `%20..` stays inert text. This is the same
+ * reasoning `safeUrlPath` records for its `preserveOuterWhitespace` option.
  */
 function assertNotDotSegment(value: string, paramName: string): void {
-  const trimmed = value.trim()
-  if (trimmed === '.' || trimmed === '..') {
-    throw new Error(`${paramName} cannot be "${trimmed}" (path traversal is not allowed)`)
+  if (value === '.' || value === '..') {
+    throw new Error(`${paramName} cannot be "${value}" (path traversal is not allowed)`)
   }
 }
 

@@ -24,6 +24,7 @@ import {
   inputValidationMockFns,
 } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 
 vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
@@ -204,5 +205,78 @@ describe('POST /api/tools/twilio/get-recording — media size cap', () => {
     expect(mockSecureFetchWithPinnedIP.mock.calls[2][2]).toMatchObject({
       maxResponseBytes: MAX_TWILIO_RECORDING_BYTES,
     })
+  })
+})
+
+describe('POST /api/tools/twilio/get-recording — over-limit media', () => {
+  /**
+   * The cap is enforced by `secureFetchWithPinnedIP` while the body streams, so
+   * it surfaces as a rejected promise *inside* the media `try`. A blanket
+   * `catch` there logged a warning and fell through to the success response
+   * with `file` simply absent — indistinguishable, to the caller, from a
+   * recording that has no media yet. An unavailable recording must never look
+   * like a retrieved one.
+   */
+  it('returns an explicit failure, not success-with-no-file, when the media exceeds the cap', async () => {
+    mockSecureFetchWithPinnedIP
+      .mockResolvedValueOnce(jsonResponse(recordingPayload))
+      .mockResolvedValueOnce(jsonResponse({ transcriptions: [] }))
+      .mockRejectedValueOnce(
+        new PayloadSizeLimitError({
+          label: 'response body',
+          maxBytes: MAX_TWILIO_RECORDING_BYTES,
+          observedBytes: MAX_TWILIO_RECORDING_BYTES + 1,
+        })
+      )
+
+    const response = await POST(createMockRequest('POST', baseBody))
+
+    expect(response.status).toBe(413)
+    const data = (await response.json()) as {
+      success: boolean
+      error?: string
+      output?: { file?: unknown }
+    }
+    expect(data.success).toBe(false)
+    expect(data.error).toBeTruthy()
+    expect(data.error).toMatch(new RegExp(String(MAX_TWILIO_RECORDING_BYTES)))
+    expect(data.output?.file).toBeUndefined()
+  })
+
+  it('still degrades to success-without-file for the other media errors that catch exists for', async () => {
+    mockSecureFetchWithPinnedIP
+      .mockResolvedValueOnce(jsonResponse(recordingPayload))
+      .mockResolvedValueOnce(jsonResponse({ transcriptions: [] }))
+      .mockRejectedValueOnce(new Error('socket hang up'))
+
+    const response = await POST(createMockRequest('POST', baseBody))
+
+    expect(response.status).toBe(200)
+    const data = (await response.json()) as {
+      success: boolean
+      output: { file?: unknown; mediaUrl?: string }
+    }
+    expect(data.success).toBe(true)
+    expect(data.output.file).toBeUndefined()
+    expect(data.output.mediaUrl).toBe(
+      `https://api.twilio.com/2010-04-01/Accounts/${ACCOUNT_SID}/Recordings/${RECORDING_SID}`
+    )
+  })
+
+  it('still degrades to success-without-file when media URL validation fails', async () => {
+    mockSecureFetchWithPinnedIP
+      .mockResolvedValueOnce(jsonResponse(recordingPayload))
+      .mockResolvedValueOnce(jsonResponse({ transcriptions: [] }))
+    mockValidateUrlWithDNS
+      .mockResolvedValueOnce({ isValid: true, resolvedIP: PINNED_IP })
+      .mockResolvedValueOnce({ isValid: true, resolvedIP: PINNED_IP })
+      .mockResolvedValueOnce({ isValid: false, error: 'blocked host' })
+
+    const response = await POST(createMockRequest('POST', baseBody))
+
+    expect(response.status).toBe(200)
+    const data = (await response.json()) as { success: boolean; output: { file?: unknown } }
+    expect(data.success).toBe(true)
+    expect(data.output.file).toBeUndefined()
   })
 })

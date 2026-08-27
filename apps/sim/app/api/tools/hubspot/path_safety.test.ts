@@ -53,6 +53,24 @@ const REJECTED = ['..', '.', '%2e%2e', 'a/b', '  ..  ', '..%2f..', '../..'] as c
  */
 const LEGITIMATE = ['p7878787_my_object', '2-123456', '0-1', 'my_object'] as const
 
+/**
+ * Keys that exist on `Object.prototype`, not on `BUILT_IN_PATH`. A plain object
+ * literal resolves them through the prototype chain, so `BUILT_IN_PATH[key]`
+ * returns a function or an object rather than `undefined` — the `?? objectType`
+ * fallback never fires, and `validatePathSegment` then calls `.includes` on a
+ * non-string and throws, turning caller-controlled input into a 500. Every one
+ * of these is a syntactically legal HubSpot custom-object name, so the correct
+ * behavior is to treat it as one: pass it through the validator as the string
+ * it is.
+ */
+const PROTOTYPE_KEYS = [
+  'constructor',
+  '__proto__',
+  'toString',
+  'hasOwnProperty',
+  'valueOf',
+] as const
+
 let fetchMock: ReturnType<typeof vi.fn>
 
 beforeEach(() => {
@@ -110,6 +128,23 @@ describe.each(ROUTES)(
       expect(fetchMock.mock.calls[0][0]).toBe(`${ORIGIN}/crm/v3/${collection}/${objectType}`)
       expect(url.pathname.split('/')).toEqual(['', 'crm', 'v3', collection, objectType])
     })
+
+    it.each(PROTOTYPE_KEYS)(
+      'treats the inherited key %j as a plain object-type string, never a 500',
+      async (objectType) => {
+        const response = await handler(request(name, objectType))
+
+        expect(response.status).not.toBe(500)
+        expect(response.status).toBe(200)
+        expect(outgoingUrl().pathname.split('/')).toEqual([
+          '',
+          'crm',
+          'v3',
+          collection,
+          encodeURIComponent(objectType),
+        ])
+      }
+    )
 
     it.each(REJECTED)(
       'rejects objectType=%j with a 400 and never calls HubSpot',

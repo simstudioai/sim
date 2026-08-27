@@ -36,7 +36,20 @@ import { POST } from '@/app/api/tools/google_vault/download-export-file/route'
 const { mockValidateUrlWithDNS, mockSecureFetchWithPinnedIP } = inputValidationMockFns
 
 const PINNED_IP = '93.184.216.34'
-const REJECTED = ['..', '.', '  ..  '] as const
+const REJECTED = ['..', '.'] as const
+
+/**
+ * Whitespace-padded dot segments. GCS documents any Unicode character as legal
+ * in an object name, so `' ..'` is a real, addressable object — and the server
+ * does not trim, so `' ..'` and `'..'` are *different* objects. Rejecting the
+ * padded form (which trimming before the comparison did) is a false rejection,
+ * and rewriting it would silently address the wrong object. It is safe to allow
+ * because `encodeURIComponent` turns the padding into `%20`, and the WHATWG
+ * parser only removes a segment that is *exactly* `.` or `..` — the same
+ * argument `safeUrlPath`'s `preserveOuterWhitespace` option records for
+ * Supabase Storage keys.
+ */
+const PADDED_DOT_NAMES = [' ..', '.. ', ' .. ', ' . ', '\t..'] as const
 
 function downloadResponse() {
   return {
@@ -141,6 +154,74 @@ describe('POST /api/tools/google_vault/download-export-file traversal safety', (
       'o',
       'matter-1%2Fexports%2Ffile%20name.zip',
     ])
+  })
+
+  it.each(PADDED_DOT_NAMES)(
+    'accepts the legal padded object name %j and keeps the path shape intact',
+    async (objectName) => {
+      mockSecureFetchWithPinnedIP.mockResolvedValueOnce(downloadResponse())
+
+      const response = await POST(
+        createMockRequest('POST', {
+          accessToken: 'token-123',
+          matterId: 'matter-1',
+          bucketName: 'vault-bucket',
+          objectName,
+        })
+      )
+      expect(response.status).toBe(200)
+
+      const url = new URL(requestedUrl())
+      expect(url.pathname.split('/')).toEqual([
+        '',
+        'storage',
+        'v1',
+        'b',
+        'vault-bucket',
+        'o',
+        encodeURIComponent(objectName),
+      ])
+      expect(decodeURIComponent(url.pathname.split('/')[6])).toBe(objectName)
+    }
+  )
+
+  it.each(PADDED_DOT_NAMES)(
+    'accepts the legal padded bucket name %j and keeps the path shape intact',
+    async (bucketName) => {
+      mockSecureFetchWithPinnedIP.mockResolvedValueOnce(downloadResponse())
+
+      const response = await POST(
+        createMockRequest('POST', {
+          accessToken: 'token-123',
+          matterId: 'matter-1',
+          bucketName,
+          objectName: 'exports/file.zip',
+        })
+      )
+      expect(response.status).toBe(200)
+
+      const url = new URL(requestedUrl())
+      expect(url.pathname.split('/')).toEqual([
+        '',
+        'storage',
+        'v1',
+        'b',
+        encodeURIComponent(bucketName),
+        'o',
+        'exports%2Ffile.zip',
+      ])
+    }
+  )
+
+  it('proves the padded forms cannot pop a segment while the bare forms can', () => {
+    const build = (value: string) =>
+      new URL(`https://storage.googleapis.com/storage/v1/b/bkt/o/${encodeURIComponent(value)}`)
+
+    for (const padded of PADDED_DOT_NAMES) {
+      expect(build(padded).pathname.split('/')).toHaveLength(7)
+    }
+    expect(build('..').pathname.split('/')).toHaveLength(6)
+    expect(build('.').pathname.split('/')[6]).toBe('')
   })
 
   it('preserves an interior ".." component, which never forms a URL segment', async () => {

@@ -157,8 +157,15 @@ function assertSafePathSegment(value: string, paramName: string): string {
   return value
 }
 
+/**
+ * `Object.hasOwn` rather than `in`: `in` walks the prototype chain, so
+ * `objectType = 'constructor'` (or `'__proto__'`, `'toString'`, …) took the
+ * built-in branch and returned a function instead of a path. Those names are
+ * legal HubSpot custom-object spellings and belong on the ordinary custom
+ * path.
+ */
 function resolveSearchPath(objectType: string): string {
-  if (objectType in BUILT_IN_PATH) {
+  if (Object.hasOwn(BUILT_IN_PATH, objectType)) {
     return BUILT_IN_PATH[objectType as HubSpotBuiltInObjectType]
   }
   return objectType
@@ -544,7 +551,8 @@ function resolveRequestedProperties(
     if (trimmed) requested.add(trimmed)
   }
 
-  if (requested.size === 0 && objectType in BUILT_IN_PATH) {
+  // `Object.hasOwn`, not `in` — see `resolveSearchPath`.
+  if (requested.size === 0 && Object.hasOwn(BUILT_IN_PATH, objectType)) {
     for (const name of DEFAULT_PROPERTIES[objectType as HubSpotBuiltInObjectType]) {
       requested.add(name)
     }

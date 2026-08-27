@@ -612,12 +612,18 @@ Return ONLY the JSON array.`,
          * variables resolve — keeps a `<Block.output>` reference intact; the
          * same call in `tools.config.tool` would run during serialization and
          * destroy it. A value that is not numeric is passed through untouched
-         * so the tool reports the offending parameter by name.
+         * so the tool reports the offending parameter by name — including a
+         * whitespace-only string, which the surrounding loop does not drop (it
+         * drops only the exactly-empty one) and which `Number('')` would
+         * otherwise turn into a real request for page 0 / 0 hits per page,
+         * slipping past `paginationValue` as a legitimate number.
          */
         const toNumber = (value: unknown) => {
           if (typeof value === 'number') return value
           if (typeof value !== 'string') return value
-          const parsed = Number(value.trim())
+          const trimmed = value.trim()
+          if (trimmed === '') return value
+          const parsed = Number(trimmed)
           return Number.isFinite(parsed) ? parsed : value
         }
 

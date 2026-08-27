@@ -1,4 +1,5 @@
 import type { RunTaskParams, RunTaskResult } from '@/tools/apify/types'
+import { resolveApifyTimeoutParam } from '@/tools/apify/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const apifyRunTaskTool: ToolConfig<RunTaskParams, RunTaskResult> = {
@@ -68,8 +69,9 @@ export const apifyRunTaskTool: ToolConfig<RunTaskParams, RunTaskResult> = {
       if (params.memory) {
         queryParams.set('memory', params.memory.toString())
       }
-      if (params.taskTimeout != null) {
-        queryParams.set('timeout', params.taskTimeout.toString())
+      const timeoutParam = resolveApifyTimeoutParam(params.taskTimeout)
+      if (timeoutParam !== undefined) {
+        queryParams.set('timeout', timeoutParam)
       }
       if (params.build) {
         queryParams.set('build', params.build)

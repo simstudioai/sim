@@ -1,6 +1,7 @@
 import { sleep } from '@sim/utils/helpers'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
 import type { ApifyRun, RunActorParams, RunActorResult } from '@/tools/apify/types'
+import { resolveApifyTimeoutParam } from '@/tools/apify/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const POLL_INTERVAL_MS = 5000
@@ -81,8 +82,9 @@ export const apifyRunActorAsyncTool: ToolConfig<RunActorParams, RunActorResult> 
       if (params.memory) {
         queryParams.set('memory', params.memory.toString())
       }
-      if (params.actorTimeout != null) {
-        queryParams.set('timeout', params.actorTimeout.toString())
+      const timeoutParam = resolveApifyTimeoutParam(params.actorTimeout)
+      if (timeoutParam !== undefined) {
+        queryParams.set('timeout', timeoutParam)
       }
       if (params.build) {
         queryParams.set('build', params.build)

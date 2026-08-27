@@ -9,6 +9,7 @@ import {
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getExtensionFromMimeType } from '@/lib/uploads/utils/file-utils'
 
@@ -248,6 +249,29 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           }
         }
       } catch (error) {
+        /**
+         * The size cap is enforced while the body streams, so it surfaces here
+         * rather than as a non-ok response. It must not share the fall-through
+         * below: that path returns `success: true` with `file` absent, which is
+         * exactly how a recording with no media yet looks. Reporting an
+         * over-limit recording as a successful retrieval that happened to
+         * return nothing is worse than reporting nothing at all.
+         */
+        if (isPayloadSizeLimitError(error)) {
+          logger.warn(`[${requestId}] Twilio recording media exceeds the transportable size cap`, {
+            recordingSid: data.sid ?? recordingSid,
+            maxBytes: MAX_TWILIO_RECORDING_BYTES,
+          })
+          const message = `Recording media exceeds the maximum transportable size of ${MAX_TWILIO_RECORDING_BYTES} bytes and cannot be returned inline. Download it directly from ${mediaUrl}.`
+          return NextResponse.json(
+            {
+              success: false,
+              output: { success: false, error: message, mediaUrl },
+              error: message,
+            },
+            { status: 413 }
+          )
+        }
         logger.warn(`[${requestId}] Failed to download recording media:`, error)
       }
     }

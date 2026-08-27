@@ -117,6 +117,48 @@ describe('apify explicit zero timeout', () => {
   })
 })
 
+describe('apify direct-call timeout guard', () => {
+  const RUN_TOOLS = [
+    { tool: apifyRunActorSyncTool, base: { actorId: 'me/actor' }, key: 'actorTimeout' },
+    { tool: apifyRunActorAsyncTool, base: { actorId: 'me/actor' }, key: 'actorTimeout' },
+    { tool: apifyRunTaskTool, base: { taskId: 'me/task' }, key: 'taskTimeout' },
+  ] as const
+
+  it.each(RUN_TOOLS)('omits timeout entirely for an absent value on $tool.id', ({ tool, base }) => {
+    const url = new URL(buildUrl(tool, { ...base }))
+    expect(url.searchParams.has('timeout')).toBe(false)
+  })
+
+  it.each(RUN_TOOLS)(
+    'omits an empty or whitespace-only timeout on $tool.id instead of sending "timeout="',
+    ({ tool, base, key }) => {
+      for (const blank of ['', '   ', '\t\n']) {
+        const url = new URL(buildUrl(tool, { ...base, [key]: blank }))
+        expect(url.searchParams.has('timeout')).toBe(false)
+      }
+    }
+  )
+
+  it.each(RUN_TOOLS)('still forwards an explicit 0 on $tool.id', ({ tool, base, key }) => {
+    for (const zero of [0, '0']) {
+      const url = new URL(buildUrl(tool, { ...base, [key]: zero }))
+      expect(url.searchParams.get('timeout')).toBe('0')
+    }
+  })
+
+  it.each(RUN_TOOLS)(
+    'forwards a real timeout byte-identically on $tool.id',
+    ({ tool, base, key }) => {
+      expect(new URL(buildUrl(tool, { ...base, [key]: 300 })).searchParams.get('timeout')).toBe(
+        '300'
+      )
+      expect(new URL(buildUrl(tool, { ...base, [key]: '300' })).searchParams.get('timeout')).toBe(
+        '300'
+      )
+    }
+  )
+})
+
 describe('apify run_actor_sync response contract', () => {
   it('emits no fabricated run id — the sync endpoint returns none', async () => {
     const result = await apifyRunActorSyncTool.transformResponse!(jsonResponse([{ a: 1 }]))

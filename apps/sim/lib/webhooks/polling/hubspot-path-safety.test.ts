@@ -70,6 +70,26 @@ const REJECTED = ['..', '.', '%2e%2e', '..%2f..', 'a/b', '  ..  ', '../..'] as c
  */
 const LEGITIMATE = ['p7878787_my_object', '2-123456', '0-1', 'my_object'] as const
 
+/**
+ * Keys inherited from `Object.prototype`. Both `BUILT_IN_PATH` and
+ * `DEFAULT_PROPERTIES` are plain object literals, and `in` walks the prototype
+ * chain exactly as bracket access does — so these names resolved to a function
+ * or an object instead of missing, and the built-in branch ran for an object
+ * type that is not built in. Each is a legal HubSpot custom-object name, so the
+ * correct outcome is the ordinary custom-object path.
+ */
+const PROTOTYPE_KEYS = [
+  'constructor',
+  '__proto__',
+  'toString',
+  'hasOwnProperty',
+  'valueOf',
+] as const
+
+function requestBody(): { properties: string[] } {
+  return JSON.parse((fetchMock.mock.calls[0][1] as { body: string }).body)
+}
+
 const logger = {
   info: vi.fn(),
   warn: vi.fn(),
@@ -178,6 +198,50 @@ describe('HubSpot poller search-path safety', () => {
       )
     }
   )
+})
+
+describe('HubSpot poller inherited-key lookups', () => {
+  it.each(PROTOTYPE_KEYS)(
+    'treats objectType=%j as an ordinary custom object type, not a built-in',
+    async (objectType) => {
+      const result = await poll(searchConfig(objectType))
+
+      expect(logger.error).not.toHaveBeenCalled()
+      expect(result).toBe('success')
+      expect(fetchMock.mock.calls[0][0]).toBe(`${ORIGIN}/crm/v3/objects/${objectType}/search`)
+      expect(outgoingUrl().pathname.split('/')).toEqual([
+        '',
+        'crm',
+        'v3',
+        'objects',
+        objectType,
+        'search',
+      ])
+    }
+  )
+
+  it.each(PROTOTYPE_KEYS)(
+    'requests only the baseline properties for objectType=%j, never a built-in default set',
+    async (objectType) => {
+      await poll(searchConfig(objectType))
+
+      expect(requestBody().properties).toEqual(['createdate'])
+    }
+  )
+
+  it('still applies the built-in default property set for a real built-in slug', async () => {
+    const result = await poll({
+      objectType: 'deal',
+      eventType: 'created',
+      lastSeenTimestampMs: '1000',
+    })
+
+    expect(result).toBe('success')
+    const { properties } = requestBody()
+    expect(properties).toContain('dealname')
+    expect(properties).toContain('createdate')
+    expect(properties.length).toBeGreaterThan(1)
+  })
 })
 
 describe('HubSpot poller list-membership path safety', () => {

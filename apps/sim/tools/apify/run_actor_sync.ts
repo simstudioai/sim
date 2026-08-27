@@ -1,4 +1,5 @@
 import type { RunActorParams, RunActorResult } from '@/tools/apify/types'
+import { resolveApifyTimeoutParam } from '@/tools/apify/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const apifyRunActorSyncTool: ToolConfig<RunActorParams, RunActorResult> = {
@@ -59,8 +60,9 @@ export const apifyRunActorSyncTool: ToolConfig<RunActorParams, RunActorResult> =
       if (params.memory) {
         queryParams.set('memory', params.memory.toString())
       }
-      if (params.actorTimeout != null) {
-        queryParams.set('timeout', params.actorTimeout.toString())
+      const timeoutParam = resolveApifyTimeoutParam(params.actorTimeout)
+      if (timeoutParam !== undefined) {
+        queryParams.set('timeout', timeoutParam)
       }
       if (params.build) {
         queryParams.set('build', params.build)
