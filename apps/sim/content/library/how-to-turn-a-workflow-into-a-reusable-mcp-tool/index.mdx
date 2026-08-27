@@ -19,7 +19,7 @@ faq:
   - q: "Does Sim support MCP as both a client and server?"
     a: "Yes. Sim workflows can call tools on external MCP servers, and deployed Sim workflows can be published as MCP tools for other compatible clients."
   - q: "Can Claude or another assistant call a Sim workflow?"
-    a: "Yes, when the assistant supports MCP connections. Sim provides connection configurations for Claude Desktop, Cursor, VS Code, and Claude Code, while other compatible clients can use the same server details."
+    a: "Yes, when the assistant supports MCP connections. Sim provides connection configurations for Codex, Claude Desktop, Cursor, VS Code, and Claude Code, while other compatible clients can use the same server details."
   - q: "How is a published Sim MCP server authenticated?"
     a: "A Sim MCP server can use API Key access, where clients send an X-API-Key header containing a Sim API key, or Public access without authentication. Tool calls run the live deployment and consume workspace credits like other executions."
   - q: "Is MCP different from a REST API deployment?"
@@ -34,7 +34,7 @@ To turn a workflow into a reusable MCP tool, you build the workflow with clearly
 - Build the workflow and define its Start-block inputs and outputs.
 - Deploy a versioned snapshot of the workflow.
 - Create an MCP server and add the deployed workflow to it as a tool.
-- Connect the server to Claude Desktop, Cursor, VS Code, Claude Code, or another MCP-compatible client.
+- Connect the server to Codex, Claude Desktop, Cursor, VS Code, Claude Code, or another MCP-compatible client.
 - As of August 2026, [n8n](https://docs.n8n.io/advanced-ai/accessing-n8n-mcp-server/), [Gumloop](https://docs.gumloop.com/nodes/mcp), and [Zapier](https://zapier.com/mcp) all support MCP on both sides in some form. What differs is the publishing model: node or instance configuration, a platform control plane, and an action catalog respectively.
 
 ## What does it mean to turn a workflow into a reusable MCP tool?
@@ -54,7 +54,7 @@ Sim turns a deployed workflow into an MCP tool on an MCP server that external as
 1. **Build the workflow.** Create the capability in Sim. Wire the Start trigger, Agent blocks, integrations, data, code, and control logic needed to complete the task. Define clear Start-block inputs and outputs, because those become the tool's parameters and shape how an external assistant calls it.
 2. **Deploy a versioned snapshot.** Deploy when the behavior is ready for external callers. Sim freezes an immutable snapshot as a numbered version and marks one version live. Canvas edits stay in the draft until you publish an update, and promoting an earlier version rolls the live tool back. Every surface—API, chat, and MCP—runs that same live snapshot.
 3. **Create an MCP server and add the workflow as a tool.** In Settings, add an MCP server with a name and an access mode. Then open the deployed workflow, go to the MCP tab in the Deploy view, set the tool name and description, review the parameter descriptions derived from the Start inputs, select one or more MCP servers, and save the tool. One server can host many workflow tools, and a workflow must already be deployed before it can be added.
-4. **Connect an external MCP client.** From the server's details view, copy the ready-made configuration for Cursor, Claude Desktop, VS Code, Claude Code, or another host. Private servers expect an `X-API-Key` header carrying a Sim API key. When the assistant invokes the tool, Sim runs the live snapshot and returns the output over MCP.
+4. **Connect an external MCP client.** From the server's details view, copy the ready-made configuration for Codex, Cursor, Claude Desktop, VS Code, Claude Code, or another host. Private servers expect an `X-API-Key` header carrying a Sim API key. When the assistant invokes the tool, Sim runs the live snapshot and returns the output over MCP.
 
 Sim also works in the opposite direction. A Sim workflow can [connect to external MCP servers](https://docs.sim.ai/mcp) and call their tools. Sim therefore acts as both an MCP client and an MCP server, which lets one workflow consume outside capabilities and publish its own capability for reuse.
 
@@ -109,6 +109,6 @@ Current as of August 2026.
 
 ## Get started
 
-Build a new workflow or open an existing one in [Sim](https://sim.ai). Once the workflow behaves as expected, deploy a versioned snapshot, then create an MCP server and add the workflow to it as a tool by following the [MCP deployment documentation](https://docs.sim.ai/workflows/deployment/mcp). You can then connect the server to Claude Desktop, Cursor, VS Code, Claude Code, or another MCP-compatible client.
+Build a new workflow or open an existing one in [Sim](https://sim.ai). Once the workflow behaves as expected, deploy a versioned snapshot, then create an MCP server and add the workflow to it as a tool by following the [MCP deployment documentation](https://docs.sim.ai/workflows/deployment/mcp). You can then connect the server to Codex, Claude Desktop, Cursor, VS Code, Claude Code, or another MCP-compatible client.
 
 Sim suits developers who want one maintained workflow to provide the same callable capability across every MCP-compatible assistant they use.

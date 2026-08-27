@@ -25,7 +25,7 @@ type PrismModule = typeof import('./prism')
 /**
  * Module-level singleton promise for the lazily-loaded Prism module.
  *
- * Prism (core + the side-effectful JS/Python/JSON/Bash grammar registrations) is kept
+ * Prism (core + the side-effectful JS/Python/JSON/Bash/TOML grammar registrations) is kept
  * out of this module's static import graph so it never lands in bundles that only
  * pull `Code` through the shared `@sim/emcn` barrel. It is loaded once per
  * session on the first highlight and cached here for all subsequent viewers.
@@ -861,7 +861,7 @@ interface CodeViewerProps {
   /** Whether to show line numbers gutter */
   showGutter?: boolean
   /** Language for syntax highlighting (default: 'json') */
-  language?: 'javascript' | 'json' | 'python' | 'bash'
+  language?: 'javascript' | 'json' | 'python' | 'bash' | 'toml'
   /** Additional CSS classes for the container */
   className?: string
   /** Visual density for read-only code. */
@@ -951,7 +951,7 @@ type ViewerInnerProps = {
   /** Whether to show line numbers gutter */
   showGutter: boolean
   /** Language for syntax highlighting */
-  language: 'javascript' | 'json' | 'python' | 'bash'
+  language: 'javascript' | 'json' | 'python' | 'bash' | 'toml'
   /** Additional CSS classes for the container */
   className?: string
   /** Visual density for read-only code. */
