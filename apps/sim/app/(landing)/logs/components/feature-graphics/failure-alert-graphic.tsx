@@ -38,12 +38,10 @@ export function FailureAlertGraphic() {
             styles.runRow
           )}
         >
-          <span className='font-medium text-[var(--text-inverse)] text-caption'>
-            Nightly data sync
-          </span>
+          <span className='text-[var(--text-inverse)] text-caption'>Nightly data sync</span>
           <span
             className={cn(
-              'flex h-5 items-center rounded-md border px-1.5 font-medium text-[var(--text-muted-inverse)] text-caption',
+              'flex h-5 items-center rounded-md border px-1.5 text-[var(--text-muted-inverse)] text-caption',
               OUTLINE_INK
             )}
           >
@@ -77,13 +75,13 @@ export function FailureAlertGraphic() {
             >
               <SlackIcon className='size-[12px]' />
             </span>
-            <span className='min-w-0 flex-1 truncate font-medium text-[var(--text-inverse)] text-small'>
+            <span className='min-w-0 flex-1 truncate text-[var(--text-inverse)] text-small'>
               #oncall
             </span>
             <span className='shrink-0 text-[var(--text-muted-inverse)] text-caption'>Now</span>
           </div>
           <div className='px-3 pt-2.5 pb-4'>
-            <span className='block font-medium text-[var(--text-inverse)] text-small'>
+            <span className='block text-[var(--text-inverse)] text-small'>
               Run failed: Nightly data sync
             </span>
             <span className='mt-1 block text-[var(--text-muted-inverse)] text-caption'>

@@ -125,7 +125,7 @@ export function TechnicalTeamsGraphic({
               />
             </span>
             <span className='min-w-0 flex-1'>
-              <span className='block truncate font-medium text-[var(--text-primary)] text-small'>
+              <span className='block truncate text-[var(--text-primary)] text-small'>
                 {reviewerName}
               </span>
               <span className='block truncate text-[var(--text-muted)] text-caption'>

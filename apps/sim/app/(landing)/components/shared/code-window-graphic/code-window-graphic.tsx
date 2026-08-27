@@ -77,7 +77,7 @@ export function CodeWindowGraphic({ icon, filename, lines }: CodeWindowGraphicPr
           >
             {icon}
           </span>
-          <span className='font-medium text-[var(--text-inverse)] text-base'>{filename}</span>
+          <span className='text-[var(--text-inverse)] text-base'>{filename}</span>
         </div>
 
         <div className='space-y-2 p-4 font-mono text-[var(--text-muted-inverse)] text-caption leading-[1.7]'>

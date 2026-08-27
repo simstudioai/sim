@@ -108,7 +108,7 @@ export function RunTraceGraphic() {
           >
             <Library className='size-[14px] text-[var(--text-muted-inverse)]' />
           </span>
-          <span className='min-w-0 flex-1 truncate font-medium text-[var(--text-inverse)] text-base'>
+          <span className='min-w-0 flex-1 truncate text-[var(--text-inverse)] text-base'>
             Support ticket routing
           </span>
           <span className='shrink-0 font-mono text-[var(--text-muted-inverse)] text-caption'>
@@ -124,7 +124,7 @@ export function RunTraceGraphic() {
             >
               <span
                 className={cn(
-                  'w-[38%] shrink-0 truncate font-medium text-caption',
+                  'w-[38%] shrink-0 truncate text-caption',
                   NAME_TONE_CLASS[span.barTone],
                   span.indentClass
                 )}

@@ -196,7 +196,7 @@ export function StandardsGraphic({
               <ChipTag variant='mono'>{rightLabel}</ChipTag>
             </span>
 
-            <span className='-translate-x-1/2 absolute top-[172px] left-1/2 flex h-5 items-center rounded-md bg-[var(--text-muted)] px-1.5 font-medium text-[var(--text-inverse)] text-caption'>
+            <span className='-translate-x-1/2 absolute top-[172px] left-1/2 flex h-5 items-center rounded-md bg-[var(--text-muted)] px-1.5 text-[var(--text-inverse)] text-caption'>
               {sealLabel}
             </span>
           </div>
