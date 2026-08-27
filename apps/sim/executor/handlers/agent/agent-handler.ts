@@ -1385,8 +1385,6 @@ export class AgentBlockHandler implements BlockHandler {
       usageControl: config.usageControl || 'auto',
     }
 
-    // An MCP tool has no block subblocks to describe it, so its pinned params are read straight
-    // from the configured values, keyed by the remote schema's own names.
     const { formatParameterLabel, isPasswordParameter } = await import('@/tools/params')
     registerToolPinnedFields(
       mcpTool,

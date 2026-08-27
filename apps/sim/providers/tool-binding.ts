@@ -3,7 +3,7 @@ import type { SubBlockType } from '@sim/workflow-types/blocks'
 import type { SubBlockConfig } from '@/blocks/types'
 import { isNonEmpty } from '@/tools/merge-params'
 
-/** Resource kinds whose configured value is an opaque id the labeller must resolve to a name. */
+/** Resource kinds whose configured value is an opaque id that must be resolved to a name. */
 export type BoundResourceKind = 'credential' | 'knowledgeBase'
 
 /**
@@ -16,7 +16,7 @@ export type ToolPinnedField =
 
 /**
  * A workflow id is resolvable too, but its name is already fetched during tool transformation, so
- * it never reaches the labeller as an unresolved resource.
+ * it is stated as a literal and never leaves this module as an unresolved resource.
  */
 type ResolvableKind = BoundResourceKind | 'workflow'
 
@@ -114,7 +114,7 @@ function statedValue(value: unknown): string | number | boolean | undefined {
   return sanitizeStatedText(value) || undefined
 }
 
-export interface PinnedFieldSourceOptions {
+interface PinnedFieldSourceOptions {
   formatParamLabel: (paramId: string) => string
   /** `isPasswordParameter` from `@/tools/params`, injected to avoid a static registry-side edge. */
   isPasswordParam: (paramId: string) => boolean
@@ -125,8 +125,9 @@ function isSecretParamId(paramId: string, options: PinnedFieldSourceOptions): bo
 }
 
 /**
- * Pinned fields for a tool that has no block subblocks to describe it — an MCP or custom tool,
- * whose configured params are plain values keyed by the remote schema's own names.
+ * Pinned fields for a tool that has no block subblocks to describe it. Used by the MCP path, whose
+ * configured params are plain values keyed by the remote schema's own names. Custom tools take the
+ * same shape but are not wired to this yet.
  */
 export function collectPinnedFieldsFromParams(
   params: Record<string, unknown>,
@@ -182,8 +183,9 @@ export function collectToolPinnedFields(input: CollectToolPinnedFieldsInput): To
   if (!subBlocks?.length) return []
 
   // A canonical pair's advanced half is a plain `short-input`, so the kind has to come from the
-  // whole group rather than from whichever subblock is being scanned. Without this, a credential
-  // entered in advanced mode falls through to the literal path and is stated verbatim.
+  // whole group rather than from whichever subblock is being scanned. Without this a resource
+  // entered in advanced mode takes the literal path: a knowledge base id would be stated verbatim,
+  // and a credential would be dropped entirely by the secret-name check below.
   const kindByParamId = new Map<string, ResolvableKind>()
   for (const subBlock of subBlocks) {
     const kind = RESOURCE_SUBBLOCK_KINDS[subBlock.type]
@@ -194,7 +196,6 @@ export function collectToolPinnedFields(input: CollectToolPinnedFieldsInput): To
   const seenParamIds = new Set<string>()
 
   for (const subBlock of subBlocks) {
-    // A canonical pair contributes two subblocks (basic + advanced) for one logical field.
     const paramId = subBlock.canonicalParamId ?? subBlock.id
     if (seenParamIds.has(paramId)) continue
     if (selfDescribedParamId && paramId === selfDescribedParamId) continue

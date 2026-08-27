@@ -225,6 +225,46 @@ describe('collectToolPinnedFields', () => {
       expect(collect({ subBlocks: credentialPair, resolvedResourceParams: params })).toEqual([])
     }
   })
+
+  it('states nothing when the caller omits the tool param map', () => {
+    expect(
+      collect({
+        subBlocks: [sub({ id: 'folder', title: 'Label', type: 'folder-selector' })],
+        userProvidedParams: { folder: 'INBOX' },
+      })
+    ).toEqual([])
+  })
+
+  it('drops a field whose title sanitizes to nothing', () => {
+    expect(
+      collect({
+        subBlocks: [sub({ id: 'folder', title: '""', type: 'folder-selector' })],
+        userProvidedParams: { folder: 'INBOX' },
+        toolParams: toolParams('folder'),
+        formatParamLabel: () => '""',
+      })
+    ).toEqual([])
+  })
+
+  it('truncates an oversized title', () => {
+    const fields = collect({
+      subBlocks: [sub({ id: 'folder', title: 'T'.repeat(80), type: 'folder-selector' })],
+      userProvidedParams: { folder: 'INBOX' },
+      toolParams: toolParams('folder'),
+    })
+
+    expect(fields[0].title).toBe(`${'T'.repeat(40)}…`)
+  })
+
+  it('drops a non-finite number', () => {
+    expect(
+      collect({
+        subBlocks: [sub({ id: 'ratio', title: 'Ratio', type: 'short-input' })],
+        userProvidedParams: { ratio: Number.NaN },
+        toolParams: toolParams('ratio'),
+      })
+    ).toEqual([])
+  })
 })
 
 describe('collectPinnedFieldsFromParams', () => {
@@ -256,6 +296,12 @@ describe('sanitizeStatedText', () => {
 })
 
 describe('pinned field registration', () => {
+  it('stores nothing for an empty list, so callers see undefined', () => {
+    const tool = { id: 'gmail_read_email' }
+    registerToolPinnedFields(tool, [])
+    expect(getToolPinnedFields(tool)).toBeUndefined()
+  })
+
   it('reads back the fields registered for that exact tool object', () => {
     const tool = { id: 'gmail_read_email' }
     const field = { title: 'Label', value: 'INBOX' } as const

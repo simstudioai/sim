@@ -896,7 +896,7 @@ export async function transformBlockTool(
   }
 
   // A tool that rewrote its own description from a bound param already names that resource, so the
-  // duplicate labeller must not state it twice. Keyed off the declaration rather than the rendered
+  // pinned-param annotation must not state it twice. Keyed off the declaration rather than the rendered
   // text; the inequality catches an enricher that returned the description unchanged.
   const selfDescribedParamId =
     enrichedDescription && enrichedDescription !== toolConfig.description

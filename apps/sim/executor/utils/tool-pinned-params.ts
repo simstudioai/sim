@@ -47,29 +47,49 @@ const RESOLVERS: Record<BoundResourceKind, ResourceNameResolver> = {
   knowledgeBase: (ids, workspaceId) => getKnowledgeBaseNames(ids, workspaceId),
 }
 
-function renderField(field: ToolPinnedField, resolved: ReadonlyMap<string, string>): string {
+function renderField(
+  field: ToolPinnedField,
+  resolved: ReadonlyMap<string, string | null>
+): string | undefined {
   if ('resource' in field) {
     const name = sanitizeStatedText(
       resolved.get(`${field.resource.kind}:${field.resource.id}`) ?? ''
     )
-    return name ? `${field.title} "${name}"` : ''
+    return name ? `${field.title} "${name}"` : undefined
   }
   return typeof field.value === 'string'
     ? `${field.title} "${field.value}"`
     : `${field.title} ${field.value}`
 }
 
+/** Joins what one tool states, or undefined when it has nothing to say. */
+function buildStatement(
+  fields: readonly ToolPinnedField[],
+  resolved: ReadonlyMap<string, string | null>,
+  withholdLiterals: boolean
+): string | undefined {
+  const rendered: string[] = []
+  for (const field of fields) {
+    if (rendered.length === MAX_STATED_FIELDS) break
+    if (withholdLiterals && !('resource' in field)) continue
+    const text = renderField(field, resolved)
+    if (text !== undefined) rendered.push(text)
+  }
+  return rendered.length > 0 ? rendered.join(', ') : undefined
+}
+
 /**
  * Tells the model which values a workflow pinned on a tool, and — when the agent holds several
  * copies of that tool that differ — that it must pick the right one.
  *
- * Every pinned param is stripped from the schema the model sees (`createLLMToolSchema` drops any
- * param the user filled), so without this the model cannot tell that a Gmail tool reads only
- * `INBOX`, cannot distinguish it from a sibling reading `SENT`, and may promise a caller it will
- * search a folder it can never reach.
+ * A filled param is stripped from the schema the model sees — `createLLMToolSchema` skips it for
+ * block tools, `filterSchemaForLLM` for MCP ones — so without this the model cannot tell that a
+ * Gmail tool reads only `INBOX`, cannot distinguish it from a sibling reading `SENT`, and may
+ * promise a caller it will search a folder it can never reach.
  *
  * Mutates `description` on the exact objects passed in. Provenance elsewhere is keyed on tool
- * identity, so no tool is ever replaced. Never throws: an unresolvable value is simply omitted.
+ * identity, so no tool is ever replaced. A failed name lookup never fails the block; it just
+ * leaves that field unstated. `withholdLiteralValues` is called uncaught and must not throw.
  *
  * `withholdLiteralValues` marks a tool whose configured params resolved an environment secret.
  * Its literal values are suppressed; resolved resource names still state, since a looked-up name
@@ -121,37 +141,28 @@ export async function annotateToolPinnedParams(
     })
   )
 
-  const resolvedNames = new Map<string, string>()
-  for (const [key, name] of cache) if (name) resolvedNames.set(key, name)
-
+  // Only claim the copies differ when their pinned values actually do. The comparison uses the
+  // un-withheld render on purpose: two copies pinned identically, where only one of them resolved
+  // an env secret, differ solely in what is disclosed — telling the model they are "pinned to
+  // different values" would assert a distinction it cannot act on. Comparing only the first
+  // MAX_STATED_FIELDS can still miss a difference beyond the cap, which under-warns rather than
+  // mis-warns.
   const statements = new Map<ProviderToolConfig, string>()
+  const comparableByCanonicalId = new Map<string, Set<string>>()
   for (const { tool, fields } of annotatable) {
-    const withhold = withholdLiteralValues?.(tool) ?? false
-    const rendered: string[] = []
-    for (const field of fields) {
-      if (rendered.length === MAX_STATED_FIELDS) break
-      if (withhold && !('resource' in field)) continue
-      const text = renderField(field, resolvedNames)
-      if (text) rendered.push(text)
-    }
-    if (rendered.length > 0) statements.set(tool, rendered.join(', '))
-  }
-
-  // Only claim the copies differ when their stated values actually do. Two tools bound to the same
-  // account and folder render identically, and telling the model to "call the copy the request
-  // refers to" would assert a distinction it cannot act on.
-  const statementsByCanonicalId = new Map<string, Set<string>>()
-  for (const tool of tools) {
-    const statement = statements.get(tool)
+    const statement = buildStatement(fields, cache, withholdLiteralValues?.(tool) ?? false)
     if (statement === undefined) continue
+    statements.set(tool, statement)
+
+    const comparable = buildStatement(fields, cache, false) ?? statement
     const key = tool.canonicalId ?? tool.id
-    const seen = statementsByCanonicalId.get(key)
-    if (seen) seen.add(statement)
-    else statementsByCanonicalId.set(key, new Set([statement]))
+    const seen = comparableByCanonicalId.get(key)
+    if (seen) seen.add(comparable)
+    else comparableByCanonicalId.set(key, new Set([comparable]))
   }
 
   for (const [tool, statement] of statements) {
-    const distinct = statementsByCanonicalId.get(tool.canonicalId ?? tool.id)?.size ?? 1
+    const distinct = comparableByCanonicalId.get(tool.canonicalId ?? tool.id)?.size ?? 1
     const duplicateHint =
       distinct > 1
         ? ' Other copies of this tool on this agent are pinned to different values — call the copy the request refers to.'

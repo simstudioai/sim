@@ -190,6 +190,79 @@ describe('annotateToolPinnedParams', () => {
     expect(appended(second[0])).toContain('Gmail Account "Support Inbox"')
   })
 
+  it('does not claim copies differ when only their secret disclosure does', async () => {
+    const open = providerTool('gmail_read_email', [account('cred-a'), label('INBOX')])
+    const secret = providerTool('gmail_read_email', [account('cred-a'), label('INBOX')])
+
+    // Identical pins; only `secret` resolved an env variable, so its literal is withheld.
+    await annotateToolPinnedParams(ctx(), [open, secret], (tool) => tool === secret)
+
+    expect(appended(open)).toContain('Label "INBOX".')
+    expect(appended(secret)).not.toContain('INBOX')
+    expect(appended(open)).not.toContain('Other copies')
+    expect(appended(secret)).not.toContain('Other copies')
+  })
+
+  it('groups copies by canonical id once the wire ids have been aliased', async () => {
+    const first = providerTool('gmail_read_email', [label('INBOX')])
+    const second = providerTool('gmail_read_email__sim_2', [label('SENT')])
+    second.canonicalId = 'gmail_read_email'
+
+    await annotateToolPinnedParams(ctx(), [first, second])
+
+    expect(appended(first)).toContain('Other copies')
+    expect(appended(second)).toContain('Other copies')
+  })
+
+  it('does not group tools that only share a wire id shape', async () => {
+    const first = providerTool('gmail_read_email', [label('INBOX')])
+    const second = providerTool('slack_send_message', [label('SENT')])
+
+    await annotateToolPinnedParams(ctx(), [first, second])
+
+    expect(appended(first)).not.toContain('Other copies')
+    expect(appended(second)).not.toContain('Other copies')
+  })
+
+  it('gives no hint when a sibling states nothing at all', async () => {
+    const stated = providerTool('gmail_read_email', [label('INBOX')])
+    const silent = providerTool('gmail_read_email', [account('cred-deleted')])
+
+    await annotateToolPinnedParams(ctx(), [stated, silent])
+
+    expect(appended(stated)).toContain('Label "INBOX".')
+    expect(silent.description).toBe(BASE)
+    expect(appended(stated)).not.toContain('Other copies')
+  })
+
+  it('does not re-query an id that already failed to resolve', async () => {
+    const cache = new Map<string, string | null>()
+
+    await annotateToolPinnedParams(ctx(cache), [
+      providerTool('gmail_read_email', [account('cred-deleted'), label('A')]),
+      providerTool('gmail_read_email', [account('cred-deleted'), label('B')]),
+    ])
+    expect(mockFindWorkspaceCredentialLookup).toHaveBeenCalledTimes(1)
+
+    await annotateToolPinnedParams(ctx(cache), [
+      providerTool('gmail_read_email', [account('cred-deleted'), label('C')]),
+    ])
+    expect(mockFindWorkspaceCredentialLookup).toHaveBeenCalledTimes(1)
+  })
+
+  it('resolves both resource kinds in one pass', async () => {
+    mockGetKnowledgeBaseNames.mockResolvedValue(new Map([['kb-a', 'Support Docs']]))
+    const gmail = providerTool('gmail_read_email', [account('cred-a')])
+    const kb = providerTool('knowledge_search', [
+      { title: 'Knowledge Base', resource: { kind: 'knowledgeBase', id: 'kb-a' } },
+    ])
+
+    await annotateToolPinnedParams(ctx(), [gmail, kb])
+
+    expect(appended(gmail)).toContain('Gmail Account "Support Inbox"')
+    expect(appended(kb)).toContain('Knowledge Base "Support Docs"')
+  })
+
   it('does nothing without a workspace', async () => {
     const tool = providerTool('gmail_read_email', [label('INBOX')])
 
