@@ -114,8 +114,12 @@ function shellVersion(): string {
 const api: SimDesktopApi = {
   version: shellVersion(),
   openExternal: (url: string): Promise<boolean> => ipcRenderer.invoke('desktop:open-external', url),
-  openMicrophoneSettings: (): Promise<boolean> =>
-    ipcRenderer.invoke('desktop:open-microphone-settings'),
+  ...(process.platform === 'darwin' || process.platform === 'win32'
+    ? {
+        openMicrophoneSettings: (): Promise<boolean> =>
+          ipcRenderer.invoke('desktop:open-microphone-settings'),
+      }
+    : {}),
   beginOAuthConnect: (providerId: string, scope?: DesktopOAuthConnectScope): Promise<boolean> =>
     ipcRenderer.invoke('desktop:oauth-connect', providerId, scope),
   onOAuthConnectComplete: (callback: (result: DesktopOAuthConnectResult) => void): (() => void) => {
