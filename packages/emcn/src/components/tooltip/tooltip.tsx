@@ -327,7 +327,6 @@ export function useIsOverflowing<T extends HTMLElement = HTMLElement>(
 } {
   const [isOverflowing, setIsOverflowing] = React.useState(false)
   const nodeRef = React.useRef<T | null>(null)
-  const usesResizeObserverRef = React.useRef(false)
 
   const measure = React.useCallback(() => {
     const element = nodeRef.current
@@ -341,17 +340,19 @@ export function useIsOverflowing<T extends HTMLElement = HTMLElement>(
       if (!node) return
 
       measure()
-      usesResizeObserverRef.current = observeOverflow(node, measure)
+      observeOverflow(node, measure)
     },
     [measure]
   )
 
   React.useEffect(() => {
-    if (usesResizeObserverRef.current) return () => unobserveOverflow(nodeRef.current)
-    window.addEventListener('resize', measure)
+    const element = nodeRef.current
+    if (!element) return undefined
+    const usesResizeObserver = observeOverflow(element, measure)
+    if (!usesResizeObserver) window.addEventListener('resize', measure)
     return () => {
-      window.removeEventListener('resize', measure)
-      unobserveOverflow(nodeRef.current)
+      if (!usesResizeObserver) window.removeEventListener('resize', measure)
+      unobserveOverflow(element)
     }
   }, [measure])
 
