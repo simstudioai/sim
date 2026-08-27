@@ -85,6 +85,21 @@ for available resources and accepted shapes.
   structured response format. Structured fields become top-level Agent outputs; inspect the
   effective output schema before referencing them instead of assuming a `content` path.
 
+## Wire Condition and Router branches semantically
+
+- A Condition's `params.inputs.conditions` is an ordered array of `{ "title", "value" }` entries.
+  Titles are structural tokens, not display labels: use exactly `If`, repeat `Else If` as needed,
+  and use `Else` with an empty value for the fallback. Author their connection handles as `if`,
+  `else-if-0`, `else-if-1`, and so on, then `else`.
+- A Router's `params.inputs.routes` is an ordered array of `{ "title", "value" }` entries. Route
+  titles are free text; connection handles are positional: the first route is `route-0`, the second
+  is `route-1`, and so on.
+- Always use these semantic handles in workflow operations. Persisted edges may contain internal
+  condition or route ids; those are storage details, not handles to copy into a new operation.
+- Reordering Condition branches or Router routes changes the positional handle mapping. Update the
+  block inputs and every affected outgoing connection in the same atomic batch, then read state and
+  verify each handle still reaches its intended target.
+
 ## Name blocks and write references exactly
 
 - A block-output reference uses the block's `name`, not its catalog type, operation id, UUID, or

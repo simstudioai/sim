@@ -26,8 +26,29 @@ bunx sim-skills --list
 All options after `sim-skills` are forwarded to the standard Agent Skills installer. `install` and
 `add` are optional aliases, so `bunx sim-skills install --list` is equivalent to the last example.
 
-For native plugin development, point the host at the `sim/` directory. The manifests in
-`.codex-plugin/` and `.claude-plugin/` both declare `sim` as the plugin namespace.
+The npm package root is also the native plugin root. Its `.codex-plugin/` and `.claude-plugin/`
+manifests both declare `sim` as the plugin namespace, and `skills/` contains the shared skills.
+This allows a plugin marketplace to use `sim-skills` directly as an npm source without a
+subdirectory selector or install-time build step.
+
+A Codex marketplace can install the native plugin directly from npm:
+
+```json
+{
+  "name": "sim",
+  "source": {
+    "source": "npm",
+    "package": "sim-skills",
+    "version": "latest",
+    "registry": "https://registry.npmjs.org"
+  },
+  "policy": {
+    "installation": "AVAILABLE",
+    "authentication": "ON_INSTALL"
+  },
+  "category": "Productivity"
+}
+```
 
 ## Namespace
 

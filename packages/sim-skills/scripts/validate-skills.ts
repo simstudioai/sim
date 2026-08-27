@@ -3,7 +3,7 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-const pluginRoot = resolve(packageRoot, 'sim')
+const pluginRoot = packageRoot
 const skillsDirectory = resolve(pluginRoot, 'skills')
 const pluginManifestPaths = [
   resolve(pluginRoot, '.codex-plugin', 'plugin.json'),
@@ -17,6 +17,7 @@ const expectedSkillNames = [
   'run-workflow',
   'table',
 ] as const
+const expectedPackageFiles = ['.claude-plugin', '.codex-plugin', 'dist', 'skills'] as const
 const skillNamePattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 const MAX_SKILL_NAME_LENGTH = 64
 const MAX_SKILL_DESCRIPTION_LENGTH = 1024
@@ -101,6 +102,13 @@ const packageManifest = await readJsonObject(resolve(packageRoot, 'package.json'
 const packageVersion = packageManifest.version
 if (typeof packageVersion !== 'string' || !packageVersion) {
   throw new Error('package.json: version is required')
+}
+const packageFiles = packageManifest.files
+if (!Array.isArray(packageFiles) || packageFiles.some((entry) => typeof entry !== 'string')) {
+  throw new Error('package.json: files must be an array of strings')
+}
+if ([...packageFiles].sort().join('\n') !== expectedPackageFiles.join('\n')) {
+  throw new Error(`package.json: files must be exactly ${expectedPackageFiles.join(', ')}`)
 }
 
 await Promise.all([

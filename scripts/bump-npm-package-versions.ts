@@ -10,6 +10,7 @@ const LOCKFILE_PATH = path.join(ROOT, 'bun.lock')
 const STABLE_VERSION_PATTERN = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/
 
 interface PackageConfig {
+  readonly allowInitialPublish?: boolean
   readonly manifestPath: string
   readonly name: string
   readonly selector: string
@@ -46,6 +47,13 @@ const PACKAGE_CONFIGS = [
     name: 'sim-setup',
     selector: 'sim-setup',
     workspacePath: 'packages/sim-setup',
+  },
+  {
+    allowInitialPublish: true,
+    manifestPath: path.join(ROOT, 'packages/sim-skills/package.json'),
+    name: 'sim-skills',
+    selector: 'sim-skills',
+    workspacePath: 'packages/sim-skills',
   },
 ] as const satisfies readonly PackageConfig[]
 
@@ -91,7 +99,8 @@ function formatVersion(version: ParsedVersion): string {
  */
 export function resolveNextStableVersion(
   manifestVersion: string,
-  publishedVersions: string[]
+  publishedVersions: string[],
+  options: { allowInitialPublish?: boolean } = {}
 ): string {
   const manifest = parseStableVersion(manifestVersion, 'Manifest version')
   const stableVersions = publishedVersions.flatMap((version) => {
@@ -104,6 +113,7 @@ export function resolveNextStableVersion(
   })
 
   if (stableVersions.length === 0) {
+    if (options.allowInitialPublish) return formatVersion(manifest)
     throw new Error('npm returned no published stable versions')
   }
 
@@ -136,28 +146,49 @@ function readManifest(config: PackageConfig): PackageManifest {
   return manifest as PackageManifest
 }
 
-function publishedVersions(packageName: string): string[] {
+function commandStderr(error: unknown): string | undefined {
+  if (typeof error !== 'object' || error === null || !('stderr' in error)) return undefined
+  const stderr = error.stderr
+  if (typeof stderr === 'string') return stderr
+  if (Buffer.isBuffer(stderr)) return stderr.toString('utf8')
+  return undefined
+}
+
+export function isMissingNpmPackageError(stderr: string, packageName: string): boolean {
+  return (
+    stderr.includes('404 Not Found:') &&
+    stderr.includes(`'${packageName}@latest' does not exist in this registry`)
+  )
+}
+
+function publishedVersions(config: PackageConfig): string[] {
   let output: string
   try {
-    output = execFileSync('bun', ['pm', 'view', packageName, 'versions', '--json'], {
+    output = execFileSync('bun', ['pm', 'view', config.name, 'versions', '--json'], {
       cwd: ROOT,
       encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'inherit'],
+      stdio: ['ignore', 'pipe', 'pipe'],
     })
   } catch (error) {
-    throw new Error(`Could not read published versions for '${packageName}' from npm`, {
-      cause: error,
-    })
+    const stderr = commandStderr(error)
+    if (config.allowInitialPublish && stderr && isMissingNpmPackageError(stderr, config.name)) {
+      return []
+    }
+    const detail = stderr?.trim()
+    throw new Error(
+      `Could not read published versions for '${config.name}' from npm${detail ? `: ${detail}` : ''}`,
+      { cause: error }
+    )
   }
 
   let metadata: unknown
   try {
     metadata = JSON.parse(output)
   } catch (error) {
-    throw new Error(`npm returned invalid JSON for '${packageName}'`, { cause: error })
+    throw new Error(`npm returned invalid JSON for '${config.name}'`, { cause: error })
   }
   if (!Array.isArray(metadata)) {
-    throw new Error(`npm did not return a version array for '${packageName}'`)
+    throw new Error(`npm did not return a version array for '${config.name}'`)
   }
   return metadata
 }
@@ -226,7 +257,9 @@ function main(): void {
       config,
       currentVersion: manifest.version,
       manifest,
-      nextVersion: resolveNextStableVersion(manifest.version, publishedVersions(config.name)),
+      nextVersion: resolveNextStableVersion(manifest.version, publishedVersions(config), {
+        allowInitialPublish: config.allowInitialPublish,
+      }),
     }
   })
 

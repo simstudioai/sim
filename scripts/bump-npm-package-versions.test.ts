@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  isMissingNpmPackageError,
   resolveNextStableVersion,
   updateLockfileWorkspaceVersion,
 } from './bump-npm-package-versions'
@@ -33,6 +34,28 @@ describe('resolveNextStableVersion', () => {
       'npm returned no published stable versions'
     )
   })
+
+  it('preserves the manifest for an explicitly allowed initial release', () => {
+    expect(
+      resolveNextStableVersion('0.1.0', ['0.1.0-preview.10.1'], { allowInitialPublish: true })
+    ).toBe('0.1.0')
+  })
+})
+
+describe('isMissingNpmPackageError', () => {
+  const missingPackageError = `
+404 Not Found: https://registry.npmjs.org/sim-skills
+
+ - 'sim-skills@latest' does not exist in this registry
+`
+
+  it('matches only the requested missing package', () => {
+    expect(isMissingNpmPackageError(missingPackageError, 'sim-skills')).toBe(true)
+    expect(isMissingNpmPackageError(missingPackageError, 'sim-setup')).toBe(false)
+    expect(
+      isMissingNpmPackageError('ConnectionRefused: view request failed to send', 'sim-skills')
+    ).toBe(false)
+  })
 })
 
 describe('updateLockfileWorkspaceVersion', () => {
@@ -45,6 +68,14 @@ describe('updateLockfileWorkspaceVersion', () => {
     "packages/sim-setup": {
       "name": "sim-setup",
       "version": "1.0.2",
+    },
+    "packages/sim-skills": {
+      "name": "sim-skills",
+      "version": "0.1.0",
+    },
+    "packages/tsconfig": {
+      "name": "@sim/tsconfig",
+      "version": "1.0.0",
     },
   },
 }`
@@ -60,7 +91,22 @@ describe('updateLockfileWorkspaceVersion', () => {
 
     expect(next).toContain('"version": "2.1.3"')
     expect(next).toContain('"version": "1.0.2"')
+    expect(next).toContain('"version": "0.1.0"')
     expect(next).not.toContain('"version": "2.1.2"')
+  })
+
+  it('updates the sim-skills workspace', () => {
+    const next = updateLockfileWorkspaceVersion(
+      lockfile,
+      'packages/sim-skills',
+      'sim-skills',
+      '0.1.0',
+      '0.1.1'
+    )
+
+    expect(next).toContain('"name": "sim-skills",\n      "version": "0.1.1"')
+    expect(next).toContain('"version": "2.1.2"')
+    expect(next).toContain('"version": "1.0.2"')
   })
 
   it('fails when the lockfile disagrees with the manifest', () => {

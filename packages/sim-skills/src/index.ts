@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url'
 import { buildInstallerArguments } from './arguments'
 
 const currentDirectory = dirname(fileURLToPath(import.meta.url))
-const pluginRoot = resolve(currentDirectory, '../sim')
+const pluginRoot = resolve(currentDirectory, '..')
 const require = createRequire(import.meta.url)
 const installerPackage = require.resolve('skills/package.json')
 const installerCli = resolve(dirname(installerPackage), 'bin/cli.mjs')

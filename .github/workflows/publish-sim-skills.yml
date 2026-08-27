@@ -50,6 +50,11 @@ jobs:
           NPM_CONFIG_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: bun pm whoami
 
+      - name: Auto-bump package version
+        run: |
+          bun run bump:npm-packages sim-skills
+          bun run --cwd packages/sim-skills sync:plugin-version
+
       - name: Validate skills
         working-directory: packages/sim-skills
         run: bun run check:skills
@@ -98,6 +103,7 @@ jobs:
           esac
 
           bun pm pkg set "version=$VERSION"
+          bun run sync:plugin-version
           RESOLVED_VERSION="$(bun -p "require('./package.json').version")"
           if [ "$RESOLVED_VERSION" != "$VERSION" ]; then
             echo "Version injection mismatch: wanted '$VERSION', got '$RESOLVED_VERSION'." >&2
@@ -118,11 +124,13 @@ jobs:
           bun pm pack --ignore-scripts --filename "$PACKAGE_PATH" --quiet
           tar -xzf "$PACKAGE_PATH" -C "$SMOKE_DIR"
           test -x "$SMOKE_DIR/package/dist/index.js"
-          test -f "$SMOKE_DIR/package/skills/build-sim-workflow/SKILL.md"
-          test -f "$SMOKE_DIR/package/skills/run-sim-workflow/SKILL.md"
-          test -f "$SMOKE_DIR/package/skills/deploy-sim-workflow/SKILL.md"
-          test -f "$SMOKE_DIR/package/skills/sim-table/SKILL.md"
-          test -f "$SMOKE_DIR/package/skills/sim-knowledge-base/SKILL.md"
+          test -f "$SMOKE_DIR/package/.codex-plugin/plugin.json"
+          test -f "$SMOKE_DIR/package/.claude-plugin/plugin.json"
+          test -f "$SMOKE_DIR/package/skills/build-workflow/SKILL.md"
+          test -f "$SMOKE_DIR/package/skills/run-workflow/SKILL.md"
+          test -f "$SMOKE_DIR/package/skills/deploy-workflow/SKILL.md"
+          test -f "$SMOKE_DIR/package/skills/table/SKILL.md"
+          test -f "$SMOKE_DIR/package/skills/knowledge-base/SKILL.md"
 
       - name: Verify version is unpublished
         working-directory: packages/sim-skills
@@ -130,7 +138,7 @@ jobs:
           VERSION: ${{ steps.release.outputs.version }}
         run: |
           if bun pm view "sim-skills@$VERSION" version > /dev/null 2>&1; then
-            echo "sim-skills@$VERSION is already published. Bump packages/sim-skills/package.json before releasing another build." >&2
+            echo "sim-skills@$VERSION is already published. The automatic version bump did not produce a unique release." >&2
             exit 1
           fi
 
