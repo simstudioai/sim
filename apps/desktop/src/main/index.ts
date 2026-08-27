@@ -585,9 +585,18 @@ function main(): void {
     if (!resumingQuitAfterTeardown && sessionLifecycle?.isTeardownActive()) {
       event.preventDefault()
       void sessionLifecycle.awaitTeardown().then((clean) => {
-        if (!clean) {
+        if (!clean && !mandatoryRelaunchPending) {
           logger.error('Quit cancelled because account teardown did not finish safely')
           return
+        }
+        if (!prepareAccountDataTeardownForQuit()) {
+          logger.error('Quit cancelled because account-data recovery could not be persisted')
+          return
+        }
+        if (!clean) {
+          logger.warn(
+            'Committed server relaunch is continuing with account-data recovery armed for startup'
+          )
         }
         resumingQuitAfterTeardown = true
         app.quit()
