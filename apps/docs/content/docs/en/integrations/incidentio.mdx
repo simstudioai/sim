@@ -82,7 +82,8 @@ List incidents from incident.io. Returns a list of incidents with their details 
 |     ↳ `is_default` | boolean | Whether this is the default incident type |
 |   ↳ `created_at` | string | When the incident was created \(ISO 8601\) |
 |   ↳ `updated_at` | string | When the incident was last updated \(ISO 8601\) |
-|   ↳ `incident_url` | string | URL to the incident page |
+|   ↳ `permalink` | string | Permanent link to the incident |
+|   ↳ `incident_url` | string | Deprecated alias for permalink; kept for existing workflow references |
 |   ↳ `slack_channel_id` | string | Slack channel ID |
 |   ↳ `slack_channel_name` | string | Slack channel name |
 |   ↳ `visibility` | string | Incident visibility \(public, private\) |
@@ -132,7 +133,8 @@ Create a new incident in incident.io. Requires idempotency_key, severity_id, and
 |     ↳ `name` | string | Type name |
 |   ↳ `created_at` | string | Creation timestamp |
 |   ↳ `updated_at` | string | Last update timestamp |
-|   ↳ `incident_url` | string | URL to the incident |
+|   ↳ `permalink` | string | Permanent link to the incident |
+|   ↳ `incident_url` | string | Deprecated alias for permalink; kept for existing workflow references |
 |   ↳ `slack_channel_id` | string | Associated Slack channel ID |
 |   ↳ `slack_channel_name` | string | Associated Slack channel name |
 |   ↳ `visibility` | string | Incident visibility |
@@ -173,7 +175,7 @@ Retrieve detailed information about a specific incident from incident.io by its 
 |     ↳ `name` | string | Type name |
 |   ↳ `created_at` | string | Creation timestamp |
 |   ↳ `updated_at` | string | Last update timestamp |
-|   ↳ `incident_url` | string | URL to the incident |
+|   ↳ `incident_url` | string | Deprecated alias for permalink; kept for existing workflow references |
 |   ↳ `slack_channel_id` | string | Associated Slack channel ID |
 |   ↳ `slack_channel_name` | string | Associated Slack channel name |
 |   ↳ `visibility` | string | Incident visibility |
@@ -221,7 +223,8 @@ Update an existing incident in incident.io. Can update name, summary, severity, 
 |     ↳ `name` | string | Type name |
 |   ↳ `created_at` | string | Creation timestamp |
 |   ↳ `updated_at` | string | Last update timestamp |
-|   ↳ `incident_url` | string | URL to the incident |
+|   ↳ `permalink` | string | Permanent link to the incident |
+|   ↳ `incident_url` | string | Deprecated alias for permalink; kept for existing workflow references |
 |   ↳ `slack_channel_id` | string | Associated Slack channel ID |
 |   ↳ `slack_channel_name` | string | Associated Slack channel name |
 |   ↳ `visibility` | string | Incident visibility |
@@ -250,7 +253,6 @@ List actions from incident.io. Optionally filter by incident ID.
 |     ↳ `name` | string | User name |
 |     ↳ `email` | string | User email |
 |   ↳ `status` | string | Action status |
-|   ↳ `due_at` | string | Due date/time |
 |   ↳ `created_at` | string | Creation timestamp |
 |   ↳ `updated_at` | string | Last update timestamp |
 |   ↳ `incident_id` | string | Associated incident ID |
@@ -259,10 +261,6 @@ List actions from incident.io. Optionally filter by incident ID.
 |     ↳ `name` | string | User name |
 |     ↳ `email` | string | User email |
 |   ↳ `completed_at` | string | Completion timestamp |
-|   ↳ `external_issue_reference` | object | External issue tracking reference |
-|     ↳ `provider` | string | Issue tracking provider \(e.g., Jira, Linear\) |
-|     ↳ `issue_name` | string | Issue identifier |
-|     ↳ `issue_permalink` | string | URL to the external issue |
 
 ### incident.io Actions Show
 
@@ -287,7 +285,6 @@ Get detailed information about a specific action from incident.io.
 |     ↳ `name` | string | User name |
 |     ↳ `email` | string | User email |
 |   ↳ `status` | string | Action status |
-|   ↳ `due_at` | string | Due date/time |
 |   ↳ `created_at` | string | Creation timestamp |
 |   ↳ `updated_at` | string | Last update timestamp |
 |   ↳ `incident_id` | string | Associated incident ID |
@@ -296,10 +293,6 @@ Get detailed information about a specific action from incident.io.
 |     ↳ `name` | string | User name |
 |     ↳ `email` | string | User email |
 |   ↳ `completed_at` | string | Completion timestamp |
-|   ↳ `external_issue_reference` | object | External issue tracking reference |
-|     ↳ `provider` | string | Issue tracking provider \(e.g., Jira, Linear\) |
-|     ↳ `issue_name` | string | Issue identifier |
-|     ↳ `issue_permalink` | string | URL to the external issue |
 
 ### incident.io Follow-ups List
 
@@ -414,7 +407,6 @@ List all users in your Incident.io workspace. Returns user details including id,
 | `pagination_meta` | object | Pagination metadata |
 |   ↳ `after` | string | Cursor for next page |
 |   ↳ `page_size` | number | Number of items per page |
-|   ↳ `total_record_count` | number | Total number of records |
 
 ### Incident.io Users Show
 

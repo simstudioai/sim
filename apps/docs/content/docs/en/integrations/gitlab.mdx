@@ -1840,3 +1840,232 @@ Delete a SAML group link from a GitLab group (GitLab Premium/Ultimate)
 | `success` | boolean | Whether the SAML group link was deleted successfully |
 
 
+
+## Triggers
+
+A **Trigger** is a block that starts a workflow when an event happens in this service.
+
+### GitLab Comment
+
+Trigger workflow when a comment is added on a commit, merge request, or issue
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessToken` | string | Yes | Used to create the webhook in your project. Requires the Maintainer or Owner role. |
+| `projectId` | string | Yes | The GitLab project to register the webhook on. |
+| `host` | string | No | Self-managed GitLab host. Leave blank for gitlab.com. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `object_kind` | string | Event kind \(note\) |
+| `event_type` | string | GitLab event type from the X-Gitlab-Event header |
+| `user` | object | user output from the tool |
+|   ↳ `id` | number | User ID |
+|   ↳ `name` | string | User display name |
+|   ↳ `username` | string | Username |
+| `project` | object | project output from the tool |
+|   ↳ `id` | number | Project ID |
+|   ↳ `name` | string | Project name |
+|   ↳ `web_url` | string | Project web URL |
+|   ↳ `path_with_namespace` | string | Full path \(namespace/project\) |
+| `object_attributes` | object | object_attributes output from the tool |
+|   ↳ `id` | number | Comment ID |
+|   ↳ `note` | string | Comment body |
+|   ↳ `noteable_type` | string | What the comment is on \(Commit, MergeRequest, Issue, Snippet\) |
+|   ↳ `action` | string | Action \(create, update\) |
+|   ↳ `url` | string | Comment URL |
+
+
+---
+
+### GitLab Event
+
+Trigger workflow from any GitLab webhook event
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessToken` | string | Yes | Used to create the webhook in your project. Requires the Maintainer or Owner role. |
+| `projectId` | string | Yes | The GitLab project to register the webhook on. |
+| `host` | string | No | Self-managed GitLab host. Leave blank for gitlab.com. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `object_kind` | string | Event kind \(push, merge_request, issue, etc.\) |
+| `event_type` | string | GitLab event type from the X-Gitlab-Event header |
+| `user` | json | Actor that triggered the event \(when present\) |
+| `project` | object | project output from the tool |
+|   ↳ `id` | number | Project ID |
+|   ↳ `name` | string | Project name |
+|   ↳ `web_url` | string | Project web URL |
+|   ↳ `path_with_namespace` | string | Full path \(namespace/project\) |
+| `object_attributes` | json | Event-specific attributes \(varies by object_kind\) |
+
+
+---
+
+### GitLab Issue
+
+Trigger workflow when an issue is opened, updated, or closed in GitLab
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessToken` | string | Yes | Used to create the webhook in your project. Requires the Maintainer or Owner role. |
+| `projectId` | string | Yes | The GitLab project to register the webhook on. |
+| `host` | string | No | Self-managed GitLab host. Leave blank for gitlab.com. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `object_kind` | string | Event kind \(issue\) |
+| `event_type` | string | GitLab event type from the X-Gitlab-Event header |
+| `user` | object | user output from the tool |
+|   ↳ `id` | number | User ID |
+|   ↳ `name` | string | User display name |
+|   ↳ `username` | string | Username |
+| `project` | object | project output from the tool |
+|   ↳ `id` | number | Project ID |
+|   ↳ `name` | string | Project name |
+|   ↳ `web_url` | string | Project web URL |
+|   ↳ `path_with_namespace` | string | Full path \(namespace/project\) |
+| `object_attributes` | object | object_attributes output from the tool |
+|   ↳ `id` | number | Global issue ID |
+|   ↳ `iid` | number | Project-scoped issue number |
+|   ↳ `title` | string | Issue title |
+|   ↳ `state` | string | State \(opened, closed\) |
+|   ↳ `action` | string | Action \(open, close, reopen, update\) |
+|   ↳ `description` | string | Issue description |
+|   ↳ `confidential` | boolean | Whether the issue is confidential |
+|   ↳ `url` | string | Issue URL |
+|   ↳ `work_item_type` | string | Work item type \(e.g. Issue, Incident, Task\); GitLab 17.2+ only |
+
+
+---
+
+### GitLab Merge Request
+
+Trigger workflow when a merge request is opened, updated, or merged in GitLab
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessToken` | string | Yes | Used to create the webhook in your project. Requires the Maintainer or Owner role. |
+| `projectId` | string | Yes | The GitLab project to register the webhook on. |
+| `host` | string | No | Self-managed GitLab host. Leave blank for gitlab.com. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `object_kind` | string | Event kind \(merge_request\) |
+| `event_type` | string | GitLab event type from the X-Gitlab-Event header |
+| `user` | object | user output from the tool |
+|   ↳ `id` | number | User ID |
+|   ↳ `name` | string | User display name |
+|   ↳ `username` | string | Username |
+| `project` | object | project output from the tool |
+|   ↳ `id` | number | Project ID |
+|   ↳ `name` | string | Project name |
+|   ↳ `web_url` | string | Project web URL |
+|   ↳ `path_with_namespace` | string | Full path \(namespace/project\) |
+| `object_attributes` | object | object_attributes output from the tool |
+|   ↳ `id` | number | Global merge request ID |
+|   ↳ `iid` | number | Project-scoped merge request number |
+|   ↳ `title` | string | Merge request title |
+|   ↳ `state` | string | State \(opened, closed, merged, locked\) |
+|   ↳ `action` | string | Action \(open, close, reopen, update, merge, etc.\) |
+|   ↳ `source_branch` | string | Source branch |
+|   ↳ `target_branch` | string | Target branch |
+|   ↳ `merge_status` | string | Merge status \(deprecated by GitLab\) |
+|   ↳ `detailed_merge_status` | string | Detailed merge status |
+|   ↳ `draft` | boolean | Whether the merge request is a draft |
+|   ↳ `url` | string | Merge request URL |
+
+
+---
+
+### GitLab Pipeline
+
+Trigger workflow when a pipeline status changes in GitLab
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessToken` | string | Yes | Used to create the webhook in your project. Requires the Maintainer or Owner role. |
+| `projectId` | string | Yes | The GitLab project to register the webhook on. |
+| `host` | string | No | Self-managed GitLab host. Leave blank for gitlab.com. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `object_kind` | string | Event kind \(pipeline\) |
+| `event_type` | string | GitLab event type from the X-Gitlab-Event header |
+| `user` | object | user output from the tool |
+|   ↳ `id` | number | User ID |
+|   ↳ `name` | string | User display name |
+|   ↳ `username` | string | Username |
+| `project` | object | project output from the tool |
+|   ↳ `id` | number | Project ID |
+|   ↳ `name` | string | Project name |
+|   ↳ `web_url` | string | Project web URL |
+|   ↳ `path_with_namespace` | string | Full path \(namespace/project\) |
+| `object_attributes` | object | object_attributes output from the tool |
+|   ↳ `id` | number | Pipeline ID |
+|   ↳ `status` | string | Pipeline status \(success, failed, running, etc.\) |
+|   ↳ `detailed_status` | string | Detailed pipeline status |
+|   ↳ `ref` | string | Ref the pipeline ran on |
+|   ↳ `sha` | string | Commit SHA |
+|   ↳ `source` | string | Pipeline source \(push, web, schedule, etc.\) |
+|   ↳ `duration` | number | Pipeline duration in seconds |
+|   ↳ `url` | string | Pipeline URL |
+
+
+---
+
+### GitLab Push
+
+Trigger workflow when commits are pushed to a GitLab project
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessToken` | string | Yes | Used to create the webhook in your project. Requires the Maintainer or Owner role. |
+| `projectId` | string | Yes | The GitLab project to register the webhook on. |
+| `host` | string | No | Self-managed GitLab host. Leave blank for gitlab.com. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `object_kind` | string | Event kind \(push\) |
+| `event_type` | string | GitLab event type from the X-Gitlab-Event header |
+| `ref` | string | Git ref that was pushed \(e.g. refs/heads/main\) |
+| `branch` | string | Branch name derived from ref |
+| `before` | string | SHA before the push |
+| `after` | string | SHA after the push |
+| `checkout_sha` | string | SHA of the most recent commit |
+| `user_username` | string | Username of the pusher |
+| `user_name` | string | Display name of the pusher |
+| `user_email` | string | Email of the pusher |
+| `total_commits_count` | number | Number of commits in the push |
+| `project` | object | project output from the tool |
+|   ↳ `id` | number | Project ID |
+|   ↳ `name` | string | Project name |
+|   ↳ `web_url` | string | Project web URL |
+|   ↳ `path_with_namespace` | string | Full path \(namespace/project\) |
+| `commits` | json | Array of commit objects included in this push |
+

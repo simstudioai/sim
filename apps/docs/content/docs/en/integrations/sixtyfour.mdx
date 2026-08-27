@@ -104,7 +104,6 @@ Enrich lead information with contact details, social profiles, and company data 
 | `struct` | string | No | Optional fields to collect as JSON object. Keys are field names, values are descriptions \(e.g. \{"email": "The individual\'s email address", "phone": "Phone number"\}\). Only the fields listed here are returned in structured_data — there is no default field set, so omitting this returns an empty structured_data and only the research notes, references, and confidence score. |
 | `researchPlan` | string | No | Optional research plan to guide enrichment strategy |
 | `tier` | string | No | Research depth and credit spend: micro, low, medium, high, or xhigh. Defaults to low when omitted; micro is cheaper than the default. |
-| `timeout` | number | No | Outbound request deadline in milliseconds. Defaults to SIXTYFOUR_ENRICH_TIMEOUT_MS because this endpoint is synchronous and long-running. |
 
 #### Output
 
@@ -132,7 +131,6 @@ Enrich company data with additional information and find associated people using
 | `peopleFocusPrompt` | string | No | Description of people to find \(roles, responsibilities\) |
 | `leadStruct` | string | No | Custom schema for returned lead data as JSON object |
 | `tier` | string | No | Research depth and credit spend: micro, low, medium, or high. Defaults to low when omitted; micro is cheaper than the default. |
-| `timeout` | number | No | Outbound request deadline in milliseconds. Defaults to SIXTYFOUR_ENRICH_TIMEOUT_MS because this endpoint is synchronous and long-running. |
 
 #### Output
 

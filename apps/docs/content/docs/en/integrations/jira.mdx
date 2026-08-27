@@ -49,7 +49,6 @@ Retrieve detailed information about a specific Jira issue
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
 | `issueKey` | string | Yes | Jira issue key to retrieve \(e.g., PROJ-123\) |
 | `includeAttachments` | boolean | No | Download attachment file contents and include them as files in the output |
-| `cloudId` | string | No | Jira Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -262,7 +261,6 @@ Update a Jira issue
 | `customFieldId` | string | No | Custom field ID to update \(e.g., customfield_10001\) |
 | `customFieldValue` | string | No | Value for the custom field |
 | `notifyUsers` | boolean | No | Whether to send email notifications about this update \(default: true\) |
-| `cloudId` | string | No | Jira Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -287,7 +285,6 @@ Create a new Jira issue
 | `description` | string | No | Description for the issue. Accepts plain text \(auto-wrapped in ADF\) or a raw ADF document object |
 | `priority` | string | No | Priority ID or name for the issue \(e.g., "10000" or "High"\) |
 | `assignee` | string | No | Assignee account ID for the issue |
-| `cloudId` | string | No | Jira Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 | `issueType` | string | Yes | Type of issue to create \(e.g., Task, Story, Bug, Epic, Sub-task\) |
 | `parent` | json | No | Parent issue key for creating subtasks \(e.g., \{ "key": "PROJ-123" \}\) |
 | `labels` | array | No | Labels for the issue \(array of label names\) |
@@ -322,7 +319,6 @@ Retrieve multiple Jira issues from a project in bulk
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
 | `projectId` | string | Yes | Jira project key \(e.g., PROJ\) |
-| `cloudId` | string | No | Jira Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -364,7 +360,6 @@ Delete a Jira issue
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
 | `issueKey` | string | Yes | Jira issue key to delete \(e.g., PROJ-123\) |
 | `deleteSubtasks` | boolean | No | Whether to delete subtasks. If false, parent issues with subtasks cannot be deleted. |
-| `cloudId` | string | No | Jira Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -385,7 +380,6 @@ Assign a Jira issue to a user
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
 | `issueKey` | string | Yes | Jira issue key to assign \(e.g., PROJ-123\) |
 | `accountId` | string | Yes | Account ID of the user to assign the issue to. Use "-1" for automatic assignment, or leave empty / pass "null" to unassign. |
-| `cloudId` | string | No | Jira Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -409,7 +403,6 @@ Move a Jira issue between workflow statuses (e.g., To Do -&gt; In Progress)
 | `transitionId` | string | Yes | ID of the transition to execute \(e.g., "11" for "To Do", "21" for "In Progress"\) |
 | `comment` | string | No | Optional comment to add when transitioning the issue |
 | `resolution` | string | No | Resolution name to set during transition \(e.g., "Fixed", "Won\'t Fix"\) |
-| `cloudId` | string | No | Jira Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -437,7 +430,6 @@ Search for Jira issues using JQL (Jira Query Language)
 | `nextPageToken` | string | No | Cursor token for the next page of results. Omit for the first page. |
 | `maxResults` | number | No | Maximum number of results to return per page \(default: 50\) |
 | `fields` | array | No | Array of field names to return \(default: all fields\). |
-| `cloudId` | string | No | Jira Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -520,7 +512,6 @@ Add a comment to a Jira issue
 | `issueKey` | string | Yes | Jira issue key to add comment to \(e.g., PROJ-123\) |
 | `body` | string | Yes | Comment body text |
 | `visibility` | json | No | Restrict comment visibility. Object with "type" \("role" or "group"\) and "value" \(role/group name\). |
-| `cloudId` | string | No | Jira Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -554,8 +545,7 @@ Get all comments from a Jira issue
 | `issueKey` | string | Yes | Jira issue key to get comments from \(e.g., PROJ-123\) |
 | `startAt` | number | No | Index of the first comment to return \(default: 0\) |
 | `maxResults` | number | No | Maximum number of comments to return \(default: 50\) |
-| `orderBy` | string | No | Sort order for comments: "-created" for newest first, "created" for oldest first |
-| `cloudId` | string | No | Jira Cloud ID for the instance. If not provided, it will be fetched using the domain. |
+| `orderBy` | string | No | Sort order for comments. Must be exactly "created", "-created" \(newest first\), or "+created"; any other value is rejected. |
 
 #### Output
 
@@ -605,7 +595,6 @@ Update an existing comment on a Jira issue
 | `commentId` | string | Yes | ID of the comment to update |
 | `body` | string | Yes | Updated comment text |
 | `visibility` | json | No | Restrict comment visibility. Object with "type" \("role" or "group"\) and "value" \(role/group name\). |
-| `cloudId` | string | No | Jira Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -638,7 +627,6 @@ Delete a comment from a Jira issue
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
 | `issueKey` | string | Yes | Jira issue key containing the comment \(e.g., PROJ-123\) |
 | `commentId` | string | Yes | ID of the comment to delete |
-| `cloudId` | string | No | Jira Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -660,7 +648,6 @@ Get all attachments from a Jira issue
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
 | `issueKey` | string | Yes | Jira issue key to get attachments from \(e.g., PROJ-123\) |
 | `includeAttachments` | boolean | No | Download attachment file contents and include them as files in the output |
-| `cloudId` | string | No | Jira Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -698,7 +685,6 @@ Add attachments to a Jira issue
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
 | `issueKey` | string | Yes | Jira issue key to add attachments to \(e.g., PROJ-123\) |
 | `files` | file[] | Yes | Files to attach to the Jira issue |
-| `cloudId` | string | No | Jira Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -725,7 +711,6 @@ Delete an attachment from a Jira issue
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
 | `attachmentId` | string | Yes | ID of the attachment to delete |
-| `cloudId` | string | No | Jira Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -749,7 +734,6 @@ Add a time tracking worklog entry to a Jira issue
 | `comment` | string | No | Optional comment for the worklog entry |
 | `started` | string | No | Optional start time in ISO format \(defaults to current time\) |
 | `visibility` | json | No | Restrict worklog visibility. Object with "type" \("role" or "group"\) and "value" \(role/group name\). |
-| `cloudId` | string | No | Jira Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -784,7 +768,6 @@ Get all worklog entries from a Jira issue
 | `issueKey` | string | Yes | Jira issue key to get worklogs from \(e.g., PROJ-123\) |
 | `startAt` | number | No | Index of the first worklog to return \(default: 0\) |
 | `maxResults` | number | No | Maximum number of worklogs to return \(default: 50\) |
-| `cloudId` | string | No | Jira Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -836,7 +819,6 @@ Update an existing worklog entry on a Jira issue
 | `comment` | string | No | Optional comment for the worklog entry |
 | `started` | string | No | Optional start time in ISO format |
 | `visibility` | json | No | Restrict worklog visibility. Object with "type" \("role" or "group"\) and "value" \(role/group name\). |
-| `cloudId` | string | No | Jira Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -880,7 +862,6 @@ Delete a worklog entry from a Jira issue
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
 | `issueKey` | string | Yes | Jira issue key containing the worklog \(e.g., PROJ-123\) |
 | `worklogId` | string | Yes | ID of the worklog entry to delete |
-| `cloudId` | string | No | Jira Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -904,7 +885,6 @@ Create a link relationship between two Jira issues
 | `outwardIssueKey` | string | Yes | Jira issue key for the outward issue \(e.g., PROJ-456\) |
 | `linkType` | string | Yes | The type of link relationship \(e.g., "Blocks", "Relates to", "Duplicates"\) |
 | `comment` | string | No | Optional comment to add to the issue link |
-| `cloudId` | string | No | Jira Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -927,7 +907,6 @@ Delete a link between two Jira issues
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
 | `linkId` | string | Yes | ID of the issue link to delete |
-| `cloudId` | string | No | Jira Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -948,7 +927,6 @@ Add a watcher to a Jira issue to receive notifications about updates
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
 | `issueKey` | string | Yes | Jira issue key to add watcher to \(e.g., PROJ-123\) |
 | `accountId` | string | Yes | Account ID of the user to add as watcher |
-| `cloudId` | string | No | Jira Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -970,7 +948,6 @@ Remove a watcher from a Jira issue
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
 | `issueKey` | string | Yes | Jira issue key to remove watcher from \(e.g., PROJ-123\) |
 | `accountId` | string | Yes | Account ID of the user to remove as watcher |
-| `cloudId` | string | No | Jira Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -993,7 +970,6 @@ Get Jira users. If an account ID is provided, returns a single user. Otherwise, 
 | `accountId` | string | No | Optional account ID to get a specific user. If not provided, returns all users. |
 | `startAt` | number | No | The index of the first user to return \(for pagination, default: 0\) |
 | `maxResults` | number | No | Maximum number of users to return \(default: 50\) |
-| `cloudId` | string | No | Jira Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -1026,7 +1002,6 @@ Search for Jira users by email address or display name. Returns matching users w
 | `query` | string | Yes | A query string to search for users. Can be an email address, display name, or partial match. |
 | `maxResults` | number | No | Maximum number of users to return \(default: 50, max: 1000\) |
 | `startAt` | number | No | The index of the first user to return \(for pagination, default: 0\) |
-| `cloudId` | string | No | Jira Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -1058,7 +1033,6 @@ List Jira projects visible to the user, with optional name/key filtering and pag
 | `query` | string | No | Filter projects by partial name or key match |
 | `startAt` | number | No | The index of the first project to return \(for pagination, default: 0\) |
 | `maxResults` | number | No | Maximum number of projects to return \(default: 50, max: 100\) |
-| `cloudId` | string | No | Jira Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -1091,7 +1065,6 @@ Get the details of a single Jira project by its ID or key, including its type, l
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
 | `projectId` | string | Yes | The project ID or key \(e.g., "PROJ" or "10000"\) |
-| `cloudId` | string | No | Jira Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -1124,7 +1097,6 @@ Get the workflow transitions available for an issue in its current status. Use t
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
 | `issueKey` | string | Yes | The issue key or ID \(e.g., PROJ-123\) |
-| `cloudId` | string | No | Jira Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -1151,7 +1123,6 @@ List all issue types visible to the user across projects (e.g., Task, Bug, Story
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
-| `cloudId` | string | No | Jira Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -1177,7 +1148,6 @@ Get all system and custom fields defined in the Jira instance. Useful for discov
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
-| `cloudId` | string | No | Jira Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 

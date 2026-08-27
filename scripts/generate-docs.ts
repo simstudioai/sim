@@ -2329,6 +2329,16 @@ function extractToolInfo(
           continue
         }
 
+        /**
+         * `visibility: 'hidden'` means the param is shown to neither the user nor the LLM,
+         * so it is not settable and must not appear in the public Input table. Emitting it
+         * tells integrators they can override a value they cannot reach, and several such
+         * params are credential-shaped (idToken, instanceUrl, apiToken, apiKey).
+         */
+        if (/visibility\s*:\s*['"]hidden['"]/.test(paramBlock)) {
+          continue
+        }
+
         const typeMatch = paramBlock.match(/type\s*:\s*['"]([^'"]+)['"]/)
         const requiredMatch = paramBlock.match(/required\s*:\s*(true|false)/)
 

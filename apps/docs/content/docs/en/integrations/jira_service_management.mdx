@@ -45,7 +45,6 @@ Get all service desks from Jira Service Management
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
-| `cloudId` | string | No | Jira Cloud ID for the instance |
 | `expand` | string | No | Comma-separated fields to expand in the response |
 | `start` | number | No | Start index for pagination \(e.g., 0, 50, 100\) |
 | `limit` | number | No | Maximum results to return \(e.g., 10, 25, 50\) |
@@ -75,7 +74,6 @@ Get request types for a service desk in Jira Service Management
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
-| `cloudId` | string | No | Jira Cloud ID for the instance |
 | `serviceDeskId` | string | Yes | Service Desk ID \(e.g., "1", "2"\) |
 | `searchQuery` | string | No | Filter request types by name |
 | `groupId` | string | No | Filter by request type group ID |
@@ -110,7 +108,6 @@ Create a new service request in Jira Service Management
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
-| `cloudId` | string | No | Jira Cloud ID for the instance |
 | `serviceDeskId` | string | Yes | Service Desk ID \(e.g., "1", "2"\) |
 | `requestTypeId` | string | Yes | Request Type ID \(e.g., "10", "15"\) |
 | `summary` | string | No | Summary/title for the service request \(required unless using Form Answers\) |
@@ -145,7 +142,6 @@ Get a single service request from Jira Service Management
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
-| `cloudId` | string | No | Jira Cloud ID for the instance |
 | `issueIdOrKey` | string | Yes | Issue ID or key \(e.g., SD-123\) |
 | `expand` | string | No | Comma-separated fields to expand: participant, status, sla, requestType, serviceDesk, attachment, comment, action |
 
@@ -185,7 +181,6 @@ Get multiple service requests from Jira Service Management
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
-| `cloudId` | string | No | Jira Cloud ID for the instance |
 | `serviceDeskId` | string | No | Filter by service desk ID \(e.g., "1", "2"\) |
 | `requestOwnership` | string | No | Filter by ownership: OWNED_REQUESTS, PARTICIPATED_REQUESTS, APPROVER, ALL_REQUESTS |
 | `requestStatus` | string | No | Filter by status: OPEN_REQUESTS, CLOSED_REQUESTS, ALL_REQUESTS |
@@ -232,7 +227,6 @@ Add a comment (public or internal) to a service request in Jira Service Manageme
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
-| `cloudId` | string | No | Jira Cloud ID for the instance |
 | `issueIdOrKey` | string | Yes | Issue ID or key \(e.g., SD-123\) |
 | `body` | string | Yes | Comment body text |
 | `isPublic` | boolean | Yes | Whether the comment is public \(visible to customer\) or internal \(true/false\) |
@@ -263,7 +257,6 @@ Get comments for a service request in Jira Service Management
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
-| `cloudId` | string | No | Jira Cloud ID for the instance |
 | `issueIdOrKey` | string | Yes | Issue ID or key \(e.g., SD-123\) |
 | `isPublic` | boolean | No | Filter to only public comments \(true/false\) |
 | `internal` | boolean | No | Filter to only internal comments \(true/false\) |
@@ -300,7 +293,6 @@ Get customers for a service desk in Jira Service Management
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
-| `cloudId` | string | No | Jira Cloud ID for the instance |
 | `serviceDeskId` | string | Yes | Service Desk ID \(e.g., "1", "2"\) |
 | `query` | string | No | Search query to filter customers \(e.g., "john", "acme"\) |
 | `start` | number | No | Start index for pagination \(e.g., 0, 50, 100\) |
@@ -329,7 +321,6 @@ Add customers to a service desk in Jira Service Management
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
-| `cloudId` | string | No | Jira Cloud ID for the instance |
 | `serviceDeskId` | string | Yes | Service Desk ID \(e.g., "1", "2"\) |
 | `accountIds` | string | Yes | Comma-separated Atlassian account IDs to add as customers |
 
@@ -350,7 +341,6 @@ Get organizations for a service desk in Jira Service Management
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
-| `cloudId` | string | No | Jira Cloud ID for the instance |
 | `serviceDeskId` | string | Yes | Service Desk ID \(e.g., "1", "2"\) |
 | `start` | number | No | Start index for pagination \(e.g., 0, 50, 100\) |
 | `limit` | number | No | Maximum results to return \(e.g., 10, 25, 50\) |
@@ -375,7 +365,6 @@ Create a new organization in Jira Service Management
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
-| `cloudId` | string | No | Jira Cloud ID for the instance |
 | `name` | string | Yes | Name of the organization to create |
 
 #### Output
@@ -396,7 +385,6 @@ Add an organization to a service desk in Jira Service Management
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
-| `cloudId` | string | No | Jira Cloud ID for the instance |
 | `serviceDeskId` | string | Yes | Service Desk ID \(e.g., "1", "2"\) |
 | `organizationId` | string | Yes | Organization ID to add to the service desk |
 
@@ -418,7 +406,6 @@ Get queues for a service desk in Jira Service Management
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
-| `cloudId` | string | No | Jira Cloud ID for the instance |
 | `serviceDeskId` | string | Yes | Service Desk ID \(e.g., "1", "2"\) |
 | `includeCount` | boolean | No | Include issue count for each queue \(true/false\) |
 | `start` | number | No | Start index for pagination \(e.g., 0, 50, 100\) |
@@ -447,7 +434,6 @@ Get SLA information for a service request in Jira Service Management
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
-| `cloudId` | string | No | Jira Cloud ID for the instance |
 | `issueIdOrKey` | string | Yes | Issue ID or key \(e.g., SD-123\) |
 | `start` | number | No | Start index for pagination \(e.g., 0, 50, 100\) |
 | `limit` | number | No | Maximum results to return \(e.g., 10, 25, 50\) |
@@ -475,7 +461,6 @@ Get available transitions for a service request in Jira Service Management
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
-| `cloudId` | string | No | Jira Cloud ID for the instance |
 | `issueIdOrKey` | string | Yes | Issue ID or key \(e.g., SD-123\) |
 | `start` | number | No | Start index for pagination \(e.g., 0, 50, 100\) |
 | `limit` | number | No | Maximum results to return \(e.g., 10, 25, 50\) |
@@ -501,7 +486,6 @@ Transition a service request to a new status in Jira Service Management
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
-| `cloudId` | string | No | Jira Cloud ID for the instance |
 | `issueIdOrKey` | string | Yes | Issue ID or key \(e.g., SD-123\) |
 | `transitionId` | string | Yes | Transition ID to apply |
 | `comment` | string | No | Optional comment to add during transition |
@@ -524,7 +508,6 @@ Get participants for a request in Jira Service Management
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
-| `cloudId` | string | No | Jira Cloud ID for the instance |
 | `issueIdOrKey` | string | Yes | Issue ID or key \(e.g., SD-123\) |
 | `start` | number | No | Start index for pagination \(e.g., 0, 50, 100\) |
 | `limit` | number | No | Maximum results to return \(e.g., 10, 25, 50\) |
@@ -552,7 +535,6 @@ Add participants to a request in Jira Service Management
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
-| `cloudId` | string | No | Jira Cloud ID for the instance |
 | `issueIdOrKey` | string | Yes | Issue ID or key \(e.g., SD-123\) |
 | `accountIds` | string | Yes | Comma-separated account IDs to add as participants |
 
@@ -578,7 +560,6 @@ Get approvals for a request in Jira Service Management
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
-| `cloudId` | string | No | Jira Cloud ID for the instance |
 | `issueIdOrKey` | string | Yes | Issue ID or key \(e.g., SD-123\) |
 | `start` | number | No | Start index for pagination \(e.g., 0, 50, 100\) |
 | `limit` | number | No | Maximum results to return \(e.g., 10, 25, 50\) |
@@ -615,7 +596,6 @@ Approve or decline an approval request in Jira Service Management
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
-| `cloudId` | string | No | Jira Cloud ID for the instance |
 | `issueIdOrKey` | string | Yes | Issue ID or key \(e.g., SD-123\) |
 | `approvalId` | string | Yes | Approval ID to answer |
 | `decision` | string | Yes | Decision: "approve" or "decline" |
@@ -653,7 +633,6 @@ Get the fields required to create a request of a specific type in Jira Service M
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
-| `cloudId` | string | No | Jira Cloud ID for the instance |
 | `serviceDeskId` | string | Yes | Service Desk ID \(e.g., "1", "2"\) |
 | `requestTypeId` | string | Yes | Request Type ID \(e.g., "10", "15"\) |
 
@@ -686,7 +665,6 @@ List forms (ProForma/JSM Forms) in a Jira project to discover form IDs for reque
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
-| `cloudId` | string | No | Jira Cloud ID for the instance |
 | `projectIdOrKey` | string | Yes | Jira project ID or key \(e.g., "10001" or "SD"\) |
 
 #### Output
@@ -714,7 +692,6 @@ Get the full structure of a ProForma/JSM form including all questions, field typ
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
-| `cloudId` | string | No | Jira Cloud ID for the instance |
 | `projectIdOrKey` | string | Yes | Jira project ID or key \(e.g., "10001" or "SD"\) |
 | `formId` | string | Yes | Form ID \(UUID from Get Form Templates\) |
 
@@ -738,7 +715,6 @@ List forms (ProForma/JSM Forms) attached to a Jira issue with metadata (name, su
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
-| `cloudId` | string | No | Jira Cloud ID for the instance |
 | `issueIdOrKey` | string | Yes | Issue ID or key \(e.g., "SD-123", "10001"\) |
 
 #### Output
@@ -766,7 +742,6 @@ Attach a form template to an existing Jira issue or JSM request
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
-| `cloudId` | string | No | Jira Cloud ID for the instance |
 | `issueIdOrKey` | string | Yes | Issue ID or key to attach the form to \(e.g., "SD-123"\) |
 | `formTemplateId` | string | Yes | Form template UUID \(from Get Form Templates\) |
 
@@ -793,7 +768,6 @@ Save answers to a form attached to a Jira issue or JSM request
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
-| `cloudId` | string | No | Jira Cloud ID for the instance |
 | `issueIdOrKey` | string | Yes | Issue ID or key \(e.g., "SD-123"\) |
 | `formId` | string | Yes | Form instance UUID \(from Attach Form or Get Issue Forms\) |
 | `answers` | json | Yes | Form answers using numeric question IDs as keys \(e.g., \{"1": \{"text": "Title"\}, "4": \{"choices": \["5"\]\}\}\) |
@@ -817,7 +791,6 @@ Submit a form on a Jira issue or JSM request, locking it from further edits
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
-| `cloudId` | string | No | Jira Cloud ID for the instance |
 | `issueIdOrKey` | string | Yes | Issue ID or key \(e.g., "SD-123"\) |
 | `formId` | string | Yes | Form instance UUID \(from Attach Form or Get Issue Forms\) |
 
@@ -839,7 +812,6 @@ Get a single form with full design, state, and answers from a Jira issue
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
-| `cloudId` | string | No | Jira Cloud ID for the instance |
 | `issueIdOrKey` | string | Yes | Issue ID or key \(e.g., "SD-123"\) |
 | `formId` | string | Yes | Form instance UUID \(from Attach Form or Get Issue Forms\) |
 
@@ -863,7 +835,6 @@ Get simplified answers from a form attached to a Jira issue or JSM request
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
-| `cloudId` | string | No | Jira Cloud ID for the instance |
 | `issueIdOrKey` | string | Yes | Issue ID or key \(e.g., "SD-123"\) |
 | `formId` | string | Yes | Form instance UUID \(from Attach Form or Get Issue Forms\) |
 
@@ -885,7 +856,6 @@ Reopen a submitted form on a Jira issue or JSM request, allowing further edits
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
-| `cloudId` | string | No | Jira Cloud ID for the instance |
 | `issueIdOrKey` | string | Yes | Issue ID or key \(e.g., "SD-123"\) |
 | `formId` | string | Yes | Form instance UUID \(from Get Issue Forms\) |
 
@@ -907,7 +877,6 @@ Remove a form from a Jira issue or JSM request
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
-| `cloudId` | string | No | Jira Cloud ID for the instance |
 | `issueIdOrKey` | string | Yes | Issue ID or key \(e.g., "SD-123"\) |
 | `formId` | string | Yes | Form instance UUID to delete |
 
@@ -929,7 +898,6 @@ Make a form visible to customers on a Jira issue or JSM request
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
-| `cloudId` | string | No | Jira Cloud ID for the instance |
 | `issueIdOrKey` | string | Yes | Issue ID or key \(e.g., "SD-123"\) |
 | `formId` | string | Yes | Form instance UUID |
 
@@ -951,7 +919,6 @@ Make a form internal only (not visible to customers) on a Jira issue or JSM requ
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
-| `cloudId` | string | No | Jira Cloud ID for the instance |
 | `issueIdOrKey` | string | Yes | Issue ID or key \(e.g., "SD-123"\) |
 | `formId` | string | Yes | Form instance UUID |
 
@@ -973,7 +940,6 @@ Copy forms from one Jira issue to another
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
-| `cloudId` | string | No | Jira Cloud ID for the instance |
 | `sourceIssueIdOrKey` | string | Yes | Source issue ID or key to copy forms from \(e.g., "SD-123"\) |
 | `targetIssueIdOrKey` | string | Yes | Target issue ID or key to copy forms to \(e.g., "SD-456"\) |
 | `formIds` | json | No | Optional JSON array of form UUIDs to copy \(e.g., \["uuid1", "uuid2"\]\). If omitted, copies all forms. |
@@ -997,8 +963,6 @@ List Assets (Insight/CMDB) object schemas in Jira Service Management
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
-| `cloudId` | string | No | Jira Cloud ID for the instance |
-| `workspaceId` | string | No | Assets workspace ID \(resolved automatically when omitted\) |
 | `startAt` | number | No | Pagination start index \(e.g., 0, 50\) |
 | `maxResults` | number | No | Maximum schemas to return \(e.g., 25, 50\) |
 | `includeCounts` | boolean | No | Include object and object-type counts per schema |
@@ -1028,8 +992,6 @@ Get a single Assets (Insight/CMDB) object schema by ID
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
-| `cloudId` | string | No | Jira Cloud ID for the instance |
-| `workspaceId` | string | No | Assets workspace ID \(resolved automatically when omitted\) |
 | `schemaId` | string | Yes | The Assets object schema ID |
 
 #### Output
@@ -1055,8 +1017,6 @@ List object types within an Assets (Insight/CMDB) object schema
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
-| `cloudId` | string | No | Jira Cloud ID for the instance |
-| `workspaceId` | string | No | Assets workspace ID \(resolved automatically when omitted\) |
 | `schemaId` | string | Yes | The Assets object schema ID to list object types for |
 | `excludeAbstract` | boolean | No | Exclude abstract object types from the result |
 
@@ -1084,8 +1044,6 @@ Get the attribute definitions for an Assets (Insight/CMDB) object type. Use the 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
-| `cloudId` | string | No | Jira Cloud ID for the instance |
-| `workspaceId` | string | No | Assets workspace ID \(resolved automatically when omitted\) |
 | `objectTypeId` | string | Yes | The Assets object type ID |
 | `onlyValueEditable` | boolean | No | Return only attributes whose values can be edited |
 | `query` | string | No | Filter attributes by a search query |
@@ -1116,8 +1074,6 @@ Search Assets (Insight/CMDB) objects using AQL (Assets Query Language), e.g. obj
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
-| `cloudId` | string | No | Jira Cloud ID for the instance |
-| `workspaceId` | string | No | Assets workspace ID \(resolved automatically when omitted\) |
 | `qlQuery` | string | Yes | AQL query string \(e.g., objectType = "Host" AND "Operating System" = "Ubuntu"\) |
 | `page` | number | No | Page number \(1-based, defaults to 1\) |
 | `resultsPerPage` | number | No | Results per page \(e.g., 25, 50\) |
@@ -1149,8 +1105,6 @@ Get a single Assets (Insight/CMDB) object by ID, including its attribute values
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
-| `cloudId` | string | No | Jira Cloud ID for the instance |
-| `workspaceId` | string | No | Assets workspace ID \(resolved automatically when omitted\) |
 | `objectId` | string | Yes | The Assets object ID |
 
 #### Output
@@ -1179,8 +1133,6 @@ Create an Assets (Insight/CMDB) object of a given object type. Attributes use ob
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
-| `cloudId` | string | No | Jira Cloud ID for the instance |
-| `workspaceId` | string | No | Assets workspace ID \(resolved automatically when omitted\) |
 | `objectTypeId` | string | Yes | The object type ID to create the object under |
 | `attributes` | json | Yes | Array of attributes: \[\{ objectTypeAttributeId, objectAttributeValues: \[\{ value \}\] \}\] |
 
@@ -1210,8 +1162,6 @@ Update an existing Assets (Insight/CMDB) object. Provide the attributes to chang
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
-| `cloudId` | string | No | Jira Cloud ID for the instance |
-| `workspaceId` | string | No | Assets workspace ID \(resolved automatically when omitted\) |
 | `objectId` | string | Yes | The Assets object ID to update |
 | `attributes` | json | Yes | Array of attributes to set: \[\{ objectTypeAttributeId, objectAttributeValues: \[\{ value \}\] \}\] |
 | `objectTypeId` | string | No | Optional object type ID \(only if changing the type\) |
@@ -1242,8 +1192,6 @@ Delete an Assets (Insight/CMDB) object by ID
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
-| `cloudId` | string | No | Jira Cloud ID for the instance |
-| `workspaceId` | string | No | Assets workspace ID \(resolved automatically when omitted\) |
 | `objectId` | string | Yes | The Assets object ID to delete |
 
 #### Output

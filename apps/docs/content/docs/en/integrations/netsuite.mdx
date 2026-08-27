@@ -56,7 +56,6 @@ List one page of a NetSuite record collection, optionally filtered with a q expr
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | NetSuite OAuth 2.0 client-credentials service account |
-| `instanceUrl` | string | No | SuiteTalk account origin injected by the executor from the selected credential |
 | `recordType` | string | Yes | NetSuite REST record type script ID, such as customer or salesOrder |
 | `q` | string | No | NetSuite record collection filter expression |
 | `limit` | number | No | Results to return in this page \(1-1000; default 100\) |
@@ -90,7 +89,6 @@ Retrieve one NetSuite record by internal or external ID.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | NetSuite OAuth 2.0 client-credentials service account |
-| `instanceUrl` | string | No | SuiteTalk account origin injected by the executor from the selected credential |
 | `recordType` | string | Yes | NetSuite REST record type script ID, such as customer or salesOrder |
 | `recordId` | string | Yes | NetSuite internal ID or an external-ID reference beginning with eid: |
 | `fields` | string | No | Comma-separated record fields to return |
@@ -113,7 +111,6 @@ Create a NetSuite record using the account-specific record metadata schema.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | NetSuite OAuth 2.0 client-credentials service account |
-| `instanceUrl` | string | No | SuiteTalk account origin injected by the executor from the selected credential |
 | `recordType` | string | Yes | NetSuite REST record type script ID, such as customer or salesOrder |
 | `body` | json | Yes | Record fields matching the account-specific NetSuite metadata schema |
 | `replace` | string | No | Comma-separated sublists whose default lines should be replaced |
@@ -135,7 +132,6 @@ Update fields on an existing NetSuite record with PATCH.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | NetSuite OAuth 2.0 client-credentials service account |
-| `instanceUrl` | string | No | SuiteTalk account origin injected by the executor from the selected credential |
 | `recordType` | string | Yes | NetSuite REST record type script ID, such as customer or salesOrder |
 | `recordId` | string | Yes | NetSuite internal ID or an external-ID reference beginning with eid: |
 | `body` | json | Yes | Record fields matching the account-specific NetSuite metadata schema |
@@ -158,7 +154,6 @@ Create or update a NetSuite record by external ID with PUT.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | NetSuite OAuth 2.0 client-credentials service account |
-| `instanceUrl` | string | No | SuiteTalk account origin injected by the executor from the selected credential |
 | `recordType` | string | Yes | NetSuite REST record type script ID, such as customer or salesOrder |
 | `externalId` | string | Yes | External ID without the eid: prefix |
 | `body` | json | Yes | Record fields matching the account-specific NetSuite metadata schema |
@@ -180,7 +175,6 @@ Delete one NetSuite record by internal or external ID.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | NetSuite OAuth 2.0 client-credentials service account |
-| `instanceUrl` | string | No | SuiteTalk account origin injected by the executor from the selected credential |
 | `recordType` | string | Yes | NetSuite REST record type script ID, such as customer or salesOrder |
 | `recordId` | string | Yes | NetSuite internal ID or an external-ID reference beginning with eid: |
 
@@ -200,7 +194,6 @@ Retrieve a record sublist, subrecord, referenced record, or nested subresource.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | NetSuite OAuth 2.0 client-credentials service account |
-| `instanceUrl` | string | No | SuiteTalk account origin injected by the executor from the selected credential |
 | `recordType` | string | Yes | NetSuite REST record type script ID, such as customer or salesOrder |
 | `recordId` | string | Yes | NetSuite internal ID or an external-ID reference beginning with eid: |
 | `subresourcePath` | string | Yes | Slash-separated subresource path, such as item or item/1/inventoryDetail |
@@ -221,7 +214,6 @@ Return a prepopulated create form, or an edit form when a record ID is supplied.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | NetSuite OAuth 2.0 client-credentials service account |
-| `instanceUrl` | string | No | SuiteTalk account origin injected by the executor from the selected credential |
 | `recordType` | string | Yes | NetSuite REST record type script ID, such as customer or salesOrder |
 | `recordId` | string | No | Existing record ID; omit to request a create form |
 | `body` | json | No | Record fields matching the account-specific NetSuite metadata schema |
@@ -245,7 +237,6 @@ Retrieve valid select values for one or more fields on a new or existing record.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | NetSuite OAuth 2.0 client-credentials service account |
-| `instanceUrl` | string | No | SuiteTalk account origin injected by the executor from the selected credential |
 | `recordType` | string | Yes | NetSuite REST record type script ID, such as customer or salesOrder |
 | `recordId` | string | No | Existing record ID; omit to evaluate options for a new record |
 | `fields` | string | Yes | Comma-separated select field IDs |
@@ -273,7 +264,6 @@ Attach a contact or file to another NetSuite record.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | NetSuite OAuth 2.0 client-credentials service account |
-| `instanceUrl` | string | No | SuiteTalk account origin injected by the executor from the selected credential |
 | `recordType` | string | Yes | NetSuite REST record type script ID, such as customer or salesOrder |
 | `recordId` | string | Yes | NetSuite internal ID or an external-ID reference beginning with eid: |
 | `relatedType` | string | Yes | Related resource type: contact or file |
@@ -297,7 +287,6 @@ Detach a contact or file from another NetSuite record.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | NetSuite OAuth 2.0 client-credentials service account |
-| `instanceUrl` | string | No | SuiteTalk account origin injected by the executor from the selected credential |
 | `recordType` | string | Yes | NetSuite REST record type script ID, such as customer or salesOrder |
 | `recordId` | string | Yes | NetSuite internal ID or an external-ID reference beginning with eid: |
 | `relatedType` | string | Yes | Related resource type: contact or file |
@@ -319,7 +308,6 @@ Execute a supported NetSuite record action such as approve, reject, or confirm.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | NetSuite OAuth 2.0 client-credentials service account |
-| `instanceUrl` | string | No | SuiteTalk account origin injected by the executor from the selected credential |
 | `recordType` | string | Yes | NetSuite REST record type script ID, such as customer or salesOrder |
 | `recordId` | string | Yes | NetSuite internal ID or an external-ID reference beginning with eid: |
 | `action` | string | Yes | NetSuite record action ID without the @ prefix |
@@ -342,7 +330,6 @@ Transform a supported source record into another NetSuite record type.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | NetSuite OAuth 2.0 client-credentials service account |
-| `instanceUrl` | string | No | SuiteTalk account origin injected by the executor from the selected credential |
 | `recordType` | string | Yes | NetSuite REST record type script ID, such as customer or salesOrder |
 | `recordId` | string | Yes | NetSuite internal ID or an external-ID reference beginning with eid: |
 | `targetRecordType` | string | Yes | Target record type supported by the source record metadata |
@@ -365,7 +352,6 @@ Submit an asynchronous request to retrieve up to 100 records of one type.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | NetSuite OAuth 2.0 client-credentials service account |
-| `instanceUrl` | string | No | SuiteTalk account origin injected by the executor from the selected credential |
 | `recordType` | string | Yes | NetSuite REST record type script ID, such as customer or salesOrder |
 | `ids` | string | Yes | Up to 100 comma-separated internal IDs or eid: external-ID references |
 | `fields` | string | No | Comma-separated record fields to return |
@@ -391,7 +377,6 @@ Submit an asynchronous batch that creates up to 100 records of one type.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | NetSuite OAuth 2.0 client-credentials service account |
-| `instanceUrl` | string | No | SuiteTalk account origin injected by the executor from the selected credential |
 | `recordType` | string | Yes | NetSuite REST record type script ID, such as customer or salesOrder |
 | `items` | array | Yes | Array of 1-100 records matching the account-specific metadata schema |
 | `idempotencyKey` | string | No | Optional unique idempotency key for retrying the batch |
@@ -414,7 +399,6 @@ Submit an asynchronous batch that updates up to 100 records of one type.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | NetSuite OAuth 2.0 client-credentials service account |
-| `instanceUrl` | string | No | SuiteTalk account origin injected by the executor from the selected credential |
 | `recordType` | string | Yes | NetSuite REST record type script ID, such as customer or salesOrder |
 | `items` | array | Yes | Array of 1-100 records; every item must include an internal or external ID |
 | `idempotencyKey` | string | No | Optional unique idempotency key for retrying the batch |
@@ -437,7 +421,6 @@ Submit an asynchronous batch that creates or updates up to 100 records by extern
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | NetSuite OAuth 2.0 client-credentials service account |
-| `instanceUrl` | string | No | SuiteTalk account origin injected by the executor from the selected credential |
 | `recordType` | string | Yes | NetSuite REST record type script ID, such as customer or salesOrder |
 | `items` | array | Yes | Array of 1-100 records; every item must include externalId |
 | `idempotencyKey` | string | No | Optional unique idempotency key for retrying the batch |
@@ -460,7 +443,6 @@ Submit an asynchronous request to delete up to 100 records of one type.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | NetSuite OAuth 2.0 client-credentials service account |
-| `instanceUrl` | string | No | SuiteTalk account origin injected by the executor from the selected credential |
 | `recordType` | string | Yes | NetSuite REST record type script ID, such as customer or salesOrder |
 | `ids` | string | Yes | Up to 100 comma-separated internal IDs or eid: external-ID references |
 | `idempotencyKey` | string | No | Optional unique idempotency key for retrying the batch |
@@ -483,7 +465,6 @@ Execute one page of a SuiteQL query through SuiteTalk REST web services.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | NetSuite OAuth 2.0 client-credentials service account |
-| `instanceUrl` | string | No | SuiteTalk account origin injected by the executor from the selected credential |
 | `query` | string | Yes | SuiteQL SELECT query; use a complete unique ORDER BY when retrieving multiple pages |
 | `limit` | number | No | Results to return in this page \(1-1000; default 100\) |
 | `offset` | number | No | Zero-based result offset; must be divisible by limit and stay within the first 100,000 results and 1,000 pages |
@@ -512,7 +493,6 @@ List one page of SuiteAnalytics Workbook datasets available to the authenticated
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | NetSuite OAuth 2.0 client-credentials service account |
-| `instanceUrl` | string | No | SuiteTalk account origin injected by the executor from the selected credential |
 | `limit` | number | No | Results to return in this page \(1-1000; default 100\) |
 | `offset` | number | No | Zero-based result offset; must be divisible by limit and stay within the first 100,000 results and 1,000 pages |
 
@@ -540,7 +520,6 @@ Execute one page of a standard or custom SuiteAnalytics Workbook dataset.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | NetSuite OAuth 2.0 client-credentials service account |
-| `instanceUrl` | string | No | SuiteTalk account origin injected by the executor from the selected credential |
 | `datasetId` | string | Yes | SuiteAnalytics dataset script ID |
 | `limit` | number | No | Results to return in this page \(1-1000; default 100\) |
 | `offset` | number | No | Zero-based result offset; must be divisible by limit and stay within the first 100,000 results and 1,000 pages |
@@ -569,7 +548,6 @@ List record types exposed to the authenticated role by the REST metadata catalog
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | NetSuite OAuth 2.0 client-credentials service account |
-| `instanceUrl` | string | No | SuiteTalk account origin injected by the executor from the selected credential |
 
 #### Output
 
@@ -596,7 +574,6 @@ Retrieve account-specific metadata for one NetSuite record type.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | NetSuite OAuth 2.0 client-credentials service account |
-| `instanceUrl` | string | No | SuiteTalk account origin injected by the executor from the selected credential |
 | `recordType` | string | Yes | NetSuite REST record type script ID, such as customer or salesOrder |
 | `format` | string | No | Metadata representation: default, openapi, or json_schema |
 
@@ -616,7 +593,6 @@ Retrieve job status, list job tasks, or retrieve one task status.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | NetSuite OAuth 2.0 client-credentials service account |
-| `instanceUrl` | string | No | SuiteTalk account origin injected by the executor from the selected credential |
 | `jobId` | string | Yes | Asynchronous job ID |
 | `view` | string | No | Retrieve job status, list tasks for the job, or retrieve one task status |
 | `taskId` | string | No | Task ID; required when view is task |
@@ -654,7 +630,6 @@ Retrieve the provider response for one task within a completed asynchronous job.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | NetSuite OAuth 2.0 client-credentials service account |
-| `instanceUrl` | string | No | SuiteTalk account origin injected by the executor from the selected credential |
 | `jobId` | string | Yes | Asynchronous job ID |
 | `taskId` | string | Yes | Task ID within the asynchronous job |
 
@@ -674,7 +649,6 @@ Retrieve the current UTC time from the NetSuite server.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | NetSuite OAuth 2.0 client-credentials service account |
-| `instanceUrl` | string | No | SuiteTalk account origin injected by the executor from the selected credential |
 
 #### Output
 
@@ -693,7 +667,6 @@ Retrieve REST web-services concurrency limits for the NetSuite account and integ
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `oauthCredential` | string | Yes | NetSuite OAuth 2.0 client-credentials service account |
-| `instanceUrl` | string | No | SuiteTalk account origin injected by the executor from the selected credential |
 
 #### Output
 

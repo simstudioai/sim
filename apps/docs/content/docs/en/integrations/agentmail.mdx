@@ -142,7 +142,7 @@ Delete an email inbox in AgentMail
 
 ### Delete Thread
 
-Delete an email thread in AgentMail (moves to trash, or permanently deletes if already in trash)
+Permanently delete an email thread in AgentMail and all of its messages. This cannot be undone.
 
 #### Input
 
@@ -151,7 +151,6 @@ Delete an email thread in AgentMail (moves to trash, or permanently deletes if a
 | `apiKey` | string | Yes | AgentMail API key |
 | `inboxId` | string | Yes | ID of the inbox containing the thread |
 | `threadId` | string | Yes | ID of the thread to delete |
-| `permanent` | boolean | No | Force permanent deletion instead of moving to trash |
 
 #### Output
 

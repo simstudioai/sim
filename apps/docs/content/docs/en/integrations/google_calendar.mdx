@@ -89,7 +89,6 @@ List events from Google Calendar. Returns API-aligned fields only.
 | `maxResults` | number | No | Maximum number of events to return \(max 2500\) |
 | `pageToken` | string | No | Token for retrieving the next page of results |
 | `orderBy` | string | No | Order of events: startTime \(chronological, the default\) or updated \(last-modified\). startTime is always valid here because singleEvents is set. |
-| `showDeleted` | boolean | No | Include deleted events |
 
 #### Output
 
@@ -227,7 +226,6 @@ Get instances of a recurring event from Google Calendar. Returns API-aligned fie
 | `timeMax` | string | No | Upper bound for instances \(RFC3339 timestamp, e.g., 2025-06-04T00:00:00Z\) |
 | `maxResults` | number | No | Maximum number of instances to return \(default 250, max 2500\) |
 | `pageToken` | string | No | Token for retrieving subsequent pages of results |
-| `showDeleted` | boolean | No | Include deleted instances |
 
 #### Output
 
@@ -248,8 +246,6 @@ List all calendars in the user's calendar list. Returns API-aligned fields only.
 | `minAccessRole` | string | No | Minimum access role for returned calendars: freeBusyReader, reader, writer, or owner |
 | `maxResults` | number | No | Maximum number of calendars to return \(default 100, max 250\) |
 | `pageToken` | string | No | Token for retrieving subsequent pages of results |
-| `showDeleted` | boolean | No | Include deleted calendars |
-| `showHidden` | boolean | No | Include hidden calendars |
 
 #### Output
 
@@ -497,4 +493,47 @@ Revoke an access control rule (sharing) from a calendar. Returns API-aligned fie
 | `ruleId` | string | Removed ACL rule ID |
 | `deleted` | boolean | Whether removal was successful |
 
+
+
+## Triggers
+
+A **Trigger** is a block that starts a workflow when an event happens in this service.
+
+These run on a schedule \(**polling-based**\) — they check for new data rather than receiving push notifications.
+
+### Google Calendar Event Trigger
+
+Triggers when events are created, updated, or cancelled in Google Calendar
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | Connect your Google account to access Google Calendar. |
+| `calendarId` | file-selector | No | The calendar to monitor for event changes. |
+| `manualCalendarId` | string | No | The calendar to monitor for event changes. |
+| `eventTypeFilter` | string | No | Only trigger for specific event types. Defaults to all events. |
+| `searchTerm` | string | No | Optional: Filter events by text match across title, description, location, and attendees. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | object | event output from the tool |
+|   ↳ `id` | string | Calendar event ID |
+|   ↳ `status` | string | Event status \(confirmed, tentative, cancelled\) |
+|   ↳ `eventType` | string | Change type: "created", "updated", or "cancelled" |
+|   ↳ `summary` | string | Event title |
+|   ↳ `eventDescription` | string | Event description |
+|   ↳ `location` | string | Event location |
+|   ↳ `htmlLink` | string | Link to event in Google Calendar |
+|   ↳ `start` | json | Event start time |
+|   ↳ `end` | json | Event end time |
+|   ↳ `created` | string | Event creation time |
+|   ↳ `updated` | string | Event last updated time |
+|   ↳ `attendees` | json | Event attendees |
+|   ↳ `creator` | json | Event creator |
+|   ↳ `organizer` | json | Event organizer |
+| `calendarId` | string | Calendar ID |
+| `timestamp` | string | Event processing timestamp in ISO format |
 

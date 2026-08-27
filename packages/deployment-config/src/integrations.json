@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-08-26",
+  "updatedAt": "2026-08-27",
   "integrations": [
     {
       "type": "onepassword",
@@ -395,7 +395,7 @@
         },
         {
           "name": "Delete Thread",
-          "description": "Delete an email thread in AgentMail (moves to trash, or permanently deletes if already in trash)"
+          "description": "Permanently delete an email thread in AgentMail and all of its messages. This cannot be undone."
         },
         {
           "name": "List Messages",

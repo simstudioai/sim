@@ -43,10 +43,8 @@ List files and folders in Google Drive with complete metadata
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `folderSelector` | string | No | Google Drive folder ID to list files from \(e.g., 1ABCxyz...\) |
-| `folderId` | string | No | The ID of the folder to list files from \(internal use\) |
 | `query` | string | No | Search term to filter files by name \(e.g. "budget" finds files with "budget" in the name\). Do NOT use Google Drive query syntax here - just provide a plain search term. |
 | `pageSize` | number | No | The maximum number of files to return \(default: 100\) |
-| `pageToken` | string | No | The page token to use for pagination |
 
 #### Output
 
@@ -155,7 +153,6 @@ Get content from a file in Google Drive with complete metadata (exports Google W
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `fileId` | string | Yes | The ID of the file to get content from |
-| `mimeType` | string | No | The MIME type to export Google Workspace files to \(optional\) |
 | `includeRevisions` | boolean | No | Whether to include revision history in the metadata \(default: true, returns first 100 revisions\) |
 
 #### Output
@@ -228,7 +225,6 @@ Create a new folder in Google Drive with complete metadata returned
 | --------- | ---- | -------- | ----------- |
 | `fileName` | string | Yes | Name of the folder to create |
 | `folderSelector` | string | No | Google Drive parent folder ID to create the folder in \(e.g., 1ABCxyz...\) |
-| `folderId` | string | No | ID of the parent folder \(internal use\) |
 
 #### Output
 
@@ -284,9 +280,7 @@ Upload a file to Google Drive with complete metadata returned
 | `fileName` | string | Yes | The name of the file to upload |
 | `file` | file | No | Binary file to upload \(UserFile object\) |
 | `content` | string | No | Text content to upload \(use this OR file, not both\) |
-| `mimeType` | string | No | The MIME type of the file to upload \(auto-detected from file if not provided\) |
 | `folderSelector` | string | No | Google Drive folder ID to upload the file to \(e.g., 1ABCxyz...\) |
-| `folderId` | string | No | The ID of the folder to upload the file to \(internal use\) |
 
 #### Output
 
@@ -355,7 +349,6 @@ Download a file from Google Drive with complete metadata (exports Google Workspa
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `fileId` | string | Yes | The ID of the file to download |
-| `mimeType` | string | No | The MIME type to export Google Workspace files to \(optional\) |
 | `fileName` | string | No | Optional filename override |
 | `includeRevisions` | boolean | No | Whether to include revision history in the metadata \(default: true, returns first 100 revisions\) |
 
@@ -485,7 +478,6 @@ Search for files in Google Drive using advanced query syntax (e.g., fullText con
 | --------- | ---- | -------- | ----------- |
 | `query` | string | Yes | Google Drive query string using advanced search syntax \(e.g., "fullText contains \'budget\'", "mimeType = \'application/pdf\'", "modifiedTime &gt; \'2024-01-01\'"\) |
 | `pageSize` | number | No | Maximum number of files to return \(default: 100\) |
-| `pageToken` | string | No | Token for fetching the next page of results |
 
 #### Output
 
@@ -673,7 +665,6 @@ List all permissions (who has access) for a file in Google Drive
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `fileId` | string | Yes | The ID of the file to list permissions for |
-| `pageToken` | string | No | The page token to use for pagination |
 
 #### Output
 
@@ -723,7 +714,6 @@ List the revision history of a file in Google Drive
 | --------- | ---- | -------- | ----------- |
 | `fileId` | string | Yes | The ID of the file to list revisions for |
 | `pageSize` | number | No | Maximum number of revisions to return \(1-1000, default 200\) |
-| `pageToken` | string | No | The page token to use for pagination |
 
 #### Output
 
@@ -783,7 +773,6 @@ List comments on a file in Google Drive
 | `includeDeleted` | boolean | No | Whether to include deleted comments \(their content is stripped\) |
 | `pageSize` | number | No | Maximum number of comments to return \(1-100, default 20\) |
 | `startModifiedTime` | string | No | Only return comments modified after this RFC 3339 timestamp |
-| `pageToken` | string | No | The page token to use for pagination |
 
 #### Output
 
@@ -880,4 +869,45 @@ Get information about the user and their Google Drive (storage quota, capabiliti
 | `exportFormats` | json | Map of Google Workspace MIME types and their exportable formats |
 | `maxUploadSize` | string | Maximum upload size in bytes |
 
+
+
+## Triggers
+
+A **Trigger** is a block that starts a workflow when an event happens in this service.
+
+These run on a schedule \(**polling-based**\) — they check for new data rather than receiving push notifications.
+
+### Google Drive File Trigger
+
+Triggers when files are created, modified, or deleted in Google Drive
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | Connect your Google account to access Google Drive. |
+| `folderId` | file-selector | No | Optional: The folder to monitor. Leave empty to monitor all files in Drive. |
+| `manualFolderId` | string | No | Optional: The folder ID from the Google Drive URL to monitor. Leave empty to monitor all files. |
+| `mimeTypeFilter` | string | No | Optional: Only trigger for specific file types. |
+| `eventTypeFilter` | string | No | Only trigger for specific change types. Defaults to all changes. |
+| `includeSharedDrives` | boolean | No | Include files from shared \(team\) drives. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `file` | object | file output from the tool |
+|   ↳ `id` | string | Google Drive file ID |
+|   ↳ `name` | string | File name |
+|   ↳ `mimeType` | string | File MIME type |
+|   ↳ `modifiedTime` | string | Last modified time \(ISO\) |
+|   ↳ `createdTime` | string | File creation time \(ISO\) |
+|   ↳ `size` | string | File size in bytes |
+|   ↳ `webViewLink` | string | URL to view file in browser |
+|   ↳ `parents` | json | Parent folder IDs |
+|   ↳ `lastModifyingUser` | json | User who last modified the file |
+|   ↳ `shared` | boolean | Whether file is shared |
+|   ↳ `starred` | boolean | Whether file is starred |
+| `eventType` | string | Change type: "created", "modified", or "deleted" |
+| `timestamp` | string | Event timestamp in ISO format |
 
