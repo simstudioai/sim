@@ -853,7 +853,6 @@ describe('start-block utilities', () => {
         userId: 'user-1',
         email: 'real@sim.ai',
       },
-      userEmail: 'real@sim.ai',
       workspaceId: 'ws-1',
       workflowId: 'wf-1',
       executionId: 'exec-1',
@@ -877,7 +876,9 @@ describe('start-block utilities', () => {
       const output = buildStartBlockOutput({
         resolution,
         workflowInput: {
-          metadata: { userEmail: 'attacker@x.com' },
+          metadata: {
+            subject: { kind: 'authenticated_email', email: 'attacker@x.com' },
+          },
           simUserEmail: 'attacker@x.com',
           payload: 'value',
         },
@@ -894,7 +895,11 @@ describe('start-block utilities', () => {
 
       const output = buildStartBlockOutput({
         resolution,
-        workflowInput: { metadata: { userEmail: 'attacker@x.com' } },
+        workflowInput: {
+          metadata: {
+            subject: { kind: 'authenticated_email', email: 'attacker@x.com' },
+          },
+        },
       })
 
       expect(output).not.toHaveProperty('metadata')

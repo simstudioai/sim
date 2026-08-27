@@ -725,7 +725,6 @@ export class WorkflowBlockHandler implements BlockHandler {
         if (inherited && Object.hasOwn(inherited, 'subject')) {
           invokingIdentity = {
             subject: inherited.subject ?? null,
-            userEmail: inherited.userEmail ?? null,
           }
         } else {
           if (!ctx.principal) {

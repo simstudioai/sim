@@ -33,7 +33,6 @@ describe('resolveStartBlockRunIdentity', () => {
         userId: 'user-1',
         email: 'owner@example.com',
       },
-      userEmail: 'owner@example.com',
     })
     expect(mockGetUserEmailById).toHaveBeenCalledWith('user-1')
   })
@@ -49,7 +48,6 @@ describe('resolveStartBlockRunIdentity', () => {
       })
     ).resolves.toEqual({
       subject: { kind: 'authenticated_email', email: 'person@example.com' },
-      userEmail: 'person@example.com',
     })
     expect(mockGetUserEmailById).not.toHaveBeenCalled()
   })
@@ -77,7 +75,6 @@ describe('resolveStartBlockRunIdentity', () => {
         tenantId: 'team-1',
         subjectId: 'slack-user-1',
       },
-      userEmail: null,
     })
     expect(mockGetUserEmailById).not.toHaveBeenCalled()
   })
@@ -89,7 +86,7 @@ describe('resolveStartBlockRunIdentity', () => {
         workspaceId: 'workspace-1',
         keyId: 'key-1',
       })
-    ).resolves.toEqual({ subject: null, userEmail: null })
+    ).resolves.toEqual({ subject: null })
     expect(mockGetUserEmailById).not.toHaveBeenCalled()
   })
 

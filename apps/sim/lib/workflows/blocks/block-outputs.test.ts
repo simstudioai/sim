@@ -85,12 +85,9 @@ describe('block outputs parity', () => {
     expect(paths).toContain('metadata.subject.provider')
     expect(paths).toContain('metadata.subject.tenantId')
     expect(paths).toContain('metadata.subject.subjectId')
-    expect(paths).toContain('metadata.userEmail')
+    expect(paths).not.toContain('metadata.userEmail')
     expect(paths).toContain('metadata.executionType')
     expect(paths).toContain('metadata.workflowId')
-    expect(
-      getEffectiveBlockOutputType('start_trigger', 'metadata.userEmail', subBlocks, options)
-    ).toBe('string')
     expect(
       getEffectiveBlockOutputType('start_trigger', 'metadata.subject.kind', subBlocks, options)
     ).toBe('string')

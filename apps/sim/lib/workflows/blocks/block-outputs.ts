@@ -171,10 +171,6 @@ const START_RUN_METADATA_OUTPUT = {
         subjectId: { type: 'string', description: 'Provider user ID for an external_user subject' },
       },
     },
-    userEmail: {
-      type: 'string',
-      description: 'Email of the authenticated subject, or null when the subject has no email',
-    },
     workspaceId: {
       type: 'string',
       description: 'Workspace ID of the invoking run (for custom blocks, the invoking workspace)',

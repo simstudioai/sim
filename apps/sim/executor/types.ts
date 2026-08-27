@@ -263,7 +263,6 @@ export type StartBlockRunSubject =
  */
 export interface StartBlockRunMetadata {
   subject?: StartBlockRunSubject | null
-  userEmail?: string | null
   workspaceId?: string | null
   workflowId?: string | null
   executionId?: string
