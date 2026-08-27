@@ -72,6 +72,12 @@ const FEATURE_FLAGS = {
       'AppConfig; off-AppConfig falls back to TABLES_V2_API.',
     fallback: 'TABLES_V2_API',
   },
+  'table-row-ttl': {
+    description:
+      'Enable TTL columns and the scheduled cleanup that removes expired table rows. ' +
+      'Global on/off only; existing TTL data remains readable when disabled.',
+    fallback: 'TABLE_ROW_TTL',
+  },
   'credential-groups': {
     description:
       'Workspace-owned collections that gather managed OAuth credentials from external users. ' +

@@ -4,12 +4,18 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TableDefinition, TableLocks } from '@/lib/table/types'
 
-const { mockTimeoutExecute, mockWithLockedTable } = vi.hoisted(() => ({
-  mockTimeoutExecute: vi.fn(),
-  mockWithLockedTable: vi.fn(),
-}))
+const { mockAssertTableRowTtlEnabled, mockTimeoutExecute, mockWithLockedTable } = vi.hoisted(
+  () => ({
+    mockAssertTableRowTtlEnabled: vi.fn(),
+    mockTimeoutExecute: vi.fn(),
+    mockWithLockedTable: vi.fn(),
+  })
+)
 
 vi.mock('@/lib/table/service', () => ({ withLockedTable: mockWithLockedTable }))
+vi.mock('@/lib/table/ttl-availability', () => ({
+  assertTableRowTtlEnabled: mockAssertTableRowTtlEnabled,
+}))
 
 import { addTableColumn, updateColumnType } from '@/lib/table/columns/service'
 
@@ -53,10 +59,29 @@ const transaction = new Proxy(
 describe('TTL column mutation limit', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockAssertTableRowTtlEnabled.mockResolvedValue(undefined)
     mockTimeoutExecute.mockResolvedValue([])
     mockWithLockedTable.mockImplementation(async (_tableId, mutate) =>
       mutate(makeTable(), transaction)
     )
+  })
+
+  it('rejects adding a TTL column before locking when the feature is disabled', async () => {
+    mockAssertTableRowTtlEnabled.mockRejectedValue(new Error('TTL columns are not enabled'))
+
+    await expect(
+      addTableColumn('table-1', { name: 'expiry', type: 'ttl' }, 'request-1')
+    ).rejects.toThrow('TTL columns are not enabled')
+    expect(mockWithLockedTable).not.toHaveBeenCalled()
+  })
+
+  it('rejects retyping to TTL before locking when the feature is disabled', async () => {
+    mockAssertTableRowTtlEnabled.mockRejectedValue(new Error('TTL columns are not enabled'))
+
+    await expect(
+      updateColumnType({ tableId: 'table-1', columnName: 'name', newType: 'ttl' }, 'request-1')
+    ).rejects.toThrow('TTL columns are not enabled')
+    expect(mockWithLockedTable).not.toHaveBeenCalled()
   })
 
   it('rejects adding a second TTL column before persistence', async () => {

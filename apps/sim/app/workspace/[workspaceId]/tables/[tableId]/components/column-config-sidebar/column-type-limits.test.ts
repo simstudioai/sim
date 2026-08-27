@@ -33,7 +33,9 @@ describe('column type picker limits', () => {
     option.maxPerTable = 1
     Object.assign(definition, { maxPerTable: 1 })
 
-    const result = columnTypeOptionsForTable([{ name: 'first', type: 'string' }])
+    const result = columnTypeOptionsForTable([{ name: 'first', type: 'string' }], undefined, {
+      tableRowTtlEnabled: true,
+    })
     const stringOption = result.find((candidate) => candidate.type === 'string')
 
     expect(stringOption?.disabledReason).toBe('Only one Text column allowed per table')
@@ -44,7 +46,9 @@ describe('column type picker limits', () => {
     Object.assign(definition, { maxPerTable: 1 })
     const currentColumn = { name: 'first', type: 'string' } as const
 
-    const result = columnTypeOptionsForTable([currentColumn], currentColumn)
+    const result = columnTypeOptionsForTable([currentColumn], currentColumn, {
+      tableRowTtlEnabled: true,
+    })
     const stringOption = result.find((candidate) => candidate.type === 'string')
 
     expect(stringOption?.disabledReason).toBeUndefined()

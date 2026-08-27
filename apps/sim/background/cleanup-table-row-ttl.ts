@@ -9,6 +9,7 @@ import { signalTableRowsChanged } from '@/lib/table/events'
 import { assertRowDelete, TableLockedError } from '@/lib/table/mutation-locks'
 import type { DbTransaction } from '@/lib/table/planner'
 import { withLockedTable } from '@/lib/table/service'
+import { isTableRowTtlEnabled } from '@/lib/table/ttl-availability'
 
 const logger = createLogger('CleanupTableRowTtl')
 const cleanupDb = dbFor('cleanup')
@@ -209,6 +210,10 @@ export async function runCleanupTableRowTtl(
   signal?: AbortSignal
 ): Promise<TableRowTtlCleanupResult> {
   if (signal?.aborted) return { batches: 0, deleted: 0, limitReached: false }
+  if (!(await isTableRowTtlEnabled())) {
+    logger.info('Table row TTL cleanup skipped because the feature is disabled')
+    return { batches: 0, deleted: 0, limitReached: false }
+  }
 
   const nowEpochSeconds = Math.floor(Date.now() / 1000)
   const tableRefs = await listExpiredTtlTables(nowEpochSeconds)

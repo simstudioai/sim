@@ -4,14 +4,20 @@
 import { createMockRequest } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockEnqueue, mockGetJobQueue, mockVerifyCronAuth } = vi.hoisted(() => ({
-  mockEnqueue: vi.fn(),
-  mockGetJobQueue: vi.fn(),
-  mockVerifyCronAuth: vi.fn(),
-}))
+const { mockEnqueue, mockGetJobQueue, mockIsTableRowTtlEnabled, mockVerifyCronAuth } = vi.hoisted(
+  () => ({
+    mockEnqueue: vi.fn(),
+    mockGetJobQueue: vi.fn(),
+    mockIsTableRowTtlEnabled: vi.fn(),
+    mockVerifyCronAuth: vi.fn(),
+  })
+)
 
 vi.mock('@/lib/auth/internal', () => ({ verifyCronAuth: mockVerifyCronAuth }))
 vi.mock('@/lib/core/async-jobs', () => ({ getJobQueue: mockGetJobQueue }))
+vi.mock('@/lib/table/ttl-availability', () => ({
+  isTableRowTtlEnabled: mockIsTableRowTtlEnabled,
+}))
 
 import { GET } from '@/app/api/cron/cleanup-table-row-ttl/route'
 
@@ -21,6 +27,7 @@ describe('table row TTL cleanup route', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-08-22T17:01:00Z'))
     mockVerifyCronAuth.mockReturnValue(null)
+    mockIsTableRowTtlEnabled.mockResolvedValue(true)
     mockEnqueue.mockResolvedValue('job-ttl-1')
     mockGetJobQueue.mockResolvedValue({ enqueue: mockEnqueue })
   })
@@ -83,6 +90,26 @@ describe('table row TTL cleanup route', () => {
     )
 
     expect(response.status).toBe(401)
+    expect(mockGetJobQueue).not.toHaveBeenCalled()
+  })
+
+  it('does not enqueue cleanup while the feature is disabled', async () => {
+    mockIsTableRowTtlEnabled.mockResolvedValue(false)
+
+    const response = await GET(
+      createMockRequest(
+        'GET',
+        undefined,
+        {},
+        'http://localhost:3000/api/cron/cleanup-table-row-ttl'
+      )
+    )
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({
+      triggered: false,
+      reason: 'feature-disabled',
+    })
     expect(mockGetJobQueue).not.toHaveBeenCalled()
   })
 })

@@ -43,6 +43,7 @@ import { updateTableRowsWithDerivedSecretProvenance } from '@/lib/table/rows/sec
 import { assertValidSchema } from '@/lib/table/schema-invariants'
 import { selectValueToNames } from '@/lib/table/select-values'
 import { withLockedTable } from '@/lib/table/service'
+import { assertTableRowTtlEnabled } from '@/lib/table/ttl-availability'
 import { scaledStatementTimeoutMs, setTableTxTimeouts } from '@/lib/table/tx'
 import type {
   ColumnDefinition,
@@ -131,6 +132,8 @@ export async function addTableColumn(
   requestId: string,
   options?: ColumnMutationOptions
 ): Promise<TableDefinition> {
+  if (column.type === 'ttl') await assertTableRowTtlEnabled()
+
   return withLockedTable(
     tableId,
     async (table, trx) => {
@@ -857,6 +860,8 @@ export async function updateColumnType(
   requestId: string,
   options?: ColumnMutationOptions
 ): Promise<TableDefinition> {
+  if (data.newType === 'ttl') await assertTableRowTtlEnabled()
+
   return withLockedTable(
     data.tableId,
     async (table, trx) => {

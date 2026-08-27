@@ -11,12 +11,14 @@ vi.unmock('drizzle-orm')
 const {
   mockDeleteExecute,
   mockListExecute,
+  mockIsTableRowTtlEnabled,
   mockSignalTableRowsChanged,
   mockTask,
   mockWithLockedTable,
 } = vi.hoisted(() => ({
   mockDeleteExecute: vi.fn(),
   mockListExecute: vi.fn(),
+  mockIsTableRowTtlEnabled: vi.fn(),
   mockSignalTableRowsChanged: vi.fn(),
   mockTask: vi.fn((config: unknown) => config),
   mockWithLockedTable: vi.fn(),
@@ -29,6 +31,9 @@ vi.mock('@sim/db', () => ({
 vi.mock('@trigger.dev/sdk', () => ({ task: mockTask }))
 vi.mock('@/lib/table/events', () => ({ signalTableRowsChanged: mockSignalTableRowsChanged }))
 vi.mock('@/lib/table/service', () => ({ withLockedTable: mockWithLockedTable }))
+vi.mock('@/lib/table/ttl-availability', () => ({
+  isTableRowTtlEnabled: mockIsTableRowTtlEnabled,
+}))
 
 import { cleanupTableRowTtlTask, runCleanupTableRowTtl } from '@/background/cleanup-table-row-ttl'
 
@@ -44,6 +49,7 @@ const table = {
 describe('table row TTL cleanup', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockIsTableRowTtlEnabled.mockResolvedValue(true)
     mockListExecute.mockResolvedValue([{ id: table.id, workspaceId: table.workspaceId }])
     mockWithLockedTable.mockImplementation(
       async (
@@ -136,6 +142,18 @@ describe('table row TTL cleanup', () => {
       limitReached: false,
     })
     expect(mockListExecute).not.toHaveBeenCalled()
+  })
+
+  it('does no work when the feature is disabled', async () => {
+    mockIsTableRowTtlEnabled.mockResolvedValue(false)
+
+    await expect(runCleanupTableRowTtl()).resolves.toEqual({
+      batches: 0,
+      deleted: 0,
+      limitReached: false,
+    })
+    expect(mockListExecute).not.toHaveBeenCalled()
+    expect(mockWithLockedTable).not.toHaveBeenCalled()
   })
 
   it('honors a delete lock re-read inside the table advisory lock', async () => {
