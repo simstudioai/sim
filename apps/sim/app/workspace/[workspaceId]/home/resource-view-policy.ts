@@ -1,3 +1,12 @@
+import type { SetStateAction } from 'react'
+
+export function resolveResourceSelectionUpdate(
+  currentResourceId: string | null,
+  update: SetStateAction<string | null>
+): string | null {
+  return typeof update === 'function' ? update(currentResourceId) : update
+}
+
 export interface ResourceEventPresentationInput {
   activeResourceId: string | null
   activationRequested: boolean

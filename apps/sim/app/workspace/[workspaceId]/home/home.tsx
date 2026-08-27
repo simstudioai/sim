@@ -36,7 +36,10 @@ import { captureEvent } from '@/lib/posthog/client'
 import { persistImportedWorkflow } from '@/lib/workflows/operations/import-export'
 import { RESOURCE_HEADER_CLASSES } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
 import { resolveWorkspaceResourceRef } from '@/app/workspace/[workspaceId]/home/resolve-resource-ref'
-import { resolveResourceEventPresentation } from '@/app/workspace/[workspaceId]/home/resource-view-policy'
+import {
+  resolveResourceEventPresentation,
+  resolveResourceSelectionUpdate,
+} from '@/app/workspace/[workspaceId]/home/resource-view-policy'
 import { resourceParam, resourceUrlKeys } from '@/app/workspace/[workspaceId]/home/search-params'
 import { useFolders } from '@/hooks/queries/folders'
 import { useMarkMothershipChatRead } from '@/hooks/queries/mothership-chats'
@@ -103,6 +106,8 @@ export function Home({ chatId, userName, userId }: HomeProps) {
     ...resourceParam.parser,
     ...resourceUrlKeys,
   })
+  const activeResourceParamRef = useRef(activeResourceParam)
+  activeResourceParamRef.current = activeResourceParam
   /**
    * Strips any leftover URL fragment on selection change, preserving the old
    * effect's `url.hash = ''` (the only hash usage on this surface) without a
@@ -115,11 +120,13 @@ export function Home({ chatId, userName, userId }: HomeProps) {
    */
   const setActiveResourceUrl = useCallback<Dispatch<SetStateAction<string | null>>>(
     (action) => {
+      const nextResourceId = resolveResourceSelectionUpdate(activeResourceParamRef.current, action)
+      activeResourceParamRef.current = nextResourceId
       if (typeof window !== 'undefined' && window.location.hash) {
         const { pathname, search } = window.location
         window.history.replaceState(window.history.state, '', `${pathname}${search}`)
       }
-      void setResourceParam(action)
+      void setResourceParam(nextResourceId)
     },
     [setResourceParam]
   )
@@ -213,8 +220,6 @@ export function Home({ chatId, userName, userId }: HomeProps) {
   }, [])
   const resourceCollapseOwnedByUserRef = useRef(false)
   const resourceSelectionOwnedByUserRef = useRef(false)
-  const activeResourceParamRef = useRef(activeResourceParam)
-  activeResourceParamRef.current = activeResourceParam
 
   function handleResourceEvent(resourceId: string, options?: ResourceEventOptions) {
     const activeResourceId = activeResourceParamRef.current

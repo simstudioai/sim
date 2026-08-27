@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { resolveResourceEventPresentation } from '@/app/workspace/[workspaceId]/home/resource-view-policy'
+import {
+  resolveResourceEventPresentation,
+  resolveResourceSelectionUpdate,
+} from '@/app/workspace/[workspaceId]/home/resource-view-policy'
 
 const DEFAULT_INPUT = {
   activeResourceId: 'file-1',
@@ -80,11 +83,15 @@ describe('resolveResourceEventPresentation', () => {
     })
   })
 
-  it('follows agent work after the user-selected resource is removed', () => {
+  it('follows same-batch agent work after the user-selected resource is removed', () => {
+    const activeResourceId = resolveResourceSelectionUpdate('file-1', (currentResourceId) =>
+      currentResourceId === 'file-1' ? null : currentResourceId
+    )
+
     expect(
       resolveResourceEventPresentation({
         ...DEFAULT_INPUT,
-        activeResourceId: null,
+        activeResourceId,
         selectionOwnedByUser: true,
       })
     ).toEqual({
