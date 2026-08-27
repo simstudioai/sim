@@ -173,7 +173,7 @@ export function KnowledgeHeroLoop() {
           <div className='flex h-[44px] flex-shrink-0 items-center justify-between border-[var(--border)] border-b px-6'>
             <div className='flex items-center gap-3'>
               <Database className='size-[14px] text-[var(--text-icon)]' />
-              <span className='font-medium text-[var(--text-body)] text-sm'>Knowledge Base</span>
+              <span className='text-[var(--text-body)] text-sm'>Knowledge Base</span>
             </div>
             <div className='flex items-center rounded-md px-2 py-1 text-[var(--text-secondary)] text-caption'>
               <Plus className='mr-1.5 size-[14px] text-[var(--text-icon)]' />
@@ -236,15 +236,15 @@ export function KnowledgeHeroLoop() {
                       )}
                     >
                       <td className='px-6 py-2.5 align-middle'>
-                        <span className='flex min-w-0 items-center gap-3 font-medium text-[var(--text-body)] text-sm'>
+                        <span className='flex min-w-0 items-center gap-3 text-[var(--text-body)] text-sm'>
                           <Database className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
                           <span className='truncate'>{row.name}</span>
                         </span>
                       </td>
-                      <td className='px-6 py-2.5 align-middle font-medium text-[var(--text-secondary)] text-sm'>
+                      <td className='px-6 py-2.5 align-middle text-[var(--text-secondary)] text-sm'>
                         {synced && row.documentsSynced ? row.documentsSynced : row.documents}
                       </td>
-                      <td className='px-6 py-2.5 align-middle font-medium text-[var(--text-secondary)] text-sm'>
+                      <td className='px-6 py-2.5 align-middle text-[var(--text-secondary)] text-sm'>
                         {synced && row.tokensSynced ? row.tokensSynced : row.tokens}
                       </td>
                       <td className='px-6 py-2.5 align-middle'>
@@ -265,7 +265,7 @@ export function KnowledgeHeroLoop() {
                           )}
                         </span>
                       </td>
-                      <td className='px-6 py-2.5 align-middle font-medium text-[var(--text-secondary)] text-sm'>
+                      <td className='px-6 py-2.5 align-middle text-[var(--text-secondary)] text-sm'>
                         {row.created}
                       </td>
                     </tr>

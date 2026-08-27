@@ -153,9 +153,7 @@ export function AccessControlGraphic() {
               <span
                 className={cn(
                   'text-caption',
-                  index === 0
-                    ? 'font-medium text-[var(--text-primary)]'
-                    : 'text-[var(--text-secondary)]'
+                  index === 0 ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'
                 )}
               >
                 {team.name}

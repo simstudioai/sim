@@ -141,7 +141,7 @@ function PortTag({ port }: { port: Port }) {
     >
       <span
         className={cn(
-          'relative flex h-5 items-center overflow-hidden rounded-md border bg-transparent px-1.5 font-medium text-[var(--text-muted-inverse)] text-caption',
+          'relative flex h-5 items-center overflow-hidden rounded-md border bg-transparent px-1.5 text-[var(--text-muted-inverse)] text-caption',
           OUTLINE_INK
         )}
       >

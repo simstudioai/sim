@@ -87,7 +87,7 @@ export function WorkflowCanvasGraphic() {
 
           <div className='-translate-x-1/2 absolute top-[14px] left-[160px] flex items-center gap-2 rounded-lg border border-[var(--border-1)] bg-[var(--white)] px-2.5 py-1.5 shadow-sm'>
             <span className='size-2 shrink-0 rounded-full border border-[var(--text-muted)] bg-[var(--surface-3)]' />
-            <span className='whitespace-nowrap font-medium text-[var(--text-secondary)] text-caption'>
+            <span className='whitespace-nowrap text-[var(--text-secondary)] text-caption'>
               New ticket
             </span>
           </div>
@@ -99,7 +99,7 @@ export function WorkflowCanvasGraphic() {
                 styles.agentPulse
               )}
             />
-            <span className='whitespace-nowrap font-medium text-[var(--text-primary)] text-small'>
+            <span className='whitespace-nowrap text-[var(--text-primary)] text-small'>
               Support agent
             </span>
             <ChipTag variant='solid'>Agent</ChipTag>
@@ -114,7 +114,7 @@ export function WorkflowCanvasGraphic() {
               )}
             >
               <span className='size-2 shrink-0 rounded-full border border-[var(--text-muted)] bg-[var(--surface-3)]' />
-              <span className='whitespace-nowrap font-medium text-[var(--text-secondary)] text-caption'>
+              <span className='whitespace-nowrap text-[var(--text-secondary)] text-caption'>
                 {block.label}
               </span>
             </div>

@@ -197,7 +197,7 @@ function LogsTableRow({ row, visible }: LogsTableRowProps) {
       <td className='px-6 align-middle'>
         <div className='flex items-center gap-2'>
           <Workflow className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
-          <span className='min-w-0 truncate font-medium text-[var(--text-primary)] text-caption'>
+          <span className='min-w-0 truncate text-[var(--text-primary)] text-caption'>
             {row.workflowName}
           </span>
         </div>
@@ -287,7 +287,7 @@ export function LogsHeroLoop() {
             <div className='flex w-full items-center justify-between'>
               <div className='flex items-center gap-3'>
                 <Library className='size-[14px] text-[var(--text-icon)]' />
-                <span className='font-medium text-[var(--text-body)] text-sm'>Logs</span>
+                <span className='text-[var(--text-body)] text-sm'>Logs</span>
               </div>
               <div className='flex items-center gap-1'>
                 <span className='flex items-center rounded-md px-2 py-1 text-[var(--text-secondary)] text-caption'>
@@ -352,7 +352,7 @@ export function LogsHeroLoop() {
                   <td className='px-6 align-middle'>
                     <div className='flex items-center gap-2'>
                       <Workflow className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
-                      <span className='min-w-0 truncate font-medium text-[var(--text-primary)] text-caption'>
+                      <span className='min-w-0 truncate text-[var(--text-primary)] text-caption'>
                         {LIVE_ROW.workflowName}
                       </span>
                     </div>

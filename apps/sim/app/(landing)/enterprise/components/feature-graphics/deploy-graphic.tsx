@@ -97,7 +97,7 @@ export function DeployGraphic({
         className='absolute inset-0 flex flex-col items-center pr-8 max-lg:pr-6'
       >
         <div className='mt-1 flex items-center gap-1.5 rounded-[12px] bg-[var(--surface-2)] py-1.5 pr-1.5 pl-2.5 shadow-sm'>
-          <span className='font-medium text-[var(--text-secondary)] text-caption'>{agentName}</span>
+          <span className='text-[var(--text-secondary)] text-caption'>{agentName}</span>
           <ChipTag variant='mono'>{versionTag}</ChipTag>
         </div>
 
@@ -174,7 +174,7 @@ export function DeployGraphic({
           </div>
           <div className='flex items-center gap-2 px-3 pt-2.5 pb-4'>
             <CircleCheck className='size-[14px] shrink-0 text-[var(--text-muted-inverse)]' />
-            <span className='min-w-0 flex-1 font-medium text-[var(--text-inverse)] text-small'>
+            <span className='min-w-0 flex-1 text-[var(--text-inverse)] text-small'>
               {statusLabel}
             </span>
             <span className='shrink-0 text-[var(--text-muted-inverse)] text-caption'>

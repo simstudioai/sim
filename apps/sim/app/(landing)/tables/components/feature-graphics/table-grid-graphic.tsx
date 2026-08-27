@@ -68,7 +68,7 @@ export function TableGridGraphic() {
           <span className='flex size-6 items-center justify-center rounded-md border border-[var(--border-1)]'>
             <Table className='size-[14px] text-[var(--text-icon)]' />
           </span>
-          <span className='font-medium text-[var(--text-primary)] text-base'>Leads</span>
+          <span className='text-[var(--text-primary)] text-base'>Leads</span>
         </div>
 
         <div className='flex border-[var(--border-1)] border-b'>
@@ -83,7 +83,7 @@ export function TableGridGraphic() {
                 )}
               >
                 <Icon className='size-3 shrink-0 text-[var(--text-icon)]' />
-                <span className='truncate font-medium text-[var(--text-primary)] text-caption'>
+                <span className='truncate text-[var(--text-primary)] text-caption'>
                   {column.label}
                 </span>
               </div>
