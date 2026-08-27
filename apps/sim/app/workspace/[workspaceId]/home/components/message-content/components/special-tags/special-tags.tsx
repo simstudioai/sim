@@ -2319,9 +2319,9 @@ function ServiceAccountConnectDisplay({
   const connected = locallyConnected
 
   // Creating a credential mutates the workspace — hide it from read-only
-  // members, and honour the provider's own preview gate (custom Slack bots
-  // ride the slack_v2 flag) so chat can't surface what the integrations page
-  // deliberately hides.
+  // members, and honor the owning block's visibility (custom Slack bots follow
+  // slack_v2) so chat can't surface what the integrations page deliberately
+  // hides.
   if (!target || target.hidden || !canEdit || !workspaceId) return null
 
   const label = reconnectCredentialId

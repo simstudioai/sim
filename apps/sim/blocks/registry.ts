@@ -142,11 +142,10 @@ export function getLatestBlockForViewer(type: string): BlockConfig | undefined {
  *
  * The detail read walks these rather than taking `getLatestBlock` and hiding
  * the result, because "newest" and "visible to this viewer" are different
- * questions. `slack_v2` is `preview`-gated while `slack` v1 deliberately stays
- * in the toolbar so the workspace has a Slack block at all — so resolving to
- * the newest and then hiding it answers `404` for a type the list is
- * simultaneously publishing. Walking down to the newest *visible* version is
- * what makes the two agree.
+ * questions. For example, `table_v2` is `preview`-gated while `table` remains
+ * in the toolbar — so resolving to the newest and then hiding it answers `404`
+ * for a type the list is simultaneously publishing. Walking down to the newest
+ * *visible* version is what makes the two agree.
  */
 function versionCandidates(type: string): BlockConfig[] {
   const normalized = normalizeType(type)

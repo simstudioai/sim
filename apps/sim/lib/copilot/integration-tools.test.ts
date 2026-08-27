@@ -9,8 +9,8 @@ vi.mock('@/blocks/registry-maps', () => ({
       type: 'svc',
       tools: { access: ['svc_send_v2'] },
     },
-    // Preview successor sharing the released block's tools (the slack/slack_v2
-    // paradigm) — both owners must remain available for projection.
+    // A preview successor sharing the released block's tools keeps both owners
+    // available for projection.
     svc_v2: {
       type: 'svc_v2',
       preview: true,

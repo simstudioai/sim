@@ -33,25 +33,33 @@ describe('getBlock prototype safety', () => {
 /**
  * The list and the detail read must agree about a type.
  *
- * `slack_v2` is `preview`-gated while `slack` v1 deliberately stays in the
- * toolbar so a workspace has a Slack block during the gate. Resolving the
- * detail to the newest version and then hiding it answered `404` for a type
- * `GET /api/v2/blocks` was publishing in the same breath.
+ * A preview successor can be hidden while its released base version remains in
+ * the toolbar. Resolving the detail to the newest version and then hiding it
+ * would answer `404` for a type `GET /api/v2/blocks` publishes in the same
+ * breath. Once the successor is released, both surfaces must resolve to it.
  */
 describe('version resolution for a viewer', () => {
-  it.each(['slack', 'table'])(
-    'resolves %s to a version the unrevealed viewer can actually see',
-    async (type) => {
-      const { getLatestBlockForViewer, getAllBlocks } = await import('@/blocks/registry')
+  it('falls back to the released table block while table_v2 is unrevealed', async () => {
+    const { getLatestBlockForViewer, getAllBlocks } = await import('@/blocks/registry')
+    const detail = getLatestBlockForViewer('table')
+    const listed = getAllBlocks().find(
+      (block) =>
+        !block.hideFromToolbar && (block.type === 'table' || block.type.startsWith('table_v'))
+    )
 
-      const detail = getLatestBlockForViewer(type)
-      const listed = getAllBlocks().find(
-        (block) =>
-          !block.hideFromToolbar && (block.type === type || block.type.startsWith(`${type}_v`))
-      )
+    expect(detail?.type).toBe('table')
+    expect(listed?.type).toBe('table')
+  })
 
-      expect(Boolean(detail)).toBe(Boolean(listed))
-      if (detail && listed) expect(detail.type).toBe(listed.type)
-    }
-  )
+  it('resolves Slack to the released slack_v2 block', async () => {
+    const { getLatestBlockForViewer, getAllBlocks } = await import('@/blocks/registry')
+    const detail = getLatestBlockForViewer('slack')
+    const listed = getAllBlocks().find(
+      (block) =>
+        !block.hideFromToolbar && (block.type === 'slack' || block.type.startsWith('slack_v'))
+    )
+
+    expect(detail?.type).toBe('slack_v2')
+    expect(listed?.type).toBe('slack_v2')
+  })
 })
