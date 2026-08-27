@@ -135,6 +135,52 @@ describe('internal executor delegation claims', () => {
     })
   })
 
+  it('round-trips the currently executing deployed workflow authority', async () => {
+    const token = await generateInternalDelegationToken({
+      subjectUserId: 'user-1',
+      workflowId: 'root-workflow',
+      executionId: 'execution-1',
+      currentWorkflow: {
+        workflowId: 'child-workflow',
+        mode: 'deployment',
+        deploymentVersionId: 'deployment-version-1',
+      },
+    })
+
+    await expect(verifyInternalDelegationToken(token)).resolves.toMatchObject({
+      workflowId: 'root-workflow',
+      currentWorkflow: {
+        workflowId: 'child-workflow',
+        mode: 'deployment',
+        deploymentVersionId: 'deployment-version-1',
+      },
+    })
+  })
+
+  it('refuses to issue current workflow authority without an execution binding', async () => {
+    await expect(
+      generateInternalDelegationToken({
+        subjectUserId: 'user-1',
+        workflowId: 'root-workflow',
+        currentWorkflow: { workflowId: 'root-workflow', mode: 'draft' },
+      })
+    ).rejects.toThrow('Internal delegation currentWorkflow requires executionId')
+  })
+
+  it('rejects malformed workflow authority instead of dropping its fields', async () => {
+    await expect(
+      generateInternalDelegationToken({
+        subjectUserId: 'user-1',
+        workflowId: 'root-workflow',
+        currentWorkflow: {
+          workflowId: 'child-workflow',
+          mode: 'draft',
+          unexpected: true,
+        } as never,
+      })
+    ).rejects.toBeInstanceOf(InvalidInternalDelegationTokenError)
+  })
+
   it('rejects laundering actorless or external principals into a Sim user subject', async () => {
     await expect(
       generateInternalDelegationToken({

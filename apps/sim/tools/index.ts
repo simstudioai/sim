@@ -1801,21 +1801,16 @@ async function executeToolImplementation(
          */
         const tokenHeaders: Record<string, string> = { 'Content-Type': 'application/json' }
         if (typeof window === 'undefined') {
+          const managedCredentialDelegation = executionContext?.executorDelegationOrigin
+          if (managedCredentialDelegation && !managedCredentialDelegation.currentWorkflow) {
+            throw new Error('Managed credential delegation is missing current workflow authority')
+          }
           try {
             const internalToken = await generateInternalToken(userId)
             tokenHeaders.Authorization = `Bearer ${internalToken}`
           } catch (_e) {
             // Swallow token generation errors; the request will fail and be reported upstream
           }
-          const managedCredentialDelegation =
-            executionContext?.executorDelegationOrigin ??
-            (workflowId && executionContext?.principal
-              ? {
-                  workflowId,
-                  ...(scope.executionId ? { executionId: scope.executionId } : {}),
-                  principal: executionContext.principal,
-                }
-              : undefined)
           if (managedCredentialDelegation) {
             const delegationHeaders = await buildExecutorDelegationHeaders(
               managedCredentialDelegation

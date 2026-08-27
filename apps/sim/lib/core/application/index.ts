@@ -1,5 +1,6 @@
 export { principalAuditSource } from '@/lib/core/application/audit-source'
 export {
+  type AuthorizedWorkspaceResourceUseCaseContext,
   type AuthorizedWorkspaceUseCaseContext,
   type AuthorizedWorkspaceUseCaseDefinition,
   type AuthorizedWorkspaceUseCaseResultContext,

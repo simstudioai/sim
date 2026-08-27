@@ -86,6 +86,12 @@ export interface ChipSelectProps {
   contentClassName?: string
   /** Accessible label for the trigger. */
   'aria-label'?: string
+  /** Marks the trigger as required. */
+  'aria-required'?: React.AriaAttributes['aria-required']
+  /** Marks the trigger as invalid. */
+  'aria-invalid'?: React.AriaAttributes['aria-invalid']
+  /** Id of hint or error content describing the trigger. */
+  'aria-describedby'?: React.AriaAttributes['aria-describedby']
   /**
    * Forwarded to the underlying `DropdownMenu`'s Radix `modal` prop
    * (default `true`, matching Radix). Set `false` when an `onChange` handler
@@ -148,6 +154,9 @@ export function ChipSelect({
   className,
   contentClassName,
   'aria-label': ariaLabel,
+  'aria-required': ariaRequired,
+  'aria-invalid': ariaInvalid,
+  'aria-describedby': ariaDescribedBy,
   modal,
 }: ChipSelectProps) {
   const [query, setQuery] = React.useState('')
@@ -249,10 +258,13 @@ export function ChipSelect({
           type='button'
           disabled={disabled}
           aria-label={ariaLabel}
+          aria-required={ariaRequired}
+          aria-invalid={ariaInvalid}
+          aria-describedby={ariaDescribedBy}
           className={cn(
             chipVariants({ variant: 'filled', fullWidth }),
             TRIGGER_BORDER_CLASS,
-            fullWidth ? 'w-full justify-between' : 'w-fit max-w-[240px]',
+            fullWidth ? 'justify-between' : 'w-fit max-w-[240px]',
             className
           )}
         >

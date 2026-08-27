@@ -13,6 +13,7 @@ import type {
   WorkspaceOperation,
 } from '@/lib/core/application/workspace-operation'
 import type { OrchestrationRequestContext } from '@/lib/core/orchestration/types'
+import type { ResourcePolicyBinding } from '@/lib/resource-policies/registry'
 
 export interface WorkspaceUseCaseAuditEntry {
   action: AuditActionType
@@ -56,13 +57,27 @@ export interface AuthorizedWorkspaceUseCaseDefinition<
     | ((
         args: AuthorizedWorkspaceUseCaseContext<O, I, C>
       ) => WorkspaceAuthorizationOptions<C> | Promise<WorkspaceAuthorizationOptions<C>>)
-  /** Applies current domain-resource policy after workspace authorization. */
-  authorizeResource?(args: AuthorizedWorkspaceUseCaseContext<O, I, C>): void | Promise<void>
+  /** Receives the operation-owned policy binding when the operation declares one. */
+  authorizeResource?(args: AuthorizedWorkspaceResourceUseCaseContext<O, I, C>): void | Promise<void>
   execute(args: AuthorizedWorkspaceUseCaseContext<O, I, C>): Promise<R>
   projectAudit?(
     args: AuthorizedWorkspaceUseCaseResultContext<O, I, C, R>
   ): WorkspaceUseCaseAuditEntry | WorkspaceUseCaseAuditEntry[]
   afterSuccess?(args: AuthorizedWorkspaceUseCaseResultContext<O, I, C, R>): void | Promise<void>
+}
+
+type ResourcePolicyForOperation<O extends WorkspaceOperation> = O extends {
+  readonly resourcePolicy: infer Binding extends ResourcePolicyBinding
+}
+  ? Binding
+  : never
+
+export type AuthorizedWorkspaceResourceUseCaseContext<
+  O extends WorkspaceOperation,
+  I,
+  C extends WorkspaceAuthorizationContext,
+> = AuthorizedWorkspaceUseCaseContext<O, I, C> & {
+  resourcePolicy: ResourcePolicyForOperation<O>
 }
 
 function isAuthorizationOptionsResolver<
@@ -111,6 +126,28 @@ export function defineAuthorizedWorkspaceUseCase<
   C extends WorkspaceAuthorizationContext,
   R,
 >(definition: AuthorizedWorkspaceUseCaseDefinition<O, I, C, R>): OperationUseCase<O, I, R> {
+  const resourceAuthorization = (() => {
+    if ('resourcePolicy' in definition.operation && definition.operation.resourcePolicy) {
+      const authorizeResource = definition.authorizeResource
+      if (!authorizeResource) {
+        throw new Error(
+          `Operation ${definition.operation.id} requires resource policy authorization`
+        )
+      }
+      const resourcePolicy = definition.operation.resourcePolicy as ResourcePolicyForOperation<O>
+      return (executionContext: AuthorizedWorkspaceUseCaseContext<O, I, C>) =>
+        authorizeResource({
+          ...executionContext,
+          resourcePolicy,
+        } as AuthorizedWorkspaceResourceUseCaseContext<O, I, C>)
+    }
+    const authorizeResource = definition.authorizeResource
+    return authorizeResource
+      ? (executionContext: AuthorizedWorkspaceUseCaseContext<O, I, C>) =>
+          authorizeResource(executionContext as AuthorizedWorkspaceResourceUseCaseContext<O, I, C>)
+      : undefined
+  })()
+
   /**
    * Everything that runs before the business transaction: allowed-principal
    * check, canonical load, asserted-scope comparison, current workspace and
@@ -148,7 +185,7 @@ export function defineAuthorizedWorkspaceUseCase<
       context,
       authorizationOptions
     )
-    await definition.authorizeResource?.(executionContext)
+    await resourceAuthorization?.(executionContext)
     return executionContext
   }
 

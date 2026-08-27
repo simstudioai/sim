@@ -62,6 +62,8 @@ afterAll(resetEnvironmentUtilsMock)
 const loadWorkflowFromNormalizedTablesMock =
   workflowsPersistenceUtilsMockFns.mockLoadWorkflowFromNormalizedTables
 const loadDeployedWorkflowStateMock = workflowsPersistenceUtilsMockFns.mockLoadDeployedWorkflowState
+const loadWorkflowDeploymentVersionStateMock =
+  workflowsPersistenceUtilsMockFns.mockLoadWorkflowDeploymentVersionState
 const updateWorkflowRunCountsMock = workflowsUtilsMockFns.mockUpdateWorkflowRunCounts
 
 vi.mock('@/lib/execution/cancellation', () => ({
@@ -201,6 +203,13 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
       loops: {},
       parallels: {},
       deploymentVersionId: 'dep-1',
+    })
+    loadWorkflowDeploymentVersionStateMock.mockResolvedValue({
+      blocks: {},
+      edges: [],
+      loops: {},
+      parallels: {},
+      deploymentVersionId: 'dep-historical',
     })
 
     getPersonalAndWorkspaceEnvMock.mockResolvedValue({
@@ -779,6 +788,106 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
     const registry = setResolvedSecretTraceRegistryMock.mock.calls[0]?.[0]
     expect(registry.isComplete()).toBe(true)
     expect(registry.getActiveMatches()).toEqual([])
+  })
+
+  it('resumes a deployed run from its admitted historical version after deployment changes', async () => {
+    executorExecuteMock.mockResolvedValue({
+      success: true,
+      status: 'completed',
+      output: { done: true },
+      logs: [],
+      metadata: { duration: 1, startTime: 'start', endTime: 'end' },
+    })
+    const resumedSnapshot = createSnapshot()
+    resumedSnapshot.metadata = {
+      ...resumedSnapshot.metadata,
+      executionId: 'execution-resumed',
+      useDraftState: false,
+      resumeFromSnapshot: true,
+      resumeTerminalNoop: true,
+      workflowStateOverride: {
+        blocks: {},
+        edges: [],
+        loops: {},
+        parallels: {},
+        deploymentVersionId: 'dep-active-now',
+      },
+    } as any
+    ;(resumedSnapshot as any).state = {
+      blockStates: {},
+      executedBlocks: [],
+      blockLogs: [],
+      decisions: { router: {}, condition: {} },
+      completedLoops: [],
+      activeExecutionPath: [],
+    }
+
+    await executeWorkflowCore({
+      snapshot: resumedSnapshot as any,
+      callbacks: {},
+      loggingSession: loggingSession as any,
+      skipLogCreation: true,
+      resumeDeploymentVersionId: 'dep-historical',
+    })
+
+    expect(loadWorkflowDeploymentVersionStateMock).toHaveBeenCalledWith(
+      'workflow-1',
+      'dep-historical',
+      'workspace-1'
+    )
+    expect(loadDeployedWorkflowStateMock).not.toHaveBeenCalled()
+    expect(safeStartMock).toHaveBeenCalledWith(
+      expect.objectContaining({ deploymentVersionId: 'dep-historical' })
+    )
+    expect(executorConstructorMock.mock.calls[0]?.[0]?.contextExtensions).toMatchObject({
+      executorDelegationOrigin: {
+        currentWorkflow: {
+          workflowId: 'workflow-1',
+          mode: 'deployment',
+          deploymentVersionId: 'dep-historical',
+        },
+      },
+    })
+  })
+
+  it('fails instead of loading the latest deployment for a deployed resume without authority', async () => {
+    const resumedSnapshot = createSnapshot()
+    resumedSnapshot.metadata = {
+      ...resumedSnapshot.metadata,
+      useDraftState: false,
+      resumeFromSnapshot: true,
+    } as any
+
+    await expect(
+      executeWorkflowCore({
+        snapshot: resumedSnapshot as any,
+        callbacks: {},
+        loggingSession: loggingSession as any,
+        skipLogCreation: true,
+      })
+    ).rejects.toThrow('Deployed resume requires its admitted deployment version')
+    expect(loadDeployedWorkflowStateMock).not.toHaveBeenCalled()
+    expect(loadWorkflowDeploymentVersionStateMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects deployment authority on a draft resume', async () => {
+    const resumedSnapshot = createSnapshot()
+    resumedSnapshot.metadata = {
+      ...resumedSnapshot.metadata,
+      resumeFromSnapshot: true,
+    } as any
+
+    await expect(
+      executeWorkflowCore({
+        snapshot: resumedSnapshot as any,
+        callbacks: {},
+        loggingSession: loggingSession as any,
+        skipLogCreation: true,
+        resumeDeploymentVersionId: 'dep-historical',
+      })
+    ).rejects.toThrow('Draft resume cannot carry deployment version authority')
+    expect(loadWorkflowFromNormalizedTablesMock).not.toHaveBeenCalled()
+    expect(loadWorkflowDeploymentVersionStateMock).not.toHaveBeenCalled()
   })
 
   it('marks inherited client run-from-block provenance incomplete', async () => {

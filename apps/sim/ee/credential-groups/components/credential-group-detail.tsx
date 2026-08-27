@@ -28,6 +28,10 @@ import {
 } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useSettingsUnsavedGuard } from '@/app/workspace/[workspaceId]/settings/hooks/use-settings-unsaved-guard'
+import {
+  CredentialGroupAccess,
+  useCredentialGroupAccessEditor,
+} from '@/ee/credential-groups/components/credential-group-access'
 import { CredentialGroupDetails } from '@/ee/credential-groups/components/credential-group-details'
 import { CredentialGroupInviteModal } from '@/ee/credential-groups/components/credential-group-invite-modal'
 import {
@@ -45,11 +49,12 @@ interface CredentialGroupDetailProps {
   onBack: () => void
 }
 
-type CredentialGroupTab = 'details' | 'people'
+type CredentialGroupTab = 'details' | 'people' | 'access'
 
 const CREDENTIAL_GROUP_TABS = [
   { value: 'details', label: 'Details' },
   { value: 'people', label: 'People' },
+  { value: 'access', label: 'Access' },
 ] as const
 
 interface EnrollmentConnectionsProps {
@@ -101,6 +106,11 @@ export function CredentialGroupDetail({
     ...credentialGroupTabParam.parser,
     ...credentialGroupTabUrlKeys,
   })
+  const accessEditor = useCredentialGroupAccessEditor({
+    workspaceId,
+    groupId,
+    enabled: activeTab === 'access',
+  })
   const [showInvite, setShowInvite] = useState(false)
   const [showDelete, setShowDelete] = useState(false)
   const [deletingEnrollmentId, setDeletingEnrollmentId] = useState<string | null>(null)
@@ -128,11 +138,26 @@ export function CredentialGroupDetail({
       (name.trim() !== credentialGroup.name ||
         normalizedDescription !== credentialGroup.description)
   )
-  const guard = useSettingsUnsavedGuard({ isDirty: detailsDirty })
+  const guard = useSettingsUnsavedGuard({
+    isDirty: detailsDirty || accessEditor.dirty,
+    navigationBlocked: updateGroup.isPending || accessEditor.saving,
+  })
+  const credentialGroupMutationPending =
+    updateGroup.isPending || accessEditor.saving || resend.isPending || deleteEnrollment.isPending
 
   const discardDetails = () => {
     setDraftName(null)
     setDraftDescription(null)
+  }
+
+  const handleTabChange = (value: string) => {
+    const nextTab = value as CredentialGroupTab
+    if (nextTab === activeTab) return
+    guard.guardBack(() => {
+      discardDetails()
+      accessEditor.discard()
+      void setActiveTab(nextTab)
+    })
   }
 
   const handleSaveDetails = async () => {
@@ -150,10 +175,6 @@ export function CredentialGroupDetail({
     }
   }
 
-  /**
-   * Each tab owns its own primary action: Details commits the edited name and
-   * description, People invites more users. Delete is available from both.
-   */
   const actions: SettingsAction[] = credentialGroup
     ? [
         ...(activeTab === 'details'
@@ -165,20 +186,32 @@ export function CredentialGroupDetail({
               saveDisabled: !name.trim(),
               saveTooltip: name.trim() ? undefined : 'Name is required',
             })
-          : [
-              {
-                text: 'Invite users',
-                icon: Plus,
-                variant: 'primary' as const,
-                onSelect: () => setShowInvite(true),
-                disabled: credentialGroup.status !== 'active' || !configurationReady,
-              },
-            ]),
+          : activeTab === 'people'
+            ? [
+                {
+                  text: 'Invite users',
+                  icon: Plus,
+                  variant: 'primary' as const,
+                  onSelect: () => setShowInvite(true),
+                  disabled: credentialGroup.status !== 'active' || !configurationReady,
+                },
+              ]
+            : saveDiscardActions({
+                dirty: accessEditor.dirty,
+                saving: accessEditor.saving,
+                onSave: () => void accessEditor.save(),
+                onDiscard: accessEditor.discard,
+                saveDisabled: !accessEditor.isReady,
+                saveTooltip: !accessEditor.isReady ? 'Workflow access is unavailable' : undefined,
+              })),
         {
           id: 'delete',
           text: deleteGroup.isPending ? 'Deleting...' : 'Delete',
           onSelect: () => setShowDelete(true),
-          disabled: deleteGroup.isPending,
+          disabled: deleteGroup.isPending || credentialGroupMutationPending,
+          tooltip: credentialGroupMutationPending
+            ? 'Wait for the current Credential Group change to finish'
+            : undefined,
         },
       ]
     : []
@@ -239,7 +272,7 @@ export function CredentialGroupDetail({
             <ChipModalTabs
               tabs={CREDENTIAL_GROUP_TABS}
               value={activeTab}
-              onChange={(value) => void setActiveTab(value as CredentialGroupTab)}
+              onChange={handleTabChange}
               aria-label='Credential group sections'
             />
 
@@ -305,6 +338,20 @@ export function CredentialGroupDetail({
                   </div>
                 )}
               </SettingsSection>
+            )}
+
+            {activeTab === 'access' && (
+              <CredentialGroupAccess
+                key={groupId}
+                allowedWorkflowIds={accessEditor.allowedWorkflowIds}
+                revision={accessEditor.revision}
+                workflows={accessEditor.workflows}
+                onAllowedWorkflowIdsChange={accessEditor.setAllowedWorkflowIds}
+                error={accessEditor.error}
+                isPending={accessEditor.isPending}
+                loadError={accessEditor.loadError}
+                saving={accessEditor.saving}
+              />
             )}
           </>
         )}
