@@ -173,29 +173,27 @@ automatically; later requests must use the UUID returned in `mintedBlockIds`. Ne
 block by matching its name. The request-local label does not become the block's variable-reference
 prefix; `params.name` does.
 
-## Validate, then commit the same batch
+## Apply atomically, then verify
 
-Put a nontrivial batch in a JSON file and dry-run it atomically:
-
-```bash
-sim --output json workflows operations apply <workflowId> \
-  --operations @operations.json --atomic --dry-run --yes
-```
-
-Fail on any skipped operation, dropped input, unresolved reference, or required-field lint issue.
-Fix the batch rather than retrying a partial or guessed alternative. When the dry run is clean, send
-the exact same file with `--no-dry-run`:
+Pass the batch as inline JSON on the first attempt and apply it once with atomic behavior. Do not
+create a staging file preemptively:
 
 ```bash
 sim --output json workflows operations apply <workflowId> \
-  --operations @operations.json --atomic --no-dry-run --yes
+  --operations '<operations-json-array>' --atomic --yes
 ```
 
-Read the state again and verify the requested blocks, inputs, and edges. Report minted ids and any
-advisory lint that remains. Confirm that changed references resolve, every branch reaches the
-intended destination, nested blocks remain in the correct loop or parallel scope, and no block was
-orphaned by a replaced connection set. Recompute reference prefixes from the persisted block names;
-do not infer them from request-local labels or reformat them as snake_case.
+Only switch to `--operations @operations.json` if the inline invocation itself becomes impractical
+because of shell parsing or command-length limits; keep the batch unchanged when changing how it is
+passed to the CLI.
+
+If the atomic apply is refused, fix the batch rather than retrying a partial or guessed alternative.
+Read the state again and verify the requested blocks, inputs, and edges. Treat skipped operations,
+dropped inputs, unresolved references, and required-field lint issues as failures to correct. Report
+minted ids and any other advisory lint that remains. Confirm that changed references resolve, every
+branch reaches the intended destination, nested blocks remain in the correct loop or parallel scope,
+and no block was orphaned by a replaced connection set. Recompute reference prefixes from the
+persisted block names; do not infer them from request-local labels or reformat them as snake_case.
 
 Report the workflow id and its exact `webUrl` from the create or list response, formatting the URL as
 a clickable link. Do not construct a workflow URL from ids or the profile's API origin; a missing
