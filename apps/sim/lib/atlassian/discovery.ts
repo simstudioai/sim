@@ -161,6 +161,13 @@ export function fetchAtlassianDiscoveryJson<T>(
       })
 
       if (!response.ok) {
+        if (omitResponseBodyFromErrors) {
+          try {
+            await response.body?.cancel()
+          } catch {
+            // Releasing an unread provider body is best-effort; the public error stays sanitized.
+          }
+        }
         const errorDetail = omitResponseBodyFromErrors
           ? ''
           : ` - ${(await response.text()) || response.statusText}`

@@ -124,7 +124,14 @@ describe('resolveAtlassianCloudId', () => {
   })
 
   it('omits provider response bodies from selector discovery errors', async () => {
-    fetchMock.mockResolvedValue(failure(403, { marker: 'provider-body-secret-marker' }))
+    const cancel = vi.fn().mockResolvedValue(undefined)
+    fetchMock.mockResolvedValue(
+      createMockResponse({
+        status: 403,
+        json: { marker: 'provider-body-secret-marker' },
+        body: { cancel },
+      })
+    )
 
     const error = await resolveAtlassianCloudId(
       options({
@@ -134,6 +141,7 @@ describe('resolveAtlassianCloudId', () => {
 
     expect(error.message).toBe('Failed to fetch Jira accessible resources: 403')
     expect(error.message).not.toContain('provider-body-secret-marker')
+    expect(cancel).toHaveBeenCalledOnce()
   })
 
   it('omits malformed successful response bodies from selector discovery errors', async () => {
