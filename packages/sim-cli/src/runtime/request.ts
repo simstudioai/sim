@@ -319,6 +319,17 @@ export function encodeFolderPath(value: string): string {
 }
 
 /**
+ * A fractional part `Number` cannot keep.
+ *
+ * Above 2^52 a double's spacing is 1, so `Number('4503599627370496.5')` is an
+ * integer — `Number.isInteger` passes and the API receives a value the caller
+ * did not type. Read the text as well as the parsed number so the refusal
+ * covers the range where the parse itself loses the fraction. Digits that are
+ * all zero are not a fraction, so `1.0` stays a whole number.
+ */
+const FRACTIONAL_DIGITS = /\.\d*[1-9]/
+
+/**
  * Points at `@` when a value that failed to parse looks like a filename.
  *
  * `--workflow export.json` is the natural first guess, and "must be valid JSON"
@@ -390,7 +401,10 @@ export function coerce(raw: unknown, field: FieldSpec, flag: FlagSpec, flagName:
      * nor anything the caller typed, on the one flag whose blank, zero and
      * non-numeric cases all had a sentence written for them.
      */
-    if (field.kind === 'integer' && !Number.isInteger(value)) {
+    if (
+      field.kind === 'integer' &&
+      (!Number.isInteger(value) || FRACTIONAL_DIGITS.test(String(raw)))
+    ) {
       throw new SimApiError(`--${flagName} must be a whole number`, 0)
     }
     if (field.kind === 'integer' && !Number.isSafeInteger(value)) {

@@ -1689,6 +1689,9 @@ describe('bodies and fields the generator cannot flatten', () => {
         ['0', '--limit must be 1 or more'],
         ['-1', '--limit must be 1 or more'],
         ['1.5', '--limit must be a whole number'],
+        // Above 2^52 the parse itself drops the fraction, so `Number.isInteger`
+        // alone would pass this and send a value the caller never typed.
+        ['4503599627370496.5', '--limit must be a whole number'],
       ] as const) {
         for (const command of ['batch-delete', 'batch-update'] as const) {
           const argv = ['tables', 'rows', command, 'tbl_1', '--filter', '{"all":[]}']

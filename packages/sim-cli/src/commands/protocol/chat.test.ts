@@ -144,9 +144,9 @@ describe('sim chat', () => {
   })
 
   /**
-   * A conversation id as the command prints it: the route requires a UUID and
-   * the CLI now says so before the request, so a stand-in like `conv-1` is
-   * refused rather than sent.
+   * A conversation id as the command prints it. The shape is the route's rule
+   * to enforce — the CLI refuses only a blank `-c`, which is falsy and would
+   * otherwise be dropped from the body and start a new conversation.
    */
   it('passes -c through as the conversation to continue', async () => {
     requestRaw.mockResolvedValue(ndjson([FINAL]))
