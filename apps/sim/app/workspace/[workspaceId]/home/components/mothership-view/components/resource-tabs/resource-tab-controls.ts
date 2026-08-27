@@ -10,7 +10,7 @@ export const RESOURCE_TAB_ICON_CLASS = 'size-[16px] text-[var(--text-icon)]'
 /** Shared geometry for the resource header and controls positioned over it. */
 export const RESOURCE_HEADER_CLASSES = {
   layout:
-    '[--resource-header-controls-height:40px] [--resource-header-end-inset:16px] [--resource-header-fixed-reserve:64px] [--resource-header-toggle-hit-size:40px] [--resource-header-toggle-size:30px]',
+    '[--resource-header-controls-height:40px] [--resource-header-end-inset:16px] [--resource-header-fixed-reserve:52px] [--resource-header-toggle-hit-size:40px] [--resource-header-toggle-size:30px]',
   /**
    * Drives the tab strip from this header's own tokens rather than restating the
    * strip's defaults, so the height the overlaid controls below are positioned
