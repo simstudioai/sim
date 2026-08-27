@@ -11,9 +11,12 @@ import {
 } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/table-grid/cells/inline-editors'
 import { cleanCellValue } from '@/app/workspace/[workspaceId]/tables/[tableId]/utils'
 
-const { mockUseTimezone } = vi.hoisted(() => ({ mockUseTimezone: vi.fn() }))
+const { mockToastError, mockUseTimezoneState } = vi.hoisted(() => ({
+  mockToastError: vi.fn(),
+  mockUseTimezoneState: vi.fn(),
+}))
 
-vi.mock('@/hooks/queries/general-settings', () => ({ useTimezone: mockUseTimezone }))
+vi.mock('@/hooks/queries/general-settings', () => ({ useTimezoneState: mockUseTimezoneState }))
 vi.mock('@sim/emcn', () => {
   const passthrough = ({ children }: { children?: ReactNode }) => children ?? null
   return {
@@ -26,15 +29,24 @@ vi.mock('@sim/emcn', () => {
     Popover: passthrough,
     PopoverAnchor: () => null,
     PopoverContent: passthrough,
-    toast: { error: vi.fn() },
+    toast: { error: mockToastError },
   }
 })
 const column = (type: ColumnDefinition['type']): ColumnDefinition => ({ name: 'expires_at', type })
 
+function changeInput(input: HTMLInputElement, value: string) {
+  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+  setter?.call(input, value)
+  input.dispatchEvent(new Event('input', { bubbles: true }))
+}
+
 describe('dateEditorRawValue', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockUseTimezone.mockReturnValue('America/Los_Angeles')
+    mockUseTimezoneState.mockReturnValue({
+      timezone: 'America/Los_Angeles',
+      status: 'ready',
+    })
   })
 
   it('leaves TTL drafts for TTL coercion to resolve safely', () => {
@@ -73,7 +85,10 @@ describe('dateEditorRawValue', () => {
 
     ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
     act(() => root.render(createElement(InlineEditor, props)))
-    mockUseTimezone.mockReturnValue('America/New_York')
+    mockUseTimezoneState.mockReturnValue({
+      timezone: 'America/New_York',
+      status: 'ready',
+    })
     act(() => root.render(createElement(InlineEditor, props)))
 
     const input = container.querySelector('input')
@@ -83,6 +98,132 @@ describe('dateEditorRawValue', () => {
     })
 
     expect(onSave).toHaveBeenCalledWith(value, 'enter')
+    act(() => root.unmount())
+    container.remove()
+  })
+
+  it('waits for the saved timezone before creating a TTL draft', () => {
+    mockUseTimezoneState.mockReturnValue({
+      timezone: 'Asia/Tokyo',
+      status: 'loading',
+    })
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+    const onSave = vi.fn()
+    const props = {
+      value: Date.parse('2026-06-15T13:00:30Z') / 1000,
+      column: column('ttl'),
+      onSave,
+      onCancel: vi.fn(),
+    }
+
+    act(() => root.render(createElement(InlineEditor, props)))
+
+    expect(container.querySelector('input')).toMatchObject({
+      disabled: true,
+      placeholder: 'Loading timezone...',
+    })
+
+    mockUseTimezoneState.mockReturnValue({
+      timezone: 'America/Los_Angeles',
+      status: 'ready',
+    })
+    act(() => root.render(createElement(InlineEditor, props)))
+
+    const input = container.querySelector('input') as HTMLInputElement
+    expect(input.disabled).toBe(false)
+    act(() => changeInput(input, '09/01/2026 9:00 AM'))
+    act(() => input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })))
+
+    expect(onSave).toHaveBeenCalledWith(Date.parse('2026-09-01T16:00:00Z') / 1000, 'enter')
+    act(() => root.unmount())
+    container.remove()
+  })
+
+  it('rejects an impossible TTL draft without clearing the cell', () => {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+    const onSave = vi.fn()
+
+    act(() =>
+      root.render(
+        createElement(InlineEditor, {
+          value: Date.parse('2026-06-15T13:00:30Z') / 1000,
+          column: column('ttl'),
+          onSave,
+          onCancel: vi.fn(),
+        })
+      )
+    )
+
+    const input = container.querySelector('input') as HTMLInputElement
+    act(() => changeInput(input, '02/30/2026 1:30 AM'))
+    act(() => input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })))
+
+    expect(onSave).not.toHaveBeenCalled()
+    expect(mockToastError).toHaveBeenCalledWith('Invalid expiration date')
+    act(() => root.unmount())
+    container.remove()
+  })
+
+  it.each([
+    { caseName: 'a historical sub-minute offset', timezone: 'Africa/Monrovia', value: 2670 },
+    {
+      caseName: 'the far-future representable boundary',
+      timezone: 'Asia/Tokyo',
+      value: 253_402_300_799,
+    },
+  ])('preserves the exact epoch for $caseName when untouched', ({ timezone, value }) => {
+    mockUseTimezoneState.mockReturnValue({ timezone, status: 'ready' })
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+    const onSave = vi.fn()
+
+    act(() =>
+      root.render(
+        createElement(InlineEditor, {
+          value,
+          column: column('ttl'),
+          onSave,
+          onCancel: vi.fn(),
+        })
+      )
+    )
+
+    const input = container.querySelector('input') as HTMLInputElement
+    act(() => input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })))
+
+    expect(onSave).toHaveBeenCalledWith(value, 'enter')
+    act(() => root.unmount())
+    container.remove()
+  })
+
+  it('cancels TTL editing when the saved timezone cannot be loaded', () => {
+    mockUseTimezoneState.mockReturnValue({
+      timezone: 'America/Los_Angeles',
+      status: 'error',
+    })
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+    const onCancel = vi.fn()
+
+    act(() =>
+      root.render(
+        createElement(InlineEditor, {
+          value: 2670,
+          column: column('ttl'),
+          onSave: vi.fn(),
+          onCancel,
+        })
+      )
+    )
+
+    expect(onCancel).toHaveBeenCalledOnce()
+    expect(mockToastError).toHaveBeenCalledWith('Could not load timezone')
     act(() => root.unmount())
     container.remove()
   })

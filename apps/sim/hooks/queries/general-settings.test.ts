@@ -15,7 +15,7 @@ vi.mock('@tanstack/react-query', () => ({
 }))
 vi.mock('@/lib/core/utils/timezone', () => ({ getBrowserTimezone: mockGetBrowserTimezone }))
 
-import { useTimezone } from '@/hooks/queries/general-settings'
+import { useTimezone, useTimezoneState } from '@/hooks/queries/general-settings'
 
 describe('useTimezone', () => {
   beforeEach(() => {
@@ -27,6 +27,10 @@ describe('useTimezone', () => {
     mockUseQuery.mockReturnValue({ data: { timezone: null } })
 
     expect(useTimezone()).toBe('America/Los_Angeles')
+    expect(useTimezoneState()).toEqual({
+      timezone: 'America/Los_Angeles',
+      status: 'ready',
+    })
   })
 
   it('uses a saved timezone instead of the browser fallback', () => {
@@ -45,5 +49,23 @@ describe('useTimezone', () => {
     expect(useTimezone()).toBe('Asia/Tokyo')
     timezone = null
     expect(useTimezone()).toBe('America/Los_Angeles')
+  })
+
+  it('distinguishes an unresolved preference from an explicit browser fallback', () => {
+    mockUseQuery.mockReturnValue({ data: undefined, isError: false })
+
+    expect(useTimezoneState()).toEqual({
+      timezone: 'America/Los_Angeles',
+      status: 'loading',
+    })
+  })
+
+  it('reports an unavailable preference instead of treating it as resolved', () => {
+    mockUseQuery.mockReturnValue({ data: undefined, isError: true })
+
+    expect(useTimezoneState()).toEqual({
+      timezone: 'America/Los_Angeles',
+      status: 'error',
+    })
   })
 })

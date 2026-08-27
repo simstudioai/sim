@@ -17,7 +17,7 @@ import { Check } from '@sim/emcn/icons'
 import type { ColumnDefinition } from '@/lib/table'
 import { columnTypeOf } from '@/lib/table/column-types'
 import { isCalendarDateString } from '@/lib/table/dates'
-import { useTimezone } from '@/hooks/queries/general-settings'
+import { useTimezoneState } from '@/hooks/queries/general-settings'
 import type { SaveReason } from '../../../types'
 import {
   cleanCellValue,
@@ -68,13 +68,46 @@ function handleEditorWheel(e: React.WheelEvent<HTMLInputElement>) {
  * edits update the draft in place — the day pick keeps the time-of-day
  * (including seconds), the time field keeps the day — and Enter/blur commits.
  */
-function InlineDateEditor({
+function InlineDateEditor(props: InlineEditorProps) {
+  const { column, onCancel } = props
+  const timezoneState = useTimezoneState()
+  const ttlTimezoneUnavailable = column.type === 'ttl' && timezoneState.status !== 'ready'
+
+  useEffect(() => {
+    if (column.type !== 'ttl' || timezoneState.status !== 'error') return
+    toast.error('Could not load timezone')
+    onCancel()
+  }, [column.type, onCancel, timezoneState.status])
+
+  if (ttlTimezoneUnavailable) {
+    return (
+      <input
+        type='text'
+        value=''
+        disabled
+        placeholder={
+          timezoneState.status === 'error' ? 'Timezone unavailable' : 'Loading timezone...'
+        }
+        className='w-full min-w-0 border-none bg-transparent p-0 text-[var(--text-muted)] text-small outline-none'
+      />
+    )
+  }
+
+  return <ReadyInlineDateEditor {...props} initialTimeZone={timezoneState.timezone} />
+}
+
+interface ReadyInlineDateEditorProps extends InlineEditorProps {
+  initialTimeZone: string
+}
+
+function ReadyInlineDateEditor({
   value,
   column,
   initialCharacter,
   onSave,
   onCancel,
-}: InlineEditorProps) {
+  initialTimeZone,
+}: ReadyInlineDateEditorProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const popoverRef = useRef<HTMLDivElement>(null)
   const doneRef = useRef(false)
@@ -83,9 +116,8 @@ function InlineDateEditor({
    *  and refocuses while a popover interaction is in flight (covers browsers
    *  where buttons don't take focus on click). */
   const popoverPointerAtRef = useRef(0)
-  const effectiveTimeZone = useTimezone()
   /** Keep one wall-clock interpretation for the lifetime of this edit. */
-  const editTimeZoneRef = useRef(effectiveTimeZone)
+  const editTimeZoneRef = useRef(initialTimeZone)
   const timeZone = editTimeZoneRef.current
 
   const storedValue = formatValueForInput(value, column.type, timeZone)
@@ -133,26 +165,45 @@ function InlineDateEditor({
       // silently shifting the instant of a value someone else wrote.
       if (storageVal === undefined && initialCharacter === undefined && current === initialDraft) {
         doneRef.current = true
-        onSave(storedValue ? cleanCellValue(storedValue, column, timeZone) : null, reason)
+        onSave(
+          column.type === 'ttl'
+            ? (value ?? null)
+            : storedValue
+              ? cleanCellValue(storedValue, column, timeZone)
+              : null,
+          reason
+        )
         return
       }
       const raw = dateEditorRawValue(current, column, timeZone, storageVal)
-      if (raw && Number.isNaN(Date.parse(raw))) {
+      const cleaned = raw ? cleanCellValue(raw, column, timeZone) : null
+      const parseError = columnTypeOf(column).parseErrorMessage
+      if (raw && cleaned === null && parseError) {
         if (reason === 'blur') {
-          if (!invalid) toast.error('Invalid date')
+          if (!invalid) toast.error(parseError)
           doneRef.current = true
           onCancel()
         } else {
-          toast.error('Invalid date')
+          toast.error(parseError)
           setInvalid(true)
           inputRef.current?.focus()
         }
         return
       }
       doneRef.current = true
-      onSave(raw ? cleanCellValue(raw, column, timeZone) : null, reason)
+      onSave(cleaned, reason)
     },
-    [invalid, onSave, onCancel, timeZone, initialDraft, initialCharacter, storedValue, column]
+    [
+      invalid,
+      onSave,
+      onCancel,
+      timeZone,
+      initialDraft,
+      initialCharacter,
+      storedValue,
+      column,
+      value,
+    ]
   )
 
   const handleKeyDown = useCallback(
