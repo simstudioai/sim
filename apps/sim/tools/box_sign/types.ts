@@ -99,7 +99,7 @@ export const SIGN_REQUEST_OUTPUT_PROPERTIES = {
   status: {
     type: 'string',
     description:
-      'Request status (converting, created, sent, viewed, signed, cancelled, declined, expired, error_converting, error_sending, finalizing, error_finalizing)',
+      'Request status (converting, created, sent, viewed, signed, cancelled, declined, error, error_converting, error_sending, expired, finalizing, error_finalizing)',
   },
   name: { type: 'string', description: 'Sign request name', optional: true },
   shortId: { type: 'string', description: 'Human-readable short ID', optional: true },

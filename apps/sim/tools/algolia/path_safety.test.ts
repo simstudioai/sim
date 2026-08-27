@@ -25,11 +25,21 @@
  * `fetch` performs — and compares *segment shape* rather than template text,
  * because `pathname.startsWith(prefix)` stays green after a segment is popped.
  *
- * The vector lists are **per parameter**, because the two path parameters do
- * not share a charset. Algolia validates `indexName` (`/1/indexes/instant%2Fsearch/settings`
- * → `400 indexName is not valid`) but not `objectID`: `foo%2Fbar` and a
- * URL-keyed id both return `404 ObjectID does not exist`, i.e. well-formed but
- * absent, and Algolia's own conformance suite exercises `Batman and Robin`.
+ * The vector lists are **per parameter**, because the two path parameters are
+ * not treated alike. `objectID` is opaque in Algolia's published sources: the
+ * OpenAPI gives it a bare `type: string` with no `pattern` (where `userID` in
+ * the same bundled spec carries `^[a-zA-Z0-9 \-*.]+$`, which excludes `/`), the
+ * official JS client `encodeURIComponent`s it into the segment, and the client
+ * conformance suite round-trips a space on a record id (`Batman and Robin` →
+ * `/1/indexes/cts_e2e_browse/Batman%20and%20Robin`) and a literal slash on the
+ * rules id (`test/with/slash` → `/1/indexes/indexName/rules/test%2Fwith%2Fslash`).
+ * `indexName` is treated as a named resource here — a separator in it means the
+ * caller passed the wrong thing — which is a repository choice, not a
+ * documented Algolia constraint: the spec gives `indexName` a bare
+ * `type: string` too. (A live probe suggested Algolia rejects a slashed
+ * `indexName` with `400 indexName is not valid`; that is unverified and
+ * unreproduced here, and nothing below rests on it.)
+ *
  * A single shared list that contained no `/`-bearing legitimate value is what
  * let a guard rejecting `/` in `objectID` ship green.
  */
@@ -81,9 +91,11 @@ const LEGITIMATE = [
  * Legitimate ids that only an opaque-id parameter accepts. The URL-keyed form
  * is the common site-search pattern; `Batman and Robin` is lifted from
  * Algolia's own client conformance suite (`/1/indexes/cts_e2e_browse/Batman%20and%20Robin`
- * → 200); `a/../../b` and `docs/` are legal ids whose dot and trailing
- * separators must survive as inert `%2F`-joined text rather than be rejected
- * or emitted as real separators.
+ * → 200), which exercises a space rather than a slash — the suite's slash case
+ * is the rules id (`test/with/slash` → `.../rules/test%2Fwith%2Fslash`);
+ * `a/../../b` and `docs/` are legal ids whose dot and trailing separators must
+ * survive as inert `%2F`-joined text rather than be rejected or emitted as real
+ * separators.
  */
 const OPAQUE_LEGITIMATE = [
   'https://example.com/docs/getting-started',

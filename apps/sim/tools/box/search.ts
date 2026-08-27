@@ -1,3 +1,4 @@
+import { optionalBoxId } from '@/tools/box/id-param'
 import type { ToolConfig } from '@/tools/types'
 import type { BoxSearchParams, BoxSearchResponse } from './types'
 import { SEARCH_RESULT_OUTPUT_PROPERTIES } from './types'
@@ -64,8 +65,8 @@ export const boxSearchTool: ToolConfig<BoxSearchParams, BoxSearchResponse> = {
       queryParams.set('query', params.query)
       if (params.limit !== undefined) queryParams.set('limit', String(params.limit))
       if (params.offset !== undefined) queryParams.set('offset', String(params.offset))
-      if (params.ancestorFolderId)
-        queryParams.set('ancestor_folder_ids', params.ancestorFolderId.trim())
+      const ancestorFolderId = optionalBoxId(params.ancestorFolderId)
+      if (ancestorFolderId !== undefined) queryParams.set('ancestor_folder_ids', ancestorFolderId)
       if (params.fileExtensions) queryParams.set('file_extensions', params.fileExtensions)
       if (params.type) queryParams.set('type', params.type)
       return `https://api.box.com/2.0/search?${queryParams.toString()}`

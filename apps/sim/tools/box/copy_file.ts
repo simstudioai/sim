@@ -1,3 +1,4 @@
+import { requiredBoxId } from '@/tools/box/id-param'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 import type { BoxCopyFileParams, BoxUploadFileResponse } from './types'
@@ -51,7 +52,7 @@ export const boxCopyFileTool: ToolConfig<BoxCopyFileParams, BoxUploadFileRespons
     }),
     body: (params) => {
       const body: Record<string, unknown> = {
-        parent: { id: params.parentFolderId.trim() },
+        parent: { id: requiredBoxId(params.parentFolderId, 'parentFolderId') },
       }
       if (params.name) body.name = params.name
       return body

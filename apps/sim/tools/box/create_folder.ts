@@ -1,3 +1,4 @@
+import { requiredBoxId } from '@/tools/box/id-param'
 import type { ToolConfig } from '@/tools/types'
 import type { BoxCreateFolderParams, BoxFolderResponse } from './types'
 import { FOLDER_OUTPUT_PROPERTIES } from './types'
@@ -43,7 +44,7 @@ export const boxCreateFolderTool: ToolConfig<BoxCreateFolderParams, BoxFolderRes
     }),
     body: (params) => ({
       name: params.name,
-      parent: { id: params.parentFolderId.trim() },
+      parent: { id: requiredBoxId(params.parentFolderId, 'parentFolderId') },
     }),
   },
 

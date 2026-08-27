@@ -1,3 +1,4 @@
+import { algoliaIndexName } from '@/tools/algolia/index-name'
 import type { AlgoliaGetRecordsParams, AlgoliaGetRecordsResponse } from '@/tools/algolia/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -49,7 +50,9 @@ export const getRecordsTool: ToolConfig<AlgoliaGetRecordsParams, AlgoliaGetRecor
       const requests = (parsed as Record<string, unknown>[]).map((req) => ({
         ...req,
         indexName:
-          typeof req.indexName === 'string' ? req.indexName.trim() : params.indexName.trim(),
+          req.indexName === undefined || req.indexName === null
+            ? algoliaIndexName(params.indexName, 'indexName')
+            : algoliaIndexName(req.indexName, 'indexName'),
       }))
       return { requests }
     },

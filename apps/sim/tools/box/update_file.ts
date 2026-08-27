@@ -1,3 +1,4 @@
+import { optionalBoxId } from '@/tools/box/id-param'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 import type { BoxFileInfoResponse, BoxUpdateFileParams } from './types'
@@ -64,7 +65,8 @@ export const boxUpdateFileTool: ToolConfig<BoxUpdateFileParams, BoxFileInfoRespo
       const body: Record<string, unknown> = {}
       if (params.name) body.name = params.name
       if (params.description !== undefined) body.description = params.description
-      if (params.parentFolderId) body.parent = { id: params.parentFolderId.trim() }
+      const parentFolderId = optionalBoxId(params.parentFolderId)
+      if (parentFolderId !== undefined) body.parent = { id: parentFolderId }
       if (params.tags)
         body.tags = params.tags
           .split(',')

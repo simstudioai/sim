@@ -1,3 +1,4 @@
+import { algoliaIndexName } from '@/tools/algolia/index-name'
 import type {
   AlgoliaCopyMoveIndexParams,
   AlgoliaCopyMoveIndexResponse,
@@ -66,7 +67,7 @@ export const copyMoveIndexTool: ToolConfig<
     body: (params) => {
       const body: Record<string, unknown> = {
         operation: params.operation,
-        destination: params.destination.trim(),
+        destination: algoliaIndexName(params.destination, 'destination'),
       }
       if (params.scope) {
         const scope = typeof params.scope === 'string' ? JSON.parse(params.scope) : params.scope

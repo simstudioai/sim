@@ -1,6 +1,28 @@
 import type { AlgoliaListIndicesParams, AlgoliaListIndicesResponse } from '@/tools/algolia/types'
 import type { ToolConfig } from '@/tools/types'
 
+/**
+ * Coerces a pagination parameter to the non-negative integer Algolia declares.
+ *
+ * The parameter is `visibility: 'user-or-llm'` and the Algolia block still
+ * forwards it as a short-input string, so `'0&hitsPerPage=1000'` is a value the
+ * builder genuinely receives. `URLSearchParams` alone would percent-encode the
+ * `&` and stop the smuggling, but it would also send that whole string as the
+ * value of `page`; rejecting a value that is not a number reports the bad input
+ * instead of asking Algolia to reject it. A numeric string (`'0'`, `'100'`) is
+ * the normal UI path and passes through unchanged.
+ */
+function paginationValue(value: string | number, paramName: string): string {
+  const raw = typeof value === 'number' ? value : String(value).trim()
+  const parsed = raw === '' ? Number.NaN : Number(raw)
+
+  if (!Number.isInteger(parsed) || parsed < 0) {
+    throw new Error(`${paramName} must be a non-negative integer`)
+  }
+
+  return String(parsed)
+}
+
 export const listIndicesTool: ToolConfig<AlgoliaListIndicesParams, AlgoliaListIndicesResponse> = {
   id: 'algolia_list_indices',
   name: 'Algolia List Indices',
@@ -38,10 +60,15 @@ export const listIndicesTool: ToolConfig<AlgoliaListIndicesParams, AlgoliaListIn
     method: 'GET',
     url: (params) => {
       const base = `https://${params.applicationId}-dsn.algolia.net/1/indexes`
-      const queryParams: string[] = []
-      if (params.page !== undefined) queryParams.push(`page=${params.page}`)
-      if (params.hitsPerPage !== undefined) queryParams.push(`hitsPerPage=${params.hitsPerPage}`)
-      return queryParams.length > 0 ? `${base}?${queryParams.join('&')}` : base
+      const queryParams = new URLSearchParams()
+      if (params.page !== undefined) {
+        queryParams.set('page', paginationValue(params.page, 'page'))
+      }
+      if (params.hitsPerPage !== undefined) {
+        queryParams.set('hitsPerPage', paginationValue(params.hitsPerPage, 'hitsPerPage'))
+      }
+      const query = queryParams.toString()
+      return query ? `${base}?${query}` : base
     },
     headers: (params) => ({
       'x-algolia-application-id': params.applicationId,

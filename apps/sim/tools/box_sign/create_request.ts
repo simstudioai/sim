@@ -2,6 +2,37 @@ import type { ToolConfig } from '@/tools/types'
 import type { BoxSignCreateRequestParams, BoxSignResponse } from './types'
 import { SIGN_REQUEST_OUTPUT_PROPERTIES } from './types'
 
+/**
+ * Splits the comma-separated `sourceFileIds` list into trimmed Box file ids.
+ *
+ * The parameter is documented as a list, but Box file ids are numeric strings,
+ * so the single-file case is a bare `12345` — and a `visibility: 'user-or-llm'`
+ * slot filled with one id has no reason to be quoted. `.split(',')` on a JSON
+ * number is an unhandled `TypeError: x.split is not a function`, so the value
+ * is stringified first. `null` and `undefined` are rejected before coercion,
+ * because `String(undefined)` is the truthy `'undefined'` and would be sent as
+ * a file id.
+ *
+ * This lives here rather than in a shared module because it is the service's
+ * only consumer.
+ */
+function splitSourceFileIds(value: unknown): string[] {
+  if (value === null || value === undefined) {
+    throw new Error('sourceFileIds is required')
+  }
+
+  const ids = String(value)
+    .split(',')
+    .map((id) => id.trim())
+    .filter(Boolean)
+
+  if (ids.length === 0) {
+    throw new Error('sourceFileIds is required')
+  }
+
+  return ids
+}
+
 export const boxSignCreateRequestTool: ToolConfig<BoxSignCreateRequestParams, BoxSignResponse> = {
   id: 'box_sign_create_request',
   name: 'Box Sign Create Request',
@@ -127,10 +158,7 @@ export const boxSignCreateRequestTool: ToolConfig<BoxSignCreateRequestParams, Bo
       'Content-Type': 'application/json',
     }),
     body: (params) => {
-      const fileIds = params.sourceFileIds
-        .split(',')
-        .map((id: string) => id.trim())
-        .filter(Boolean)
+      const fileIds = splitSourceFileIds(params.sourceFileIds)
       const sourceFiles = fileIds.map((id: string) => ({ type: 'file', id }))
 
       const signers: Array<Record<string, unknown>> = [

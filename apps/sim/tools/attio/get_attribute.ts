@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { safeAttributeTarget } from '@/tools/attio/attribute-target'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 import type { AttioGetAttributeParams, AttioGetAttributeResponse } from './types'
@@ -29,7 +30,8 @@ export const attioGetAttributeTool: ToolConfig<AttioGetAttributeParams, AttioGet
         type: 'string',
         required: true,
         visibility: 'user-or-llm',
-        description: 'Whether the attribute belongs to an object or a list: objects or lists',
+        description:
+          "Which collection the attribute belongs to. Must be exactly 'objects' or 'lists'.",
       },
       identifier: {
         type: 'string',
@@ -47,7 +49,7 @@ export const attioGetAttributeTool: ToolConfig<AttioGetAttributeParams, AttioGet
 
     request: {
       url: (params) =>
-        `https://api.attio.com/v2/${safeUrlPathSegment(params.target, 'target')}/${safeUrlPathSegment(params.identifier, 'identifier')}/attributes/${safeUrlPathSegment(params.attribute, 'attribute')}`,
+        `https://api.attio.com/v2/${safeAttributeTarget(params.target)}/${safeUrlPathSegment(params.identifier, 'identifier')}/attributes/${safeUrlPathSegment(params.attribute, 'attribute')}`,
       method: 'GET',
       headers: (params) => ({
         Authorization: `Bearer ${params.accessToken}`,

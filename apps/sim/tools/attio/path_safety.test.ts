@@ -49,8 +49,25 @@ function isAttioTool(value: unknown): value is AnyTool {
   )
 }
 
+/**
+ * Parameters whose legal values are an enum rather than free-form text, so the
+ * generic `SAFE<name>` marker is not a value the tool accepts.
+ *
+ * `target` is constrained to `objects` / `lists` by `safeAttributeTarget`
+ * (Attio's OpenAPI declares the enum on `/v2/{target}/{identifier}/attributes`).
+ * It therefore rejects the discovery probe and drops out of {@link PATH_SITES}
+ * on its own — which is correct, because the traversal vectors below are not
+ * the right coverage for an enum. `target_enum.test.ts` covers it instead.
+ * Without a legal stand-in here, though, the *other* path parameters of those
+ * four tools (`identifier`, `attribute`) would become undiscoverable too,
+ * silently shrinking this sweep.
+ */
+const ENUM_PARAM_VALUES: Record<string, string> = {
+  target: 'objects',
+}
+
 function safeValueFor(name: string): string {
-  return `SAFE${name}`
+  return ENUM_PARAM_VALUES[name] ?? `SAFE${name}`
 }
 
 /**
@@ -116,8 +133,16 @@ function collectPathSites(): PathSite[] {
 const PATH_SITES = collectPathSites()
 
 describe('attio path-parameter traversal safety', () => {
+  /**
+   * Discovery found 43 sites while the four attribute tools' `target`
+   * parameters were free-form; `safeAttributeTarget` narrows `target` to
+   * Attio's documented enum, so those four reject the discovery probe and are
+   * covered by `target_enum.test.ts` instead, leaving 39. The floor moves from
+   * 40 to 36 to keep the same four-site slack, not to tolerate a regression:
+   * every remaining site is unchanged.
+   */
   it('covers every Attio tool parameter that reaches the request path', () => {
-    expect(PATH_SITES.length).toBeGreaterThanOrEqual(40)
+    expect(PATH_SITES.length).toBeGreaterThanOrEqual(36)
   })
 
   describe.each(PATH_SITES)('$name', ({ tool, param }) => {
@@ -170,8 +195,14 @@ describe('guards every path param independently', () => {
     .filter(([, sites]) => sites.length > 1)
     .map(([id, sites]) => ({ id, sites }))
 
+  /**
+   * Two tools — `attio_create_attribute` and `attio_list_attributes` — held
+   * exactly `target` plus `identifier`. Narrowing `target` to its enum leaves
+   * them single-site, so they drop out of the independence sweep; the other
+   * eight multi-parameter templates are unaffected.
+   */
   it('finds multi-segment templates to check', () => {
-    expect(MULTI.length).toBeGreaterThanOrEqual(10)
+    expect(MULTI.length).toBeGreaterThanOrEqual(8)
   })
 
   describe.each(MULTI)('$id', ({ sites }) => {

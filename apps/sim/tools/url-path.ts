@@ -236,16 +236,32 @@ export function safeUrlPath(
  * verbatim, and `new URL('https://x/1/indexes/idx/..').pathname` is
  * `'/1/indexes/'` — popping the parent segment too, not just the record.
  *
- * Motivating case: an Algolia `objectID`. Algolia validates charset when it
- * means to — `GET /1/indexes/instant%2Fsearch/settings` answers
- * `400 indexName is not valid` — but a slashed or URL-shaped objectID answers
- * `404 ObjectID does not exist`, i.e. the route matched and the id was accepted
- * as well-formed. The OpenAPI declares `objectID` as a bare `type: string` with
- * no `pattern` while constraining `userID` with one in the same file, the
- * official JS client `encodeURIComponent`s it into the segment, and Algolia's
- * own conformance suite exercises `Batman and Robin` →
- * `/1/indexes/cts_e2e_browse/Batman%20and%20Robin` at 200. URL-keyed object ids
- * are a common site-search pattern.
+ * Motivating case: an Algolia `objectID`. Three things in Algolia's own
+ * published sources say the id is opaque:
+ *
+ * - The OpenAPI declares `objectID` as a bare `type: string` with no `pattern`,
+ *   while constraining `userID` in the same bundled spec
+ *   (`specs/bundled/search.yml`) with `^[a-zA-Z0-9 \-*.]+$` — a pattern that
+ *   excludes `/`. Where Algolia means to restrict a charset, it says so.
+ * - The official JS client `encodeURIComponent`s `objectID` into the segment
+ *   (`client-search/src/searchClient.ts`).
+ * - Algolia's client conformance suite round-trips characters that would
+ *   otherwise reshape the path as single encoded segments: a space on a record
+ *   id (`Batman and Robin` → `/1/indexes/cts_e2e_browse/Batman%20and%20Robin`,
+ *   200) and a literal slash on the rules `objectID`
+ *   (`test/with/slash` → `/1/indexes/indexName/rules/test%2Fwith%2Fslash`).
+ *   Note the split: the *record*-id case exercises a space, not a slash; the
+ *   slash case is the rules route, which takes an id under the same parameter
+ *   name.
+ *
+ * A live probe (no credentials, no artifact in this repo, unreproduced here)
+ * suggested Algolia charset-validates `indexName` where it does not validate
+ * `objectID` — `GET /1/indexes/instant%2Fsearch/settings` answering
+ * `400 indexName is not valid` against a slashed objectID's
+ * `404 ObjectID does not exist`. Treat that as unverified: the spec does not
+ * corroborate it, since `indexName` is a bare `type: string` with no `pattern`
+ * either. Nothing above depends on it. URL-keyed object ids are a common
+ * site-search pattern.
  *
  * Use this only where the provider genuinely documents the parameter as an
  * opaque string. A parameter that names a resource (an index, a bucket, a

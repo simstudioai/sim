@@ -605,6 +605,25 @@ Return ONLY the JSON array.`,
           return defaultValue
         }
 
+        /**
+         * Pagination fields are short-inputs, so they leave the canvas as
+         * strings even though every Algolia tool declares them `type: 'number'`.
+         * Coercing here — in `params`, which runs during execution after
+         * variables resolve — keeps a `<Block.output>` reference intact; the
+         * same call in `tools.config.tool` would run during serialization and
+         * destroy it. A value that is not numeric is passed through untouched
+         * so the tool reports the offending parameter by name.
+         */
+        const toNumber = (value: unknown) => {
+          if (typeof value === 'number') return value
+          if (typeof value !== 'string') return value
+          const parsed = Number(value.trim())
+          return Number.isFinite(parsed) ? parsed : value
+        }
+
+        if (result.page !== undefined) result.page = toNumber(result.page)
+        if (result.hitsPerPage !== undefined) result.hitsPerPage = toNumber(result.hitsPerPage)
+
         if (operation === 'partial_update_record') {
           result.createIfNotExists = toBool(result.createIfNotExists, true)
         }
@@ -636,8 +655,8 @@ Return ONLY the JSON array.`,
     operation: { type: 'string', description: 'Operation to perform' },
     indexName: { type: 'string', description: 'Algolia index name' },
     query: { type: 'string', description: 'Search query' },
-    hitsPerPage: { type: 'string', description: 'Number of hits per page' },
-    page: { type: 'string', description: 'Page number' },
+    hitsPerPage: { type: 'number', description: 'Number of hits per page' },
+    page: { type: 'number', description: 'Page number' },
     filters: { type: 'string', description: 'Algolia filter string' },
     attributesToRetrieve: { type: 'string', description: 'Attributes to retrieve' },
     facets: { type: 'string', description: 'Comma-separated facet attribute names to count' },

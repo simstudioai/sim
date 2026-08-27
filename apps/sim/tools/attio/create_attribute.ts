@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { safeAttributeTarget } from '@/tools/attio/attribute-target'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 import type { AttioCreateAttributeParams, AttioCreateAttributeResponse } from './types'
@@ -31,7 +32,8 @@ export const attioCreateAttributeTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Whether to create the attribute on an object or a list: objects or lists',
+      description:
+        "Which collection the attribute belongs to. Must be exactly 'objects' or 'lists'.",
     },
     identifier: {
       type: 'string',
@@ -93,7 +95,7 @@ export const attioCreateAttributeTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.attio.com/v2/${safeUrlPathSegment(params.target, 'target')}/${safeUrlPathSegment(params.identifier, 'identifier')}/attributes`,
+      `https://api.attio.com/v2/${safeAttributeTarget(params.target)}/${safeUrlPathSegment(params.identifier, 'identifier')}/attributes`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,

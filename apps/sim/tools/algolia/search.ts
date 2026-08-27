@@ -1,3 +1,4 @@
+import { algoliaIndexName } from '@/tools/algolia/index-name'
 import type { AlgoliaSearchParams, AlgoliaSearchResponse } from '@/tools/algolia/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -106,7 +107,7 @@ export const searchTool: ToolConfig<AlgoliaSearchParams, AlgoliaSearchResponse> 
     }),
     body: (params) => {
       const request: Record<string, unknown> = {
-        indexName: params.indexName.trim(),
+        indexName: algoliaIndexName(params.indexName, 'indexName'),
         query: params.query,
       }
       if (params.hitsPerPage !== undefined) request.hitsPerPage = Number(params.hitsPerPage)
