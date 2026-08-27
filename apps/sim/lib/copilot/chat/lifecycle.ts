@@ -212,7 +212,8 @@ export async function getAccessibleCopilotChat(
  */
 export async function getAccessibleCopilotChatWithMessages(
   chatId: string,
-  userId: string
+  userId: string,
+  options?: { includeTranscript?: boolean }
 ): Promise<CopilotChatDetailRow | null> {
   const [chat] = await db
     .select(copilotChatDetailColumns)
@@ -223,7 +224,14 @@ export async function getAccessibleCopilotChatWithMessages(
   const authorized = await authorizeCopilotChatRow(chat, chatId, userId)
   if (!authorized) return null
 
-  const messages = await loadCopilotChatMessages(chatId)
+  /**
+   * The transcript is unbounded — no per-chat message cap on write and no
+   * pruning — so a caller that only needs the chat's scope should not pay to
+   * materialize it. Every check `resolveOrCreateChat` runs reads detail
+   * columns only, so an empty list stays a truthful "not loaded" rather than
+   * "no messages" for the callers that opt out.
+   */
+  const messages = options?.includeTranscript === false ? [] : await loadCopilotChatMessages(chatId)
   return { ...authorized, messages }
 }
 
@@ -245,15 +253,22 @@ export async function resolveOrCreateChat(params: {
   model: string
   type?: 'mothership' | 'copilot'
   title?: string
+  /**
+   * Skips loading the transcript on the resume path. For a caller that keys
+   * continuity by `chatId` alone and never reads `conversationHistory`.
+   */
+  includeTranscript?: boolean
 }): Promise<ChatLoadResult> {
-  const { chatId, userId, workflowId, workspaceId, model, type, title } = params
+  const { chatId, userId, workflowId, workspaceId, model, type, title, includeTranscript } = params
 
   if (workspaceId) {
     await assertActiveWorkspaceAccess(workspaceId, userId)
   }
 
   if (chatId) {
-    const chat = await getAccessibleCopilotChatWithMessages(chatId, userId)
+    const chat = await getAccessibleCopilotChatWithMessages(chatId, userId, {
+      includeTranscript,
+    })
 
     if (chat) {
       if (workflowId && chat.workflowId !== workflowId) {

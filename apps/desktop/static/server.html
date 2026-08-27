@@ -111,6 +111,11 @@
       input:focus {
         border-color: var(--border-strong);
       }
+      input:focus-visible,
+      button:focus-visible {
+        outline: 2px solid var(--text-primary);
+        outline-offset: 2px;
+      }
       input[aria-invalid='true'] {
         border-color: var(--error);
       }
@@ -183,11 +188,12 @@
         autocapitalize="off"
         spellcheck="false"
         placeholder="https://sim.example.com"
+        aria-describedby="message"
       />
       <div id="message" role="status"></div>
       <div class="actions">
-        <button class="secondary" id="cancel">Cancel</button>
-        <button class="primary" id="connect" disabled>Connect</button>
+        <button type="button" class="secondary" id="cancel">Cancel</button>
+        <button type="button" class="primary" id="connect" disabled>Connect</button>
       </div>
     </main>
     <script>

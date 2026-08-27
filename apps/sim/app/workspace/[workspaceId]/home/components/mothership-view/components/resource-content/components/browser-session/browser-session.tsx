@@ -195,6 +195,16 @@ export function clearOmniboxSelection(input: HTMLInputElement): void {
   input.setSelectionRange(caret, caret)
 }
 
+/** Claims the one renderer response allowed for a native media permission request. */
+export function claimMediaPermissionResponse(
+  handledRequestId: { current: string | null },
+  requestId: string
+): boolean {
+  if (handledRequestId.current === requestId) return false
+  handledRequestId.current = requestId
+  return true
+}
+
 /** Places the replacement on the native view's exact, unclipped viewport rectangle. */
 export function browserPanelSnapshotStyle(
   snapshot: BrowserPanelSnapshot,
@@ -385,6 +395,7 @@ export function BrowserSession({
   )
   const suspended = useBrowserSessionStore((state) => state.sessions[scopeId]?.suspended ?? false)
   const hasPageIssue = Boolean(pageState?.issue)
+  const mediaPermissionRequest = pageState?.mediaPermissionRequest
   const panelRef = useRef<HTMLDivElement>(null)
   const hostRef = useRef<HTMLDivElement>(null)
   // Lets the occlusion handshake reject a capture taken before a modal's
@@ -397,6 +408,7 @@ export function BrowserSession({
   const omniboxFocusRafRef = useRef<number | null>(null)
   const omniboxPointerSelectionRef = useRef<OmniboxPointerSelection | null>(null)
   const pendingNewTabFocusRef = useRef<PendingNewTabFocus | null>(null)
+  const handledMediaPermissionRequestIdRef = useRef<string | null>(null)
   const visibleRef = useRef(visible)
   visibleRef.current = visible
   const { removeResource } = useMothershipResources()
@@ -471,6 +483,69 @@ export function BrowserSession({
     onSnapshotError,
   } = useBrowserPanelOcclusion(scopeId, activeTabId, panelVisible, getHostRect)
 
+  useEffect(() => {
+    const request = mediaPermissionRequest
+    if (!request) {
+      handledMediaPermissionRequestIdRef.current = null
+      void closeOverlay('permissions')
+      return
+    }
+
+    let active = true
+    let decided = false
+    let toastId: string | null = null
+    const respond = (allowed: boolean) => {
+      if (decided) return
+      decided = true
+      if (!claimMediaPermissionResponse(handledMediaPermissionRequestIdRef, request.requestId))
+        return
+      sendBrowserPanelAction(
+        'respond-media-permission',
+        { requestId: request.requestId, allowed },
+        scopeId
+      )
+    }
+
+    const dismissPrompt = () => {
+      respond(false)
+      if (!toastId) return
+      const id = toastId
+      toastId = null
+      toast.dismiss(id)
+    }
+
+    if (!visible) {
+      respond(false)
+      void closeOverlay('permissions')
+      return
+    }
+
+    void requestOverlay('permissions', () => respond(false), dismissPrompt).then((ready) => {
+      if (!active) return
+      if (!ready) {
+        respond(false)
+        return
+      }
+      const origin = URL.canParse(request.origin) ? new URL(request.origin).host : request.origin
+      const devices = request.devices.join(' and ')
+      toastId = toast.info(`${origin} wants to use your ${devices}`, {
+        description: 'Access applies only to this page and ends when it navigates.',
+        action: { label: 'Allow', onClick: () => respond(true) },
+        onDismiss: () => {
+          if (!active) return
+          respond(false)
+          void closeOverlay('permissions')
+        },
+      })
+    })
+
+    return () => {
+      active = false
+      dismissPrompt()
+      void closeOverlay('permissions')
+    }
+  }, [closeOverlay, mediaPermissionRequest, requestOverlay, scopeId, visible])
+
   // The resource picker lives above this component in the panel tab bar. Give
   // that one external browser overlay access to the same capture/hide handshake
   // as the browser's own menus, without restoring a document-wide observer.
@@ -503,7 +578,11 @@ export function BrowserSession({
     () =>
       onBrowserToolbarCommand((command) => {
         if (command === 'import') {
-          navigateToSettings({ section: 'browser', browserView: 'passwords', browserImport: true })
+          navigateToSettings({
+            section: 'browser',
+            browserView: 'passwords',
+            browserImport: true,
+          })
           return
         }
         navigateToSettings({ section: 'browser' })
@@ -932,6 +1011,10 @@ export function BrowserSession({
   // Keep the page's exact captured frame underneath it while it is open so
   // pointer events reach the Sim popover instead of the WebContentsView.
   useEffect(() => {
+    if (mediaPermissionRequest) {
+      void closeOverlay('suggestions')
+      return
+    }
     if (hasPageIssue) {
       void closeOverlay('suggestions')
       return
@@ -941,7 +1024,7 @@ export function BrowserSession({
       return
     }
     void closeOverlay('suggestions')
-  }, [closeOverlay, hasPageIssue, requestOverlay, suggestions.length])
+  }, [closeOverlay, hasPageIssue, mediaPermissionRequest, requestOverlay, suggestions.length])
 
   const suggestionsOpen = hasPageIssue
     ? suggestions.length > 0

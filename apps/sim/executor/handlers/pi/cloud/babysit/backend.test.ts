@@ -31,10 +31,6 @@ const {
 vi.mock('@/lib/execution/remote-sandbox', () => ({
   withPiSandbox: mockWithPiSandbox,
 }))
-vi.mock('@/lib/execution/cancellation', () => ({
-  isRedisCancellationEnabled: () => false,
-  isExecutionCancelled: vi.fn().mockResolvedValue(false),
-}))
 vi.mock('@/lib/data-drains/destinations/utils', () => ({
   sleepUntilAborted: mockSleepUntilAborted,
 }))

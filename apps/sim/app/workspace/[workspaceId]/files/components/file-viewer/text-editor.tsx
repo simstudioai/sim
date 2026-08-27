@@ -5,6 +5,7 @@ import {
   type ClipboardEvent as ReactClipboardEvent,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from 'react'
@@ -32,6 +33,44 @@ import { useSelectionCopyBridge } from './use-selection-copy-bridge'
 
 /** File ids observed rendering as Sim pages this session (see the sticky lock). */
 const KNOWN_PAGE_FILE_IDS = new Set<string>()
+
+const TEXT_EDITOR_OPTIONS = {
+  largeFileOptimizations: true,
+  maxTokenizationLineLength: 20_000,
+  minimap: { enabled: false },
+  scrollBeyondLastLine: false,
+  wordWrap: 'on',
+  fontSize: 13,
+  lineNumbers: 'on',
+  padding: { top: 24, bottom: 24 },
+  fontFamily:
+    'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace',
+  tabSize: 2,
+  automaticLayout: true,
+  renderLineHighlight: 'line',
+  occurrencesHighlight: 'singleFile',
+  overviewRulerLanes: 0,
+  hideCursorInOverviewRuler: true,
+  scrollbar: {
+    verticalScrollbarSize: 6,
+    horizontalScrollbarSize: 6,
+  },
+  quickSuggestions: false,
+  suggestOnTriggerCharacters: false,
+  wordBasedSuggestions: 'currentDocument',
+  parameterHints: { enabled: false },
+  codeLens: false,
+  lightbulb: {
+    enabled: 'off' as MonacoEditorTypes.ShowLightbulbIconMode,
+  },
+  inlayHints: { enabled: 'off' },
+  contextmenu: false,
+  fixedOverflowWidgets: true,
+  glyphMargin: false,
+  stickyScroll: { enabled: false },
+  bracketPairColorization: { enabled: false },
+  unicodeHighlight: { ambiguousCharacters: false },
+} satisfies MonacoEditorTypes.IStandaloneEditorConstructionOptions
 
 const SIM_DARK_RULES: MonacoEditorTypes.ITokenThemeRule[] = [
   { token: 'comment', foreground: '606060', fontStyle: 'italic' },
@@ -382,6 +421,7 @@ export const TextEditor = memo(function TextEditor({
 }: TextEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const monacoEditorRef = useRef<Parameters<OnMount>[0] | null>(null)
+  const lastEditorValueRef = useRef('')
   const lastSyncedContentRef = useRef('')
   const hasAutoFocusedRef = useRef(false)
   const contentRef = useRef('')
@@ -456,11 +496,14 @@ export const TextEditor = memo(function TextEditor({
   useSelectionCopyBridge(containerRef, buildSelectionContext, !isContentLoading)
 
   useEffect(() => {
+    if (lastEditorValueRef.current === content) return
+
     const editor = monacoEditorRef.current
     if (!editor) return
     const model = editor.getModel()
     if (!model) return
     const monacoValue = model.getValue()
+    lastEditorValueRef.current = monacoValue
     if (monacoValue === content) return
 
     if (isStreamInteractionLocked || monacoValue === lastSyncedContentRef.current) {
@@ -491,6 +534,7 @@ export const TextEditor = memo(function TextEditor({
         model.applyEdits([{ range: model.getFullModelRange(), text: content }])
       }
       suppressScrollListenerRef.current = false
+      lastEditorValueRef.current = content
       lastSyncedContentRef.current = content
     }
   }, [content, isStreamInteractionLocked])
@@ -563,9 +607,12 @@ export const TextEditor = memo(function TextEditor({
 
     const model = editor.getModel()
     const currentContent = contentRef.current
-    if (model && currentContent && model.getValue() !== currentContent) {
-      model.setValue(currentContent)
+    if (model) {
+      if (model.getValue() !== currentContent) {
+        model.setValue(currentContent)
+      }
       lastSyncedContentRef.current = currentContent
+      lastEditorValueRef.current = currentContent
     }
 
     if (autoFocus && !hasAutoFocusedRef.current) {
@@ -588,6 +635,7 @@ export const TextEditor = memo(function TextEditor({
   const handleEditorChange = useCallback(
     (value: string | undefined) => {
       const nextValue = value ?? ''
+      lastEditorValueRef.current = nextValue
       contentRef.current = nextValue
       setDraftContent(nextValue)
     },
@@ -633,6 +681,10 @@ export const TextEditor = memo(function TextEditor({
 
   const isStreaming = isStreamInteractionLocked
   const isEditorReadOnly = isStreamInteractionLocked || !canEdit
+  const editorOptions = useMemo(
+    () => ({ ...TEXT_EDITOR_OPTIONS, readOnly: isEditorReadOnly }),
+    [isEditorReadOnly]
+  )
 
   const previewType = resolvePreviewType(file.type, file.name)
   const isIframeRendered = previewType === 'html' || previewType === 'svg'
@@ -697,44 +749,7 @@ export const TextEditor = memo(function TextEditor({
             defaultValue={content}
             language={monacoLanguage}
             theme={monacoTheme}
-            options={{
-              readOnly: isEditorReadOnly,
-              largeFileOptimizations: true,
-              maxTokenizationLineLength: 20_000,
-              minimap: { enabled: false },
-              scrollBeyondLastLine: false,
-              wordWrap: 'on',
-              fontSize: 13,
-              lineNumbers: 'on',
-              padding: { top: 24, bottom: 24 },
-              fontFamily:
-                'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace',
-              tabSize: 2,
-              automaticLayout: true,
-              renderLineHighlight: 'line',
-              occurrencesHighlight: 'singleFile',
-              overviewRulerLanes: 0,
-              hideCursorInOverviewRuler: true,
-              scrollbar: {
-                verticalScrollbarSize: 6,
-                horizontalScrollbarSize: 6,
-              },
-              quickSuggestions: false,
-              suggestOnTriggerCharacters: false,
-              wordBasedSuggestions: 'currentDocument',
-              parameterHints: { enabled: false },
-              codeLens: false,
-              lightbulb: {
-                enabled: 'off' as MonacoEditorTypes.ShowLightbulbIconMode,
-              },
-              inlayHints: { enabled: 'off' },
-              contextmenu: false,
-              fixedOverflowWidgets: true,
-              glyphMargin: false,
-              stickyScroll: { enabled: false },
-              bracketPairColorization: { enabled: false },
-              unicodeHighlight: { ambiguousCharacters: false },
-            }}
+            options={editorOptions}
             onChange={handleEditorChange}
             onMount={handleEditorMount}
             className='h-full'

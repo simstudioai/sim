@@ -101,6 +101,66 @@ describe('browser session store', () => {
     })
   })
 
+  it('retains and clears the exact pending media request from native page state', () => {
+    const store = useBrowserSessionStore.getState()
+    const page = {
+      tabId: '1',
+      scopeId: 'chat-test',
+      title: 'Meeting',
+      url: 'https://meet.example.com',
+      loading: false,
+      canGoBack: false,
+      canGoForward: false,
+    }
+    store.setPageState({
+      ...page,
+      mediaPermissionRequest: {
+        requestId: 'request-1',
+        origin: 'https://meet.example.com',
+        devices: ['microphone', 'camera'],
+      },
+    })
+
+    expect(getBrowserSession('chat-test').pageState?.mediaPermissionRequest).toEqual({
+      requestId: 'request-1',
+      origin: 'https://meet.example.com',
+      devices: ['microphone', 'camera'],
+    })
+
+    store.setPageState(page)
+    expect(getBrowserSession('chat-test').pageState?.mediaPermissionRequest).toBeUndefined()
+  })
+
+  it('retains pending media request identity across unrelated page-state updates', () => {
+    const store = useBrowserSessionStore.getState()
+    const request = {
+      requestId: 'request-1',
+      origin: 'https://meet.example.com',
+      devices: ['microphone', 'camera'] as const,
+    }
+    const page = {
+      tabId: '1',
+      scopeId: 'chat-test',
+      title: 'Meeting',
+      url: 'https://meet.example.com',
+      loading: false,
+      canGoBack: false,
+      canGoForward: false,
+      mediaPermissionRequest: request,
+    }
+    store.setPageState(page)
+    const retained = getBrowserSession('chat-test').pageState?.mediaPermissionRequest
+
+    store.setPageState({
+      ...page,
+      title: 'Meeting in progress',
+      canGoBack: true,
+      mediaPermissionRequest: { ...request, devices: [...request.devices] },
+    })
+
+    expect(getBrowserSession('chat-test').pageState?.mediaPermissionRequest).toBe(retained)
+  })
+
   it('reorders tabs optimistically without changing the active page', () => {
     const store = useBrowserSessionStore.getState()
     store.setTabsState({

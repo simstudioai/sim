@@ -473,6 +473,22 @@ describe('browser panel transport', () => {
     await expect(execution).rejects.toThrow('cancelled')
   })
 
+  it('clears the response watchdog when a browser tool settles early', async () => {
+    vi.useFakeTimers()
+    try {
+      executeTool.mockResolvedValue({ ok: true, result: { done: true } })
+      const timersBefore = vi.getTimerCount()
+
+      await expect(
+        executeBrowserTool('tool-fast', 'browser_snapshot', {}, 30_000, 'chat-fast')
+      ).resolves.toEqual({ done: true })
+
+      expect(vi.getTimerCount()).toBe(timersBefore)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('starts the native scope boundary without waiting for exact cancellation', async () => {
     let settleNative: (response: { ok: boolean; error?: string }) => void = () => {}
     let settleExactCancellation: (cancelled: boolean) => void = () => {}

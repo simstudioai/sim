@@ -949,6 +949,10 @@ describe('destructive operations are gated', () => {
    * default by being named something the old regex did not match.
    */
   const DESTRUCTIVE_NON_DELETE = new Set<V2OperationName>([
+    // The same application operation as `rollbackWorkflow`, under a different
+    // transition: both switch which version production serves away from the one
+    // the caller last chose.
+    'activateWorkflowVersion',
     'applyWorkflowOperations',
     'applyWorkflowVariables',
     'bulkDeleteFiles',
@@ -966,7 +970,6 @@ describe('destructive operations are gated', () => {
    * decision on anything new.
    */
   const NON_DESTRUCTIVE = new Set<V2OperationName>([
-    'activateWorkflowVersion',
     'addTableColumn',
     'addWorkflowGroup',
     'addWorkspaceFilesToKnowledgeBase',

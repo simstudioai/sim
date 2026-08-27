@@ -549,6 +549,7 @@ const TOOL_TITLES: Record<string, string> = {
   search_integration_tools: 'Finding the right integration',
   load_integration_tool: 'Loading integration tools',
   load_skill: 'Loading skill',
+  load_slide_layout: 'Loading slide layout',
   read: 'Reading file',
   search_library_docs: 'Searching library docs',
   user_table: 'Managing table',

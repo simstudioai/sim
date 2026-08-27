@@ -326,6 +326,52 @@ describe('commands parsed through commander', () => {
     expect(errorOutput).not.toContain('--skillId')
   })
 
+  it('shows the -- escape when an id argument opens with a dash', async () => {
+    const root = program()
+    const auditLogs = root.commands.find((command) => command.name() === 'audit-logs')
+    const get = auditLogs?.commands.find((command) => command.name() === 'get')
+    if (!get) throw new Error('Missing command audit-logs get')
+
+    let errorOutput = ''
+    get.configureOutput({
+      writeErr: (message) => {
+        errorOutput += message
+      },
+    })
+
+    await expect(
+      root.parseAsync(['node', 'sim', 'audit-logs', 'get', '-HlDcD1z76nK6R4crsUp0'])
+    ).rejects.toMatchObject({ code: 'commander.unknownOption' })
+    expect(errorOutput).toContain("error: unknown option '-HlDcD1z76nK6R4crsUp0'")
+    expect(errorOutput).toContain('Example: sim audit-logs get -- -HlDcD1z76nK6R4crsUp0')
+  })
+
+  it("leaves a misspelt flag with commander's own suggestion", async () => {
+    const root = program()
+    const auditLogs = root.commands.find((command) => command.name() === 'audit-logs')
+    const get = auditLogs?.commands.find((command) => command.name() === 'get')
+    if (!get) throw new Error('Missing command audit-logs get')
+
+    let errorOutput = ''
+    get.configureOutput({
+      writeErr: (message) => {
+        errorOutput += message
+      },
+    })
+
+    await expect(
+      root.parseAsync(['node', 'sim', 'audit-logs', 'get', 'log_1', '--organisation'])
+    ).rejects.toMatchObject({ code: 'commander.unknownOption' })
+    expect(errorOutput).toContain("error: unknown option '--organisation'")
+    expect(errorOutput).not.toContain('Example:')
+
+    await expect(
+      root.parseAsync(['node', 'sim', 'audit-logs', 'get', 'log_1', '-organisation'])
+    ).rejects.toMatchObject({ code: 'commander.unknownOption' })
+    expect(errorOutput).toContain("error: unknown option '-organisation'")
+    expect(errorOutput).not.toContain('Example:')
+  })
+
   it('dispatches generated commands through their singular resource alias', async () => {
     const [tablePath] = await run(['table', 'list'])
     expect(tablePath).toBe('/api/v2/tables')

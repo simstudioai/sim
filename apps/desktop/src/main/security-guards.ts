@@ -41,7 +41,6 @@ export function attachNavigationGuards(contents: WebContents, deps: GuardDeps): 
     })
     switch (action) {
       case 'in-app':
-      case 'idp-in-window':
         return
       case 'external':
         event.preventDefault()

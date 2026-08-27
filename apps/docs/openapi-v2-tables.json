@@ -3726,9 +3726,9 @@
             "name": "parentPath",
             "in": "query",
             "required": false,
-            "description": "Restrict results to direct children of this parent path.",
+            "description": "Restrict results to direct children of this parent path. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.",
             "schema": {
-              "description": "Restrict results to direct children of this parent path.",
+              "description": "Restrict results to direct children of this parent path. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.",
               "$ref": "#/components/schemas/FolderPathInput"
             }
           },

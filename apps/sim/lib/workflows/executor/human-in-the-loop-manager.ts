@@ -19,8 +19,8 @@ import {
   createExecutionEventWriter,
   flushExecutionStreamReplayBuffer,
   initializeExecutionStreamMeta,
+  markExecutionStreamTerminal,
   resetExecutionStreamBuffer,
-  setExecutionMeta,
   type TerminalExecutionStreamStatus,
 } from '@/lib/execution/event-buffer'
 import {
@@ -1528,9 +1528,10 @@ export class PauseResumeManager {
           status: terminalStatus,
         })
       )
-      const metaPersisted = await setExecutionMeta(resumeExecutionId, {
-        status: terminalStatus,
-      }).catch(() => false)
+      const metaPersisted = await markExecutionStreamTerminal(
+        resumeExecutionId,
+        terminalStatus
+      ).catch(() => false)
       if (!metaPersisted) {
         logger.warn('Failed to record degraded terminal status on resume stream meta', {
           resumeExecutionId,

@@ -95,8 +95,6 @@ export interface SimDesktopTerminalApi {
   disposeScope(scopeId: string): Promise<boolean>
   /** Stops a soft-deleted chat's shells while retaining its restart descriptor. */
   suspendScope(scopeId: string): Promise<boolean>
-  /** End every shell. A new one starts on the next `start`. */
-  dispose(): void
   /** Subscribe to PTY output batches. Returns an unsubscribe function. */
   onData(callback: (terminalId: string, data: string, scopeId: string) => void): () => void
   /**

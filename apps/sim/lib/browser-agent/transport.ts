@@ -186,6 +186,7 @@ export async function executeBrowserTool(
   }
   const activeTool = { toolCallId, tool, scopeId, onCancel }
   activeBrowserTools.set(toolCallId, activeTool)
+  let timeoutId: ReturnType<typeof setTimeout> | undefined
   try {
     const invocation = agent.executeTool(toolCallId, tool, params, scopeId)
     const response =
@@ -194,7 +195,7 @@ export async function executeBrowserTool(
         : await Promise.race([
             invocation,
             new Promise<never>((_, reject) => {
-              setTimeout(
+              timeoutId = setTimeout(
                 () => reject(new Error(`The browser did not respond within ${timeoutMs}ms`)),
                 timeoutMs
               )
@@ -205,6 +206,7 @@ export async function executeBrowserTool(
     }
     return response.result
   } finally {
+    clearTimeout(timeoutId)
     if (activeBrowserTools.get(toolCallId) === activeTool) {
       activeBrowserTools.delete(toolCallId)
     }

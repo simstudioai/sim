@@ -53,7 +53,8 @@ const {
   mockHandlePostExecutionPauseState,
   mockHasDurableExecutionOwner,
   mockInitializeExecutionStreamMeta,
-  mockSetExecutionMeta,
+  mockMarkExecutionStreamTerminal,
+  mockSetExecutionActiveBlockStarts,
   mockReleaseExecutionIdClaim,
   mockReleaseExecutionSlot,
   mockReleaseWorkflowToolExecutionClaim,
@@ -82,7 +83,8 @@ const {
   mockHandlePostExecutionPauseState: vi.fn(),
   mockHasDurableExecutionOwner: vi.fn(),
   mockInitializeExecutionStreamMeta: vi.fn(),
-  mockSetExecutionMeta: vi.fn(),
+  mockMarkExecutionStreamTerminal: vi.fn(),
+  mockSetExecutionActiveBlockStarts: vi.fn(),
   mockReleaseExecutionIdClaim: vi.fn(),
   mockReleaseExecutionSlot: vi.fn(),
   mockReleaseWorkflowToolExecutionClaim: vi.fn(),
@@ -152,7 +154,8 @@ vi.mock('@/lib/execution/event-buffer', () => ({
   createExecutionEventWriter: mockCreateExecutionEventWriter,
   flushExecutionStreamReplayBuffer: mockFlushExecutionStreamReplayBuffer,
   initializeExecutionStreamMeta: mockInitializeExecutionStreamMeta,
-  setExecutionMeta: mockSetExecutionMeta,
+  markExecutionStreamTerminal: mockMarkExecutionStreamTerminal,
+  setExecutionActiveBlockStarts: mockSetExecutionActiveBlockStarts,
   LIVE_ONLY_EXECUTION_EVENT_TYPES: new Set(),
 }))
 
@@ -491,11 +494,13 @@ describe('workflow execute async route', () => {
     })
     mockHandlePostExecutionPauseState.mockResolvedValue(undefined)
     mockInitializeExecutionStreamMeta.mockReset().mockResolvedValue(true)
-    mockSetExecutionMeta.mockReset().mockResolvedValue(true)
+    mockMarkExecutionStreamTerminal.mockReset().mockResolvedValue(true)
+    mockSetExecutionActiveBlockStarts.mockReset().mockResolvedValue(true)
     mockFlushExecutionStreamReplayBuffer.mockReset().mockResolvedValue(true)
     mockCreateExecutionEventWriter.mockReset().mockReturnValue({
       write: vi.fn(async (event: unknown) => ({ event, eventId: '1' })),
       writeTerminal: vi.fn(async (event: unknown) => ({ event, eventId: '2' })),
+      flush: vi.fn().mockResolvedValue(undefined),
       close: vi.fn().mockResolvedValue(undefined),
     })
     loggingSessionMockFns.mockWaitForPostExecution.mockReset().mockResolvedValue(undefined)
@@ -723,10 +728,169 @@ describe('workflow execute async route', () => {
     })
   })
 
+  it('keeps a manual execution alive when its browser SSE observer detaches', async () => {
+    let capturedSignal: AbortSignal | undefined
+    let resolveStarted: (() => void) | undefined
+    const started = new Promise<void>((resolve) => {
+      resolveStarted = resolve
+    })
+    let resolveExecution: (() => void) | undefined
+    mockExecuteWorkflowCore.mockImplementationOnce(
+      ({ abortSignal }: { abortSignal: AbortSignal }) =>
+        new Promise((resolve) => {
+          capturedSignal = abortSignal
+          resolveStarted?.()
+          resolveExecution = () =>
+            resolve({
+              success: true,
+              status: 'completed',
+              output: { ok: true },
+              metadata: {
+                duration: 100,
+                startTime: '2026-01-01T00:00:00Z',
+                endTime: '2026-01-01T00:00:01Z',
+              },
+            })
+        })
+    )
+
+    const response = await POST(
+      createMockRequest(
+        'POST',
+        {
+          stream: true,
+          input: { message: 'hello' },
+          triggerType: 'manual',
+          isClientSession: true,
+        },
+        {
+          'Content-Type': 'application/json',
+          Cookie: 'session=value',
+        }
+      ),
+      { params: Promise.resolve({ id: 'workflow-1' }) }
+    )
+    await started
+
+    const detach = response.body?.cancel()
+    await Promise.resolve()
+    expect(capturedSignal?.aborted).toBe(false)
+
+    resolveExecution?.()
+    await detach
+    expect(capturedSignal?.aborted).toBe(false)
+  })
+
+  it('fails the observer closed when an active-block snapshot cannot be persisted', async () => {
+    mockSetExecutionActiveBlockStarts.mockResolvedValueOnce(false)
+    mockExecuteWorkflowCore.mockImplementationOnce(async ({ callbacks, abortSignal }) => {
+      try {
+        await callbacks.onBlockStart('function-1', 'Function', 'function', 1)
+      } finally {
+        expect(abortSignal.aborted).toBe(true)
+      }
+      throw new Error('workflow should stop after the lifecycle persistence failure')
+    })
+
+    const response = await POST(
+      createMockRequest(
+        'POST',
+        {
+          stream: true,
+          input: { message: 'hello' },
+          triggerType: 'manual',
+          isClientSession: true,
+        },
+        {
+          'Content-Type': 'application/json',
+          Cookie: 'session=value',
+        }
+      ),
+      { params: Promise.resolve({ id: 'workflow-1' }) }
+    )
+
+    await expect(response.text()).rejects.toThrow('Failed to persist active execution snapshot')
+    await vi.waitFor(() => {
+      expect(mockMarkExecutionStreamTerminal).toHaveBeenCalledWith('execution-123', 'error')
+    })
+  })
+
+  it('serializes parallel lifecycle events before sending them to the observer', async () => {
+    let releaseFirstSnapshot!: () => void
+    const firstSnapshotReleased = new Promise<void>((resolve) => {
+      releaseFirstSnapshot = resolve
+    })
+    let firstSnapshotStarted!: () => void
+    const firstSnapshotPending = new Promise<void>((resolve) => {
+      firstSnapshotStarted = resolve
+    })
+    let snapshotCalls = 0
+    mockSetExecutionActiveBlockStarts.mockImplementation(async () => {
+      snapshotCalls += 1
+      if (snapshotCalls === 1) {
+        firstSnapshotStarted()
+        await firstSnapshotReleased
+      }
+      return true
+    })
+    let eventId = 0
+    mockCreateExecutionEventWriter.mockReturnValue({
+      write: vi.fn(async (event: unknown) => ({ event, eventId: String(++eventId) })),
+      writeTerminal: vi.fn(async (event: unknown) => ({ event, eventId: String(++eventId) })),
+      flush: vi.fn().mockResolvedValue(undefined),
+      close: vi.fn().mockResolvedValue(undefined),
+    })
+    mockExecuteWorkflowCore.mockImplementationOnce(async ({ callbacks }) => {
+      const first = callbacks.onBlockStart('function-a', 'Function A', 'function', 1)
+      const second = callbacks.onBlockStart('function-b', 'Function B', 'function', 2)
+      await Promise.all([first, second])
+      return {
+        success: true,
+        status: 'completed',
+        output: { ok: true },
+        metadata: {
+          duration: 100,
+          startTime: '2026-01-01T00:00:00Z',
+          endTime: '2026-01-01T00:00:01Z',
+        },
+      }
+    })
+
+    const response = await POST(
+      createMockRequest(
+        'POST',
+        {
+          stream: true,
+          input: { message: 'hello' },
+          triggerType: 'manual',
+          isClientSession: true,
+        },
+        {
+          'Content-Type': 'application/json',
+          Cookie: 'session=value',
+        }
+      ),
+      { params: Promise.resolve({ id: 'workflow-1' }) }
+    )
+    await firstSnapshotPending
+    releaseFirstSnapshot()
+    const body = await response.text()
+
+    expect(body.indexOf('function-a')).toBeGreaterThan(-1)
+    expect(body.indexOf('function-b')).toBeGreaterThan(body.indexOf('function-a'))
+    expect(mockSetExecutionActiveBlockStarts).toHaveBeenNthCalledWith(
+      2,
+      'execution-123',
+      expect.arrayContaining([
+        expect.objectContaining({ data: expect.objectContaining({ blockId: 'function-a' }) }),
+        expect.objectContaining({ data: expect.objectContaining({ blockId: 'function-b' }) }),
+      ])
+    )
+  })
+
   /**
-   * A terminal event the replay buffer rejected leaves the stream meta on
-   * `active`, so a reconnecting reader polls until its deadline and then errors.
-   * Recording the status directly is the only signal it gets.
+   * A terminal event the replay buffer rejected leaves no terminal event for a reconnecting reader.
+   * Recording terminal metadata lets the pushed wake close the observer instead of leaving it active.
    */
   it('records terminal stream meta when the replay buffer rejects the terminal event', async () => {
     mockCreateExecutionEventWriter.mockReturnValue({
@@ -734,18 +898,19 @@ describe('workflow execute async route', () => {
       writeTerminal: vi.fn(async () => {
         throw new Error('Execution memory limit exceeded. Reduce payload size and try again.')
       }),
+      flush: vi.fn().mockResolvedValue(undefined),
       close: vi.fn().mockResolvedValue(undefined),
     })
 
     const response = await POST(createBoundCopilotExecutionRequest(), {
       params: Promise.resolve({ id: 'workflow-1' }),
     })
-    const body = await response.text()
 
     expect(response.status).toBe(200)
-    // The live client still receives the terminal event over SSE.
-    expect(body).toContain('execution:completed')
-    expect(mockSetExecutionMeta).toHaveBeenCalledWith('execution-123', { status: 'complete' })
+    await expect(response.text()).rejects.toThrow(
+      'Execution memory limit exceeded. Reduce payload size and try again.'
+    )
+    expect(mockMarkExecutionStreamTerminal).toHaveBeenCalledWith('execution-123', 'error')
   })
 
   it('rejects a competing Copilot workflow execution before logging starts', async () => {

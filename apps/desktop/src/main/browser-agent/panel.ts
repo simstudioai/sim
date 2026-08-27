@@ -31,6 +31,8 @@ const logger = createLogger('BrowserAgentPanel')
  */
 const PANEL_LEASE_TTL_MS = 2_500
 const PANEL_LEASE_CHECK_MS = 1_000
+const MAX_PANEL_SNAPSHOT_PIXELS = 16_777_216
+const MAX_PANEL_SNAPSHOT_DATA_URL_LENGTH = 32 * 1024 * 1024
 
 /** What the panel needs from the session, supplied once by {@link initPanel}. */
 export interface PanelHost {
@@ -67,6 +69,19 @@ let panelOccluded = false
 let occlusionOwnerWindow: BrowserWindow | null = null
 /** Invalidates captures when ownership, scope, or panel visibility changes. */
 let panelCaptureGeneration = 0
+let inFlightPanelCapture: {
+  generation: number
+  key: string
+  promise: Promise<BrowserPanelSnapshot | null>
+} | null = null
+let queuedPanelCapture: {
+  key: string
+  ownerWindow: BrowserWindow | undefined
+  promise: Promise<BrowserPanelSnapshot | null>
+  reject: (reason?: unknown) => void
+  resolve: (snapshot: BrowserPanelSnapshot | null) => void
+  scopeId: string
+} | null = null
 let panelLeaseAt = 0
 let leaseTimer: ReturnType<typeof setInterval> | null = null
 /** Chat whose native browser surface may currently be composited. */
@@ -299,6 +314,8 @@ function resetOcclusion(): void {
   occlusionOwnerWindow = null
   occludableFrame = null
   panelCaptureGeneration++
+  queuedPanelCapture?.resolve(null)
+  queuedPanelCapture = null
 }
 
 /**
@@ -491,6 +508,39 @@ function blankSnapshot(
   }
 }
 
+function queuePanelCapture(
+  key: string,
+  ownerWindow: BrowserWindow | undefined,
+  scopeId: string
+): Promise<BrowserPanelSnapshot | null> {
+  if (queuedPanelCapture?.key === key) return queuedPanelCapture.promise
+
+  panelCaptureGeneration++
+  queuedPanelCapture?.resolve(null)
+  let resolveCapture!: (snapshot: BrowserPanelSnapshot | null) => void
+  let rejectCapture!: (reason?: unknown) => void
+  const promise = new Promise<BrowserPanelSnapshot | null>((resolve, reject) => {
+    resolveCapture = resolve
+    rejectCapture = reject
+  })
+  queuedPanelCapture = {
+    key,
+    ownerWindow,
+    promise,
+    reject: rejectCapture,
+    resolve: resolveCapture,
+    scopeId,
+  }
+  return promise
+}
+
+function startQueuedPanelCapture(): void {
+  const queued = queuedPanelCapture
+  if (!queued) return
+  queuedPanelCapture = null
+  void capturePanelSnapshot(queued.ownerWindow, queued.scopeId).then(queued.resolve, queued.reject)
+}
+
 /**
  * Captures the compositor surface without resizing or lossy encoding.
  *
@@ -520,8 +570,6 @@ export async function capturePanelSnapshot(
   layout()
   if (attachedView !== active.view) return null
 
-  const generation = ++panelCaptureGeneration
-  occludableFrame = null
   const tabId = active.id
   const contents = active.view.webContents
   const shellZoom = win.webContents.getZoomFactor()
@@ -535,41 +583,106 @@ export async function capturePanelSnapshot(
     nativeBounds,
   }
   const viewportBounds = viewportBoundsFor(nativeBounds, shellZoom)
-  const zoomPercent = zoomPercentOf(contents.getZoomFactor())
+  const contentsZoom = contents.getZoomFactor()
+  const zoomPercent = zoomPercentOf(contentsZoom)
   const url = contents.getURL()
   if (url === '' || url === 'about:blank') {
+    panelCaptureGeneration++
+    occludableFrame = null
     if (!frameGeometryIsCurrent(frame)) return null
     occludableFrame = frame
     return blankSnapshot(scopeId, tabId, zoomPercent, viewportBounds)
   }
+  if (
+    nativeBounds.width <= 0 ||
+    nativeBounds.height <= 0 ||
+    nativeBounds.width * nativeBounds.height > MAX_PANEL_SNAPSHOT_PIXELS
+  ) {
+    logger.warn('Browser panel is too large to capture safely', {
+      width: nativeBounds.width,
+      height: nativeBounds.height,
+    })
+    return null
+  }
+
+  const captureKey = JSON.stringify([
+    win.id,
+    scopeId,
+    tabId,
+    url,
+    contentsZoom,
+    shellZoom,
+    nativeBounds.x,
+    nativeBounds.y,
+    nativeBounds.width,
+    nativeBounds.height,
+  ])
+  if (
+    inFlightPanelCapture?.key === captureKey &&
+    inFlightPanelCapture.generation === panelCaptureGeneration
+  ) {
+    return inFlightPanelCapture.promise
+  }
+  if (inFlightPanelCapture) return queuePanelCapture(captureKey, ownerWindow, scopeId)
+
+  occludableFrame = null
+  const generation = ++panelCaptureGeneration
+  let capture: ReturnType<typeof contents.capturePage>
   try {
-    const image = await contents.capturePage(undefined, { stayHidden: false })
-    if (
-      generation !== panelCaptureGeneration ||
-      scopeId !== activePanelScopeId ||
-      host.activeTab()?.id !== tabId ||
-      panelWindow() !== win ||
-      win.isDestroyed() ||
-      !frameGeometryIsCurrent(frame) ||
-      image.isEmpty()
-    ) {
-      return null
-    }
-    const snapshot: BrowserPanelSnapshot = {
-      scopeId,
-      tabId,
-      zoomPercent,
-      viewportBounds,
-      dataUrl: image.toDataURL(),
-    }
-    occludableFrame = frame
-    return snapshot
+    capture = contents.capturePage(undefined, { stayHidden: false })
   } catch (error) {
     logger.warn('Could not capture browser panel for a toolbar menu', {
       error: getErrorMessage(error, 'unknown'),
     })
     return null
   }
+  const promise = capture
+    .then((image): BrowserPanelSnapshot | null => {
+      const imageSize = image.getSize()
+      if (
+        generation !== panelCaptureGeneration ||
+        scopeId !== activePanelScopeId ||
+        host.activeTab()?.id !== tabId ||
+        panelWindow() !== win ||
+        win.isDestroyed() ||
+        !frameGeometryIsCurrent(frame) ||
+        image.isEmpty() ||
+        imageSize.width <= 0 ||
+        imageSize.height <= 0 ||
+        imageSize.width * imageSize.height > MAX_PANEL_SNAPSHOT_PIXELS
+      ) {
+        return null
+      }
+      const dataUrl = image.toDataURL()
+      if (dataUrl.length > MAX_PANEL_SNAPSHOT_DATA_URL_LENGTH) {
+        logger.warn('Browser panel snapshot exceeded the encoded size limit', {
+          bytes: dataUrl.length,
+        })
+        return null
+      }
+      const snapshot: BrowserPanelSnapshot = {
+        scopeId,
+        tabId,
+        zoomPercent,
+        viewportBounds,
+        dataUrl,
+      }
+      occludableFrame = frame
+      return snapshot
+    })
+    .catch((error) => {
+      logger.warn('Could not capture browser panel for a toolbar menu', {
+        error: getErrorMessage(error, 'unknown'),
+      })
+      return null
+    })
+    .finally(() => {
+      if (inFlightPanelCapture?.promise !== promise) return
+      inFlightPanelCapture = null
+      startQueuedPanelCapture()
+    })
+  inFlightPanelCapture = { generation, key: captureKey, promise }
+  return promise
 }
 
 /**

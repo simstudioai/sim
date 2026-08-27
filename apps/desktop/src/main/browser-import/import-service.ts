@@ -43,6 +43,8 @@ export interface ImportServiceDeps {
   readSites: (historyPath: string, domains: ReadonlySet<string>) => Promise<ImportedSite[]>
   /** Records the hosts an import brought over, with their names and icons. */
   rememberSites: (records: readonly SiteRecord[]) => Promise<void>
+  /** Admits a final persistent write only while its originating account is current. */
+  commit: <T>(operation: () => Promise<T>) => Promise<T>
   vault: {
     isAvailable: () => boolean
     importCredentials: (
@@ -218,7 +220,7 @@ async function runCookieImport(
     }
   }
 
-  const written = await deps.writeCookies(read.cookies)
+  const written = await deps.commit(() => deps.writeCookies(read.cookies))
   const result: BrowserImportResult = {
     cookiesImported: written.imported,
     cookiesSkipped: skippedReading + written.failed,
@@ -294,10 +296,8 @@ async function runPasswordImport(
   const candidates = read.credentials.map(
     ({ sourceModifiedAt: _sourceModifiedAt, ...candidate }) => candidate
   )
-  const outcome = await deps.vault.importCredentials(
-    await withFavicons(candidates, profile.faviconsPath, deps),
-    policy
-  )
+  const importedCandidates = await withFavicons(candidates, profile.faviconsPath, deps)
+  const outcome = await deps.commit(() => deps.vault.importCredentials(importedCandidates, policy))
   const result: BrowserPasswordImportResult = {
     passwordsAdded: outcome.added,
     passwordsUpdated: outcome.updated,
@@ -558,14 +558,16 @@ async function rememberImportedSites(
       : new Map<string, string>()
 
     const importedAt = new Date().toISOString()
-    await deps.rememberSites(
-      sites.map((site) => ({
-        hostname: site.hostname,
-        name: site.name,
-        icon: icons.get(originOf(site.hostname)),
-        visits: site.visits,
-        importedAt,
-      }))
+    await deps.commit(() =>
+      deps.rememberSites(
+        sites.map((site) => ({
+          hostname: site.hostname,
+          name: site.name,
+          icon: icons.get(originOf(site.hostname)),
+          visits: site.visits,
+          importedAt,
+        }))
+      )
     )
   } catch {
     // Category only, like every other failure path here: the detail that would

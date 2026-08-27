@@ -322,10 +322,11 @@ describe('folder-path fields', () => {
 })
 
 describe('confirm gates say what is actually at stake', () => {
-  it('gates the two workflow writes that change what production serves', () => {
+  it('gates the three workflow writes that change what production serves', () => {
     // `undeploy` takes the workflow offline for every consumer, its published
-    // MCP tools included. `rollback` changes which version is live, while the
-    // gated `revert` only overwrites the draft.
+    // MCP tools included. `rollback` and `activate` are the same application
+    // operation under two transitions and both change which version is live,
+    // while the gated `revert` only overwrites the draft.
     const undeploy = CLI_CONTRACT.undeployWorkflow?.confirm ?? ''
     expect(undeploy).toContain('offline')
     expect(undeploy).toMatch(/MCP/)
@@ -336,6 +337,7 @@ describe('confirm gates say what is actually at stake', () => {
     expect(undeploy).toContain('until it is deployed again')
     expect(undeploy).not.toMatch(/does not restore|not recoverable|cannot be undone/)
     expect(CLI_CONTRACT.rollbackWorkflow?.confirm).toBeTruthy()
+    expect(CLI_CONTRACT.activateWorkflowVersion?.confirm).toBeTruthy()
   })
 
   it('does not promise irreversible loss for a recoverable delete', () => {
