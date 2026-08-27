@@ -20,6 +20,8 @@ const {
   mockGetClientCredentialAccountDescriptor,
   mockDeleteConnectionCredential,
   mockDeleteOrphanedOAuthAccount,
+  mockDeleteWorkspaceEnvCredentials,
+  mockDeletePersonalEnvCredentialForUser,
 } = vi.hoisted(() => ({
   mockRecordAudit: vi.fn(),
   mockGetCredentialActorContext: vi.fn(),
@@ -31,6 +33,8 @@ const {
   mockGetClientCredentialAccountDescriptor: vi.fn(() => undefined),
   mockDeleteConnectionCredential: vi.fn(),
   mockDeleteOrphanedOAuthAccount: vi.fn(),
+  mockDeleteWorkspaceEnvCredentials: vi.fn(),
+  mockDeletePersonalEnvCredentialForUser: vi.fn(),
 }))
 
 vi.mock('@sim/audit', () => ({
@@ -57,8 +61,8 @@ vi.mock('@/lib/credentials/deletion', () => ({
   deleteOrphanedOAuthAccount: mockDeleteOrphanedOAuthAccount,
 }))
 vi.mock('@/lib/credentials/environment', () => ({
-  deleteWorkspaceEnvCredentials: vi.fn(),
-  syncPersonalEnvCredentialsForUser: vi.fn(),
+  deleteWorkspaceEnvCredentials: mockDeleteWorkspaceEnvCredentials,
+  deletePersonalEnvCredentialForUser: mockDeletePersonalEnvCredentialForUser,
 }))
 vi.mock('@/lib/credentials/atlassian-service-account', () => ({
   AtlassianValidationError: class AtlassianValidationError extends Error {},
@@ -711,6 +715,70 @@ describe('deleteCredentialRecord', () => {
       message: 'Remove this custom Slack bot from its Credential Groups before deleting it.',
     })
     expect(mockDeleteConnectionCredential).not.toHaveBeenCalled()
+  })
+
+  /**
+   * The whole variables map is read, edited and written back here, so a
+   * concurrent secret write is lost unless this holds the same advisory lock
+   * every other writer of that map takes.
+   */
+  it('removes a workspace env value under the map lock, with the row', async () => {
+    await deleteCredentialRecord({
+      credential: {
+        id: 'cred-1',
+        workspaceId: 'ws-1',
+        type: 'env_workspace',
+        envKey: 'STRIPE_API_KEY',
+        providerId: null,
+      } as never,
+      reason: 'user_delete',
+    })
+
+    expect(dbChainMockFns.transaction).toHaveBeenCalled()
+    const locked = dbChainMockFns.execute.mock.calls.some(([statement]) => {
+      const { sql, params } = (
+        statement as { toSQL: () => { sql: string; params: unknown[] } }
+      ).toSQL()
+      return sql.includes('pg_advisory_xact_lock') && params.includes('ws-1')
+    })
+    expect(locked).toBe(true)
+    // Passed the transaction, so the row cannot outlive the value it describes.
+    expect(mockDeleteWorkspaceEnvCredentials).toHaveBeenCalledWith(
+      expect.objectContaining({ workspaceId: 'ws-1', removedKeys: ['STRIPE_API_KEY'] })
+    )
+    expect(mockDeleteWorkspaceEnvCredentials.mock.calls[0][0].executor).toBeDefined()
+  })
+
+  it('removes a personal env value under the map lock', async () => {
+    await deleteCredentialRecord({
+      credential: {
+        id: 'cred-1',
+        workspaceId: 'ws-1',
+        type: 'env_personal',
+        envKey: 'MY_KEY',
+        envOwnerUserId: 'user-1',
+        providerId: null,
+      } as never,
+      reason: 'user_delete',
+    })
+
+    expect(dbChainMockFns.transaction).toHaveBeenCalled()
+    const locked = dbChainMockFns.execute.mock.calls.some(([statement]) => {
+      const { sql, params } = (
+        statement as { toSQL: () => { sql: string; params: unknown[] } }
+      ).toSQL()
+      return sql.includes('pg_advisory_xact_lock') && params.includes('user-1')
+    })
+    expect(locked).toBe(true)
+    /**
+     * Targeted, not a reconcile against a key list: a list read before the
+     * prune can miss a secret added since, and prune that secret's mirror
+     * while its value survives.
+     */
+    expect(mockDeletePersonalEnvCredentialForUser).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'user-1', envKey: 'MY_KEY' })
+    )
+    expect(mockDeletePersonalEnvCredentialForUser.mock.calls[0][0].executor).toBeDefined()
   })
 
   it('revokes the backing OAuth grant of a deleted oauth credential', async () => {
