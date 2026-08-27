@@ -35,6 +35,7 @@ function makeDeps(overrides: Partial<ServerWindowDeps> = {}): ServerWindowDeps {
     preloadPath: '/tmp/preload.cjs',
     isPackaged: false,
     getParentWindow: () => null,
+    prepareDeploymentScopedStateChange: vi.fn(() => true),
     clearDeploymentScopedState: vi.fn(async (): Promise<readonly string[]> => []),
     completeDeploymentScopedStateChange: vi.fn((commit) => commit()),
     relaunch: vi.fn(),
@@ -103,7 +104,11 @@ describe('server window', () => {
   it('clears deployment-scoped capabilities before relaunching', async () => {
     await createServerWindow(deps).setOrigin('https://sim.other.example')
 
+    expect(deps.prepareDeploymentScopedStateChange).toHaveBeenCalledTimes(1)
     expect(deps.clearDeploymentScopedState).toHaveBeenCalledTimes(1)
+    expect(
+      vi.mocked(deps.prepareDeploymentScopedStateChange).mock.invocationCallOrder[0]
+    ).toBeLessThan(vi.mocked(deps.clearDeploymentScopedState).mock.invocationCallOrder[0])
     expect(vi.mocked(deps.clearDeploymentScopedState).mock.invocationCallOrder[0]).toBeLessThan(
       vi.mocked(deps.relaunch).mock.invocationCallOrder[0]
     )
@@ -125,6 +130,23 @@ describe('server window', () => {
     await createServerWindow(deps).setOrigin(CURRENT)
 
     expect(deps.clearDeploymentScopedState).not.toHaveBeenCalled()
+  })
+
+  it('does not erase or persist anything when recovery intent cannot be recorded', async () => {
+    const blocked = makeDeps({ prepareDeploymentScopedStateChange: vi.fn(() => false) })
+    const handle = createServerWindow(blocked)
+
+    await expect(handle.setOrigin('https://sim.other.example')).resolves.toMatchObject({
+      ok: false,
+    })
+    expect(blocked.clearDeploymentScopedState).not.toHaveBeenCalled()
+    expect(blocked.completeDeploymentScopedStateChange).not.toHaveBeenCalled()
+    expect(blocked.config.set).not.toHaveBeenCalled()
+    expect(blocked.config.setOrigin).not.toHaveBeenCalled()
+    expect(blocked.relaunch).not.toHaveBeenCalled()
+
+    vi.mocked(blocked.prepareDeploymentScopedStateChange).mockReturnValue(true)
+    await expect(handle.setOrigin('https://sim.other.example')).resolves.toMatchObject({ ok: true })
   })
 
   // The picker re-enables its button while a request is pending, and the IPC

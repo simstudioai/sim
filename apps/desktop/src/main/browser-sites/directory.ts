@@ -1,7 +1,11 @@
-import { readFile, stat } from 'node:fs/promises'
 import { createLogger } from '@sim/logger'
 import { safeStorage } from 'electron'
-import { removeFileIfPresent, writeJsonFileAtomically } from '@/main/atomic-json-file'
+import {
+  FileResourceLimitError,
+  readFileWithinLimit,
+  removeFileIfPresent,
+  writeJsonFileAtomically,
+} from '@/main/atomic-json-file'
 
 /**
  * What the sites brought over from another browser are called, and what they
@@ -156,12 +160,7 @@ export class SiteDirectory {
   private async read(): Promise<SiteRecord[]> {
     if (!this.isAvailable()) return []
     try {
-      const metadata = await stat(this.filePath)
-      if (!metadata.isFile() || metadata.size > MAX_DIRECTORY_FILE_BYTES) {
-        this.blockPersistence('resource-limit')
-        return []
-      }
-      const raw = await readFile(this.filePath)
+      const raw = await readFileWithinLimit(this.filePath, MAX_DIRECTORY_FILE_BYTES)
       const envelope = JSON.parse(raw.toString('utf8')) as EncryptedDirectoryEnvelope
       const isLegacyEnvelope =
         envelope.version === 1 &&
@@ -189,6 +188,10 @@ export class SiteDirectory {
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
         this.persistenceState = 'writable'
+        return []
+      }
+      if (error instanceof FileResourceLimitError) {
+        this.blockPersistence('resource-limit')
         return []
       }
       this.blockPersistence('read-failed')

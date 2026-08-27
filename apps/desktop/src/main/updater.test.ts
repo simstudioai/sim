@@ -520,8 +520,14 @@ describe('initUpdater state machine', () => {
     expect(handle.getState()).toEqual({ status: 'error' })
   })
 
-  it('retries after a timed-out updater request that never settles', async () => {
-    autoUpdaterMock.checkForUpdates.mockImplementationOnce(() => new Promise<null>(() => {}))
+  it('waits for a timed-out updater request to settle before retrying', async () => {
+    let resolveRequest: ((result: null) => void) | undefined
+    autoUpdaterMock.checkForUpdates.mockImplementationOnce(
+      () =>
+        new Promise<null>((resolve) => {
+          resolveRequest = resolve
+        })
+    )
     const { handle } = await createUpdater({ feedAvailable: true })
     handle.check()
     await vi.advanceTimersByTimeAsync(10_000)
@@ -531,6 +537,12 @@ describe('initUpdater state machine', () => {
     emit('update-not-available')
     expect(handle.getState()).toEqual({ status: 'error' })
 
+    handle.check()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(autoUpdaterMock.checkForUpdates).toHaveBeenCalledTimes(1)
+
+    resolveRequest?.(null)
+    await vi.advanceTimersByTimeAsync(0)
     handle.check()
     await vi.advanceTimersByTimeAsync(0)
     expect(autoUpdaterMock.checkForUpdates).toHaveBeenCalledTimes(2)

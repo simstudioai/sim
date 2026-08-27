@@ -54,7 +54,6 @@ describe('installMainProcessFailureObservers', () => {
         on: vi.fn((event: string, handler: (...args: never[]) => void) => {
           handlers.set(event, handler)
         }),
-        removeListener: vi.fn(),
       },
     }
   }

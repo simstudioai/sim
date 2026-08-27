@@ -1,9 +1,13 @@
-import { readFile, stat } from 'node:fs/promises'
 import type { BrowserCredentialMetadata } from '@sim/desktop-bridge'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { safeStorage } from 'electron'
-import { removeFileIfPresent, writeJsonFileAtomically } from '@/main/atomic-json-file'
+import {
+  FileResourceLimitError,
+  readFileWithinLimit,
+  removeFileIfPresent,
+  writeJsonFileAtomically,
+} from '@/main/atomic-json-file'
 import { normalizeOrigin, normalizeUsername } from '@/main/browser-credentials/origin'
 
 /**
@@ -161,14 +165,9 @@ export class CredentialVault {
   private async read(): Promise<CredentialRecord[]> {
     if (!this.isAvailable()) return []
     try {
-      const metadata = await stat(this.filePath)
-      if (!metadata.isFile() || metadata.size > MAX_VAULT_FILE_BYTES) {
-        this.blockPersistence('resource-limit')
-        return []
-      }
-      const raw = JSON.parse(await readFile(this.filePath, 'utf8')) as
-        | Partial<EncryptedVaultEnvelope>
-        | undefined
+      const raw = JSON.parse(
+        (await readFileWithinLimit(this.filePath, MAX_VAULT_FILE_BYTES)).toString('utf8')
+      ) as Partial<EncryptedVaultEnvelope> | undefined
       if (raw?.version !== VAULT_VERSION || typeof raw.ciphertext !== 'string') {
         this.blockPersistence('invalid-envelope')
         return []
@@ -192,6 +191,10 @@ export class CredentialVault {
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
         this.persistenceState = 'writable'
+        return []
+      }
+      if (error instanceof FileResourceLimitError) {
+        this.blockPersistence('resource-limit')
         return []
       }
       this.blockPersistence('read-failed')

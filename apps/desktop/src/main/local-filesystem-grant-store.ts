@@ -1,7 +1,11 @@
-import { open } from 'node:fs/promises'
 import { createLogger } from '@sim/logger'
 import { safeStorage } from 'electron'
-import { removeFileIfPresent, writeJsonFileAtomically } from '@/main/atomic-json-file'
+import {
+  FileResourceLimitError,
+  readFileWithinLimit,
+  removeFileIfPresent,
+  writeJsonFileAtomically,
+} from '@/main/atomic-json-file'
 
 const STORE_VERSION = 1
 const MAX_GRANT_STORE_BYTES = 4 * 1024 * 1024
@@ -35,30 +39,6 @@ interface EncryptionProvider {
 interface EncryptedGrantEnvelope {
   version: typeof STORE_VERSION
   ciphertext: string
-}
-
-class GrantStoreResourceLimitError extends Error {}
-
-async function readGrantStoreFile(filePath: string): Promise<string> {
-  const handle = await open(filePath, 'r')
-  try {
-    const metadata = await handle.stat()
-    if (!metadata.isFile() || metadata.size > MAX_GRANT_STORE_BYTES) {
-      throw new GrantStoreResourceLimitError()
-    }
-
-    const buffer = Buffer.allocUnsafe(metadata.size + 1)
-    let offset = 0
-    while (offset < buffer.length) {
-      const { bytesRead } = await handle.read(buffer, offset, buffer.length - offset, offset)
-      if (bytesRead === 0) break
-      offset += bytesRead
-    }
-    if (offset > metadata.size) throw new GrantStoreResourceLimitError()
-    return buffer.subarray(0, offset).toString('utf8')
-  } finally {
-    await handle.close()
-  }
 }
 
 function isPersistedGrant(value: unknown): value is PersistedLocalFilesystemGrant {
@@ -129,7 +109,9 @@ export function createEncryptedLocalFilesystemGrantStore(
   const load = async (): Promise<PersistedLocalFilesystemGrant[]> => {
     if (!encryptionAvailable(encryption) || state === 'blocked') return []
     try {
-      const raw = JSON.parse(await readGrantStoreFile(filePath)) as Partial<EncryptedGrantEnvelope>
+      const raw = JSON.parse(
+        (await readFileWithinLimit(filePath, MAX_GRANT_STORE_BYTES)).toString('utf8')
+      ) as Partial<EncryptedGrantEnvelope>
       if (raw.version !== STORE_VERSION || typeof raw.ciphertext !== 'string') {
         blockPersistence('invalid-envelope')
         return []
@@ -155,7 +137,7 @@ export function createEncryptedLocalFilesystemGrantStore(
         state = 'writable'
         return []
       }
-      if (error instanceof GrantStoreResourceLimitError) {
+      if (error instanceof FileResourceLimitError) {
         blockPersistence('resource-limit')
         return []
       }

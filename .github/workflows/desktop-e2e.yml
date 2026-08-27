@@ -128,7 +128,7 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
         run: |
           bun run build
-          bunx electron-builder --mac dir --publish never \
+          bunx electron-builder --mac dir --universal --publish never \
             -c.mac.identity=- -c.mac.hardenedRuntime=false
 
       - name: Run packaged Electron smoke suite

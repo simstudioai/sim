@@ -599,7 +599,6 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
       updaterCheckTimeout = setTimeout(() => {
         if (activeUpdaterCheckId !== checkId) return
         finishUpdaterCheck(checkId)
-        if (updaterRequestId === checkId) updaterRequestId = null
         deps.events.record('update_error', { message: 'Update check timed out' })
         if (state.status === 'checking') setState({ status: 'error' })
       }, UPDATE_CHECK_TIMEOUT_MS)

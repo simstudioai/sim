@@ -1,4 +1,11 @@
-import { existsSync, mkdirSync, mkdtempSync, unlinkSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs'
 import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -9,6 +16,7 @@ import {
   completeAccountDataTeardown,
   completeDeploymentScopedTeardown,
   getAccountDataTeardownKind,
+  getAccountDataTeardownOrigin,
   initializeAccountDataRecovery,
   invalidateAccountDataOperations,
   isAccountDataTeardownRequired,
@@ -17,6 +25,8 @@ import {
   runAccountDataMutation,
   waitForAccountDataMutations,
 } from '@/main/account-data-generation'
+
+const ORIGIN = 'https://sim.example.com'
 
 describe('account data generation', () => {
   let directory: string
@@ -35,9 +45,14 @@ describe('account data generation', () => {
   })
 
   it('blocks account-data mutations and persists teardown intent', () => {
-    expect(beginAccountDataTeardown()).toBe(true)
+    expect(beginAccountDataTeardown('account', ORIGIN)).toBe(true)
 
     expect(existsSync(markerPath)).toBe(true)
+    expect(JSON.parse(readFileSync(markerPath, 'utf8'))).toEqual({
+      version: 2,
+      kind: 'account',
+      origin: ORIGIN,
+    })
     expect(isAccountDataTeardownRequired()).toBe(true)
   })
 
@@ -47,22 +62,23 @@ describe('account data generation', () => {
     initializeAccountDataRecovery(markerPath)
     writeFileSync(blockedParent, 'not a directory')
 
-    expect(beginAccountDataTeardown()).toBe(false)
-    expect(isAccountDataTeardownRequired()).toBe(true)
-    expect(prepareAccountDataTeardownForQuit()).toBe(false)
+    expect(beginAccountDataTeardown('account', ORIGIN)).toBe(false)
+    expect(isAccountDataTeardownRequired()).toBe(false)
+    expect(prepareAccountDataTeardownForQuit()).toBe(true)
 
     unlinkSync(blockedParent)
     mkdirSync(blockedParent)
-    expect(prepareAccountDataTeardownForQuit()).toBe(true)
+    expect(beginAccountDataTeardown('account', ORIGIN)).toBe(true)
     expect(existsSync(markerPath)).toBe(true)
   })
 
-  it('still attempts every erasure when the recovery marker cannot be written', async () => {
+  it('does not erase data when the recovery marker cannot be written', async () => {
     const blockedParent = join(directory, 'blocked')
     markerPath = join(blockedParent, 'teardown-required.json')
     initializeAccountDataRecovery(markerPath)
     writeFileSync(blockedParent, 'not a directory')
-    expect(beginAccountDataTeardown()).toBe(false)
+    const generation = captureAccountDataGeneration()
+    expect(beginAccountDataTeardown('account', ORIGIN)).toBe(false)
     const firstClear = vi.fn(async () => {})
     const secondClear = vi.fn(async () => {})
 
@@ -73,17 +89,19 @@ describe('account data generation', () => {
       ])
     ).resolves.toEqual([])
 
-    expect(firstClear).toHaveBeenCalledOnce()
-    expect(secondClear).toHaveBeenCalledOnce()
+    expect(firstClear).not.toHaveBeenCalled()
+    expect(secondClear).not.toHaveBeenCalled()
     expect(isAccountDataTeardownRequired()).toBe(false)
+    await expect(runAccountDataMutation(generation, async () => 'ok')).resolves.toBe('ok')
   })
 
   it('restores the fail-closed state from a marker and clears it only on completion', () => {
-    writeFileSync(markerPath, '{"version":1,"kind":"deployment"}')
+    writeFileSync(markerPath, JSON.stringify({ version: 2, kind: 'deployment', origin: ORIGIN }))
 
     expect(initializeAccountDataRecovery(markerPath)).toBe(true)
     expect(isAccountDataTeardownRequired()).toBe(true)
     expect(getAccountDataTeardownKind()).toBe('deployment')
+    expect(getAccountDataTeardownOrigin()).toBe(ORIGIN)
 
     completeAccountDataTeardown()
     expect(existsSync(markerPath)).toBe(false)
@@ -92,7 +110,7 @@ describe('account data generation', () => {
   })
 
   it('keeps recovery gated until a retry clears every account store', async () => {
-    beginAccountDataTeardown()
+    beginAccountDataTeardown('account', ORIGIN)
     const failedClear = vi.fn(async () => {
       throw new Error('keychain unavailable')
     })
@@ -118,8 +136,8 @@ describe('account data generation', () => {
   })
 
   it('never downgrades or clears an account recovery marker for a server switch', () => {
-    beginAccountDataTeardown('account')
-    beginAccountDataTeardown('deployment')
+    beginAccountDataTeardown('account', ORIGIN)
+    beginAccountDataTeardown('deployment', ORIGIN)
     const commit = vi.fn(() => true)
 
     expect(getAccountDataTeardownKind()).toBe('account')
@@ -129,8 +147,21 @@ describe('account data generation', () => {
     expect(isAccountDataTeardownRequired()).toBe(true)
   })
 
+  it('does not retarget an active teardown to a different origin', () => {
+    beginAccountDataTeardown('deployment', ORIGIN)
+
+    expect(beginAccountDataTeardown('account', 'https://other.example.com')).toBe(false)
+    expect(getAccountDataTeardownKind()).toBe('deployment')
+    expect(getAccountDataTeardownOrigin()).toBe(ORIGIN)
+    expect(JSON.parse(readFileSync(markerPath, 'utf8'))).toEqual({
+      version: 2,
+      kind: 'deployment',
+      origin: ORIGIN,
+    })
+  })
+
   it('keeps deployment recovery armed when the server configuration commit fails', () => {
-    beginAccountDataTeardown('deployment')
+    beginAccountDataTeardown('deployment', ORIGIN)
 
     expect(completeDeploymentScopedTeardown(() => false)).toBe(false)
     expect(existsSync(markerPath)).toBe(true)
@@ -138,7 +169,7 @@ describe('account data generation', () => {
   })
 
   it('keeps deployment recovery armed when the server configuration commit throws', () => {
-    beginAccountDataTeardown('deployment')
+    beginAccountDataTeardown('deployment', ORIGIN)
 
     expect(() =>
       completeDeploymentScopedTeardown(() => {
@@ -150,18 +181,20 @@ describe('account data generation', () => {
   })
 
   it('reports successful completion of a deployment-scoped teardown', () => {
-    beginAccountDataTeardown('deployment')
+    beginAccountDataTeardown('deployment', ORIGIN)
 
     expect(completeDeploymentScopedTeardown(() => true)).toBe(true)
     expect(isAccountDataTeardownRequired()).toBe(false)
   })
 
-  it('treats an unknown marker version as the stronger account teardown', () => {
-    writeFileSync(markerPath, '{"version":2,"kind":"deployment"}')
+  it('treats an unknown marker version as an untrusted account teardown', () => {
+    writeFileSync(markerPath, '{"version":3,"kind":"deployment","origin":"https://old.example"}')
 
     initializeAccountDataRecovery(markerPath)
 
     expect(getAccountDataTeardownKind()).toBe('account')
+    expect(getAccountDataTeardownOrigin()).toBeNull()
+    expect(prepareAccountDataTeardownForQuit()).toBe(false)
   })
 
   it('waits for an admitted commit before teardown can clear its store', async () => {

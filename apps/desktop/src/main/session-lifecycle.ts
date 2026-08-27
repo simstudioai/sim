@@ -258,13 +258,14 @@ export async function revokeAppSession(win: BrowserWindow, origin: string): Prom
  */
 export async function tearDownSession(
   session: Session,
+  origin: string,
   clearHandoffState: () => void | Promise<void>,
   events: EventRecorder,
   clearBrowserProfile: () => Promise<void>,
   revokeSession: () => Promise<void>
 ): Promise<void> {
-  if (!beginAccountDataTeardown()) {
-    logger.error('Could not persist account-data recovery marker; continuing local erasure')
+  if (!beginAccountDataTeardown('account', origin)) {
+    throw new Error('Could not persist account-data recovery marker.')
   }
   events.record('sign_out')
   // Server-side first, while the partition still holds the session cookie the
@@ -350,6 +351,7 @@ export function createSessionLifecycleCoordinator(
     logger.info('Sign-out detected; clearing partition')
     const pending = tearDownSession(
       deps.appSession,
+      deps.origin(),
       deps.clearHandoffState,
       deps.events,
       deps.clearBrowserProfile,

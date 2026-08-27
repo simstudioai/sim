@@ -42,8 +42,6 @@ export interface EventRecorder {
 interface ProcessFailureSource {
   on(event: 'unhandledRejection', listener: (reason: unknown) => void): void
   on(event: 'uncaughtException', listener: (error: Error) => void): void
-  removeListener(event: 'unhandledRejection', listener: (reason: unknown) => void): void
-  removeListener(event: 'uncaughtException', listener: (error: Error) => void): void
 }
 
 export interface MainProcessFailureObserverDeps {
@@ -64,7 +62,7 @@ export function installMainProcessFailureObservers({
   events,
   getWindow,
   processSource = process,
-}: MainProcessFailureObserverDeps): () => void {
+}: MainProcessFailureObserverDeps): void {
   let fatalRecoveryOpen = false
   let lastChildFailure = ''
   let lastChildFailureAt = 0
@@ -130,12 +128,6 @@ export function installMainProcessFailureObservers({
   app.on('child-process-gone', onChildProcessGone)
   processSource.on('unhandledRejection', onUnhandledRejection)
   processSource.on('uncaughtException', onUncaughtException)
-
-  return () => {
-    app.removeListener('child-process-gone', onChildProcessGone)
-    processSource.removeListener('unhandledRejection', onUnhandledRejection)
-    processSource.removeListener('uncaughtException', onUncaughtException)
-  }
 }
 
 /**

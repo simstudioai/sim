@@ -1,9 +1,9 @@
-import { readFileSync, statSync, unlinkSync } from 'node:fs'
+import { unlinkSync } from 'node:fs'
 import { isAbsolute } from 'node:path'
 import { isDesktopScopeId, isPendingDesktopScopeId } from '@sim/desktop-bridge'
 import { isRecordLike } from '@sim/utils/object'
 import { safeStorage } from 'electron'
-import { writeJsonFileAtomicallySync } from '@/main/atomic-json-file'
+import { readFileWithinLimitSync, writeJsonFileAtomicallySync } from '@/main/atomic-json-file'
 
 const STORE_VERSION = 1
 const SNAPSHOT_VERSION = 1
@@ -318,8 +318,9 @@ export class DesktopChatSessionStore {
     if (!this.isAvailable()) return false
 
     try {
-      if (statSync(this.filePath).size > MAX_STORE_BYTES) return false
-      const envelope = JSON.parse(readFileSync(this.filePath, 'utf8')) as unknown
+      const envelope = JSON.parse(
+        readFileWithinLimitSync(this.filePath, MAX_STORE_BYTES).toString('utf8')
+      ) as unknown
       if (
         !isRecordLike(envelope) ||
         envelope.v !== STORE_VERSION ||

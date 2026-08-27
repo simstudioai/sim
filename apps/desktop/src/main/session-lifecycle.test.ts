@@ -2,12 +2,15 @@ import { mkdtempSync, writeFileSync } from 'node:fs'
 import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => import('@/test/electron-mock'))
 
 import { BrowserWindow, type Session } from 'electron'
-import { initializeAccountDataRecovery } from '@/main/account-data-generation'
+import {
+  completeAccountDataTeardown,
+  initializeAccountDataRecovery,
+} from '@/main/account-data-generation'
 import {
   createSessionLifecycleCoordinator,
   decideStartRoute,
@@ -20,6 +23,18 @@ import {
 } from '@/main/session-lifecycle'
 
 const APP = 'https://sim.ai'
+let recoveryDirectory: string
+
+beforeEach(() => {
+  recoveryDirectory = mkdtempSync(join(tmpdir(), 'sim-session-lifecycle-'))
+  initializeAccountDataRecovery(join(recoveryDirectory, 'teardown-required.json'))
+})
+
+afterEach(async () => {
+  completeAccountDataTeardown()
+  initializeAccountDataRecovery(null)
+  await rm(recoveryDirectory, { recursive: true, force: true })
+})
 
 describe('isSessionCookieName', () => {
   it('matches the better-auth session cookie on secure and non-secure hosts', () => {
@@ -160,6 +175,7 @@ describe('tearDownSession', () => {
 
     await tearDownSession(
       session,
+      APP,
       async () => {
         await Promise.resolve()
         order.push('local')
@@ -186,6 +202,7 @@ describe('tearDownSession', () => {
     await expect(
       tearDownSession(
         session,
+        APP,
         async () => {},
         { filePath: '/tmp/events.log', record: vi.fn() },
         async () => {
@@ -208,6 +225,7 @@ describe('tearDownSession', () => {
     await expect(
       tearDownSession(
         session,
+        APP,
         async () => {
           throw new Error('local store unavailable')
         },
@@ -222,7 +240,7 @@ describe('tearDownSession', () => {
     expect(clearCache).toHaveBeenCalledOnce()
   })
 
-  it('continues local erasure when the recovery marker cannot be written', async () => {
+  it('does not erase local data when the recovery marker cannot be written', async () => {
     const directory = mkdtempSync(join(tmpdir(), 'sim-account-recovery-'))
     const blockedParent = join(directory, 'blocked')
     initializeAccountDataRecovery(join(blockedParent, 'teardown-required.json'))
@@ -236,17 +254,18 @@ describe('tearDownSession', () => {
       await expect(
         tearDownSession(
           { clearStorageData, clearCache } as unknown as Session,
+          APP,
           clearHandoffState,
           { filePath: '/tmp/events.log', record: vi.fn() },
           clearBrowserProfile,
           async () => {}
         )
-      ).resolves.toBeUndefined()
+      ).rejects.toThrow('recovery marker')
 
-      expect(clearHandoffState).toHaveBeenCalledOnce()
-      expect(clearBrowserProfile).toHaveBeenCalledOnce()
-      expect(clearStorageData).toHaveBeenCalledOnce()
-      expect(clearCache).toHaveBeenCalledOnce()
+      expect(clearHandoffState).not.toHaveBeenCalled()
+      expect(clearBrowserProfile).not.toHaveBeenCalled()
+      expect(clearStorageData).not.toHaveBeenCalled()
+      expect(clearCache).not.toHaveBeenCalled()
     } finally {
       initializeAccountDataRecovery(null)
       await rm(directory, { recursive: true, force: true })
@@ -262,6 +281,7 @@ describe('tearDownSession', () => {
     await expect(
       tearDownSession(
         session,
+        APP,
         async () => {},
         { filePath: '/tmp/events.log', record: vi.fn() },
         async () => {},
@@ -285,6 +305,7 @@ describe('tearDownSession', () => {
     await expect(
       tearDownSession(
         session,
+        APP,
         async () => {},
         { filePath: '/tmp/events.log', record: vi.fn() },
         async () => {},

@@ -1,4 +1,12 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  truncateSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -136,6 +144,21 @@ describe('DesktopChatSessionStore', () => {
 
     expect(store.flush()).toBe(true)
     expect(readFileSync(filePath, 'utf8')).not.toBe(existing)
+  })
+
+  it('preserves an oversized store until explicit clear resets persistence', () => {
+    writeFileSync(filePath, '')
+    truncateSync(filePath, 10 * 1024 * 1024 + 1)
+    const store = open(encryption())
+
+    expect(store.initialize()).toBe(false)
+    store.setTerminal(ORIGIN, 'chat-new', TERMINAL)
+    expect(store.flush()).toBe(false)
+    expect(statSync(filePath).size).toBe(10 * 1024 * 1024 + 1)
+
+    store.clear()
+    store.setTerminal(ORIGIN, 'chat-new', TERMINAL)
+    expect(store.flush()).toBe(true)
   })
 
   it('keeps a pending chat in memory until migration promotes it to a durable chat id', () => {

@@ -478,12 +478,11 @@ function senderHasUserGesture(event: IpcMainEvent | IpcMainInvokeEvent): boolean
  * machine-generated and self-delimiting, which is what makes them safe to
  * enumerate.
  *
- * Only numeric/fixed device reports are included. DCS, OSC, focus, and mouse
- * responses are deliberately excluded even when well-formed: they describe
- * renderer state rather than PTY state and do not need an unconditional path
- * around the trusted-input gate.
+ * Only numeric/fixed device reports and fixed focus reports are included. DCS,
+ * OSC, and mouse responses are deliberately excluded even when well-formed:
+ * they do not need an unconditional path around the trusted-input gate.
  */
-const PTY_REPLY_PATTERNS = [/\u001b\[[0-9;?]*[Rc]/]
+const PTY_REPLY_PATTERNS = [/\u001b\[[0-9;?]*[Rc]/, /\u001b\[[IO]/]
 const PTY_REPLY = new RegExp(
   `^(?:${PTY_REPLY_PATTERNS.map((pattern) => pattern.source).join('|')})+$`
 )

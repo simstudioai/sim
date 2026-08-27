@@ -69,6 +69,8 @@ export interface ServerWindowDeps {
    * failure not hide another's, and lets the caller refuse to move.
    */
   clearDeploymentScopedState: () => Promise<readonly string[]>
+  /** Durably records the outgoing deployment before any capability is erased. */
+  prepareDeploymentScopedStateChange: () => boolean
   /** Atomically commits the new configuration and completes this server wipe. */
   completeDeploymentScopedStateChange: (commit: () => boolean) => boolean
   /**
@@ -192,6 +194,13 @@ export function createServerWindow(deps: ServerWindowDeps): ServerWindowHandle {
     }
     changeInFlight = true
     try {
+      if (!deps.prepareDeploymentScopedStateChange()) {
+        logger.error('Could not persist deployment-scoped recovery marker')
+        return {
+          ok: false,
+          error: 'Could not safely prepare the server change. Try again.',
+        }
+      }
       // Fail closed, and clear BEFORE persisting. If a store cannot be emptied,
       // the shell must not move: the incoming deployment would otherwise
       // inherit folder grants and authenticated browser sessions the outgoing

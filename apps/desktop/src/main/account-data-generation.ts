@@ -1,14 +1,22 @@
 import { readFileSync, unlinkSync } from 'node:fs'
 import { writeJsonFileAtomicallySync } from '@/main/atomic-json-file'
+import { canonicalOrigin, validateOriginInput } from '@/main/config'
 
-const RECOVERY_MARKER_VERSION = 1
+const RECOVERY_MARKER_VERSION = 2
 export type AccountDataTeardownKind = 'account' | 'deployment'
+
+interface AccountDataRecoveryMarker {
+  kind: AccountDataTeardownKind
+  origin: string | null
+}
 
 let generation = 0
 let teardownRequired = false
 let teardownKind: AccountDataTeardownKind | null = null
+let teardownOrigin: string | null = null
 let recoveryMarkerPath: string | null = null
 let durableTeardownKind: AccountDataTeardownKind | null = null
+let durableTeardownOrigin: string | null = null
 const activeMutations = new Set<Promise<unknown>>()
 
 export class ExpiredAccountDataOperationError extends Error {
@@ -30,14 +38,16 @@ export function advanceAccountDataGeneration(): void {
 /** Restores the fail-closed teardown state before account-bearing stores open. */
 export function initializeAccountDataRecovery(filePath: string | null): boolean {
   recoveryMarkerPath = filePath
-  const recoveredKind = filePath ? readTeardownKind(filePath) : null
-  const recoveryRequired = recoveredKind !== null
+  const marker = filePath ? readRecoveryMarker(filePath) : null
+  const recoveryRequired = marker !== null
   if (recoveryRequired && !teardownRequired) {
     advanceAccountDataGeneration()
   }
   teardownRequired = recoveryRequired
-  teardownKind = recoveredKind
-  durableTeardownKind = recoveredKind
+  teardownKind = marker?.kind ?? null
+  teardownOrigin = marker?.origin ?? null
+  durableTeardownKind = marker?.kind ?? null
+  durableTeardownOrigin = marker?.origin ?? null
   return recoveryRequired
 }
 
@@ -46,12 +56,20 @@ export function invalidateAccountDataOperations(): void {
   teardownRequired = true
 }
 
-/** Invalidates account-data work, then best-effort persists recovery intent. */
-export function beginAccountDataTeardown(kind: AccountDataTeardownKind = 'account'): boolean {
+/** Persists recovery intent before invalidating account-data work. */
+export function beginAccountDataTeardown(kind: AccountDataTeardownKind, origin: string): boolean {
+  const validated = validateOriginInput(origin)
+  if (!validated.ok) return false
+  const targetOrigin = canonicalOrigin(validated.origin)
+  if (teardownRequired && teardownOrigin !== targetOrigin) return false
   const effectiveKind = kind === 'account' || teardownKind === 'account' ? 'account' : 'deployment'
+  if (!persistAccountDataRecoveryMarker(effectiveKind, targetOrigin)) return false
+  const wasRequired = teardownRequired
   teardownKind = effectiveKind
-  invalidateAccountDataOperations()
-  return persistAccountDataRecoveryMarker()
+  teardownOrigin = targetOrigin
+  teardownRequired = true
+  if (!wasRequired) advanceAccountDataGeneration()
+  return true
 }
 
 export function isAccountDataTeardownRequired(): boolean {
@@ -62,9 +80,18 @@ export function getAccountDataTeardownKind(): AccountDataTeardownKind | null {
   return teardownKind
 }
 
+export function getAccountDataTeardownOrigin(): string | null {
+  return teardownOrigin
+}
+
 /** Retries marker persistence so shutdown cannot lose an incomplete teardown. */
 export function prepareAccountDataTeardownForQuit(): boolean {
-  return !teardownRequired || persistAccountDataRecoveryMarker()
+  return (
+    !teardownRequired ||
+    (teardownKind !== null &&
+      teardownOrigin !== null &&
+      persistAccountDataRecoveryMarker(teardownKind, teardownOrigin))
+  )
 }
 
 export interface AccountDataRecoveryStore {
@@ -105,8 +132,10 @@ export function completeAccountDataTeardown(): void {
     }
   }
   durableTeardownKind = null
+  durableTeardownOrigin = null
   teardownRequired = false
   teardownKind = null
+  teardownOrigin = null
 }
 
 /** Commits a server switch and clears its marker without weakening an account wipe. */
@@ -141,11 +170,11 @@ export async function waitForAccountDataMutations(): Promise<void> {
   }
 }
 
-function persistAccountDataRecoveryMarker(): boolean {
-  if (!teardownKind) return true
+function persistAccountDataRecoveryMarker(kind: AccountDataTeardownKind, origin: string): boolean {
   if (
-    durableTeardownKind === 'account' ||
-    (durableTeardownKind === 'deployment' && teardownKind === 'deployment')
+    durableTeardownOrigin === origin &&
+    (durableTeardownKind === 'account' ||
+      (durableTeardownKind === 'deployment' && kind === 'deployment'))
   ) {
     return true
   }
@@ -153,29 +182,42 @@ function persistAccountDataRecoveryMarker(): boolean {
   try {
     writeJsonFileAtomicallySync(recoveryMarkerPath, {
       version: RECOVERY_MARKER_VERSION,
-      kind: teardownKind,
+      kind,
+      origin,
     })
-    durableTeardownKind = teardownKind
+    durableTeardownKind = kind
+    durableTeardownOrigin = origin
     return true
   } catch {
     return false
   }
 }
 
-function readTeardownKind(filePath: string): AccountDataTeardownKind | null {
+function readRecoveryMarker(filePath: string): AccountDataRecoveryMarker | null {
   let raw: string
   try {
     raw = readFileSync(filePath, 'utf8')
   } catch (error) {
-    return (error as NodeJS.ErrnoException).code === 'ENOENT' ? null : 'account'
+    return (error as NodeJS.ErrnoException).code === 'ENOENT'
+      ? null
+      : { kind: 'account', origin: null }
   }
 
   try {
-    const parsed = JSON.parse(raw) as { kind?: unknown; version?: unknown }
-    return parsed.version === RECOVERY_MARKER_VERSION && parsed.kind === 'deployment'
-      ? 'deployment'
-      : 'account'
+    const parsed = JSON.parse(raw) as { kind?: unknown; origin?: unknown; version?: unknown }
+    if (
+      parsed.version !== RECOVERY_MARKER_VERSION ||
+      (parsed.kind !== 'account' && parsed.kind !== 'deployment') ||
+      typeof parsed.origin !== 'string'
+    ) {
+      return { kind: 'account', origin: null }
+    }
+    const validated = validateOriginInput(parsed.origin)
+    if (!validated.ok || canonicalOrigin(validated.origin) !== parsed.origin) {
+      return { kind: 'account', origin: null }
+    }
+    return { kind: parsed.kind, origin: parsed.origin }
   } catch {
-    return 'account'
+    return { kind: 'account', origin: null }
   }
 }

@@ -7,6 +7,7 @@ import {
   beginAccountDataTeardown,
   completeDeploymentScopedTeardown,
   getAccountDataTeardownKind,
+  getAccountDataTeardownOrigin,
   initializeAccountDataRecovery,
   isAccountDataTeardownRequired,
   prepareAccountDataTeardownForQuit,
@@ -105,6 +106,13 @@ function main(): void {
   const userDataPath = app.getPath('userData')
   const config = createConfigStore(join(userDataPath, 'settings.json'))
   initializeAccountDataRecovery(join(userDataPath, 'account-data-teardown-required.json'))
+  const recoveryOrigin = getAccountDataTeardownOrigin()
+  if (isAccountDataTeardownRequired() && recoveryOrigin && !config.isPersistenceAvailable()) {
+    const repaired = config.setOrigin(recoveryOrigin)
+    if (!repaired.ok) {
+      logger.error('Could not repair desktop settings for account-data recovery')
+    }
+  }
   const accountDataAvailable = () =>
     config.isPersistenceAvailable() && !isAccountDataTeardownRequired()
   const events = createEventLog(join(userDataPath, 'logs'))
@@ -520,8 +528,8 @@ function main(): void {
     preloadPath,
     isPackaged: app.isPackaged,
     getParentWindow: getMainWindow,
+    prepareDeploymentScopedStateChange: () => beginAccountDataTeardown('deployment', appOrigin()),
     clearDeploymentScopedState: async () => {
-      beginAccountDataTeardown('deployment')
       await waitForAccountDataMutations()
       // allSettled, not sequential awaits: these are independent stores, and a
       // rejection from the first must not skip the second — leaving the store
@@ -632,8 +640,12 @@ function main(): void {
       electron: process.versions.electron ?? '',
     })
 
-    if (isAccountDataTeardownRequired() && config.isPersistenceAvailable()) {
+    if (isAccountDataTeardownRequired()) {
       const kind = getAccountDataTeardownKind()
+      const origin = getAccountDataTeardownOrigin()
+      if (!origin) {
+        logger.error('Account-data recovery marker does not contain a trusted origin')
+      }
       const stores = [
         { label: 'built-in browser sessions', clear: () => clearAgentBrowserProfile() },
         { label: 'local filesystem grants', clear: () => localFilesystem.forgetAll() },
@@ -644,7 +656,7 @@ function main(): void {
             if (!config.flush()) throw new Error('Browser site history could not be erased')
           },
         },
-        ...(kind === 'account'
+        ...(kind === 'account' && origin
           ? [
               { label: 'sign-in handoff state', clear: () => handoff.clear() },
               { label: 'terminal sessions', clear: () => terminal.dispose() },
@@ -652,7 +664,7 @@ function main(): void {
               {
                 label: 'app session storage',
                 clear: async () => {
-                  const persistedSession = session.fromPartition(partitionForOrigin(appOrigin()))
+                  const persistedSession = session.fromPartition(partitionForOrigin(origin))
                   await persistedSession.clearStorageData()
                   await persistedSession.clearCache()
                 },
@@ -660,12 +672,14 @@ function main(): void {
             ]
           : []),
       ]
-      const failures = await retryAccountDataTeardown(stores).catch((error) => {
-        logger.error('Could not finish interrupted account-data teardown', {
-          error: getErrorMessage(error),
-        })
-        return ['account-data recovery marker']
-      })
+      const failures = origin
+        ? await retryAccountDataTeardown(stores).catch((error) => {
+            logger.error('Could not finish interrupted account-data teardown', {
+              error: getErrorMessage(error),
+            })
+            return ['account-data recovery marker']
+          })
+        : ['account-data recovery marker']
       if (failures.length > 0) {
         logger.error('Account-data recovery remains incomplete', { stores: failures })
       }
