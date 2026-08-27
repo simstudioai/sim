@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { ChipTextarea, chipFieldSurfaceClass, cn } from '@sim/emcn'
+import { ChipTextarea, chipFieldSurfaceClass, cn, toast } from '@sim/emcn'
+import { formatPasteLimit, PASTE_LIMITS } from '@sim/utils/paste'
 import type { JSONContent } from '@tiptap/core'
 import { EditorContent, useEditor } from '@tiptap/react'
 import { createMarkdownEditorExtensions } from './editor-extensions'
@@ -32,6 +33,12 @@ import './rich-markdown-editor.css'
  * container is how {@link EditorBubbleMenu} spells "portal to the body".
  */
 const BODY_PORTAL: React.RefObject<HTMLDivElement | null> = { current: null }
+
+function warnRichMarkdownPasteLimit() {
+  toast.warning('Paste is too large for rich-text editing', {
+    description: `Keep this document under ${formatPasteLimit(PASTE_LIMITS.RICH_MARKDOWN_BYTES)}, or import the content as a file.`,
+  })
+}
 
 interface RichMarkdownFieldProps {
   /** Current markdown value. Seeds the editor once on mount; external changes only apply while {@link isStreaming}. */
@@ -203,7 +210,16 @@ function LoadedRichMarkdownField({
   const [canonicalSeed] = useState(() => normalizeMarkdownContent(value))
 
   /** TipTap extensions are stateful — build them once per mount so each field gets its own placeholder. */
-  const [extensions] = useState(() => createMarkdownEditorExtensions({ placeholder }))
+  const [extensions] = useState(() =>
+    createMarkdownEditorExtensions({
+      placeholder,
+      pasteAdmission: {
+        maxResultBytes: PASTE_LIMITS.RICH_MARKDOWN_BYTES,
+        getCurrentText: () => lastSyncedBodyRef.current,
+        onRejected: warnRichMarkdownPasteLimit,
+      },
+    })
+  )
   const [initialContent] = useState<JSONContent>(() => parseMarkdownToDoc(initialSplit.body))
 
   const editor = useEditor({
@@ -231,6 +247,7 @@ function LoadedRichMarkdownField({
         ),
         // Claim ⌘K so the bubble-menu link editor wins over the global search palette.
         'data-owned-shortcuts': 'Mod+K',
+        'data-paste-max-bytes': String(PASTE_LIMITS.RICH_MARKDOWN_BYTES),
       },
       handlePaste: (view, event) => {
         const images = uploadImageRef.current ? extractImageFiles(event.clipboardData) : []
@@ -472,6 +489,7 @@ function RawMarkdownField({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         onPaste={handlePaste}
+        data-paste-max-bytes={PASTE_LIMITS.RICH_MARKDOWN_BYTES}
         placeholder={placeholder}
         readOnly={isStreaming || lockedView}
         tabIndex={lockedView ? -1 : undefined}
@@ -493,6 +511,7 @@ function RawMarkdownField({
       value={value}
       onChange={(event) => onChange(event.target.value)}
       onPaste={handlePaste}
+      data-paste-max-bytes={PASTE_LIMITS.RICH_MARKDOWN_BYTES}
       placeholder={placeholder}
       error={error}
       viewOnly={lockedView}

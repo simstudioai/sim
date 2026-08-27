@@ -1,8 +1,10 @@
+import { ToastProvider } from '@sim/emcn'
 import type { Metadata, Viewport } from 'next'
 import Script from 'next/script'
 import { PublicEnvScript as RuntimePublicEnvScript } from 'next-runtime-env'
 import { NuqsAdapter } from 'nuqs/adapters/next/app'
 import { BrandedLayout } from '@/components/branded-layout'
+import { PasteAdmissionGuard } from '@/app/_shell/paste-admission-guard'
 import { PostHogProvider } from '@/app/_shell/providers/posthog-provider'
 import { generateBrandedMetadata, generateThemeCSS } from '@/ee/whitelabeling'
 import '@/app/_styles/globals.css'
@@ -36,17 +38,20 @@ export const metadata: Metadata = generateBrandedMetadata()
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const themeCSS = generateThemeCSS()
   const application = (
-    <PostHogProvider consentRequired={isHosted}>
-      <ThemeProvider>
-        <QueryProvider>
-          <SessionProvider>
-            <TooltipProvider>
-              <BrandedLayout>{children}</BrandedLayout>
-            </TooltipProvider>
-          </SessionProvider>
-        </QueryProvider>
-      </ThemeProvider>
-    </PostHogProvider>
+    <ToastProvider>
+      <PasteAdmissionGuard />
+      <PostHogProvider consentRequired={isHosted}>
+        <ThemeProvider>
+          <QueryProvider>
+            <SessionProvider>
+              <TooltipProvider>
+                <BrandedLayout>{children}</BrandedLayout>
+              </TooltipProvider>
+            </SessionProvider>
+          </QueryProvider>
+        </ThemeProvider>
+      </PostHogProvider>
+    </ToastProvider>
   )
 
   return (

@@ -117,38 +117,55 @@ export function ChipEmailsInput({
     setItems(itemsRef.current)
   }, [value])
 
-  const handleAdd = React.useCallback(
-    (raw: string): boolean => {
+  function addValues(rawValues: string[]): boolean[] {
+    const current = itemsRef.current
+    const seen = new Set(current.map((item) => item.value))
+    const next = [...current]
+    const results: boolean[] = []
+    let acceptedChanged = false
+
+    for (const raw of rawValues) {
       const email = normalizeEmail(raw)
-      if (!email) return false
-      const current = itemsRef.current
-      if (current.some((item) => item.value === email)) return false
+      if (!email || seen.has(email)) {
+        results.push(false)
+        continue
+      }
+      seen.add(email)
 
       if (!isValidEmailSyntax(email, allowDomains)) {
-        commitItems([
-          ...current,
-          {
-            value: email,
-            isValid: false,
-            error: allowDomains ? 'Invalid email or domain' : 'Invalid email format',
-          },
-        ])
-        return false
+        next.push({
+          value: email,
+          isValid: false,
+          error: allowDomains ? 'Invalid email or domain' : 'Invalid email format',
+        })
+        results.push(false)
+        continue
       }
 
       const reason = validate?.(email)
       if (reason) {
-        commitItems([...current, { value: email, isValid: false, error: reason }])
-        return false
+        next.push({ value: email, isValid: false, error: reason })
+        results.push(false)
+        continue
       }
 
-      const next = [...current, { value: email, isValid: true }]
-      commitItems(next)
+      next.push({ value: email, isValid: true })
+      results.push(true)
+      acceptedChanged = true
+    }
+
+    if (next.length !== current.length) commitItems(next)
+    if (acceptedChanged) {
       onChange(next.filter((item) => item.isValid).map((item) => item.value))
-      return true
-    },
-    [validate, onChange, commitItems, allowDomains]
-  )
+    }
+    return results
+  }
+
+  const handleAdd = (raw: string): boolean => addValues([raw])[0] ?? false
+
+  const handleAddMany = (rawValues: string[]) => {
+    addValues(rawValues)
+  }
 
   const handleRemove = React.useCallback(
     (_removed: string, index: number) => {
@@ -168,6 +185,7 @@ export function ChipEmailsInput({
       variant={variant}
       items={items}
       onAdd={handleAdd}
+      onAddMany={handleAddMany}
       onRemove={handleRemove}
       placeholder={placeholder}
       placeholderWithTags={placeholderWithTags ?? derivePlaceholderWithTags(placeholder)}

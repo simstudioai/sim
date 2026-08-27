@@ -28,6 +28,7 @@ import {
 } from '@sim/emcn'
 import { TerminalWindow } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
+import { formatPasteLimit, PASTE_LIMITS } from '@sim/utils/paste'
 import { FitAddon } from '@xterm/addon-fit'
 import { Unicode11Addon } from '@xterm/addon-unicode11'
 import { WebLinksAddon } from '@xterm/addon-web-links'
@@ -668,8 +669,15 @@ const TerminalView = memo(function TerminalView({
 
   const pasteClipboard = useCallback(() => {
     void (async () => {
-      if (await pasteIntoTerminal(terminalId, scopeId)) {
+      const result = await pasteIntoTerminal(terminalId, scopeId)
+      if (result === true) {
         terminalRef.current?.focus()
+        return
+      }
+      if (result === 'too-large') {
+        toast.warning('Paste is too large for the terminal', {
+          description: `Paste up to ${formatPasteLimit(PASTE_LIMITS.TERMINAL_BYTES)} at once, or send the content through a file.`,
+        })
         return
       }
       toast.error('Could not paste from the clipboard. Press ⌘V to paste.')
@@ -711,6 +719,7 @@ const TerminalView = memo(function TerminalView({
     <>
       <div
         ref={hostRef}
+        data-paste-max-bytes={PASTE_LIMITS.TERMINAL_BYTES}
         onPointerDown={() => terminalRef.current?.focus()}
         onContextMenu={openMenu}
         className={cn('absolute inset-0 pt-[7px] pr-2 pb-1 pl-1.5', !active && 'hidden')}

