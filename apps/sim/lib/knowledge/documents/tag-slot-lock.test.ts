@@ -60,7 +60,11 @@ vi.mock('@/lib/knowledge/documents/processing-outbox-event', () => ({
   enqueueKnowledgeDocumentProcessing: mockEnqueueKnowledgeDocumentProcessing,
 }))
 
-import { createSingleDocument, updateDocument } from '@/lib/knowledge/documents/service'
+import {
+  createDocumentRecords,
+  createSingleDocument,
+  updateDocument,
+} from '@/lib/knowledge/documents/service'
 
 const KNOWLEDGE_BASE_ID = 'kb-1'
 const NOW = new Date('2026-01-01T00:00:00.000Z')
@@ -146,6 +150,17 @@ describe('updateDocument tag-slot validation', () => {
     expect(dbChainMockFns.execute).not.toHaveBeenCalled()
     expect(orderForTable(dbChainMockFns.update, document)).toBeGreaterThan(0)
   })
+
+  it('treats a whitespace-only value as a write, because the writer stores it rather than clearing', async () => {
+    queueTableRows(knowledgeBaseTagDefinitions, [definition('tag1', 'category')])
+
+    await expect(
+      updateDocument('doc-1', { tag2: ' ' }, 'req-1', { knowledgeBaseId: KNOWLEDGE_BASE_ID })
+    ).rejects.toMatchObject({ code: 'validation' })
+
+    expect(dbChainMockFns.execute).toHaveBeenCalled()
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+  })
 })
 
 describe('createSingleDocument tag-slot validation', () => {
@@ -201,5 +216,78 @@ describe('createSingleDocument tag-slot validation', () => {
     ).rejects.toMatchObject({ code: 'validation' })
 
     expect(orderForTable(dbChainMockFns.insert, document)).toBe(-1)
+  })
+
+  it('refuses a slot carried alongside a tags payload that is not a JSON array', async () => {
+    queueTableRows(knowledgeBaseTagDefinitions, [definition('tag1', 'category')])
+
+    await expect(
+      createSingleDocument(
+        { ...documentData, tag2: 'purple', documentTagsData: '{"tagName":"colour"}' },
+        KNOWLEDGE_BASE_ID,
+        'req-1'
+      )
+    ).rejects.toMatchObject({ code: 'validation' })
+
+    expect(orderForTable(dbChainMockFns.insert, document)).toBe(-1)
+  })
+
+  it('refuses a slot carried alongside a tags payload that is not valid JSON', async () => {
+    queueTableRows(knowledgeBaseTagDefinitions, [definition('tag1', 'category')])
+
+    await expect(
+      createSingleDocument(
+        { ...documentData, tag2: 'purple', documentTagsData: 'not json at all' },
+        KNOWLEDGE_BASE_ID,
+        'req-1'
+      )
+    ).rejects.toMatchObject({ code: 'validation' })
+
+    expect(orderForTable(dbChainMockFns.insert, document)).toBe(-1)
+  })
+
+  it('refuses a whitespace-only slot value, which the insert would store rather than clear', async () => {
+    queueTableRows(knowledgeBaseTagDefinitions, [definition('tag1', 'category')])
+
+    await expect(
+      createSingleDocument({ ...documentData, tag2: ' ' }, KNOWLEDGE_BASE_ID, 'req-1')
+    ).rejects.toMatchObject({ code: 'validation' })
+
+    expect(orderForTable(dbChainMockFns.insert, document)).toBe(-1)
+  })
+
+  describe('createDocumentRecords', () => {
+    it('checks the batch inside the insert transaction, under the knowledge-base row lock', async () => {
+      queueTableRows(knowledgeBaseTagDefinitions, [definition('tag1', 'category')])
+
+      await createDocumentRecords(
+        [{ ...documentData, tag1: 'priority' }],
+        KNOWLEDGE_BASE_ID,
+        'req-1'
+      )
+
+      const transactionOrder = dbChainMockFns.transaction.mock.invocationCallOrder[0]
+      const lockOrder = dbChainMockFns.execute.mock.invocationCallOrder[0] ?? -1
+      const definitionReadOrder = orderForTable(dbChainMockFns.from, knowledgeBaseTagDefinitions)
+      const documentInsertOrder = orderForTable(dbChainMockFns.insert, document)
+
+      expect(lockOrder).toBeGreaterThan(transactionOrder)
+      expect(definitionReadOrder).toBeGreaterThan(lockOrder)
+      expect(documentInsertOrder).toBeGreaterThan(definitionReadOrder)
+    })
+
+    it('refuses a batch whose slot no definition covers, and inserts nothing', async () => {
+      queueTableRows(knowledgeBaseTagDefinitions, [definition('tag1', 'category')])
+
+      await expect(
+        createDocumentRecords(
+          [{ ...documentData }, { ...documentData, tag2: 'purple' }],
+          KNOWLEDGE_BASE_ID,
+          'req-1'
+        )
+      ).rejects.toMatchObject({ code: 'validation' })
+
+      expect(orderForTable(dbChainMockFns.insert, document)).toBe(-1)
+    })
   })
 })

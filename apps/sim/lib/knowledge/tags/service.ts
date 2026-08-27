@@ -205,11 +205,17 @@ export async function getNextAvailableSlot(
  * Get all tag definitions for a knowledge base
  */
 /**
- * The slots a write would put a nonempty value into.
+ * The slots a write would leave a value in.
  *
- * Clearing is not a write for this purpose: an empty value removes whatever a
- * slot holds, so it can never leave a value stranded behind a missing
- * definition.
+ * Only the exact empty value counts as clearing, because that is exactly what
+ * the writers treat as clearing: they map `''`, `null` and `undefined` to a
+ * null column and persist everything else as given. A value that merely looks
+ * empty is still stored — a whitespace-only text value is preserved verbatim, a
+ * whitespace-only number parses to `0`, and a whitespace-only boolean falls
+ * back to `false` — so classifying it as a clear would skip both the knowledge
+ * base's row lock and the definition check while still landing a value in a
+ * slot no definition covers. Matching the writers' own condition rather than a
+ * looser one is what keeps the two from drifting apart again.
  */
 function collectWrittenTagSlots(slotValues: Record<string, unknown>): string[] {
   return Object.entries(slotValues)
@@ -218,7 +224,7 @@ function collectWrittenTagSlots(slotValues: Record<string, unknown>): string[] {
         (VALID_TAG_SLOTS as readonly string[]).includes(slot) &&
         value !== undefined &&
         value !== null &&
-        String(value).trim().length > 0
+        String(value) !== ''
     )
     .map(([slot]) => slot)
 }
@@ -227,7 +233,7 @@ function collectWrittenTagSlots(slotValues: Record<string, unknown>): string[] {
  * Whether a write touches a tag slot at all.
  *
  * A writer uses this to decide whether it needs the knowledge base's row lock:
- * only a write that lands a nonempty slot value can race tag deletion, so a
+ * only a write that lands a slot value can race tag deletion, so a
  * write that touches no slot must not take — or wait on — that lock.
  */
 export function writesTagSlots(slotValues: Record<string, unknown>): boolean {

@@ -6,7 +6,7 @@ import { knowledgeBaseTagDefinitions } from '@sim/db/schema'
 import { queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { assertTagSlotsAreDefined } from '@/lib/knowledge/tags/service'
+import { assertTagSlotsAreDefined, writesTagSlots } from '@/lib/knowledge/tags/service'
 
 const KNOWLEDGE_BASE_ID = 'kb-1'
 const NOW = new Date('2026-01-01T00:00:00.000Z')
@@ -66,5 +66,27 @@ describe('assertTagSlotsAreDefined', () => {
     await expect(
       assertTagSlotsAreDefined(KNOWLEDGE_BASE_ID, { filename: 'renamed.txt', enabled: true })
     ).resolves.toBeUndefined()
+  })
+
+  it('refuses a whitespace-only value, which every writer stores rather than clears', async () => {
+    queueTableRows(knowledgeBaseTagDefinitions, [definition('tag1', 'category')])
+
+    await expect(
+      assertTagSlotsAreDefined(KNOWLEDGE_BASE_ID, { tag2: ' ', number1: '  ', boolean1: '\t' })
+    ).rejects.toMatchObject({ code: 'validation' })
+  })
+})
+
+describe('writesTagSlots', () => {
+  it('counts only the exact empty value as clearing', () => {
+    expect(writesTagSlots({ tag1: '' })).toBe(false)
+    expect(writesTagSlots({ tag1: null, tag2: undefined })).toBe(false)
+    expect(writesTagSlots({ filename: 'renamed.txt' })).toBe(false)
+  })
+
+  it('counts a value that only looks empty as a write, since the writers preserve it', () => {
+    expect(writesTagSlots({ tag1: ' ' })).toBe(true)
+    expect(writesTagSlots({ number1: '  ' })).toBe(true)
+    expect(writesTagSlots({ boolean1: '\n' })).toBe(true)
   })
 })

@@ -2184,6 +2184,14 @@ export async function createDocumentRecords(
     const documentRecords = []
     const documentProvenances: (DurableSecretProvenance | undefined)[] = []
     const returnData: DocumentData[] = []
+    /**
+     * One representative value per slot the batch writes into, so the check
+     * below costs one definition read for the whole batch rather than one per
+     * document. Which document contributed a slot does not matter: the check
+     * asks only whether a definition covers the slot, and any document landing a
+     * value in an uncovered slot fails the batch.
+     */
+    const batchTagSlotValues: Record<string, unknown> = {}
 
     for (const [documentIndex, docData] of resolvedDocuments.entries()) {
       const documentId = generateId()
@@ -2240,6 +2248,11 @@ export async function createDocumentRecords(
         boolean2: processedTags.boolean2 ?? null,
         boolean3: processedTags.boolean3 ?? null,
       }
+      for (const [key, value] of Object.entries(baseDocument)) {
+        if (value !== null && value !== undefined && batchTagSlotValues[key] === undefined) {
+          batchTagSlotValues[key] = value
+        }
+      }
       const source = createKnowledgeDocumentSourceValue(baseDocument)
       const binding = storageKey
         ? (bindingByKey.get(storageKey) ?? sourceBindingByKey.get(storageKey))
@@ -2276,6 +2289,14 @@ export async function createDocumentRecords(
     }
 
     if (documentRecords.length > 0) {
+      /**
+       * The same check the single-document insert makes, against the same
+       * locked snapshot: this batch reaches the identical columns from the
+       * identical caller-supplied slot values, so leaving it out here left the
+       * whole bulk upload path as a way around the guard.
+       */
+      await assertTagSlotsAreDefined(knowledgeBaseId, batchTagSlotValues, tx)
+
       await tx.insert(document).values(documentRecords)
       for (const [documentIndex, record] of documentRecords.entries()) {
         const provenance = documentProvenances[documentIndex]
@@ -2676,14 +2697,6 @@ export async function createSingleDocument(
       }
     }
   }
-  /**
-   * Only the slot-keyed branch needs checking: `resolveDocumentTags` above
-   * already refuses a name it cannot resolve to a definition, so the name-keyed
-   * branch cannot reach an undefined slot. The check itself runs inside the
-   * transaction below, under the knowledge base's row lock, because tag
-   * deletion clears the slot and drops its definition under that same lock.
-   */
-  const validateTagSlots = !documentData.documentTagsData
 
   const newDocument = {
     id: documentId,
@@ -2708,9 +2721,18 @@ export async function createSingleDocument(
 
     await tx.execute(sql`SELECT 1 FROM knowledge_base WHERE id = ${knowledgeBaseId} FOR UPDATE`)
 
-    if (validateTagSlots) {
-      await assertTagSlotsAreDefined(knowledgeBaseId, processedTags, tx)
-    }
+    /**
+     * Checked against exactly the slot values about to be inserted, whatever
+     * produced them. Conditioning this on how the tags were supplied is what let
+     * two bypasses through: a `documentTagsData` payload that is truthy but not
+     * a JSON array leaves the caller's direct slot values in place while
+     * skipping the name-keyed resolution, and even a payload that does resolve
+     * was matched against definitions read before this transaction opened, so a
+     * tag deletion committing in between stranded the value the resolution had
+     * just approved. Both disappear once the check reads the same locked
+     * snapshot the insert writes into.
+     */
+    await assertTagSlotsAreDefined(knowledgeBaseId, processedTags, tx)
 
     const kb = await tx
       .select({
