@@ -6,6 +6,7 @@ import type {
   BrowserFindRequest,
   BrowserFindResult,
   BrowserOmniboxFocusMode,
+  BrowserPageIssue,
   BrowserTabState,
   BrowserTabsState,
   BrowserTheme,
@@ -86,6 +87,10 @@ export interface AgentTab {
   view: WebContentsView
   pinned: boolean
   pendingRestoreUrl?: string
+  pageIssue?: BrowserPageIssue
+  syntheticForward?: { url: string; baseHistoryIndex: number }
+  preserveSyntheticForwardOnNextLoad?: boolean
+  recoveringUnresponsive?: boolean
 }
 
 export interface BrowserSessionPersistence {
@@ -116,6 +121,8 @@ export interface AgentSessionEvents {
   onTabClosed: (contents: WebContents) => void
   /** The active tab changed (new tab, switch, close). */
   onActiveTabChanged: (contents: WebContents) => void
+  /** The active tab's recoverable page state changed without a navigation. */
+  onPageStateChanged: (contents: WebContents) => void
   /** The tab list or active tab changed. */
   onTabsChanged: () => void
   /** Sim's appearance preference changed for an existing tab. */
@@ -1005,6 +1012,123 @@ function focusRendererOmnibox(mode: BrowserOmniboxFocusMode): void {
   win.webContents.send('browser-agent:focus-omnibox', mode, getBrowserScopeId())
 }
 
+function tabForContents(contents: WebContents): AgentTab | null {
+  return tabs.find((tab) => tab.view.webContents === contents) ?? null
+}
+
+function publishPageIssue(tab: AgentTab, focusRecovery = false): void {
+  events?.onTabsChanged()
+  if (tab.id !== currentScope.activeTabId) return
+  if (focusRecovery && getBrowserScopeId() === getActiveBrowserScopeId() && isPanelVisible()) {
+    const win = panelWindow()
+    if (win && !win.isDestroyed()) win.webContents.focus()
+  }
+  events?.onPageStateChanged(tab.view.webContents)
+}
+
+/** Returns the recoverable problem currently replacing a tab's native page. */
+export function pageIssueForContents(contents: WebContents): BrowserPageIssue | undefined {
+  return tabForContents(contents)?.pageIssue
+}
+
+/** Records a failed main-frame navigation without losing the last committed page. */
+export function recordPageLoadFailure(
+  contents: WebContents,
+  issue: Extract<BrowserPageIssue, { kind: 'load-error' }>
+): void {
+  const tab = tabForContents(contents)
+  if (!tab) return
+  tab.pageIssue = issue
+  tab.syntheticForward = undefined
+  publishPageIssue(tab, true)
+}
+
+/** Clears transient recovery state when Chromium begins a new top-level load. */
+export function notePageLoadStarted(contents: WebContents): void {
+  const tab = tabForContents(contents)
+  if (!tab) return
+  const changed = Boolean(tab.pageIssue)
+  tab.pageIssue = undefined
+  if (tab.preserveSyntheticForwardOnNextLoad) {
+    tab.preserveSyntheticForwardOnNextLoad = false
+  } else {
+    tab.syntheticForward = undefined
+  }
+  if (changed) publishPageIssue(tab)
+}
+
+/** Includes Sim's failed-navigation entry in the browser's Back availability. */
+export function canGoBack(contents: WebContents): boolean {
+  return (
+    pageIssueForContents(contents)?.kind === 'load-error' || contents.navigationHistory.canGoBack()
+  )
+}
+
+/** Includes a dismissed failed navigation in the browser's Forward availability. */
+export function canGoForward(contents: WebContents): boolean {
+  return (
+    Boolean(tabForContents(contents)?.syntheticForward) || contents.navigationHistory.canGoForward()
+  )
+}
+
+/** Traverses backward while preserving a failed navigation as a forward entry. */
+export function goBack(contents: WebContents): boolean {
+  const tab = tabForContents(contents)
+  if (!tab) return false
+  if (tab.pageIssue?.kind === 'load-error') {
+    tab.syntheticForward = {
+      url: tab.pageIssue.url,
+      baseHistoryIndex: contents.navigationHistory.getActiveIndex(),
+    }
+    tab.pageIssue = undefined
+    publishPageIssue(tab)
+    return true
+  }
+  if (!contents.navigationHistory.canGoBack()) return false
+  tab.preserveSyntheticForwardOnNextLoad = Boolean(tab.syntheticForward)
+  contents.navigationHistory.goBack()
+  return true
+}
+
+/** Traverses forward through native history before retrying a failed navigation. */
+export function goForward(contents: WebContents): boolean {
+  const tab = tabForContents(contents)
+  if (!tab) return false
+  const syntheticForward = tab.syntheticForward
+  if (syntheticForward) {
+    if (
+      contents.navigationHistory.getActiveIndex() < syntheticForward.baseHistoryIndex &&
+      contents.navigationHistory.canGoForward()
+    ) {
+      tab.preserveSyntheticForwardOnNextLoad = true
+      contents.navigationHistory.goForward()
+      return true
+    }
+    tab.syntheticForward = undefined
+    void contents.loadURL(syntheticForward.url).catch(() => {})
+    return true
+  }
+  if (!contents.navigationHistory.canGoForward()) return false
+  contents.navigationHistory.goForward()
+  return true
+}
+
+/** Retries the appropriate recovery path for a failed, crashed, or hung page. */
+export function reloadPage(contents: WebContents): void {
+  const tab = tabForContents(contents)
+  const issue = tab?.pageIssue
+  if (issue?.kind === 'load-error') {
+    void contents.loadURL(issue.url).catch(() => {})
+    return
+  }
+  if (issue?.kind === 'unresponsive' && tab) {
+    tab.recoveringUnresponsive = true
+    contents.forcefullyCrashRenderer()
+    return
+  }
+  contents.reload()
+}
+
 /** Hands one page selection to the exact app window and chat hosting its tab. */
 function addPageSelectionToChat(contents: WebContents, text: string): void {
   if (!text.trim() || getBrowserScopeId() !== getActiveBrowserScopeId()) return
@@ -1245,17 +1369,47 @@ function createTabView(): WebContentsView {
   contents.on('will-prevent-unload', (event) => {
     event.preventDefault()
   })
-  // A crashed renderer would otherwise stay in `tabs` forever: `activeTab()`
-  // filters it out and returns null while `activeTabId` still names it, so
-  // `requireTab()` reports "no page is open" even with other tabs open, and
-  // the panel goes blank with no way back.
   contents.on(
     'render-process-gone',
     bindToBrowserScope(scopeId, (_event, details) => {
       const tab = tabs.find((entry) => entry.view === view)
       if (!tab) return
-      logger.warn('Browser tab renderer exited; dropping the tab', { reason: details.reason })
-      forgetTab(tab)
+      if (tab.recoveringUnresponsive) {
+        tab.recoveringUnresponsive = false
+        contents.reload()
+        return
+      }
+      dismissFind(tab.id)
+      tab.pageIssue = {
+        kind: 'crashed',
+        reason: details.reason,
+        url: tab.pendingRestoreUrl || contents.getURL(),
+      }
+      tab.syntheticForward = undefined
+      logger.warn('Browser tab renderer exited', { reason: details.reason })
+      publishPageIssue(tab, true)
+    })
+  )
+  contents.on(
+    'unresponsive',
+    bindToBrowserScope(scopeId, () => {
+      const tab = tabs.find((entry) => entry.view === view)
+      if (!tab || tab.pageIssue?.kind === 'crashed') return
+      dismissFind(tab.id)
+      tab.pageIssue = {
+        kind: 'unresponsive',
+        url: tab.pendingRestoreUrl || contents.getURL(),
+      }
+      publishPageIssue(tab, true)
+    })
+  )
+  contents.on(
+    'responsive',
+    bindToBrowserScope(scopeId, () => {
+      const tab = tabs.find((entry) => entry.view === view)
+      if (!tab || tab.pageIssue?.kind !== 'unresponsive') return
+      tab.pageIssue = undefined
+      publishPageIssue(tab)
     })
   )
   contents.on(
@@ -1795,49 +1949,6 @@ export function reorderTab(tabId: string, targetIndex: number): AgentTab {
   return tab
 }
 
-/**
- * Drops a tab whose renderer is already gone. Unlike {@link closeTab} this
- * takes no view down (there is nothing left to close), applies to pinned tabs
- * too — a crashed pinned tab is no more usable than any other — and does not
- * offer the page for Reopen Closed Tab, since the user did not close it.
- */
-function forgetTab(tab: AgentTab): void {
-  const index = tabs.indexOf(tab)
-  if (index < 0) return
-  // Before the splice, while the tab is still resolvable: a find left running
-  // on a tab that is going away keeps `findingTabId` naming a dead tab and
-  // leaves the bar open counting matches on a page nobody can see.
-  dismissFind(tab.id)
-  clearAutomationIndicatorsForTab(tab.id)
-  tabs.splice(index, 1)
-  const transferBrowserFocus = currentScope.focusedBrowserTabId === tab.id
-  clearFocusedBrowserTab(tab.id)
-  detachIfAttached(tab.view)
-  if (currentScope.activeTabId === tab.id) {
-    currentScope.activeTabId = (tabs[index] ?? tabs[index - 1])?.id ?? null
-    layout()
-    const active = activeTab()
-    if (active) {
-      events?.onActiveTabChanged(active.view.webContents)
-    }
-  }
-  if (currentScope.automationTabId === tab.id) {
-    currentScope.automationTabId = (tabs[index] ?? tabs[index - 1])?.id ?? null
-    applyActiveTabThrottling()
-  }
-  if (!hasSession() && getBrowserScopeId() === getActiveBrowserScopeId() && isPanelVisible()) {
-    addTab()
-    if (transferBrowserFocus) currentScope.focusedBrowserTabId = currentScope.activeTabId
-    return
-  }
-  if (transferBrowserFocus) currentScope.focusedBrowserTabId = currentScope.activeTabId
-  persistBrowserSession()
-  events?.onTabsChanged()
-  if (!hasSession()) {
-    events?.onSessionClosed()
-  }
-}
-
 export function closeTab(tabId: string): void {
   restoreBrowserSession()
   const index = tabs.findIndex((entry) => entry.id === tabId)
@@ -1845,7 +1956,7 @@ export function closeTab(tabId: string): void {
   if (tabs[index].pinned) {
     throw new SessionError('Pinned tabs cannot be closed. Unpin the tab first.')
   }
-  // Before the splice, while the tab is still resolvable — see forgetTab.
+  // Before the splice, while the tab is still resolvable, stop page-owned UI.
   dismissFind(tabId)
   clearAutomationIndicatorsForTab(tabId)
   const [tab] = tabs.splice(index, 1)
@@ -2212,14 +2323,18 @@ export async function clearAgentData(kinds: readonly BrowserDataKind[]): Promise
 export function listTabs(): BrowserTabState[] {
   return tabs
     .filter((tab) => !tab.view.webContents.isDestroyed())
-    .map((tab) => ({
-      tabId: tab.id,
-      title: tab.view.webContents.getTitle(),
-      url: tab.pendingRestoreUrl || tab.view.webContents.getURL(),
-      loading: tab.view.webContents.isLoadingMainFrame(),
-      active: tab.id === currentScope.activeTabId,
-      pinned: tab.pinned,
-    }))
+    .map((tab) => {
+      const issue = tab.pageIssue
+      return {
+        tabId: tab.id,
+        title: issue?.kind === 'load-error' ? '' : tab.view.webContents.getTitle(),
+        url: issue?.url || tab.pendingRestoreUrl || tab.view.webContents.getURL(),
+        loading: issue ? false : tab.view.webContents.isLoadingMainFrame(),
+        active: tab.id === currentScope.activeTabId,
+        pinned: tab.pinned,
+        ...(issue ? { issue } : {}),
+      }
+    })
 }
 
 export function getTabsState(): BrowserTabsState {

@@ -412,6 +412,51 @@ describe('executeTool', () => {
     )
   })
 
+  it('publishes main-frame load failures and retries their uncommitted URL', async () => {
+    const onPageState = vi.fn()
+    const win = new BrowserWindow()
+    driver.initDriver(
+      {
+        onPageState,
+        onTabsState: vi.fn(),
+        onSessionStatus: vi.fn(),
+        onFillAvailability: vi.fn(),
+      },
+      () => win
+    )
+    driver.activateBrowserScope('chat-test')
+    await driver.executeTool('chat-test', 'browser_open_tab', {})
+    const contents = session.requireTab().view.webContents
+    const eventHandlers = (contents.on as unknown as ReturnType<typeof vi.fn>).mock.calls
+    const failLoad = eventHandlers.find(([eventName]) => eventName === 'did-fail-load')?.[1] as
+      | ((...args: unknown[]) => void)
+      | undefined
+    const failedUrl = 'http://localhost:3004/login'
+
+    onPageState.mockClear()
+    failLoad?.({}, -102, 'ERR_CONNECTION_REFUSED', failedUrl, false)
+    failLoad?.({}, -3, 'ERR_ABORTED', failedUrl, true)
+    expect(onPageState).not.toHaveBeenCalled()
+
+    failLoad?.({}, -102, 'ERR_CONNECTION_REFUSED', failedUrl, true)
+
+    expect(onPageState).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        url: failedUrl,
+        issue: {
+          kind: 'load-error',
+          code: -102,
+          description: 'ERR_CONNECTION_REFUSED',
+          url: failedUrl,
+        },
+      })
+    )
+
+    vi.mocked(contents.loadURL).mockClear()
+    await driver.handlePanelAction('chat-test', { action: 'reload' })
+    expect(contents.loadURL).toHaveBeenCalledWith(failedUrl)
+  })
+
   it('forces fill availability to replay on scope activation and tab switches', async () => {
     const refreshAvailability = vi
       .spyOn(fillCoordinator()!, 'refreshAvailability')

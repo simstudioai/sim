@@ -1,7 +1,7 @@
 import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { MenuItemConstructorOptions } from 'electron'
+import type { MenuItemConstructorOptions, WebContents } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => import('@/test/electron-mock'))
@@ -25,6 +25,7 @@ interface MockView {
     setWindowOpenHandler: ReturnType<typeof vi.fn>
     loadURL: ReturnType<typeof vi.fn>
     reload: ReturnType<typeof vi.fn>
+    forcefullyCrashRenderer: ReturnType<typeof vi.fn>
     getURL: ReturnType<typeof vi.fn>
     getTitle: ReturnType<typeof vi.fn>
     close: ReturnType<typeof vi.fn>
@@ -40,6 +41,13 @@ interface MockView {
     capturePage: ReturnType<typeof vi.fn>
     findInPage: ReturnType<typeof vi.fn>
     stopFindInPage: ReturnType<typeof vi.fn>
+    navigationHistory: {
+      canGoBack: ReturnType<typeof vi.fn>
+      canGoForward: ReturnType<typeof vi.fn>
+      getActiveIndex: ReturnType<typeof vi.fn>
+      goBack: ReturnType<typeof vi.fn>
+      goForward: ReturnType<typeof vi.fn>
+    }
   }
   setBackgroundColor: ReturnType<typeof vi.fn>
   setBounds: ReturnType<typeof vi.fn>
@@ -77,6 +85,7 @@ function freshSession(
       onSessionClosed: vi.fn(),
       onTabCreated: vi.fn(),
       onActiveTabChanged: vi.fn(),
+      onPageStateChanged: vi.fn(),
       onTabsChanged: vi.fn(),
       onTabThemeChanged: vi.fn(),
       onTabNavigated: vi.fn(),
@@ -244,7 +253,12 @@ describe('browser-agent session', () => {
     )?.[1] as ((event: unknown, details: { reason: string }) => void) | undefined
     renderGone?.({}, { reason: 'crashed' })
 
-    expect(session.withBrowserScope('chat-a', () => session.listTabs())).toEqual([])
+    expect(session.withBrowserScope('chat-a', () => session.listTabs())).toEqual([
+      expect.objectContaining({
+        tabId: first.id,
+        issue: expect.objectContaining({ kind: 'crashed', reason: 'crashed' }),
+      }),
+    ])
     expect(session.withBrowserScope('chat-b', () => session.listTabs())).toHaveLength(1)
   })
 
@@ -850,6 +864,126 @@ describe('browser-agent session', () => {
     gone?.({}, { reason: 'crashed' })
 
     expect(win.webContents.send).toHaveBeenCalledWith('browser-agent:close-find', 'chat-test')
+  })
+
+  it('treats a failed navigation as a synthetic Back and Forward history entry', async () => {
+    const mockContents = (session.ensureTab().view as unknown as MockView).webContents
+    const contents = mockContents as unknown as WebContents
+    mockContents.getURL.mockReturnValue('https://example.com/committed')
+    mockContents.navigationHistory.getActiveIndex.mockReturnValue(3)
+    session.recordPageLoadFailure(contents, {
+      kind: 'load-error',
+      code: -102,
+      description: 'ERR_CONNECTION_REFUSED',
+      url: 'https://example.com/failed',
+    })
+
+    expect(session.canGoBack(contents)).toBe(true)
+    expect(session.listTabs()[0]).toMatchObject({
+      url: 'https://example.com/failed',
+      issue: { kind: 'load-error' },
+    })
+
+    expect(session.goBack(contents)).toBe(true)
+    expect(session.listTabs()[0]).toMatchObject({ url: 'https://example.com/committed' })
+    expect(session.listTabs()[0]).not.toHaveProperty('issue')
+    expect(session.canGoForward(contents)).toBe(true)
+
+    mockContents.navigationHistory.getActiveIndex.mockReturnValue(2)
+    mockContents.navigationHistory.canGoForward.mockReturnValue(true)
+    expect(session.goForward(contents)).toBe(true)
+    expect(mockContents.navigationHistory.goForward).toHaveBeenCalledTimes(1)
+    session.notePageLoadStarted(contents)
+
+    mockContents.navigationHistory.getActiveIndex.mockReturnValue(3)
+    expect(session.goForward(contents)).toBe(true)
+    expect(mockContents.loadURL).toHaveBeenCalledWith('https://example.com/failed')
+  })
+
+  it('discards a dismissed failed navigation when a fresh navigation starts', () => {
+    const mockContents = (session.ensureTab().view as unknown as MockView).webContents
+    const contents = mockContents as unknown as WebContents
+    session.recordPageLoadFailure(contents, {
+      kind: 'load-error',
+      code: -105,
+      description: 'ERR_NAME_NOT_RESOLVED',
+      url: 'https://missing.invalid',
+    })
+    session.goBack(contents)
+
+    session.notePageLoadStarted(contents)
+
+    expect(session.canGoForward(contents)).toBe(false)
+  })
+
+  it('keeps recovery state scoped to its tab while the user switches tabs', () => {
+    const first = session.ensureTab()
+    const second = session.addTab()
+    const firstContents = (first.view as unknown as MockView).webContents as unknown as WebContents
+    session.recordPageLoadFailure(firstContents, {
+      kind: 'load-error',
+      code: -105,
+      description: 'ERR_NAME_NOT_RESOLVED',
+      url: 'https://missing.invalid',
+    })
+
+    session.switchTab(second.id)
+    expect(session.listTabs().find((tab) => tab.tabId === first.id)?.issue).toMatchObject({
+      kind: 'load-error',
+    })
+    expect(session.listTabs().find((tab) => tab.tabId === second.id)).not.toHaveProperty('issue')
+
+    session.switchTab(first.id)
+    expect(session.requireTab().id).toBe(first.id)
+    expect(session.pageIssueForContents(firstContents)).toMatchObject({ kind: 'load-error' })
+  })
+
+  it('hands focus to an accessible recovery page for active-tab failures', () => {
+    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
+    const onPageStateChanged = vi.fn()
+    session = freshSession(win, { onPageStateChanged })
+    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
+    const mockContents = (session.ensureTab().view as unknown as MockView).webContents
+    const contents = mockContents as unknown as WebContents
+
+    session.recordPageLoadFailure(contents, {
+      kind: 'load-error',
+      code: -7,
+      description: 'ERR_TIMED_OUT',
+      url: 'https://slow.example.com',
+    })
+
+    expect(win.webContents.focus).toHaveBeenCalled()
+    expect(onPageStateChanged).toHaveBeenCalledWith(contents)
+  })
+
+  it('recovers unresponsive tabs and clears the issue when Chromium responds again', () => {
+    const mockContents = (session.ensureTab().view as unknown as MockView).webContents
+    const contents = mockContents as unknown as WebContents
+    mockContents.getURL.mockReturnValue('https://example.com')
+    const unresponsive = mockContents.on.mock.calls.find(
+      ([eventName]) => eventName === 'unresponsive'
+    )?.[1] as (() => void) | undefined
+    const responsive = mockContents.on.mock.calls.find(
+      ([eventName]) => eventName === 'responsive'
+    )?.[1] as (() => void) | undefined
+    const gone = mockContents.on.mock.calls.find(
+      ([eventName]) => eventName === 'render-process-gone'
+    )?.[1] as ((event: unknown, details: { reason: string }) => void) | undefined
+
+    unresponsive?.()
+    expect(session.pageIssueForContents(contents)).toEqual({
+      kind: 'unresponsive',
+      url: 'https://example.com',
+    })
+    responsive?.()
+    expect(session.pageIssueForContents(contents)).toBeUndefined()
+
+    unresponsive?.()
+    session.reloadPage(contents)
+    expect(mockContents.forcefullyCrashRenderer).toHaveBeenCalled()
+    gone?.({}, { reason: 'killed' })
+    expect(mockContents.reload).toHaveBeenCalled()
   })
 
   it('drops the find when the user switches to another tab', () => {
@@ -1888,7 +2022,7 @@ describe('browser-agent session', () => {
     )
   })
 
-  it('drops a tab whose renderer crashed instead of wedging the session', () => {
+  it('keeps a crashed tab recoverable without disturbing sibling tabs', () => {
     const first = session.ensureTab()
     const second = session.addTab()
     const crashed = (second.view as unknown as MockView).webContents
@@ -1898,14 +2032,17 @@ describe('browser-agent session', () => {
 
     onGone({}, { reason: 'crashed' })
 
-    // Left in place, activeTab() filters the dead view out while activeTabId
-    // still names it, so requireTab() reports "no page is open" even though
-    // another tab is right there.
-    expect(session.listTabs().map((tab) => tab.tabId)).toEqual([first.id])
-    expect(session.requireTab().id).toBe(first.id)
+    expect(session.listTabs()).toEqual([
+      expect.objectContaining({ tabId: first.id }),
+      expect.objectContaining({
+        tabId: second.id,
+        issue: expect.objectContaining({ kind: 'crashed', reason: 'crashed' }),
+      }),
+    ])
+    expect(session.requireTab().id).toBe(second.id)
   })
 
-  it('reports the session closed when the only tab crashes', async () => {
+  it('keeps the only crashed tab open for recovery', async () => {
     const onSessionClosed = vi.fn()
     session = freshSession(win, { onSessionClosed })
     const contents = (session.ensureTab().view as unknown as MockView).webContents
@@ -1915,8 +2052,12 @@ describe('browser-agent session', () => {
 
     onGone({}, { reason: 'oom' })
 
-    expect(session.listTabs()).toHaveLength(0)
-    expect(onSessionClosed).toHaveBeenCalled()
+    expect(session.listTabs()).toEqual([
+      expect.objectContaining({
+        issue: expect.objectContaining({ kind: 'crashed', reason: 'oom' }),
+      }),
+    ])
+    expect(onSessionClosed).not.toHaveBeenCalled()
   })
 
   it('hides the panel when the renderer stops renewing its bounds lease', async () => {

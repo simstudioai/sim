@@ -264,14 +264,16 @@ function recordNotice(notice: string): void {
  * navigations and tab switches.
  */
 function pageStateFor(contents: WebContents, tabId: string): BrowserPageState {
+  const issue = session.pageIssueForContents(contents)
   return {
     scopeId: session.getBrowserScopeId(),
     tabId,
-    url: contents.getURL(),
-    title: contents.getTitle(),
-    loading: contents.isLoadingMainFrame(),
-    canGoBack: contents.navigationHistory.canGoBack(),
-    canGoForward: contents.navigationHistory.canGoForward(),
+    url: issue?.url ?? contents.getURL(),
+    title: issue?.kind === 'load-error' ? '' : contents.getTitle(),
+    loading: issue ? false : contents.isLoadingMainFrame(),
+    canGoBack: session.canGoBack(contents),
+    canGoForward: session.canGoForward(contents),
+    ...(issue ? { issue } : {}),
   }
 }
 
@@ -347,6 +349,18 @@ function instrumentTab(contents: WebContents): void {
     })
   )
   contents.on(
+    'did-fail-load',
+    inScope((_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+      if (!isMainFrame || errorCode === 0 || errorCode === -3) return
+      session.recordPageLoadFailure(contents, {
+        kind: 'load-error',
+        code: errorCode,
+        description: errorDescription,
+        url: validatedURL || contents.getURL(),
+      })
+    })
+  )
+  contents.on(
     'did-frame-navigate',
     inScope(
       (_event, _url, _httpResponseCode, _httpStatusText, _isMainFrame, processId, routingId) => {
@@ -364,7 +378,6 @@ function instrumentTab(contents: WebContents): void {
   for (const event of [
     'did-navigate-in-page',
     'page-title-updated',
-    'did-start-loading',
     'did-finish-load',
     'did-stop-loading',
   ] as const) {
@@ -376,6 +389,14 @@ function instrumentTab(contents: WebContents): void {
       })
     )
   }
+  contents.on(
+    'did-start-loading',
+    inScope(() => {
+      session.notePageLoadStarted(contents)
+      pushPageState(contents)
+      pushTabsState()
+    })
+  )
   driverCallbacks?.onSessionStatus(true, scopeId)
 }
 
@@ -435,6 +456,7 @@ export function initDriver(
         // The fill affordance belongs to whichever page is in front.
         void fillCoordinator()?.refreshAvailability(true)
       },
+      onPageStateChanged: pushPageState,
       onTabsChanged: pushTabsState,
       onTabThemeChanged: (contents, theme) => {
         void cdp.setColorScheme(contents, theme).catch((error) => {
@@ -3814,13 +3836,13 @@ export async function handlePanelAction(
     const contents = tab.view.webContents
     switch (action.action) {
       case 'reload':
-        contents.reload()
+        session.reloadPage(contents)
         return
       case 'back':
-        if (contents.navigationHistory.canGoBack()) contents.navigationHistory.goBack()
+        session.goBack(contents)
         return
       case 'forward':
-        if (contents.navigationHistory.canGoForward()) contents.navigationHistory.goForward()
+        session.goForward(contents)
         return
       case 'print':
         contents.print({ printBackground: true })

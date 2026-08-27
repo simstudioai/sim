@@ -6,6 +6,7 @@ import {
   browserPanelSnapshotStyle,
   browserSelectionContext,
   clearOmniboxSelection,
+  exceededOmniboxDragThreshold,
   hasConfirmedBrowserTabCreation,
   initialUrlSuggestionIndex,
   resolveUrlBarInput,
@@ -153,6 +154,13 @@ describe('clearOmniboxSelection', () => {
 
     expect(input.selectionStart).toBe(input.value.length)
     expect(input.selectionEnd).toBe(input.value.length)
+  })
+})
+
+describe('exceededOmniboxDragThreshold', () => {
+  it('preserves select-all through pointer jitter but cancels it for a drag', () => {
+    expect(exceededOmniboxDragThreshold(100, 100, 103, 102)).toBe(false)
+    expect(exceededOmniboxDragThreshold(100, 100, 105, 100)).toBe(true)
   })
 })
 
