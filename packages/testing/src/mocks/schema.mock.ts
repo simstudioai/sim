@@ -1,3 +1,5 @@
+import { omit } from '@sim/utils/object'
+
 /**
  * Comprehensive mock for `@sim/db/schema`.
  *
@@ -74,6 +76,7 @@ const userStatsMock = {
   lastPeriodCost: 'userStats.lastPeriodCost',
   billedOverageThisPeriod: 'userStats.billedOverageThisPeriod',
   proPeriodCostSnapshot: 'userStats.proPeriodCostSnapshot',
+  proPeriodCostSnapshotAt: 'userStats.proPeriodCostSnapshotAt',
   creditBalance: 'userStats.creditBalance',
   totalCopilotCost: 'userStats.totalCopilotCost',
   currentPeriodCopilotCost: 'userStats.currentPeriodCopilotCost',
@@ -277,7 +280,7 @@ export const schemaMock = {
     updatedAt: 'secretUsage.updatedAt',
   },
   workflowExecutionLogs: workflowExecutionLogsMock,
-  workflowExecutionLogColumns: workflowExecutionLogsMock,
+  workflowExecutionLogColumns: omit(workflowExecutionLogsMock, ['cost']),
   executionLargeValues: {
     key: 'executionLargeValues.key',
     workspaceId: 'executionLargeValues.workspaceId',
@@ -504,7 +507,27 @@ export const schemaMock = {
   },
   billingBlockedReasonEnum: 'billingBlockedReasonEnum',
   userStats: userStatsMock,
-  userStatsColumns: userStatsMock,
+  userStatsColumns: omit(userStatsMock, [
+    'totalManualExecutions',
+    'totalApiCalls',
+    'totalWebhookTriggers',
+    'totalScheduledExecutions',
+    'totalChatExecutions',
+    'totalMcpExecutions',
+    'totalTokensUsed',
+    'totalCost',
+    'currentPeriodCost',
+    'proPeriodCostSnapshot',
+    'proPeriodCostSnapshotAt',
+    'totalCopilotCost',
+    'currentPeriodCopilotCost',
+    'totalCopilotTokens',
+    'totalCopilotCalls',
+    'totalMcpCopilotCalls',
+    'totalMcpCopilotCost',
+    'currentPeriodMcpCopilotCost',
+    'lastActive',
+  ]),
   customBlock: {
     id: 'customBlock.id',
     organizationId: 'customBlock.organizationId',
@@ -591,7 +614,7 @@ export const schemaMock = {
     updatedAt: 'chat.updatedAt',
   },
   organization: organizationMock,
-  organizationColumns: organizationMock,
+  organizationColumns: omit(organizationMock, ['departedMemberUsage']),
   member: {
     id: 'member.id',
     userId: 'member.userId',
