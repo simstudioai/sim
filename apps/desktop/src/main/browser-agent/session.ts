@@ -89,7 +89,7 @@ export interface AgentTab {
   pendingRestoreUrl?: string
   pageIssue?: BrowserPageIssue
   syntheticForward?: { url: string; baseHistoryIndex: number }
-  preserveSyntheticForwardOnNextLoad?: boolean
+  preserveSyntheticForwardOnNextNavigation?: boolean
   recoveringUnresponsive?: boolean
 }
 
@@ -1043,18 +1043,23 @@ export function recordPageLoadFailure(
   publishPageIssue(tab, true)
 }
 
-/** Clears transient recovery state when Chromium begins a new top-level load. */
+/** Clears transient recovery state when Chromium begins loading a new document. */
 export function notePageLoadStarted(contents: WebContents): void {
   const tab = tabForContents(contents)
   if (!tab) return
   const changed = Boolean(tab.pageIssue)
   tab.pageIssue = undefined
-  if (tab.preserveSyntheticForwardOnNextLoad) {
-    tab.preserveSyntheticForwardOnNextLoad = false
+  if (changed) publishPageIssue(tab)
+}
+
+function notePageNavigationStarted(contents: WebContents): void {
+  const tab = tabForContents(contents)
+  if (!tab) return
+  if (tab.preserveSyntheticForwardOnNextNavigation) {
+    tab.preserveSyntheticForwardOnNextNavigation = false
   } else {
     tab.syntheticForward = undefined
   }
-  if (changed) publishPageIssue(tab)
 }
 
 /** Includes Sim's failed-navigation entry in the browser's Back availability. */
@@ -1085,7 +1090,7 @@ export function goBack(contents: WebContents): boolean {
     return true
   }
   if (!contents.navigationHistory.canGoBack()) return false
-  tab.preserveSyntheticForwardOnNextLoad = Boolean(tab.syntheticForward)
+  tab.preserveSyntheticForwardOnNextNavigation = Boolean(tab.syntheticForward)
   contents.navigationHistory.goBack()
   return true
 }
@@ -1100,7 +1105,7 @@ export function goForward(contents: WebContents): boolean {
       contents.navigationHistory.getActiveIndex() < syntheticForward.baseHistoryIndex &&
       contents.navigationHistory.canGoForward()
     ) {
-      tab.preserveSyntheticForwardOnNextLoad = true
+      tab.preserveSyntheticForwardOnNextNavigation = true
       contents.navigationHistory.goForward()
       return true
     }
@@ -1498,6 +1503,7 @@ function createTabView(): WebContentsView {
     'did-start-navigation',
     bindToBrowserScope(scopeId, (details) => {
       if (!details.isMainFrame) return
+      notePageNavigationStarted(contents)
       events?.onTabNavigated(contents, false)
     })
   )

@@ -134,6 +134,17 @@ function hostResizeHandler(win: BrowserWindow): () => void {
   return handler as () => void
 }
 
+function mainFrameNavigationStarted(
+  contents: MockView['webContents'],
+  isSameDocument = false
+): void {
+  const handler = contents.on.mock.calls
+    .filter(([eventName]) => eventName === 'did-start-navigation')
+    .at(-1)?.[1]
+  if (typeof handler !== 'function') throw new Error('no navigation-start listener bound')
+  handler({ isMainFrame: true, isSameDocument })
+}
+
 describe('browser-agent session', () => {
   let win: BrowserWindow
   let session: SessionModule
@@ -893,7 +904,7 @@ describe('browser-agent session', () => {
     mockContents.navigationHistory.canGoForward.mockReturnValue(true)
     expect(session.goForward(contents)).toBe(true)
     expect(mockContents.navigationHistory.goForward).toHaveBeenCalledTimes(1)
-    session.notePageLoadStarted(contents)
+    mainFrameNavigationStarted(mockContents)
 
     mockContents.navigationHistory.getActiveIndex.mockReturnValue(3)
     expect(session.goForward(contents)).toBe(true)
@@ -911,7 +922,31 @@ describe('browser-agent session', () => {
     })
     session.goBack(contents)
 
-    session.notePageLoadStarted(contents)
+    mainFrameNavigationStarted(mockContents)
+
+    expect(session.canGoForward(contents)).toBe(false)
+  })
+
+  it('discards synthetic Forward after same-document traversal and a fresh navigation', () => {
+    const mockContents = (session.ensureTab().view as unknown as MockView).webContents
+    const contents = mockContents as unknown as WebContents
+    mockContents.navigationHistory.getActiveIndex.mockReturnValue(3)
+    session.recordPageLoadFailure(contents, {
+      kind: 'load-error',
+      code: -102,
+      description: 'ERR_CONNECTION_REFUSED',
+      url: 'https://example.com/failed',
+    })
+
+    session.goBack(contents)
+    mockContents.navigationHistory.canGoBack.mockReturnValue(true)
+    expect(session.goBack(contents)).toBe(true)
+
+    mainFrameNavigationStarted(mockContents, true)
+
+    expect(session.canGoForward(contents)).toBe(true)
+
+    mainFrameNavigationStarted(mockContents)
 
     expect(session.canGoForward(contents)).toBe(false)
   })
