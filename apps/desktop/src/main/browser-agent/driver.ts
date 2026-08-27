@@ -1985,19 +1985,20 @@ async function executeToolInner(
     case 'browser_go_forward': {
       invalidateSnapshot()
       const contents = session.requireAutomationTab().view.webContents
-      const history = contents.navigationHistory
       assertCurrentExecution()
       let completion: Promise<void>
       if (tool === 'browser_go_back') {
-        if (!history.canGoBack()) throw new ToolError('Cannot go back — no earlier history entry.')
+        if (!session.canGoBack(contents)) {
+          throw new ToolError('Cannot go back — no earlier history entry.')
+        }
         completion = waitForLoadComplete(contents, NAVIGATION_TIMEOUT_MS)
-        history.goBack()
+        session.goBack(contents)
       } else {
-        if (!history.canGoForward()) {
+        if (!session.canGoForward(contents)) {
           throw new ToolError('Cannot go forward — no later history entry.')
         }
         completion = waitForLoadComplete(contents, NAVIGATION_TIMEOUT_MS)
-        history.goForward()
+        session.goForward(contents)
       }
       return await navigationResult(contents, completion)
     }

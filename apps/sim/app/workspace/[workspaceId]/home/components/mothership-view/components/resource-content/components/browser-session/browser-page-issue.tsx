@@ -6,6 +6,7 @@ import { CircleAlert, Globe, RefreshCw } from '@sim/emcn/icons'
 interface BrowserPageIssueProps {
   issue: BrowserPageIssue
   onReload: () => void
+  focusRecovery: boolean
 }
 
 interface BrowserPageIssueCopy {
@@ -124,13 +125,14 @@ export function browserPageIssueCopy(issue: BrowserPageIssue): BrowserPageIssueC
   }
 }
 
-export function BrowserPageIssueView({ issue, onReload }: BrowserPageIssueProps) {
+/** Replaces a hidden native page and optionally claims renderer focus for keyboard recovery. */
+export function BrowserPageIssueView({ issue, onReload, focusRecovery }: BrowserPageIssueProps) {
   const headingRef = useRef<HTMLHeadingElement>(null)
   const copy = browserPageIssueCopy(issue)
 
   useEffect(() => {
-    headingRef.current?.focus()
-  }, [issue])
+    if (focusRecovery) headingRef.current?.focus()
+  }, [focusRecovery, issue])
 
   const Icon = issue.kind === 'load-error' ? Globe : CircleAlert
 

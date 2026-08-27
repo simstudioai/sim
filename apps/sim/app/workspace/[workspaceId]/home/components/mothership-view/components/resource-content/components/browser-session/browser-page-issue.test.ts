@@ -90,6 +90,7 @@ describe('browserPageIssueCopy', () => {
             url: 'http://localhost:3004',
           },
           onReload,
+          focusRecovery: true,
         })
       )
     })
@@ -104,5 +105,29 @@ describe('browserPageIssueCopy', () => {
 
     act(() => root.unmount())
     container.remove()
+  })
+
+  it('does not move focus when its browser resource is hidden', () => {
+    const container = document.createElement('div')
+    const sentinel = document.createElement('button')
+    document.body.append(container, sentinel)
+    sentinel.focus()
+    const root = createRoot(container)
+
+    act(() => {
+      root.render(
+        createElement(BrowserPageIssueView, {
+          issue: { kind: 'unresponsive', url: 'https://example.com' },
+          onReload: vi.fn(),
+          focusRecovery: false,
+        })
+      )
+    })
+
+    expect(document.activeElement).toBe(sentinel)
+
+    act(() => root.unmount())
+    container.remove()
+    sentinel.remove()
   })
 })

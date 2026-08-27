@@ -455,6 +455,14 @@ describe('executeTool', () => {
     vi.mocked(contents.loadURL).mockClear()
     await driver.handlePanelAction('chat-test', { action: 'reload' })
     expect(contents.loadURL).toHaveBeenCalledWith(failedUrl)
+
+    vi.mocked(contents.loadURL).mockClear()
+    await driver.executeTool('chat-test', 'browser_go_back', {})
+    expect(session.pageIssueForContents(contents)).toBeUndefined()
+    expect(session.canGoForward(contents)).toBe(true)
+
+    await driver.executeTool('chat-test', 'browser_go_forward', {})
+    expect(contents.loadURL).toHaveBeenCalledWith(failedUrl)
   })
 
   it('forces fill availability to replay on scope activation and tab switches', async () => {

@@ -932,8 +932,11 @@ export function BrowserSession({
   // Keep the page's exact captured frame underneath it while it is open so
   // pointer events reach the Sim popover instead of the WebContentsView.
   useEffect(() => {
+    if (hasPageIssue) {
+      void closeOverlay('suggestions')
+      return
+    }
     if (suggestions.length > 0) {
-      if (hasPageIssue) return
       void requestOverlay('suggestions', () => {})
       return
     }
@@ -1446,6 +1449,7 @@ export function BrowserSession({
         {pageState?.issue && (
           <BrowserPageIssueView
             issue={pageState.issue}
+            focusRecovery={visible}
             onReload={() => sendBrowserPanelAction('reload', {}, scopeId)}
           />
         )}
