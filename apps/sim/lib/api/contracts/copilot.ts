@@ -99,16 +99,19 @@ export type RenameCopilotChatBody = z.input<typeof renameCopilotChatBodySchema>
 
 const copilotResourceTypeSchema = z.enum(PERSISTED_RESOURCE_TYPES)
 
+const copilotChatResourceItemSchema = z.object({
+  type: copilotResourceTypeSchema,
+  // Matches the bound the chat-send path enforces.
+  id: requiredFieldSchema('resource.id cannot be empty'),
+  title: z.string(),
+  // Saved view a table tab is pinned to (type "table" only). One schema for
+  // add and reorder, so a reorder round-trip can never strip the pin.
+  viewId: z.string().min(1).optional(),
+})
+
 export const addCopilotChatResourceBodySchema = z.object({
   chatId: z.string(),
-  resource: z.object({
-    type: copilotResourceTypeSchema,
-    // Matches the bound the chat-send path enforces.
-    id: requiredFieldSchema('resource.id cannot be empty'),
-    title: z.string(),
-    // Saved view a table tab is pinned to (type "table" only).
-    viewId: z.string().min(1).optional(),
-  }),
+  resource: copilotChatResourceItemSchema,
 })
 export type AddCopilotChatResourceBody = z.input<typeof addCopilotChatResourceBodySchema>
 
@@ -121,13 +124,7 @@ export type RemoveCopilotChatResourceBody = z.input<typeof removeCopilotChatReso
 
 export const reorderCopilotChatResourcesBodySchema = z.object({
   chatId: z.string(),
-  resources: z.array(
-    z.object({
-      type: copilotResourceTypeSchema,
-      id: z.string(),
-      title: z.string(),
-    })
-  ),
+  resources: z.array(copilotChatResourceItemSchema),
 })
 export type ReorderCopilotChatResourcesBody = z.input<typeof reorderCopilotChatResourcesBodySchema>
 

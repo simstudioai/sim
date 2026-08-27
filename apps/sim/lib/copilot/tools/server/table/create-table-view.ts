@@ -20,8 +20,9 @@ interface CreateTableViewArgs {
 /**
  * The main agent's direct path to a new saved view (the table subagent goes
  * through table_views). One list read supplies the columns for name→id
- * translation and the count behind the default name; the create then lands in
- * a single transaction, default flag included. The result names the table so
+ * translation; the create then lands in a single locked transaction — default
+ * flag and, when no name was given, the `View N` fallback included, so two
+ * unnamed creates can never pick the same N. The result names the table so
  * resource extraction opens the panel pinned to the new view.
  */
 export const createTableViewServerTool: BaseServerTool<CreateTableViewArgs, TableViewToolResult> = {
@@ -39,7 +40,7 @@ export const createTableViewServerTool: BaseServerTool<CreateTableViewArgs, Tabl
       { tableId }
     )
     const columns = (listed.table.schema as TableSchema).columns
-    const name = params.name?.trim() || `View ${listed.views.length + 1}`
+    const name = params.name?.trim() || undefined
     const created = await executeCopilotTableUseCase(
       context,
       createTableViewUseCase,

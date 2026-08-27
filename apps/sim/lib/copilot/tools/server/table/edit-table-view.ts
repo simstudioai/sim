@@ -9,7 +9,11 @@ import {
   viewToolConfigToPatch,
 } from '@/lib/copilot/tools/server/table/view-tool-shared'
 import type { TableSchema } from '@/lib/table'
-import { readTableViewByIdUseCase, updateTableViewUseCase } from '@/lib/table/application/views'
+import {
+  readTableViewUseCase,
+  resolveTableViewOwnerUseCase,
+  updateTableViewUseCase,
+} from '@/lib/table/application/views'
 
 interface EditTableViewArgs {
   viewId?: string
@@ -19,10 +23,11 @@ interface EditTableViewArgs {
 }
 
 /**
- * The main agent's direct path to changing a saved view by view id alone. The
- * id-addressed read resolves (and authorizes against) the owning table, which
- * also supplies the columns the config patch is translated with; the update
- * then runs as the ordinary table-scoped mutation. Config parts are
+ * The main agent's direct path to changing a saved view by view id alone.
+ * Three authorized steps: a workspace-scoped lookup names the owning table
+ * (the delegated principal has no table scope to offer before that), then the
+ * table-scoped read supplies the columns the config patch is translated with,
+ * and the update runs as the ordinary table-scoped mutation. Config parts are
  * replace-or-keep, so a filter change never clears the saved sort.
  */
 export const editTableViewServerTool: BaseServerTool<EditTableViewArgs, TableViewToolResult> = {
@@ -44,11 +49,16 @@ export const editTableViewServerTool: BaseServerTool<EditTableViewArgs, TableVie
       }
     }
 
-    const resolved = await executeCopilotTableUseCase(context, readTableViewByIdUseCase, {
+    const { tableId } = await executeCopilotTableUseCase(context, resolveTableViewOwnerUseCase, {
       viewId,
       workspaceId,
     })
-    const tableId = resolved.table.id
+    const resolved = await executeCopilotTableUseCase(
+      context,
+      readTableViewUseCase,
+      { tableId, workspaceId, viewId },
+      { tableId }
+    )
     const columns = (resolved.table.schema as TableSchema).columns
     const updated = await executeCopilotTableUseCase(
       context,

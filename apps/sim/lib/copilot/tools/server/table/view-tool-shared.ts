@@ -1,5 +1,10 @@
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { SortSpec, TablePredicateInput, TableSchema, TableViewConfig } from '@/lib/table'
-import { viewConfigIdsToNames, viewConfigNamesToIds } from '@/lib/table/views/service'
+import {
+  TableViewValidationError,
+  viewConfigIdsToNames,
+  viewConfigNamesToIds,
+} from '@/lib/table/views/service'
 
 /**
  * The saved-view configuration the view tools accept, in the column-NAME
@@ -58,7 +63,9 @@ export function hasViewConfigParts(config: TableViewToolConfig): boolean {
  * update path shallow-merges the result into the stored config, so an absent
  * part must stay absent — sending it as `null` silently wiped a view's saved
  * sort when only the filter changed (and vice versa); the docs promise "omit to
- * keep". Unknown column names are rejected by the translation.
+ * keep". An unknown column name is rejected here, in the adapter — outside the
+ * use case that would classify it — so it is classified on the spot: unclassified,
+ * the model gets a masked "system error" instead of the column it got wrong.
  */
 export function viewToolConfigToPatch(
   config: TableViewToolConfig,
@@ -68,5 +75,12 @@ export function viewToolConfigToPatch(
   if (config.filter !== undefined) patch.filter = config.filter
   if (config.sort !== undefined) patch.sort = config.sort
   if (config.hiddenColumns !== undefined) patch.hiddenColumns = config.hiddenColumns
-  return viewConfigNamesToIds(patch as TableViewConfig, columns)
+  try {
+    return viewConfigNamesToIds(patch as TableViewConfig, columns)
+  } catch (error) {
+    if (error instanceof TableViewValidationError) {
+      throw new OrchestrationError('validation', error.message)
+    }
+    throw error
+  }
 }

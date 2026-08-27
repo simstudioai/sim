@@ -1,7 +1,6 @@
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { getTableById, type TableDefinition } from '@/lib/table'
 import type { TableAuthorizationContext } from '@/lib/table/application/authorization'
-import { getTableViewTableId } from '@/lib/table/views/service'
 import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
 
 export type TableWorkspaceContext = TableAuthorizationContext
@@ -119,34 +118,4 @@ export async function resolveArchivedTableContext(input: {
   }
   const workspaceContext = await resolveTableWorkspaceContext(table.workspaceId)
   return { ...workspaceContext, tableId: table.id, table }
-}
-
-export interface ActiveTableViewContext extends ActiveTableContext {
-  viewId: string
-}
-
-/**
- * Loads the canonical table context for a caller that holds only a view id.
- *
- * The view lookup is workspace-scoped, so a view in another workspace reports as `not_found`
- * before any table is loaded — the same concealment {@link resolveActiveTableContext} applies to
- * a mismatched table id. The resolved table id then goes through that resolver unchanged, so both
- * paths authorize against the identical context.
- */
-export async function resolveActiveTableViewContext(input: {
-  viewId: string
-  assertedWorkspaceId: string
-}): Promise<ActiveTableViewContext> {
-  const tableId = await getTableViewTableId(input.viewId, input.assertedWorkspaceId)
-  if (!tableId) {
-    throw new OrchestrationError(
-      'not_found',
-      `View "${input.viewId}" not found in this workspace — view ids are listed in each table's views.json.`
-    )
-  }
-  const context = await resolveActiveTableContext({
-    tableId,
-    assertedWorkspaceId: input.assertedWorkspaceId,
-  })
-  return { ...context, viewId: input.viewId }
 }

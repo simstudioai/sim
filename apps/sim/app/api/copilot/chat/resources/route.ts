@@ -135,8 +135,13 @@ export const PATCH = withRouteHandler(async (req: NextRequest) => {
     const existing = sanitizeChatResources(
       Array.isArray(chat.resources) ? (chat.resources as ChatResource[]) : []
     )
-    const canonicalOrder = sanitizeChatResources(newOrder)
-    const existingKeys = new Set(existing.map((r) => `${r.type}:${r.id}`))
+    // The client echoes the tabs it holds; anything it does not carry (a view
+    // pin, a path) is taken from the stored entry rather than dropped.
+    const existingByKey = new Map(existing.map((r) => [`${r.type}:${r.id}`, r]))
+    const canonicalOrder = sanitizeChatResources(newOrder).map((r) =>
+      mergeChatResource(existingByKey.get(`${r.type}:${r.id}`), r)
+    )
+    const existingKeys = new Set(existingByKey.keys())
     const newKeys = new Set(canonicalOrder.map((r) => `${r.type}:${r.id}`))
 
     if (existingKeys.size !== newKeys.size || ![...existingKeys].every((k) => newKeys.has(k))) {

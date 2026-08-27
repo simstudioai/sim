@@ -5,13 +5,14 @@ import type { TableSchema, TableViewConfig } from '@/lib/table'
 import { defineAuthorizedTableUseCase } from '@/lib/table/application/authorized-table-use-case'
 import {
   resolveActiveTableContext,
-  resolveActiveTableViewContext,
+  resolveTableWorkspaceContext,
 } from '@/lib/table/application/context'
 import { tableOperations } from '@/lib/table/application/operations'
 import {
   createTableView,
   deleteTableView,
   getTableView,
+  getTableViewTableId,
   listTableViews,
   TableViewValidationError,
   updateTableView,
@@ -68,38 +69,37 @@ export const readTableViewUseCase = defineAuthorizedTableUseCase({
   },
 })
 
-export interface ReadTableViewByIdInput {
+export interface ResolveTableViewOwnerInput {
   viewId: string
   workspaceId: string
 }
 
 /**
- * Reads a view addressed by id alone. The owning table is resolved from the view
- * (workspace-scoped), so a caller holding only a view id — the agent's
- * edit_table_view — reaches the same table-scoped authorization as the tableId
- * variant, and gets the table back to address the write that follows.
+ * Names the table a view belongs to, for a caller holding only a view id (the
+ * agent's edit_table_view). Authorized at workspace level on purpose: the
+ * context carries no tableId yet, so a delegated principal needs no table scope
+ * to ask, and the answer is only an id. The caller then re-enters the
+ * table-scoped use cases with that id — which is where the table itself, and
+ * the principal's scope for it, are authorized.
  */
-export const readTableViewByIdUseCase = defineAuthorizedTableUseCase({
+export const resolveTableViewOwnerUseCase = defineAuthorizedTableUseCase({
   operation: tableOperations.readView,
-  resolveContext: ({ input }: { input: ReadTableViewByIdInput }) =>
-    resolveActiveTableViewContext({
-      viewId: input.viewId,
-      assertedWorkspaceId: input.workspaceId,
-    }),
-  async execute({ context }) {
-    const columns = (context.table.schema as TableSchema).columns
-    const view = await getTableView(context.viewId, context.table.id, columns, context.workspaceId)
-    if (!view)
+  resolveContext: ({ input }: { input: ResolveTableViewOwnerInput }) =>
+    resolveTableWorkspaceContext(input.workspaceId),
+  async execute({ input, context }) {
+    const tableId = await getTableViewTableId(input.viewId, context.workspaceId)
+    if (!tableId)
       throw new OrchestrationError(
         'not_found',
-        'View not found on this table — list the views on this table for valid view ids'
+        `View "${input.viewId}" not found in this workspace — view ids are listed in each table's views.json.`
       )
-    return { view, columns, table: context.table }
+    return { tableId }
   },
 })
 
 export interface CreateTableViewInput extends TableViewInput {
-  name: string
+  /** Omit to number the view after the ones the table already has (`View N`). */
+  name?: string
   config: TableViewConfig
   /** Make the new view the table's default, demoting the previous one in the same transaction. */
   isDefault?: boolean

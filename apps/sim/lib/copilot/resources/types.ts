@@ -214,23 +214,34 @@ export const GENERIC_RESOURCE_TITLES = new Set<string>([
 
 /**
  * Folds a re-added resource into the stored entry with the same type+id. The
- * stored title wins unless it was a placeholder. A table's saved-view pin is
- * replaced when the newcomer carries one — the tab reopens on the view the
- * agent touched last — and kept when it does not, so an unrelated row edit
- * never unpins the tab.
+ * stored title wins unless it was a placeholder. Every other field the
+ * newcomer defines replaces the stored one — a file's `path`, a log's
+ * `executionId`, a table's saved-view pin (the tab reopens on the view the
+ * agent touched last) — while a field the newcomer omits is kept, so an
+ * unrelated row edit never unpins a table. Returns `prev` itself when nothing
+ * changes, so callers can skip a no-op write.
  */
 export function mergeChatResource(
   prev: MothershipResource | undefined,
   next: MothershipResource
 ): MothershipResource {
   if (!prev) return next
-  const title =
-    GENERIC_RESOURCE_TITLES.has(prev.title) && !GENERIC_RESOURCE_TITLES.has(next.title)
-      ? next.title
-      : prev.title
-  const viewId = next.viewId ?? prev.viewId
-  if (title === prev.title && viewId === prev.viewId) return prev
-  return { ...prev, title, ...(viewId !== undefined ? { viewId } : {}) }
+  const merged: MothershipResource = {
+    ...prev,
+    ...(next.path !== undefined ? { path: next.path } : {}),
+    ...(next.viewId !== undefined ? { viewId: next.viewId } : {}),
+    ...(next.executionId !== undefined ? { executionId: next.executionId } : {}),
+    title:
+      GENERIC_RESOURCE_TITLES.has(prev.title) && !GENERIC_RESOURCE_TITLES.has(next.title)
+        ? next.title
+        : prev.title,
+  }
+  const unchanged =
+    merged.title === prev.title &&
+    merged.path === prev.path &&
+    merged.viewId === prev.viewId &&
+    merged.executionId === prev.executionId
+  return unchanged ? prev : merged
 }
 
 export const VFS_DIR_TO_RESOURCE: Record<string, MothershipResourceType> = {

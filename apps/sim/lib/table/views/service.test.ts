@@ -747,3 +747,59 @@ describe('getTableViewTableId', () => {
     expect(await getTableViewTableId('view-elsewhere', 'ws-1')).toBeNull()
   })
 })
+
+describe('default-view writers share the views lock', () => {
+  const columns: ColumnDefinition[] = []
+  const viewRow = {
+    id: 'view-1',
+    tableId: 'table-1',
+    workspaceId: 'ws-1',
+    name: 'My View',
+    config: {},
+    isDefault: false,
+    createdBy: 'user-1',
+    createdAt: new Date('2026-01-01T00:00:00.000Z'),
+    updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('numbers an unnamed view after the ones the table has, from the count read under the lock', async () => {
+    queueTableRows(tableViews, [{ total: 2 }])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ ...viewRow, name: 'View 3' }])
+
+    const view = await createTableView({
+      tableId: 'table-1',
+      workspaceId: 'ws-1',
+      config: {},
+      userId: 'user-1',
+      columns,
+    })
+
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(expect.objectContaining({ name: 'View 3' }))
+    expect(view.name).toBe('View 3')
+  })
+
+  it('promoting a view takes the per-table advisory lock the create path holds', async () => {
+    queueTableRows(tableViews, [{ id: 'view-1' }])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ ...viewRow, isDefault: true }])
+
+    await updateTableView({ viewId: 'view-1', tableId: 'table-1', isDefault: true, columns })
+
+    // withTableViewsLock issues its SET LOCAL timeouts and the advisory lock
+    // through execute; the plain-transaction path never calls it.
+    expect(dbChainMockFns.execute).toHaveBeenCalled()
+  })
+
+  it('a rename stays a plain transaction, off the lock', async () => {
+    queueTableRows(tableViews, [{ id: 'view-1' }])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ ...viewRow, name: 'Renamed' }])
+
+    await updateTableView({ viewId: 'view-1', tableId: 'table-1', name: 'Renamed', columns })
+
+    expect(dbChainMockFns.execute).not.toHaveBeenCalled()
+  })
+})

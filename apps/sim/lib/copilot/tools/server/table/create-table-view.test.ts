@@ -20,6 +20,7 @@ vi.mock('@/lib/copilot/application/execute-table-use-case', () => ({
 }))
 
 import { createTableViewServerTool } from '@/lib/copilot/tools/server/table/create-table-view'
+import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { createTableViewUseCase, listTableViewsUseCase } from '@/lib/table/application/views'
 
 const context = { userId: 'user-1', workspaceId: 'ws-1', copilotToolExecution: true } as never
@@ -103,7 +104,7 @@ describe('create_table_view', () => {
     })
   })
 
-  it('numbers an unnamed view after the ones the table already has and passes isDefault through', async () => {
+  it('leaves an omitted name to the service (numbered under the lock) and passes isDefault through', async () => {
     executeUseCase
       .mockResolvedValueOnce({ table, views: [{ id: 'view-0' }, { id: 'view-1' }] })
       .mockResolvedValueOnce({
@@ -112,7 +113,7 @@ describe('create_table_view', () => {
       })
 
     const result = await createTableViewServerTool.execute(
-      { tableId: 'tbl-1', isDefault: true },
+      { tableId: 'tbl-1', name: '   ', isDefault: true },
       context
     )
 
@@ -120,12 +121,32 @@ describe('create_table_view', () => {
       2,
       context,
       createTableViewUseCase,
-      { tableId: 'tbl-1', workspaceId: 'ws-1', name: 'View 3', config: {}, isDefault: true },
+      { tableId: 'tbl-1', workspaceId: 'ws-1', name: undefined, config: {}, isDefault: true },
       { tableId: 'tbl-1' }
     )
     expect(result.success).toBe(true)
+    expect(result.message).toContain('"View 3"')
     expect(result.message).toContain('as its default')
     expect(result.data?.view.isDefault).toBe(true)
+  })
+
+  it("classifies an unknown column as the caller's mistake, before any write", async () => {
+    executeUseCase.mockResolvedValueOnce({ table, views: [] })
+
+    const failure = await createTableViewServerTool
+      .execute(
+        {
+          tableId: 'tbl-1',
+          name: 'Urgent',
+          config: { filter: { all: [{ field: 'priority', op: 'eq', value: 'high' }] } },
+        },
+        context
+      )
+      .catch((error: unknown) => error)
+
+    expect(asOrchestrationError(failure)?.code).toBe('validation')
+    expect(asOrchestrationError(failure)?.message).toMatch(/Unknown column\(s\): priority/)
+    expect(executeUseCase).toHaveBeenCalledTimes(1)
   })
 
   it('refuses without a table id and without workspace context', async () => {

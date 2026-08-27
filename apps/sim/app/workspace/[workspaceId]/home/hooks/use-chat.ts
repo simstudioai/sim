@@ -136,6 +136,7 @@ import type {
   QueuedSendHandoffSeed,
 } from '@/stores/mothership-queue/types'
 import type { ChatContext } from '@/stores/panel'
+import { useTableViewPinStore } from '@/stores/table/view-pin/store'
 import { useTerminalConsoleStore } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
@@ -1637,6 +1638,8 @@ export function useChat(
     setTransportIdle()
     setResources([])
     setActiveResourceId(null)
+    // Pending view pins belong to the chat whose stream issued them.
+    useTableViewPinStore.getState().reset()
     undisplayableResourcesRef.current = []
     pendingPersistResourceKeysRef.current.clear()
     inFlightResourceAddsRef.current.clear()
@@ -2339,6 +2342,7 @@ export function useChat(
     setTransportIdle()
     setResources([])
     setActiveResourceId(null)
+    useTableViewPinStore.getState().reset()
     pendingPersistResourceKeysRef.current.clear()
     inFlightResourceAddsRef.current.clear()
     reorderNeededAfterFlushRef.current = false

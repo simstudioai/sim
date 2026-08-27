@@ -122,16 +122,17 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
     previewActivationOwnerRef.current.delete(completedPreviewHandoff.sessionId)
   }
   if (pinnedViewId) {
-    if (!wasAdded) {
-      // The tab already exists: carry the newest pin so a remount adopts it.
-      setResources((current) =>
-        current.some((r) => r.type === 'table' && r.id === resource.id && r.viewId !== pinnedViewId)
-          ? current.map((r) =>
-              r.type === 'table' && r.id === resource.id ? { ...r, viewId: pinnedViewId } : r
-            )
-          : current
-      )
-    }
+    // Carry the newest pin on an existing tab so a remount adopts it. Not gated
+    // on `wasAdded`: two upserts in one render both read the stale ref and both
+    // report "added", while only the first updater actually inserted — the
+    // updater is idempotent, so it simply runs every time.
+    setResources((current) =>
+      current.some((r) => r.type === 'table' && r.id === resource.id && r.viewId !== pinnedViewId)
+        ? current.map((r) =>
+            r.type === 'table' && r.id === resource.id ? { ...r, viewId: pinnedViewId } : r
+          )
+        : current
+    )
     // Consumed by the embedded table once its views list carries the view —
     // which may be after the refetch below lands, or after the tab first opens.
     useTableViewPinStore.getState().pin(resource.id, pinnedViewId)

@@ -5,12 +5,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const useCases = vi.hoisted(() => ({
-  readById: vi.fn(),
+  owner: vi.fn(),
+  read: vi.fn(),
   update: vi.fn(),
 }))
 
 vi.mock('@/lib/table/application/views', () => ({
-  readTableViewByIdUseCase: { operation: { id: 'tables.views.read' }, execute: useCases.readById },
+  resolveTableViewOwnerUseCase: {
+    operation: { id: 'tables.views.read' },
+    execute: useCases.owner,
+  },
+  readTableViewUseCase: { operation: { id: 'tables.views.read' }, execute: useCases.read },
   updateTableViewUseCase: { operation: { id: 'tables.views.update' }, execute: useCases.update },
 }))
 
@@ -20,7 +25,12 @@ vi.mock('@/lib/copilot/application/execute-table-use-case', () => ({
 }))
 
 import { editTableViewServerTool } from '@/lib/copilot/tools/server/table/edit-table-view'
-import { readTableViewByIdUseCase, updateTableViewUseCase } from '@/lib/table/application/views'
+import { asOrchestrationError } from '@/lib/core/orchestration/types'
+import {
+  readTableViewUseCase,
+  resolveTableViewOwnerUseCase,
+  updateTableViewUseCase,
+} from '@/lib/table/application/views'
 
 const context = { userId: 'user-1', workspaceId: 'ws-1', copilotToolExecution: true } as never
 
@@ -36,24 +46,27 @@ const storedView = {
   config: { sort: [{ field: 'col_b', direction: 'asc' }] },
 }
 
+/** owner lookup (workspace scope) → read (table scope) → update (table scope) */
+function queueHappyPath(updatedView: typeof storedView) {
+  executeUseCase
+    .mockResolvedValueOnce({ tableId: 'tbl-1' })
+    .mockResolvedValueOnce({ table, view: storedView, columns })
+    .mockResolvedValueOnce({ table, view: updatedView })
+}
+
 describe('edit_table_view', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  it('resolves the table from the view id, then patches only the parts sent', async () => {
-    executeUseCase
-      .mockResolvedValueOnce({ table, view: storedView, columns })
-      .mockResolvedValueOnce({
-        table,
-        view: {
-          ...storedView,
-          config: {
-            filter: { all: [{ field: 'col_a', op: 'eq', value: 'Open' }] },
-            sort: [{ field: 'col_b', direction: 'asc' }],
-          },
-        },
-      })
+  it('resolves the table from the view id without a scope, then re-enters table-scoped', async () => {
+    queueHappyPath({
+      ...storedView,
+      config: {
+        filter: { all: [{ field: 'col_a', op: 'eq', value: 'Open' }] },
+        sort: [{ field: 'col_b', direction: 'asc' }],
+      },
+    })
 
     const result = await editTableViewServerTool.execute(
       {
@@ -63,14 +76,23 @@ describe('edit_table_view', () => {
       context
     )
 
-    expect(executeUseCase).toHaveBeenNthCalledWith(1, context, readTableViewByIdUseCase, {
+    // The delegated principal has no table to scope to yet, so the owner
+    // lookup must not claim one.
+    expect(executeUseCase).toHaveBeenNthCalledWith(1, context, resolveTableViewOwnerUseCase, {
       viewId: 'view-1',
       workspaceId: 'ws-1',
     })
+    expect(executeUseCase).toHaveBeenNthCalledWith(
+      2,
+      context,
+      readTableViewUseCase,
+      { tableId: 'tbl-1', workspaceId: 'ws-1', viewId: 'view-1' },
+      { tableId: 'tbl-1' }
+    )
     // No `sort` key at all: the patch is shallow-merged server-side, so a
     // present-but-null sort would wipe the saved one.
     expect(executeUseCase).toHaveBeenNthCalledWith(
-      2,
+      3,
       context,
       updateTableViewUseCase,
       {
@@ -100,16 +122,14 @@ describe('edit_table_view', () => {
   })
 
   it('renames or promotes without touching the config', async () => {
-    executeUseCase
-      .mockResolvedValueOnce({ table, view: storedView, columns })
-      .mockResolvedValueOnce({ table, view: { ...storedView, name: 'Late', isDefault: true } })
+    queueHappyPath({ ...storedView, name: 'Late', isDefault: true })
 
     const result = await editTableViewServerTool.execute(
       { viewId: 'view-1', name: 'Late', isDefault: true, config: {} },
       context
     )
 
-    const updateInput = executeUseCase.mock.calls[1][2]
+    const updateInput = executeUseCase.mock.calls[2][2]
     expect(updateInput).toEqual({
       tableId: 'tbl-1',
       workspaceId: 'ws-1',
@@ -119,6 +139,20 @@ describe('edit_table_view', () => {
     })
     expect(updateInput).not.toHaveProperty('configPatch')
     expect(result.message).toBe('Updated view "Late" on table "Invoices"')
+  })
+
+  it("classifies an unknown column as the caller's mistake, before the write", async () => {
+    executeUseCase
+      .mockResolvedValueOnce({ tableId: 'tbl-1' })
+      .mockResolvedValueOnce({ table, view: storedView, columns })
+
+    const failure = await editTableViewServerTool
+      .execute({ viewId: 'view-1', config: { hiddenColumns: ['priority'] } }, context)
+      .catch((error: unknown) => error)
+
+    expect(asOrchestrationError(failure)?.code).toBe('validation')
+    expect(asOrchestrationError(failure)?.message).toMatch(/Unknown column\(s\): priority/)
+    expect(executeUseCase).toHaveBeenCalledTimes(2)
   })
 
   it('refuses a call that names nothing to change, before any lookup', async () => {

@@ -183,3 +183,27 @@ describe('mergeChatResource', () => {
     expect(mergeChatResource(pinnedB, stored)).toBe(pinnedB)
   })
 })
+
+describe('mergeChatResource metadata', () => {
+  it('takes the metadata a newcomer defines and keeps what it omits', () => {
+    const placeholder = resource({ type: 'file', id: 'f1', title: 'File' })
+    const upgraded = mergeChatResource(placeholder, {
+      type: 'file',
+      id: 'f1',
+      title: 'notes.md',
+      path: 'files/notes.md',
+    })
+    expect(upgraded).toEqual({ type: 'file', id: 'f1', title: 'notes.md', path: 'files/notes.md' })
+
+    // A later re-add without a path keeps the stored one.
+    expect(mergeChatResource(upgraded, { type: 'file', id: 'f1', title: 'notes.md' })).toBe(
+      upgraded
+    )
+
+    const log = resource({ type: 'log', id: 'row-1', title: 'Run' })
+    expect(
+      mergeChatResource(log, { type: 'log', id: 'row-1', title: 'Run', executionId: 'exec-1' })
+        .executionId
+    ).toBe('exec-1')
+  })
+})

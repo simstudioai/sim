@@ -141,7 +141,12 @@ describe('handleResourceEvent saved-view pins', () => {
       title: 'Invoices',
       viewId: 'view-1',
     })
-    expect(deps.setResources).not.toHaveBeenCalled()
+    // The pin merge always runs; on a list that lacks the table it is a no-op.
+    const updater = (deps.setResources as ReturnType<typeof vi.fn>).mock.calls[0][0] as (
+      current: MothershipResource[]
+    ) => MothershipResource[]
+    const others: MothershipResource[] = [{ type: 'file', id: 'file-1', title: 'notes.md' }]
+    expect(updater(others)).toBe(others)
     expect(useTableViewPinStore.getState().pins['tbl-1']?.viewId).toBe('view-1')
     expect(mocks.invalidateResourceQueries).toHaveBeenCalledWith(
       deps.queryClient,
