@@ -38,6 +38,7 @@ export const byokProviderIdSchema = z.enum([
   'dropcontact',
   'leadmagic',
   'icypeas',
+  'kitt',
   'enrow',
   'smarte',
 ])

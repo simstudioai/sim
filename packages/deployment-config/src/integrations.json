@@ -12620,6 +12620,33 @@
       "tags": ["identity"]
     },
     {
+      "type": "kitt",
+      "slug": "kitt",
+      "name": "Kitt",
+      "description": "Find and verify B2B email addresses",
+      "longDescription": "Integrate Kitt to find a verified work email from a full name and company domain or to verify an existing B2B email with email-server and identity-server checks.",
+      "bgColor": "#8064E8",
+      "iconName": "KittIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/kitt",
+      "operations": [
+        {
+          "name": "Find Email",
+          "description": "Find a verified B2B email address from a full name and company domain or website using Kitt real-time enrichment."
+        },
+        {
+          "name": "Verify Email",
+          "description": "Verify a B2B email address using Kitt real-time email-server and identity-server checks."
+        }
+      ],
+      "operationCount": 2,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "sales",
+      "tags": ["enrichment", "sales-engagement"]
+    },
+    {
       "type": "langsmith",
       "slug": "langsmith",
       "name": "LangSmith",

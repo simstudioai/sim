@@ -41,6 +41,7 @@ export type BYOKProviderId =
   | 'dropcontact'
   | 'leadmagic'
   | 'icypeas'
+  | 'kitt'
   | 'enrow'
   | 'smarte'
 

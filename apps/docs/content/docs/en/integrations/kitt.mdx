@@ -1,0 +1,63 @@
+---
+title: Kitt
+description: Find and verify B2B email addresses
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="kitt"
+  color="#8064E8"
+/>
+
+## Usage Instructions
+
+Integrate Kitt to find a verified work email from a full name and company domain or to verify an existing B2B email with email-server and identity-server checks.
+
+
+
+## Actions
+
+### Kitt Find Email
+
+Find a verified B2B email address from a full name and company domain or website using Kitt real-time enrichment.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Kitt API key |
+| `fullName` | string | Yes | Full name exactly as listed on LinkedIn or another public directory |
+| `domain` | string | Yes | Company email domain or website |
+| `linkedinStandardProfileURL` | string | No | LinkedIn standard profile URL to improve matching |
+| `strictNameMatches` | boolean | No | Require strict name matching |
+| `customData` | string | No | Caller-defined metadata associated with the request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `outcome` | string | Kitt result outcome: success or no-results-found for finding; valid, valid-risky, invalid, or unknown for verification |
+| `email` | string | Email address found or verified |
+
+### Kitt Verify Email
+
+Verify a B2B email address using Kitt real-time email-server and identity-server checks.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Kitt API key |
+| `email` | string | Yes | Email address to verify |
+| `treatAliasesAsValid` | boolean | No | Treat forwarding aliases as valid addresses |
+| `customData` | string | No | Caller-defined metadata associated with the request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `outcome` | string | Kitt result outcome: success or no-results-found for finding; valid, valid-risky, invalid, or unknown for verification |
+| `email` | string | Email address found or verified |
+
+

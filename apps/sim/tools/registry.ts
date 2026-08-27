@@ -2583,6 +2583,7 @@ import {
   ketchSetConsentTool,
   ketchSetSubscriptionsTool,
 } from '@/tools/ketch'
+import { kittFindEmailTool, kittVerifyEmailTool } from '@/tools/kitt'
 import {
   knowledgeCreateDocumentTool,
   knowledgeDeleteChunkTool,
@@ -6159,6 +6160,8 @@ export const tools: Record<string, ToolConfig> = {
   ketch_invoke_right: ketchInvokeRightTool,
   ketch_set_consent: ketchSetConsentTool,
   ketch_set_subscriptions: ketchSetSubscriptionsTool,
+  kitt_find_email: kittFindEmailTool,
+  kitt_verify_email: kittVerifyEmailTool,
   linkup_search: linkupSearchTool,
   linq_add_participant: linqAddParticipantTool,
   linq_check_imessage: linqCheckImessageTool,

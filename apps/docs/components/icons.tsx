@@ -7445,6 +7445,29 @@ export function KetchIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+/** Kitt robot mark recreated from the official public navbar wordmark. */
+export function KittIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'>
+      <path d='M12 2V5' stroke='currentColor' strokeWidth='1.8' strokeLinecap='round' />
+      <circle cx='12' cy='2' r='1' fill='currentColor' />
+      <rect x='3' y='5' width='18' height='7' rx='3.5' stroke='currentColor' strokeWidth='1.8' />
+      <circle cx='7.5' cy='8.5' r='1.25' fill='currentColor' />
+      <circle cx='16.5' cy='8.5' r='1.25' fill='currentColor' />
+      <path
+        d='M7.5 13.5C7.5 12.67 8.17 12 9 12H15C15.83 12 16.5 12.67 16.5 13.5V18C16.5 18.83 15.83 19.5 15 19.5H9C8.17 19.5 7.5 18.83 7.5 18V13.5Z'
+        fill='currentColor'
+      />
+      <path
+        d='M7.5 14.5L4 13M16.5 14.5L20 13M10 19.5L9.25 22M14 19.5L14.75 22'
+        stroke='currentColor'
+        strokeWidth='1.8'
+        strokeLinecap='round'
+      />
+    </svg>
+  )
+}
+
 export function PolymarketIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg {...props} xmlns='http://www.w3.org/2000/svg' viewBox='51 209 123 155'>
