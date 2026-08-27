@@ -188,9 +188,15 @@ export function getWallClockParts(instant: Date, timeZone?: string): WallClockPa
 }
 
 /** Formats an instant as an RFC 3339 wall time in an IANA timezone. */
-export function formatInstantInTimeZone(instant: Date, timeZone: string): string {
+export function formatInstantInTimeZone(
+  instant: Date,
+  timeZone: string,
+  options?: ZonedWallClockOptions
+): string {
   const wall = getWallClockParts(instant, timeZone)
-  const offsetMinutes = Math.round(offsetMsFromWallClock(instant, wall) / 60_000)
+  const wholeSecondInstant = new Date(Math.floor(instant.getTime() / 1000) * 1000)
+  const exactOffsetMinutes = offsetMsFromWallClock(wholeSecondInstant, wall) / 60_000
+  const offsetMinutes = roundOffsetMinutes(exactOffsetMinutes, options)
   return `${wall.year}-${pad(wall.month)}-${pad(wall.day)}T${pad(wall.hour)}:${pad(wall.minute)}:${pad(wall.second)}${formatUtcOffsetSuffix(offsetMinutes)}`
 }
 
@@ -234,7 +240,24 @@ interface ZonedWallClockResolution {
   offsetMinutes: number
 }
 
-function resolveZonedWallClock(wallClock: string, timeZone: string): ZonedWallClockResolution {
+export interface ZonedWallClockOptions {
+  /** Which real instant to use when the wall clock occurs twice during a DST fall-back. */
+  ambiguousTime?: 'earlier' | 'later'
+  /** How to serialize rare historical offsets containing seconds into RFC 3339 minutes. */
+  offsetMinuteRounding?: 'nearest' | 'floor'
+}
+
+function roundOffsetMinutes(exactOffsetMinutes: number, options?: ZonedWallClockOptions): number {
+  return options?.offsetMinuteRounding === 'floor'
+    ? Math.floor(exactOffsetMinutes)
+    : Math.round(exactOffsetMinutes)
+}
+
+function resolveZonedWallClock(
+  wallClock: string,
+  timeZone: string,
+  options?: ZonedWallClockOptions
+): ZonedWallClockResolution {
   const [datePart, timePart] = wallClock.split('T')
   const [year, month, day] = datePart.split('-').map(Number)
   const [hour, minute, second = 0] = timePart.split(':').map(Number)
@@ -250,7 +273,9 @@ function resolveZonedWallClock(wallClock: string, timeZone: string): ZonedWallCl
   })
   const exactCandidate = candidates
     .filter(({ wallClockMs }) => wallClockMs === utcGuess)
-    .sort((a, b) => b.instantMs - a.instantMs)[0]
+    .sort((a, b) =>
+      options?.ambiguousTime === 'earlier' ? a.instantMs - b.instantMs : b.instantMs - a.instantMs
+    )[0]
   const compatibleCandidate = candidates
     .filter(({ wallClockMs }) => wallClockMs > utcGuess)
     .sort((a, b) => a.wallClockMs - b.wallClockMs || a.instantMs - b.instantMs)[0]
@@ -258,7 +283,7 @@ function resolveZonedWallClock(wallClock: string, timeZone: string): ZonedWallCl
   const instantMs = chosenCandidate.instantMs
   return {
     instant: new Date(instantMs),
-    offsetMinutes: Math.round((utcGuess - instantMs) / 60_000),
+    offsetMinutes: (utcGuess - instantMs) / 60_000,
   }
 }
 
@@ -268,18 +293,28 @@ function resolveZonedWallClock(wallClock: string, timeZone: string): ZonedWallCl
  * whose own offset reproduces the requested wall-clock, which is correct for any
  * date (including future ones whose offset differs from today's) and across DST:
  * a naive single pass reads the offset on the wrong side of a same-day boundary
- * — notably the autumn fall-back hour — and lands an hour off. For an ambiguous
- * fall-back wall-clock the later, post-transition instant is chosen; a
+ * — notably the autumn fall-back hour — and lands an hour off. An ambiguous
+ * fall-back wall-clock defaults to the later, post-transition instant, but
+ * callers preserving earlier semantics may request the earlier instant. A
  * wall-clock in the spring-forward gap (a nonexistent local hour) has no
  * self-consistent instant and resolves forward by the DST shift, matching how
  * calendar apps treat that once-a-year hour.
  */
-export function zonedWallClockToUtc(wallClock: string, timeZone: string): Date {
-  return resolveZonedWallClock(wallClock, timeZone).instant
+export function zonedWallClockToUtc(
+  wallClock: string,
+  timeZone: string,
+  options?: ZonedWallClockOptions
+): Date {
+  return resolveZonedWallClock(wallClock, timeZone, options).instant
 }
 
 /** Stamps a naive wall-clock with the offset selected by the shared timezone resolver. */
-export function zonedWallClockWithOffset(wallClock: string, timeZone: string): string {
-  const { offsetMinutes } = resolveZonedWallClock(wallClock, timeZone)
+export function zonedWallClockWithOffset(
+  wallClock: string,
+  timeZone: string,
+  options?: ZonedWallClockOptions
+): string {
+  const resolution = resolveZonedWallClock(wallClock, timeZone, options)
+  const offsetMinutes = roundOffsetMinutes(resolution.offsetMinutes, options)
   return `${wallClock}${formatUtcOffsetSuffix(offsetMinutes)}`
 }

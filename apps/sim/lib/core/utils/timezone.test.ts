@@ -8,7 +8,7 @@ import {
   zonedClockDate,
   zonedWallClockToUtc,
   zonedWallClockWithOffset,
-} from './timezone'
+} from '@/lib/core/utils/timezone'
 
 describe('formatInstantInTimeZone', () => {
   it.each([
@@ -150,6 +150,53 @@ describe('zonedWallClockToUtc', () => {
       expect(new Date(stampedWallClock).toISOString()).toBe(expectedInstant)
     }
   )
+
+  it.each([
+    ['America/New_York', '2026-11-01T01:30', '2026-11-01T05:30:00.000Z', '-04:00'],
+    ['Europe/Berlin', '2026-10-25T02:30', '2026-10-25T00:30:00.000Z', '+02:00'],
+    ['Australia/Lord_Howe', '2026-04-05T01:45', '2026-04-04T14:45:00.000Z', '+11:00'],
+  ])(
+    'can choose the earlier instant for an ambiguous fall-back wall-clock in %s',
+    (timeZone, wallClock, expectedInstant, expectedOffset) => {
+      const options = { ambiguousTime: 'earlier' as const }
+      const instant = zonedWallClockToUtc(wallClock, timeZone, options)
+      const stampedWallClock = zonedWallClockWithOffset(wallClock, timeZone, options)
+
+      expect(instant.toISOString()).toBe(expectedInstant)
+      expect(stampedWallClock).toBe(`${wallClock}${expectedOffset}`)
+      expect(new Date(stampedWallClock).toISOString()).toBe(expectedInstant)
+    }
+  )
+
+  it('does not retain timezone state between consecutive resolutions', () => {
+    const wallClock = '2026-06-15T09:00:30'
+
+    expect(zonedWallClockToUtc(wallClock, 'America/New_York').toISOString()).toBe(
+      '2026-06-15T13:00:30.000Z'
+    )
+    expect(zonedWallClockToUtc(wallClock, 'Asia/Kathmandu').toISOString()).toBe(
+      '2026-06-15T03:15:30.000Z'
+    )
+    expect(zonedWallClockToUtc(wallClock, 'America/New_York').toISOString()).toBe(
+      '2026-06-15T13:00:30.000Z'
+    )
+  })
+
+  it('can serialize historical sub-minute offsets toward a later instant', () => {
+    const wallClock = '1970-01-01T00:00:00'
+    const timezone = 'Africa/Monrovia'
+    const exactInstant = zonedWallClockToUtc(wallClock, timezone)
+    const options = { offsetMinuteRounding: 'floor' as const }
+
+    expect(exactInstant.toISOString()).toBe('1970-01-01T00:44:30.000Z')
+    expect(zonedWallClockWithOffset(wallClock, timezone, options)).toBe('1970-01-01T00:00:00-00:45')
+    expect(formatInstantInTimeZone(exactInstant, timezone, options)).toBe(
+      '1970-01-01T00:00:00-00:45'
+    )
+    expect(
+      Date.parse(zonedWallClockWithOffset(wallClock, timezone, options))
+    ).toBeGreaterThanOrEqual(exactInstant.getTime())
+  })
 })
 
 describe('wallClockNow', () => {

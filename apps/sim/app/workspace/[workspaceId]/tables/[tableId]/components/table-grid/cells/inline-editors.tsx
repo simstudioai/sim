@@ -37,6 +37,21 @@ interface InlineEditorProps {
   onCancel: () => void
 }
 
+/**
+ * Produces the raw draft that the column type will coerce on save. Ordinary
+ * date columns keep their display parser for partial dates; other date-editor
+ * types receive the untouched draft so their own safety rules are not erased.
+ */
+export function dateEditorRawValue(
+  draft: string,
+  column: ColumnDefinition,
+  timeZone: string,
+  storageValue?: string
+): string {
+  if (storageValue !== undefined) return storageValue
+  return column.type === 'date' ? (displayToStorage(draft, timeZone) ?? draft) : draft
+}
+
 /** Redirect wheel gestures over an inline editor to the surrounding table scroll container. */
 function handleEditorWheel(e: React.WheelEvent<HTMLInputElement>) {
   e.preventDefault()
@@ -68,7 +83,10 @@ function InlineDateEditor({
    *  and refocuses while a popover interaction is in flight (covers browsers
    *  where buttons don't take focus on click). */
   const popoverPointerAtRef = useRef(0)
-  const timeZone = useTimezone()
+  const effectiveTimeZone = useTimezone()
+  /** Keep one wall-clock interpretation for the lifetime of this edit. */
+  const editTimeZoneRef = useRef(effectiveTimeZone)
+  const timeZone = editTimeZoneRef.current
 
   const storedValue = formatValueForInput(value, column.type, timeZone)
   const initialDraft =
@@ -118,7 +136,7 @@ function InlineDateEditor({
         onSave(storedValue ? cleanCellValue(storedValue, column, timeZone) : null, reason)
         return
       }
-      const raw = storageVal ?? displayToStorage(current, timeZone) ?? current
+      const raw = dateEditorRawValue(current, column, timeZone, storageVal)
       if (raw && Number.isNaN(Date.parse(raw))) {
         if (reason === 'blur') {
           if (!invalid) toast.error('Invalid date')

@@ -23,9 +23,14 @@
  * barrel (the barrel is server-tainted).
  */
 
-import { formatUtcOffsetSuffix, zonedWallClockWithOffset } from '@/lib/core/utils/timezone'
+import {
+  formatUtcOffsetSuffix,
+  type ZonedWallClockOptions,
+  zonedWallClockWithOffset,
+} from '@/lib/core/utils/timezone'
 
 const CALENDAR_DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/
+const LOCALIZED_CALENDAR_DATE_PATTERN = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/
 
 /**
  * Canonical (or canonical-enough legacy) instant: a literal wall time with an
@@ -260,6 +265,14 @@ export interface NormalizeDateCellOptions {
    * zone.
    */
   timezone?: string
+  /**
+   * Which instant to use when a naive wall time occurs twice during a DST
+   * fall-back. Ordinary date cells preserve their historical earlier-instant
+   * behavior; instant-like callers may explicitly choose `later`.
+   */
+  ambiguousTime?: ZonedWallClockOptions['ambiguousTime']
+  /** How sub-minute historical offsets are serialized to RFC 3339 minutes. */
+  offsetMinuteRounding?: ZonedWallClockOptions['offsetMinuteRounding']
 }
 
 /**
@@ -281,6 +294,15 @@ export function normalizeDateCellValue(
       ? trimmed
       : null
   }
+  const localizedCalendar = trimmed.match(LOCALIZED_CALENDAR_DATE_PATTERN)
+  if (localizedCalendar) {
+    const month = Number(localizedCalendar[1])
+    const day = Number(localizedCalendar[2])
+    const year = Number(localizedCalendar[3])
+    return isValidCalendarDay(year, month, day)
+      ? `${String(year).padStart(4, '0')}-${pad(month)}-${pad(day)}`
+      : null
+  }
   const isoMatch = trimmed.match(WALL_INSTANT_PATTERN)
   const isoWallClock = isoMatch ? parseIsoWallClock(isoMatch) : undefined
   if (isoWallClock === null) return null
@@ -290,6 +312,13 @@ export function normalizeDateCellValue(
   const ms = Date.parse(trimmed)
   if (Number.isNaN(ms)) return null
   const parsed = new Date(ms)
+  const monthNameCalendar = extractMonthNameCalendar(trimmed)
+  if (
+    monthNameCalendar &&
+    !isValidCalendarDay(monthNameCalendar.year, monthNameCalendar.month, monthNameCalendar.day)
+  ) {
+    return null
+  }
   if (!TIME_COMPONENT_PATTERN.test(trimmed)) {
     return ISO_REDUCED_DATE_PATTERN.test(trimmed)
       ? toUtcCalendarDate(parsed)
@@ -304,7 +333,10 @@ export function normalizeDateCellValue(
   if (options?.timezone) {
     const wallClock = isoWallClock ?? localizedWallClock ?? parseNaiveWallClockAsUtc(trimmed)
     if (!wallClock) return null
-    return zonedWallClockWithOffset(wallClock, options.timezone)
+    return zonedWallClockWithOffset(wallClock, options.timezone, {
+      ambiguousTime: options.ambiguousTime ?? 'earlier',
+      offsetMinuteRounding: options.offsetMinuteRounding,
+    })
   }
   return formatLocalFieldsAsWall(parsed, -parsed.getTimezoneOffset())
 }

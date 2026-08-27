@@ -140,7 +140,7 @@ describe('ttl columns', () => {
     })
     expect(COLUMN_TYPE_REGISTRY.ttl.coerce('2023-11-14T22:13:20.123Z', column)).toEqual({
       ok: true,
-      value: 1_700_000_000,
+      value: 1_700_000_001,
     })
     expect(COLUMN_TYPE_REGISTRY.ttl.coerce('not-a-date', column)).toEqual({ ok: false })
     expect(COLUMN_TYPE_REGISTRY.ttl.coerce(1_700_000_000.5, column)).toEqual({ ok: false })

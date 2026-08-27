@@ -147,46 +147,12 @@ export function storageToDisplay(stored: string, options?: { seconds?: boolean }
  */
 export function displayToStorage(display: string, timeZone?: string): string | null {
   const trimmed = display.trim()
-  const withTime = trimmed.match(
-    /^(\d{1,2})\/(\d{1,2})\/(\d{4})[ ,]+(\d{1,2}):(\d{2})(?::(\d{2}))?(?:\s*(AM|PM))?$/i
-  )
-  if (withTime) {
-    const [, m, d, y, h, min, sec, meridiem] = withTime
-    let hours = Number(h)
-    if (meridiem) {
-      if (hours < 1 || hours > 12) return null
-      hours = (hours % 12) + (meridiem.toUpperCase() === 'PM' ? 12 : 0)
-    } else if (hours > 23) {
-      return null
-    }
-    if (Number(min) > 59 || Number(sec ?? 0) > 59) return null
-    if (!isValidCalendarDay(Number(y), Number(m), Number(d))) return null
-    const pad = (n: string) => n.padStart(2, '0')
-    // Route through the shared normalizer so the wall time resolves in the
-    // effective zone.
-    return normalizeDateCellValue(
-      `${y}-${pad(m)}-${pad(d)}T${String(hours).padStart(2, '0')}:${min}:${sec ?? '00'}`,
-      { timezone: timeZone }
-    )
-  }
-  const full = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
-  if (full) {
-    if (!isValidCalendarDay(Number(full[3]), Number(full[1]), Number(full[2]))) return null
-    return `${full[3]}-${full[1].padStart(2, '0')}-${full[2].padStart(2, '0')}`
-  }
   const partial = trimmed.match(/^(\d{1,2})\/(\d{1,2})$/)
   if (partial) {
     const year = Number(todayLocalCalendarDate(timeZone).slice(0, 4))
-    if (!isValidCalendarDay(year, Number(partial[1]), Number(partial[2]))) return null
-    return `${year}-${partial[1].padStart(2, '0')}-${partial[2].padStart(2, '0')}`
+    return normalizeDateCellValue(
+      `${year}-${partial[1].padStart(2, '0')}-${partial[2].padStart(2, '0')}`
+    )
   }
   return normalizeDateCellValue(trimmed, { timezone: timeZone })
-}
-
-/** True when Y/M/D is a real calendar day — `Date` rolls impossible days over
- *  (02/30 → 03/02) instead of rejecting them, so compare the round-trip. */
-function isValidCalendarDay(year: number, month: number, day: number): boolean {
-  if (month < 1 || month > 12 || day < 1 || day > 31) return false
-  const check = new Date(year, month - 1, day)
-  return check.getMonth() === month - 1 && check.getDate() === day
 }

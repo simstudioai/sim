@@ -206,4 +206,19 @@ describe('formatValueForInput', () => {
       cleanCellValue('2023-11-14', { name: 'expires_at', type: 'ttl' }, 'America/New_York')
     ).toBe(1_699_938_000)
   })
+
+  it('uses the latest effective timezone for each TTL edit', () => {
+    const column = { name: 'expires_at', type: 'ttl' } as const
+    const input = '2026-06-15 09:00:30'
+
+    expect(cleanCellValue(input, column, 'America/New_York')).toBe(
+      Date.parse('2026-06-15T13:00:30Z') / 1000
+    )
+    expect(cleanCellValue(input, column, 'Asia/Kathmandu')).toBe(
+      Date.parse('2026-06-15T03:15:30Z') / 1000
+    )
+    expect(cleanCellValue(input, column, 'America/New_York')).toBe(
+      Date.parse('2026-06-15T13:00:30Z') / 1000
+    )
+  })
 })

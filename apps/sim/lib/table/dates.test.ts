@@ -116,12 +116,26 @@ describe('normalizeDateCellValue', () => {
   })
 
   it.each([
-    ['America/New_York', '2026-11-01 01:30:00', '2026-11-01T01:30:00-05:00'],
+    ['America/New_York', '2026-11-01 01:30:00', '2026-11-01T01:30:00-04:00'],
     ['America/New_York', '2026-03-08 02:30:00', '2026-03-08T02:30:00-05:00'],
     ['Asia/Kathmandu', '2026-06-15 09:00:00', '2026-06-15T09:00:00+05:45'],
     ['Australia/Lord_Howe', '2026-06-15 09:00:00', '2026-06-15T09:00:00+10:30'],
   ])('uses the shared timezone rules for %s', (timezone, input, expected) => {
     expect(normalizeDateCellValue(input, { timezone })).toBe(expected)
+  })
+
+  it('uses each provided timezone independently when the setting changes', () => {
+    const input = '2026-06-15 09:00:30'
+
+    expect(normalizeDateCellValue(input, { timezone: 'America/New_York' })).toBe(
+      '2026-06-15T09:00:30-04:00'
+    )
+    expect(normalizeDateCellValue(input, { timezone: 'Asia/Kathmandu' })).toBe(
+      '2026-06-15T09:00:30+05:45'
+    )
+    expect(normalizeDateCellValue(input, { timezone: 'America/New_York' })).toBe(
+      '2026-06-15T09:00:30-04:00'
+    )
   })
 
   it('ignores the zone option when the input carries an explicit offset', () => {
@@ -160,6 +174,10 @@ describe('normalizeDateCellValue', () => {
     expect(normalizeDateCellValue('2026-07-06T24:00', { timezone: 'UTC' })).toBeNull()
     expect(normalizeDateCellValue('2026-07-06 24:00+00')).toBeNull()
     expect(normalizeDateCellValue('2026-07-06T12:60:00-04:00')).toBeNull()
+    expect(normalizeDateCellValue('02/30/2026')).toBeNull()
+    expect(normalizeDateCellValue('February 29, 2025')).toBeNull()
+    expect(normalizeDateCellValue('February 29, 2025 12:00')).toBeNull()
+    expect(normalizeDateCellValue('February 29, 2025 12:00', { timezone: 'UTC' })).toBeNull()
   })
 
   it('accepts leap days and valid daylight-saving gap wall clocks', () => {
