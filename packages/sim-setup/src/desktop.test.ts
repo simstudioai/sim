@@ -160,14 +160,28 @@ describe('sanitizeForTerminal', () => {
     expect(sanitizeForTerminal('Sim-1.2.3-universal.dmg')).toBe('Sim-1.2.3-universal.dmg')
   })
 
-  // Bidi overrides and isolates reorder what the reader sees without emitting a
-  // single control byte, so a range-based C0/C1 filter lets them straight
-  // through — `gpj.dmg` can be made to render as `dmg.jpg`.
-  it('strips bidi controls, not just cursor controls', () => {
-    expect(sanitizeForTerminal('Sim\u202e gmd.eno\u202c.dmg')).toBe('Sim gmd.eno.dmg')
-    for (const control of ['\u200e', '\u200f', '\u202a', '\u202d', '\u2066', '\u2069', '\u061c']) {
-      expect(sanitizeForTerminal(`a${control}b`)).toBe('ab')
-    }
+  // Every class that reached the terminal in an earlier round, kept as one
+  // table so a regression names which one came back. Enumerating escapes cost
+  // a patch per round, which is why the implementation strips whole Unicode
+  // groups rather than a list.
+  it.each([
+    ['bidi override', '\u202e', ''],
+    ['bidi isolate', '\u2066', ''],
+    ['bidi mark', '\u200e', ''],
+    ['arabic letter mark', '\u061c', ''],
+    ['zero-width space', '\u200b', ''],
+    ['byte-order mark', '\ufeff', ''],
+    ['line separator', '\u2028', ' '],
+    ['paragraph separator', '\u2029', ' '],
+    ['no-break space', '\u00a0', ' '],
+  ])('neutralizes a %s', (_name, character, expected) => {
+    expect(sanitizeForTerminal(`a${character}b`)).toBe(`a${expected}b`)
+  })
+
+  // Separators become a space rather than vanishing, so a name is not silently
+  // run together at the seam.
+  it('reduces a name built from several classes at once to printable text', () => {
+    expect(sanitizeForTerminal('Sim\u001b[2K\u202e\u2028\u00a0X.dmg')).toBe('Sim[2K X.dmg')
   })
 
   it('caps a name that would overrun the spinner line', () => {

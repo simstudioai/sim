@@ -41,18 +41,29 @@ function deploymentKey(value: string): string {
 const MAX_INSTALLER_NAME = 120
 
 /**
- * Strips anything that could move the cursor, repaint or retitle the terminal,
- * or reorder what the reader sees.
+ * Reduces an artifact name to printable text before it reaches a TTY.
  *
- * The artifact name is read out of a redirect the deployment chose, so it is
- * remote input on its way to a TTY, and `decodeURIComponent` turns percent-
- * encoded bytes into the real characters. Matched by Unicode class rather than
- * by hand-listed ranges: `Cc` covers C0 (including ESC), DEL, and C1, while
- * `Cf` covers the bidi overrides and isolates that would otherwise survive and
- * let a name render in an order it is not written in.
+ * The name is read out of a redirect the deployment chose, so it is remote
+ * input, and `decodeURIComponent` turns percent-encoded bytes into the real
+ * characters. Enumerating what to strip invited a patch per escape found — C0
+ * and C1, then the bidi overrides, then the line separators — so this keeps
+ * whole Unicode groups instead: `C` (Other) removes every control, format,
+ * surrogate, private-use, and unassigned code point, covering ESC and OSC, the
+ * bidi overrides and isolates, zero-width characters, and the BOM; `Z`
+ * (Separator) removes every space, line, and paragraph separator, covering
+ * U+2028/U+2029 and no-break spaces.
+ *
+ * Separators become a plain space rather than vanishing, so a name is not
+ * silently run together at the seam, and runs are collapsed so the result
+ * cannot be padded out to push text off the line.
  */
 export function sanitizeForTerminal(value: string): string {
-  return truncate(value.replace(/[\p{Cc}\p{Cf}]/gu, ''), MAX_INSTALLER_NAME)
+  const printable = value
+    .replace(/\p{C}/gu, '')
+    .replace(/\p{Z}/gu, ' ')
+    .replace(/ {2,}/g, ' ')
+    .trim()
+  return truncate(printable, MAX_INSTALLER_NAME)
 }
 
 export interface DesktopFlags {
