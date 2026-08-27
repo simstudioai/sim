@@ -5132,6 +5132,16 @@ import {
   tinybirdTruncateDatasourceTool,
 } from '@/tools/tinybird'
 import {
+  tinyfishCancelRunTool,
+  tinyfishFetchTool,
+  tinyfishGetRunTool,
+  tinyfishListRunsTool,
+  tinyfishListVaultItemsTool,
+  tinyfishRunAsyncTool,
+  tinyfishRunTool,
+  tinyfishSearchTool,
+} from '@/tools/tinyfish'
+import {
   trelloAddChecklistItemTool,
   trelloAddChecklistTool,
   trelloAddCommentTool,
@@ -9090,6 +9100,14 @@ export const tools: Record<string, ToolConfig> = {
   tinybird_truncate_datasource: tinybirdTruncateDatasourceTool,
   tinybird_delete_datasource_rows: tinybirdDeleteDatasourceRowsTool,
   tinybird_get_job: tinybirdGetJobTool,
+  tinyfish_run: tinyfishRunTool,
+  tinyfish_run_async: tinyfishRunAsyncTool,
+  tinyfish_get_run: tinyfishGetRunTool,
+  tinyfish_cancel_run: tinyfishCancelRunTool,
+  tinyfish_list_runs: tinyfishListRunsTool,
+  tinyfish_search: tinyfishSearchTool,
+  tinyfish_fetch: tinyfishFetchTool,
+  tinyfish_list_vault_items: tinyfishListVaultItemsTool,
   stagehand_extract: stagehandExtractTool,
   stagehand_agent: stagehandAgentTool,
   mem0_add_memories: mem0AddMemoriesTool,

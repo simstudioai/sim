@@ -21,6 +21,7 @@ export type BYOKProviderId =
   | 'firecrawl'
   | 'exa'
   | 'context_dev'
+  | 'tinyfish'
   | 'serper'
   | 'jina'
   | 'perplexity'
