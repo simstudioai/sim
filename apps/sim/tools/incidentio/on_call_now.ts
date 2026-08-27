@@ -134,8 +134,8 @@ export const onCallNowTool: ToolConfig<IncidentioOnCallNowParams, IncidentioOnCa
 
   request: {
     url: (params) => {
-      const scheduleId = params.schedule_id?.trim()
-      if (scheduleId) {
+      const scheduleId = params.schedule_id
+      if (scheduleId != null && String(scheduleId).trim()) {
         return `https://api.incident.io/v2/schedules/${safeUrlPathSegment(scheduleId, 'schedule_id')}`
       }
 

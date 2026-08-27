@@ -394,7 +394,6 @@ export interface DeleteThreadParams {
   apiKey: string
   inboxId: string
   threadId: string
-  permanent?: boolean
 }
 
 export interface DeleteThreadResult extends ToolResponse {

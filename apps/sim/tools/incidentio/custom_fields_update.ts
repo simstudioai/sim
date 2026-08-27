@@ -69,7 +69,6 @@ export const customFieldsUpdateTool: ToolConfig<
           field_type: data.custom_field.field_type,
           created_at: data.custom_field.created_at,
           updated_at: data.custom_field.updated_at,
-          options: data.custom_field.options,
         },
       },
     }

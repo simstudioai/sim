@@ -335,17 +335,22 @@ export const AgentMailBlock: BlockConfig = {
     },
 
     // Delete Thread fields
+    /**
+     * AgentMail's DELETE thread endpoint takes no deletion-mode parameter and its own
+     * description reads "Permanently deletes a thread and all of its messages." There is no
+     * trash to move a thread to, so this id — which used to render a dropdown defaulting to
+     * "No (move to trash)" — is now a read-only notice. Keeping the id claimed means the
+     * warning appears exactly where the misleading choice used to sit, and no future subBlock
+     * inherits the orphaned 'true'/'false' value still stored in existing workflows.
+     */
     {
       id: 'permanent',
       title: 'Permanent Delete',
-      type: 'dropdown',
-      options: [
-        { label: 'No (move to trash)', id: 'false' },
-        { label: 'Yes (permanent)', id: 'true' },
-      ],
-      value: () => 'false',
+      type: 'text',
+      hideFromPreview: true,
+      defaultValue:
+        'Deleting a thread is permanent. AgentMail removes the thread and every message in it immediately, and this cannot be undone.',
       condition: { field: 'operation', value: 'delete_thread' },
-      mode: 'advanced',
     },
 
     // Forward Message fields
@@ -586,10 +591,6 @@ export const AgentMailBlock: BlockConfig = {
           rest.inboxId = inboxIdParam
         }
 
-        if (operation === 'delete_thread' && permanent !== undefined) {
-          rest.permanent = permanent === 'true'
-        }
-
         if (operation === 'reply_message' && replyAll !== undefined) {
           rest.replyAll = replyAll === 'true'
         }
@@ -665,7 +666,6 @@ export const AgentMailBlock: BlockConfig = {
     threadId: { type: 'string', description: 'Thread ID' },
     addLabels: { type: 'string', description: 'Labels to add to thread (comma-separated)' },
     removeLabels: { type: 'string', description: 'Labels to remove from thread (comma-separated)' },
-    permanent: { type: 'string', description: 'Whether to permanently delete' },
     messageId: { type: 'string', description: 'Message ID' },
     draftId: { type: 'string', description: 'Draft ID' },
     draftInReplyTo: { type: 'string', description: 'Message ID this draft replies to' },

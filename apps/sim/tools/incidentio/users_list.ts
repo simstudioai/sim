@@ -1,5 +1,5 @@
 import {
-  INCIDENTIO_PAGINATION_OUTPUT_PROPERTIES,
+  INCIDENTIO_CURSOR_PAGINATION_OUTPUT_PROPERTIES,
   type IncidentioUsersListParams,
   type IncidentioUsersListResponse,
 } from '@/tools/incidentio/types'
@@ -90,7 +90,6 @@ export const usersListTool: ToolConfig<IncidentioUsersListParams, IncidentioUser
           ? {
               after: data.pagination_meta.after,
               page_size: data.pagination_meta.page_size,
-              total_record_count: data.pagination_meta.total_record_count,
             }
           : undefined,
       },
@@ -115,7 +114,7 @@ export const usersListTool: ToolConfig<IncidentioUsersListParams, IncidentioUser
       type: 'object',
       description: 'Pagination metadata',
       optional: true,
-      properties: INCIDENTIO_PAGINATION_OUTPUT_PROPERTIES,
+      properties: INCIDENTIO_CURSOR_PAGINATION_OUTPUT_PROPERTIES,
     },
   },
 }

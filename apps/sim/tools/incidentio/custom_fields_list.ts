@@ -38,7 +38,6 @@ export const customFieldsListTool: ToolConfig<CustomFieldsListParams, CustomFiel
           field_type: field.field_type,
           created_at: field.created_at,
           updated_at: field.updated_at,
-          options: field.options,
         })),
       },
     }

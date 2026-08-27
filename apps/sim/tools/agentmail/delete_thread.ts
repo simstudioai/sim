@@ -6,7 +6,7 @@ export const agentmailDeleteThreadTool: ToolConfig<DeleteThreadParams, DeleteThr
   id: 'agentmail_delete_thread',
   name: 'Delete Thread',
   description:
-    'Delete an email thread in AgentMail (moves to trash, or permanently deletes if already in trash)',
+    'Permanently delete an email thread in AgentMail and all of its messages. This cannot be undone.',
   version: '1.0.0',
 
   params: {
@@ -28,21 +28,11 @@ export const agentmailDeleteThreadTool: ToolConfig<DeleteThreadParams, DeleteThr
       visibility: 'user-or-llm',
       description: 'ID of the thread to delete',
     },
-    permanent: {
-      type: 'boolean',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Force permanent deletion instead of moving to trash',
-    },
   },
 
   request: {
-    url: (params) => {
-      const query = new URLSearchParams()
-      if (params.permanent) query.set('permanent', 'true')
-      const qs = query.toString()
-      return `https://api.agentmail.to/v0/inboxes/${safeUrlPathSegment(params.inboxId, 'inboxId')}/threads/${safeUrlPathSegment(params.threadId, 'threadId')}${qs ? `?${qs}` : ''}`
-    },
+    url: (params) =>
+      `https://api.agentmail.to/v0/inboxes/${safeUrlPathSegment(params.inboxId, 'inboxId')}/threads/${safeUrlPathSegment(params.threadId, 'threadId')}`,
     method: 'DELETE',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

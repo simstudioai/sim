@@ -89,7 +89,12 @@ export const INCIDENTIO_INCIDENT_OUTPUT_PROPERTIES = {
   },
   created_at: { type: 'string', description: 'When the incident was created (ISO 8601)' },
   updated_at: { type: 'string', description: 'When the incident was last updated (ISO 8601)' },
-  incident_url: { type: 'string', description: 'URL to the incident page', optional: true },
+  permalink: { type: 'string', description: 'Permanent link to the incident', optional: true },
+  incident_url: {
+    type: 'string',
+    description: 'Deprecated alias for permalink; kept for existing workflow references',
+    optional: true,
+  },
   slack_channel_id: { type: 'string', description: 'Slack channel ID', optional: true },
   slack_channel_name: { type: 'string', description: 'Slack channel name', optional: true },
   visibility: {
@@ -113,7 +118,6 @@ export const INCIDENTIO_ACTION_OUTPUT_PROPERTIES = {
     properties: INCIDENTIO_USER_OUTPUT_PROPERTIES,
   },
   status: { type: 'string', description: 'Action status (outstanding, completed, deleted)' },
-  due_at: { type: 'string', description: 'Due date/time', optional: true },
   created_at: { type: 'string', description: 'When the action was created' },
   updated_at: { type: 'string', description: 'When the action was last updated' },
   incident_id: { type: 'string', description: 'Associated incident ID', optional: true },
@@ -226,6 +230,16 @@ export const INCIDENTIO_PAGINATION_OUTPUT_PROPERTIES = {
   after: { type: 'string', description: 'Cursor for next page', optional: true },
   page_size: { type: 'number', description: 'Number of items per page' },
   total_record_count: { type: 'number', description: 'Total number of records', optional: true },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output definition for endpoints whose `pagination_meta` is the plain cursor shape.
+ * `/v2/users` returns `PaginationMetaResultV2` — `{after, page_size}` — with no
+ * `total_record_count`; only the `...WithTotal` variants (e.g. `/v2/incidents`) carry one.
+ */
+export const INCIDENTIO_CURSOR_PAGINATION_OUTPUT_PROPERTIES = {
+  after: { type: 'string', description: 'Cursor for next page', optional: true },
+  page_size: { type: 'number', description: 'Number of items per page' },
 } as const satisfies Record<string, OutputProperty>
 
 /**
@@ -406,6 +420,8 @@ interface IncidentioIncident {
   }
   created_at: string
   updated_at: string
+  permalink?: string
+  /** Deprecated alias for {@link permalink}; kept so existing workflow references resolve. */
   incident_url?: string
   slack_channel_id?: string
   slack_channel_name?: string
@@ -446,7 +462,6 @@ export interface IncidentioIncidentsShowParams extends IncidentioBaseParams {
 interface IncidentioIncidentDetailed extends IncidentioIncident {
   description?: string
   mode?: string
-  permalink?: string
   custom_field_entries?: Array<{
     custom_field: {
       id: string
@@ -512,7 +527,6 @@ interface IncidentioAction {
     slack_user_id?: string
   }
   status: string
-  due_at?: string
   created_at: string
   updated_at: string
   incident_id?: string
@@ -522,11 +536,6 @@ interface IncidentioAction {
     email: string
   }
   completed_at?: string
-  external_issue_reference?: {
-    provider: string
-    issue_name: string
-    issue_permalink: string
-  }
 }
 
 export interface IncidentioActionsListResponse extends ToolResponse {
@@ -715,13 +724,6 @@ interface CustomField {
   field_type: CustomFieldType
   created_at: string
   updated_at: string
-  options?: CustomFieldOption[]
-}
-
-interface CustomFieldOption {
-  id: string
-  value: string
-  sort_key: number
 }
 
 // List custom fields
@@ -799,10 +801,10 @@ interface IncidentioUser {
 export interface IncidentioUsersListResponse extends ToolResponse {
   output: {
     users: IncidentioUser[]
+    /** `/v2/users` returns `PaginationMetaResultV2`, which has no `total_record_count`. */
     pagination_meta?: {
       after: string
       page_size: number
-      total_record_count?: number
     }
   }
 }
