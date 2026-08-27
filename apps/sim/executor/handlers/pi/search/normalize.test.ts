@@ -13,6 +13,7 @@ import {
   PI_SEARCH_MAX_RESULTS,
   PI_SEARCH_MAX_SNIPPET_LENGTH,
   PI_SEARCH_MAX_TITLE_LENGTH,
+  PI_SEARCH_TIMEOUT_MS,
   PI_SEARCH_TOOL_PARAMETERS,
   PI_SEARCH_TRUNCATED_MESSAGE,
   parsePiSearchArgs,
@@ -90,6 +91,10 @@ describe('buildPiSearchProviderArgs', () => {
     expect(buildPiSearchProviderArgs('firecrawl', query)).toEqual({
       query: 'ts 5.9 release notes',
       limit: 3,
+      // Firecrawl's own server-side budget, carried under a name that does not collide with the
+      // transport's reserved `timeout`. The sandbox path sends the same value, and
+      // parity.test.ts is what holds the two paths together.
+      firecrawlTimeout: PI_SEARCH_TIMEOUT_MS,
     })
   })
 })

@@ -156,7 +156,8 @@ export function parsePiSearchArgs(args: Record<string, unknown>): PiSearchQuery 
  * default — so this is the one place the mapping is written down.
  *
  * Note two declared-type traps that make this look impossible from the tool definitions:
- * `firecrawl_search` declares only `query`/`apiKey` yet its request body reads `params.limit`, and
+ * `firecrawl_search` declares only `query`/`apiKey` yet its request body reads `params.limit` and
+ * `params.firecrawlTimeout`, and
  * `exa_search` declares `text` as a boolean yet the object form is what requests page text. Both
  * work because `executeTool` hands the raw parameter bag to `body()`.
  */
@@ -172,7 +173,12 @@ export function buildPiSearchProviderArgs(
     case 'parallel':
       return { objective: query, max_results: numResults }
     case 'firecrawl':
-      return { query, limit: numResults }
+      /**
+       * `firecrawlTimeout` becomes Firecrawl's own server-side `timeout` body field. It is named
+       * apart from `timeout` because the transport reads `params.timeout` as the outbound fetch
+       * deadline, so a single key cannot mean both. The sandbox path hardcodes the same value.
+       */
+      return { query, limit: numResults, firecrawlTimeout: PI_SEARCH_TIMEOUT_MS }
   }
 }
 
