@@ -357,6 +357,45 @@ describe('principal actors', () => {
     ).toMatchObject({ attributedUserId: 'user-3' })
   })
 
+  it('uses the workspace billing owner only for actorless execution attribution', () => {
+    const principal = {
+      kind: 'delegated' as const,
+      serviceId: 'executor' as const,
+      workspaceId: 'workspace-1',
+      delegationId: 'delegation-1',
+      audience: 'sim:tables',
+      issuedAt: new Date('2026-01-01T00:00:00Z'),
+      expiresAt: new Date('2026-01-01T00:05:00Z'),
+      delegationContext: {
+        kind: 'workflow_execution' as const,
+        workflowId: 'workflow-1',
+        principal: {
+          kind: 'system' as const,
+          serviceId: 'webhook' as const,
+          workspaceId: 'workspace-1',
+          workflowId: 'workflow-1',
+          webhookId: 'webhook-1',
+          provider: 'generic',
+        },
+      },
+    }
+
+    expect(
+      resolvePrincipalAttribution(principal, {
+        workspaceBillingOwnerUserId: 'billing-owner-1',
+      })
+    ).toEqual({
+      actor: {
+        kind: 'delegated',
+        serviceId: 'executor',
+        delegationId: 'delegation-1',
+      },
+      attributedUserId: 'billing-owner-1',
+    })
+    expect(resolvePrincipalSubject(principal)).toBeNull()
+    expect(() => resolvePrincipalAttribution(principal)).toThrow(PrincipalSubjectUserRequiredError)
+  })
+
   it('fails fast when workspace-key attribution has no billing owner', () => {
     expect(() =>
       resolvePrincipalAttribution({

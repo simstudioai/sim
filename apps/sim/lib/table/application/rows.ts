@@ -1,10 +1,6 @@
 import { isDeepStrictEqual } from 'node:util'
 import { AuditAction, AuditResourceType } from '@sim/audit'
-import {
-  type Principal,
-  requirePrincipalSubjectUserId,
-  resolvePrincipalAttribution,
-} from '@sim/auth/principal'
+import { type Principal, resolvePrincipalAttribution } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { getRequestContext } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
@@ -135,8 +131,8 @@ interface TableResult {
 type TableRowsProvenance = Awaited<ReturnType<typeof loadTableRowSecretProvenance>>
 
 async function loadAuthorizedRowsProvenance(
-  principal: Parameters<typeof requirePrincipalSubjectUserId>[0],
   workspaceId: string,
+  attributedUserId: string,
   // The loader reads only id, updatedAt and the selected values, so a row
   // without its executions sidecar is enough — see `TABLE_ROW_SIDECAR_SELECTION`.
   rows: TableRowSummary[],
@@ -149,7 +145,7 @@ async function loadAuthorizedRowsProvenance(
     // which is how the unmigrated `rows`/`query` routes have always behaved.
     rows.map((row) => ({ id: row.id, updatedAt: row.updatedAt, selectedValues: row.data })),
     {
-      userId: requirePrincipalSubjectUserId(principal),
+      userId: attributedUserId,
       workspaceId,
     }
   )
@@ -478,8 +474,8 @@ export const queryTableRows = defineAuthorizedTableUseCase({
         table: context.table,
         ...result,
         secretProvenance: await loadAuthorizedRowsProvenance(
-          principal,
           context.workspaceId,
+          actorUserId(principal, context.billedAccountUserId),
           result.rows,
           input.includePersistedSecretProvenance
         ),
@@ -559,8 +555,8 @@ export const readTableRow = defineAuthorizedTableUseCase({
       row,
       ...(runState ? { runState } : {}),
       secretProvenance: await loadAuthorizedRowsProvenance(
-        principal,
         context.workspaceId,
+        actorUserId(principal, context.billedAccountUserId),
         [row],
         input.includePersistedSecretProvenance
       ),
@@ -844,7 +840,6 @@ function projectedRowsForTable(
 
 function projectedRowsSecretProvenance(
   rows: RowData[],
-  principal: Parameters<typeof requirePrincipalSubjectUserId>[0],
   workspaceId: string,
   policy: ReplaceProjectedWireRowsInput['secretProvenance']
 ): TableRowSecretProvenanceWrite[] {
@@ -853,7 +848,6 @@ function projectedRowsSecretProvenance(
   if (!registry) return rows.map(createUnknownTableRowSecretProvenance)
 
   const destinationScope = {
-    userId: requirePrincipalSubjectUserId(principal),
     workspaceId,
   }
   return rows.map((row) => {
@@ -911,7 +905,6 @@ export const replaceProjectedWireRows = defineAuthorizedTableUseCase({
             userId: actorUserId(principal, context.billedAccountUserId),
             secretProvenance: projectedRowsSecretProvenance(
               provenanceRows,
-              principal,
               context.workspaceId,
               input.secretProvenance
             ),
@@ -1017,8 +1010,8 @@ export const updateTableRow = defineAuthorizedTableUseCase({
       row,
       changed: Object.keys(data).length > 0,
       secretProvenance: await loadAuthorizedRowsProvenance(
-        principal,
         context.workspaceId,
+        actorUserId(principal, context.billedAccountUserId),
         [row],
         input.includePersistedSecretProvenance
       ),
@@ -1308,8 +1301,8 @@ export const upsertTableRow = defineAuthorizedTableUseCase({
       row: result.row,
       operation: result.operation,
       secretProvenance: await loadAuthorizedRowsProvenance(
-        principal,
         context.workspaceId,
+        actorUserId(principal, context.billedAccountUserId),
         [result.row],
         input.includePersistedSecretProvenance
       ),

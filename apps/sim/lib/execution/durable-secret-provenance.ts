@@ -126,7 +126,9 @@ export function durableSecretProvenanceFromRegistry(
  */
 export function isPrivateSecretProvenanceScopeCompatible(
   sourceScope: ResolvedSecretTraceScopeV1 | undefined,
-  destinationScope: { userId: string; workspaceId?: string }
+  destinationScope:
+    | { workspaceId: string; userId?: string }
+    | { userId: string; workspaceId?: undefined }
 ): sourceScope is ResolvedSecretTraceScopeV1 {
   if (!sourceScope) return false
   if (destinationScope.workspaceId !== undefined) {
@@ -139,7 +141,9 @@ export function isPrivateSecretProvenanceScopeCompatible(
 export function durableSecretProvenanceFromPrivateBundle(
   value: unknown,
   selectionKey: string,
-  destinationScope: { userId: string; workspaceId?: string }
+  destinationScope:
+    | { workspaceId: string; userId?: string }
+    | { userId: string; workspaceId?: undefined }
 ): DurableSecretProvenance | undefined {
   if (!isPrivateSecretProvenanceBundleV1(value)) return undefined
   const bundle: PrivateSecretProvenanceBundleV1 = value

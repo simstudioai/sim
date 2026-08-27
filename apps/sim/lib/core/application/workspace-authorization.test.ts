@@ -1,7 +1,11 @@
 /**
  * @vitest-environment node
  */
-import type { SessionPrincipal, WorkspaceApiKeyPrincipal } from '@sim/auth/principal'
+import type {
+  DelegatedPrincipal,
+  SessionPrincipal,
+  WorkspaceApiKeyPrincipal,
+} from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -50,6 +54,43 @@ const workspaceKeyPrincipal: WorkspaceApiKeyPrincipal = {
   kind: 'workspace_api_key',
   workspaceId: 'workspace-other',
   keyId: 'key-1',
+}
+
+const executorOperation = defineWorkspaceOperation({
+  id: 'test.executor-write',
+  minimumRole: 'write',
+  workspaceApiKey: 'deny',
+  principalKinds: ['delegated'],
+  delegatedServices: ['executor'],
+})
+
+function executorPrincipal(
+  originalPrincipal: NonNullable<DelegatedPrincipal['delegationContext']>['principal'],
+  currentWorkflow?: NonNullable<DelegatedPrincipal['delegationContext']>['currentWorkflow']
+): DelegatedPrincipal {
+  return {
+    kind: 'delegated',
+    serviceId: 'executor',
+    workspaceId: 'workspace-1',
+    delegationId: 'delegation-1',
+    audience: 'sim:test',
+    issuedAt: new Date('2026-01-01T00:00:00.000Z'),
+    expiresAt: new Date('2099-01-01T00:00:00.000Z'),
+    resourceScope: { executionId: 'execution-1' },
+    delegationContext: {
+      kind: 'workflow_execution',
+      workflowId: 'root-workflow-1',
+      principal: originalPrincipal,
+      ...(currentWorkflow ? { currentWorkflow } : {}),
+    },
+  }
+}
+
+const executorAuthorization = {
+  delegation: {
+    audience: 'sim:test',
+    isWithinScope: () => true,
+  },
 }
 
 const context = {
@@ -114,5 +155,112 @@ describe('authorizeWorkspaceOperation', () => {
     await expect(
       authorizeWorkspaceOperation(principal, workspaceKeyOperation, context)
     ).rejects.toBeInstanceOf(PrincipalKindAuthorizationError)
+  })
+
+  it.each([
+    {
+      name: 'generic webhook',
+      principal: {
+        kind: 'system' as const,
+        serviceId: 'webhook' as const,
+        workspaceId: 'workspace-1',
+        workflowId: 'root-workflow-1',
+        webhookId: 'webhook-1',
+        provider: 'generic',
+      },
+    },
+    {
+      name: 'Slack webhook',
+      principal: {
+        kind: 'system' as const,
+        serviceId: 'webhook' as const,
+        workspaceId: 'workspace-1',
+        workflowId: 'root-workflow-1',
+        webhookId: 'webhook-1',
+        provider: 'slack',
+        subject: {
+          kind: 'external_user' as const,
+          provider: 'slack',
+          tenantId: 'tenant-1',
+          subjectId: 'subject-1',
+        },
+      },
+    },
+    {
+      name: 'schedule',
+      principal: {
+        kind: 'system' as const,
+        serviceId: 'schedule' as const,
+        workspaceId: 'workspace-1',
+        workflowId: 'root-workflow-1',
+      },
+    },
+  ])('authorizes a $name by its bound deployed workflow', async ({ principal }) => {
+    await expect(
+      authorizeWorkspaceOperation(
+        executorPrincipal(principal, {
+          workflowId: 'current-workflow-1',
+          mode: 'deployment',
+          deploymentVersionId: 'deployment-1',
+        }),
+        executorOperation,
+        context,
+        executorAuthorization
+      )
+    ).resolves.toBeUndefined()
+    expect(mocks.resolvePermission).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    { name: 'missing', currentWorkflow: undefined },
+    {
+      name: 'draft',
+      currentWorkflow: { workflowId: 'current-workflow-1', mode: 'draft' as const },
+    },
+  ])('rejects actorless execution with a $name workflow authority', async ({ currentWorkflow }) => {
+    await expect(
+      authorizeWorkspaceOperation(
+        executorPrincipal(
+          {
+            kind: 'system',
+            serviceId: 'webhook',
+            workspaceId: 'workspace-1',
+            workflowId: 'root-workflow-1',
+            webhookId: 'webhook-1',
+            provider: 'generic',
+          },
+          currentWorkflow
+        ),
+        executorOperation,
+        context,
+        executorAuthorization
+      )
+    ).rejects.toMatchObject({ name: 'DelegatedWorkspaceAuthorizationError' })
+  })
+
+  it('keeps a real human execution on the human workspace-role path in draft mode', async () => {
+    mocks.resolvePermission.mockResolvedValue('write')
+
+    await expect(
+      authorizeWorkspaceOperation(
+        {
+          ...executorPrincipal(
+            { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+            { workflowId: 'current-workflow-1', mode: 'draft' }
+          ),
+          subjectUserId: 'user-1',
+        },
+        executorOperation,
+        context,
+        executorAuthorization
+      )
+    ).resolves.toBeUndefined()
+    expect(mocks.resolvePermission).toHaveBeenCalledWith(
+      'user-1',
+      'workspace-1',
+      'organization-1',
+      undefined,
+      { forUpdate: undefined }
+    )
   })
 })

@@ -7,9 +7,9 @@ import {
 import { defineInternalJsonRoute, internalRateLimits } from '@/lib/api/server/routes'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
-  internalKnowledgeActorUserId,
   internalKnowledgeAnalytics,
   internalKnowledgeAuthType,
+  internalKnowledgeProvenanceUserId,
   resolveInternalKnowledgeBillingAttribution,
   toInternalKnowledgeDocument,
 } from '@/lib/knowledge/api/internal-route'
@@ -68,7 +68,7 @@ export const GET = defineInternalJsonRoute({
     finalizeKnowledgePersistedResponse({
       request,
       authType: internalKnowledgeAuthType(principal),
-      userId: internalKnowledgeActorUserId(principal),
+      userId: internalKnowledgeProvenanceUserId(request, principal, result.workspaceId),
       workspaceId: result.workspaceId,
       body,
       documents: result.documents.map((document) => ({

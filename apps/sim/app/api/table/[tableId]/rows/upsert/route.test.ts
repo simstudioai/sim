@@ -125,12 +125,28 @@ describe('POST /api/table/[tableId]/rows/upsert', () => {
     mocks.authenticate.mockResolvedValue({
       kind: 'delegated',
       serviceId: 'executor',
-      subjectUserId: 'user-1',
       workspaceId: WORKSPACE_ID,
       delegationId: 'delegation-1',
       audience: 'table',
       issuedAt: new Date('2026-01-01'),
-      expiresAt: new Date('2026-01-02'),
+      expiresAt: new Date('2099-01-02'),
+      delegationContext: {
+        kind: 'workflow_execution',
+        workflowId: 'workflow-1',
+        currentWorkflow: {
+          workflowId: 'workflow-1',
+          mode: 'deployment',
+          deploymentVersionId: 'deployment-1',
+        },
+        principal: {
+          kind: 'system',
+          serviceId: 'webhook',
+          workspaceId: WORKSPACE_ID,
+          workflowId: 'workflow-1',
+          webhookId: 'webhook-1',
+          provider: 'generic',
+        },
+      },
     })
 
     await POST(request({ ...BODY, data: { Name: 'Ada' }, conflictTarget: 'Name' }), routeContext())
