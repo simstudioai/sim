@@ -160,7 +160,7 @@ export const createPRReviewTool: ToolConfig<CreatePRReviewParams, PRReviewRespon
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/pulls/${safeUrlPathSegment(String(params.pullNumber), 'pullNumber')}/reviews`,
+      `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/pulls/${safeUrlPathSegment(params.pullNumber, 'pullNumber')}/reviews`,
     method: 'POST',
     headers: (params) => ({
       Accept: 'application/vnd.github+json',

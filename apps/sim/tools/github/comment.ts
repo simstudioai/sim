@@ -82,9 +82,9 @@ export const commentTool: ToolConfig<CreateCommentParams, CreateCommentResponse>
   request: {
     url: (params) => {
       if (params.path) {
-        return `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/pulls/${safeUrlPathSegment(String(params.pullNumber), 'pullNumber')}/comments`
+        return `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/pulls/${safeUrlPathSegment(params.pullNumber, 'pullNumber')}/comments`
       }
-      return `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/pulls/${safeUrlPathSegment(String(params.pullNumber), 'pullNumber')}/reviews`
+      return `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/pulls/${safeUrlPathSegment(params.pullNumber, 'pullNumber')}/reviews`
     },
     method: 'POST',
     headers: (params) => ({

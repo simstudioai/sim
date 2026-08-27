@@ -1,6 +1,6 @@
 import type { TriggerWorkflowParams, TriggerWorkflowResponse } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
-import { safeUrlPathSegment } from '@/tools/url-path'
+import { safeOpaqueUrlSegment, safeUrlPathSegment } from '@/tools/url-path'
 
 export const triggerWorkflowTool: ToolConfig<TriggerWorkflowParams, TriggerWorkflowResponse> = {
   id: 'github_trigger_workflow',
@@ -48,9 +48,24 @@ export const triggerWorkflowTool: ToolConfig<TriggerWorkflowParams, TriggerWorkf
     },
   },
 
+  /**
+   * `workflow_id` is opaque, not a single conventional segment.
+   *
+   * GitHub documents it as "the ID of the workflow. You can also pass the
+   * workflow file name as a string" (`components.parameters.workflow-id`), and
+   * the file name `github_list_workflows` prints to the model is the
+   * repo-relative `.github/workflows/ci.yml` — so a slash-bearing value is the
+   * ordinary case, not an attack. `safeUrlPathSegment` rejected every one of
+   * them outright; `safeUrlPath` would emit the slashes literally, which misses
+   * the route. Verified live against `simstudioai/sim`:
+   * `actions/workflows/.github%2Fworkflows%2Fci.yml`, `.../ci.yml`, and
+   * `.../150137063` all answer `200`, while `.../.github/workflows/ci.yml`
+   * answers `404`. `safeOpaqueUrlSegment` still rejects an exact `.` or `..` and
+   * encodes everything else into one inert segment.
+   */
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/actions/workflows/${safeUrlPathSegment(String(params.workflow_id), 'workflow_id')}/dispatches`,
+      `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/actions/workflows/${safeOpaqueUrlSegment(params.workflow_id, 'workflow_id')}/dispatches`,
     method: 'POST',
     headers: (params) => ({
       Accept: 'application/vnd.github+json',

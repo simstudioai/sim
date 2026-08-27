@@ -34,9 +34,24 @@ describe('google_contacts pageSize clamping', () => {
     expect(resolveParams('list', '5000').pageSize).toBe(1000)
   })
 
-  it('clamps zero and negatives up to the minimum of 1', () => {
-    expect(resolveParams('list', '0').pageSize).toBe(1)
+  /**
+   * Both People API discovery descriptions give `0` a meaning of its own:
+   * `people.connections.list` says "Defaults to 100 if not set or set to 0",
+   * and `people:searchContacts` says "Defaults to 10 if field is not set, or
+   * set to 0". Clamping `0` up to `1` turned "give me the default page" into
+   * "give me exactly one contact" — a silent 100x (or 10x) under-fetch.
+   * Dropping the field instead lets Google apply its own documented default.
+   */
+  it('drops a zero page size so Google applies its documented default', () => {
+    expect(resolveParams('list', '0').pageSize).toBeUndefined()
+    expect(resolveParams('search', '0').pageSize).toBeUndefined()
+    expect(resolveParams('list', 0).pageSize).toBeUndefined()
+    expect(resolveParams('search', 0).pageSize).toBeUndefined()
+  })
+
+  it('clamps negatives up to the minimum of 1', () => {
     expect(resolveParams('search', '-5').pageSize).toBe(1)
+    expect(resolveParams('list', '-1').pageSize).toBe(1)
   })
 
   it('coerces the string a block input produces into a number', () => {

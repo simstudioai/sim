@@ -68,7 +68,7 @@ export const createIssueReactionTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/issues/${safeUrlPathSegment(String(params.issue_number), 'issue_number')}/reactions`,
+      `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/issues/${safeUrlPathSegment(params.issue_number, 'issue_number')}/reactions`,
     method: 'POST',
     headers: (params) => ({
       Accept: 'application/vnd.github.squirrel-girl-preview+json',

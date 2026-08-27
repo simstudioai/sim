@@ -65,7 +65,7 @@ export const getMilestoneTool: ToolConfig<GetMilestoneParams, GetMilestoneRespon
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/milestones/${safeUrlPathSegment(String(params.milestone_number), 'milestone_number')}`,
+      `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/milestones/${safeUrlPathSegment(params.milestone_number, 'milestone_number')}`,
     method: 'GET',
     headers: (params) => ({
       Accept: 'application/vnd.github.v3+json',

@@ -73,7 +73,7 @@ export const listPRCommentsTool: ToolConfig<ListPRCommentsParams, CommentsListRe
 
   request: {
     url: (params) => {
-      const baseUrl = `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/pulls/${safeUrlPathSegment(String(params.pullNumber), 'pullNumber')}/comments`
+      const baseUrl = `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/pulls/${safeUrlPathSegment(params.pullNumber, 'pullNumber')}/comments`
       const queryParams = new URLSearchParams()
 
       if (params.sort) queryParams.append('sort', params.sort)

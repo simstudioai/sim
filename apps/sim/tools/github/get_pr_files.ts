@@ -53,7 +53,7 @@ export const getPRFilesTool: ToolConfig<GetPRFilesParams, PRFilesListResponse> =
   request: {
     url: (params) => {
       const url = new URL(
-        `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/pulls/${safeUrlPathSegment(String(params.pullNumber), 'pullNumber')}/files`
+        `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/pulls/${safeUrlPathSegment(params.pullNumber, 'pullNumber')}/files`
       )
       if (params.per_page) url.searchParams.append('per_page', Number(params.per_page).toString())
       if (params.page) url.searchParams.append('page', Number(params.page).toString())

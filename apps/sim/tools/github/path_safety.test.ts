@@ -68,9 +68,13 @@ const TRAILING_SLASH_TOLERANT_PARAMS = new Set(['path'])
  * `{base}...{head}`: a git ref may carry `/`, but emitting it literally is the
  * traversal hole, so the value is escaped into a single inert segment (see
  * `@/tools/github/compare_ref`). `integer` is `job_logs`, whose `job_id` is
- * range-checked rather than encoded.
+ * range-checked rather than encoded. `opaque` is `workflow_id`, which GitHub
+ * documents as "the ID of the workflow. You can also pass the workflow file
+ * name as a string" — and the file name it hands back from
+ * `github_list_workflows` is the repo-relative `.github/workflows/ci.yml`, so
+ * the value carries `/` yet must still collapse into one segment.
  */
-type SiteKind = 'segment' | 'multi' | 'encodedSlash' | 'integer'
+type SiteKind = 'segment' | 'multi' | 'encodedSlash' | 'integer' | 'opaque'
 
 /**
  * Path-reaching parameters whose guard is not the default for their name, and
@@ -96,9 +100,16 @@ const DECLARED_SITE_KINDS = new Map<string, SiteKind>([
   ['github_update_file:path', 'multi'],
   ['github_delete_file:path', 'multi'],
   ['github_remove_label:name', 'multi'],
+  ['github_get_workflow:workflow_id', 'opaque'],
+  ['github_get_workflow_v2:workflow_id', 'opaque'],
+  ['github_trigger_workflow:workflow_id', 'opaque'],
+  ['github_trigger_workflow_v2:workflow_id', 'opaque'],
 ])
 
-const REJECTED_ANYWHERE = ['..', '.', '  ..  ', '\\..\\..'] as const
+/** Rejected by every helper, opaque included: only value rejection kills a dot segment. */
+const REJECTED_DOT_SEGMENTS = ['..', '.', '  ..  '] as const
+
+const REJECTED_ANYWHERE = [...REJECTED_DOT_SEGMENTS, '\\..\\..'] as const
 const REJECTED_SINGLE_ONLY = ['a/../../b', 'a/b'] as const
 const REJECTED_MULTI_ONLY = ['a//b', 'a/../b'] as const
 
@@ -112,7 +123,40 @@ const REJECTED_OUTER_SLASH = ['trailing/', '/leading'] as const
 /** Must NOT throw — encoding already neutralizes them — but must not reshape the path. */
 const NEUTRALIZED = ['%2e%2e', '..%2f..', 'x?foo=attacker'] as const
 
+/**
+ * Additionally neutralized — not rejected — on an `opaque` param.
+ *
+ * `safeOpaqueUrlSegment` rejects only a value that is *exactly* `.` or `..`,
+ * then encodes everything else, so a `/` becomes `%2F` and the whole value is
+ * one inert segment whose text merely contains dots. The WHATWG URL parser
+ * leaves those alone, which is what makes encoding-everything safe here.
+ */
+const NEUTRALIZED_OPAQUE_ONLY = ['\\..\\..', 'a/b', 'a//b', 'a/../b', 'a/../../b'] as const
+
 const POSITIVE_SINGLE = ['octo-cat', 'repo.name', '..foo', 'foo..', 'v1.2.3'] as const
+
+/**
+ * Spellings GitHub accepts for `workflow_id`, verified live against
+ * `simstudioai/sim` (workflow id `150137063`, path `.github/workflows/ci.yml`):
+ *
+ * - `actions/workflows/150137063` → `200` (numeric id)
+ * - `actions/workflows/ci.yml` → `200` (bare file name)
+ * - `actions/workflows/.github%2Fworkflows%2Fci.yml` → `200` (encoded path)
+ * - `actions/workflows/.github/workflows/ci.yml` → `404` (literal slashes miss
+ *   the route entirely)
+ *
+ * The encoded path form matters because `github_list_workflows` prints
+ * `Path: .github/workflows/ci.yml` to the model, so that is the value the model
+ * has in hand on the very next call.
+ */
+const POSITIVE_OPAQUE = [
+  ...POSITIVE_SINGLE,
+  'ci.yml',
+  'main.yaml',
+  '.github/workflows/ci.yml',
+  '.github/workflows/deploy.production.yml',
+  '150137063',
+] as const
 const POSITIVE_MULTI = [
   ...POSITIVE_SINGLE,
   'src/lib/foo.ts',
@@ -308,17 +352,22 @@ describe('github path-parameter traversal safety', () => {
       const multiish = site.kind === 'multi' || site.kind === 'encodedSlash'
       const tolerantOfTrailingSlash =
         site.kind === 'multi' && TRAILING_SLASH_TOLERANT_PARAMS.has(site.param)
-      const rejected = [
-        ...REJECTED_ANYWHERE,
-        ...(multiish ? REJECTED_MULTI_ONLY : REJECTED_SINGLE_ONLY),
-        ...(tolerantOfTrailingSlash || !multiish ? [] : REJECTED_OUTER_SLASH),
-      ]
+      const rejected: readonly string[] =
+        site.kind === 'opaque'
+          ? REJECTED_DOT_SEGMENTS
+          : [
+              ...REJECTED_ANYWHERE,
+              ...(multiish ? REJECTED_MULTI_ONLY : REJECTED_SINGLE_ONLY),
+              ...(tolerantOfTrailingSlash || !multiish ? [] : REJECTED_OUTER_SLASH),
+            ]
+      const neutralized: readonly string[] =
+        site.kind === 'opaque' ? [...NEUTRALIZED, ...NEUTRALIZED_OPAQUE_ONLY] : NEUTRALIZED
 
       it.each(rejected)('rejects %j', (value) => {
         expect(() => buildUrl(site.tool, { [site.param]: value })).toThrow(new RegExp(site.param))
       })
 
-      it.each(NEUTRALIZED)('neutralizes %j without reshaping the path', (value) => {
+      it.each(neutralized)('neutralizes %j without reshaping the path', (value) => {
         const url = buildUrl(site.tool, { [site.param]: value })
 
         expect(url.pathname).toBe(expectedPath(site, value))
@@ -326,23 +375,36 @@ describe('github path-parameter traversal safety', () => {
         expect(url.origin).toBe('https://api.github.com')
       })
 
-      const positive =
+      const positive: readonly string[] =
         site.kind === 'encodedSlash'
           ? POSITIVE_ENCODED_SLASH
           : site.kind === 'multi'
             ? POSITIVE_MULTI
-            : POSITIVE_SINGLE
+            : site.kind === 'opaque'
+              ? POSITIVE_OPAQUE
+              : POSITIVE_SINGLE
 
       it.each(positive)('passes %j through intact', (value) => {
         const url = buildUrl(site.tool, { [site.param]: value })
 
         expect(url.pathname).toBe(expectedPath(site, value))
         expect(url.origin).toBe('https://api.github.com')
-        if (site.kind !== 'encodedSlash') {
+        if (site.kind !== 'encodedSlash' && site.kind !== 'opaque') {
           expect(url.pathname).not.toContain('%2F')
           expect(url.pathname).not.toContain('%2f')
         }
       })
+
+      if (site.kind === 'opaque') {
+        it('collapses a slash-bearing value into one inert segment', () => {
+          const baselineSegments = segmentsOf(buildUrl(site.tool)).length
+          const url = buildUrl(site.tool, { [site.param]: '.github/workflows/ci.yml' })
+
+          expect(segmentsOf(url)).toHaveLength(baselineSegments)
+          expect(url.pathname).toContain('.github%2Fworkflows%2Fci.yml')
+          expect(url.origin).toBe('https://api.github.com')
+        })
+      }
 
       if (site.kind === 'encodedSlash') {
         it('escapes a slashed ref into one inert segment', () => {
@@ -433,5 +495,120 @@ describe('github label names carry slashes', () => {
         name,
       })
     ).toThrow(/name/)
+  })
+})
+
+/**
+ * `workflow_id` names a workflow *file*, so the slash is part of the value.
+ *
+ * GitHub's OpenAPI (`components.parameters.workflow-id`) says: "The ID of the
+ * workflow. You can also pass the workflow file name as a string." The file
+ * name `github_list_workflows` hands the model is the repo-relative
+ * `.github/workflows/ci.yml` — it prints `Path: ${w.path}` verbatim — so the
+ * model is routinely holding a slash-bearing value when it calls these tools.
+ *
+ * Verified live against `simstudioai/sim`: the `%2F`-encoded path, the bare
+ * file name, and the numeric id all answer `200`, while the literal-slash
+ * spelling answers `404`. So the value must reach GitHub as ONE encoded
+ * segment — which is exactly `safeOpaqueUrlSegment`.
+ */
+describe('github workflow ids carry workflow file paths', () => {
+  const WORKFLOW_TOOLS = [
+    ['github_get_workflow', githubTools.githubGetWorkflowTool],
+    ['github_get_workflow_v2', githubTools.githubGetWorkflowV2Tool],
+    ['github_trigger_workflow', githubTools.githubTriggerWorkflowTool],
+    ['github_trigger_workflow_v2', githubTools.githubTriggerWorkflowV2Tool],
+  ] as const
+
+  describe.each(WORKFLOW_TOOLS)('%s', (_id, tool) => {
+    const url = (workflow_id: unknown) =>
+      new URL(
+        (tool.request!.url as (p: any) => string)({
+          owner: 'simstudioai',
+          repo: 'sim',
+          workflow_id,
+          ref: 'main',
+        })
+      )
+
+    it.each(['.github/workflows/ci.yml', 'ci.yml', '150137063'] as const)(
+      'accepts the documented spelling %j',
+      (value) => {
+        expect(() => url(value)).not.toThrow()
+      }
+    )
+
+    it('joins a slash-bearing workflow file name with %2F in one segment', () => {
+      const baseline = url('ci.yml')
+      const slashed = url('.github/workflows/ci.yml')
+
+      expect(slashed.pathname.split('/')).toHaveLength(baseline.pathname.split('/').length)
+      expect(slashed.pathname).toContain('.github%2Fworkflows%2Fci.yml')
+      expect(slashed.pathname).not.toContain('.github/workflows/ci.yml')
+      expect(slashed.origin).toBe('https://api.github.com')
+    })
+
+    it.each(['..', '.', '  ..  '] as const)('still rejects the dot segment %j', (value) => {
+      expect(() => url(value)).toThrow(/workflow_id/)
+    })
+
+    it.each(['%2E%2E', '..%2f..', 'a/../b'] as const)(
+      'neutralizes %j without popping a segment',
+      (value) => {
+        const baseline = url('ci.yml')
+        const built = url(value)
+
+        expect(built.pathname.split('/')).toHaveLength(baseline.pathname.split('/').length)
+        expect(built.origin).toBe('https://api.github.com')
+      }
+    )
+  })
+})
+
+/**
+ * Path ids that reached their guard through a redundant `String(...)` wrapper.
+ *
+ * `toGuardedString` rejects `null`/`undefined` *before* coercing precisely so a
+ * missing id is reported as "<param> is required". `String(undefined)` is the
+ * truthy `'undefined'`, so the wrapper handed the guard a value it happily
+ * encoded — and the tool then issued a request for a resource literally named
+ * `undefined`. The helper already stringifies a numeric id, so the wrapper only
+ * ever defeated the null handling.
+ */
+const STRINGIFIED_ID_PARAMS = new Set([
+  'comment_id',
+  'issue_number',
+  'milestone_number',
+  'pullNumber',
+  'reaction_id',
+  'release_id',
+  'run_id',
+  'workflow_id',
+])
+
+describe('a missing path id is reported as missing, not requested as "undefined"', () => {
+  const MISSING_ID_SITES = SITES.filter((site) => STRINGIFIED_ID_PARAMS.has(site.param))
+
+  it('covers every stringified id parameter', () => {
+    expect(new Set(MISSING_ID_SITES.map((site) => site.param))).toEqual(STRINGIFIED_ID_PARAMS)
+  })
+
+  describe.each(MISSING_ID_SITES)('$name', (site) => {
+    it.each([undefined, null])('reports %j as required', (value) => {
+      expect(() => buildUrl(site.tool, { [site.param]: value })).toThrow(
+        new RegExp(`${site.param} is required`)
+      )
+    })
+
+    it.each([undefined, null])('never addresses a resource named for %j', (value) => {
+      let pathname: string | null = null
+      try {
+        pathname = buildUrl(site.tool, { [site.param]: value }).pathname
+      } catch {
+        pathname = null
+      }
+
+      expect(pathname).toBeNull()
+    })
   })
 })

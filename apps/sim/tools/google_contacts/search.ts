@@ -42,22 +42,27 @@ function authHeaders(accessToken: string): Record<string, string> {
 /**
  * Sends the warmup request Google requires before a search.
  *
- * "Search uses a lazy cache that is updated after a request. Clients should
- * first send a warmup search request with an empty query to make sure the cache
- * has the latest data." Without it, the first search after a contact is created
- * or edited returns stale or empty results — exactly the sequence the shipped
- * `find-contact` and `update-contact-details` skills drive the agent through.
+ * The People API discovery document says so verbatim on
+ * `people.searchContacts`: "**IMPORTANT**: Before searching, clients should
+ * send a warmup request with an empty query to update the cache." The guide
+ * shows the same thing as a `// Warmup cache` call preceding the real one.
  *
- * It runs on every search rather than conditionally: Google documents no cache
- * TTL, and the tool holds no state between invocations, so there is no signal
- * that would make skipping it safe. The cost is one extra read per search
- * (People API read quota is per-minute and generous) plus that request's
- * round-trip, which also serves as the brief pause Google's own sample inserts
- * between warmup and search — no additional fixed sleep is added, since seconds
- * of latency on every search would cost far more than the extra call.
+ * Google does not describe what a cold cache returns, and does not publish a
+ * cache TTL, so nothing here can decide when the warmup would be skippable —
+ * and the tool holds no state between invocations to decide with. It therefore
+ * runs on every search, at the cost of one extra read.
+ *
+ * No fixed delay separates the two requests, and the warmup's round-trip is
+ * not offered as a substitute for one: Google's Protocol sample says "Send
+ * search request after several seconds", which a ~100–300 ms round-trip plainly
+ * is not. The wait is deliberately skipped as a latency trade-off — adding
+ * seconds to every search would cost more than an occasionally stale first
+ * result. (Google's own Java sample is self-contradictory here: the comment
+ * reads "Wait a few seconds" while the call is `Thread.sleep(5)`, five
+ * *milliseconds*.)
  *
  * A failed warmup never fails the search; it only means results may be stale.
- * @see https://developers.google.com/people/v1/contacts
+ * @see https://developers.google.com/people/v1/contacts#search_the_users_contacts
  */
 async function warmSearchCache(accessToken: string, signal?: AbortSignal): Promise<void> {
   try {

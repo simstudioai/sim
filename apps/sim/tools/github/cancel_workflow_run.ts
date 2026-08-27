@@ -39,7 +39,7 @@ export const cancelWorkflowRunTool: ToolConfig<CancelWorkflowRunParams, CancelWo
 
     request: {
       url: (params) =>
-        `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/actions/runs/${safeUrlPathSegment(String(params.run_id), 'run_id')}/cancel`,
+        `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/actions/runs/${safeUrlPathSegment(params.run_id, 'run_id')}/cancel`,
       method: 'POST',
       headers: (params) => ({
         Accept: 'application/vnd.github+json',

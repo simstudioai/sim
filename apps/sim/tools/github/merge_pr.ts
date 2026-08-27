@@ -56,7 +56,7 @@ export const mergePRTool: ToolConfig<MergePRParams, MergeResultResponse> = {
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/pulls/${safeUrlPathSegment(String(params.pullNumber), 'pullNumber')}/merge`,
+      `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/pulls/${safeUrlPathSegment(params.pullNumber, 'pullNumber')}/merge`,
     method: 'PUT',
     headers: (params) => ({
       Accept: 'application/vnd.github.v3+json',

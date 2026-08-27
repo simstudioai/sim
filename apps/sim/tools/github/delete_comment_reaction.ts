@@ -64,7 +64,7 @@ export const deleteCommentReactionTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/issues/comments/${safeUrlPathSegment(String(params.comment_id), 'comment_id')}/reactions/${safeUrlPathSegment(String(params.reaction_id), 'reaction_id')}`,
+      `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/issues/comments/${safeUrlPathSegment(params.comment_id, 'comment_id')}/reactions/${safeUrlPathSegment(params.reaction_id, 'reaction_id')}`,
     method: 'DELETE',
     headers: (params) => ({
       Accept: 'application/vnd.github.squirrel-girl-preview+json',

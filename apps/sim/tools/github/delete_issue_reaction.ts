@@ -64,7 +64,7 @@ export const deleteIssueReactionTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/issues/${safeUrlPathSegment(String(params.issue_number), 'issue_number')}/reactions/${safeUrlPathSegment(String(params.reaction_id), 'reaction_id')}`,
+      `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/issues/${safeUrlPathSegment(params.issue_number, 'issue_number')}/reactions/${safeUrlPathSegment(params.reaction_id, 'reaction_id')}`,
     method: 'DELETE',
     headers: (params) => ({
       Accept: 'application/vnd.github.squirrel-girl-preview+json',

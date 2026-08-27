@@ -1,7 +1,7 @@
 import type { GetWorkflowParams, WorkflowResponse } from '@/tools/github/types'
 import { WORKFLOW_OUTPUT_PROPERTIES } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
-import { safeUrlPathSegment } from '@/tools/url-path'
+import { safeOpaqueUrlSegment, safeUrlPathSegment } from '@/tools/url-path'
 
 export const getWorkflowTool: ToolConfig<GetWorkflowParams, WorkflowResponse> = {
   id: 'github_get_workflow',
@@ -37,9 +37,24 @@ export const getWorkflowTool: ToolConfig<GetWorkflowParams, WorkflowResponse> = 
     },
   },
 
+  /**
+   * `workflow_id` is opaque, not a single conventional segment.
+   *
+   * GitHub documents it as "the ID of the workflow. You can also pass the
+   * workflow file name as a string" (`components.parameters.workflow-id`), and
+   * the file name `github_list_workflows` prints to the model is the
+   * repo-relative `.github/workflows/ci.yml` — so a slash-bearing value is the
+   * ordinary case, not an attack. `safeUrlPathSegment` rejected every one of
+   * them outright; `safeUrlPath` would emit the slashes literally, which misses
+   * the route. Verified live against `simstudioai/sim`:
+   * `actions/workflows/.github%2Fworkflows%2Fci.yml`, `.../ci.yml`, and
+   * `.../150137063` all answer `200`, while `.../.github/workflows/ci.yml`
+   * answers `404`. `safeOpaqueUrlSegment` still rejects an exact `.` or `..` and
+   * encodes everything else into one inert segment.
+   */
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/actions/workflows/${safeUrlPathSegment(String(params.workflow_id), 'workflow_id')}`,
+      `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/actions/workflows/${safeOpaqueUrlSegment(params.workflow_id, 'workflow_id')}`,
     method: 'GET',
     headers: (params) => ({
       Accept: 'application/vnd.github+json',

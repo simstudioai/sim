@@ -43,7 +43,7 @@ export const addAssigneesTool: ToolConfig<AddAssigneesParams, IssueResponse> = {
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/issues/${safeUrlPathSegment(String(params.issue_number), 'issue_number')}/assignees`,
+      `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/issues/${safeUrlPathSegment(params.issue_number, 'issue_number')}/assignees`,
     method: 'POST',
     headers: (params) => ({
       Accept: 'application/vnd.github.v3+json',

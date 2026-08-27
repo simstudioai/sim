@@ -45,7 +45,7 @@ export const updateCommentTool: ToolConfig<UpdateCommentParams, IssueCommentResp
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/issues/comments/${safeUrlPathSegment(String(params.comment_id), 'comment_id')}`,
+      `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/issues/comments/${safeUrlPathSegment(params.comment_id, 'comment_id')}`,
     method: 'PATCH',
     headers: (params) => ({
       Accept: 'application/vnd.github+json',

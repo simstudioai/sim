@@ -43,7 +43,7 @@ export const getIssueTool: ToolConfig<GetIssueParams, IssueResponse> = {
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/issues/${safeUrlPathSegment(String(params.issue_number), 'issue_number')}`,
+      `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/issues/${safeUrlPathSegment(params.issue_number, 'issue_number')}`,
     method: 'GET',
     headers: (params) => ({
       Accept: 'application/vnd.github.v3+json',

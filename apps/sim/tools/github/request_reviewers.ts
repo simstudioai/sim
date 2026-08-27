@@ -50,7 +50,7 @@ export const requestReviewersTool: ToolConfig<RequestReviewersParams, ReviewersR
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/pulls/${safeUrlPathSegment(String(params.pullNumber), 'pullNumber')}/requested_reviewers`,
+      `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/pulls/${safeUrlPathSegment(params.pullNumber, 'pullNumber')}/requested_reviewers`,
     method: 'POST',
     headers: (params) => ({
       Accept: 'application/vnd.github.v3+json',

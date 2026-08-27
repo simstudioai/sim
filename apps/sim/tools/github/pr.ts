@@ -226,7 +226,7 @@ export const prTool: ToolConfig<PROperationParams, PullRequestResponse> = {
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/pulls/${safeUrlPathSegment(String(params.pullNumber), 'pullNumber')}`,
+      `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/pulls/${safeUrlPathSegment(params.pullNumber, 'pullNumber')}`,
     method: 'GET',
     headers: (params) => ({
       Accept: 'application/vnd.github.v3+json',

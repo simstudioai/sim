@@ -11,6 +11,13 @@ import type { GoogleContactsResponse } from '@/tools/google_contacts/types'
  * to 30 (default 10). One shared subBlock feeds both, so the value is clamped
  * to the ceiling of whichever operation is selected rather than sending a
  * number the target operation would quietly reduce.
+ *
+ * `0` is not clamped, it is dropped. Both discovery descriptions give it a
+ * meaning of its own — list: "Defaults to 100 if not set or set to 0";
+ * search: "Defaults to 10 if field is not set, or set to 0" — so clamping it
+ * up to the minimum of `1` turned a request for the default page into a
+ * request for a single contact. Omitting the field reproduces "not set", which
+ * is the same default Google documents for `0`.
  * @see https://developers.google.com/people/api/rest/v1/people.connections/list
  * @see https://developers.google.com/people/api/rest/v1/people/searchContacts
  */
@@ -271,9 +278,10 @@ export const GoogleContactsBlock: BlockConfig<GoogleContactsResponse> = {
         const pageSizeMax = PAGE_SIZE_MAX_BY_OPERATION[operation]
         if (pageSizeMax !== undefined && processedParams.pageSize !== undefined) {
           const parsed = Number.parseInt(String(processedParams.pageSize), 10)
-          processedParams.pageSize = Number.isNaN(parsed)
-            ? undefined
-            : Math.min(Math.max(parsed, 1), pageSizeMax)
+          processedParams.pageSize =
+            Number.isNaN(parsed) || parsed === 0
+              ? undefined
+              : Math.min(Math.max(parsed, 1), pageSizeMax)
         }
 
         return {

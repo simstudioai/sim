@@ -59,7 +59,7 @@ export const listIssueCommentsTool: ToolConfig<ListIssueCommentsParams, Comments
 
   request: {
     url: (params) => {
-      const baseUrl = `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/issues/${safeUrlPathSegment(String(params.issue_number), 'issue_number')}/comments`
+      const baseUrl = `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/issues/${safeUrlPathSegment(params.issue_number, 'issue_number')}/comments`
       const queryParams = new URLSearchParams()
 
       if (params.since) queryParams.append('since', params.since)

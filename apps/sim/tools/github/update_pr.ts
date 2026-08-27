@@ -61,7 +61,7 @@ export const updatePRTool: ToolConfig<UpdatePRParams, PRResponse> = {
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/pulls/${safeUrlPathSegment(String(params.pullNumber), 'pullNumber')}`,
+      `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/pulls/${safeUrlPathSegment(params.pullNumber, 'pullNumber')}`,
     method: 'PATCH',
     headers: (params) => ({
       Accept: 'application/vnd.github.v3+json',
