@@ -51,6 +51,7 @@ function makeRow(overrides: Partial<ForkableChatFileRow> = {}): ForkableChatFile
     displayName: 'cat.png',
     contentType: 'image/png',
     size: 100,
+    sizeBytes: 100,
     deletedAt: null,
     uploadedAt: new Date('2026-06-01T00:00:00.000Z'),
     updatedAt: new Date('2026-06-01T00:00:00.000Z'),

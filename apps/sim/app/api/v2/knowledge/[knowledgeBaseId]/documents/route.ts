@@ -54,10 +54,13 @@ const MAX_FILE_SIZE = MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE
  * stating it or omitting it selects the same documents. A scope part the query
  * ignores refuses a cursor for a page that did not move.
  *
- * `workspaceId` is dropped for the same reason as on the sibling chunk list:
- * the sequence is one knowledge base, named by the path param this already
- * binds, and the query's workspace is asserted scope that authorization refuses
- * before paging rather than a filter that can select a different sequence.
+ * `workspaceId` is asserted scope rather than a filter, for the same reason as
+ * on the sibling chunk list: the sequence is one knowledge base, named by the
+ * path param this already binds, and authorization refuses any other workspace
+ * before paging. Unlike that list it is nonetheless kept in the fingerprint —
+ * see the note at the binding below. Dropping it would be correct in principle
+ * and inert in effect, but it would refuse every cursor minted before the
+ * change.
  */
 function documentCursorFilters(
   knowledgeBaseId: string,

@@ -55,6 +55,7 @@ const BILLING_LOGS_EXAMPLE = {
     },
   ],
   nextCursor: null,
+  scope: 'workspace',
 } as const
 
 function billingOperation(

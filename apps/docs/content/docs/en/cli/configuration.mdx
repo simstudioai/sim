@@ -28,14 +28,14 @@ sim profiles     # list them; * marks the active one
 Add a profile for another workspace without creating or copying an API key:
 
 ```bash
-sim profile add acme --workspace ws_acme
+sim profile add acme --workspace 7e2d9c14-6b83-4a55-8f01-c4d3e9a76b28
 ```
 
 ## Setting defaults
 
 ```bash
 sim configure --set-endpoint http://localhost:3000 --profile dev
-sim configure --set-workspace ws_local --profile dev
+sim configure --set-workspace 5c81f3a6-0e27-4b94-8d15-a7f60c39b2e8 --profile dev
 sim configure --set-output json
 ```
 
@@ -76,16 +76,16 @@ repo:
 ```ini title="~/.sim/config"
 [default]
 endpoint = https://www.sim.ai
-workspace = ws_abc123
+workspace = 2f6d0b1c-8a34-4d92-b7e5-31c8a0f45d67
 output = table
 
 [profile dev]
 endpoint = http://localhost:3000
-workspace = ws_local
+workspace = 5c81f3a6-0e27-4b94-8d15-a7f60c39b2e8
 
 [profile acme]
 auth_profile = default
-workspace = ws_acme
+workspace = 7e2d9c14-6b83-4a55-8f01-c4d3e9a76b28
 ```
 
 Keys live in `~/.sim/credentials`, written `0600`:
@@ -132,9 +132,9 @@ filesystem at all.
 Workspace-scoped commands need a workspace:
 
 ```bash
-sim tables list --workspace ws_other
-sim configure --set-workspace ws_abc123
-export SIM_WORKSPACE=ws_abc123
+sim tables list --workspace 9b4c7e02-1d58-4f36-a0c9-6e2b85df413a
+sim configure --set-workspace 2f6d0b1c-8a34-4d92-b7e5-31c8a0f45d67
+export SIM_WORKSPACE=2f6d0b1c-8a34-4d92-b7e5-31c8a0f45d67
 ```
 
 For a reusable selection, create a workspace profile backed by the current
@@ -142,7 +142,7 @@ stored login:
 
 ```bash
 sim workspaces list
-sim profile add acme --workspace ws_acme
+sim profile add acme --workspace 7e2d9c14-6b83-4a55-8f01-c4d3e9a76b28
 sim --profile acme tables list
 ```
 

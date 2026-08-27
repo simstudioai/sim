@@ -68,16 +68,16 @@ const ACCOUNT_BILLING_DECISION = {
   },
 }
 
-const OLD_GO_HOSTED_VALIDATE_BODY = {
+const SELF_HOSTED_VALIDATE_BODY = {
   userId: 'user-1',
   workspaceId: 'ws-1',
 } as const
 
-const OLD_GO_WORKSPACELESS_VALIDATE_BODY = {
+const SELF_HOSTED_WORKSPACELESS_VALIDATE_BODY = {
   userId: 'user-1',
 } as const
 
-const OLD_GO_OPAQUE_WORKSPACE_VALIDATE_BODY = {
+const SELF_HOSTED_OPAQUE_WORKSPACE_VALIDATE_BODY = {
   userId: 'user-1',
   workspaceId: 'local-self-hosted-workspace',
 } as const
@@ -151,7 +151,7 @@ describe('POST /api/copilot/api-keys/validate billing protocols', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
-    setEnvFlags({ isCopilotBillingProtocolRequired: false })
+    setEnvFlags({ isHosted: false })
     mockCheckInternalApiKey.mockReturnValue({ success: true })
     queueTableRows(schemaMock.user, [{ id: 'user-1' }])
     mockResolveBillingAttribution.mockResolvedValue(ATTRIBUTION)
@@ -199,25 +199,23 @@ describe('POST /api/copilot/api-keys/validate billing protocols', () => {
     resetDbChainMock()
   })
 
-  it('keeps the exact old-Go validate bodies contract-compatible', () => {
-    expect(validateCopilotApiKeyBodySchema.safeParse(OLD_GO_HOSTED_VALIDATE_BODY).success).toBe(
-      true
-    )
+  it('keeps local self-hosted validate bodies contract-compatible', () => {
+    expect(validateCopilotApiKeyBodySchema.safeParse(SELF_HOSTED_VALIDATE_BODY).success).toBe(true)
     expect(
-      validateCopilotApiKeyBodySchema.safeParse(OLD_GO_WORKSPACELESS_VALIDATE_BODY).success
+      validateCopilotApiKeyBodySchema.safeParse(SELF_HOSTED_WORKSPACELESS_VALIDATE_BODY).success
     ).toBe(true)
     expect(
-      validateCopilotApiKeyBodySchema.safeParse(OLD_GO_OPAQUE_WORKSPACE_VALIDATE_BODY).success
+      validateCopilotApiKeyBodySchema.safeParse(SELF_HOSTED_OPAQUE_WORKSPACE_VALIDATE_BODY).success
     ).toBe(true)
   })
 
-  it('checks the routed workspace payer pool for exact markerless hosted admission', async () => {
+  it('checks the routed workspace payer pool for markerless self-hosted admission', async () => {
     mockCheckAttributedUsageLimits.mockResolvedValue({
       isExceeded: true,
       payerUsage: { currentUsage: 200, limit: 100 },
       scope: 'payer',
     })
-    const res = await POST(request(OLD_GO_HOSTED_VALIDATE_BODY))
+    const res = await POST(request(SELF_HOSTED_VALIDATE_BODY))
 
     expect(res.status).toBe(402)
     expect(mockResolveLegacyV0BillingAttribution).toHaveBeenCalledWith({
@@ -228,20 +226,20 @@ describe('POST /api/copilot/api-keys/validate billing protocols', () => {
     expect(mockCheckServerSideUsageLimits).not.toHaveBeenCalled()
   })
 
-  it('preserves the exact actor member cap for markerless hosted admission', async () => {
+  it('preserves the actor member cap for markerless self-hosted admission', async () => {
     mockCheckAttributedUsageLimits.mockResolvedValue({
       isExceeded: true,
       payerUsage: { currentUsage: 20, limit: 100 },
       memberUsage: { currentUsage: 5, limit: 4 },
       scope: 'member',
     })
-    const res = await POST(request(OLD_GO_HOSTED_VALIDATE_BODY))
+    const res = await POST(request(SELF_HOSTED_VALIDATE_BODY))
 
     expect(res.status).toBe(402)
   })
 
-  it('accepts the exact markerless hosted body under its routed workspace limits', async () => {
-    const res = await POST(request(OLD_GO_HOSTED_VALIDATE_BODY))
+  it('accepts markerless self-hosted admission under its routed workspace limits', async () => {
+    const res = await POST(request(SELF_HOSTED_VALIDATE_BODY))
 
     expect(res.status).toBe(200)
     expect(res.headers.get('x-sim-billing-attribution')).toBeNull()
@@ -251,7 +249,7 @@ describe('POST /api/copilot/api-keys/validate billing protocols', () => {
   it('returns whether the validated key owner has an enterprise account', async () => {
     mockIsEnterprisePlan.mockResolvedValueOnce(true)
 
-    const res = await POST(request(OLD_GO_HOSTED_VALIDATE_BODY))
+    const res = await POST(request(SELF_HOSTED_VALIDATE_BODY))
 
     expect(res.status).toBe(200)
     await expect(res.json()).resolves.toEqual({ isEnterprise: true })
@@ -259,14 +257,14 @@ describe('POST /api/copilot/api-keys/validate billing protocols', () => {
   })
 
   it('returns false when the validated key owner is not enterprise', async () => {
-    const res = await POST(request(OLD_GO_HOSTED_VALIDATE_BODY))
+    const res = await POST(request(SELF_HOSTED_VALIDATE_BODY))
 
     expect(res.status).toBe(200)
     await expect(res.json()).resolves.toEqual({ isEnterprise: false })
   })
 
-  it('preserves account admission for the exact workspace-less old-Go body', async () => {
-    const res = await POST(request(OLD_GO_WORKSPACELESS_VALIDATE_BODY))
+  it('preserves account admission for a workspace-less self-hosted body', async () => {
+    const res = await POST(request(SELF_HOSTED_WORKSPACELESS_VALIDATE_BODY))
 
     expect(res.status).toBe(200)
     expect(mockCheckServerSideUsageLimits).toHaveBeenCalledWith('user-1')
@@ -276,26 +274,26 @@ describe('POST /api/copilot/api-keys/validate billing protocols', () => {
 
   it('preserves account admission for an opaque direct legacy workspace', async () => {
     mockResolveLegacyV0BillingAttribution.mockResolvedValueOnce(null)
-    const res = await POST(request(OLD_GO_OPAQUE_WORKSPACE_VALIDATE_BODY))
+    const res = await POST(request(SELF_HOSTED_OPAQUE_WORKSPACE_VALIDATE_BODY))
 
     expect(res.status).toBe(200)
     expect(mockCheckServerSideUsageLimits).toHaveBeenCalledWith('user-1')
     expect(mockCheckAttributedUsageLimits).not.toHaveBeenCalled()
   })
 
-  it('rejects markerless admission only when protocol-required is explicitly enabled', async () => {
-    setEnvFlags({ isCopilotBillingProtocolRequired: true })
-    const res = await POST(request(OLD_GO_HOSTED_VALIDATE_BODY))
+  it('rejects markerless admission on hosted Sim', async () => {
+    setEnvFlags({ isHosted: true })
+    const res = await POST(request(SELF_HOSTED_VALIDATE_BODY))
 
     expect(res.status).toBe(400)
     expect(mockCheckServerSideUsageLimits).not.toHaveBeenCalled()
     expect(mockCheckAttributedUsageLimits).not.toHaveBeenCalled()
   })
 
-  it('allows explicitly labeled legacy requests when markerless traffic is disabled', async () => {
-    setEnvFlags({ isCopilotBillingProtocolRequired: true })
+  it('allows explicitly labeled legacy requests on hosted Sim', async () => {
+    setEnvFlags({ isHosted: true })
     const res = await POST(
-      request(OLD_GO_HOSTED_VALIDATE_BODY, { 'x-sim-billing-protocol': 'legacy-v0' })
+      request(SELF_HOSTED_VALIDATE_BODY, { 'x-sim-billing-protocol': 'legacy-v0' })
     )
 
     expect(res.status).toBe(200)

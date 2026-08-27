@@ -591,7 +591,11 @@ export function sanitizeForCopilot(
         loopInputs.parallelType = parallelType
         // Only export fields relevant to the current parallelType
         if (parallelType === 'count' && block.data?.count !== undefined) {
-          loopInputs.iterations = block.data.count
+          // `count`, not `iterations`: the parallel schema the model is given names this
+          // field `count` and the edit path reads it back under that name. A loop's
+          // equivalent field really is called `iterations` on both sides — copying that
+          // line here made the model's read view disagree with its own write contract.
+          loopInputs.count = block.data.count
         }
         if (parallelType === 'collection' && block.data?.collection !== undefined) {
           loopInputs.collection = block.data.collection

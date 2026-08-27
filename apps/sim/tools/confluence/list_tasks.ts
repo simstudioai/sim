@@ -111,6 +111,7 @@ export const confluenceListTasksTool: ToolConfig<
   },
 
   request: {
+    internal: true,
     url: () => '/api/tools/confluence/tasks',
     method: 'POST',
     headers: (params: ConfluenceListTasksParams) => ({

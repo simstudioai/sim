@@ -7,7 +7,6 @@ import {
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
   v2ApiKeyAuthModuleMock,
-  v2GateModuleMock,
   v2RateLimiterModuleMock,
   v2RouteMocks,
 } from '@sim/testing'
@@ -22,7 +21,6 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
-vi.mock('@/app/api/v2/lib/gate', () => v2GateModuleMock)
 
 vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mocks.capture }))
 
@@ -56,7 +54,6 @@ const principal = {
 }
 const auth = {
   principal,
-  rolloutUserId: 'billing-owner-1',
   rateLimitSubjectIds: ['api-key:key-1', 'workspace:workspace-1'] as const,
   rateLimitSubscription: null,
   keyType: 'workspace' as const,
@@ -116,7 +113,6 @@ describe('v2 run detail and cancel adapters', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(auth)
-    v2RouteMocks.gate.mockResolvedValue(null)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
     mocks.readRun.mockResolvedValue(baseStatus)
@@ -200,6 +196,32 @@ describe('v2 run detail and cancel adapters', () => {
         input: expect.objectContaining({ includeFileBase64: true, base64MaxBytes: 4096 }),
       })
     )
+  })
+
+  /**
+   * The contract has always said `includeFileBase64` requires `includeOutput`,
+   * and the read honours it: files are projected inside the `includeOutput`
+   * branch alone. Nothing enforced it, so the flag parsed, was accepted, and
+   * was then dropped — a `200` carrying no files and no reason why.
+   */
+  it('rejects inlining files without asking for the output they hang off', async () => {
+    const response = await callStatus('?includeFileBase64=true')
+
+    expect(response.status).toBe(400)
+    expect((await response.json()).error.message).toContain('includeOutput')
+    expect(mocks.readRun).not.toHaveBeenCalled()
+  })
+
+  it('rejects a ceiling for an inlining that was never requested', async () => {
+    const response = await callStatus('?base64MaxBytes=4096')
+
+    expect(response.status).toBe(400)
+    expect(mocks.readRun).not.toHaveBeenCalled()
+  })
+
+  /** Explicitly declining the inlining is not a request for it. */
+  it('accepts includeFileBase64=false on its own', async () => {
+    expect((await callStatus('?includeFileBase64=false')).status).toBe(200)
   })
 
   it('rejects a base64MaxBytes above the inline ceiling', async () => {
@@ -384,7 +406,6 @@ describe('v2 run detail and cancel adapters', () => {
     v2RouteMocks.authenticate.mockResolvedValueOnce({
       ...auth,
       principal: { kind: 'personal_api_key', userId: 'key-user', keyId: 'personal-key' },
-      rolloutUserId: 'key-user',
       rateLimitSubjectIds: ['api-key:personal-key', 'user:key-user'],
       keyType: 'personal',
     })

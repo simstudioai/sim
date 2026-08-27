@@ -1,5 +1,5 @@
 import { once } from 'node:events'
-import { createWriteStream, type WriteStream } from 'node:fs'
+import { createWriteStream, rmSync, type WriteStream } from 'node:fs'
 import { link, lstat, mkdtemp, readlink, rename, rm } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { Readable, type Writable } from 'node:stream'
@@ -89,6 +89,63 @@ export async function streamToFile(
   }
 }
 
+/** Signals that end the process while a download is staged beside its target. */
+const STAGE_SIGNALS: readonly NodeJS.Signals[] = ['SIGINT', 'SIGTERM']
+
+/**
+ * Ends the process by the signal that arrived, once our own handler has run.
+ *
+ * Installing a listener suppresses Node's default termination, so the handler
+ * has to terminate itself. Re-raising rather than `process.exit(130)` keeps the
+ * process dying *by signal*, so a wrapping shell still sees 130/143 and a
+ * `trap` still fires — the behaviour an interrupted download has today. Only
+ * our own listener is removed, by the handler itself before it calls this:
+ * `removeAllListeners` would take a caller's own handler with it, and nothing
+ * here needs one gone but ours.
+ */
+function reRaise(signal: NodeJS.Signals): void {
+  process.kill(process.pid, signal)
+}
+
+/**
+ * Removes the staging directory when a signal ends the process.
+ *
+ * `saveStagedFile` cleans up in normal control flow, which a signal never
+ * reaches: the process is torn down mid-`pipeline`, so every Ctrl-C left
+ * another `.sim-download-*` holding a partial payload beside the destination.
+ * The removal is synchronous because the termination that follows gives an
+ * async `rm` no turn to run.
+ *
+ * Exported for its own test: driving it through a real interrupt would take the
+ * test runner down with it.
+ */
+export function removeStagingOnSignal(
+  stagingDirectory: () => string | null,
+  terminate: (signal: NodeJS.Signals) => void = reRaise
+): () => void {
+  const installed = STAGE_SIGNALS.map((signal) => {
+    const onSignal = () => {
+      process.off(signal, onSignal)
+      const directory = stagingDirectory()
+      if (directory) {
+        try {
+          rmSync(directory, { recursive: true, force: true })
+        } catch {
+          // A staging directory we cannot remove is not worth masking the
+          // interrupt the caller asked for.
+        }
+      }
+      terminate(signal)
+    }
+    process.on(signal, onSignal)
+    return [signal, onSignal] as const
+  })
+
+  return () => {
+    for (const [signal, onSignal] of installed) process.off(signal, onSignal)
+  }
+}
+
 async function saveStagedFile(
   body: ReadableStream<Uint8Array>,
   target: string,
@@ -96,38 +153,47 @@ async function saveStagedFile(
 ): Promise<void> {
   let temporaryDirectory: string | null = null
   let failure: SimApiError | null = null
+  const disposeSignalCleanup = removeStagingOnSignal(() => temporaryDirectory)
 
   try {
-    const publicationTarget = force ? await forcedPublicationTarget(target) : target
-    temporaryDirectory = await mkdtemp(join(dirname(publicationTarget), '.sim-download-'))
-    const temporaryPath = join(temporaryDirectory, 'payload')
-    await streamToFile(body, createWriteStream(temporaryPath, { flags: 'wx' }), target)
-    if (force) {
-      await rename(temporaryPath, publicationTarget)
-    } else {
+    try {
+      const publicationTarget = force ? await forcedPublicationTarget(target) : target
+      temporaryDirectory = await mkdtemp(join(dirname(publicationTarget), '.sim-download-'))
+      const temporaryPath = join(temporaryDirectory, 'payload')
+      await streamToFile(body, createWriteStream(temporaryPath, { flags: 'wx' }), target)
+      if (force) {
+        await rename(temporaryPath, publicationTarget)
+      } else {
+        try {
+          await link(temporaryPath, publicationTarget)
+        } catch (error) {
+          throw unsupportedAtomicPublish(target, error) ?? error
+        }
+      }
+    } catch (error) {
+      failure = normalizedWriteFailure(target, error)
+    }
+
+    if (temporaryDirectory) {
       try {
-        await link(temporaryPath, publicationTarget)
-      } catch (error) {
-        throw unsupportedAtomicPublish(target, error) ?? error
+        await rm(temporaryDirectory, { recursive: true, force: true })
+      } catch (cleanupError) {
+        if (failure) throw combinedCleanupFailure(failure, temporaryDirectory, cleanupError)
+        throw new SimApiError(
+          `Saved ${target}, but could not remove temporary directory ${temporaryDirectory}: ${(cleanupError as Error).message}`,
+          0
+        )
       }
     }
-  } catch (error) {
-    failure = normalizedWriteFailure(target, error)
-  }
 
-  if (temporaryDirectory) {
-    try {
-      await rm(temporaryDirectory, { recursive: true, force: true })
-    } catch (cleanupError) {
-      if (failure) throw combinedCleanupFailure(failure, temporaryDirectory, cleanupError)
-      throw new SimApiError(
-        `Saved ${target}, but could not remove temporary directory ${temporaryDirectory}: ${(cleanupError as Error).message}`,
-        0
-      )
-    }
+    if (failure) throw failure
+  } finally {
+    // Disposed on every path out, and only once the removal above has finished:
+    // an `rm` is asynchronous, so a handler disposed before it awaits leaves the
+    // staging directory behind for a signal arriving in exactly the window this
+    // watch exists for.
+    disposeSignalCleanup()
   }
-
-  if (failure) throw failure
 }
 
 /** Publishes a complete staged body atomically, with overwrite requiring explicit force. */
@@ -183,6 +249,7 @@ export function attachFileGet(files: Command): void {
   files
     .command('get')
     .argument('<fileId>', 'File whose content to read')
+    .allowExcessArguments(false)
     .description('Get a file’s content')
     .option('-o, --output-file <path>', 'Write content to a file instead of stdout')
     .option('--force', 'Overwrite --output-file if it already exists')

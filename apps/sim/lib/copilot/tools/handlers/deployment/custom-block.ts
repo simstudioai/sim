@@ -3,7 +3,6 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import { isAllowedCustomBlockIconUrl } from '@/lib/api/contracts/custom-blocks'
-import { isOrganizationOnEnterprisePlan } from '@/lib/billing'
 import {
   executeCopilotFileUseCase,
   resolveCopilotWorkspaceFileReference,
@@ -11,7 +10,6 @@ import {
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { requireCopilotWorkspace } from '@/lib/copilot/tools/server/workspace-scope'
 import { canonicalizeVfsPath } from '@/lib/copilot/vfs/path-utils'
-import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { buildStorageKeySegment } from '@/lib/uploads/core/storage-key'
 import { uploadFile } from '@/lib/uploads/core/storage-service'
 import { isImageFileType } from '@/lib/uploads/utils/file-utils'
@@ -20,6 +18,8 @@ import {
   type CustomBlockWithInputs,
   deleteCustomBlock,
   getCustomBlockWithInputsByWorkflowId,
+  isCustomBlocksDeploymentEnabled,
+  isCustomBlocksEligibleForOrganization,
   publishCustomBlock,
   updateCustomBlock,
 } from '@/lib/workflows/custom-blocks/operations'
@@ -166,15 +166,9 @@ export async function executeDeployCustomBlock(
         error: 'Publishing a block requires the workspace to belong to an organization',
       }
     }
-    if (
-      !(await isFeatureEnabled('deploy-as-block', {
-        userId: context.userId,
-        orgId: organizationId,
-      }))
-    ) {
+    if (!isCustomBlocksDeploymentEnabled()) {
       return { success: false, error: 'Custom blocks are not enabled for this organization' }
     }
-
     const existing = await getCustomBlockWithInputsByWorkflowId(workflowId)
 
     if (action === 'undeploy') {
@@ -258,8 +252,8 @@ export async function executeDeployCustomBlock(
       return { success: true, output: { ...customBlockOutput(updated, 'deploy'), updated: true } }
     }
 
-    if (!(await isOrganizationOnEnterprisePlan(organizationId))) {
-      return { success: false, error: 'Custom blocks require an enterprise plan' }
+    if (!(await isCustomBlocksEligibleForOrganization(organizationId))) {
+      return { success: false, error: 'Custom blocks are not enabled for this organization' }
     }
     if (!name) {
       return { success: false, error: 'name is required when publishing a new custom block' }

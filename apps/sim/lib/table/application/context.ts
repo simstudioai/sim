@@ -29,7 +29,7 @@ async function requireTable(tableId: string, workspaceId: string | undefined) {
   if (!table || (workspaceId !== undefined && table.workspaceId !== workspaceId)) {
     throw new OrchestrationError(
       'not_found',
-      `Table "${tableId}" not found in this workspace — it may not exist or may belong to a different workspace. Run glob("tables/*") to list the tables you can use here.`
+      `Table "${tableId}" not found in this workspace — it may not exist or may belong to a different workspace. List the tables in this workspace to see the ids you can use here.`
     )
   }
   return table

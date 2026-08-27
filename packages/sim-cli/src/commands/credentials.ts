@@ -1,4 +1,4 @@
-import type { Command } from 'commander'
+import { type Command, Option } from 'commander'
 import { clientFrom } from '../context'
 import type { CommandSpec } from '../contract/types'
 import {
@@ -8,6 +8,7 @@ import {
   V2_OPERATIONS,
 } from '../generated/v2-api'
 import { SimApiError } from '../http/client'
+import { describeOperation } from '../runtime/build'
 import { coerce } from '../runtime/request'
 import { renderResult } from '../runtime/result'
 
@@ -156,19 +157,56 @@ async function createConnectionLink(command: Command, body: ConnectionBody): Pro
   renderResult('createCredentialConnection', profile.output, response.data, CONNECTION_RESULT)
 }
 
+/**
+ * Teaches the generated `credentials update` command the `--name` spelling.
+ *
+ * `credentials create` names a credential with `--name` while its sibling
+ * spells the same field `--display-name`, so the obvious `update --name` was
+ * rejected outright. Both are accepted here rather than one being renamed:
+ * `--display-name` is published, and removing a flag breaks existing scripts.
+ * Supplying both is refused, because they are one field and no reading of which
+ * value wins is more likely to be the intended one.
+ */
+function acceptNameOnUpdate(credentials: Command): void {
+  const update = credentials.commands.find((command) => command.name() === 'update')
+  if (!update) throw new Error('The generated credentials update command is missing')
+
+  update
+    .addOption(new Option('--name <displayName>', 'Alias for --display-name'))
+    .hook('preAction', (_parent, action) => {
+      const options = action.opts()
+      if (options.name === undefined) return
+      if (options.displayName !== undefined) {
+        throw new SimApiError('--name and --display-name are the same field; pass one, not both', 0)
+      }
+      options.displayName = options.name
+    })
+}
+
 /** Adds the human-facing OAuth connection commands backed by the v2 credentials API. */
 export function attachCredentialCommands(program: Command): void {
   const credentials = program.commands.find((command) => command.name() === 'credentials')
   if (!credentials) throw new Error('The generated credentials command group is missing')
 
+  acceptNameOnUpdate(credentials)
+
   credentials
     .command('create')
     .argument('<providerId>', 'Service-account provider to create a credential for')
-    .description('Create a service-account credential using its discovered provider schema')
-    .requiredOption('--name <displayName>', 'Name shown for the credential in Sim')
+    .description(
+      describeOperation(
+        V2_OPERATIONS.createServiceAccountCredential,
+        'Create a service-account credential using its discovered provider schema'
+      )
+    )
+    // The `(required)` suffix is the marker the generated flags carry, and it
+    // is literal text rather than something commander renders — a hand-written
+    // mandatory option that omits it is the only kind of required flag whose
+    // help does not say so.
+    .requiredOption('--name <displayName>', 'Name shown for the credential in Sim (required)')
     .requiredOption(
       '--credentials <json|@file>',
-      'Provider credentials as JSON (or @path / @- to read a file or stdin)'
+      'Provider credentials as JSON (or @path / @- to read a file or stdin) (required)'
     )
     .option('--description <description>', 'Optional credential description')
     .option(
@@ -182,8 +220,13 @@ export function attachCredentialCommands(program: Command): void {
   credentials
     .command('connect')
     .argument('<providerId>', 'OAuth provider to connect')
-    .description('Create a short-lived link for connecting an OAuth provider')
-    .requiredOption('--name <displayName>', 'Name shown for the new credential in Sim')
+    .description(
+      describeOperation(
+        V2_OPERATIONS.createCredentialConnection,
+        'Create a short-lived link for connecting an OAuth provider'
+      )
+    )
+    .requiredOption('--name <displayName>', 'Name shown for the new credential in Sim (required)')
     .action(async (providerId: string, options: { name: string }, command: Command) =>
       createConnectionLink(command, { providerId, displayName: options.name })
     )
@@ -191,7 +234,12 @@ export function attachCredentialCommands(program: Command): void {
   credentials
     .command('reconnect')
     .argument('<credentialId>', 'Existing OAuth credential to re-authorize')
-    .description('Create a short-lived link for reconnecting an OAuth credential')
+    .description(
+      describeOperation(
+        V2_OPERATIONS.createCredentialConnection,
+        'Create a short-lived link for reconnecting an OAuth credential'
+      )
+    )
     .action((credentialId: string, _options: unknown, command: Command) =>
       createConnectionLink(command, { credentialId })
     )

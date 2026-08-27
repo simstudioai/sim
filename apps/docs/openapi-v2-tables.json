@@ -55,10 +55,10 @@
             "name": "scope",
             "in": "query",
             "required": false,
-            "description": "Which lifecycle set to list: `active` (default) for live tables, `archived` for tables a `DELETE` archived and `POST /tables/{tableId}/restore` can bring back. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too.",
+            "description": "Which lifecycle set to list: `active` (default) for live tables, `archived` for tables a delete archived and a table restore can bring back. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too.",
             "schema": {
               "default": "active",
-              "description": "Which lifecycle set to list: `active` (default) for live tables, `archived` for tables a `DELETE` archived and `POST /tables/{tableId}/restore` can bring back. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too.",
+              "description": "Which lifecycle set to list: `active` (default) for live tables, `archived` for tables a delete archived and a table restore can bring back. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too.",
               "type": "string",
               "enum": ["active", "archived"]
             }
@@ -6400,7 +6400,7 @@
             "description": "Unique workspace identifier."
           },
           "data": {
-            "description": "Complete set of row cells keyed by column name. On the update branch this REPLACES the matched row: any column not present here is cleared, unlike the merging `PATCH /api/v2/tables/{tableId}/rows/{rowId}`.",
+            "description": "Complete set of row cells keyed by column name. On the update branch this REPLACES the matched row: any column not present here is cleared, unlike a single-row update, which merges.",
             "$ref": "#/components/schemas/V2TableRowData"
           },
           "conflictTarget": {
@@ -7628,7 +7628,7 @@
           {
             "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
             "group": {
-              "workflowId": "wf_1b3d5f7a9c2e4680b4d6f8a0c2e4b619",
+              "workflowId": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
               "name": "Enrich company",
               "outputs": [
                 {
@@ -8248,6 +8248,36 @@
         "title": "Upload table import source",
         "description": "CSV file uploaded through signed transfer instructions."
       },
+      "V2TableImportRejectedSample": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "CSV parser error code, e.g. CSV_QUOTE_NOT_CLOSED."
+          },
+          "line": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "1-based source line the parser had reached when it gave up, or null."
+          },
+          "message": {
+            "type": "string",
+            "description": "Parser message for the dropped record."
+          }
+        },
+        "required": ["code", "line", "message"],
+        "additionalProperties": false,
+        "title": "Rejected import record",
+        "description": "One source record a table import could not read."
+      },
       "V2UploadBackedTableImport": {
         "type": "object",
         "properties": {
@@ -8334,6 +8364,25 @@
             "maximum": 9007199254740991,
             "description": "Rows processed so far."
           },
+          "rowsRejected": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Lower bound on the source records the CSV parser could not read and dropped, counted as one per parser failure. A single failure can discard more than one record — an unterminated quote swallows the rest of the file and is reported once — so the true loss may be larger. Non-zero means the import is partial even when the status is completed; zero is not a guarantee that nothing was dropped."
+          },
+          "cellsRejected": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Non-empty cell values the target column type could not represent. Their rows were imported with the cell left blank."
+          },
+          "rejectedSamples": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V2TableImportRejectedSample"
+            },
+            "description": "Bounded sample of the dropped records, for locating them in the source file."
+          },
           "error": {
             "anyOf": [
               {
@@ -8379,6 +8428,9 @@
           "target",
           "tableId",
           "rowsProcessed",
+          "rowsRejected",
+          "cellsRejected",
+          "rejectedSamples",
           "error",
           "createdAt",
           "updatedAt",
@@ -8554,6 +8606,25 @@
             "maximum": 9007199254740991,
             "description": "Rows processed so far."
           },
+          "rowsRejected": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Lower bound on the source records the CSV parser could not read and dropped, counted as one per parser failure. A single failure can discard more than one record — an unterminated quote swallows the rest of the file and is reported once — so the true loss may be larger. Non-zero means the import is partial even when the status is completed; zero is not a guarantee that nothing was dropped."
+          },
+          "cellsRejected": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Non-empty cell values the target column type could not represent. Their rows were imported with the cell left blank."
+          },
+          "rejectedSamples": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V2TableImportRejectedSample"
+            },
+            "description": "Bounded sample of the dropped records, for locating them in the source file."
+          },
           "error": {
             "anyOf": [
               {
@@ -8599,6 +8670,9 @@
           "target",
           "tableId",
           "rowsProcessed",
+          "rowsRejected",
+          "cellsRejected",
+          "rejectedSamples",
           "error",
           "createdAt",
           "updatedAt",
@@ -8876,6 +8950,25 @@
             "maximum": 9007199254740991,
             "description": "Rows processed so far."
           },
+          "rowsRejected": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Lower bound on the source records the CSV parser could not read and dropped, counted as one per parser failure. A single failure can discard more than one record — an unterminated quote swallows the rest of the file and is reported once — so the true loss may be larger. Non-zero means the import is partial even when the status is completed; zero is not a guarantee that nothing was dropped."
+          },
+          "cellsRejected": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Non-empty cell values the target column type could not represent. Their rows were imported with the cell left blank."
+          },
+          "rejectedSamples": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V2TableImportRejectedSample"
+            },
+            "description": "Bounded sample of the dropped records, for locating them in the source file."
+          },
           "error": {
             "anyOf": [
               {
@@ -8921,6 +9014,9 @@
           "target",
           "tableId",
           "rowsProcessed",
+          "rowsRejected",
+          "cellsRejected",
+          "rejectedSamples",
           "error",
           "createdAt",
           "updatedAt",
@@ -9562,7 +9658,7 @@
             "description": "Workspace that owns the archived folder."
           },
           "path": {
-            "description": "Path the folder held when `DELETE /api/v2/tables/folders` archived it.",
+            "description": "Path the folder held when a folder delete archived it.",
             "$ref": "#/components/schemas/NonRootFolderPathInput"
           }
         },
@@ -9868,7 +9964,18 @@
                 "description": "Workflow groups the dispatch runs."
               },
               "rowIds": {
-                "description": "Explicit rows the dispatch targets; absent means every eligible row.",
+                "description": "Explicit rows the dispatch targets. Absent means it was given no row list and walks every eligible row, narrowed by `filtered` and `excludeRowIds` when either is present.",
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "filtered": {
+                "description": "Present and true when a stored filter narrows which rows run. The filter itself is not published: it is held compiled, in a different grammar from the predicate the request was written in. Absent means no filter narrows the dispatch — which, with no `rowIds` and no `excludeRowIds`, is what means every eligible row.",
+                "type": "boolean"
+              },
+              "excludeRowIds": {
+                "description": "Rows the walk skips. Independent of `filtered`: a dispatch may exclude rows from a filtered set or from every eligible row. Never present alongside `rowIds`, which the run rejects and the walk would ignore.",
                 "type": "array",
                 "items": {
                   "type": "string"

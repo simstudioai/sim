@@ -1517,7 +1517,7 @@
       "put": {
         "operationId": "bulkSaveKnowledgeTagDefinitions",
         "summary": "Bulk Save Tag Definitions",
-        "description": "Declare, in one request, several of the knowledge base's tag definitions. `POST` on this path defines exactly one tag; this is the same write over a list, and every slot the body names is written to the declaration it carries while slots it does not name are left alone. Updating an existing definition requires naming its current name in `originalDisplayName`; that is the only form that edits one in place. Without it the entry is a create, and a requested `tagSlot` another name already holds is not overwritten — the definition is created in the next free slot of its `fieldType` instead, so read the returned entry for the slot actually assigned. A create whose `displayName` already exists is refused in `errors`. Per-definition failures are reported in `errors` and still answer `200`. This writes the vocabulary, not one document's tag values — set those with `PATCH /api/v2/knowledge/{knowledgeBaseId}/documents/{documentId}`. A workspace API key is rejected with `403`; use a personal API key.",
+        "description": "Declare, in one request, several of the knowledge base's tag definitions. `POST` on this path defines exactly one tag; this is the same write over a list, and every slot the body names is written to the declaration it carries while slots it does not name are left alone. Updating an existing definition requires naming its current name in `originalDisplayName`; that is the only form that edits one in place. Without it the entry is a create, and a requested `tagSlot` another name already holds is refused in `errors` — it is neither overwritten nor relocated to a different slot, so an explicitly requested slot always means that slot or an error. A create whose `displayName` already exists is refused in `errors`. Per-definition failures are reported in `errors` and still answer `200`. This writes the vocabulary, not one document's tag values — set those with `PATCH /api/v2/knowledge/{knowledgeBaseId}/documents/{documentId}`. A workspace API key is rejected with `403`; use a personal API key.",
         "tags": ["Knowledge Bases"],
         "parameters": [
           {
@@ -3481,7 +3481,7 @@
       "patch": {
         "operationId": "bulkUpdateKnowledgeChunks",
         "summary": "Bulk Update Chunks",
-        "description": "Enable, disable, or delete many chunks of one document in a single request. Best-effort: an identifier naming no chunk in the document is skipped rather than failing the request, so `processed` is the authoritative count. Chunks of a connector-synced document are read-only and a write answers `403` with `error.details.code: \"CONNECTOR_MANAGED_RESOURCE_READ_ONLY\"` — change the content at the source and re-sync, or exclude the document from the connector. A workspace API key is rejected with `403`; use a personal API key.",
+        "description": "Enable, disable, or delete many chunks of one document in a single request. Best-effort: an identifier naming no chunk in the document is reported in `errors` rather than failing the request. `processed` counts the chunks the operation matched, not the chunks it changed. Chunks of a connector-synced document are read-only and a write answers `403` with `error.details.code: \"CONNECTOR_MANAGED_RESOURCE_READ_ONLY\"` — change the content at the source and re-sync, or exclude the document from the connector. A workspace API key is rejected with `403`; use a personal API key.",
         "tags": ["Knowledge Bases"],
         "parameters": [
           {
@@ -5278,6 +5278,13 @@
             "maximum": 9007199254740991,
             "description": "Documents unchanged."
           },
+          "docsSkipped": {
+            "default": 0,
+            "description": "Documents intentionally skipped because they could not be indexed safely.",
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
           "docsFailed": {
             "type": "integer",
             "minimum": 0,
@@ -5306,6 +5313,7 @@
           "docsUpdated",
           "docsDeleted",
           "docsUnchanged",
+          "docsSkipped",
           "docsFailed",
           "errorMessage"
         ],
@@ -6830,14 +6838,15 @@
             "type": "object",
             "properties": {
               "recipe": {
-                "description": "Optional document processing recipe.",
+                "description": "Optional document processing recipe. One of: default, plain, markdown, code.",
                 "type": "string",
-                "maxLength": 255
+                "enum": ["default", "plain", "markdown", "code"]
               },
               "lang": {
-                "description": "Optional document language code.",
+                "description": "Optional document language: hyphen-separated letter and digit subtags such as `en`, `en-US`, or `zh-Hant-TW`. Only that shape is validated, not full BCP-47 conformance.",
                 "type": "string",
-                "maxLength": 35
+                "maxLength": 35,
+                "pattern": "^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*$"
               }
             },
             "additionalProperties": false
@@ -7868,7 +7877,7 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 9007199254740991,
-            "description": "Number of chunks the operation changed.",
+            "description": "Number of chunks in this document the operation matched. Chunks already in the requested state are counted too, so this is not a count of changes.",
             "examples": [12]
           },
           "errors": {
@@ -7876,7 +7885,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Per-chunk failures. A populated array still answers 200."
+            "description": "Per-chunk failures, including any identifier that named no chunk in the document. A populated array still answers 200."
           }
         },
         "required": ["operation", "processed", "errors"],
@@ -7919,7 +7928,7 @@
               "type": "string",
               "minLength": 1
             },
-            "description": "Chunks to operate on, by identifier. Ids outside the document are ignored."
+            "description": "Chunks to operate on, by identifier. An id naming no chunk in the document is reported in errors and does not fail the request."
           }
         },
         "required": ["workspaceId", "operation", "chunkIds"],

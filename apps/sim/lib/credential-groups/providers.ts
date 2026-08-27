@@ -1,7 +1,12 @@
 import type { OAuthServiceConfig } from '@/lib/oauth'
 import { getServiceConfigByServiceId } from '@/lib/oauth'
 
-export const CREDENTIAL_GROUP_STANDARD_OAUTH_PROVIDER_IDS = ['gmail', 'google-calendar'] as const
+export const CREDENTIAL_GROUP_STANDARD_OAUTH_PROVIDER_IDS = [
+  'gmail',
+  'google-calendar',
+  'confluence',
+  'jira',
+] as const
 
 export type CredentialGroupStandardOAuthProvider =
   (typeof CREDENTIAL_GROUP_STANDARD_OAUTH_PROVIDER_IDS)[number]
@@ -31,6 +36,16 @@ const CREDENTIAL_GROUP_PROVIDER_SUPPORT: Record<
   'google-calendar': {
     serviceId: 'google-calendar',
     description: 'Let each person connect one Google Calendar account',
+    configuration: 'oauth',
+  },
+  confluence: {
+    serviceId: 'confluence',
+    description: 'Let each person connect one Confluence account',
+    configuration: 'oauth',
+  },
+  jira: {
+    serviceId: 'jira',
+    description: 'Let each person connect one Jira account',
     configuration: 'oauth',
   },
   slack: {
@@ -80,5 +95,15 @@ export function getCredentialGroupProviderFromProviderId(
     (candidate) => getCredentialGroupProviderId(candidate) === providerId
   )
   if (!provider) throw new Error(`Unsupported managed credential provider: ${providerId}`)
+  return provider
+}
+
+export function getCredentialGroupStandardOAuthProviderFromProviderId(
+  providerId: string
+): CredentialGroupStandardOAuthProvider {
+  const provider = CREDENTIAL_GROUP_STANDARD_OAUTH_PROVIDER_IDS.find(
+    (candidate) => getCredentialGroupProviderId(candidate) === providerId
+  )
+  if (!provider) throw new Error(`Unsupported managed OAuth provider: ${providerId}`)
   return provider
 }

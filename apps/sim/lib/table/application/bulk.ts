@@ -129,7 +129,14 @@ interface BulkMoveTablesExecutionResult extends BulkMoveTablesResult, TableBatch
 }
 interface BulkDeleteTablesExecutionResult
   extends BulkDeleteTablesResult,
-    TableBatchExecutionResult {}
+    TableBatchExecutionResult {
+  /**
+   * Every deletion keyed by canonical id, for the audit projection only. The
+   * published `deleted` is keyed the way the caller addressed the batch, which
+   * on the path-keyed route is a display path.
+   */
+  auditedDeletions: BulkTableItem[]
+}
 
 async function resolveBulkTablesContext(
   input: BulkTablesSelectionInput,
@@ -539,6 +546,18 @@ export const bulkDeleteTables = defineAuthorizedTableUseCase({
       })
       return {
         deleted: deleted.map((item) => projectFolderItem(item, context)),
+        /**
+         * The same deletions still keyed by canonical id.
+         *
+         * `deleted` above is keyed for the caller, and on the path-keyed v2
+         * route `projectFolderItem` replaces a folder's id with its display
+         * path. Auditing from that list wrote the path into
+         * `FOLDER_DELETED.resourceId`, so the same action recorded a path here
+         * and an id from `DELETE /api/folders/[id]` — two spellings of one
+         * resource that no query could join. The projection stays a
+         * presentation concern; the audit reads the canonical ids.
+         */
+        auditedDeletions: deleted.map((item) => ({ ...item })),
         deletedItems,
         ...withUnresolvedFolders(projectBulkOutcome(outcome, context), context),
         ...(terminalError !== undefined && { terminalFailure: { error: terminalError } }),
@@ -554,30 +573,40 @@ export const bulkDeleteTables = defineAuthorizedTableUseCase({
    * is unbounded, and per-resource entries would let one request write
    * thousands of audit rows.
    */
-  projectAudit: ({ result }) =>
-    result.deleted.map((item) =>
-      item.kind === 'folder'
-        ? {
-            action: AuditAction.FOLDER_DELETED,
-            resourceType: AuditResourceType.FOLDER,
-            resourceId: item.id,
-            resourceName: item.name,
-            description: `Deleted table folder "${item.name}"`,
-            metadata: {
-              folderResourceType: TABLE_FOLDER_RESOURCE_TYPE,
-              affected: result.deletedItems,
-              bulk: true,
-            },
-          }
-        : {
-            action: AuditAction.TABLE_DELETED,
-            resourceType: AuditResourceType.TABLE,
-            resourceId: item.id,
-            resourceName: item.name,
-            description: `Archived table "${item.name}"`,
-            metadata: { bulk: true },
-          }
-    ),
+  projectAudit: ({ context, result }) =>
+    result.auditedDeletions.map((item) => {
+      if (item.kind !== 'folder') {
+        return {
+          action: AuditAction.TABLE_DELETED,
+          resourceType: AuditResourceType.TABLE,
+          resourceId: item.id,
+          resourceName: item.name,
+          description: `Archived table "${item.name}"`,
+          metadata: { bulk: true },
+        }
+      }
+      /**
+       * The v2 audit formatter nulls `resourceId` for every folder row, so the
+       * caller's own path is the only thing left that distinguishes two
+       * same-named folders — the single delete records it for the same reason.
+       * Present only for a path-keyed selection: an id-keyed one deliberately
+       * skips the folder-tree index read that builds the map.
+       */
+      const path = context.folderPathById?.get(item.id)
+      return {
+        action: AuditAction.FOLDER_DELETED,
+        resourceType: AuditResourceType.FOLDER,
+        resourceId: item.id,
+        resourceName: item.name,
+        description: `Deleted table folder "${path ?? item.name}"`,
+        metadata: {
+          folderResourceType: TABLE_FOLDER_RESOURCE_TYPE,
+          ...(path !== undefined && { path }),
+          affected: result.deletedItems,
+          bulk: true,
+        },
+      }
+    }),
   afterSuccess: ({ result }) => {
     rethrowTableBatchTerminalFailure(result)
   },

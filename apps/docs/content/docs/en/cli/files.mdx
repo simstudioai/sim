@@ -21,8 +21,8 @@ sim files batch-delete [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--file-ids <value...>` | Yes | File identifiers to update. (space-separated, or @path / @- with one value per line). |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `--file-ids <value...>` | Yes | File identifiers to update. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -85,7 +85,7 @@ sim files folders delete <path> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--recursive` | No | Delete the folder and its descendants. |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -107,7 +107,7 @@ Also available as `sim files folders ls`.
 | `--search <value>` | No | Case-insensitive substring match against the folder name. |
 | `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `createdAt`, `updatedAt`. |
 | `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
-| `--scope <value>` | No | Which lifecycle set to list: `active` (default) returns live folders only; `archived` returns folders a recursive `DELETE` soft-deleted, which is how a caller finds a path to hand to `POST /api/v2/files/folders/restore`. Authorization is identical for both. Accepted values: `active`, `archived`. |
+| `--scope <value>` | No | Which lifecycle set to list: `active` (default) returns live folders only; `archived` returns folders a recursive delete soft-deleted, which is how a caller finds a path to hand to the folder restore. Authorization is identical for both. Accepted values: `active`, `archived`. |
 
 </CommandTable>
 
@@ -168,7 +168,7 @@ sim files delete <fileId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -194,7 +194,7 @@ sim files describe <fileId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--scope <value>` | No | Which lifecycle set to read from: `active` (default) resolves live files only and returns `404` for a file a `DELETE` soft-deleted; `archived` also resolves soft-deleted files, so metadata stays readable before `POST /files/&#123;fileId&#125;/restore`. Authorization is identical for both. Accepted values: `active`, `archived`. |
+| `--scope <value>` | No | Which lifecycle set to read from: `active` (default) resolves live files only and returns `404` for a file a delete soft-deleted; `archived` also resolves soft-deleted files, so metadata stays readable before the file is restored. Authorization is identical for both. Accepted values: `active`, `archived`. |
 
 </CommandTable>
 
@@ -220,6 +220,8 @@ sim files share get <fileId>
 sim files share set <fileId> [options]
 ```
 
+Enable or disable sharing for a file (personal API key required)
+
 **Arguments**
 
 <CommandTable>
@@ -239,23 +241,7 @@ sim files share set <fileId> [options]
 | `--is-active <true\|false>` | Yes | Whether the share should resolve. Disabling preserves the token and the whole access configuration, so re-enabling restores the share as it was; enabling rewrites the credentials the resulting mode does not use. Accepted values: `true`, `false`. |
 | `--auth-type <value>` | No | How access to the share is gated. The stored mode is kept when omitted. Enabling `public` clears the stored password and empties `allowedEmails`; `password` empties `allowedEmails`; `email` and `sso` clear the stored password. Accepted values: `public`, `password`, `email`, `sso`. |
 | `--password <value>` | No | Password for a password-gated share. Kept when omitted; enabling `password` with neither a supplied nor a stored password is a 400. |
-| `--allowed-emails <value...>` | No | Allowed addresses or `@domain` patterns for email and SSO shares. Kept when omitted; enabling `email` or `sso` with an empty resulting list is a 400. (space-separated, or @path / @- with one value per line). |
-
-</CommandTable>
-
-## Get file upload
-
-```bash
-sim files uploads get <uploadId>
-```
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `uploadId` | Yes | Upload session identifier. |
+| `--allowed-emails <value...>` | No | Allowed addresses or `@domain` patterns for email and SSO shares. Kept when omitted; enabling `email` or `sso` with an empty resulting list is a 400. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
 
 </CommandTable>
 
@@ -272,8 +258,9 @@ sim files list [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
-| `--recursive <value>` | No | Whether the folder filter includes files in subfolders. Defaults to true when a search is set, false otherwise, so listing a folder shows that folder while searching one looks through everything in it. Ignored when no folder filter is set, which already spans the workspace. The listed spellings are the whole accepted vocabulary and are case-sensitive; any other value is rejected. Accepted values: `true`, `1`, `yes`, `on`, `y`, `enabled`, `false`, `0`, `no`, `off`, `n`, `disabled`. |
-| `--scope <value>` | No | Which lifecycle set to list: `active` (default) for live files, `archived` for files a `DELETE` soft-deleted. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too. Accepted values: `active`, `archived`. |
+| `--recursive` | No | Whether the folder filter includes files in subfolders. Defaults to true when a search is set, false otherwise, so listing a folder shows that folder while searching one looks through everything in it. Ignored when no folder filter is set, which already spans the workspace. |
+| `--no-recursive` | No | Send --recursive as false. |
+| `--scope <value>` | No | Which lifecycle set to list: `active` (default) for live files, `archived` for files a delete soft-deleted. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too. Accepted values: `active`, `archived`. |
 | `--search <value>` | No | Case-insensitive substring match against the file name. |
 | `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `size`, `uploadedAt`, `updatedAt`. |
 | `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
@@ -295,7 +282,7 @@ Also available as `sim files mv`.
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--file-ids <value...>` | Yes | File identifiers to update. (space-separated, or @path / @- with one value per line). |
+| `--file-ids <value...>` | Yes | File identifiers to update. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
 | `--to <value>` | No | Destination folder path; omit for root. |
 
 </CommandTable>
@@ -390,7 +377,7 @@ sim files unzip <fileId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 

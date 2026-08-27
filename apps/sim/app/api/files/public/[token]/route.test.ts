@@ -52,7 +52,7 @@ const publicShare = {
     workspaceId: 'ws-secret',
     originalName: 'report.pdf',
     contentType: 'application/pdf',
-    size: 2048,
+    sizeBytes: 2048,
   },
   workspaceName: 'Acme Workspace',
   ownerName: 'Jane Doe',

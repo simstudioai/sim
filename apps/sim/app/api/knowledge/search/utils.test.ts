@@ -89,6 +89,20 @@ function makeResult(id: string, distance = 0.1): SearchResult {
   }
 }
 
+const TEST_EMBEDDING = [0.1, 0.2, 0.3, ...Array.from({ length: 1533 }, () => 0)]
+
+function mockNextEmbeddingResponse(): void {
+  vi.mocked(fetch).mockResolvedValueOnce(
+    new Response(
+      JSON.stringify({
+        data: [{ embedding: TEST_EMBEDDING, index: 0 }],
+        usage: { prompt_tokens: 1, total_tokens: 1 },
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } }
+    )
+  )
+}
+
 describe('Knowledge Search Utils', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -553,12 +567,7 @@ describe('Knowledge Search Utils', () => {
         OPENAI_API_KEY: 'test-openai-key',
       })
 
-      mockNextFetchResponse({
-        json: {
-          data: [{ embedding: [0.1, 0.2, 0.3] }],
-          usage: { prompt_tokens: 1, total_tokens: 1 },
-        },
-      })
+      mockNextEmbeddingResponse()
 
       const result = await generateSearchEmbedding('test query')
 
@@ -570,7 +579,7 @@ describe('Knowledge Search Utils', () => {
           }),
         })
       )
-      expect(result.embedding).toEqual([0.1, 0.2, 0.3])
+      expect(result.embedding).toEqual(TEST_EMBEDDING)
 
       // Clean up
       Object.keys(env).forEach((key) => delete (env as any)[key])
@@ -583,12 +592,7 @@ describe('Knowledge Search Utils', () => {
         OPENAI_API_KEY: 'test-openai-key',
       })
 
-      mockNextFetchResponse({
-        json: {
-          data: [{ embedding: [0.1, 0.2, 0.3] }],
-          usage: { prompt_tokens: 1, total_tokens: 1 },
-        },
-      })
+      mockNextEmbeddingResponse()
 
       const result = await generateSearchEmbedding('test query')
 
@@ -600,7 +604,7 @@ describe('Knowledge Search Utils', () => {
           }),
         })
       )
-      expect(result.embedding).toEqual([0.1, 0.2, 0.3])
+      expect(result.embedding).toEqual(TEST_EMBEDDING)
 
       // Clean up
       Object.keys(env).forEach((key) => delete (env as any)[key])
@@ -616,12 +620,7 @@ describe('Knowledge Search Utils', () => {
         OPENAI_API_KEY: 'test-openai-key',
       })
 
-      mockNextFetchResponse({
-        json: {
-          data: [{ embedding: [0.1, 0.2, 0.3] }],
-          usage: { prompt_tokens: 1, total_tokens: 1 },
-        },
-      })
+      mockNextEmbeddingResponse()
 
       await generateSearchEmbedding('test query')
 
@@ -645,12 +644,7 @@ describe('Knowledge Search Utils', () => {
         OPENAI_API_KEY: 'test-openai-key',
       })
 
-      mockNextFetchResponse({
-        json: {
-          data: [{ embedding: [0.1, 0.2, 0.3] }],
-          usage: { prompt_tokens: 1, total_tokens: 1 },
-        },
-      })
+      mockNextEmbeddingResponse()
 
       await generateSearchEmbedding('test query', 'text-embedding-3-small')
 
@@ -733,12 +727,7 @@ describe('Knowledge Search Utils', () => {
         KB_OPENAI_MODEL_NAME: 'text-embedding-ada-002',
       })
 
-      mockNextFetchResponse({
-        json: {
-          data: [{ embedding: [0.1, 0.2, 0.3] }],
-          usage: { prompt_tokens: 1, total_tokens: 1 },
-        },
-      })
+      mockNextEmbeddingResponse()
 
       await generateSearchEmbedding('test query')
 
@@ -764,12 +753,7 @@ describe('Knowledge Search Utils', () => {
         OPENAI_API_KEY: 'test-openai-key',
       })
 
-      mockNextFetchResponse({
-        json: {
-          data: [{ embedding: [0.1, 0.2, 0.3] }],
-          usage: { prompt_tokens: 1, total_tokens: 1 },
-        },
-      })
+      mockNextEmbeddingResponse()
 
       await generateSearchEmbedding('test query', 'text-embedding-3-small')
 
@@ -792,12 +776,7 @@ describe('Knowledge Search Utils', () => {
     it('projects verified provenance only in the model-bound embedding payload', async () => {
       Object.keys(env).forEach((key) => delete (env as any)[key])
       Object.assign(env, { OPENAI_API_KEY: 'test-openai-key' })
-      mockNextFetchResponse({
-        json: {
-          data: [{ embedding: [0.1, 0.2, 0.3] }],
-          usage: { prompt_tokens: 1, total_tokens: 1 },
-        },
-      })
+      mockNextEmbeddingResponse()
 
       const registry = new ResolvedSecretTraceRegistry([
         { name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'encrypted-token' },

@@ -40,11 +40,26 @@ export const DEFAULT_OVERAGE_THRESHOLD = 100
 export const BILLING_LOCK_TIMEOUT_MS = 5_000
 
 /**
- * Available credit tiers. Each tier maps a credit amount to the underlying dollar cost.
+ * Available credit tiers. Each tier maps a credit amount to the underlying dollar
+ * cost and carries that tier's fixed weekly refresh allowance.
  * 1 credit = $0.005, so credits = dollars * 200.
+ *
+ * `weeklyRefreshCredits` is a fixed per-tier amount, NOT a rate. Which plans map
+ * to which allowance (legacy plans, seat scaling, free/enterprise exclusion) is
+ * owned by `getPlanWeeklyRefreshDollars` in `@/lib/billing/plan-helpers`.
  */
-const PRO_CREDIT_TIER = { credits: 6000, dollars: 25, name: 'Pro' } as const
-const MAX_CREDIT_TIER = { credits: 25000, dollars: 100, name: 'Max' } as const
+export const PRO_CREDIT_TIER = {
+  credits: 6000,
+  dollars: 25,
+  weeklyRefreshCredits: 2000,
+  name: 'Pro',
+} as const
+export const MAX_CREDIT_TIER = {
+  credits: 25000,
+  dollars: 100,
+  weeklyRefreshCredits: 4000,
+  name: 'Max',
+} as const
 
 export const CREDIT_TIERS = [PRO_CREDIT_TIER, MAX_CREDIT_TIER] as const
 
@@ -63,15 +78,9 @@ export const MAX_TIER_CREDITS = MAX_CREDIT_TIER.credits
 
 /**
  * Credits granted per dollar of plan spend. A credit is $0.005, so a dollar
- * buys 200 — the conversion behind both free-tier and daily-refresh credits.
+ * buys 200 — the conversion behind both free-tier and weekly-refresh credits.
  */
 export const CREDITS_PER_DOLLAR = 200
-
-/**
- * Daily refresh rate: 1% of plan cost per day.
- * E.g. $25 plan => $0.25/day => 50 credits/day included usage.
- */
-export const DAILY_REFRESH_RATE = 0.01
 
 /**
  * Annual subscribers pay 15% less than the equivalent monthly plan

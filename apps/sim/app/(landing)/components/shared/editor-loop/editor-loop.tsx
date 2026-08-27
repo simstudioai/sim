@@ -5,8 +5,8 @@ import { cn } from '@sim/emcn'
 import { HeroWorkflowStage } from '@/app/(landing)/components/hero/components/hero-platform-loop/hero-workflow-stage'
 import type { BlockDef } from '@/app/(landing)/components/hero/components/hero-visual/workflow-data'
 import { HeroLoopShell } from '@/app/(landing)/components/shared/hero-loop-shell'
+import { PLATFORM_LOOP_RESET_FADE_MS } from '@/app/(landing)/components/shared/platform-loop-constants'
 import type { EnterpriseSidebarProps } from '@/app/(landing)/enterprise/components/enterprise-platform-loop/enterprise-sidebar'
-import { RESET_FADE_MS } from '@/app/(landing)/hooks/use-design-scale'
 import { useMotionSafeCycle } from '@/app/(landing)/hooks/use-motion-safe-cycle'
 
 /** The empty canvas holds this long before the first block lands. */
@@ -32,8 +32,8 @@ export interface EditorLoopContent {
   canvas: { width: number; height: number }
   /** The block the "editing" beat selects once the flow is assembled. */
   selectedBlockId: string
-  /** Workspace-nav row to highlight in the sidebar; unset keeps New chat active. */
-  activeNav?: EnterpriseSidebarProps['activeNav']
+  /** Sidebar row to highlight; unset keeps New chat active. */
+  activeItem?: EnterpriseSidebarProps['activeItem']
 }
 
 interface EditorLoopProps {
@@ -78,7 +78,7 @@ export function EditorLoop({ content }: EditorLoopProps) {
               setTimeout(() => setBuiltCount(i + 1), IDLE_HOLD_MS + i * BUILD_STEP_MS)
             ),
             setTimeout(() => setSelected(true), selectAt),
-            setTimeout(() => setFading(true), totalMs - RESET_FADE_MS),
+            setTimeout(() => setFading(true), totalMs - PLATFORM_LOOP_RESET_FADE_MS),
           ],
           totalMs,
         }
@@ -96,7 +96,7 @@ export function EditorLoop({ content }: EditorLoopProps) {
     <HeroLoopShell
       chats={content.sidebarChats}
       workflows={content.sidebarWorkflows}
-      activeNav={content.activeNav}
+      activeItem={content.activeItem}
     >
       <div className='h-full w-full overflow-hidden rounded-[6px] border border-[var(--border)] bg-[var(--bg)]'>
         <div

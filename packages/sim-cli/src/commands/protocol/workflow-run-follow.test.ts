@@ -259,26 +259,74 @@ function program(): Command {
   return root
 }
 
+/**
+ * A workflow id is a bare UUID. `wf_` is the workspace-file prefix, so it never
+ * names a workflow — spelling one that way here would model the wrong scheme.
+ */
+const WORKFLOW_ID = '00000000-0000-4000-8000-00000000000a'
+
 async function run(...argv: string[]): Promise<void> {
   await program().parseAsync(['node', 'sim', 'workflows', 'run', ...argv])
 }
 
 describe('sim workflows run --follow', () => {
   it('refuses --follow together with --async', async () => {
-    await expect(run('wf_1', '--follow', '--async')).rejects.toThrow(/pass one, not both/)
+    await expect(run(WORKFLOW_ID, '--follow', '--async')).rejects.toThrow(/pass one, not both/)
     expect(requestRaw).not.toHaveBeenCalled()
   })
 
   it('refuses stream-only flags without --follow', async () => {
-    await expect(run('wf_1', '--include-thinking')).rejects.toThrow(/add --follow/)
+    await expect(run(WORKFLOW_ID, '--include-thinking')).rejects.toThrow(/add --follow/)
     expect(request).not.toHaveBeenCalled()
+  })
+
+  it('refuses --select-output without --follow and sends nothing', async () => {
+    await expect(run(WORKFLOW_ID, '--select-output', 'agent_1.content')).rejects.toThrow(
+      /add --follow/
+    )
+    expect(request).not.toHaveBeenCalled()
+    expect(requestRaw).not.toHaveBeenCalled()
+  })
+
+  it('points a refused --select-output at the dialect the run resource takes', async () => {
+    // The caller just typed a block *name*, which is what this flag accepts and
+    // what `workflows runs get` rejects, so a hint that only repeated the flag
+    // would send them into a second 400.
+    await expect(run(WORKFLOW_ID, '--select-output', 'agent_1.content')).rejects.toThrow(
+      /workflows runs get .*--select-output <blockId>\[\.path\].*block ids, not the block names/s
+    )
+  })
+
+  it('tells --async --select-output that no stream is coming, rather than to follow', async () => {
+    // `--async --follow` is refused outright, so "add --follow" would be advice
+    // that cannot be taken.
+    const failure = await run(WORKFLOW_ID, '--async', '--select-output', 'agent_1.content').catch(
+      (error: Error) => error
+    )
+
+    expect(failure?.message).toContain('--async returns as soon as the run is queued')
+    expect(failure?.message).not.toContain('add --follow')
+    expect(request).not.toHaveBeenCalled()
+  })
+
+  it('sends the selection with the stream once --follow is passed', async () => {
+    requestRaw.mockResolvedValue(streamResponse(sse({ event: 'final', data: { success: true } })))
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+    vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
+
+    await run(WORKFLOW_ID, '--follow', '--select-output', 'agent_1.content')
+
+    expect(requestRaw.mock.calls[0][1].body).toEqual({
+      stream: true,
+      selectedOutputs: ['agent_1.content'],
+    })
   })
 
   it('leaves the generated non-streaming path untouched', async () => {
     request.mockResolvedValue({ data: { success: true, output: {} } })
     vi.spyOn(console, 'log').mockImplementation(() => {})
 
-    await run('wf_1', '--input', '{"topic":"otters"}')
+    await run(WORKFLOW_ID, '--input', '{"topic":"otters"}')
 
     expect(requestRaw).not.toHaveBeenCalled()
     expect(request).toHaveBeenCalledTimes(1)
@@ -289,7 +337,14 @@ describe('sim workflows run --follow', () => {
     request.mockResolvedValue({ data: { success: true, output: {} } })
     vi.spyOn(console, 'log').mockImplementation(() => {})
 
-    await run('wf_1', '--manual', '--trigger', 'slack-trigger', '--input', '{"event":"created"}')
+    await run(
+      WORKFLOW_ID,
+      '--manual',
+      '--trigger',
+      'slack-trigger',
+      '--input',
+      '{"event":"created"}'
+    )
 
     expect(request.mock.calls[0][1].body).toEqual({
       input: { event: 'created' },
@@ -301,7 +356,7 @@ describe('sim workflows run --follow', () => {
     request.mockResolvedValue({ data: { success: true, output: {} } })
     vi.spyOn(console, 'log').mockImplementation(() => {})
 
-    await run('wf_1', '--from-block', 'agent-1', '--source-run', 'run-1')
+    await run(WORKFLOW_ID, '--from-block', 'agent-1', '--source-run', 'run-1')
 
     expect(request.mock.calls[0][1].body).toEqual({
       run: {
@@ -316,7 +371,7 @@ describe('sim workflows run --follow', () => {
     vi.spyOn(console, 'log').mockImplementation(() => {})
     vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
 
-    await run('wf_1', '--manual', '--mock-payload', '--follow')
+    await run(WORKFLOW_ID, '--manual', '--mock-payload', '--follow')
 
     expect(requestRaw.mock.calls[0][1].body).toEqual({
       run: { source: 'manual', entry: { type: 'trigger', useMockPayload: true } },
@@ -325,12 +380,16 @@ describe('sim workflows run --follow', () => {
   })
 
   it('fails fast on invalid manual flag combinations', async () => {
-    await expect(run('wf_1', '--trigger', 'trigger-1')).rejects.toThrow(/require --manual/)
-    await expect(run('wf_1', '--from-block', 'agent-1')).rejects.toThrow(/requires --source-run/)
-    await expect(run('wf_1', '--source-run', 'run-1')).rejects.toThrow(/requires --from-block/)
-    await expect(run('wf_1', '--manual', '--async')).rejects.toThrow(/does not support --async/)
+    await expect(run(WORKFLOW_ID, '--trigger', 'trigger-1')).rejects.toThrow(/require --manual/)
+    await expect(run(WORKFLOW_ID, '--from-block', 'agent-1')).rejects.toThrow(
+      /requires --source-run/
+    )
+    await expect(run(WORKFLOW_ID, '--source-run', 'run-1')).rejects.toThrow(/requires --from-block/)
+    await expect(run(WORKFLOW_ID, '--manual', '--async')).rejects.toThrow(
+      /does not support --async/
+    )
     await expect(
-      run('wf_1', '--manual', '--mock-payload', '--input', '{"event":"created"}')
+      run(WORKFLOW_ID, '--manual', '--mock-payload', '--input', '{"event":"created"}')
     ).rejects.toThrow(/cannot be combined/)
     expect(request).not.toHaveBeenCalled()
     expect(requestRaw).not.toHaveBeenCalled()
@@ -341,10 +400,10 @@ describe('sim workflows run --follow', () => {
     vi.spyOn(console, 'log').mockImplementation(() => {})
     vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
 
-    await run('wf_1', '--follow', '--input', '{"topic":"otters"}')
+    await run(WORKFLOW_ID, '--follow', '--input', '{"topic":"otters"}')
 
     const [path, init] = requestRaw.mock.calls[0]
-    expect(path).toBe('/api/v2/workflows/wf_1/execute')
+    expect(path).toBe(`/api/v2/workflows/${WORKFLOW_ID}/execute`)
     expect(init.body).toEqual({ input: { topic: 'otters' }, stream: true })
     expect(init.headers.accept).toBe('text/event-stream')
     expect(init.headers['x-sim-stream-protocol']).toBeUndefined()
@@ -355,7 +414,7 @@ describe('sim workflows run --follow', () => {
     vi.spyOn(console, 'log').mockImplementation(() => {})
     vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
 
-    await run('wf_1', '--follow', '--include-thinking', '--include-tool-calls')
+    await run(WORKFLOW_ID, '--follow', '--include-thinking', '--include-tool-calls')
 
     const init = requestRaw.mock.calls[0][1]
     expect(init.body).toMatchObject({ stream: true, includeThinking: true, includeToolCalls: true })
@@ -375,7 +434,7 @@ describe('sim workflows run --follow', () => {
     const stdout = vi.spyOn(console, 'log').mockImplementation(() => {})
     const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
 
-    await run('wf_1', '--follow')
+    await run(WORKFLOW_ID, '--follow')
 
     const printed = stdout.mock.calls.map((call) => String(call[0])).join('\n')
     expect(JSON.parse(printed)).toEqual({ success: true, output: { answer: 42 } })
@@ -392,7 +451,7 @@ describe('sim workflows run --follow', () => {
     const stdout = vi.spyOn(console, 'log').mockImplementation(() => {})
     vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
 
-    await expect(run('wf_1', '--follow')).rejects.toThrow(/Block agent_1 failed/)
+    await expect(run(WORKFLOW_ID, '--follow')).rejects.toThrow(/Block agent_1 failed/)
     expect(stdout).toHaveBeenCalled()
   })
 
@@ -404,7 +463,7 @@ describe('sim workflows run --follow', () => {
       headers: new Headers({ 'content-type': 'application/json' }),
     } as unknown as Response)
 
-    await expect(run('wf_1', '--follow')).rejects.toThrow(/instead of an event stream/)
+    await expect(run(WORKFLOW_ID, '--follow')).rejects.toThrow(/instead of an event stream/)
     expect(cancel).toHaveBeenCalled()
   })
 
@@ -414,6 +473,6 @@ describe('sim workflows run --follow', () => {
     )
     vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
 
-    await expect(run('wf_1', '--follow')).rejects.toBeInstanceOf(SimApiError)
+    await expect(run(WORKFLOW_ID, '--follow')).rejects.toBeInstanceOf(SimApiError)
   })
 })

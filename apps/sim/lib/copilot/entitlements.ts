@@ -16,7 +16,7 @@ export const SIM_SANDBOXES_ENTITLEMENT = 'sim-sandboxes'
 export const ORGANIZATION_CONTEXT_ENTITLEMENT = 'organization-context'
 
 /**
- * Workspace entitlements — plan/flag-gated org capabilities sent to the
+ * Workspace entitlements — gated organization capabilities sent to the
  * mothership as the chat payload's `entitlements` array. The Go side hides the
  * matching tools, skills, and prompt sections when an entitlement is absent, so
  * a non-entitled org's agents never hear of the feature.

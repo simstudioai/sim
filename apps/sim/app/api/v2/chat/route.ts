@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { truncate } from '@sim/utils/string'
 import type { NextRequest } from 'next/server'
 import { v2ChatContract } from '@/lib/api/contracts/v2/chat'
 import { parseRequest } from '@/lib/api/server'
@@ -13,8 +14,15 @@ import {
 } from '@/lib/api/server/routes'
 import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
 import { chatOperations } from '@/lib/copilot/application/operations'
+import { resolveOrCreateChat } from '@/lib/copilot/chat/lifecycle'
+import { persistCopilotChatTurn } from '@/lib/copilot/chat/messages-store'
 import { buildIntegrationToolSchemas } from '@/lib/copilot/chat/payload'
+import {
+  buildPersistedAssistantMessage,
+  buildPersistedUserMessage,
+} from '@/lib/copilot/chat/persisted-message'
 import { generateWorkspaceContext } from '@/lib/copilot/chat/workspace-context'
+import { MOTHERSHIP_CHAT_DEFAULT_MODEL } from '@/lib/copilot/constants'
 import { computeWorkspaceEntitlements } from '@/lib/copilot/entitlements'
 import {
   type CopilotEnvironmentContext,
@@ -26,7 +34,7 @@ import {
 } from '@/lib/copilot/generated/mothership-stream-v1'
 import { runHeadlessCopilotLifecycle } from '@/lib/copilot/request/lifecycle/headless'
 import { requestExplicitStreamAbort } from '@/lib/copilot/request/session/explicit-abort'
-import type { StreamEvent } from '@/lib/copilot/request/types'
+import type { OrchestratorResult, StreamEvent } from '@/lib/copilot/request/types'
 import { normalizeSecretMountPolicy } from '@/lib/copilot/secret-mount-policy'
 import { isDocSandboxEnabled } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -47,6 +55,25 @@ const CHAT_STREAM_HEADER = 'x-mothership-execute-stream'
 const CHAT_STREAM_VALUE = 'ndjson'
 const CHAT_HEARTBEAT_INTERVAL_MS = 15_000
 const ndjsonEncoder = new TextEncoder()
+
+/**
+ * Longest title derived from a first message. Well under the 200-character
+ * ceiling the rename contract enforces, and short enough to read as one line
+ * in the web Chat list.
+ */
+const CHAT_TITLE_MAX_LENGTH = 80
+
+/**
+ * Title a conversation this route creates by its first message, so a `sim chat`
+ * turn does not leave a blank row at the top of the user's web Chat list.
+ * Returns undefined for a message that is only whitespace, leaving the title
+ * unset rather than stamping an empty one.
+ */
+function deriveConversationTitle(message: string): string | undefined {
+  const normalized = message.replace(/\s+/g, ' ').trim()
+  if (!normalized) return undefined
+  return truncate(normalized, CHAT_TITLE_MAX_LENGTH)
+}
 
 function isAbortError(error: unknown): boolean {
   return error instanceof Error && error.name === 'AbortError'
@@ -69,7 +96,7 @@ function encodeNdjson(value: unknown): Uint8Array {
  * tool calls the run surfaced.
  */
 function buildChatResultPayload(
-  result: Awaited<ReturnType<typeof runHeadlessCopilotLifecycle>>,
+  result: OrchestratorResult,
   conversationId: string,
   integrationTools: Array<{ name: string }>
 ) {
@@ -80,7 +107,7 @@ function buildChatResultPayload(
 
   return {
     content: result.content ?? '',
-    model: 'mothership',
+    model: 'sim',
     conversationId,
     tokens: result.usage
       ? {
@@ -130,14 +157,65 @@ export const POST = withRouteHandler(
     if (!parsed.success) return parsed.response
     const { workspaceId, message, conversationId } = parsed.data.body
 
-    const chatId = conversationId || generateId()
     const messageId = generateId()
     const requestId = generateId()
-    const reqLogger = logger.withMetadata({ chatId, messageId, requestId })
+    let reqLogger = logger.withMetadata({ messageId, requestId })
 
     try {
       const workspaceAccess = await assertActiveWorkspaceAccess(workspaceId, userId)
       const userPermission = workspaceAccess.permission
+
+      const conversationTitle = deriveConversationTitle(message)
+
+      // A caller-supplied conversation id is a claim, not an identity: resolve
+      // it through the same owner- and workspace-scoped loader the web Chat
+      // surface uses, and refuse every id that does not resolve with the same
+      // response so the refusal carries no information about the id. Omitting
+      // the id mints a server-issued conversation instead of trusting one.
+      // The resolved transcript is deliberately not forwarded: continuity is
+      // keyed by `chatId` downstream, exactly as the web send path and the Sim
+      // Chat block do, both of which post a single message with a chat id.
+      const resolvedChat = await resolveOrCreateChat({
+        ...(conversationId ? { chatId: conversationId } : {}),
+        userId,
+        workspaceId,
+        model: MOTHERSHIP_CHAT_DEFAULT_MODEL,
+        type: 'mothership',
+        ...(conversationTitle ? { title: conversationTitle } : {}),
+      })
+      if (conversationId && !resolvedChat.chat) {
+        return v2Error('NOT_FOUND', 'Conversation not found')
+      }
+      if (!resolvedChat.chat || !resolvedChat.chatId) {
+        reqLogger.error('Failed to start a chat conversation', { userId, workspaceId })
+        return v2Error('INTERNAL_ERROR', 'Internal server error')
+      }
+      const chatId = resolvedChat.chatId
+      reqLogger = logger.withMetadata({ chatId, messageId, requestId })
+
+      /**
+       * Write this turn's display copy to the conversation the route just
+       * resolved. Without it a `sim chat` turn leaves a titled conversation
+       * that opens to an empty transcript in the web Chat list.
+       *
+       * By the time this runs the turn has completed and been billed, so a
+       * write failure is logged and the response the caller gets is unchanged.
+       * The write is one transaction, so that failure leaves the transcript
+       * empty rather than showing the question without the answer.
+       */
+      const persistTurn = async (result: OrchestratorResult): Promise<void> => {
+        try {
+          await persistCopilotChatTurn(chatId, [
+            buildPersistedUserMessage({ id: messageId, content: message }),
+            buildPersistedAssistantMessage(result, requestId),
+          ])
+        } catch (error) {
+          reqLogger.error('Failed to persist chat transcript', {
+            error: getErrorMessage(error, 'Unknown error'),
+          })
+        }
+      }
+
       const secretMountPolicy = normalizeSecretMountPolicy(undefined)
 
       let environmentContext: CopilotEnvironmentContext | undefined
@@ -276,6 +354,13 @@ export const POST = withRouteHandler(
                 })
                 allowExplicitAbort = false
 
+                // Persist before the cancellation check: the turn ran and was
+                // billed, so the reply belongs in the transcript even when the
+                // caller stopped listening — that is the only place it survives.
+                if (result.success) {
+                  await persistTurn(result)
+                }
+
                 if (lifecycleAbortController.signal.aborted) {
                   send({ type: 'error', error: 'Chat request aborted' })
                   return
@@ -346,6 +431,14 @@ export const POST = withRouteHandler(
       try {
         const result = await runLifecycle()
         allowExplicitAbort = false
+
+        // Persist before the cancellation check: the turn ran and was billed,
+        // so the reply belongs in the transcript even when the caller stopped
+        // listening — that is the only place it survives. The cancellation
+        // check still decides the status the caller receives.
+        if (result.success) {
+          await persistTurn(result)
+        }
 
         if (lifecycleAbortController.signal.aborted || req.signal.aborted) {
           reqLogger.info('Chat request aborted after lifecycle completion')

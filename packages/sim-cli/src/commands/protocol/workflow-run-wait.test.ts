@@ -89,7 +89,7 @@ function run(payload: RunPayload) {
   return {
     data: {
       runId: 'run_1',
-      workflowId: 'wf_1',
+      workflowId: '00000000-0000-4000-8000-00000000000a',
       startedAt: '2026-08-17T00:00:00.000Z',
       endedAt: null,
       durationMs: null,
@@ -128,7 +128,7 @@ async function wait(argv: string[] = []): Promise<void> {
     'wait',
     'run_1',
     '--workflow',
-    'wf_1',
+    '00000000-0000-4000-8000-00000000000a',
     ...argv,
   ])
 }
@@ -140,7 +140,10 @@ describe('workflows runs wait', () => {
     await wait()
 
     expect(mockRequest).toHaveBeenCalledTimes(3)
-    expect(mockRequest).toHaveBeenCalledWith('/api/v2/workflows/wf_1/runs/run_1', { method: 'GET' })
+    expect(mockRequest).toHaveBeenCalledWith(
+      '/api/v2/workflows/00000000-0000-4000-8000-00000000000a/runs/run_1',
+      { method: 'GET' }
+    )
     expect(process.exitCode).toBe(0)
     expect(logged.join('\n')).toContain('completed')
   })
@@ -193,7 +196,7 @@ describe('workflows runs wait', () => {
     expect(mockRequest).toHaveBeenCalledTimes(1)
     expect(process.exitCode).toBe(3)
     expect(errored.join('\n')).toContain(
-      'sim workflows runs resume run_1 --workflow wf_1 --context ctx_9'
+      'sim workflows runs resume run_1 --workflow 00000000-0000-4000-8000-00000000000a --context ctx_9'
     )
   })
 
@@ -285,5 +288,27 @@ describe('workflows runs wait', () => {
     await wait()
 
     expect(progress).toEqual([])
+  })
+
+  it('rejects an extra positional rather than waiting on only the first run', async () => {
+    const root = new Command('sim').exitOverride()
+    const runs = new Command('runs').exitOverride()
+    root.addCommand(runs)
+    attachWorkflowRunWait(runs)
+    runs.commands.forEach((command) => command.exitOverride())
+
+    await expect(
+      root.parseAsync([
+        'node',
+        'sim',
+        'runs',
+        'wait',
+        'run_1',
+        'run_2',
+        '--workflow',
+        '00000000-0000-4000-8000-00000000000a',
+      ])
+    ).rejects.toThrow(/too many arguments/)
+    expect(mockRequest).not.toHaveBeenCalled()
   })
 })

@@ -14,7 +14,6 @@ import type { ProviderResponse, ProviderToolConfig } from '@/providers/types'
 function providerTool(id: string, credential: string): ProviderToolConfig {
   return {
     id,
-    name: id,
     description: id,
     params: { oauthCredential: credential },
     parameters: { type: 'object', properties: {}, required: [] },

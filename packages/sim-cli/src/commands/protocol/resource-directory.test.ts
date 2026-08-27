@@ -216,6 +216,42 @@ describe('resource directory', () => {
     expect(entries.find((entry) => entry.kind === 'table')?.ref).toBe('tbl_1')
   })
 
+  /**
+   * `files list` announces "showing the first N" off the surviving cursor and
+   * `ls` printed the same capped answer with nothing on stderr, so one command
+   * presented an incomplete listing as complete and its neighbour did not.
+   */
+  it('says the combined listing was capped, as the contract-driven list does', async () => {
+    mockRequest.mockImplementation(
+      async (path: string, options: { query: { cursor?: string } }) => {
+        if (path === '/api/v2/files/folders') return { data: [] }
+        const cursor = Number(options.query.cursor ?? 0)
+        return {
+          data: Array.from({ length: 100 }, (_, index) => ({
+            id: `file_${cursor}_${index}`,
+            name: `file-${cursor}-${index}`,
+            folderPath: '/',
+            updatedAt: '2026-01-01T00:00:00.000Z',
+          })),
+          nextCursor: cursor < 2 ? String(cursor + 1) : null,
+        }
+      }
+    )
+    const written: string[] = []
+    vi.spyOn(process.stderr, 'write').mockImplementation((chunk: string | Uint8Array) => {
+      written.push(String(chunk))
+      return true
+    })
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+
+    await program().parseAsync(['node', 'sim', 'files', 'ls', '--limit', '5'])
+    expect(written.join('')).toContain('showing the first 5')
+
+    written.length = 0
+    await program().parseAsync(['node', 'sim', 'files', 'ls', '--limit', '0'])
+    expect(written.join('')).not.toContain('showing the first')
+  })
+
   it('rejects extra directory arguments instead of silently ignoring them', async () => {
     await expect(
       program().parseAsync(['node', 'sim', 'file', 'ls', 'Reports', 'ignored'])

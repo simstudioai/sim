@@ -13,6 +13,8 @@ Every command below also accepts the [global options](/cli/commands#global-optio
 sim workflow-mcp-servers create [options]
 ```
 
+Create Workflow MCP Server (personal API key required)
+
 **Options**
 
 <CommandTable>
@@ -23,7 +25,7 @@ sim workflow-mcp-servers create [options]
 | `--description <value>` | No | Optional server description. |
 | `--is-public` | No | Whether the server answers MCP clients without a Sim API key. Defaults to false — a public server executes the workflows it publishes for anyone holding its URL. |
 | `--no-is-public` | No | Send --is-public as false. |
-| `--workflow <value...>` | No | Deployed workflows to publish as tools on the new server. (space-separated, or @path / @- with one value per line). |
+| `--workflow <value...>` | No | Deployed workflows to publish as tools on the new server. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
 
 </CommandTable>
 
@@ -32,6 +34,8 @@ sim workflow-mcp-servers create [options]
 ```bash
 sim workflow-mcp-servers delete <serverId> [options]
 ```
+
+Delete Workflow MCP Server (personal API key required)
 
 **Arguments**
 
@@ -49,7 +53,7 @@ sim workflow-mcp-servers delete <serverId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -58,6 +62,8 @@ sim workflow-mcp-servers delete <serverId> [options]
 ```bash
 sim workflow-mcp-servers tools create <serverId> [options]
 ```
+
+Publish Workflow As MCP Tool (personal API key required)
 
 **Arguments**
 
@@ -78,7 +84,7 @@ sim workflow-mcp-servers tools create <serverId> [options]
 | `--workflow-id <value>` | Yes | Deployed workflow to publish. The workflow must already be deployed. |
 | `--tool-name <value>` | No | Name MCP clients call. Normalized to the MCP tool-name grammar, and derived from the workflow name when omitted. |
 | `--tool-description <value>` | No | Description shown to MCP clients. Derived from the workflow name when omitted. |
-| `--parameter-descriptions <json\|@file>` | No | Per-field description overrides applied to the schema generated from the deployed workflow inputs. A name matching no input field is ignored. (JSON, or @path / @- to read a file or stdin). |
+| `--parameter-descriptions <json\|@file>` | No | Per-field description overrides applied to the schema generated from the deployed workflow inputs, as [&#123;"name":"email","description":"Customer email address"&#125;]. A name matching no input field is ignored (JSON, or @path / @- to read a file or stdin). |
 
 </CommandTable>
 
@@ -87,6 +93,8 @@ sim workflow-mcp-servers tools create <serverId> [options]
 ```bash
 sim workflow-mcp-servers tools list <serverId>
 ```
+
+List Workflow MCP Tools (personal API key required)
 
 **Arguments**
 
@@ -103,6 +111,8 @@ sim workflow-mcp-servers tools list <serverId>
 ```bash
 sim workflow-mcp-servers tools delete <serverId> <workflowId> [options]
 ```
+
+Unpublish Workflow MCP Tool (personal API key required)
 
 **Arguments**
 
@@ -121,7 +131,7 @@ sim workflow-mcp-servers tools delete <serverId> <workflowId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -130,6 +140,8 @@ sim workflow-mcp-servers tools delete <serverId> <workflowId> [options]
 ```bash
 sim workflow-mcp-servers get <serverId>
 ```
+
+Get Workflow MCP Server (personal API key required)
 
 **Arguments**
 
@@ -146,6 +158,8 @@ sim workflow-mcp-servers get <serverId>
 ```bash
 sim workflow-mcp-servers list [options]
 ```
+
+List Workflow MCP Servers (personal API key required)
 
 **Options**
 
@@ -165,6 +179,8 @@ sim workflow-mcp-servers list [options]
 sim workflow-mcp-servers update <serverId> [options]
 ```
 
+Update Workflow MCP Server (personal API key required)
+
 **Arguments**
 
 <CommandTable>
@@ -182,7 +198,7 @@ sim workflow-mcp-servers update <serverId> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--name <value>` | No | Server display name, shown to connecting MCP clients. |
-| `--description <value>` | No | New server description, or null to clear it. |
+| `--description <value>` | No | New server description, or null to clear it. (--description null sends the word, not JSON null). |
 | `--is-public` | No | Whether the server answers MCP clients without a Sim API key. |
 | `--no-is-public` | No | Send --is-public as false. |
 

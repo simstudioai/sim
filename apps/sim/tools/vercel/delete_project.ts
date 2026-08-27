@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { VercelDeleteProjectParams, VercelDeleteProjectResponse } from '@/tools/vercel/types'
 
 export const vercelDeleteProjectTool: ToolConfig<
@@ -43,7 +44,7 @@ export const vercelDeleteProjectTool: ToolConfig<
       if (params.teamId) query.set('teamId', params.teamId.trim())
       if (params.slug) query.set('slug', params.slug.trim())
       const qs = query.toString()
-      return `https://api.vercel.com/v9/projects/${params.projectId.trim()}${qs ? `?${qs}` : ''}`
+      return `https://api.vercel.com/v9/projects/${safeUrlPathSegment(params.projectId, 'projectId')}${qs ? `?${qs}` : ''}`
     },
     method: 'DELETE',
     headers: (params: VercelDeleteProjectParams) => ({

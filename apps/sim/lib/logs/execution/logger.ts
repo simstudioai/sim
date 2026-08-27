@@ -1,11 +1,10 @@
 import { db, dbFor } from '@sim/db'
 import {
-  member,
   organization,
   usageLog,
-  userStats,
   user as userTable,
   workflow,
+  workflowExecutionLogColumns,
   workflowExecutionLogs,
   workspace,
 } from '@sim/db/schema'
@@ -653,7 +652,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
 
     // Check if execution log already exists (idempotency check)
     const existingLog = await execDb
-      .select()
+      .select(workflowExecutionLogColumns)
       .from(workflowExecutionLogs)
       .where(eq(workflowExecutionLogs.executionId, executionId))
       .limit(1)
@@ -724,7 +723,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
           traceSpanCount: 0,
         },
       })
-      .returning()
+      .returning(workflowExecutionLogColumns)
 
     execLog.debug('Created workflow log', { logId: workflowLog.id })
 
@@ -768,12 +767,8 @@ export class ExecutionLogger implements IExecutionLoggerService {
       .limit(1)
     if (!row) return payload
 
-    // Resolve from stored rules UNCONDITIONALLY — deliberately NOT gated on the
-    // `pii-redaction` feature flag or the enterprise-plan check. Rules are only
-    // writable by entitled orgs (route-gated), so their presence is the source of
-    // truth; re-checking the flag/plan here returns false on a transient read and
-    // would silently skip masking, leaking PII (fail-open). Absence of rules
-    // yields the disabled default, so non-PII orgs incur only the lookup.
+    // Stored rules are the source of truth. Absence of rules yields the disabled
+    // default, so non-PII organizations incur only the lookup.
     const config = resolveEffectivePiiRedaction({ orgSettings: row.orgSettings, workspaceId }).logs
     if (!config.enabled) return payload
 
@@ -962,7 +957,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
     execLog.debug('Completing workflow execution', { isResume })
 
     const [existingLog] = await execDb
-      .select()
+      .select(workflowExecutionLogColumns)
       .from(workflowExecutionLogs)
       .where(eq(workflowExecutionLogs.executionId, executionId))
       .limit(1)
@@ -1210,11 +1205,11 @@ export class ExecutionLogger implements IExecutionLoggerService {
               : sql`${workflowExecutionLogs.status} != 'cancelled'`
           )
         )
-        .returning()
+        .returning(workflowExecutionLogColumns)
 
       if (!log) {
         const [currentLog] = await tx
-          .select()
+          .select(workflowExecutionLogColumns)
           .from(workflowExecutionLogs)
           .where(eq(workflowExecutionLogs.executionId, executionId))
           .limit(1)
@@ -1301,16 +1296,6 @@ export class ExecutionLogger implements IExecutionLoggerService {
           payerSubscription.plan,
           payerSubscription.seats
         )
-        let orgBaseline = 0
-        if (exactBillingContext.billingPeriod.source !== 'reporting') {
-          const [{ sum }] = await db
-            .select({ sum: sql`COALESCE(SUM(${userStats.currentPeriodCost}), 0)` })
-            .from(member)
-            .leftJoin(userStats, eq(member.userId, userStats.userId))
-            .where(eq(member.organizationId, organizationId))
-            .limit(1)
-          orgBaseline = Number.parseFloat(String(sum ?? '0'))
-        }
         const { getBillingPeriodUsageCost } = await import('@/lib/billing/core/usage-log')
         const orgLedger = await getBillingPeriodUsageCost(
           billingAttribution.billingEntity,
@@ -1321,7 +1306,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
           organizationId,
           planName: getDisplayPlanName(payerSubscription.plan),
           orgLimit,
-          orgUsageBefore: orgBaseline + orgLedger,
+          orgUsageBefore: orgLedger,
         }
       } else if (billingAttribution?.billingEntity.type === 'user' && usr?.email) {
         const sub = await getHighestPriorityPersonalSubscription(usr.id)
@@ -1457,7 +1442,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
 
   async getWorkflowExecution(executionId: string): Promise<WorkflowExecutionLog | null> {
     const [workflowLog] = await execDb
-      .select()
+      .select(workflowExecutionLogColumns)
       .from(workflowExecutionLogs)
       .where(eq(workflowExecutionLogs.executionId, executionId))
       .limit(1)

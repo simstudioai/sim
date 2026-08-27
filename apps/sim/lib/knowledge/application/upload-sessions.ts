@@ -23,7 +23,7 @@ import type { CreatedKnowledgeDocument } from '@/lib/knowledge/orchestration/doc
 import { findBoundKnowledgeDocument } from '@/lib/knowledge/orchestration/documents'
 import {
   type KnowledgeDocumentUploadMetadata,
-  knowledgeDocumentUploadMetadataSchema,
+  persistedKnowledgeDocumentUploadMetadataSchema,
 } from '@/lib/knowledge/upload-metadata'
 import { recordKnowledgeBaseFileOwnership } from '@/lib/uploads/server/metadata'
 import { requestOrigin } from '@/lib/uploads/upload-session/application'
@@ -456,9 +456,13 @@ async function reauthorizeKnowledgeDocumentUpload(
   return context
 }
 
+/**
+ * Reads metadata back off a persisted session, so it uses the lenient schema:
+ * a session created before `recipe`/`lang` were constrained must still resume.
+ */
 function knowledgeDocumentMetadataFor(session: UploadSessionRecord) {
   const { authBinding: _authBinding, ...metadata } = session.metadata
-  return knowledgeDocumentUploadMetadataSchema.parse(metadata)
+  return persistedKnowledgeDocumentUploadMetadataSchema.parse(metadata)
 }
 
 function knowledgeDocumentInputFor(session: UploadSessionRecord) {

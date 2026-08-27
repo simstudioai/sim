@@ -1368,11 +1368,14 @@ const declaredRoutes = [
     resourceOperation('Secrets', {
       operationId: 'setSecret',
       summary: 'Set Secret',
-      description: `Create or replace a workspace or caller-owned personal secret. The value is encrypted at rest, is write-only, and is never included in the response. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Create or replace a workspace or caller-owned personal secret. The value is encrypted at rest, is write-only, and is never included in the response. Omit \`value\` on a workspace secret to update \`description\` and \`unredacted\` alone: the stored value is left untouched and is never re-encrypted, and because a metadata-only write cannot create a secret it answers \`404\` when the named secret does not exist. A personal secret always requires \`value\`, having no other writable field. ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_ERRORS,
       success: {
         byStatus: {
-          200: { description: 'The existing secret value was replaced.' },
+          200: {
+            description:
+              'The existing secret value was replaced, or its metadata was updated in place.',
+          },
           201: { description: 'The secret was created.' },
         },
       },
@@ -1389,12 +1392,17 @@ const declaredRoutes = [
         v2SetSecretContract.body,
         'SetSecretRequest',
         'Set secret request',
-        'Ownership scope and write-only value for the secret.',
+        'Ownership scope and write-only value for the secret. A workspace secret may instead send description or unredacted alone, without a value.',
         [
           {
             workspaceId: WORKSPACE_ID,
             scope: SECRET_EXAMPLE.scope,
             value: 'YOUR_SECRET_VALUE',
+          },
+          {
+            workspaceId: WORKSPACE_ID,
+            scope: 'workspace',
+            unredacted: false,
           },
         ]
       ),
@@ -1452,9 +1460,9 @@ const declaredRoutes = [
       operationId: 'getApiMeta',
       summary: 'Get API Capabilities',
       description:
-        'Report facts about the calling API key: whether it is in the v2 rollout cohort, whether it is personal or workspace-scoped, and when it expires. Every other v2 endpoint answers 404 both when the path does not exist and when your credential is not in the rollout cohort; call this endpoint to tell the two apart. It is the one v2 endpoint the rollout gate does not apply to, and it still requires a valid key.',
+        'Report whether v2 is available, whether the calling API key is personal or workspace-scoped, and when it expires. Requires a valid key.',
       errors: META_ERRORS,
-      success: { description: 'Rollout and lifecycle facts about the calling key.' },
+      success: { description: 'Availability and lifecycle facts about the calling key.' },
     }),
     {
       query: v2GetMetaContract.query,
@@ -1462,7 +1470,7 @@ const declaredRoutes = [
         v2GetMetaContract.response.schema,
         'GetApiMetaResponse',
         'API capabilities response',
-        'Rollout cohort, key type, and expiry for the calling key.',
+        'API availability, key type, and expiry for the calling key.',
         [{ data: { v2Enabled: true, keyType: 'personal', expiresAt: null } }]
       ),
     }
@@ -1483,7 +1491,7 @@ const declaredRoutes = [
         'ListWorkflowMcpServersResponse',
         'List workflow MCP servers response',
         'A cursor-paginated page of published MCP servers.',
-        [{ data: [WORKFLOW_MCP_SERVER_LIST_EXAMPLE], nextCursor: null }]
+        [{ data: [WORKFLOW_MCP_SERVER_LIST_EXAMPLE], nextCursor: null, toolNamesTruncated: false }]
       ),
     }
   ),
@@ -1550,6 +1558,7 @@ const declaredRoutes = [
           {
             data: [omitUpdated(WORKFLOW_MCP_TOOL_EXAMPLE)],
             nextCursor: null,
+            truncated: false,
           },
         ]
       ),

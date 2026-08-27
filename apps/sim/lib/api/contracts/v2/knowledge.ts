@@ -59,7 +59,10 @@ import {
   rerankerModelSchema,
   rerankerStatusSchema,
 } from '@/lib/knowledge/reranker-models'
-import { knowledgeDocumentUploadMetadataSchema } from '@/lib/knowledge/upload-metadata'
+import {
+  KNOWLEDGE_DOCUMENT_UPLOAD_RECIPES,
+  knowledgeDocumentUploadMetadataSchema,
+} from '@/lib/knowledge/upload-metadata'
 import { MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE } from '@/lib/uploads/shared/types'
 
 /**
@@ -481,10 +484,14 @@ const v2KnowledgeDocumentProcessingOptionsSchema =
     .extend({
       recipe: knowledgeDocumentUploadMetadataSchema.shape.processingOptions
         .unwrap()
-        .shape.recipe.describe('Optional document processing recipe.'),
+        .shape.recipe.describe(
+          `Optional document processing recipe. One of: ${KNOWLEDGE_DOCUMENT_UPLOAD_RECIPES.join(', ')}.`
+        ),
       lang: knowledgeDocumentUploadMetadataSchema.shape.processingOptions
         .unwrap()
-        .shape.lang.describe('Optional document language code.'),
+        .shape.lang.describe(
+          'Optional document language: hyphen-separated letter and digit subtags such as `en`, `en-US`, or `zh-Hant-TW`. Only that shape is validated, not full BCP-47 conformance.'
+        ),
     })
     .strict()
 
@@ -1595,6 +1602,12 @@ export const v2KnowledgeConnectorSyncLogSchema = z
     docsUpdated: z.number().int().nonnegative().describe('Documents updated.'),
     docsDeleted: z.number().int().nonnegative().describe('Documents deleted.'),
     docsUnchanged: z.number().int().nonnegative().describe('Documents unchanged.'),
+    docsSkipped: z
+      .number()
+      .int()
+      .nonnegative()
+      .default(0)
+      .describe('Documents intentionally skipped because they could not be indexed safely.'),
     docsFailed: z.number().int().nonnegative().describe('Documents that failed to synchronize.'),
     errorMessage: z.string().nullable().describe('Synchronization error, or null.'),
   })

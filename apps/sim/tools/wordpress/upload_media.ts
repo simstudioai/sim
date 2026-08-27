@@ -63,6 +63,7 @@ export const uploadMediaTool: ToolConfig<WordPressUploadMediaParams, WordPressUp
     },
 
     request: {
+      internal: true,
       url: () => '/api/tools/wordpress/upload',
       method: 'POST',
       headers: () => ({

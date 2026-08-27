@@ -7,8 +7,8 @@ import { ArrowUpDown, File, ListFilter, Plus, Search } from '@sim/emcn/icons'
 import { AgentIcon } from '@/components/icons'
 import { CsvIcon, DocxIcon, PdfIcon } from '@/components/icons/document-icons'
 import { HeroLoopShell } from '@/app/(landing)/components/shared/hero-loop-shell'
+import { PLATFORM_LOOP_RESET_FADE_MS } from '@/app/(landing)/components/shared/platform-loop-constants'
 import { ZipIcon } from '@/app/(landing)/components/shared/zip-icon'
-import { RESET_FADE_MS } from '@/app/(landing)/hooks/use-design-scale'
 import { useMotionSafeCycle } from '@/app/(landing)/hooks/use-motion-safe-cycle'
 
 /** Sidebar content for the files hero - a file-heavy team's workspace. */
@@ -143,8 +143,8 @@ const COL_HEADERS = ['Name', 'Size', 'Type', 'Created', 'Owner'] as const
 /** Renders the owner cell - an initial badge for teammates, the agent glyph for agents. */
 function OwnerCell({ owner }: { owner: FileOwner }) {
   return (
-    <span className='flex min-w-0 items-center gap-3 font-medium text-sm'>
-      <span className='flex size-[14px] flex-shrink-0 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-3)] font-medium text-[8px] text-[var(--text-secondary)]'>
+    <span className='flex min-w-0 items-center gap-3 text-sm'>
+      <span className='flex size-[14px] flex-shrink-0 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-3)] text-[8px] text-[var(--text-secondary)]'>
         {owner.agent ? <AgentIcon className='size-[8px]' /> : owner.initial}
       </span>
       <span className='truncate text-[var(--text-secondary)]'>{owner.name}</span>
@@ -157,16 +157,16 @@ function FileRow({ row }: { row: FileRowData }) {
   const Icon = row.icon
   return (
     <div className={cn(ROW_GRID, 'h-[40px] items-center')}>
-      <span className='flex min-w-0 items-center gap-3 px-6 font-medium text-[var(--text-body)] text-sm'>
+      <span className='flex min-w-0 items-center gap-3 px-6 text-[var(--text-body)] text-sm'>
         <Icon className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
         <span className='truncate'>{row.name}</span>
       </span>
-      <span className='px-6 font-medium text-[var(--text-secondary)] text-sm'>{row.size}</span>
-      <span className='flex items-center gap-3 px-6 font-medium text-[var(--text-secondary)] text-sm'>
+      <span className='px-6 text-[var(--text-secondary)] text-sm'>{row.size}</span>
+      <span className='flex items-center gap-3 px-6 text-[var(--text-secondary)] text-sm'>
         <Icon className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
         {row.type}
       </span>
-      <span className='px-6 font-medium text-[var(--text-secondary)] text-sm'>{row.created}</span>
+      <span className='px-6 text-[var(--text-secondary)] text-sm'>{row.created}</span>
       <span className='px-6'>
         <OwnerCell owner={row.owner} />
       </span>
@@ -186,8 +186,8 @@ function ToolbarChip({ icon, label }: { icon: ReactNode; label: string }) {
 
 /**
  * The files hero's platform loop - the workflows editor loop's architecture
- * (a fixed 1280x735 design-space layer scaled to the window via
- * ResizeObserver + `transform: scale`, a parent-owned clock, reduced-motion
+ * (a fixed 1280x735 HTML design surface fitted to the window via the shared
+ * responsive stage, a parent-owned clock, reduced-motion
  * showing the finished frame) with the same live {@link EnterpriseSidebar}
  * highlighting its Files nav row. The workspace pane is the Files library
  * itself: the 44px title bar (File icon, "Files", "Upload file"), the
@@ -222,7 +222,7 @@ export function FilesHeroLoop() {
             setTimeout(() => setRowCount(i + 1), IDLE_HOLD_MS + i * ROW_STEP_MS)
           ),
           setTimeout(() => setDropped(true), dropAt),
-          setTimeout(() => setFading(true), totalMs - RESET_FADE_MS),
+          setTimeout(() => setFading(true), totalMs - PLATFORM_LOOP_RESET_FADE_MS),
         ],
         totalMs,
       }
@@ -235,7 +235,7 @@ export function FilesHeroLoop() {
   })
 
   return (
-    <HeroLoopShell chats={SIDEBAR_CHATS} workflows={SIDEBAR_WORKFLOWS} activeNav='Files'>
+    <HeroLoopShell chats={SIDEBAR_CHATS} workflows={SIDEBAR_WORKFLOWS} activeItem='Files'>
       <div className='h-full w-full overflow-hidden rounded-[6px] border border-[var(--border)] bg-[var(--bg)]'>
         <div
           className={cn(
@@ -246,7 +246,7 @@ export function FilesHeroLoop() {
           <div className='flex h-[44px] flex-shrink-0 items-center justify-between border-[var(--border)] border-b px-6'>
             <div className='flex items-center gap-3'>
               <File className='size-[14px] text-[var(--text-icon)]' />
-              <span className='font-medium text-[var(--text-body)] text-sm'>Files</span>
+              <span className='text-[var(--text-body)] text-sm'>Files</span>
             </div>
             <span className='flex items-center rounded-md px-2 py-1 text-[var(--text-secondary)] text-caption'>
               <Plus className='mr-1.5 size-[14px] text-[var(--text-icon)]' />
@@ -287,7 +287,7 @@ export function FilesHeroLoop() {
           <div className='min-h-0 flex-1 overflow-hidden'>
             <div
               className={cn(
-                'overflow-hidden transition-all duration-500 ease-out',
+                'overflow-hidden transition-[max-height,opacity] duration-500 ease-out',
                 dropped ? 'max-h-[40px] opacity-100' : 'max-h-0 opacity-0'
               )}
             >
@@ -304,7 +304,7 @@ export function FilesHeroLoop() {
               <div
                 key={row.name}
                 className={cn(
-                  'transition-all duration-300 ease-out',
+                  'transition-[opacity,transform] duration-300 ease-out',
                   index < rowCount ? 'translate-y-0 opacity-100' : '-translate-y-1 opacity-0'
                 )}
               >

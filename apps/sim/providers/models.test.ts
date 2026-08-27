@@ -253,6 +253,8 @@ describe('zai provider definition', () => {
   const zai = PROVIDER_DEFINITIONS.zai
 
   const expectedModels = [
+    { id: 'glm-5.3', contextWindow: 1000000 },
+    { id: 'glm-5.3-flash', contextWindow: 1000000 },
     { id: 'glm-5.2', contextWindow: 1000000 },
     { id: 'glm-5.1', contextWindow: 200000 },
     { id: 'glm-5', contextWindow: 200000 },

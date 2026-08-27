@@ -32,6 +32,7 @@ vi.mock('@/lib/credential-groups/provider-registry', () => ({
 
 import {
   completeCredentialGroupEnrollment,
+  createCredentialGroupInvitationLink,
   deleteCredentialGroupEnrollment,
   listCredentialGroupEnrollments,
   resendCredentialGroupEnrollment,
@@ -196,6 +197,62 @@ describe('listCredentialGroupEnrollments', () => {
     ).rejects.toMatchObject({ message: 'Enrollment cursor is invalid', status: 400 })
 
     expect(dbChainMockFns.limit).toHaveBeenCalledOnce()
+  })
+})
+
+describe('createCredentialGroupInvitationLink', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('issues a fresh enrollment token without sending email', async () => {
+    const issued = {
+      ...ENROLLMENT,
+      email: 'person@example.com',
+      status: 'invited' as const,
+      sentAt: null,
+      completedAt: null,
+    }
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([
+        {
+          workspaceId: 'workspace-1',
+          workspaceName: 'Workspace',
+          groupId: 'group-1',
+          groupName: 'Group',
+          groupStatus: 'active',
+          options: [{ id: 'option-1', status: 'active' }],
+        },
+      ])
+      .mockResolvedValueOnce([])
+    dbChainMockFns.returning.mockResolvedValueOnce([issued])
+
+    const result = await createCredentialGroupInvitationLink(
+      'workspace-1',
+      'group-1',
+      'user-1',
+      ' Person@Example.COM '
+    )
+
+    expect(result.enrollment).toMatchObject({
+      id: ENROLLMENT.id,
+      email: 'person@example.com',
+      status: 'invited',
+      sentAt: null,
+    })
+    expect(new URL(result.invitationLink).pathname).toMatch(
+      /^\/credential-groups\/enroll\/[0-9a-f-]+$/
+    )
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        credentialGroupId: 'group-1',
+        email: 'person@example.com',
+        createdBy: 'user-1',
+        sentAt: null,
+      })
+    )
+    expect(sendEmail).not.toHaveBeenCalled()
   })
 })
 

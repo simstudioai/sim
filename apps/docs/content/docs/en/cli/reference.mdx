@@ -175,7 +175,7 @@ Also spelled `sim audit-log`.
 
 ### sim audit-logs get
 
-Get Audit Log
+Get Audit Log (personal API key required)
 
 ```bash
 sim audit-logs get <auditLogId> [options]
@@ -197,13 +197,13 @@ sim audit-logs get <auditLogId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--organization <value>` | Yes | Organization ID (personal API key required). |
+| `--organization <value>` | No | Organization ID; defaults to your only organization, and is required when your account belongs to more than one (personal API key required). |
 
 </CommandTable>
 
 ### sim audit-logs list
 
-List Audit Logs
+List Audit Logs (personal API key required)
 
 ```bash
 sim audit-logs list [options]
@@ -223,7 +223,7 @@ sim audit-logs list [options]
 | `--include-departed` | No | Include actions by users who have left the organization. |
 | `--no-include-departed` | No | Send --include-departed as false. |
 | `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
-| `--organization <value>` | Yes | Organization ID (personal API key required). |
+| `--organization <value>` | No | Organization ID; defaults to your only organization, and is required when your account belongs to more than one (personal API key required). |
 | `--actor-email <value>` | No | Filter by actor email address. |
 | `--all-workspaces` | No | Do not filter to the configured workspace (personal API key required for account-wide access). |
 
@@ -233,7 +233,7 @@ sim audit-logs list [options]
 
 ### sim billing status
 
-Show billing status and current-period credit usage
+Show billing status and current-period credit usage (credits and storage require a personal API key)
 
 ```bash
 sim billing status [options]
@@ -251,7 +251,7 @@ sim billing status [options]
 
 ### sim billing logs
 
-List credit usage events
+List credit usage events (a personal API key reports only your own events; a workspace API key reports every member's in aggregate, unattributed)
 
 ```bash
 sim billing logs [options]
@@ -367,7 +367,7 @@ Also spelled `sim credential`.
 
 ### sim credentials delete
 
-Disconnect Credential
+Disconnect Credential (personal API key required)
 
 ```bash
 sim credentials delete <credentialId> [options]
@@ -379,7 +379,7 @@ sim credentials delete <credentialId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `credentialId` | Yes | Credential to update or disconnect. |
+| `credentialId` | Yes | Credential to disconnect. |
 
 </CommandTable>
 
@@ -389,7 +389,7 @@ sim credentials delete <credentialId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -436,7 +436,7 @@ sim credentials list [options]
 
 ### sim credentials update
 
-Update Credential
+Update Credential (personal API key required)
 
 ```bash
 sim credentials update <credentialId> [options]
@@ -448,7 +448,7 @@ sim credentials update <credentialId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `credentialId` | Yes | Credential to update or disconnect. |
+| `credentialId` | Yes | Credential to update. |
 
 </CommandTable>
 
@@ -459,7 +459,7 @@ sim credentials update <credentialId> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--display-name <value>` | No | New name shown for the credential in Sim. |
-| `--description <value>` | No | New credential description. Send null to clear the stored one. |
+| `--description <value>` | No | New credential description. Send null to clear the stored one. (--description null sends the word, not JSON null). |
 | `--service-account-json <value>` | No | Write-only Google service-account JSON key. |
 | `--api-token <value>` | No | Write-only provider API token. |
 | `--domain <value>` | No | Provider account domain. |
@@ -473,12 +473,13 @@ sim credentials update <credentialId> [options]
 | `--auth-method <value>` | No | Provider authentication method. |
 | `--private-key <value>` | No | Write-only PEM private key. |
 | `--username <value>` | No | Provider run-as username. |
+| `--name <displayName>` | No | Alias for --display-name. |
 
 </CommandTable>
 
 ### sim credentials create
 
-Create a service-account credential using its discovered provider schema
+Create a service-account credential using its discovered provider schema (personal API key required)
 
 ```bash
 sim credentials create <providerId> [options]
@@ -509,7 +510,7 @@ sim credentials create <providerId> [options]
 
 ### sim credentials connect
 
-Create a short-lived link for connecting an OAuth provider
+Create a short-lived link for connecting an OAuth provider (personal API key required)
 
 ```bash
 sim credentials connect <providerId> [options]
@@ -537,7 +538,7 @@ sim credentials connect <providerId> [options]
 
 ### sim credentials reconnect
 
-Create a short-lived link for reconnecting an OAuth credential
+Create a short-lived link for reconnecting an OAuth credential (personal API key required)
 
 ```bash
 sim credentials reconnect <credentialId>
@@ -601,7 +602,7 @@ sim custom-tools delete <customToolId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -692,8 +693,8 @@ sim files batch-delete [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--file-ids <value...>` | Yes | File identifiers to update. (space-separated, or @path / @- with one value per line). |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `--file-ids <value...>` | Yes | File identifiers to update. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -762,13 +763,13 @@ sim files folders delete <path> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--recursive` | No | Delete the folder and its descendants. |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
 ### sim files folders list
 
-List Folders
+List folders
 
 ```bash
 sim files folders list [options]
@@ -786,7 +787,7 @@ Also available as `sim files folders ls`.
 | `--search <value>` | No | Case-insensitive substring match against the folder name. |
 | `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `createdAt`, `updatedAt`. |
 | `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
-| `--scope <value>` | No | Which lifecycle set to list: `active` (default) returns live folders only; `archived` returns folders a recursive `DELETE` soft-deleted, which is how a caller finds a path to hand to `POST /api/v2/files/folders/restore`. Authorization is identical for both. Accepted values: `active`, `archived`. |
+| `--scope <value>` | No | Which lifecycle set to list: `active` (default) returns live folders only; `archived` returns folders a recursive delete soft-deleted, which is how a caller finds a path to hand to the folder restore. Authorization is identical for both. Accepted values: `active`, `archived`. |
 
 </CommandTable>
 
@@ -853,7 +854,7 @@ sim files delete <fileId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -881,7 +882,7 @@ sim files describe <fileId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--scope <value>` | No | Which lifecycle set to read from: `active` (default) resolves live files only and returns `404` for a file a `DELETE` soft-deleted; `archived` also resolves soft-deleted files, so metadata stays readable before `POST /files/&#123;fileId&#125;/restore`. Authorization is identical for both. Accepted values: `active`, `archived`. |
+| `--scope <value>` | No | Which lifecycle set to read from: `active` (default) resolves live files only and returns `404` for a file a delete soft-deleted; `archived` also resolves soft-deleted files, so metadata stays readable before the file is restored. Authorization is identical for both. Accepted values: `active`, `archived`. |
 
 </CommandTable>
 
@@ -905,7 +906,7 @@ sim files share get <fileId>
 
 ### sim files share set
 
-Enable or disable sharing for a file
+Enable or disable sharing for a file (personal API key required)
 
 ```bash
 sim files share set <fileId> [options]
@@ -930,25 +931,7 @@ sim files share set <fileId> [options]
 | `--is-active <true\|false>` | Yes | Whether the share should resolve. Disabling preserves the token and the whole access configuration, so re-enabling restores the share as it was; enabling rewrites the credentials the resulting mode does not use. Accepted values: `true`, `false`. |
 | `--auth-type <value>` | No | How access to the share is gated. The stored mode is kept when omitted. Enabling `public` clears the stored password and empties `allowedEmails`; `password` empties `allowedEmails`; `email` and `sso` clear the stored password. Accepted values: `public`, `password`, `email`, `sso`. |
 | `--password <value>` | No | Password for a password-gated share. Kept when omitted; enabling `password` with neither a supplied nor a stored password is a 400. |
-| `--allowed-emails <value...>` | No | Allowed addresses or `@domain` patterns for email and SSO shares. Kept when omitted; enabling `email` or `sso` with an empty resulting list is a 400. (space-separated, or @path / @- with one value per line). |
-
-</CommandTable>
-
-### sim files uploads get
-
-Get File Upload
-
-```bash
-sim files uploads get <uploadId>
-```
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `uploadId` | Yes | Upload session identifier. |
+| `--allowed-emails <value...>` | No | Allowed addresses or `@domain` patterns for email and SSO shares. Kept when omitted; enabling `email` or `sso` with an empty resulting list is a 400. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
 
 </CommandTable>
 
@@ -967,8 +950,9 @@ sim files list [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
-| `--recursive <value>` | No | Whether the folder filter includes files in subfolders. Defaults to true when a search is set, false otherwise, so listing a folder shows that folder while searching one looks through everything in it. Ignored when no folder filter is set, which already spans the workspace. The listed spellings are the whole accepted vocabulary and are case-sensitive; any other value is rejected. Accepted values: `true`, `1`, `yes`, `on`, `y`, `enabled`, `false`, `0`, `no`, `off`, `n`, `disabled`. |
-| `--scope <value>` | No | Which lifecycle set to list: `active` (default) for live files, `archived` for files a `DELETE` soft-deleted. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too. Accepted values: `active`, `archived`. |
+| `--recursive` | No | Whether the folder filter includes files in subfolders. Defaults to true when a search is set, false otherwise, so listing a folder shows that folder while searching one looks through everything in it. Ignored when no folder filter is set, which already spans the workspace. |
+| `--no-recursive` | No | Send --recursive as false. |
+| `--scope <value>` | No | Which lifecycle set to list: `active` (default) for live files, `archived` for files a delete soft-deleted. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too. Accepted values: `active`, `archived`. |
 | `--search <value>` | No | Case-insensitive substring match against the file name. |
 | `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `size`, `uploadedAt`, `updatedAt`. |
 | `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
@@ -992,7 +976,7 @@ Also available as `sim files mv`.
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--file-ids <value...>` | Yes | File identifiers to update. (space-separated, or @path / @- with one value per line). |
+| `--file-ids <value...>` | Yes | File identifiers to update. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
 | `--to <value>` | No | Destination folder path; omit for root. |
 
 </CommandTable>
@@ -1095,7 +1079,7 @@ sim files unzip <fileId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -1239,7 +1223,7 @@ Also spelled `sim kb`.
 
 ### sim knowledge from-workspace-files create
 
-Index files the workspace already stores
+Index files the workspace already stores (personal API key required)
 
 ```bash
 sim knowledge from-workspace-files create <knowledgeBaseId> [options]
@@ -1261,13 +1245,13 @@ sim knowledge from-workspace-files create <knowledgeBaseId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--file <value...>` | Yes | Workspace file ID or key (repeatable) (space-separated, or @path / @- with one value per line). |
+| `--file <value...>` | Yes | Workspace file ID or key (repeatable) (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
 
 </CommandTable>
 
 ### sim knowledge tags save
 
-Declare the tag definitions a knowledge base needs
+Declare the tag definitions a knowledge base needs (personal API key required)
 
 ```bash
 sim knowledge tags save <knowledgeBaseId> [options]
@@ -1295,7 +1279,7 @@ sim knowledge tags save <knowledgeBaseId> [options]
 
 ### sim knowledge tags create
 
-Create Tag
+Create Tag (personal API key required)
 
 ```bash
 sim knowledge tags create <knowledgeBaseId> [options]
@@ -1318,14 +1302,14 @@ sim knowledge tags create <knowledgeBaseId> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--display-name <value>` | Yes | Name tag filters and document reads use for this tag. |
-| `--field-type <value>` | No | Value type stored in the slot; it decides which slots are usable and which filter operators apply. Slot capacity per type: text 7, number 5, date 2, boolean 3. Accepted values: `text`, `number`, `date`, `boolean`. |
+| `--field-type <value>` | No | Value type stored in the slot; it decides which slots are usable and which filter operators apply. Defaults to text, so a number, date, or boolean slot must name its type here. Slot capacity per type: text 7, number 5, date 2, boolean 3. Accepted values: `text`, `number`, `date`, `boolean`. |
 | `--tag-slot <value>` | No | Slot to store the tag in. Omit to take the next free slot for the field type; a slot that does not belong to the field type, or one already in use, is rejected. Accepted values: `tag1`, `tag2`, `tag3`, `tag4`, `tag5`, `tag6`, `tag7`, `number1`, `number2`, `number3`, `number4`, `number5`, `date1`, `date2`, `boolean1`, `boolean2`, `boolean3`. |
 
 </CommandTable>
 
 ### sim knowledge tags delete
 
-Delete Tag
+Delete Tag (personal API key required)
 
 ```bash
 sim knowledge tags delete <knowledgeBaseId> <tagId> [options]
@@ -1348,13 +1332,13 @@ sim knowledge tags delete <knowledgeBaseId> <tagId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
 ### sim knowledge tags cleanup
 
-Remove tag definitions no document still uses
+Remove tag definitions no document still uses (personal API key required)
 
 ```bash
 sim knowledge tags cleanup <knowledgeBaseId> [options]
@@ -1376,15 +1360,15 @@ sim knowledge tags cleanup <knowledgeBaseId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--unused` | No | Whether to remove only the tag definitions no document in the knowledge base still carries a value for. Defaults to true. Pass `unused=false` to delete every definition on the knowledge base, which also clears its slot on every document and chunk and is not recoverable. |
+| `--unused` | No | Whether to remove only the tag definitions no document in the knowledge base still carries a value for. Defaults to true. Pass --no-unused to delete every definition on the knowledge base, which also clears its slot on every document and chunk and is not recoverable. |
 | `--no-unused` | No | Send --unused as false. |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
 ### sim knowledge tags next-slot
 
-Show which tag slot a create would take for a field type
+Show which tag slot a create would take for a field type (personal API key required)
 
 ```bash
 sim knowledge tags next-slot <knowledgeBaseId> [options]
@@ -1430,7 +1414,7 @@ sim knowledge tags list <knowledgeBaseId>
 
 ### sim knowledge tags usage
 
-Show how many documents and chunks carry each tag
+Show how many documents and chunks carry each tag (personal API key required)
 
 ```bash
 sim knowledge tags usage <knowledgeBaseId>
@@ -1448,7 +1432,7 @@ sim knowledge tags usage <knowledgeBaseId>
 
 ### sim knowledge tags update
 
-Update Tag
+Update Tag (personal API key required)
 
 ```bash
 sim knowledge tags update <knowledgeBaseId> <tagId> [options]
@@ -1478,7 +1462,7 @@ sim knowledge tags update <knowledgeBaseId> <tagId> [options]
 
 ### sim knowledge chunks batch-update
 
-Enable, disable, or delete many chunks at once
+Enable, disable, or delete many chunks at once (personal API key required)
 
 ```bash
 sim knowledge chunks batch-update <knowledgeBaseId> <documentId> [options]
@@ -1502,14 +1486,14 @@ sim knowledge chunks batch-update <knowledgeBaseId> <documentId> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--operation <value>` | Yes | What to do with the selected chunks. Accepted values: `enable`, `disable`, `delete`. |
-| `--chunk <value...>` | Yes | Chunks to operate on, by identifier. Ids outside the document are ignored. (space-separated, or @path / @- with one value per line). |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `--chunk <value...>` | Yes | Chunks to operate on, by identifier. An id naming no chunk in the document is reported in errors and does not fail the request. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
 ### sim knowledge chunks create
 
-Create Chunk
+Create Chunk (personal API key required)
 
 ```bash
 sim knowledge chunks create <knowledgeBaseId> <documentId> [options]
@@ -1540,7 +1524,7 @@ sim knowledge chunks create <knowledgeBaseId> <documentId> [options]
 
 ### sim knowledge chunks delete
 
-Delete Chunk
+Delete Chunk (personal API key required)
 
 ```bash
 sim knowledge chunks delete <knowledgeBaseId> <documentId> <chunkId> [options]
@@ -1564,13 +1548,13 @@ sim knowledge chunks delete <knowledgeBaseId> <documentId> <chunkId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
 ### sim knowledge chunks get
 
-Get Chunk
+Get Chunk (personal API key required)
 
 ```bash
 sim knowledge chunks get <knowledgeBaseId> <documentId> <chunkId>
@@ -1590,7 +1574,7 @@ sim knowledge chunks get <knowledgeBaseId> <documentId> <chunkId>
 
 ### sim knowledge chunks list
 
-List Chunks
+List Chunks (personal API key required)
 
 ```bash
 sim knowledge chunks list <knowledgeBaseId> <documentId> [options]
@@ -1623,7 +1607,7 @@ sim knowledge chunks list <knowledgeBaseId> <documentId> [options]
 
 ### sim knowledge chunks update
 
-Update Chunk
+Update Chunk (personal API key required)
 
 ```bash
 sim knowledge chunks update <knowledgeBaseId> <documentId> <chunkId> [options]
@@ -1655,7 +1639,7 @@ sim knowledge chunks update <knowledgeBaseId> <documentId> <chunkId> [options]
 
 ### sim knowledge documents batch-update
 
-Enable or disable every matching document
+Enable or disable every matching document (personal API key required)
 
 ```bash
 sim knowledge documents batch-update <knowledgeBaseId> [options]
@@ -1678,7 +1662,7 @@ sim knowledge documents batch-update <knowledgeBaseId> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--operation <value>` | Yes | Whether the selected documents become enabled or disabled for search. Accepted values: `enable`, `disable`. |
-| `--document <value...>` | No | Documents to update, by identifier. (space-separated, or @path / @- with one value per line). |
+| `--document <value...>` | No | Documents to update, by identifier. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
 | `--select-all` | No | Apply to every document in the knowledge base. |
 | `--enabled-filter <value>` | No | With `selectAll`, restrict the update to documents in this state. Accepted values: `all`, `enabled`, `disabled`. |
 
@@ -1709,7 +1693,7 @@ sim knowledge documents delete <knowledgeBaseId> <documentId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -1767,7 +1751,7 @@ sim knowledge documents list <knowledgeBaseId> [options]
 
 ### sim knowledge documents update
 
-Update Document
+Update Document (personal API key required)
 
 ```bash
 sim knowledge documents update <knowledgeBaseId> <documentId> [options]
@@ -1814,7 +1798,6 @@ sim knowledge documents update <knowledgeBaseId> <documentId> [options]
 | `--boolean3` | No | New value for boolean tag slot 3. |
 | `--no-boolean3` | No | Send --boolean3 as false. |
 | `--retry-processing` | No | Requeue a failed or stuck document for processing. Send it alone — no other field may accompany it — and it answers with a queue acknowledgement rather than the document. |
-| `--no-retry-processing` | No | Send --retry-processing as false. |
 
 </CommandTable>
 
@@ -1845,8 +1828,8 @@ sim knowledge documents upload <knowledgeBaseId> <path> [options]
 | --- | --- | --- |
 | `--name <name>` | No | Store it under a different name. |
 | `--tag <value...>` | No | Document tags, in tag1 through tag7 order. |
-| `--recipe <name>` | No | Document processing recipe. |
-| `--lang <code>` | No | Document language code. |
+| `--recipe <name>` | No | Document processing recipe. Accepted values: `default`, `plain`, `markdown`, `code`. |
+| `--lang <code>` | No | Document language tag: hyphen-separated letter and digit subtags, for example en or en-US. |
 
 </CommandTable>
 
@@ -1873,7 +1856,7 @@ sim knowledge create [options]
 
 ### sim knowledge connectors create
 
-Create Knowledge Connector
+Create Knowledge Connector (personal API key required)
 
 ```bash
 sim knowledge connectors create <knowledgeBaseId> [options]
@@ -1905,7 +1888,7 @@ sim knowledge connectors create <knowledgeBaseId> [options]
 
 ### sim knowledge connectors delete
 
-Delete Knowledge Connector
+Delete Knowledge Connector (personal API key required)
 
 ```bash
 sim knowledge connectors delete <knowledgeBaseId> <connectorId> [options]
@@ -1930,13 +1913,13 @@ sim knowledge connectors delete <knowledgeBaseId> <connectorId> [options]
 | --- | --- | --- |
 | `--delete-documents` | No | Also permanently delete documents produced by this connector. |
 | `--no-delete-documents` | No | Send --delete-documents as false. |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
 ### sim knowledge connectors get
 
-Get Knowledge Connector
+Get Knowledge Connector (personal API key required)
 
 ```bash
 sim knowledge connectors get <knowledgeBaseId> <connectorId>
@@ -1955,7 +1938,7 @@ sim knowledge connectors get <knowledgeBaseId> <connectorId>
 
 ### sim knowledge connectors documents list
 
-List Knowledge Connector Documents
+List Knowledge Connector Documents (personal API key required)
 
 ```bash
 sim knowledge connectors documents list <knowledgeBaseId> <connectorId> [options]
@@ -1986,7 +1969,7 @@ sim knowledge connectors documents list <knowledgeBaseId> <connectorId> [options
 
 ### sim knowledge connectors documents update
 
-Update Knowledge Connector Documents
+Update Knowledge Connector Documents (personal API key required)
 
 ```bash
 sim knowledge connectors documents update <knowledgeBaseId> <connectorId> [options]
@@ -2010,13 +1993,13 @@ sim knowledge connectors documents update <knowledgeBaseId> <connectorId> [optio
 | Option | Required | Description |
 | --- | --- | --- |
 | `--operation <value>` | Yes | Whether to restore or exclude the selected documents. Accepted values: `restore`, `exclude`. |
-| `--document <value...>` | Yes | Connector document identifiers to update. (space-separated, or @path / @- with one value per line). |
+| `--document <value...>` | Yes | Connector document identifiers to update. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
 
 </CommandTable>
 
 ### sim knowledge connectors list
 
-List Knowledge Connectors
+List Knowledge Connectors (personal API key required)
 
 ```bash
 sim knowledge connectors list <knowledgeBaseId> [options]
@@ -2046,7 +2029,7 @@ sim knowledge connectors list <knowledgeBaseId> [options]
 
 ### sim knowledge connectors sync
 
-Queue a knowledge connector synchronization
+Queue a knowledge connector synchronization (personal API key required)
 
 ```bash
 sim knowledge connectors sync <knowledgeBaseId> <connectorId> [options]
@@ -2076,7 +2059,7 @@ sim knowledge connectors sync <knowledgeBaseId> <connectorId> [options]
 
 ### sim knowledge connectors update
 
-Update Knowledge Connector
+Update Knowledge Connector (personal API key required)
 
 ```bash
 sim knowledge connectors update <knowledgeBaseId> <connectorId> [options]
@@ -2148,13 +2131,13 @@ sim knowledge folders delete <path> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--recursive` | No | Delete the folder and its descendants. |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
 ### sim knowledge folders list
 
-List Folders
+List knowledge folders
 
 ```bash
 sim knowledge folders list [options]
@@ -2220,7 +2203,7 @@ sim knowledge delete <knowledgeBaseId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -2297,7 +2280,7 @@ sim knowledge search [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--kb <value...>` | Yes | Knowledge base ID (repeatable) (space-separated, or @path / @- with one value per line). |
+| `--kb <value...>` | Yes | Knowledge base ID (repeatable) (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
 | `--query <value>` | No | Text to search for. |
 | `--top-k <value>` | No | Maximum number of search results to return. Must be a whole number between 1 and 100; the boundary schema only bounds the range, so a fractional value is admitted here and then rejected with 400 during search. |
 | `--tag-filters <json\|@file>` | No | Tag filters as [&#123;"tagName":"...","operator":"...","value":"..."&#125;] (JSON, or @path / @- to read a file or stdin). |
@@ -2440,7 +2423,7 @@ sim logs get <runId> [options]
 
 ### sim logs stats
 
-Summarize run counts, failures, and cost over a window
+Summarize run counts, failures and latency over a window
 
 ```bash
 sim logs stats [options]
@@ -2452,9 +2435,9 @@ sim logs stats [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--workflow <value...>` | No | Comma-separated workflow identifiers to include. At most 200 entries. An empty entry is rejected. (space-separated, or @path / @- with one value per line). |
-| `--folder <value...>` | No | Folder path as shown in the app; the leading / is optional (space-separated, or @path / @- with one value per line). |
-| `--trigger <value...>` | No | Comma-separated trigger types to include. An empty entry is rejected. The vocabulary is open, so an unrecognized member selects no runs; the literal `all` disables this filter. (space-separated, or @path / @- with one value per line). |
+| `--workflow <value...>` | No | Comma-separated workflow identifiers to include. At most 200 entries. An empty entry is rejected. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--folder <value...>` | No | Folder path as shown in the app; the leading / is optional (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--trigger <value...>` | No | Comma-separated trigger types to include. An empty entry is rejected. The vocabulary is open, so an unrecognized member selects no runs; the literal `all` disables this filter. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
 | `--level <value>` | No | Severity level to include. Accepted values: `info`, `error`. |
 | `--start-date <value>` | No | Only include runs started at or after this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant. |
 | `--end-date <value>` | No | Only include runs started at or before this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant. |
@@ -2476,8 +2459,8 @@ sim logs list [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--workflow <value...>` | No | Comma-separated workflow identifiers to include. An empty entry is rejected. At most 200 entries. (space-separated, or @path / @- with one value per line). |
-| `--trigger <value...>` | No | Comma-separated trigger types to include. An empty entry is rejected. Values are matched exactly and are case-sensitive — every recorded trigger is lowercase, so `API` matches nothing while `api` matches. The vocabulary is open: it covers the core trigger types (`manual`, `api`, `schedule`, `chat`, `webhook`, `mcp`, `copilot`, `workflow`, `custom_block`) and the provider id of any webhook trigger (`slack`, `gmail`, `github`, …), so an unrecognized member is not rejected — it selects no runs. The literal value `all` is a sentinel that disables this filter entirely, so a list containing it returns runs of every trigger type; no real trigger type is named `all`. At most 100 entries. (space-separated, or @path / @- with one value per line). |
+| `--workflow <value...>` | No | Comma-separated workflow identifiers to include. An empty entry is rejected. At most 200 entries. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--trigger <value...>` | No | Comma-separated trigger types to include. An empty entry is rejected. Values are matched exactly and are case-sensitive — every recorded trigger is lowercase, so `API` matches nothing while `api` matches. The vocabulary is open: it covers the core trigger types (`manual`, `api`, `schedule`, `chat`, `webhook`, `mcp`, `copilot`, `workflow`, `custom_block`) and the provider id of any webhook trigger (`slack`, `gmail`, `github`, …), so an unrecognized member is not rejected — it selects no runs. The literal value `all` is a sentinel that disables this filter entirely, so a list containing it returns runs of every trigger type; no real trigger type is named `all`. At most 100 entries. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
 | `--level <value>` | No | Severity level to include. Accepted values: `info`, `error`. |
 | `--start-date <value>` | No | Only include runs started at or after this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant. |
 | `--end-date <value>` | No | Only include runs started at or before this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant. |
@@ -2492,12 +2475,12 @@ sim logs list [options]
 | `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
 | `--status <value>` | No | Comma-separated execution statuses to include, from `pending` \| `running` \| `paused` \| `redacting` \| `completed` \| `failed` \| `cancelled`. An empty entry is rejected. ANDed with `level`, which reports severity rather than lifecycle. |
 | `--workflow-name <value>` | No | Case-insensitive substring match against the run's workflow name. Runs whose workflow has been deleted match nothing, because the name is no longer joinable. |
-| `--include-job-runs` | No | Whether Chat and Sim-agent job runs join the sequence alongside workflow runs. Job runs report `kind: "job"`, carry no `workflow` summary, and never carry a cost ledger. They are dropped entirely — not partially matched — whenever a filter they cannot answer is set (`workflowIds`, `workflowName`, `folderPaths`, `model`, or `status`), so a filter never means two different things across the union. Accepted only under `sortBy=startedAt`: job runs record cost as a document and no comparable status, so they cannot participate in the other orderings. |
+| `--include-job-runs` | No | Whether Chat and Sim-agent job runs join the sequence alongside workflow runs. Job runs report `kind: "job"`, carry no `workflow` summary, and never carry a cost ledger. They are dropped entirely — not partially matched — whenever a filter they cannot answer is set: by workflow, workflow name, folder, model, or status. A filter therefore never means two different things across the union. Accepted only when sorting by `startedAt`: job runs record cost as a document and no comparable status, so they cannot participate in the other orderings. |
 | `--no-include-job-runs` | No | Send --include-job-runs as false. |
 | `--run-id <value>` | No | Exact run identifier to match. |
-| `--sort-by <value>` | No | Field used to sort the result. `durationMs` and `cost` are null until a run settles; those runs order as though the value were below every recorded one, so they trail an ascending page and lead a descending one. Only `startedAt` can order Chat and Sim-agent job runs, so any other value is rejected together with `includeJobRuns=true`. Accepted values: `startedAt`, `durationMs`, `cost`, `status`. |
+| `--sort-by <value>` | No | Field used to sort the result. `durationMs` and `cost` are null until a run settles; those runs order as though the value were below every recorded one, so they trail an ascending page and lead a descending one. Only `startedAt` can order Chat and Sim-agent job runs, so any other value is rejected when job runs are included. Accepted values: `startedAt`, `durationMs`, `cost`, `status`. |
 | `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
-| `--folder <value...>` | No | Folder path as shown in the app; the leading / is optional (space-separated, or @path / @- with one value per line). |
+| `--folder <value...>` | No | Folder path as shown in the app; the leading / is optional (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
 
 </CommandTable>
 
@@ -2515,9 +2498,9 @@ sim logs follow [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--workflow <id>` | No | Only follow runs of this workflow (repeatable). Defaults to ``. |
-| `--folder <path>` | No | Only follow runs of workflows in this folder (repeatable). Defaults to ``. |
-| `--trigger <type>` | No | Only follow runs with this trigger type (repeatable). Defaults to ``. |
+| `--workflow <id>` | No | Only follow runs of this workflow (repeatable). |
+| `--folder <path>` | No | Only follow runs of workflows in this folder (repeatable). |
+| `--trigger <type>` | No | Only follow runs with this trigger type (repeatable). |
 | `--level <level>` | No | Only follow runs at this severity. Accepted values: `info`, `error`. |
 | `--details <level>` | No | Response detail level; full names each run’s workflow. Accepted values: `basic`, `full`. Defaults to `full`. |
 | `-n, --lines <count>` | No | Recent runs to print before watching. Defaults to `10`. |
@@ -2554,7 +2537,7 @@ sim mcp-servers create [options]
 | `--enabled` | No | Whether the server tools are available to workflows. Applied server-side as true when omitted on create. |
 | `--no-enabled` | No | Send --enabled as false. |
 | `--oauth-client-id <value>` | No | Pre-registered OAuth client identifier. Changing it on update revokes the stored OAuth grant and forces reauthorization. |
-| `--oauth-client-secret <value>` | No | Write-only pre-registered OAuth client secret. Sending it on update as null or a new value revokes the stored OAuth grant and forces reauthorization, as does switching away from OAuth authentication. |
+| `--oauth-client-secret <value>` | No | Write-only pre-registered OAuth client secret. Sending it on update as null or a new value revokes the stored OAuth grant and forces reauthorization, as does switching away from OAuth authentication. (--oauth-client-secret null sends the word, not JSON null). |
 
 </CommandTable>
 
@@ -2582,7 +2565,7 @@ sim mcp-servers delete <mcpServerId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -2627,7 +2610,7 @@ sim mcp-servers list [options]
 
 ### sim mcp-servers tools list
 
-List MCP Server Tools
+List MCP Server Tools (personal API key required)
 
 ```bash
 sim mcp-servers tools list <mcpServerId> [options]
@@ -2689,7 +2672,7 @@ sim mcp-servers update <mcpServerId> [options]
 | `--enabled` | No | Whether the server tools are available to workflows. Applied server-side as true when omitted on create. |
 | `--no-enabled` | No | Send --enabled as false. |
 | `--oauth-client-id <value>` | No | Pre-registered OAuth client identifier. Changing it on update revokes the stored OAuth grant and forces reauthorization. |
-| `--oauth-client-secret <value>` | No | Write-only pre-registered OAuth client secret. Sending it on update as null or a new value revokes the stored OAuth grant and forces reauthorization, as does switching away from OAuth authentication. |
+| `--oauth-client-secret <value>` | No | Write-only pre-registered OAuth client secret. Sending it on update as null or a new value revokes the stored OAuth grant and forces reauthorization, as does switching away from OAuth authentication. (--oauth-client-secret null sends the word, not JSON null). |
 
 </CommandTable>
 
@@ -2709,7 +2692,7 @@ Also spelled `sim secret`.
 
 ### sim secrets delete
 
-Delete Secret
+Delete Secret (personal API key required)
 
 ```bash
 sim secrets delete <name> [options]
@@ -2721,7 +2704,7 @@ sim secrets delete <name> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `name` | Yes | Secret to create, replace, or delete. |
+| `name` | Yes | Secret to delete. |
 
 </CommandTable>
 
@@ -2732,13 +2715,13 @@ sim secrets delete <name> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--scope <value>` | Yes | Whether the secret belongs to the workspace or to the caller. A personal secret belongs to the caller across every workspace, not to one workspace. Accepted values: `workspace`, `personal`. |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
 ### sim secrets list
 
-List Secrets
+List Secrets (personal API key required)
 
 ```bash
 sim secrets list [options]
@@ -2760,7 +2743,7 @@ sim secrets list [options]
 
 ### sim secrets set
 
-Create or replace a named secret
+Create or replace a named secret (personal API key required)
 
 ```bash
 sim secrets set <name> [options]
@@ -2783,8 +2766,10 @@ sim secrets set <name> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--scope <scope>` | Yes | Secret ownership scope. Accepted values: `workspace`, `personal`. |
-| `--value <value>` | No | Secret value; visible to shell history when supplied directly. |
+| `--value <value\|@file>` | No | Secret value. Passing it inline exposes it to shell history and process listings; @path reads it from a file and @- from stdin, verbatim — a trailing newline is part of the value, so write the file with printf rather than echo. Prefix a literal leading @ with a second one. |
 | `--description <description>` | No | What the secret is for, shown to teammates; workspace scope only. Omit to leave an existing description unchanged. |
+| `--unredacted` | No | Opt the workspace secret out of redaction: its value then appears in plaintext in run logs, model-visible content, and files, including publicly shared log links. Workspace scope only — sending it for a personal secret is rejected. Omit it to leave the current setting untouched. Pass --no-unredacted to restore redaction. |
+| `--no-unredacted` | No | Send --unredacted as false. |
 
 </CommandTable>
 
@@ -2794,7 +2779,7 @@ Also spelled `sim skill`.
 
 ### sim skills create
 
-Create Skill
+Create Skill (personal API key required)
 
 ```bash
 sim skills create [options]
@@ -2814,7 +2799,7 @@ sim skills create [options]
 
 ### sim skills delete
 
-Delete Skill
+Delete Skill (personal API key required)
 
 ```bash
 sim skills delete <skillId> [options]
@@ -2836,7 +2821,7 @@ sim skills delete <skillId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -2860,7 +2845,7 @@ sim skills get <skillId>
 
 ### sim skills editors create
 
-Grant Skill Editor
+Grant Skill Editor (personal API key required)
 
 ```bash
 sim skills editors create <skillId> [options]
@@ -2918,7 +2903,7 @@ sim skills editors list <skillId> [options]
 
 ### sim skills editors delete
 
-Revoke Skill Editor
+Revoke Skill Editor (personal API key required)
 
 ```bash
 sim skills editors delete <skillId> [options]
@@ -2941,7 +2926,7 @@ sim skills editors delete <skillId> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--email <value>` | Yes | Email address of a current workspace member. |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -2968,7 +2953,7 @@ sim skills list [options]
 
 ### sim skills update
 
-Update Skill
+Update Skill (personal API key required)
 
 ```bash
 sim skills update <skillId> [options]
@@ -3053,7 +3038,7 @@ sim tables columns delete <tableId> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--column-name <value>` | Yes | Name of the column to delete. |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -3142,7 +3127,7 @@ sim tables groups delete <tableId> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--group-id <value>` | Yes | Workflow group to delete. |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -3218,8 +3203,8 @@ sim tables batch-delete [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--table-ids <json\|@file>` | No | Tables to archive, by identifier. (JSON, or @path / @- to read a file or stdin). |
-| `--folder <value...>` | No | Folder path as shown in the app; the leading / is optional (space-separated, or @path / @- with one value per line). |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `--folder <value...>` | No | Folder path as shown in the app; the leading / is optional (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -3305,7 +3290,7 @@ sim tables rows delete <tableId> <rowId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -3334,9 +3319,9 @@ sim tables rows batch-delete <tableId> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--filter <json\|@file>` | No | Predicate: &#123;"all":[&#123;"field":"status","op":"eq","value":"active"&#125;]&#125;; groups use all/any. Operators: eq, ne, gt, gte, lt, lte, in, nin, contains, ncontains, startsWith, endsWith, like, ilike, nlike, nilike, isEmpty, isNotEmpty, isNull, isNotNull (JSON, or @path / @- to read a file or stdin). |
-| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
-| `--row <value...>` | No | Explicit row identifiers to delete. (space-separated, or @path / @- with one value per line). |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `--limit <value>` | No | Maximum matching rows to delete. (caps a --filter match only; omit it to act on every match, and note 0 is not accepted). |
+| `--row <value...>` | No | Explicit row identifiers to delete. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -3536,8 +3521,8 @@ sim tables rows batch-update <tableId> [options]
 | --- | --- | --- |
 | `--filter <json\|@file>` | Yes | Predicate: &#123;"all":[&#123;"field":"status","op":"eq","value":"active"&#125;]&#125;; groups use all/any. Operators: eq, ne, gt, gte, lt, lte, in, nin, contains, ncontains, startsWith, endsWith, like, ilike, nlike, nilike, isEmpty, isNotEmpty, isNull, isNotNull (JSON, or @path / @- to read a file or stdin). |
 | `--data <json\|@file>` | Yes | Row-data patch applied to every matching row. (JSON, or @path / @- to read a file or stdin). |
-| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `--limit <value>` | No | Maximum matching rows to update. (caps a --filter match only; omit it to act on every match, and note 0 is not accepted). |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -3595,7 +3580,7 @@ sim tables dispatches cancel <tableId> <dispatchId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -3623,12 +3608,12 @@ sim tables dispatches create <tableId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--group-ids <value...>` | Yes | Workflow or enrichment groups to run. (space-separated, or @path / @- with one value per line). |
+| `--group-ids <value...>` | Yes | Workflow or enrichment groups to run. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
 | `--run-mode <value>` | No | Whether to run all or only incomplete cells. Accepted values: `all`, `incomplete`. |
-| `--row-ids <value...>` | No | Explicit row subset to run. (space-separated, or @path / @- with one value per line). |
+| `--row-ids <value...>` | No | Explicit row subset to run. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
 | `--filter <json\|@file>` | No | Predicate: &#123;"all":[&#123;"field":"status","op":"eq","value":"active"&#125;]&#125;; groups use all/any. Operators: eq, ne, gt, gte, lt, lte, in, nin, contains, ncontains, startsWith, endsWith, like, ilike, nlike, nilike, isEmpty, isNotEmpty, isNull, isNotNull (JSON, or @path / @- to read a file or stdin). |
-| `--exclude-row-ids <value...>` | No | Rows excluded from a select-all run scope. (space-separated, or @path / @- with one value per line). |
-| `--limit <json\|@file>` | No | Optional cap on eligible rows to run. (JSON, or @path / @- to read a file or stdin). |
+| `--exclude-row-ids <value...>` | No | Rows excluded from a select-all run scope. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--max-rows <n>` | No | Stop after this many eligible rows have run (1-1,000,000). Omit for an unbounded run. |
 
 </CommandTable>
 
@@ -3671,7 +3656,7 @@ sim tables dispatches list <tableId>
 
 ### sim tables exports cancel
 
-Cancel Table Export
+Stop a running export
 
 ```bash
 sim tables exports cancel <tableId> <exportId>
@@ -3756,10 +3741,10 @@ sim tables exports download <tableId> <exportId>
 
 ### sim tables imports cancel
 
-Cancel Table Import
+Stop a running import
 
 ```bash
-sim tables imports cancel <importId>
+sim tables imports cancel <importId> [options]
 ```
 
 **Arguments**
@@ -3769,6 +3754,16 @@ sim tables imports cancel <importId>
 | Argument | Required | Description |
 | --- | --- | --- |
 | `importId` | Yes | Unique table-import identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -3817,7 +3812,8 @@ sim tables cancel-runs <tableId> [options]
 | `--scope <value>` | Yes | Whether to cancel across the table or one row. Accepted values: `all`, `row`. |
 | `--row-id <value>` | No | Row whose runs should be canceled for row scope. |
 | `--filter <json\|@file>` | No | Predicate: &#123;"all":[&#123;"field":"status","op":"eq","value":"active"&#125;]&#125;; groups use all/any. Operators: eq, ne, gt, gte, lt, lte, in, nin, contains, ncontains, startsWith, endsWith, like, ilike, nlike, nilike, isEmpty, isNotEmpty, isNull, isNotNull (JSON, or @path / @- to read a file or stdin). |
-| `--exclude-row-ids <value...>` | No | Rows excluded from an all-scope cancellation. (space-separated, or @path / @- with one value per line). |
+| `--exclude-row-ids <value...>` | No | Rows excluded from an all-scope cancellation. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -3885,13 +3881,13 @@ sim tables folders delete <path> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--recursive` | No | Delete the folder and its descendants. |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
 ### sim tables folders list
 
-List Folders
+List table folders
 
 ```bash
 sim tables folders list [options]
@@ -4005,7 +4001,7 @@ sim tables views delete <tableId> <viewId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -4103,7 +4099,7 @@ sim tables delete <tableId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -4159,7 +4155,7 @@ sim tables list [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--scope <value>` | No | Which lifecycle set to list: `active` (default) for live tables, `archived` for tables a `DELETE` archived and `POST /tables/&#123;tableId&#125;/restore` can bring back. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too. Accepted values: `active`, `archived`. |
+| `--scope <value>` | No | Which lifecycle set to list: `active` (default) for live tables, `archived` for tables a delete archived and a table restore can bring back. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too. Accepted values: `active`, `archived`. |
 | `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
 | `--search <value>` | No | Case-insensitive substring match against the resource name. |
 | `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `createdAt`, `updatedAt`. |
@@ -4183,7 +4179,7 @@ sim tables move [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--table-ids <json\|@file>` | No | Tables to move, by identifier. (JSON, or @path / @- to read a file or stdin). |
-| `--folder <value...>` | No | Folder path as shown in the app; the leading / is optional (space-separated, or @path / @- with one value per line). |
+| `--folder <value...>` | No | Table folders to move, by path as shown in the app; the leading / is optional (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
 | `--to <value>` | No | Destination folder path; omit for root. |
 
 </CommandTable>
@@ -4231,7 +4227,7 @@ sim tables update <tableId> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--name <value>` | No | Identifier: letters, numbers, and underscores; cannot start with a number. |
-| `--description <value>` | No | Replacement table description, or null to clear it. |
+| `--description <value>` | No | Replacement table description, or null to clear it. (--description null sends the word, not JSON null). |
 | `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
 
 </CommandTable>
@@ -4279,7 +4275,7 @@ sim tables upsert <tableId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--data <json\|@file>` | Yes | Complete set of row cells keyed by column name. On the update branch this REPLACES the matched row: any column not present here is cleared, unlike the merging `PATCH /api/v2/tables/&#123;tableId&#125;/rows/&#123;rowId&#125;`. (JSON, or @path / @- to read a file or stdin). |
+| `--data <json\|@file>` | Yes | Complete set of row cells keyed by column name. On the update branch this REPLACES the matched row: any column not present here is cleared, unlike a single-row update, which merges. (JSON, or @path / @- to read a file or stdin). |
 | `--on <value>` | No | Unique column to resolve the conflict against. |
 
 </CommandTable>
@@ -4316,6 +4312,7 @@ sim tables import [path] [options]
 | `--mapping <json\|@file>` | No | Column mapping (--table-id only). |
 | `--create-columns <json\|@file>` | No | Columns to create (--table-id only). |
 | `--timezone <iana>` | No | Timezone for date parsing, e.g. America/New_York. |
+| `-y, --yes` | No | Confirm this destructive operation (required with --mode replace). |
 | `--no-wait` | No | Return once the import is queued instead of watching it. |
 
 </CommandTable>
@@ -4414,7 +4411,7 @@ sim tools list [options]
 
 ### sim workflow-mcp-servers create
 
-Create Workflow MCP Server
+Create Workflow MCP Server (personal API key required)
 
 ```bash
 sim workflow-mcp-servers create [options]
@@ -4430,13 +4427,13 @@ sim workflow-mcp-servers create [options]
 | `--description <value>` | No | Optional server description. |
 | `--is-public` | No | Whether the server answers MCP clients without a Sim API key. Defaults to false — a public server executes the workflows it publishes for anyone holding its URL. |
 | `--no-is-public` | No | Send --is-public as false. |
-| `--workflow <value...>` | No | Deployed workflows to publish as tools on the new server. (space-separated, or @path / @- with one value per line). |
+| `--workflow <value...>` | No | Deployed workflows to publish as tools on the new server. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
 
 </CommandTable>
 
 ### sim workflow-mcp-servers delete
 
-Delete Workflow MCP Server
+Delete Workflow MCP Server (personal API key required)
 
 ```bash
 sim workflow-mcp-servers delete <serverId> [options]
@@ -4458,13 +4455,13 @@ sim workflow-mcp-servers delete <serverId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
 ### sim workflow-mcp-servers tools create
 
-Publish Workflow As MCP Tool
+Publish Workflow As MCP Tool (personal API key required)
 
 ```bash
 sim workflow-mcp-servers tools create <serverId> [options]
@@ -4489,13 +4486,13 @@ sim workflow-mcp-servers tools create <serverId> [options]
 | `--workflow-id <value>` | Yes | Deployed workflow to publish. The workflow must already be deployed. |
 | `--tool-name <value>` | No | Name MCP clients call. Normalized to the MCP tool-name grammar, and derived from the workflow name when omitted. |
 | `--tool-description <value>` | No | Description shown to MCP clients. Derived from the workflow name when omitted. |
-| `--parameter-descriptions <json\|@file>` | No | Per-field description overrides applied to the schema generated from the deployed workflow inputs. A name matching no input field is ignored. (JSON, or @path / @- to read a file or stdin). |
+| `--parameter-descriptions <json\|@file>` | No | Per-field description overrides applied to the schema generated from the deployed workflow inputs, as [&#123;"name":"email","description":"Customer email address"&#125;]. A name matching no input field is ignored (JSON, or @path / @- to read a file or stdin). |
 
 </CommandTable>
 
 ### sim workflow-mcp-servers tools list
 
-List Workflow MCP Tools
+List Workflow MCP Tools (personal API key required)
 
 ```bash
 sim workflow-mcp-servers tools list <serverId>
@@ -4513,7 +4510,7 @@ sim workflow-mcp-servers tools list <serverId>
 
 ### sim workflow-mcp-servers tools delete
 
-Unpublish Workflow MCP Tool
+Unpublish Workflow MCP Tool (personal API key required)
 
 ```bash
 sim workflow-mcp-servers tools delete <serverId> <workflowId> [options]
@@ -4536,13 +4533,13 @@ sim workflow-mcp-servers tools delete <serverId> <workflowId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
 ### sim workflow-mcp-servers get
 
-Get Workflow MCP Server
+Get Workflow MCP Server (personal API key required)
 
 ```bash
 sim workflow-mcp-servers get <serverId>
@@ -4560,7 +4557,7 @@ sim workflow-mcp-servers get <serverId>
 
 ### sim workflow-mcp-servers list
 
-List Workflow MCP Servers
+List Workflow MCP Servers (personal API key required)
 
 ```bash
 sim workflow-mcp-servers list [options]
@@ -4580,7 +4577,7 @@ sim workflow-mcp-servers list [options]
 
 ### sim workflow-mcp-servers update
 
-Update Workflow MCP Server
+Update Workflow MCP Server (personal API key required)
 
 ```bash
 sim workflow-mcp-servers update <serverId> [options]
@@ -4603,7 +4600,7 @@ sim workflow-mcp-servers update <serverId> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--name <value>` | No | Server display name, shown to connecting MCP clients. |
-| `--description <value>` | No | New server description, or null to clear it. |
+| `--description <value>` | No | New server description, or null to clear it. (--description null sends the word, not JSON null). |
 | `--is-public` | No | Whether the server answers MCP clients without a Sim API key. |
 | `--no-is-public` | No | Send --is-public as false. |
 
@@ -4615,7 +4612,7 @@ Also spelled `sim workflow`.
 
 ### sim workflows activate create
 
-Activate Workflow Version
+Activate Workflow Version (personal API key required)
 
 ```bash
 sim workflows activate create <workflowId> <version>
@@ -4634,7 +4631,7 @@ sim workflows activate create <workflowId> <version>
 
 ### sim workflows operations apply
 
-Apply Workflow Operations
+Apply Workflow Operations (personal API key required)
 
 ```bash
 sim workflows operations apply <workflowId> [options]
@@ -4658,12 +4655,12 @@ sim workflows operations apply <workflowId> [options]
 | --- | --- | --- |
 | `--dry-run` | No | Validate and lint without persisting. The response is identical to the committed write of the same body, so a caller can inspect `lint` and then re-send the request for real. Nothing is written, no audit entry is recorded, and collaborators are not notified. |
 | `--no-dry-run` | No | Send --dry-run as false. |
-| `--operations <json\|@file>` | Yes | Edits to apply, in a single batch. (JSON, or @path / @- to read a file or stdin). |
+| `--operations <json\|@file>` | Yes | Edits to apply, in a single batch, keyed by operation_type: [&#123;"operation_type":"add","block_id":"my-fn","params":&#123;"type":"function","name":"My Fn","inputs":&#123;"code":"return &#123;ok:true&#125;"&#125;&#125;&#125;,&#123;"operation_type":"edit","block_id":"&lt;uuid&gt;","params":&#123;"name":"Renamed","connections":&#123;"success":"my-fn"&#125;&#125;&#125;,&#123;"operation_type":"delete","block_id":"&lt;uuid&gt;"&#125;]. Also extract_from_subflow, whose params carry &#123;"subflowId":"&lt;loop-id&gt;"&#125;, and insert_into_subflow, which creates a block and so takes an add’s params plus that subflowId (JSON, or @path / @- to read a file or stdin). |
 | `--atomic` | No | Fail the whole batch when any operation is declined or any block input would be dropped. The default applies what it can and reports the rest in `skipped` and `inputValidationErrors`; `true` writes nothing and answers `409` instead. |
 | `--no-atomic` | No | Send --atomic as false. |
 | `--layout <value>` | No | Whether to reposition blocks the batch touched. `targeted` (default) nudges only the affected subgraph; `none` leaves every position exactly as supplied. Accepted values: `targeted`, `none`. |
-| `--set-block-enabled <json\|@file>` | No | Blocks to enable or disable, applied after `operations`. Disabling a loop or parallel cascades to its unlocked descendants; enabling a block whose container is disabled is declined. (JSON, or @path / @- to read a file or stdin). |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `--set-block-enabled <json\|@file>` | No | Blocks to enable or disable, applied after --operations: [&#123;"block_id":"&lt;uuid&gt;","enabled":false&#125;]. Disabling a loop or parallel cascades to its unlocked descendants; enabling a block whose container is disabled is declined (JSON, or @path / @- to read a file or stdin). |
+| `-y, --yes` | No | Confirm this operation (required unless --dry-run). |
 
 </CommandTable>
 
@@ -4691,8 +4688,8 @@ sim workflows variables update <workflowId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--operations <json\|@file>` | Yes | Variable changes to apply, in order. (JSON, or @path / @- to read a file or stdin). |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `--operations <json\|@file>` | Yes | Variable changes to apply in order, keyed by operation: [&#123;"operation":"add","name":"my_var","type":"string","value":"hello"&#125;,&#123;"operation":"edit","name":"my_var","value":"updated"&#125;,&#123;"operation":"delete","name":"my_var"&#125;] (JSON, or @path / @- to read a file or stdin). |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -4750,7 +4747,7 @@ sim workflows runs get <runId> [options]
 | --- | --- | --- |
 | `--workflow <workflowId>` | Yes | Workflow ID. |
 | `--include-output` | No | Include the final output in JSON or YAML output. |
-| `--select-output <value...>` | No | Include blockName.field values in JSON or YAML output (e.g. agent_1.content) (space-separated, or @path / @- with one value per line). |
+| `--select-output <value...>` | No | Include blockId or blockId.path values in JSON or YAML output; block names are not resolved on a finished run (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
 | `--include-file-base64` | No | Inline each produced file's bytes as base64. Requires `includeOutput`. A file above the inline ceiling answers `413` naming its download path; fetch large files from `downloadPath` instead. |
 | `--no-include-file-base64` | No | Send --include-file-base64 as false. |
 | `--base64-max-bytes <value>` | No | Per-file inline ceiling, lowering but never raising the server limit of 16 MiB. |
@@ -4903,13 +4900,13 @@ sim workflows folders delete <path> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--recursive` | No | Delete the folder and its descendants. |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
 ### sim workflows folders list
 
-List Workflow Folders
+List workflow folders
 
 ```bash
 sim workflows folders list [options]
@@ -4975,13 +4972,13 @@ sim workflows delete <workflowId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
 ### sim workflows chat unpublish
 
-Take a workflow’s chat deployment offline
+Take a workflow’s chat deployment offline (personal API key required)
 
 ```bash
 sim workflows chat unpublish <workflowId> [options]
@@ -5003,13 +5000,13 @@ sim workflows chat unpublish <workflowId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
 ### sim workflows chat status
 
-Show a workflow’s chat deployment
+Show a workflow’s chat deployment (personal API key required)
 
 ```bash
 sim workflows chat status <workflowId>
@@ -5027,7 +5024,7 @@ sim workflows chat status <workflowId>
 
 ### sim workflows chat publish
 
-Publish or replace a workflow’s chat deployment
+Publish or replace a workflow’s chat deployment (personal API key required)
 
 ```bash
 sim workflows chat publish <workflowId> [options]
@@ -5061,13 +5058,13 @@ sim workflows chat publish <workflowId> [options]
 | `--no-include-thinking` | No | Send --include-thinking as false. |
 | `--include-tool-calls` | No | Allow visitors to receive tool lifecycle events. |
 | `--no-include-tool-calls` | No | Send --include-tool-calls as false. |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
 ### sim workflows deploy
 
-Deploy Workflow
+Deploy Workflow (personal API key required)
 
 ```bash
 sim workflows deploy <workflowId> [options]
@@ -5150,10 +5147,11 @@ sim workflows run <workflowId> [options]
 | `--input <json\|@file>` | No | Trigger input as JSON (JSON, or @path / @- to read a file or stdin). |
 | `--async` | No | Queue the run and return immediately. |
 | `--execution-timeout-seconds <value>` | No | Requested server-side timeout for an asynchronous run, in seconds. An upper bound, not the effective timeout: the run uses the smaller of this value and the plan's execution timeout, so requesting more than the plan allows silently yields the plan timeout. Rejected with `400` unless `async` is true. |
-| `--select-output <value...>` | No | Return blockName.field values (e.g. agent_1.content); missing fields are omitted (space-separated, or @path / @- with one value per line). |
+| `--select-output <value...>` | No | Return blockName.field values from the streamed result (e.g. agent_1.content), requires --follow; missing fields are omitted (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
 | `--include-file-base64` | No | Inline eligible output files as base64 content. Rejected when `async` is true. |
 | `--no-include-file-base64` | No | Send --include-file-base64 as false. |
 | `--base64-max-bytes <value>` | No | Maximum total bytes of file content to inline as base64, lowering but never raising the server limit of 16 MiB. Rejected when `async` is true. |
+| `--run-id <value>` | No | One-shot identifier for this run; NOT an idempotency key — reusing a claimed value fails with RUN_ID_CONFLICT instead of replaying the first result, and a fresh value starts another run. |
 | `--manual` | No | Run the current saved workflow state instead of the active deployment. |
 | `--trigger <blockId>` | No | Enter a manual run through this runnable trigger (requires --manual). |
 | `--mock-payload` | No | Use the selected trigger's server-derived mock payload (requires --manual). |
@@ -5221,7 +5219,7 @@ sim workflows deployment status <workflowId>
 
 ### sim workflows deployment update
 
-Update Workflow Public API Access
+Update Workflow Public API Access (personal API key required)
 
 ```bash
 sim workflows deployment update <workflowId> [options]
@@ -5267,7 +5265,7 @@ sim workflows state get <workflowId>
 
 ### sim workflows state replace
 
-Replace Workflow State
+Replace Workflow State (personal API key required)
 
 ```bash
 sim workflows state replace <workflowId> [options]
@@ -5296,7 +5294,7 @@ sim workflows state replace <workflowId> [options]
 | `--loops <json\|@file>` | No | Ignored on write: loop containers are recomputed from `blocks`. (JSON, or @path / @- to read a file or stdin). |
 | `--parallels <json\|@file>` | No | Ignored on write: parallel containers are recomputed from `blocks`. (JSON, or @path / @- to read a file or stdin). |
 | `--variables <json\|@file>` | No | Replacement variable set. Omit to leave the stored variables untouched. (JSON, or @path / @- to read a file or stdin). |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | No | Confirm this operation (required unless --dry-run). |
 
 </CommandTable>
 
@@ -5373,7 +5371,7 @@ sim workflows versions update <workflowId> <version> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--name <value>` | No | New label for the deployment version. |
-| `--description <value>` | No | New release note for the deployment version, or null to clear it. |
+| `--description <value>` | No | New release note for the deployment version, or null to clear it. (--description null sends the word, not JSON null). |
 
 </CommandTable>
 
@@ -5412,7 +5410,7 @@ sim workflows list [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--scope <value>` | No | Which lifecycle set to list: `active` (default) for live workflows, `archived` for workflows a `DELETE` archived. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too. Accepted values: `active`, `archived`. |
+| `--scope <value>` | No | Which lifecycle set to list: `active` (default) for live workflows, `archived` for workflows a `DELETE` archived. The folder filter resolves against active folders only, so pairing it with `archived` returns an empty page when the containing folder was archived too. Accepted values: `active`, `archived`. |
 | `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
 | `--deployed-only` | No | Return only workflows with an active deployment when true. |
 | `--no-deployed-only` | No | Send --deployed-only as false. |
@@ -5437,8 +5435,8 @@ sim workflows move [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--workflow <value...>` | Yes | Workflows to move. Duplicates are collapsed. (space-separated, or @path / @- with one value per line). |
-| `--folder <value>` | Yes | Folder path as shown in the app; the leading / is optional. |
+| `--workflow <value...>` | Yes | Workflows to move. Duplicates are collapsed. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--to <value>` | Yes | Destination folder path; / moves the workflows to the workspace root. |
 
 </CommandTable>
 
@@ -5462,7 +5460,7 @@ sim workflows restore <workflowId>
 
 ### sim workflows revert create
 
-Revert Workflow To Version
+Revert Workflow To Version (personal API key required)
 
 ```bash
 sim workflows revert create <workflowId> <version> [options]
@@ -5485,13 +5483,13 @@ sim workflows revert create <workflowId> <version> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
 ### sim workflows rollback
 
-Rollback Workflow
+Rollback Workflow (personal API key required)
 
 ```bash
 sim workflows rollback <workflowId> [options]
@@ -5513,16 +5511,17 @@ sim workflows rollback <workflowId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--version <value>` | No | Deployment version to reactivate. Omit to select the previous active version. |
+| `--to-version <value>` | No | Deployment version to reactivate. Omit to select the previous active version. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
 ### sim workflows undeploy
 
-Take a workflow out of deployment
+Take a workflow out of deployment (personal API key required)
 
 ```bash
-sim workflows undeploy <workflowId>
+sim workflows undeploy <workflowId> [options]
 ```
 
 **Arguments**
@@ -5532,6 +5531,16 @@ sim workflows undeploy <workflowId>
 | Argument | Required | Description |
 | --- | --- | --- |
 | `workflowId` | Yes | Unique workflow identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -5560,7 +5569,7 @@ sim workflows update <workflowId> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--name <value>` | No | Replacement workflow name. |
-| `--description <value>` | No | Replacement workflow description; null clears it. |
+| `--description <value>` | No | Replacement workflow description; null clears it. (--description null sends the word, not JSON null). |
 | `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
 
 </CommandTable>

@@ -110,6 +110,31 @@ describe('downloadWorkflowRunFileStream', () => {
     expect(result.contentLength).toBe(3)
   })
 
+  /**
+   * `HEAD` on this route runs the authorization phase alone. With the file
+   * lookup downstream of it, `authorize` succeeded for any id at all, so a
+   * `HEAD` answered `200` for a file the `GET` beside it would `404` — the two
+   * verbs disagreed about whether the resource existed. The route test above
+   * could not catch it: it mocks this use case and makes `authorize` reject, so
+   * it only ever proved the route renders a rejection.
+   */
+  it('refuses to authorize a file id the run never produced', async () => {
+    await expect(
+      downloadWorkflowRunFileStream.authorize({
+        principal: principals[0],
+        input: input({ fileId: 'file_absent' }),
+      })
+    ).rejects.toThrow('File not found')
+    expect(mocks.downloadFileStream).not.toHaveBeenCalled()
+  })
+
+  it('authorizes a file the run did produce', async () => {
+    await expect(
+      downloadWorkflowRunFileStream.authorize({ principal: principals[0], input: input() })
+    ).resolves.not.toThrow()
+    expect(mocks.downloadFileStream).not.toHaveBeenCalled()
+  })
+
   it('denies a principal below the read role', async () => {
     mocks.resolvePermission.mockResolvedValue(null)
 

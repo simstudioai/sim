@@ -29,9 +29,10 @@
 import { spawnSync } from 'node:child_process'
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { z } from 'zod'
 
-const ROOT = path.resolve(import.meta.dir, '..')
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const CONTRACTS_DIR = path.join(ROOT, 'apps/sim/lib/api/contracts/v2')
 const OUTPUT = path.join(ROOT, 'packages/sim-cli/src/generated/v2-api.ts')
 const DOCS_DIR = path.join(ROOT, 'apps/docs')
@@ -61,17 +62,54 @@ function specFiles(): string[] {
     .sort()
 }
 
+/** What the OpenAPI specs say about one operation, beyond its request shape. */
+export interface OperationDoc {
+  /** The spec's one-line summary, used as the command's `--help` description. */
+  summary?: string
+  /**
+   * The operation refuses a workspace API key, per its `description`.
+   *
+   * Carried so `--help` can say so before the request goes out; without it the
+   * caller learns the restriction from a `403` after the fact.
+   */
+  personalKeyOnly?: true
+}
+
 /**
- * `METHOD /api/v2/{id}/…` → the spec's one-line summary.
+ * The description sentences that mark an operation as personal-key-only.
+ *
+ * Read out of `apps/sim/lib/api/contracts/v2/openapi/shared.ts` at generation
+ * time rather than restated here, so rewording the sentence there cannot leave
+ * the marker silently unemitted. The import is lazy because that module
+ * resolves through the `@/` alias, which exists under `bun` but not under the
+ * root `vitest` that imports this file's pure helpers.
+ */
+export async function loadPersonalKeyMarkers(): Promise<readonly string[]> {
+  const shared: Record<string, unknown> = await import(
+    path.join(ROOT, 'apps/sim/lib/api/contracts/v2/openapi/shared.ts')
+  )
+  const markers = [shared.WORKSPACE_API_KEY_DENIED, shared.WORKSPACE_API_KEY_DENIED_AS_NOT_FOUND]
+  for (const marker of markers) {
+    if (typeof marker !== 'string' || !marker.trim()) {
+      throw new Error('openapi/shared.ts no longer exports the workspace-key denial sentences')
+    }
+  }
+  return markers as string[]
+}
+
+/**
+ * `METHOD /api/v2/{id}/…` → what the specs document about that operation.
  *
  * The contracts carry validation, not prose, so `--help` text has to come from
  * somewhere else. The specs already hold a hand-written summary per operation
  * and `check:openapi` guarantees every contract has one, so reading them here
  * reuses documentation that is already written and already verified rather than
- * inventing a second place to describe the same endpoint.
+ * inventing a second place to describe the same endpoint. The longer
+ * `description` is read for the same reason — it is where the workspace-key
+ * denial is already stated.
  */
-function loadSummaries(): Map<string, string> {
-  const summaries = new Map<string, string>()
+export function loadSummaries(personalKeyMarkers: readonly string[]): Map<string, OperationDoc> {
+  const docs = new Map<string, OperationDoc>()
 
   for (const file of specFiles()) {
     let spec: Record<string, any>
@@ -85,15 +123,23 @@ function loadSummaries(): Map<string, string> {
 
     for (const [specPath, methods] of Object.entries(spec.paths ?? {})) {
       for (const [method, operation] of Object.entries(methods as Record<string, any>)) {
-        const summary = operation?.summary
-        if (typeof summary === 'string') {
-          summaries.set(`${method.toUpperCase()} ${specPath}`, summary)
+        const doc: OperationDoc = {}
+        if (typeof operation?.summary === 'string') doc.summary = operation.summary
+        const description = operation?.description
+        if (
+          typeof description === 'string' &&
+          personalKeyMarkers.some((marker) => description.includes(marker))
+        ) {
+          doc.personalKeyOnly = true
+        }
+        if (doc.summary || doc.personalKeyOnly) {
+          docs.set(`${method.toUpperCase()} ${specPath}`, doc)
         }
       }
     }
   }
 
-  return summaries
+  return docs
 }
 
 /**
@@ -378,7 +424,28 @@ function isUnionSlot(schema: z.ZodType): boolean {
   return Object.keys(json.properties ?? {}).length === 0 && Boolean(json.anyOf ?? json.oneOf)
 }
 
-function renderSlotMap(schema: z.ZodType | undefined, indent: string): string | null {
+/**
+ * Headers the CLI sets itself, which must never become flags.
+ *
+ * `options.headers` is spread last over the client's own header block, so a
+ * flag spelled `--x-api-key` would let argv replace the profile's credential —
+ * a footgun on every command that carries it, and an authentication decision
+ * argv has no business making. No contract declares one of these today; the
+ * exclusion exists so that adding one does not quietly grow a flag for it.
+ */
+export const CLI_MANAGED_HEADERS: ReadonlySet<string> = new Set([
+  'x-api-key',
+  'authorization',
+  'accept',
+  'content-type',
+  'user-agent',
+])
+
+export function renderSlotMap(
+  schema: z.ZodType | undefined,
+  indent: string,
+  exclude?: ReadonlySet<string>
+): string | null {
   if (!schema) return null
 
   const json = z.toJSONSchema(schema, { io: 'input', unrepresentable: 'any' }) as JsonSchema
@@ -401,7 +468,7 @@ function renderSlotMap(schema: z.ZodType | undefined, indent: string): string | 
     }
   }
 
-  const keys = Object.keys(properties)
+  const keys = Object.keys(properties).filter((key) => !exclude?.has(key))
 
   // A union body (e.g. single-row vs batch insert) has no flat field list. The
   // caller marks it `opaqueBody` so the runtime can offer the whole body as one
@@ -448,9 +515,8 @@ function renderSlotMap(schema: z.ZodType | undefined, indent: string): string | 
   return `{\n${lines.join('\n')}\n${indent}}`
 }
 
-function render(operations: Operation[]): string {
+function render(operations: Operation[], docs: Map<string, OperationDoc>): string {
   const out: string[] = []
-  const summaries = loadSummaries()
 
   out.push('/**')
   out.push(' * GENERATED FILE — DO NOT EDIT.')
@@ -495,14 +561,18 @@ function render(operations: Operation[]): string {
   out.push('/**')
   out.push(' * Every v2 operation, keyed by name.')
   out.push(' *')
-  out.push(' * `query` and `body` describe each field well enough for the CLI to build a')
-  out.push(' * flag for it and coerce the string argv gives back: its kind, whether it is')
-  out.push(' * required, its enum values, and its server-side default. A slot the contract')
-  out.push(' * does not declare — or one whose shape is a union with no flat field list —')
-  out.push(' * is absent, and the runtime falls back to taking it as JSON.')
+  out.push(' * `query`, `body`, and `headers` describe each field well enough for the CLI')
+  out.push(' * to build a flag for it and coerce the string argv gives back: its kind,')
+  out.push(' * whether it is required, its enum values, and its server-side default. A slot')
+  out.push(' * the contract does not declare — or one whose shape is a union with no flat')
+  out.push(' * field list — is absent, and the runtime falls back to taking it as JSON.')
+  out.push(' * Headers the CLI sets itself, such as the API key, are never listed.')
   out.push(' *')
   out.push(" * `summary` is the operation's one-line description, lifted from the OpenAPI")
   out.push(' * specs so `--help` reuses prose that is already written and already checked.')
+  out.push(' *')
+  out.push(' * `personalKeyOnly` marks an operation whose spec description says a workspace')
+  out.push(' * API key is rejected, so `--help` can say so before the request is sent.')
   out.push(' */')
   out.push('export const V2_OPERATIONS = {')
   for (const op of operations) {
@@ -521,10 +591,11 @@ function render(operations: Operation[]): string {
     }
     out.push(`    responseMode: '${op.contract.response.mode}',`)
     // OpenAPI writes `{id}` where the contract writes `[id]`.
-    const summary = summaries.get(
+    const doc = docs.get(
       `${op.contract.method} ${op.contract.path.replace(/\[([^\]]+)\]/g, '{$1}')}`
     )
-    if (summary) out.push(`    summary: ${JSON.stringify(summary)},`)
+    if (doc?.summary) out.push(`    summary: ${JSON.stringify(doc.summary)},`)
+    if (doc?.personalKeyOnly) out.push(`    personalKeyOnly: true,`)
     for (const slot of ['query', 'body'] as const) {
       const map = renderSlotMap(op.contract[slot], '    ')
       if (map) out.push(`    ${slot}: ${map},`)
@@ -536,6 +607,12 @@ function render(operations: Operation[]): string {
         out.push(`    opaqueBody: true,`)
       }
     }
+    // Contract headers are request input like any other slot: `upload-token`
+    // is what addresses an upload session, and leaving it out of this table
+    // meant the runtime could not build a flag for it, so `files uploads get`
+    // was rejected as invalid input on every call it could ever make.
+    const headers = renderSlotMap(op.contract.headers, '    ', CLI_MANAGED_HEADERS)
+    if (headers) out.push(`    headers: ${headers},`)
     out.push('  },')
   }
   out.push('} as const')
@@ -579,7 +656,7 @@ async function main() {
   const args = new Set(process.argv.slice(2))
   const operations = await collectOperations()
 
-  const generated = format(render(operations))
+  const generated = format(render(operations, loadSummaries(await loadPersonalKeyMarkers())))
 
   if (args.has('--check')) {
     let current = ''
@@ -606,4 +683,6 @@ async function main() {
   )
 }
 
-main()
+// Guarded so the pure helpers above can be imported by tests without the
+// generator writing a file as a side effect of the import.
+if (import.meta.main) main()

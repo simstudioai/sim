@@ -8,7 +8,6 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { truncate } from '@sim/utils/string'
 import { sleepUntilAborted } from '@/lib/data-drains/destinations/utils'
-import { isExecutionCancelled, isRedisCancellationEnabled } from '@/lib/execution/cancellation'
 import { type PiSandboxRunner, withPiSandbox } from '@/lib/execution/remote-sandbox'
 import {
   resolvePiRunLifetimeMs,
@@ -87,7 +86,6 @@ import { getPiProviderId } from '@/providers/pi-providers'
 const logger = createLogger('PiBabysitBackend')
 
 const ROUND_WAIT_MS = 5 * 60 * 1000
-const CANCELLATION_POLL_MS = 5_000
 const CONVERGENCE_WAIT_MS = 2_000
 const CONVERGENCE_ATTEMPTS = 3
 const MAX_CHANGED_FILES = 50
@@ -211,14 +209,12 @@ echo "__PUSHED__=1"`
 
 interface BabysitBackendOptions {
   roundWaitMs: number
-  cancellationPollMs: number
   convergenceWaitMs: number
   convergenceAttempts: number
 }
 
 const DEFAULT_OPTIONS: BabysitBackendOptions = {
   roundWaitMs: ROUND_WAIT_MS,
-  cancellationPollMs: CANCELLATION_POLL_MS,
   convergenceWaitMs: CONVERGENCE_WAIT_MS,
   convergenceAttempts: CONVERGENCE_ATTEMPTS,
 }
@@ -430,43 +426,18 @@ function buildRoundPrompt(
   }
 }
 
-function createCancellationSignal(
-  parent: AbortSignal | undefined,
-  executionId: string | undefined,
-  pollMs: number
-): { signal: AbortSignal; cleanup: () => void } {
+function createCancellationSignal(parent: AbortSignal | undefined): {
+  signal: AbortSignal
+  cleanup: () => void
+} {
   const controller = new AbortController()
   const onAbort = () => controller.abort(parent?.reason ?? 'workflow_abort')
   if (parent?.aborted) onAbort()
   else parent?.addEventListener('abort', onAbort, { once: true })
 
-  let pollInFlight = false
-  const poller =
-    executionId && isRedisCancellationEnabled()
-      ? setInterval(() => {
-          if (pollInFlight || controller.signal.aborted) return
-          pollInFlight = true
-          void isExecutionCancelled(executionId)
-            .then((cancelled) => {
-              if (cancelled && !controller.signal.aborted) {
-                controller.abort('workflow_execution_cancelled')
-              }
-            })
-            .catch((error) => {
-              logger.warn('Failed to poll Babysit execution cancellation', {
-                executionId,
-                error: getErrorMessage(error),
-              })
-            })
-            .finally(() => {
-              pollInFlight = false
-            })
-        }, pollMs)
-      : undefined
   return {
     signal: controller.signal,
     cleanup: () => {
-      if (poller) clearInterval(poller)
       parent?.removeEventListener('abort', onAbort)
     },
   }
@@ -728,11 +699,7 @@ export async function runBabysitPiWithOptions(
     diff: '',
     notes: [],
   }
-  const cancellation = createCancellationSignal(
-    context.signal,
-    params.executionId,
-    options.cancellationPollMs
-  )
+  const cancellation = createCancellationSignal(context.signal)
   const { signal } = cancellation
   const startedAt = Date.now()
   const lifetime = resolveBabysitExecutionBudgetMs(params.executionBudgetMs)

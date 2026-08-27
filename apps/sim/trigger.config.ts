@@ -26,6 +26,25 @@ if (grafanaConfigured && !grafanaFullyConfigured) {
   )
 }
 
+const FUNCTION_EXECUTION_ENV = [
+  { name: 'REDIS_URL', secret: true },
+  { name: 'REDIS_TLS_SERVERNAME', secret: false },
+  { name: 'SANDBOX_PROVIDER', secret: false },
+  { name: 'E2B_ENABLED', secret: false },
+  { name: 'E2B_API_KEY', secret: true },
+  { name: 'E2B_FUNCTION_TEMPLATE_ID', secret: false },
+  { name: 'E2B_FUNCTION_TEMPLATE_GENERATION', secret: false },
+  { name: 'DAYTONA_API_KEY', secret: true },
+  { name: 'DAYTONA_FUNCTION_SNAPSHOT_ID', secret: false },
+] as const
+
+function getFunctionExecutionEnvVars() {
+  return FUNCTION_EXECUTION_ENV.flatMap(({ name, secret }) => {
+    const value = env[name]
+    return value ? [{ name, value, isSecret: secret }] : []
+  })
+}
+
 const grafanaTelemetry = grafanaFullyConfigured
   ? (() => {
       const baseUrl = grafanaEndpoint!.replace(/\/+$/, '')
@@ -94,6 +113,7 @@ export default defineConfig({
          * because the `init` hook above marks the run process directly.
          */
         { name: 'TRIGGER_DEV_ENABLED', value: 'TRUE' },
+        ...getFunctionExecutionEnvVars(),
       ]),
       additionalFiles({
         files: [

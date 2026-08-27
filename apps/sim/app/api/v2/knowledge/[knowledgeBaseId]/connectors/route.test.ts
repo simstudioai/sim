@@ -5,7 +5,6 @@ import {
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
   v2ApiKeyAuthModuleMock,
-  v2GateModuleMock,
   v2RateLimiterModuleMock,
   v2RouteMocks,
 } from '@sim/testing'
@@ -28,7 +27,6 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
-vi.mock('@/app/api/v2/lib/gate', () => v2GateModuleMock)
 vi.mock('@/lib/knowledge/api/internal-route', () => ({
   internalKnowledgeAnalytics: {
     connectorAdded: mocks.connectorAdded,
@@ -92,7 +90,6 @@ const CONNECTOR_ID = 'connector-1'
 const PRINCIPAL = { kind: 'personal_api_key' as const, userId: 'user-1', keyId: 'key-1' }
 const AUTH = {
   principal: PRINCIPAL,
-  rolloutUserId: 'user-1',
   rateLimitSubjectIds: ['user:user-1'] as const,
   rateLimitSubscription: null,
   keyType: 'personal' as const,
@@ -144,7 +141,6 @@ describe('v2 knowledge connector routes', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(AUTH)
-    v2RouteMocks.gate.mockResolvedValue(null)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
     mocks.list.mockResolvedValue({
@@ -262,6 +258,45 @@ describe('v2 knowledge connector routes', () => {
       },
     })
     expect(mocks.connectorRemoved).toHaveBeenCalledOnce()
+  })
+
+  it('serializes skipped-document counts in non-empty sync history', async () => {
+    mocks.read.mockResolvedValueOnce({
+      connector: {
+        ...connector,
+        syncLogs: [
+          {
+            id: 'sync-log-1',
+            connectorId: CONNECTOR_ID,
+            status: 'completed',
+            startedAt: new Date('2026-01-03T00:00:00Z'),
+            completedAt: new Date('2026-01-03T00:01:00Z'),
+            docsAdded: 1,
+            docsUpdated: 2,
+            docsDeleted: 3,
+            docsUnchanged: 4,
+            docsSkipped: 5,
+            docsFailed: 6,
+            errorMessage: null,
+          },
+        ],
+      },
+    })
+
+    const response = await getConnector(
+      request(
+        `/api/v2/knowledge/${KNOWLEDGE_BASE_ID}/connectors/${CONNECTOR_ID}?workspaceId=${WORKSPACE_ID}`
+      ),
+      connectorContext
+    )
+
+    expect(response.status).toBe(200)
+    expect((await response.json()).data.syncLogs[0]).toMatchObject({
+      id: 'sync-log-1',
+      docsSkipped: 5,
+      startedAt: '2026-01-03T00:00:00.000Z',
+      completedAt: '2026-01-03T00:01:00.000Z',
+    })
   })
 
   it('passes source changes to application billing without an adapter resolver', async () => {

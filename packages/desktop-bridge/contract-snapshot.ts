@@ -48,11 +48,14 @@ export const BROWSER_TOOL_NAMES = [
   'browser_screenshot',
   'browser_extract',
   'browser_click',
+  'browser_click_at',
   'browser_type',
+  'browser_insert_text',
   'browser_press_key',
   'browser_scroll',
   'browser_select_option',
   'browser_hover',
+  'browser_drag',
   'browser_request_takeover',
 ] as const
 
@@ -138,11 +141,20 @@ export interface BrowserPanelSnapshot {
   zoomPercent: number
   /** Chat scope that owns the captured tab. */
   scopeId: string
+  /**
+   * Exact native-view rectangle in the Sim renderer's viewport CSS pixels.
+   *
+   * The native surface is integer-positioned in Electron DIP, while its React
+   * host can end on fractional CSS pixels. Rendering the replacement at this
+   * viewport rectangle avoids clipping or stretching it to the host box.
+   * Optional for compatibility with installed shells from before this field.
+   */
+  viewportBounds?: BrowserPanelBounds
 }
 
 /**
  * Browser-chrome commands from the panel header (URL bar, back/forward,
- * reload) plus `takeover-done`, sent by the Done chip on the chat's
+ * reload) plus `takeover-done`, sent by the question card on the chat's
  * `browser_request_takeover` tool row when the user finishes a
  * hand-control-back request. Page interactions need no protocol — the user
  * acts on the real embedded page directly, and its right-click menu is native
@@ -167,6 +179,8 @@ export interface BrowserPanelAction {
   url?: string
   /** Stable tab id for `duplicate-tab`, `switch-tab`, and `close-tab`. */
   tabId?: string
+  /** Optional free-text instruction submitted with `takeover-done`. */
+  takeoverResponse?: string
 }
 
 /** Live state of the active page, pushed to the panel header. */
@@ -179,7 +193,31 @@ export interface BrowserPageState {
   loading: boolean
   canGoBack: boolean
   canGoForward: boolean
+  /** Recoverable problem replacing the native page surface. Optional for older shells. */
+  issue?: BrowserPageIssue
 }
+
+/** A recoverable top-level page problem rendered by Sim instead of a blank native view. */
+export type BrowserPageIssue =
+  | {
+      kind: 'load-error'
+      /** Chromium network error number, such as -102 for connection refused. */
+      code: number
+      /** Chromium network error name, such as ERR_CONNECTION_REFUSED. */
+      description: string
+      /** The attempted URL, which may never have committed in WebContents. */
+      url: string
+    }
+  | {
+      kind: 'crashed'
+      /** Chromium renderer exit reason, such as crashed or oom. */
+      reason: string
+      url: string
+    }
+  | {
+      kind: 'unresponsive'
+      url: string
+    }
 
 /**
  * One find-in-page request against the active tab. Backed by Chromium's own
@@ -223,6 +261,8 @@ export interface BrowserTabState {
   title: string
   loading: boolean
   active: boolean
+  /** Recoverable problem currently replacing this tab's native page surface. */
+  issue?: BrowserPageIssue
   /** Pinned tabs are ordered before regular tabs and cannot be closed. */
   pinned: boolean
 }
@@ -231,6 +271,12 @@ export interface BrowserTabState {
 export interface BrowserTabsState {
   tabs: BrowserTabState[]
   activeTabId: string | null
+  /** Tab currently driven by the agent when it differs from the user's visible tab. */
+  automationTabId?: string | null
+  /** True while a browser tool is actively driving that tab. */
+  automationActive?: boolean
+  /** True while automation is paused for the user on this tab. */
+  automationNeedsAttention?: boolean
   /** Chat scope that owns this tab set. */
   scopeId: string
 }
@@ -293,6 +339,8 @@ export function isBrowserDataKind(value: unknown): value is BrowserDataKind {
  * catalog is the source of truth for what the model can call; this package is
  * the source of truth for how those calls travel to the desktop main process.
  */
+
+import { truncate } from '@sim/utils/string'
 
 /** The single tool the model calls; what it does is in `operation`. */
 export const TERMINAL_TOOL_NAME = 'terminal'
@@ -567,6 +615,105 @@ export interface TerminalTabState {
   tmuxSession?: string | null
 }
 
+/** Longest program name {@link describeRunningCommand} will return. */
+const MAX_RUNNING_COMMAND_LABEL = 32
+
+/**
+ * Shell words that precede the program rather than being it, so a label reads
+ * `claude` and not `env` or `sudo`.
+ */
+const COMMAND_PREFIX_WORDS = new Set([
+  'command',
+  'doas',
+  'env',
+  'exec',
+  'nice',
+  'nohup',
+  'sudo',
+  'time',
+])
+
+/** `NAME=value`, the other thing that can sit in front of the program. */
+const ENVIRONMENT_ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*=/
+
+/**
+ * The last command in a shell line, ignoring separators inside quotes. A
+ * quote-blind split would cut `claude "a && b"` in half and report `b"` as the
+ * program.
+ */
+function lastCommandSegment(command: string): string {
+  let start = 0
+  let quote: "'" | '"' | null = null
+  for (let index = 0; index < command.length; index++) {
+    const char = command[index]
+    if (quote) {
+      // Only double quotes honor backslash escapes; inside single quotes a
+      // backslash is a literal character and cannot hide the closing quote.
+      if (char === '\\' && quote === '"') index++
+      else if (char === quote) quote = null
+      continue
+    }
+    if (char === "'" || char === '"') {
+      quote = char
+      continue
+    }
+    if (char === '\\') {
+      index++
+      continue
+    }
+    if (char === ';' || char === '&' || char === '|') {
+      if (command[index + 1] === char) index++
+      start = index + 1
+    }
+  }
+  return command.slice(start).trim()
+}
+
+/**
+ * A short name for whatever is holding a terminal's foreground.
+ *
+ * `running` is the literal line the shell was given, and an agent-launched one
+ * runs long: `cd <path> && export PATH=<path> && claude "<the whole prompt>"`
+ * is a single command several hundred characters wide. That is the right thing
+ * to hand an agent and the wrong thing to put in a sentence — a confirmation
+ * built around it stops being a question and becomes a wall of shell. This
+ * keeps the part a person recognizes, the program they are waiting on, and
+ * drops the environment preamble around it.
+ *
+ * Best-effort by construction: the input is a shell line, not a parsed argv,
+ * so a command this cannot read falls back to the line itself, bounded. Use it
+ * for prose about a terminal, never to decide anything.
+ *
+ * @example
+ * describeRunningCommand('cd /repo && export PATH=/bin && claude "fix it"') // 'claude'
+ * describeRunningCommand('sudo /usr/bin/docker compose up')                 // 'docker'
+ */
+export function describeRunningCommand(running: string): string {
+  const line = running.trim()
+  if (!line) return 'a command'
+
+  const segment = lastCommandSegment(line) || line
+  const program = segment
+    .split(/\s+/)
+    .filter(Boolean)
+    .find(
+      (word) =>
+        !ENVIRONMENT_ASSIGNMENT.test(word) &&
+        !COMMAND_PREFIX_WORDS.has(word) &&
+        !word.startsWith('-')
+    )
+
+  const label =
+    (program
+      ? (program
+          .replace(/^['"]|['"]$/g, '')
+          .split('/')
+          .filter(Boolean)
+          .pop() ?? '')
+      : '') || segment
+  return truncate(label, MAX_RUNNING_COMMAND_LABEL, '…')
+}
+
 /** One tmux pane, as reported by the `panes` operation. */
 export interface TerminalPaneState {
   /** tmux target (`session:window.pane`), usable as the `pane` argument. */
@@ -607,6 +754,8 @@ export interface TerminalPanesResult {
 export interface TerminalTabsState {
   tabs: TerminalTabState[]
   activeTerminalId: string | null
+  /** Terminal currently driven by the agent when it differs from the user's visible terminal. */
+  agentActiveTerminalId?: string | null
 }
 
 /** A tab strip crossing the desktop bridge, tagged with its owning chat. */
@@ -674,6 +823,9 @@ export interface ScopedTerminalCommandEvent extends TerminalCommandEvent {
 
 export const PENDING_DESKTOP_SCOPE_PREFIX = 'pending:' as const
 
+/** Boolean results preserve compatibility with older installed desktop shells. */
+export type TerminalPasteResult = boolean | 'too-large'
+
 const DESKTOP_SCOPE_PATTERN = /^[A-Za-z0-9_-]{1,128}$/
 const PENDING_DESKTOP_SCOPE_PATTERN = /^pending:[A-Za-z0-9_-]{1,128}$/
 
@@ -720,11 +872,17 @@ export interface SimDesktopTerminalApi {
    * only replay what the user already copied instead of choosing the bytes.
    * Resolves false when the clipboard held nothing to paste.
    */
-  paste(terminalId: string, scopeId: string): Promise<boolean>
+  paste(terminalId: string, scopeId: string): Promise<TerminalPasteResult>
   resize(terminalId: string, cols: number, rows: number, scopeId: string): void
   /** Open an additional terminal and make it active. */
   openTerminal(cwd: string | undefined, scopeId: string): Promise<ScopedTerminalTabsState>
   switchTerminal(terminalId: string, scopeId: string): Promise<ScopedTerminalTabsState>
+  /** Move a terminal to its final position. Optional for older installed shells. */
+  reorderTerminal?(
+    terminalId: string,
+    targetIndex: number,
+    scopeId: string
+  ): Promise<ScopedTerminalTabsState>
   closeTerminal(terminalId: string, scopeId: string): Promise<ScopedTerminalTabsState>
   getTabs(scopeId: string): Promise<ScopedTerminalTabsState>
   /** Makes a chat's terminal group the renderer-visible group. */
@@ -748,11 +906,12 @@ export interface SimDesktopTerminalApi {
   /** Forget retained output for one terminal. */
   clearScrollback(terminalId: string, scopeId: string): Promise<boolean>
   /**
-   * Reports whether the terminal panel owns keyboard focus, so global menu
-   * accelerators can tell a Cmd-W meant for a terminal from one meant for the
-   * window.
+   * Reports whether the visible terminal panel owns resource shortcuts, so a
+   * transient DOM blur cannot turn Cmd-W into a window-level command.
    */
   setFocused(focused: boolean, scopeId: string): void
+  /** Reports whether this renderer is currently displaying the terminal resource. */
+  setVisible?(visible: boolean, scopeId: string): void
   /**
    * The user finishing a handoff — the hand-back chip on the waiting tool row.
    */
@@ -778,6 +937,8 @@ export interface SimDesktopTerminalApi {
  * over the chat's browser panel so the user interacts with the real page.
  */
 export interface SimDesktopBrowserAgentApi {
+  /** New shells can atomically force-hide a native page before renderer effects paint. */
+  readonly supportsAtomicPanelOcclusion?: true
   /**
    * Execute one browser tool. Resolves with the tool's outcome; never
    * rejects for tool-level failures (those ride `ok: false`).
@@ -788,8 +949,17 @@ export interface SimDesktopBrowserAgentApi {
     params: Record<string, unknown>,
     scopeId: string
   ): Promise<BrowserToolResponse>
-  /** Browser-chrome commands from the panel (URL bar, back, reload, takeover Done). */
+  /** Cancel one exact in-flight tool. Optional for compatibility with older shells. */
+  cancelTool?(toolCallId: string, scopeId: string): Promise<boolean>
+  /** Cancel the currently active tool in a scope after renderer state was lost. */
+  cancelActiveTool?(scopeId: string): Promise<boolean>
+  /** Browser-chrome commands from the panel (URL bar, back, reload, takeover hand-back). */
   panelAction(action: BrowserPanelAction, scopeId: string): void
+  /**
+   * Create and activate a blank tab, returning the authoritative list.
+   * Optional for compatibility with installed shells that predate acknowledged tab creation.
+   */
+  openTab?(scopeId: string): Promise<BrowserTabsState>
   /** Makes a chat's browser tab set the renderer-visible set. */
   activateScope(scopeId: string): Promise<BrowserTabsState>
   /** Materializes a lazily activated chat's persisted tabs without showing its panel. */
@@ -822,8 +992,8 @@ export interface SimDesktopBrowserAgentApi {
   ): void
   /** Capture the current page before opening renderer-owned UI above it. */
   capturePanelSnapshot(scopeId: string): Promise<BrowserPanelSnapshot | null>
-  /** Hide/reveal the native page only after its replacement frame has painted. */
-  setPanelOccluded(occluded: boolean, scopeId: string): Promise<boolean>
+  /** Hide/reveal the native page after its replacement frame has painted. */
+  setPanelOccluded(occluded: boolean, scopeId: string, force?: boolean): Promise<boolean>
   /** Report whether renderer-owned browser chrome owns the user's interaction context. */
   setPanelFocused(focused: boolean, scopeId: string): void
   /** Mirror Sim's light/dark/system preference into embedded pages. */
@@ -863,6 +1033,11 @@ export interface SimDesktopBrowserAgentApi {
   getTabsState(scopeId: string): Promise<BrowserTabsState>
   /** Read a privacy-preserving hint of websites that may have a usable session. */
   getKnownSessions(): Promise<BrowserKnownSessionsState>
+  /**
+   * Live search completions for the omnibox. Optional while installed shells
+   * that predate search suggestions remain supported.
+   */
+  getSearchSuggestions?(query: string): Promise<string[]>
   /**
    * Erase browsing data from the dedicated profile and resolve the resulting
    * session list. Pass the kinds to clear; omit for all of them. Saved
@@ -1261,17 +1436,25 @@ export interface DesktopOAuthConnectResult {
   ok: boolean
   /** OAuth error slug forwarded from the provider callback, when the flow failed. */
   error?: string
+  /**
+   * Chat attempt correlated by the desktop handoff, or null for a non-chat
+   * connect. Absent only on older desktop shells that predate correlation.
+   */
+  chatAttemptId?: string | null
 }
 
 /**
  * Optional scope for an OAuth connect handoff. Chip-initiated connects carry
  * the workspace (the browser flow creates the workspace connect draft
  * server-side) and, for reconnects, the credential to rebind. Modal-initiated
- * connects omit both — the app already created the draft.
+ * connects carry the exact draft the app already created.
  */
 export interface DesktopOAuthConnectScope {
   workspaceId?: string
   credentialId?: string
+  draftId?: string
+  /** Mothership credential-chip attempt to echo on desktop completion. */
+  chatAttemptId?: string
 }
 
 export interface TerminalThemePalette {
@@ -1371,7 +1554,15 @@ export interface TerminalSelectedProfile {
   id: string
   name: string
   source: TerminalThemeSource
+  /**
+   * Palette used when the source does not provide appearance-specific colors.
+   * Ignored once both `lightPalette` and `darkPalette` are present.
+   */
   palette: TerminalThemePalette
+  /** Optional palette used while Sim is in light appearance. */
+  lightPalette?: TerminalThemePalette
+  /** Optional palette used while Sim is in dark appearance. */
+  darkPalette?: TerminalThemePalette
 }
 
 export type TerminalThemeProfile = TerminalSelectedProfile
@@ -1384,39 +1575,58 @@ const TERMINAL_THEME_PALETTE_KEYS: readonly (keyof TerminalThemePalette)[] = [
   ...TERMINAL_THEME_ANSI_KEYS,
 ]
 
+const TERMINAL_THEME_OPTIONAL_PALETTE_KEYS = ['cursorAccent', 'selectionForeground'] as const
+
 const TERMINAL_THEME_COLOR_PATTERN = /^#[0-9a-f]{6}$/i
+
+function isTerminalThemeColor(value: unknown): value is string {
+  return typeof value === 'string' && TERMINAL_THEME_COLOR_PATTERN.test(value)
+}
+
+function isTerminalThemePalette(value: unknown): value is TerminalThemePalette {
+  if (typeof value !== 'object' || value === null) return false
+  const palette = value as Partial<TerminalThemePalette>
+  return (
+    TERMINAL_THEME_PALETTE_KEYS.every((key) => isTerminalThemeColor(palette[key])) &&
+    TERMINAL_THEME_OPTIONAL_PALETTE_KEYS.every(
+      (key) => palette[key] === undefined || isTerminalThemeColor(palette[key])
+    )
+  )
+}
 
 export function isTerminalSelectedProfile(value: unknown): value is TerminalSelectedProfile {
   if (typeof value !== 'object' || value === null) return false
   const candidate = value as Partial<TerminalSelectedProfile>
-  if (
-    typeof candidate.id !== 'string' ||
-    candidate.id.length === 0 ||
-    candidate.id.length > 300 ||
-    typeof candidate.name !== 'string' ||
-    candidate.name.length === 0 ||
-    candidate.name.length > 200 ||
-    (candidate.source !== 'terminal' && candidate.source !== 'iterm2') ||
-    typeof candidate.palette !== 'object' ||
-    candidate.palette === null
-  ) {
-    return false
-  }
-  if (
-    !TERMINAL_THEME_PALETTE_KEYS.every(
-      (key) =>
-        typeof candidate.palette?.[key] === 'string' &&
-        TERMINAL_THEME_COLOR_PATTERN.test(candidate.palette[key])
-    )
-  ) {
-    return false
-  }
-  return (['cursorAccent', 'selectionForeground'] as const).every(
-    (key) =>
-      candidate.palette?.[key] === undefined ||
-      (typeof candidate.palette[key] === 'string' &&
-        TERMINAL_THEME_COLOR_PATTERN.test(candidate.palette[key]))
+  return (
+    typeof candidate.id === 'string' &&
+    candidate.id.length > 0 &&
+    candidate.id.length <= 300 &&
+    typeof candidate.name === 'string' &&
+    candidate.name.length > 0 &&
+    candidate.name.length <= 200 &&
+    (candidate.source === 'terminal' || candidate.source === 'iterm2') &&
+    isTerminalThemePalette(candidate.palette) &&
+    (candidate.lightPalette === undefined || isTerminalThemePalette(candidate.lightPalette)) &&
+    (candidate.darkPalette === undefined || isTerminalThemePalette(candidate.darkPalette))
   )
+}
+
+/**
+ * Copies only the known profile fields, so untrusted source output and stored
+ * config never carry extra keys. The single definition of a profile's shape —
+ * new palette slots are added here rather than at each call site.
+ */
+export function cloneTerminalSelectedProfile(
+  profile: TerminalSelectedProfile
+): TerminalSelectedProfile {
+  return {
+    id: profile.id,
+    name: profile.name,
+    source: profile.source,
+    palette: { ...profile.palette },
+    ...(profile.lightPalette ? { lightPalette: { ...profile.lightPalette } } : {}),
+    ...(profile.darkPalette ? { darkPalette: { ...profile.darkPalette } } : {}),
+  }
 }
 
 export interface DesktopPreferences {
@@ -1429,6 +1639,8 @@ export interface DesktopPreferences {
   trayEnabled: boolean
   /** Let Chat drive the built-in agent browser on this device. */
   browserEnabled: boolean
+  /** Whether typing in the omnibox may request live Google search completions. */
+  browserSearchSuggestionsEnabled?: boolean
   /** Let Chat run commands in local shells. */
   terminalEnabled: boolean
   /**
@@ -1513,6 +1725,11 @@ export interface SimDesktopSettingsApi {
     key: K,
     value: DesktopPreferences[K]
   ): Promise<DesktopPreferences>
+  /**
+   * Controls whether partial omnibox queries may be sent to Google. Optional
+   * for compatibility with installed shells that predate live suggestions.
+   */
+  setBrowserSearchSuggestionsEnabled?(enabled: boolean): Promise<DesktopPreferences>
   notify(payload: DesktopNotificationPayload): Promise<boolean>
   /** Overrides the appearance requested by browser pages. */
   setBrowserTheme(theme: DesktopAppearanceTheme): Promise<DesktopPreferences>
@@ -1574,7 +1791,7 @@ export interface SimDesktopUpdatesApi {
   onState(callback: (state: DesktopUpdateState) => void): () => void
 }
 
-export type DesktopCommand = 'toggle-sidebar'
+export type DesktopCommand = 'toggle-sidebar' | 'open-search'
 
 export interface DesktopWindowState {
   isFullScreen: boolean
@@ -1585,10 +1802,52 @@ export interface SimDesktopWindowStateApi {
   onStateChange(callback: (state: DesktopWindowState) => void): () => void
 }
 
+/**
+ * The Sim deployment an installed shell is pointed at. The bundle bakes only a
+ * DEFAULT origin; navigation, CSP, cookie partition, and the update feed are
+ * all derived from the configured one.
+ */
+export interface DesktopServerConfiguration {
+  /** The origin the shell is currently pointed at. */
+  origin: string
+  /** The origin this build falls back to when nothing is stored. */
+  defaultOrigin: string
+  /**
+   * Whether the configured origin is one of Sim's own deployments. Sim-operated
+   * resources (the public status page) describe only those, so a self-hosted
+   * shell must not be pointed at them.
+   */
+  isSimCloud: boolean
+}
+
+/** Outcome of a server change. On success the shell relaunches immediately. */
+export type DesktopServerChangeResult =
+  | { ok: true; origin: string; unchanged: boolean }
+  | { ok: false; error: string }
+
+/**
+ * Reading and changing the server origin. Exposed only to the shell's own
+ * bundled `file:` pages: the surface that changes which server the app talks
+ * to must stay reachable when that server cannot be reached at all, and must
+ * never be drivable by a page the current server serves.
+ */
+export interface SimDesktopServerApi {
+  /** Opens the shell's native server-selection window. */
+  open(): void
+  getConfiguration(): Promise<DesktopServerConfiguration>
+  /**
+   * Validates and persists a new server origin, then relaunches the shell.
+   * Resolves with an error message when the origin is rejected.
+   */
+  setOrigin(origin: string): Promise<DesktopServerChangeResult>
+}
+
 export interface SimDesktopApi {
   /** Installed shell version (plain semver, e.g. `0.3.1`). */
   version: string
   openExternal(url: string): Promise<boolean>
+  /** Opens the operating system's microphone privacy settings when supported. */
+  openMicrophoneSettings?(): Promise<boolean>
   /**
    * Start the OAuth connect handoff for a provider: the whole flow runs in
    * the system browser and returns via loopback. Resolves false when the
@@ -1601,6 +1860,11 @@ export interface SimDesktopApi {
    */
   onOAuthConnectComplete(callback: (result: DesktopOAuthConnectResult) => void): () => void
   offlineRetry(): void
+  /**
+   * Optional because shells older than this surface do not expose it. Only
+   * the shell's own bundled pages can call it — see {@link SimDesktopServerApi}.
+   */
+  server?: SimDesktopServerApi
   localFilesystem(request: LocalFilesystemRequest): Promise<LocalFilesystemResponse>
   /** Subscribe to commands initiated by the native application menu. */
   onCommand(callback: (command: DesktopCommand) => void): () => void

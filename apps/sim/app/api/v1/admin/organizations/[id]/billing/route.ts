@@ -16,7 +16,7 @@
  */
 
 import { db, dbReplica } from '@sim/db'
-import { member, organization } from '@sim/db/schema'
+import { member, organization, organizationColumns } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { count, eq } from 'drizzle-orm'
 import {
@@ -155,7 +155,7 @@ export const PATCH = withRouteHandler(
       if (!parsed.success) return parsed.response
 
       const [orgData] = await db
-        .select()
+        .select(organizationColumns)
         .from(organization)
         .where(eq(organization.id, organizationId))
         .limit(1)

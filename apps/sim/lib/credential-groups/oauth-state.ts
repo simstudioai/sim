@@ -10,6 +10,7 @@ import {
 
 const OAUTH_ATTEMPT_TTL_MS = 10 * 60 * 1000
 const OAUTH_ATTEMPT_VERSION = 2 as const
+const OAUTH_ATTEMPT_STATE_PREFIX = 'cg_'
 
 const CONSUME_SCRIPT = `
 local value = redis.call('GET', KEYS[1])
@@ -108,7 +109,7 @@ export async function createCredentialGroupOAuthAttempt(
   params: CreateCredentialGroupOAuthAttemptParams
 ): Promise<{ state: string; nonce: string }> {
   const redis = requireRedis()
-  const state = generateId()
+  const state = `${OAUTH_ATTEMPT_STATE_PREFIX}${generateId()}`
   const nonce = generateId()
   const [encryptedCodeVerifier, encryptedInvitationToken] = await Promise.all([
     params.codeVerifier ? encryptSecret(params.codeVerifier) : undefined,
@@ -138,6 +139,11 @@ export async function createCredentialGroupOAuthAttempt(
   )
   if (stored !== 'OK') throw new Error('Credential group OAuth state collision')
   return { state, nonce }
+}
+
+/** Identifies managed-enrollment callbacks before touching one-time Redis state. */
+export function isCredentialGroupOAuthState(state: string): boolean {
+  return state.startsWith(OAUTH_ATTEMPT_STATE_PREFIX)
 }
 
 /** Atomically burns state before the single-use authorization code is exchanged. */

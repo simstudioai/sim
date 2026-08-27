@@ -1,8 +1,16 @@
 'use client'
 
-import { memo, useCallback, useEffect, useRef, useState } from 'react'
+import {
+  memo,
+  type ClipboardEvent as ReactClipboardEvent,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react'
 import type { OnMount } from '@monaco-editor/react'
-import { cn } from '@sim/emcn'
+import { cn, toast } from '@sim/emcn'
+import { formatPasteLimit, PASTE_LIMITS } from '@sim/utils/paste'
 import type { editor as MonacoEditorTypes } from 'monaco-editor'
 import dynamic from 'next/dynamic'
 import {
@@ -12,6 +20,7 @@ import {
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
 import { isSimPageSource, SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
+import { assessTextEditorPaste } from '@/app/workspace/[workspaceId]/files/components/file-viewer/text-editor-paste'
 import { useAddToChat } from '@/hooks/use-add-to-chat'
 import type { ChatContext } from '@/stores/panel'
 import { EditorContextMenu } from './editor-context-menu'
@@ -578,10 +587,49 @@ export const TextEditor = memo(function TextEditor({
 
   const handleEditorChange = useCallback(
     (value: string | undefined) => {
-      setDraftContent(value ?? '')
+      const nextValue = value ?? ''
+      contentRef.current = nextValue
+      setDraftContent(nextValue)
     },
     [setDraftContent]
   )
+
+  const handleEditorPasteCapture = (event: ReactClipboardEvent<HTMLDivElement>) => {
+    const pastedText = event.clipboardData.getData('text/plain')
+    if (!pastedText) return
+
+    const editor = monacoEditorRef.current
+    const model = editor?.getModel()
+    const selections = editor?.getSelections()
+    const currentText = contentRef.current
+    const selectionOffsets =
+      model && selections?.length
+        ? selections.map((selection) => ({
+            start: model.getOffsetAt({
+              lineNumber: selection.startLineNumber,
+              column: selection.startColumn,
+            }),
+            end: model.getOffsetAt({
+              lineNumber: selection.endLineNumber,
+              column: selection.endColumn,
+            }),
+          }))
+        : [{ start: currentText.length, end: currentText.length }]
+
+    const admission = assessTextEditorPaste({
+      pastedText,
+      currentText,
+      selections: selectionOffsets,
+      multiCursorPaste: editor?.getRawOptions().multiCursorPaste ?? 'spread',
+    })
+    if (admission.accepted) return
+
+    event.preventDefault()
+    event.stopPropagation()
+    toast.warning('Paste would make this file too large to edit', {
+      description: `Inline editing supports files up to ${formatPasteLimit(PASTE_LIMITS.TEXT_EDITOR_BYTES)}. Import or replace the file to keep larger content available without loading it into the editor.`,
+    })
+  }
 
   const isStreaming = isStreamInteractionLocked
   const isEditorReadOnly = isStreamInteractionLocked || !canEdit
@@ -634,6 +682,9 @@ export const TextEditor = memo(function TextEditor({
       <style>{FIND_TOOLTIP_FIX_CSS}</style>
       {showEditor && (
         <div
+          data-paste-max-bytes={PASTE_LIMITS.TEXT_EDITOR_BYTES}
+          data-paste-projects-text-result='true'
+          onPasteCapture={handleEditorPasteCapture}
           style={showPreviewPane ? { width: `${splitPct}%`, flexShrink: 0 } : undefined}
           className={cn(
             'min-w-0',
@@ -648,6 +699,8 @@ export const TextEditor = memo(function TextEditor({
             theme={monacoTheme}
             options={{
               readOnly: isEditorReadOnly,
+              largeFileOptimizations: true,
+              maxTokenizationLineLength: 20_000,
               minimap: { enabled: false },
               scrollBeyondLastLine: false,
               wordWrap: 'on',

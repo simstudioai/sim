@@ -1,4 +1,5 @@
-import { type SQL, sql } from 'drizzle-orm'
+import { omit } from '@sim/utils/object'
+import { getTableColumns, type SQL, sql } from 'drizzle-orm'
 import {
   type AnyPgColumn,
   bigint,
@@ -463,7 +464,13 @@ export const workflowExecutionLogs = pgTable(
      * `materializeExecutionData`, which resolves the pointer.
      */
     executionData: jsonb('execution_data').notNull().default('{}'),
-    /** @deprecated Not written/read; cost lives in usage_log + the `cost_total` projection. Drop in a follow-up PR after the `cost_total` backfill. */
+    // contract-pending(after #7134 is fully deployed to production): DROP COLUMN
+    // cost. Same procedure and argless-read lint as the user_stats marker
+    // (scripts/check-pending-drop-tables.ts). Script migration
+    // 0009_backfill_wel_residual_cost_total projects the ~23 straggler rows
+    // whose json still held a numeric total into cost_total before the drop;
+    // the contract PR must ALSO deregister that script (it reads this column).
+    /** @deprecated Not written/read; cost lives in usage_log + the `cost_total` projection. */
     cost: jsonb('cost'),
     // Faithful, write-once projection of the run's usage_log ledger sum (dollars).
     // Backs list cost display/filter/sort without live aggregation; never an
@@ -528,6 +535,12 @@ export const workflowExecutionLogs = pgTable(
       ),
   })
 )
+
+/**
+ * Live columns of `workflow_execution_logs` while the `cost` drop is
+ * outstanding — see `userStatsColumns` for the pattern.
+ */
+export const workflowExecutionLogColumns = omit(getTableColumns(workflowExecutionLogs), ['cost'])
 
 export const executionLargeValueReferenceSourceEnum = pgEnum(
   'execution_large_value_reference_source',
@@ -1176,8 +1189,16 @@ export const userStats = pgTable('user_stats', {
     .notNull()
     .references(() => user.id, { onDelete: 'cascade' })
     .unique(), // One record per user
-  // Retired usage hot-path counters: no writers/readers; derive from usage_log.
-  // Drop via DROP COLUMN in a follow-up migration.
+  // contract-pending(after #7134 is fully deployed to production): DROP COLUMN
+  // the 19 @deprecated columns in this table. Their last readers/writers were
+  // removed by the ledger cutover (#7078/#7113) and #7134; the declarations
+  // remain ONLY so the app schema keeps matching the deployed database until
+  // the drop. Argless select()/relational reads of this table are forbidden
+  // meanwhile — they would put these columns back into generated SQL and break
+  // the old task set when the contract deploy drops them mid-cutover — enforced
+  // by scripts/check-pending-drop-tables.ts. The follow-up PR deletes the
+  // @deprecated declarations plus this marker and ships the generated DROP
+  // migration in the same change.
   /** @deprecated Retired usage counter; derive from usage_log. */
   totalManualExecutions: integer('total_manual_executions').notNull().default(0),
   /** @deprecated Retired usage counter; derive from usage_log. */
@@ -1192,27 +1213,26 @@ export const userStats = pgTable('user_stats', {
   totalMcpExecutions: integer('total_mcp_executions').notNull().default(0),
   /** @deprecated Retired usage counter; derive from usage_log. */
   totalTokensUsed: bigint('total_tokens_used', { mode: 'number' }).notNull().default(0),
-  /** @deprecated Not written (recordUsage appends to usage_log); legacy/admin reads only. Move readers to ledger aggregation. */
+  /** @deprecated No readers or writers; report cost from usage_log. */
   totalCost: decimal('total_cost').notNull().default('0'),
   currentUsageLimit: decimal('current_usage_limit').default(DEFAULT_FREE_CREDITS.toString()), // Default $5 (1,000 credits) for free plan, null for team/enterprise
   usageLimitUpdatedAt: timestamp('usage_limit_updated_at').defaultNow(),
-  /**
-   * Active per-period baseline (not a per-usage hot-path counter). Current usage
-   * = this baseline + attributed usage_log rows for the period; reset at rollover.
-   */
+  /** @deprecated No readers or writers; usage is the attributed usage_log ledger. Drop via DROP COLUMN in a follow-up migration. */
   currentPeriodCost: decimal('current_period_cost').notNull().default('0'),
-  lastPeriodCost: decimal('last_period_cost').default('0'), // Usage from previous billing period
+  /** Previous-period usage; written by the cycle-close sweep from ledger sums. */
+  lastPeriodCost: decimal('last_period_cost').default('0'),
   /**
    * Threshold/final billing tracker.
    *
-   * This is intentionally still written when threshold billing or invoice
-   * finalization serializes overage collection. It is not incremented by the
-   * ordinary per-usage ledger write path.
+   * Incremented when threshold billing collects overage mid-period; reset to
+   * zero by the cycle-close sweep at period rollover. It is not incremented
+   * by the ordinary per-usage ledger write path.
    */
   billedOverageThisPeriod: decimal('billed_overage_this_period').notNull().default('0'), // Amount of overage already billed via threshold billing
-  // Pro usage snapshot when joining a team (to prevent double-billing)
-  proPeriodCostSnapshot: decimal('pro_period_cost_snapshot').default('0'), // Snapshot of Pro usage when joining team
-  proPeriodCostSnapshotAt: timestamp('pro_period_cost_snapshot_at'), // When the snapshot was captured (= join moment). Used to cap daily-refresh computation so post-join refresh isn't deducted from pre-join personal Pro usage (and vice-versa for the org's pooled refresh).
+  /** @deprecated No readers or writers; ledger entity stamps attribute pre/post-join usage. Drop via DROP COLUMN in a follow-up migration. */
+  proPeriodCostSnapshot: decimal('pro_period_cost_snapshot').default('0'),
+  /** @deprecated No readers or writers; see proPeriodCostSnapshot. Drop via DROP COLUMN in a follow-up migration. */
+  proPeriodCostSnapshotAt: timestamp('pro_period_cost_snapshot_at'),
   /**
    * Credit balance tracker.
    *
@@ -1220,19 +1240,19 @@ export const userStats = pgTable('user_stats', {
    * overage collection. It is not a per-usage aggregate counter.
    */
   creditBalance: decimal('credit_balance').notNull().default('0'),
-  /** @deprecated Not written; report Copilot cost from usage_log. Legacy/admin reads only. */
+  /** @deprecated No readers or writers; report Copilot cost from usage_log. */
   totalCopilotCost: decimal('total_copilot_cost').notNull().default('0'),
-  /** Active per-period Copilot baseline; reset at rollover (not a per-usage counter). */
+  /** @deprecated No readers or writers; Copilot usage is the copilot-source usage_log ledger. Drop via DROP COLUMN in a follow-up migration. */
   currentPeriodCopilotCost: decimal('current_period_copilot_cost').notNull().default('0'),
-  /** Previous-period Copilot cost; set at rollover. */
+  /** Previous-period Copilot cost; written by the cycle-close sweep from copilot-source ledger sums. */
   lastPeriodCopilotCost: decimal('last_period_copilot_cost').default('0'),
-  /** @deprecated Not written; report Copilot tokens from usage_log. Legacy/admin reads only. */
+  /** @deprecated No readers or writers; report Copilot tokens from usage_log. */
   totalCopilotTokens: bigint('total_copilot_tokens', { mode: 'number' }).notNull().default(0),
-  /** @deprecated Not written; report Copilot calls from usage_log. Legacy/admin reads only. */
+  /** @deprecated No readers or writers; report Copilot calls from usage_log. */
   totalCopilotCalls: integer('total_copilot_calls').notNull().default(0),
-  /** @deprecated Not written; report MCP Copilot calls from usage_log. Legacy/admin reads only. */
+  /** @deprecated No readers or writers; report MCP Copilot calls from usage_log. */
   totalMcpCopilotCalls: integer('total_mcp_copilot_calls').notNull().default(0),
-  /** @deprecated Not written; report MCP Copilot cost from usage_log. Legacy/admin reads only. */
+  /** @deprecated No readers or writers; report MCP Copilot cost from usage_log. */
   totalMcpCopilotCost: decimal('total_mcp_copilot_cost').notNull().default('0'),
   /** @deprecated No writer (never incremented or reset). MCP copilot usage lives in usage_log (source 'mcp_copilot'); read it from there, not this column. */
   currentPeriodMcpCopilotCost: decimal('current_period_mcp_copilot_cost').notNull().default('0'),
@@ -1243,7 +1263,7 @@ export const userStats = pgTable('user_stats', {
    * org-scoped storage writes update `organization.storageUsedBytes`.
    */
   storageUsedBytes: bigint('storage_used_bytes', { mode: 'number' }).notNull().default(0),
-  /** @deprecated Not updated by execution (no user_stats write on completion); legacy/admin reads only. */
+  /** @deprecated No readers or writers; not updated since execution stopped writing user_stats. */
   lastActive: timestamp('last_active').notNull().defaultNow(),
   billingBlocked: boolean('billing_blocked').notNull().default(false),
   billingBlockedReason: billingBlockedReasonEnum('billing_blocked_reason'),
@@ -1263,6 +1283,35 @@ export const userStats = pgTable('user_stats', {
     .notNull()
     .default({}),
 })
+
+/**
+ * Live columns of `user_stats` — the selection every read of this table goes
+ * through while the contract-pending drop (see the marker inside the table) is
+ * outstanding, so generated SQL never names the doomed columns. Enforced by
+ * `scripts/check-pending-drop-tables.ts`; the contract PR deletes this helper
+ * together with the deprecated declarations.
+ */
+export const userStatsColumns = omit(getTableColumns(userStats), [
+  'totalManualExecutions',
+  'totalApiCalls',
+  'totalWebhookTriggers',
+  'totalScheduledExecutions',
+  'totalChatExecutions',
+  'totalMcpExecutions',
+  'totalTokensUsed',
+  'totalCost',
+  'currentPeriodCost',
+  'proPeriodCostSnapshot',
+  'proPeriodCostSnapshotAt',
+  'totalCopilotCost',
+  'currentPeriodCopilotCost',
+  'totalCopilotTokens',
+  'totalCopilotCalls',
+  'totalMcpCopilotCalls',
+  'totalMcpCopilotCost',
+  'currentPeriodMcpCopilotCost',
+  'lastActive',
+])
 
 export const customTools = pgTable(
   'custom_tools',
@@ -1362,12 +1411,36 @@ export const subscription = pgTable(
     billingInterval: text('billing_interval'),
     stripeScheduleId: text('stripe_schedule_id'),
     metadata: json('metadata'),
+    /**
+     * Durable cycle-close marker: the `periodStart` of the most recent period
+     * whose close (final overage collection, `billedOverageThisPeriod` reset,
+     * last-period bookkeeping) has been committed. The daily cycle-close sweep
+     * closes the previous period whenever this lags the row's `periodStart`,
+     * then advances it. Null = never initialized; the first sweep initializes
+     * it to the current `periodStart` without billing so historical periods
+     * are never retroactively closed.
+     */
+    lastClosedPeriodStart: timestamp('last_closed_period_start'),
   },
   (table) => ({
     referenceStatusIdx: index('subscription_reference_status_idx').on(
       table.referenceId,
       table.status
     ),
+    /**
+     * Partial index for the cycle-close sweep's keyset iteration: exactly the
+     * entitled subscriptions whose close marker lags the current period. The
+     * predicate must mirror the sweep query in `lib/billing/cycle-close.ts`
+     * (status list = ENTITLED_SUBSCRIPTION_STATUSES, hardcoded here because
+     * packages cannot import from apps); a drifted predicate degrades to a
+     * seq scan, never a wrong result. The index stays tiny — closes remove
+     * rows from it — so the candidate scan is O(lagging), not O(fleet).
+     */
+    cycleCloseLaggingIdx: index('subscription_cycle_close_lagging_idx')
+      .on(table.id)
+      .where(
+        sql`${table.status} in ('active', 'past_due') and ${table.periodStart} is not null and (${table.lastClosedPeriodStart} is null or ${table.lastClosedPeriodStart} < ${table.periodStart})`
+      ),
     enterpriseMetadataCheck: check(
       'check_enterprise_metadata',
       sql`plan != 'enterprise' OR metadata IS NOT NULL`
@@ -1582,6 +1655,11 @@ export const organization = pgTable('organization', {
     .$type<Record<string, number>>()
     .notNull()
     .default({}),
+  // contract-pending(after #7134 is fully deployed to production): DROP COLUMN
+  // departed_member_usage. The last readers/writers (v1 admin exposure,
+  // cycle-close resets) were removed in #7134; same procedure and argless-read
+  // lint as the user_stats marker (scripts/check-pending-drop-tables.ts).
+  /** @deprecated No readers or writers; a departed member's ledger rows stay stamped to the org's period, so nothing needs capturing. */
   departedMemberUsage: decimal('departed_member_usage').notNull().default('0'),
   /**
    * Organization credit balance tracker.
@@ -1593,6 +1671,12 @@ export const organization = pgTable('organization', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })
+
+/**
+ * Live columns of `organization` while the `departed_member_usage` drop is
+ * outstanding — see `userStatsColumns` for the pattern.
+ */
+export const organizationColumns = omit(getTableColumns(organization), ['departedMemberUsage'])
 
 export const member = pgTable(
   'member',
@@ -2081,9 +2165,9 @@ export const workspaceFiles = pgTable(
      */
     displayName: text('display_name'),
     contentType: text('content_type').notNull(),
-    // contract-pending(after #6188 is fully deployed and sizeBytes is backfilled): drop size — new code dual-writes and reads sizeBytes first
-    size: integer('size').notNull(),
-    /** Exact byte size for files above PostgreSQL's int4 ceiling; legacy rows fall back to `size`. */
+    /** contract-pending(after the cutover is fully deployed and size_bytes has no NULLs): drop size, workspace_files_sync_size_columns, and the temporary dev cutover runner — all application reads and writes use size_bytes */
+    size: integer('size').notNull().default(0),
+    /** Exact byte size. The deploy migration backfills existing rows before this release serves traffic. */
     sizeBytes: bigint('size_bytes', { mode: 'number' }),
     /**
      * Intrinsic pixel dimensions of an image file, captured lazily on first view (and stored so later
@@ -2148,6 +2232,10 @@ export const workspaceFiles = pgTable(
       .where(sql`${table.deletedAt} IS NOT NULL`),
   })
 )
+
+/** Canonical application projection; the legacy `size` bridge is migration-only. */
+export const workspaceFileColumns = omit(getTableColumns(workspaceFiles), ['size'])
+export type WorkspaceFileRow = Omit<typeof workspaceFiles.$inferSelect, 'size'>
 
 export const uploadSessionStatusEnum = pgEnum('upload_session_status', [
   'uploading',
@@ -2554,7 +2642,11 @@ export const document = pgTable(
      * this column existed.
      */
     processingQueuedAt: timestamp('processing_queued_at'),
+    /** Opaque dispatch generation; NULL identifies payloads created before token rollout. */
+    processingQueueToken: text('processing_queue_token'),
     processingStartedAt: timestamp('processing_started_at'),
+    /** Scheduled execution time of an accepted durable quota continuation. */
+    processingDeferredUntil: timestamp('processing_deferred_until'),
     processingCompletedAt: timestamp('processing_completed_at'),
     processingError: text('processing_error'),
 
@@ -3844,7 +3936,7 @@ export const usageLog = pgTable(
      * a heap fetch per matched row.
      *
      * `userId`/`createdAt` sit immediately after the shared equality prefix because
-     * the daily-refresh rollup filters on them and NOT on `billingPeriodEnd`;
+     * the weekly-refresh rollup filters on them and NOT on `billingPeriodEnd`;
      * putting `billingPeriodEnd` in that slot would end the usable prefix at
      * `billingPeriodStart` and leave that query scanning the whole period.
      * `billingPeriodEnd` is functionally determined by `billingPeriodStart`, so it
@@ -4421,6 +4513,7 @@ export const knowledgeConnectorSyncLog = pgTable(
     docsUpdated: integer('docs_updated').notNull().default(0),
     docsDeleted: integer('docs_deleted').notNull().default(0),
     docsUnchanged: integer('docs_unchanged').notNull().default(0),
+    docsSkipped: integer('docs_skipped').notNull().default(0),
     docsFailed: integer('docs_failed').notNull().default(0),
     errorMessage: text('error_message'),
   },

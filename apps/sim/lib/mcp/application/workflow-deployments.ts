@@ -18,6 +18,7 @@ import {
   getLiveWorkflowMcpTool,
   getWorkflowMcpPublishableWorkflow,
   getWorkflowMcpServerById,
+  getWorkflowMcpToolIncludingArchived,
   listLiveWorkflowMcpTools,
   listWorkflowMcpToolNames,
   listWorkspaceWorkflowMcpServers,
@@ -124,6 +125,20 @@ export const listWorkflowMcpDeployments = defineAuthorizedWorkspaceUseCase({
         toolNames: namesByServerId.get(server.id) ?? [],
       })),
       nextCursorKeys: page.nextCursorKeys,
+      /**
+       * The name cap alone: `toolCount` and `toolNames` under-report because
+       * this page's servers publish more tools between them than
+       * `MAX_LISTED_WORKFLOW_MCP_TOOLS`. Kept apart from `truncated` because a
+       * surface that already publishes a `nextCursor` expresses "there is more
+       * to fetch" with the cursor, and would otherwise report an incomplete
+       * inventory on every page that simply has a successor.
+       */
+      toolNamesTruncated: truncated,
+      /**
+       * Anything at all is unseen — the name cap, or a further page. For a
+       * caller with no cursor to follow, which is how the copilot handler reads
+       * this, those are the same fact.
+       */
       truncated: page.nextCursorKeys !== null || truncated,
     }
   },
@@ -318,7 +333,7 @@ export const deployWorkflowMcpTool = defineAuthorizedWorkspaceUseCase({
     if (!context.workflow.isDeployed) {
       throw new OrchestrationError(
         'validation',
-        'Workflow must be deployed before adding as an MCP tool. Use deploy_as_api first.'
+        'Workflow must be deployed before adding as an MCP tool. Deploy the workflow first.'
       )
     }
     if (
@@ -411,7 +426,7 @@ export const undeployWorkflowMcpTool = defineAuthorizedWorkspaceUseCase({
     resolveWorkflowToolContext(input.serverId, input.workflowId),
   authorizationOptions,
   async execute({ principal, context }) {
-    const tool = await getLiveWorkflowMcpTool(context.server.id, context.workflow.id)
+    const tool = await getWorkflowMcpToolIncludingArchived(context.server.id, context.workflow.id)
     if (!tool) {
       throw new OrchestrationError('not_found', 'Workflow is not deployed to this MCP server')
     }

@@ -78,6 +78,7 @@ export const confluenceListLabelsTool: ToolConfig<
   },
 
   request: {
+    internal: true,
     url: (params: ConfluenceListLabelsParams) => {
       const query = new URLSearchParams({
         domain: params.domain,

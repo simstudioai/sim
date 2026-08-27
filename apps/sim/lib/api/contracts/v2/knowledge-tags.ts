@@ -221,9 +221,12 @@ export const v2KnowledgeTagUsageSchema = z
  * One tag definition in a bulk save.
  *
  * `originalDisplayName` names the definition being renamed. It is how a bulk
- * save distinguishes "rename the tag in this slot" from "define a new one", and
- * a slot already holding a definition under a different name is updated rather
- * than duplicated.
+ * save distinguishes "rename the tag in this slot" from "define a new one". A
+ * slot already holding a definition under a different name is refused in
+ * `errors` rather than having its occupant silently renamed: every document
+ * already tagged through that slot keeps its values, so a rename that was not
+ * asked for would relabel existing data and break saved filters keyed on the
+ * old name. Rename it by naming its current name in `originalDisplayName`.
  */
 export const v2BulkSaveKnowledgeTagDefinitionSchema = z
   .object({

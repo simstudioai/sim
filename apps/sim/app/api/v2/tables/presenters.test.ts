@@ -25,6 +25,9 @@ const importRecord = {
   tableId: 'table-1',
   status: 'running' as const,
   rowsProcessed: 2,
+  rowsRejected: 0,
+  cellsRejected: 0,
+  rejectedSamples: [],
   error: null,
   createdAt,
   updatedAt: createdAt,
@@ -56,6 +59,9 @@ describe('v2 table presenters', () => {
           target: importRecord.target,
           tableId: 'table-1',
           rowsProcessed: 2,
+          rowsRejected: 0,
+          cellsRejected: 0,
+          rejectedSamples: [],
           error: null,
           createdAt: createdAt.toISOString(),
           updatedAt: createdAt.toISOString(),
@@ -182,12 +188,61 @@ describe('presentV2TableDispatch', () => {
     expect(presented).not.toHaveProperty('triggeredByUserId')
   })
 
-  /** The stored scope also carries a compiled filter, which is not public. */
-  it('publishes only the addressable half of the run scope', () => {
-    expect(presentV2TableDispatch(stored).scope).toEqual({
-      groupIds: ['group-1'],
-      rowIds: ['row-1'],
-    })
+  /**
+   * The stored scope also carries a compiled filter, which stays unpublished —
+   * it is held in a different grammar from the predicate the request was
+   * written in.
+   */
+  it('withholds the compiled filter itself', () => {
+    expect(presentV2TableDispatch(stored).scope).not.toHaveProperty('filter')
+  })
+
+  /**
+   * Withholding the filter must not also withhold the fact that there was one.
+   * A filtered dispatch has no `rowIds` either, so without `filtered` the
+   * response described it exactly like a run over every eligible row.
+   */
+  it('says a filtered scope is a filtered scope', () => {
+    expect(
+      presentV2TableDispatch({
+        ...stored,
+        scope: { groupIds: ['group-1'], filter: { status: 'open' }, excludeRowIds: ['row-9'] },
+      }).scope
+    ).toEqual({ groupIds: ['group-1'], filtered: true, excludeRowIds: ['row-9'] })
+  })
+
+  /**
+   * The run rejects only `rowIds` *with* `excludeRowIds`, so exclusions with no
+   * filter are a scope a caller can really create, and the walk applies them.
+   * Reporting it as filtered would be false; reporting it bare would be the
+   * original bug, since it targets every eligible row *except* these.
+   */
+  it('reports exclusions that narrow an otherwise unfiltered run', () => {
+    expect(
+      presentV2TableDispatch({
+        ...stored,
+        scope: { groupIds: ['group-1'], excludeRowIds: ['row-9'] },
+      }).scope
+    ).toEqual({ groupIds: ['group-1'], excludeRowIds: ['row-9'] })
+  })
+
+  /**
+   * The walk ignores exclusions once a row list is given, so publishing them
+   * beside `rowIds` would describe a narrowing that never happens.
+   */
+  it('withholds exclusions the walk would ignore', () => {
+    expect(
+      presentV2TableDispatch({
+        ...stored,
+        scope: { groupIds: ['group-1'], rowIds: ['row-1'], excludeRowIds: ['row-9'] },
+      }).scope
+    ).toEqual({ groupIds: ['group-1'], rowIds: ['row-1'] })
+  })
+
+  /** Nothing narrowing it is the one shape that really does mean every eligible row. */
+  it('leaves an unnarrowed scope unmarked', () => {
+    const scope = presentV2TableDispatch({ ...stored, scope: { groupIds: ['group-1'] } }).scope
+    expect(scope).toEqual({ groupIds: ['group-1'] })
   })
 })
 

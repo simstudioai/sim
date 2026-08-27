@@ -1,19 +1,19 @@
 import { db } from '@sim/db'
-import { workspaceFiles } from '@sim/db/schema'
+import { type WorkspaceFileRow, workspaceFileColumns, workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { inferContextFromKey } from '@/lib/uploads/utils/file-utils'
 import {
+  getWorkspaceFileSize,
   isWorkspaceScopedContext,
   type StorageContext,
-  toLegacyWorkspaceFileSize,
 } from '../shared/types'
 
 const logger = createLogger('FileMetadata')
 
-export type FileMetadataRecord = typeof workspaceFiles.$inferSelect
+export type FileMetadataRecord = WorkspaceFileRow
 
 export interface FileMetadataInsertOptions {
   key: string
@@ -48,7 +48,7 @@ function isSameFileMetadataInsert(
     existing.context === options.context &&
     existing.originalName === options.originalName &&
     existing.contentType === options.contentType &&
-    (existing.sizeBytes ?? existing.size) === options.size &&
+    getWorkspaceFileSize(existing) === options.size &&
     existing.deletedAt === null &&
     (options.id === undefined || existing.id === options.id)
   )
@@ -76,7 +76,7 @@ async function findActiveFileMetadataByKey(
   key: string
 ): Promise<FileMetadataRecord | undefined> {
   const [record] = await executor
-    .select()
+    .select(workspaceFileColumns)
     .from(workspaceFiles)
     .where(and(eq(workspaceFiles.key, key), isNull(workspaceFiles.deletedAt)))
     .limit(1)
@@ -107,7 +107,7 @@ async function insertFileMetadataWithExecutor(
   }
 
   const [existingDeleted] = await executor
-    .select()
+    .select(workspaceFileColumns)
     .from(workspaceFiles)
     .where(and(eq(workspaceFiles.key, key), isNotNull(workspaceFiles.deletedAt)))
     .limit(1)
@@ -123,14 +123,13 @@ async function insertFileMetadataWithExecutor(
         originalName,
         displayName: originalName,
         contentType,
-        size: toLegacyWorkspaceFileSize(size),
         sizeBytes: size,
         deletedAt: null,
         uploadedAt: new Date(),
         contentUpdatedAt: sql<Date>`GREATEST(CURRENT_TIMESTAMP, ${workspaceFiles.contentUpdatedAt} + INTERVAL '1 millisecond')`,
       })
       .where(eq(workspaceFiles.id, existingDeleted.id))
-      .returning()
+      .returning(workspaceFileColumns)
 
     if (restored) {
       return restored
@@ -152,12 +151,11 @@ async function insertFileMetadataWithExecutor(
         originalName,
         displayName: originalName,
         contentType,
-        size: toLegacyWorkspaceFileSize(size),
         sizeBytes: size,
         deletedAt: null,
         uploadedAt: new Date(),
       })
-      .returning()
+      .returning(workspaceFileColumns)
 
     if (!inserted) {
       throw new Error(`Failed to insert file metadata for key: ${key}`)
@@ -197,13 +195,12 @@ async function insertImmutableFileMetadataWithExecutor(
       originalName,
       displayName: originalName,
       contentType,
-      size: toLegacyWorkspaceFileSize(size),
       sizeBytes: size,
       deletedAt: null,
       uploadedAt: new Date(),
     })
     .onConflictDoNothing()
-    .returning()
+    .returning(workspaceFileColumns)
 
   if (inserted) return inserted
 
@@ -275,20 +272,19 @@ export async function insertFileMetadataMany(
         originalName: row.originalName,
         displayName: row.originalName,
         contentType: row.contentType,
-        size: toLegacyWorkspaceFileSize(row.size),
         sizeBytes: row.size,
         deletedAt: null,
         uploadedAt: new Date(),
       }))
     )
     .onConflictDoNothing()
-    .returning()
+    .returning(workspaceFileColumns)
 
   const insertedKeys = new Set(inserted.map((record) => record.key))
   const conflictingRows = uniqueRows.filter((row) => !insertedKeys.has(row.key))
   if (conflictingRows.length > 0) {
     const activeRows = await db
-      .select()
+      .select(workspaceFileColumns)
       .from(workspaceFiles)
       .where(
         and(
@@ -330,7 +326,7 @@ export async function getFileMetadataByKey(
   }
 
   const [record] = await db
-    .select()
+    .select(workspaceFileColumns)
     .from(workspaceFiles)
     .where(conditions.length > 1 ? and(...conditions) : conditions[0])
     // Prefer the active row when includeDeleted lets both an active and a
@@ -382,7 +378,7 @@ export async function getFileMetadataByKeys(
     return []
   }
   return executor
-    .select()
+    .select(workspaceFileColumns)
     .from(workspaceFiles)
     .where(
       and(
@@ -404,7 +400,7 @@ export async function getFileMetadataById(
   const conditions = [eq(workspaceFiles.id, id)]
   if (!includeDeleted) conditions.push(isNull(workspaceFiles.deletedAt))
   const [record] = await db
-    .select()
+    .select(workspaceFileColumns)
     .from(workspaceFiles)
     .where(conditions.length > 1 ? and(...conditions) : conditions[0])
     .limit(1)

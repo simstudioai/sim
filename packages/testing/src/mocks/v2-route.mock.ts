@@ -9,7 +9,6 @@ export class MockV2ApiKeyUnauthenticatedError extends Error {
 
 export const v2RouteMocks = {
   authenticate: vi.fn(),
-  gate: vi.fn(),
   operationRate: vi.fn(),
   preauthRate: vi.fn(),
 }
@@ -26,8 +25,6 @@ export const v2RateLimiterModuleMock = {
     checkRateLimitDirectOrThrow = v2RouteMocks.operationRate
   },
 }
-
-export const v2GateModuleMock = { v2ApiGateError: v2RouteMocks.gate }
 
 export const V2_PREAUTH_RATE_LIMIT_ALLOWED = {
   allowed: true,

@@ -6,6 +6,8 @@ import { backfillForkKnowledgeBaseFileOwnership } from './0004_backfill_fork_kb_
 import { repairUnknownTableRowProvenance } from './0005_repair_unknown_table_row_provenance'
 import { repairUnknownTableRowProvenanceSecondPass } from './0006_repair_unknown_table_row_provenance_second_pass'
 import { repairUnknownWorkspaceFileProvenance } from './0007_repair_unknown_workspace_file_provenance'
+import { backfillWorkspaceFileSizeBytesMigration } from './0008_backfill_workspace_file_size_bytes'
+import { backfillWelResidualCostTotalMigration } from './0009_backfill_wel_residual_cost_total'
 import type { ScriptMigration } from './types'
 
 export type { ScriptMigration } from './types'
@@ -23,6 +25,8 @@ export const scriptMigrations: readonly ScriptMigration[] = [
   repairUnknownTableRowProvenance,
   repairUnknownTableRowProvenanceSecondPass,
   repairUnknownWorkspaceFileProvenance,
+  backfillWorkspaceFileSizeBytesMigration,
+  backfillWelResidualCostTotalMigration,
 ]
 
 /**

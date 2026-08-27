@@ -87,6 +87,49 @@ describe('pollForKey', () => {
     expect(result.apiKey).toBe('sim_abc')
   })
 
+  it('says an unreachable endpoint is not answering, then keeps polling', async () => {
+    // A typo'd endpoint used to be indistinguishable from a slow approval:
+    // every transport failure was swallowed and retried silently, so after 40
+    // seconds against a closed port the only output was still "Waiting for
+    // approval…" — for the full 15-minute timeout.
+    let call = 0
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      if (call++ < 4) throw new Error('getaddrinfo ENOTFOUND sim.tset')
+      return reply(200, COMPLETE)
+    })
+    vi.spyOn(globalThis, 'setTimeout').mockImplementation(((fn: () => void) => {
+      fn()
+      return 0 as unknown as NodeJS.Timeout
+    }) as never)
+    const stderr = vi.spyOn(process.stderr, 'write').mockReturnValue(true)
+
+    const result = await pollForKey(ENDPOINT, createAuthRequest())
+
+    // Reported, not aborted: the retry policy and the 15-minute deadline stand.
+    expect(result.apiKey).toBe('sim_abc')
+    expect(stderr).toHaveBeenCalledOnce()
+    const warning = String(stderr.mock.calls[0][0])
+    expect(warning).toContain(ENDPOINT)
+    expect(warning).toContain('getaddrinfo ENOTFOUND sim.tset')
+  })
+
+  it('stays quiet about a single blip, which the retry policy exists to absorb', async () => {
+    let call = 0
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      if (call++ === 0) throw new Error('ECONNRESET')
+      return reply(200, COMPLETE)
+    })
+    vi.spyOn(globalThis, 'setTimeout').mockImplementation(((fn: () => void) => {
+      fn()
+      return 0 as unknown as NodeJS.Timeout
+    }) as never)
+    const stderr = vi.spyOn(process.stderr, 'write').mockReturnValue(true)
+
+    await pollForKey(ENDPOINT, createAuthRequest())
+
+    expect(stderr).not.toHaveBeenCalled()
+  })
+
   it('gives up on a deliberate refusal rather than spinning to the timeout', async () => {
     await expect(
       poll([() => reply(400, { error: 'verifier must be a base64url secret' })])

@@ -9,7 +9,6 @@ const mocks = vi.hoisted(() => ({
   cancel: vi.fn(),
   checkRateLimitDirect: vi.fn(),
   checkRateLimitDirectOrThrow: vi.fn(),
-  gate: vi.fn(),
   parts: vi.fn(),
 }))
 
@@ -45,7 +44,6 @@ vi.mock('@/lib/core/rate-limiter', () => ({
   },
 }))
 
-vi.mock('@/app/api/v2/lib/gate', () => ({ v2ApiGateError: mocks.gate }))
 vi.mock('@/app/api/v2/knowledge/[knowledgeBaseId]/documents/uploads/utils', () => ({
   toV2KnowledgeDocumentUpload: () => ({
     id: 'upload-1',
@@ -83,12 +81,10 @@ describe('v2 knowledge-document upload control routes', () => {
     vi.clearAllMocks()
     mocks.authenticateV2ApiKey.mockResolvedValue({
       principal: PRINCIPAL,
-      rolloutUserId: 'user-1',
       rateLimitSubjectIds: ['api-key:key-1', 'user:user-1'],
       rateLimitSubscription: null,
       keyType: 'personal',
     })
-    mocks.gate.mockResolvedValue(null)
     mocks.checkRateLimitDirect.mockResolvedValue({
       allowed: true,
       remaining: 599,

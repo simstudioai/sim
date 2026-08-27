@@ -7,7 +7,6 @@ import {
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
   v2ApiKeyAuthModuleMock,
-  v2GateModuleMock,
   v2RateLimiterModuleMock,
   v2RouteMocks,
 } from '@sim/testing'
@@ -63,7 +62,6 @@ vi.mock('@/lib/mcp/pubsub', () => ({
 }))
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
-vi.mock('@/app/api/v2/lib/gate', () => v2GateModuleMock)
 
 import { GET, POST } from '@/app/api/v2/workflow-mcp-servers/route'
 
@@ -71,7 +69,6 @@ const WORKSPACE_ID = 'workspace-1'
 
 const personalKeyAuth = {
   principal: { kind: 'personal_api_key' as const, userId: 'user-1', keyId: 'personal-key-1' },
-  rolloutUserId: 'user-1',
   rateLimitSubjectIds: ['api-key:personal-key-1', 'user:user-1'] as const,
   rateLimitSubscription: null,
   keyType: 'personal' as const,
@@ -83,7 +80,6 @@ const workspaceKeyAuth = {
     workspaceId: WORKSPACE_ID,
     keyId: 'workspace-key-1',
   },
-  rolloutUserId: 'user-1',
   rateLimitSubjectIds: ['api-key:workspace-key-1'] as const,
   rateLimitSubscription: null,
   keyType: 'workspace' as const,
@@ -130,7 +126,6 @@ describe('/api/v2/workflow-mcp-servers', () => {
     vi.clearAllMocks()
     resetDbChainMock()
     v2RouteMocks.authenticate.mockResolvedValue(personalKeyAuth)
-    v2RouteMocks.gate.mockResolvedValue(null)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
     mocks.resolvePermission.mockResolvedValue('admin')
@@ -169,7 +164,44 @@ describe('/api/v2/workflow-mcp-servers', () => {
           },
         ],
         nextCursor: null,
+        toolNamesTruncated: false,
       })
+    })
+
+    /**
+     * `toolNames` and `toolCount` are gathered for the whole page under one
+     * ceiling, so a page that trips it under-reports every server's inventory.
+     * Publishing only the names left a reconciling caller reading a partial set
+     * as the complete one.
+     */
+    it('says when the tool names it published were cut short', async () => {
+      mocks.listToolNames.mockResolvedValue({
+        namesByServerId: new Map([['wfmcp-1', ['triage_ticket']]]),
+        truncated: true,
+      })
+
+      expect((await (await get()).json()).toolNamesTruncated).toBe(true)
+    })
+
+    /**
+     * A further page is what `nextCursor` says. Folding it into the truncation
+     * flag would report an incomplete inventory on every page with a successor,
+     * which is most of them.
+     */
+    it('does not call a paged inventory truncated', async () => {
+      mocks.listServers.mockResolvedValue({
+        data: [serverRow()],
+        nextCursorKeys: [{ key: 'createdAt', value: '2026-06-12T10:30:00.000Z' }],
+      })
+      mocks.listToolNames.mockResolvedValue({
+        namesByServerId: new Map([['wfmcp-1', ['triage_ticket']]]),
+        truncated: false,
+      })
+
+      const body = await (await get()).json()
+
+      expect(body.nextCursor).not.toBeNull()
+      expect(body.toolNamesTruncated).toBe(false)
     })
 
     /**

@@ -3,6 +3,13 @@ import { toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { randomFloat } from '@sim/utils/random'
 import { parseRetryAfter } from '@sim/utils/retry'
+import { truncate } from '@sim/utils/string'
+import { redactSensitiveValues } from '@/lib/core/security/redaction'
+import {
+  DEFAULT_MAX_ERROR_BODY_BYTES,
+  isPayloadSizeLimitError,
+  readResponseTextWithLimit,
+} from '@/lib/core/utils/stream-limits'
 
 const logger = createLogger('RetryUtils')
 
@@ -35,8 +42,72 @@ export interface RetryOptions {
   maxRetries?: number
   initialDelayMs?: number
   maxDelayMs?: number
+  /** Total wall-clock budget available to waits between retry attempts. */
+  retryBudgetMs?: number
+  /** Longest individual server-stated wait this operation will admit. */
+  maxRetryAfterMs?: number
   backoffMultiplier?: number
   retryCondition?: (error: unknown) => boolean
+}
+
+const MAX_HTTP_ERROR_DIAGNOSTIC_CHARS = 2000
+const HTTP_ERROR_BODY_OMITTED = '[response body omitted]'
+
+/**
+ * Reads an upstream error body without allowing a provider or proxy error page
+ * to become an unbounded task error, log entry, or Trigger output. The HTTP
+ * status remains the retry signal when the body exceeds the byte ceiling.
+ */
+export async function readBoundedHttpErrorBody(response: {
+  headers?: { get(name: string): string | null }
+  body?: ReadableStream<Uint8Array> | null
+  arrayBuffer?: () => Promise<ArrayBuffer>
+  text?: () => Promise<string>
+}): Promise<string> {
+  const payload = await readBoundedHttpErrorPayload(response)
+  if (payload.ok) {
+    return HTTP_ERROR_BODY_OMITTED
+  }
+
+  return payload.reason === 'too_large'
+    ? `[response body omitted: exceeded ${DEFAULT_MAX_ERROR_BODY_BYTES} bytes]`
+    : '[response body unavailable]'
+}
+
+export type BoundedHttpErrorPayload =
+  | { ok: true; body: string }
+  | { ok: false; reason: 'too_large' }
+  | { ok: false; reason: 'unavailable' }
+
+/**
+ * Reads a byte-bounded upstream error payload for structured parsing. The raw
+ * value may contain secrets and must never be logged or included in an error;
+ * callers must project and sanitize the parsed fields they retain.
+ */
+export async function readBoundedHttpErrorPayload(response: {
+  headers?: { get(name: string): string | null }
+  body?: ReadableStream<Uint8Array> | null
+  arrayBuffer?: () => Promise<ArrayBuffer>
+  text?: () => Promise<string>
+}): Promise<BoundedHttpErrorPayload> {
+  try {
+    return {
+      ok: true,
+      body: await readResponseTextWithLimit(response, {
+        maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
+        label: 'Upstream HTTP error response',
+      }),
+    }
+  } catch (error) {
+    if (
+      isPayloadSizeLimitError(error) &&
+      error.observedBytes !== undefined &&
+      error.observedBytes > error.maxBytes
+    ) {
+      return { ok: false, reason: 'too_large' }
+    }
+    return { ok: false, reason: 'unavailable' }
+  }
 }
 
 interface RetryResult<T> {
@@ -152,8 +223,7 @@ function parseRateLimitResetMs(value: string, nowMs: number): number | undefined
  * The reset fallback applies only once {@link hasRateLimitEvidence} holds.
  * GitHub and X stamp their rate-limit headers on *every* response, so an
  * ungated fallback would turn a transient 502 — quota untouched — into a wait
- * until the end of the hourly window, which the retry loop then clamps to a
- * flat `maxDelayMs` on every attempt instead of climbing the backoff ladder.
+ * until the end of the hourly window instead of climbing the backoff ladder.
  * Gating also matches GitHub's own instruction: "If the `x-ratelimit-remaining`
  * header is `0`, you should not make another request until after the time
  * specified by the `x-ratelimit-reset` header."
@@ -189,8 +259,10 @@ export function isRetryableError(error: unknown): boolean {
   if (!isRetryableErrorType(error)) return false
 
   /**
-   * Retryable status codes. 529 is not an IANA-registered status, but Notion
-   * documents it as `service_overload` — "Notion is temporarily overloaded.
+   * Retryable status codes. Cloudflare documents 520 as an unexpected origin
+   * response and 522 as an origin connection timeout; both are transient edge
+   * failures. 529 is not an IANA-registered status, but Notion documents it as
+   * `service_overload` — "Notion is temporarily overloaded.
    * Respect the `Retry-After` response header and try again later" — and says
    * to "retry it the same way as a 429". Without it every Notion call fails
    * hard the moment their API sheds load.
@@ -198,6 +270,8 @@ export function isRetryableError(error: unknown): boolean {
   if (
     hasStatus(error) &&
     (error.status === 429 ||
+      error.status === 520 ||
+      error.status === 522 ||
       error.status === 502 ||
       error.status === 503 ||
       error.status === 504 ||
@@ -263,9 +337,30 @@ export async function retryWithExponentialBackoff<T>(
     maxRetries = 5,
     initialDelayMs = 1000,
     maxDelayMs = 30000,
+    retryBudgetMs,
     backoffMultiplier = 2,
     retryCondition = isRetryableError,
   } = options
+  const maxRetryAfterMs = options.maxRetryAfterMs ?? retryBudgetMs ?? maxDelayMs
+
+  if (!Number.isSafeInteger(maxRetries) || maxRetries < 0) {
+    throw new Error('Retry maxRetries must be a non-negative safe integer')
+  }
+  for (const [name, value] of [
+    ['initialDelayMs', initialDelayMs],
+    ['maxDelayMs', maxDelayMs],
+    ['maxRetryAfterMs', maxRetryAfterMs],
+    ...(retryBudgetMs === undefined ? [] : [['retryBudgetMs', retryBudgetMs] as const]),
+  ] as const) {
+    if (!Number.isFinite(value) || value < 0) {
+      throw new Error(`Retry ${name} must be a finite non-negative number`)
+    }
+  }
+  if (!Number.isFinite(backoffMultiplier) || backoffMultiplier <= 0) {
+    throw new Error('Retry backoffMultiplier must be a finite positive number')
+  }
+  const effectiveRetryBudgetMs = retryBudgetMs ?? maxRetries * Math.max(maxDelayMs, maxRetryAfterMs)
+  const retryDeadlineMs = Date.now() + effectiveRetryBudgetMs
 
   let lastError: Error | undefined
   let delay = initialDelayMs
@@ -282,50 +377,65 @@ export async function retryWithExponentialBackoff<T>(
       return result
     } catch (error) {
       lastError = toError(error)
-      logger.warn(`Operation failed on attempt ${attempt + 1}`, { error })
+      const retryableError = error as RetryableError
+      const safeError = {
+        error: truncate(redactSensitiveValues(lastError.message), MAX_HTTP_ERROR_DIAGNOSTIC_CHARS),
+        ...(hasStatus(retryableError) ? { status: retryableError.status } : {}),
+      }
+      logger.warn(`Operation failed on attempt ${attempt + 1}`, safeError)
 
       if (attempt === maxRetries) {
-        logger.error(`Operation failed after ${maxRetries + 1} attempts`, { error })
+        logger.error(`Operation failed after ${maxRetries + 1} attempts`, safeError)
         throw lastError
       }
 
       if (!retryCondition(error as RetryableError)) {
-        logger.warn('Error is not retryable, throwing immediately', { error })
+        logger.warn('Error is not retryable, throwing immediately', safeError)
         throw lastError
       }
 
       /**
        * Use the server-stated wait (Retry-After, or the rate-limit reset
-       * header) when present, otherwise exponential backoff. The wait is capped
-       * at maxDelayMs to bound total retry duration.
+       * header) when present, otherwise exponential backoff.
        *
-       * Note the tradeoff the cap creates for long rate-limit windows: GitHub's
-       * primary window is an hour and X's is 15 minutes, both far beyond the
-       * 30s default, so every retry fires before the window reopens and the
-       * attempts are spent for nothing. Raising the cap would instead stall a
-       * sync for the full window. Neither provider documents a bound here, so
-       * the existing conservative cap stands and the mismatch is logged.
+       * A server-stated wait is authoritative when it fits inside the remaining
+       * operation budget. It is never shortened into an early request that the
+       * provider explicitly told us not to make.
        */
       const retryAfterMs = (lastError as HTTPError)?.retryAfterMs
-      const cappedRetryAfter = retryAfterMs ? Math.min(retryAfterMs, maxDelayMs) : undefined
 
-      if (retryAfterMs && retryAfterMs > maxDelayMs) {
+      const remainingBudgetMs = Math.max(0, retryDeadlineMs - Date.now())
+      if (retryAfterMs && retryAfterMs > maxRetryAfterMs) {
         logger.warn(
-          `Server-stated retry wait ${retryAfterMs}ms exceeds maxDelayMs ${maxDelayMs}ms — capping to ${maxDelayMs}ms; retries will fire before the rate-limit window reopens`
+          `Server-stated retry wait ${retryAfterMs}ms exceeds per-wait ceiling ${maxRetryAfterMs}ms — ending this retry cycle`
         )
+        throw lastError
+      }
+      if (retryAfterMs && retryAfterMs > remainingBudgetMs) {
+        logger.warn(
+          `Server-stated retry wait ${retryAfterMs}ms exceeds remaining retry budget ${remainingBudgetMs}ms — ending this retry cycle`
+        )
+        throw lastError
       }
 
       const jitter = randomFloat() * 0.1 * delay
-      const actualDelay = cappedRetryAfter ?? Math.min(delay + jitter, maxDelayMs)
+      const actualDelay = retryAfterMs ? retryAfterMs : Math.min(delay + jitter, maxDelayMs)
+
+      if (actualDelay > remainingBudgetMs) {
+        logger.warn(
+          `Retry delay ${Math.round(actualDelay)}ms exceeds remaining retry budget ${Math.round(remainingBudgetMs)}ms — ending this retry cycle`
+        )
+        throw lastError
+      }
 
       logger.info(
-        `Retrying in ${Math.round(actualDelay)}ms (attempt ${attempt + 1}/${maxRetries + 1})${cappedRetryAfter ? ' (server-stated)' : ''}`
+        `Retrying in ${Math.round(actualDelay)}ms (attempt ${attempt + 1}/${maxRetries + 1})${retryAfterMs ? ' (server-stated)' : ''}`
       )
 
       await sleep(actualDelay)
 
       // Exponential backoff (skip if we used Retry-After)
-      if (!cappedRetryAfter) {
+      if (!retryAfterMs) {
         delay = Math.min(delay * backoffMultiplier, maxDelayMs)
       }
     }
@@ -356,12 +466,9 @@ export async function fetchWithRetry(
     const response = await fetch(url, options)
 
     if (!response.ok && isRetryableError({ status: response.status, headers: response.headers })) {
-      const errorText = await response.text()
-      const error: HTTPError = new Error(
-        `HTTP ${response.status}: ${response.statusText} - ${errorText}`
-      )
+      const errorText = await readBoundedHttpErrorBody(response)
+      const error: HTTPError = new Error(`HTTP ${response.status} - ${errorText}`)
       error.status = response.status
-      error.statusText = response.statusText
       // The retry loop re-runs the retry condition against this error, so the
       // headers must travel with it or a rate-limit 403 would throw immediately.
       attachRetryHeaders(error, response.headers)

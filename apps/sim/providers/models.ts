@@ -2889,6 +2889,41 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     },
     models: [
       {
+        id: 'glm-5.3',
+        pricing: {
+          input: 1.4,
+          output: 4.4,
+          updatedAt: '2026-08-26',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+          toolUsageControl: true,
+          maxOutputTokens: 131072,
+          reasoningEffort: {
+            values: ['low', 'high', 'max'],
+          },
+        },
+        contextWindow: 1000000,
+        releaseDate: '2026-08-14',
+        recommended: true,
+      },
+      {
+        id: 'glm-5.3-flash',
+        pricing: {
+          input: 0.15,
+          output: 0.5,
+          updatedAt: '2026-08-26',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+          toolUsageControl: true,
+          maxOutputTokens: 131072,
+        },
+        contextWindow: 1000000,
+        releaseDate: '2026-08-26',
+        speedOptimized: true,
+      },
+      {
         id: 'glm-5.2',
         pricing: {
           input: 1.4,
@@ -2905,7 +2940,6 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1000000,
         releaseDate: '2026-06-13',
-        recommended: true,
       },
       {
         id: 'glm-5.1',

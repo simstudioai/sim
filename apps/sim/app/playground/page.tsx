@@ -74,7 +74,6 @@ import {
   type TagItem,
   Textarea,
   TimePicker,
-  ToastProvider,
   Tooltip,
   Trash,
   toast,
@@ -163,7 +162,7 @@ export default function PlaygroundPage() {
   }
 
   return (
-    <ToastProvider>
+    <>
       <Tooltip.Provider>
         <div className='relative min-h-screen bg-[var(--bg)] p-8'>
           <div className='absolute top-8 left-8 flex items-center gap-2'>
@@ -1066,6 +1065,6 @@ export default function PlaygroundPage() {
           </div>
         </div>
       </Tooltip.Provider>
-    </ToastProvider>
+    </>
   )
 }

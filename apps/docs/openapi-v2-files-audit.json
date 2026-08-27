@@ -93,10 +93,10 @@
             "name": "scope",
             "in": "query",
             "required": false,
-            "description": "Which lifecycle set to list: `active` (default) for live files, `archived` for files a `DELETE` soft-deleted. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too.",
+            "description": "Which lifecycle set to list: `active` (default) for live files, `archived` for files a delete soft-deleted. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too.",
             "schema": {
               "default": "active",
-              "description": "Which lifecycle set to list: `active` (default) for live files, `archived` for files a `DELETE` soft-deleted. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too.",
+              "description": "Which lifecycle set to list: `active` (default) for live files, `archived` for files a delete soft-deleted. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too.",
               "type": "string",
               "enum": ["active", "archived"]
             }
@@ -1384,10 +1384,10 @@
             "name": "scope",
             "in": "query",
             "required": false,
-            "description": "Which lifecycle set to read from: `active` (default) resolves live files only and returns `404` for a file a `DELETE` soft-deleted; `archived` also resolves soft-deleted files, so metadata stays readable before `POST /files/{fileId}/restore`. Authorization is identical for both.",
+            "description": "Which lifecycle set to read from: `active` (default) resolves live files only and returns `404` for a file a delete soft-deleted; `archived` also resolves soft-deleted files, so metadata stays readable before the file is restored. Authorization is identical for both.",
             "schema": {
               "default": "active",
-              "description": "Which lifecycle set to read from: `active` (default) resolves live files only and returns `404` for a file a `DELETE` soft-deleted; `archived` also resolves soft-deleted files, so metadata stays readable before `POST /files/{fileId}/restore`. Authorization is identical for both.",
+              "description": "Which lifecycle set to read from: `active` (default) resolves live files only and returns `404` for a file a delete soft-deleted; `archived` also resolves soft-deleted files, so metadata stays readable before the file is restored. Authorization is identical for both.",
               "type": "string",
               "enum": ["active", "archived"]
             }
@@ -1549,12 +1549,12 @@
           {
             "name": "organizationId",
             "in": "query",
-            "required": true,
-            "description": "Organization whose audit trail should be queried.",
+            "required": false,
+            "description": "Organization whose audit trail should be queried. Defaults to the caller's own organization when omitted. A caller that belongs to no organization, or that names one it is not a member of, is refused with a 403.",
             "schema": {
+              "description": "Organization whose audit trail should be queried. Defaults to the caller's own organization when omitted. A caller that belongs to no organization, or that names one it is not a member of, is refused with a 403.",
               "type": "string",
-              "minLength": 1,
-              "description": "Organization whose audit trail should be queried."
+              "minLength": 1
             }
           },
           {
@@ -1634,12 +1634,12 @@
           {
             "name": "organizationId",
             "in": "query",
-            "required": true,
-            "description": "Organization whose audit-log entry should be returned.",
+            "required": false,
+            "description": "Organization whose audit-log entry should be returned. Defaults to the caller's own organization when omitted. A caller that belongs to no organization, or that names one it is not a member of, is refused with a 403.",
             "schema": {
+              "description": "Organization whose audit-log entry should be returned. Defaults to the caller's own organization when omitted. A caller that belongs to no organization, or that names one it is not a member of, is refused with a 403.",
               "type": "string",
-              "minLength": 1,
-              "description": "Organization whose audit-log entry should be returned."
+              "minLength": 1
             }
           }
         ],
@@ -2144,10 +2144,10 @@
             "name": "scope",
             "in": "query",
             "required": false,
-            "description": "Which lifecycle set to list: `active` (default) returns live folders only; `archived` returns folders a recursive `DELETE` soft-deleted, which is how a caller finds a path to hand to `POST /api/v2/files/folders/restore`. Authorization is identical for both.",
+            "description": "Which lifecycle set to list: `active` (default) returns live folders only; `archived` returns folders a recursive delete soft-deleted, which is how a caller finds a path to hand to the folder restore. Authorization is identical for both.",
             "schema": {
               "default": "active",
-              "description": "Which lifecycle set to list: `active` (default) returns live folders only; `archived` returns folders a recursive `DELETE` soft-deleted, which is how a caller finds a path to hand to `POST /api/v2/files/folders/restore`. Authorization is identical for both.",
+              "description": "Which lifecycle set to list: `active` (default) returns live folders only; `archived` returns folders a recursive delete soft-deleted, which is how a caller finds a path to hand to the folder restore. Authorization is identical for both.",
               "type": "string",
               "enum": ["active", "archived"]
             }
@@ -2841,12 +2841,12 @@
           "size": {
             "type": "number",
             "minimum": 0,
-            "description": "Size in bytes of the stored file. For a generated document (docx, pptx, pdf, xlsx) this is the generation source, not the rendered document, so it does not predict how many bytes `GET /files/{fileId}` returns.",
+            "description": "Size in bytes of the stored file. For a generated document (docx, pptx, pdf, xlsx) this is the generation source, not the rendered document, so it does not predict how many bytes downloading the file returns.",
             "examples": [1024]
           },
           "type": {
             "type": "string",
-            "description": "MIME type of the stored file. For a generated document (docx, pptx, pdf, xlsx) this is the generation source type, not the rendered document type `GET /files/{fileId}` serves.",
+            "description": "MIME type of the stored file. For a generated document (docx, pptx, pdf, xlsx) this is the generation source type, not the rendered document type a download serves.",
             "examples": ["text/csv"]
           },
           "key": {
@@ -2888,7 +2888,7 @@
                 "type": "null"
               }
             ],
-            "description": "ISO 8601 timestamp when the file was archived by `DELETE /files/{fileId}`, or null while the file is active. Only `GET /files?scope=archived` returns files with a non-null value.",
+            "description": "ISO 8601 timestamp when the file was archived by deleting it, or null while the file is active. Only an archived-scope file list returns files with a non-null value.",
             "format": "date-time",
             "examples": ["2026-01-16T09:00:00Z"]
           }
@@ -3673,12 +3673,12 @@
           "size": {
             "type": "number",
             "minimum": 0,
-            "description": "Size in bytes of the stored file. For a generated document (docx, pptx, pdf, xlsx) this is the generation source, not the rendered document, so it does not predict how many bytes `GET /files/{fileId}` returns.",
+            "description": "Size in bytes of the stored file. For a generated document (docx, pptx, pdf, xlsx) this is the generation source, not the rendered document, so it does not predict how many bytes downloading the file returns.",
             "examples": [1024]
           },
           "type": {
             "type": "string",
-            "description": "MIME type of the stored file. For a generated document (docx, pptx, pdf, xlsx) this is the generation source type, not the rendered document type `GET /files/{fileId}` serves.",
+            "description": "MIME type of the stored file. For a generated document (docx, pptx, pdf, xlsx) this is the generation source type, not the rendered document type a download serves.",
             "examples": ["text/csv"]
           },
           "key": {
@@ -3720,7 +3720,7 @@
                 "type": "null"
               }
             ],
-            "description": "ISO 8601 timestamp when the file was archived by `DELETE /files/{fileId}`, or null while the file is active. Only `GET /files?scope=archived` returns files with a non-null value.",
+            "description": "ISO 8601 timestamp when the file was archived by deleting it, or null while the file is active. Only an archived-scope file list returns files with a non-null value.",
             "format": "date-time",
             "examples": ["2026-01-16T09:00:00Z"]
           },
@@ -4430,7 +4430,7 @@
             "description": "Workspace that owns the archived folder."
           },
           "path": {
-            "description": "Path of the archived folder to restore, as reported by `GET /api/v2/files/folders?scope=archived`.",
+            "description": "Path of the archived folder to restore, as reported by an archived-scope folder list.",
             "$ref": "#/components/schemas/NonRootFolderPathInput"
           }
         },

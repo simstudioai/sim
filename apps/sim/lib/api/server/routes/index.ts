@@ -25,7 +25,6 @@ export {
   defineV2JsonRoute,
   V2_PARSE_DEFAULTS,
   type V2ErrorPolicy,
-  type V2RolloutGatePolicy,
   V2RouteInfrastructureError,
   v2ApiKeyAuth,
   /** The media-type-aware 415 a raw route installs over {@link V2_PARSE_DEFAULTS}. */

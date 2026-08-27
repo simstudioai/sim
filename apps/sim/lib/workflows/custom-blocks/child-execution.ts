@@ -5,11 +5,7 @@ import {
 } from '@/lib/billing/core/billing-attribution'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
 import { combineExecutionAbortSignals } from '@/lib/core/execution-limits'
-import {
-  getCancellationChannel,
-  isExecutionCancelled,
-  isRedisCancellationEnabled,
-} from '@/lib/execution/cancellation'
+import { subscribeToExecutionCancellation } from '@/lib/execution/cancellation'
 import { BoundarySafeError } from '@/executor/errors/boundary'
 
 const logger = createLogger('CustomBlockChildExecution')
@@ -119,27 +115,7 @@ export async function createChildCancellationSignal(params: {
 
   let unsubscribe: (() => void) | undefined
   if (params.parentExecutionId) {
-    const parentExecutionId = params.parentExecutionId
-    // Subscribe BEFORE the durable read, mirroring `markExecutionCancelled`'s
-    // write-durable-then-publish order: a cancel published during the read is
-    // caught by the subscription, and one published earlier — while the child's
-    // session and admission were still being set up — by the read itself. The
-    // child's own engine backstop cannot cover this, since it checks the CHILD's
-    // execution id, which is never the one marked cancelled. For the same reason
-    // the child's steady-state coverage is transitive: a cancel published after
-    // setup reaches the child only via this subscription, or via the PARENT
-    // engine's durable poll aborting `parentSignal`.
-    unsubscribe = getCancellationChannel().subscribe((event) => {
-      if (event.executionId === parentExecutionId) abort()
-    })
-    if (isRedisCancellationEnabled()) {
-      try {
-        if (await isExecutionCancelled(parentExecutionId)) abort()
-      } catch {
-        // Fail open, matching the engine's own backstop: a failed read must not
-        // stop a child whose parent was never actually cancelled.
-      }
-    }
+    unsubscribe = await subscribeToExecutionCancellation(params.parentExecutionId, abort)
   }
 
   return {

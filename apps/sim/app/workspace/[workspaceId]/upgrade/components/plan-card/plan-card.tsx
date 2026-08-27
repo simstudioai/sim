@@ -22,7 +22,7 @@ export interface UpgradePlanCardProps {
    */
   credits?: string
   /**
-   * Daily refresh allocation shown below the credit amount, e.g. `"+50/day refresh"`.
+   * Weekly refresh allocation shown below the credit amount, e.g. `"+2,000/week refresh"`.
    * Only rendered when {@link UpgradePlanCardProps.credits} is also set.
    */
   refresh?: string

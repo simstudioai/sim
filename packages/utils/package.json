@@ -54,6 +54,10 @@
       "types": "./src/retry.ts",
       "default": "./src/retry.ts"
     },
+    "./paste": {
+      "types": "./src/paste.ts",
+      "default": "./src/paste.ts"
+    },
     "./sso-domain": {
       "types": "./src/sso-domain.ts",
       "default": "./src/sso-domain.ts"
@@ -61,6 +65,10 @@
     "./sandbox-references": {
       "types": "./src/sandbox-references.ts",
       "default": "./src/sandbox-references.ts"
+    },
+    "./workflow-references": {
+      "types": "./src/workflow-references.ts",
+      "default": "./src/workflow-references.ts"
     }
   },
   "scripts": {

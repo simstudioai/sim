@@ -10,6 +10,7 @@ export const tableListTool: ToolConfig<TableListParams, TableListResponse> = {
   params: {},
 
   request: {
+    internal: true,
     url: (params: TableListParams) => {
       const workspaceId = params._context?.workspaceId
       if (!workspaceId) {

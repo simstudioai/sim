@@ -3,6 +3,7 @@ import { db } from '@sim/db'
 import {
   member,
   organization,
+  organizationColumns,
   organizationMemberUsageLimit,
   outboxEvent,
   permissions,
@@ -254,24 +255,6 @@ async function getDashboardOrganizationUsage(
       }
     }
 
-    const legacyOrganizationIds = contexts
-      .filter((context) => context.period.source !== 'reporting')
-      .map((context) => context.organizationId)
-    if (legacyOrganizationIds.length > 0) {
-      const baselineTotals = await db
-        .select({
-          organizationId: member.organizationId,
-          cost: sql<string>`coalesce(sum(${userStats.currentPeriodCost}), 0)`,
-        })
-        .from(member)
-        .leftJoin(userStats, eq(userStats.userId, member.userId))
-        .where(inArray(member.organizationId, legacyOrganizationIds))
-        .groupBy(member.organizationId)
-      for (const row of baselineTotals) {
-        const usage = result.get(row.organizationId)
-        if (usage) usage.total += Number(row.cost)
-      }
-    }
     return result
   }
 
@@ -307,34 +290,6 @@ async function getDashboardOrganizationUsage(
     )
   }
 
-  const legacyOrganizationIds = contexts
-    .filter((context) => context.period.source !== 'reporting')
-    .map((context) => context.organizationId)
-  if (legacyOrganizationIds.length > 0) {
-    const baselineRows = await db
-      .select({
-        organizationId: member.organizationId,
-        userId: member.userId,
-        cost: userStats.currentPeriodCost,
-      })
-      .from(member)
-      .leftJoin(userStats, eq(userStats.userId, member.userId))
-      .where(
-        options.userIds
-          ? and(
-              inArray(member.organizationId, legacyOrganizationIds),
-              inArray(member.userId, options.userIds)
-            )
-          : inArray(member.organizationId, legacyOrganizationIds)
-      )
-    for (const row of baselineRows) {
-      const usage = result.get(row.organizationId)
-      if (!usage) continue
-      const amount = Number(row.cost ?? 0)
-      usage.total += amount
-      usage.byUser.set(row.userId, (usage.byUser.get(row.userId) ?? 0) + amount)
-    }
-  }
   return result
 }
 
@@ -661,22 +616,6 @@ export async function listDashboardUsers({ search, limit, offset }: PaginationIn
         : []
     )
   )
-  const legacyPersonalIds = personalUserIds.filter(
-    (userId) => personalPeriods.get(userId)?.source !== 'reporting'
-  )
-  if (legacyPersonalIds.length > 0) {
-    const baselineRows = await db
-      .select({ userId: userStats.userId, cost: userStats.currentPeriodCost })
-      .from(userStats)
-      .where(inArray(userStats.userId, legacyPersonalIds))
-    for (const row of baselineRows) {
-      const current = personalUsage.get(row.userId) ?? { dollars: 0, workflowRuns: 0 }
-      personalUsage.set(row.userId, {
-        ...current,
-        dollars: current.dollars + Number(row.cost ?? 0),
-      })
-    }
-  }
 
   return {
     data: rows.map((row) => {
@@ -713,7 +652,11 @@ export async function listDashboardUsers({ search, limit, offset }: PaginationIn
 async function getDashboardOrganizationSummary(organizationId: string) {
   const [[org], [memberCountRow], [externalCountRow], latestSubscription, provisionings] =
     await Promise.all([
-      db.select().from(organization).where(eq(organization.id, organizationId)).limit(1),
+      db
+        .select(organizationColumns)
+        .from(organization)
+        .where(eq(organization.id, organizationId))
+        .limit(1),
       db.select({ value: count() }).from(member).where(eq(member.organizationId, organizationId)),
       db
         .select({ value: countDistinct(permissions.userId) })
@@ -1339,7 +1282,7 @@ export async function updateDashboardOrganizationLimits(
   const providerBacked = await db.transaction(async (tx) => {
     await acquireOrganizationMutationLock(tx, organizationId)
     const [org] = await tx
-      .select()
+      .select(organizationColumns)
       .from(organization)
       .where(eq(organization.id, organizationId))
       .for('update')
@@ -1473,7 +1416,7 @@ export async function grantDashboardOrganizationBalance(
       }),
       operation: async () => {
         const [org] = await tx
-          .select()
+          .select(organizationColumns)
           .from(organization)
           .where(eq(organization.id, organizationId))
           .for('update')

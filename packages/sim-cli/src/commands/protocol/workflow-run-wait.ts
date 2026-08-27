@@ -210,6 +210,7 @@ export function attachWorkflowRunWait(runs: Command): void {
   runs
     .command('wait')
     .argument('<runId>', V2_OPERATIONS.getWorkflowRun.pathParamDocs?.runId)
+    .allowExcessArguments(false)
     .description('Wait for a run to reach a terminal state, then show it')
     .addOption(
       new Option('--workflow <workflowId>', 'Workflow ID (required)').makeOptionMandatory()

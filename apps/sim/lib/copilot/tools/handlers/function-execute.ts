@@ -11,8 +11,6 @@ import {
   materializeCopilotCodeSecrets,
 } from '@/lib/copilot/tools/secret-mount-materializer.server'
 import { decodeVfsPathSegments, encodeVfsPathSegments } from '@/lib/copilot/vfs/path-utils'
-import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
-import { neutralizeCsvFormula, toCsvRow } from '@/lib/core/utils/csv'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import type { PrivateSecretProvenanceBundleV1 } from '@/lib/execution/model-input-provenance'
 import {
@@ -21,14 +19,7 @@ import {
 } from '@/lib/execution/private-tool-metadata'
 import { MAX_PLAN_REQUIRED } from '@/lib/execution/remote-sandbox/workspace-sandboxes'
 import { recordSecretUsage } from '@/lib/secrets/usage/record'
-import { getColumnId } from '@/lib/table/column-keys'
-import { TABLE_LIMITS } from '@/lib/table/constants'
-import { formatCsvCell } from '@/lib/table/export-format'
-import {
-  isTableSnapshotSafeForModelMount,
-  loadTableRowSecretProvenance,
-} from '@/lib/table/rows/secret-provenance'
-import { queryRows } from '@/lib/table/rows/service'
+import { getTableSnapshotModelMountSafety } from '@/lib/table/rows/secret-provenance'
 import { getTableById, listTables } from '@/lib/table/service'
 import { getOrCreateTableSnapshot, SNAPSHOT_MAX_BYTES } from '@/lib/table/snapshot-cache'
 import {
@@ -61,13 +52,6 @@ const logger = createLogger('CopilotFunctionExecute')
 const MAX_FILE_SIZE = 10 * 1024 * 1024
 const MAX_TOTAL_SIZE = 50 * 1024 * 1024
 const MAX_MOUNTED_FILES = 500
-
-/**
- * Below this row count a table mounts via the direct inline CSV path — the version-keyed snapshot
- * cache (storage round-trip) only pays off for larger/hot tables. Behind the feature flag either
- * way; this just keeps tiny one-shot tables on the cheaper path.
- */
-const SNAPSHOT_MIN_ROWS = 500
 
 /**
  * Lifetime of a presigned URL handed to the sandbox to fetch a mounted object (table snapshot or
@@ -318,7 +302,6 @@ export async function resolveInputFiles(
   inputFiles?: unknown[],
   inputTables?: unknown[],
   inputDirectories?: unknown[],
-  provenanceUserId?: string,
   resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry,
   filePrincipal?: Principal
 ): Promise<SandboxFile[]> {
@@ -475,7 +458,6 @@ export async function resolveInputFiles(
     const tablePathLookup = hasTablePathRefs
       ? new Map((await listTables(workspaceId)).map((table) => [table.name, table]))
       : undefined
-    const snapshotCacheEnabled = await isFeatureEnabled('table-snapshot-cache')
     for (const tableRef of inputTables) {
       const tableId =
         typeof tableRef === 'string'
@@ -496,109 +478,64 @@ export async function resolveInputFiles(
           : undefined
       const mountPath = sandboxPath || `/home/user/tables/${table.id}.csv`
 
-      // Large/hot tables mount by reference from a version-keyed CSV snapshot in object storage.
-      if (snapshotCacheEnabled && table.rowCount >= SNAPSHOT_MIN_ROWS) {
-        const snapshot = await getOrCreateTableSnapshot(table, 'copilot-fn-exec')
-        if (!resolvedSecretTraceRegistry) {
-          throw new Error(
-            `Input table "${tableId}" cannot be mounted because its secret provenance is unavailable.`
-          )
-        }
-        try {
-          const safeForModelMount = await isTableSnapshotSafeForModelMount({
-            tableId: table.id,
-            workspaceId,
-            rowsVersion: snapshot.version,
-          })
-          if (!safeForModelMount)
-            resolvedSecretTraceRegistry.markIncomplete('table-snapshot-unsafe-for-mount')
-        } catch {
-          resolvedSecretTraceRegistry.markIncomplete('table-snapshot-unsafe-for-mount')
-        }
-
-        if (hasCloudStorage()) {
-          // Mount by reference: the sandbox fetches the snapshot straight from storage via a
-          // presigned URL, so the bytes never pass through the web process — the only ceiling is
-          // sandbox disk (enforced at materialization by SNAPSHOT_MAX_BYTES).
-          if (snapshot.size > SNAPSHOT_MAX_BYTES) {
-            throw new Error(
-              `Input table "${tableId}" is ${Math.round(snapshot.size / 1024 / 1024)}MB, over the ${SNAPSHOT_MAX_BYTES / 1024 / 1024}MB table mount limit.`
-            )
-          }
-          const url = await generatePresignedDownloadUrl(
-            snapshot.key,
-            'execution',
-            MOUNT_URL_TTL_SECONDS
-          )
-          sandboxFiles.push({ type: 'url', path: mountPath, url })
-          continue
-        }
-
-        // Local storage: a presigned URL is an app-internal serve path a remote sandbox can't
-        // reach, so fall back to buffering the bytes through the web process (file-mount guards).
-        if (snapshot.size > MAX_FILE_SIZE) {
-          throw new Error(
-            `Input table "${tableId}" is ${Math.round(snapshot.size / 1024 / 1024)}MB, over the ${MAX_FILE_SIZE / 1024 / 1024}MB per-file mount limit.`
-          )
-        }
-        if (mounted.buffered + snapshot.size > MAX_TOTAL_SIZE) {
-          throw new Error(
-            `Mounting "${tableId}" would exceed the ${MAX_TOTAL_SIZE / 1024 / 1024}MB total mount limit. Mount fewer or smaller tables.`
-          )
-        }
-        const buffer = await downloadFile({
-          key: snapshot.key,
-          context: 'execution',
-          maxBytes: MAX_FILE_SIZE,
-        })
-        mounted.buffered += buffer.length
-        sandboxFiles.push({ path: mountPath, content: buffer.toString('utf-8') })
-        continue
-      }
-
-      // Keep the prior bounded mount — draining the whole table here was backed
-      // out for OOM, so don't ride the new unbounded queryRows default.
-      const rows = await queryRows(
-        table,
-        { limit: TABLE_LIMITS.DEFAULT_QUERY_LIMIT },
-        'copilot-fn-exec'
-      )
+      const snapshot = await getOrCreateTableSnapshot(table, 'copilot-fn-exec')
       if (!resolvedSecretTraceRegistry) {
         throw new Error(
           `Input table "${tableId}" cannot be mounted because its secret provenance is unavailable.`
         )
       }
-      try {
-        const provenance = await loadTableRowSecretProvenance(rows.rows, {
-          userId: provenanceUserId ?? 'opaque-model-mount',
-          workspaceId,
-        })
-        if (
-          !provenance.complete ||
-          !(await resolvedSecretTraceRegistry.importProvenance(provenance, {
-            trusted: true,
-            origin: 'copilotFunctionExecute.result',
-          }))
-        ) {
-          resolvedSecretTraceRegistry.markIncomplete('source-provenance-incomplete', {
-            origin: 'copilotFunctionExecute.result',
-          })
-        }
-      } catch {
-        resolvedSecretTraceRegistry.markIncomplete('source-provenance-incomplete', {
-          origin: 'copilotFunctionExecute.result',
-        })
+      const mountSafety = await getTableSnapshotModelMountSafety({
+        tableId: table.id,
+        workspaceId,
+        rowsVersion: snapshot.version,
+      })
+      if (mountSafety === 'stale') {
+        throw new Error(`Input table "${tableId}" changed while preparing its snapshot. Retry.`)
+      }
+      if (mountSafety === 'unsafe-provenance') {
+        resolvedSecretTraceRegistry.markIncomplete('table-snapshot-unsafe-for-mount')
       }
 
-      const columns = table.schema.columns
-      const csvLines = [toCsvRow(columns.map((column) => neutralizeCsvFormula(column.name)))]
-      for (const row of rows.rows) {
-        csvLines.push(
-          toCsvRow(columns.map((column) => formatCsvCell(column, row.data[getColumnId(column)])))
+      if (hasCloudStorage()) {
+        if (snapshot.size > SNAPSHOT_MAX_BYTES) {
+          throw new Error(
+            `Input table "${tableId}" is ${Math.round(snapshot.size / 1024 / 1024)}MB, over the ${SNAPSHOT_MAX_BYTES / 1024 / 1024}MB table mount limit.`
+          )
+        }
+        if (mounted.url + snapshot.size > MAX_TOTAL_URL_BYTES) {
+          throw new Error(
+            `Mounting "${tableId}" would exceed the ${MAX_TOTAL_URL_BYTES / 1024 / 1024 / 1024}GB total mount limit. Mount fewer or smaller files and tables.`
+          )
+        }
+        const url = await generatePresignedDownloadUrl(
+          snapshot.key,
+          'execution',
+          MOUNT_URL_TTL_SECONDS
+        )
+        sandboxFiles.push({ type: 'url', path: mountPath, url })
+        mounted.url += snapshot.size
+        continue
+      }
+
+      // Local storage: a presigned URL is an app-internal serve path a remote sandbox can't
+      // reach, so fall back to buffering the bytes through the web process (file-mount guards).
+      if (snapshot.size > MAX_FILE_SIZE) {
+        throw new Error(
+          `Input table "${tableId}" is ${Math.round(snapshot.size / 1024 / 1024)}MB, over the ${MAX_FILE_SIZE / 1024 / 1024}MB per-file mount limit.`
         )
       }
-      const csvContent = csvLines.join('\n')
-      sandboxFiles.push({ path: mountPath, content: csvContent })
+      if (mounted.buffered + snapshot.size > MAX_TOTAL_SIZE) {
+        throw new Error(
+          `Mounting "${tableId}" would exceed the ${MAX_TOTAL_SIZE / 1024 / 1024}MB total mount limit. Mount fewer or smaller tables.`
+        )
+      }
+      const buffer = await downloadFile({
+        key: snapshot.key,
+        context: 'execution',
+        maxBytes: MAX_FILE_SIZE,
+      })
+      mounted.buffered += buffer.length
+      sandboxFiles.push({ path: mountPath, content: buffer.toString('utf-8') })
     }
   }
 
@@ -737,7 +674,6 @@ export async function executeFunctionExecute(
           inputFiles,
           inputTables,
           inputDirectories,
-          secretActorUserId ?? context.userId,
           mountedRegistry,
           inputFiles.length > 0 || inputDirectories.length > 0
             ? resolveCopilotFilePrincipal(context)

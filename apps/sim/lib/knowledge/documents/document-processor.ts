@@ -5,6 +5,7 @@ import { PDFDocument } from 'pdf-lib'
 import { getBYOKKey } from '@/lib/api-key/byok'
 import {
   type Chunk,
+  ChunkLimitExceededError,
   JsonYamlChunker,
   RecursiveChunker,
   RegexChunker,
@@ -14,14 +15,33 @@ import {
   TokenChunker,
 } from '@/lib/chunkers'
 import type { ChunkingStrategy, StrategyOptions } from '@/lib/chunkers/types'
-import { env, envNumber } from '@/lib/core/config/env'
+import { env } from '@/lib/core/config/env'
 import { OCR_CAPABILITY, requireCapability } from '@/lib/core/config/env-capabilities'
+import {
+  DEFAULT_MAX_ERROR_BODY_BYTES,
+  isPayloadSizeLimitError,
+  readResponseTextWithLimit,
+} from '@/lib/core/utils/stream-limits'
 import { parseBuffer } from '@/lib/file-parsers'
-import type { FileParseMetadata } from '@/lib/file-parsers/types'
+import { decodeDataUriWithinLimit } from '@/lib/file-parsers/data-uri'
+import type { FileParseMetadata, FileParseResult } from '@/lib/file-parsers/types'
+import {
+  MAX_DOCUMENT_CHUNKS,
+  PermanentDocumentProcessingError,
+} from '@/lib/knowledge/documents/document-processing-error'
+import {
+  getAzureMistralOcrRequestPolicy,
+  MISTRAL_OCR_REQUEST_POLICY,
+  type OcrRequestPolicy,
+} from '@/lib/knowledge/documents/ocr-request-policy'
 import {
   resolveParserExtension,
   resolveStoredArtifactExtension,
 } from '@/lib/knowledge/documents/parser-extension'
+import {
+  buildLargestFittingPdfChunk,
+  type PdfOcrChunk,
+} from '@/lib/knowledge/documents/pdf-ocr-chunking'
 import { assessPdfTextLayer } from '@/lib/knowledge/documents/pdf-text-layer'
 import { retryWithExponentialBackoff } from '@/lib/knowledge/documents/utils'
 import {
@@ -43,13 +63,20 @@ const TIMEOUTS = {
   MISTRAL_OCR_API: 120000,
 } as const
 
-const MAX_CONCURRENT_CHUNKS = envNumber(env.KB_CONFIG_CHUNK_CONCURRENCY, 10)
+const MAX_OCR_PDF_PAGES = 10_000
+const MAX_OCR_SPLIT_BYTES = 2 * MAX_FILE_SIZE
+const MAX_OCR_RESPONSE_BYTES = 32 * 1024 * 1024
+const MAX_OCR_OUTPUT_TEXT_BYTES = 20 * 1024 * 1024
 
 type OCRResult = {
   success: boolean
   error?: string
   output?: {
     content?: string
+    metadata?: {
+      pageCount?: number
+      usageInfo?: { pagesProcessed?: number }
+    }
   }
 }
 
@@ -64,56 +91,35 @@ const LEGACY_FORMAT_REPLACEMENTS: Record<string, string> = {
   xls: 'XLSX',
 }
 
-const MISTRAL_MAX_PAGES = 1000
-
 async function getPdfPageCount(buffer: Buffer): Promise<number> {
+  let pdf: Awaited<ReturnType<typeof import('unpdf')['getDocumentProxy']>> | undefined
   try {
     const { getDocumentProxy } = await import('unpdf')
     const uint8Array = new Uint8Array(buffer)
-    const pdf = await getDocumentProxy(uint8Array)
+    pdf = await getDocumentProxy(uint8Array)
     return pdf.numPages
   } catch (error) {
-    logger.warn('Failed to get PDF page count:', error)
-    return 0
-  }
-}
-
-async function splitPdfIntoChunks(
-  pdfBuffer: Buffer,
-  maxPages: number
-): Promise<{ buffer: Buffer; startPage: number; endPage: number }[]> {
-  const sourcePdf = await PDFDocument.load(pdfBuffer)
-  const totalPages = sourcePdf.getPageCount()
-
-  if (totalPages <= maxPages) {
-    return [{ buffer: pdfBuffer, startPage: 0, endPage: totalPages - 1 }]
-  }
-
-  const chunks: { buffer: Buffer; startPage: number; endPage: number }[] = []
-
-  for (let startPage = 0; startPage < totalPages; startPage += maxPages) {
-    const endPage = Math.min(startPage + maxPages - 1, totalPages - 1)
-    const pageCount = endPage - startPage + 1
-
-    const newPdf = await PDFDocument.create()
-    const pageIndices = Array.from({ length: pageCount }, (_, i) => startPage + i)
-    const copiedPages = await newPdf.copyPages(sourcePdf, pageIndices)
-
-    copiedPages.forEach((page) => newPdf.addPage(page))
-
-    const pdfBytes = await newPdf.save()
-    chunks.push({
-      buffer: Buffer.from(pdfBytes),
-      startPage,
-      endPage,
+    logger.warn('Primary PDF page-count parser failed', {
+      errorType: toError(error).name,
     })
+    try {
+      return (await PDFDocument.load(buffer)).getPageCount()
+    } catch (fallbackError) {
+      logger.warn('Fallback PDF page-count parser failed', {
+        errorType: toError(fallbackError).name,
+      })
+      return 0
+    }
+  } finally {
+    await pdf?.destroy().catch(() => {})
   }
-
-  return chunks
 }
 
 type AzureOCRResponse = {
   pages?: OCRPage[]
+  usage_info?: {
+    pages_processed?: number
+  }
   [key: string]: unknown
 }
 
@@ -135,7 +141,12 @@ async function applyStrategy(
   minCharactersPerChunk: number,
   strategyOptions?: StrategyOptions
 ): Promise<Chunk[]> {
-  const baseOptions = { chunkSize, chunkOverlap, minCharactersPerChunk }
+  const baseOptions = {
+    chunkSize,
+    chunkOverlap,
+    minCharactersPerChunk,
+    maxChunks: MAX_DOCUMENT_CHUNKS,
+  }
 
   switch (strategy) {
     case 'token': {
@@ -214,48 +225,76 @@ export async function processDocument(
      * visible with a reason instead.
      */
     if (parseResult.metadata?.degraded || !content.trim()) {
-      throw new Error(unreadableDocumentMessage(filename))
+      throw new PermanentDocumentProcessingError(
+        'no_extractable_text',
+        unreadableDocumentMessage(filename)
+      )
     }
 
     let chunks: Chunk[]
     const metadata: FileParseMetadata = parseResult.metadata ?? {}
 
-    if (strategy && strategy !== 'auto') {
-      logger.info(`Using explicit chunking strategy: ${strategy}`)
-      chunks = await applyStrategy(
-        strategy,
-        content,
-        chunkSize,
-        chunkOverlap,
-        minCharactersPerChunk,
-        strategyOptions
-      )
-    } else {
-      const isJsonYaml =
-        metadata.type === 'json' ||
-        metadata.type === 'yaml' ||
-        mimeType.includes('json') ||
-        mimeType.includes('yaml')
-
-      if (isJsonYaml && JsonYamlChunker.isStructuredData(content)) {
-        logger.info('Using JSON/YAML chunker for structured data')
-        chunks = await JsonYamlChunker.chunkJsonYaml(content, {
+    try {
+      if (strategy && strategy !== 'auto') {
+        logger.info(`Using explicit chunking strategy: ${strategy}`)
+        chunks = await applyStrategy(
+          strategy,
+          content,
           chunkSize,
+          chunkOverlap,
           minCharactersPerChunk,
-        })
-      } else if (StructuredDataChunker.isStructuredData(content, mimeType)) {
-        logger.info('Using structured data chunker for spreadsheet/CSV content')
-        const rowCount = metadata.totalRows ?? metadata.rowCount
-        chunks = await StructuredDataChunker.chunkStructuredData(content, {
-          chunkSize,
-          headers: metadata.headers,
-          totalRows: typeof rowCount === 'number' ? rowCount : undefined,
-          sheetName: metadata.sheetNames?.[0],
-        })
+          strategyOptions
+        )
       } else {
-        const chunker = new TextChunker({ chunkSize, chunkOverlap, minCharactersPerChunk })
-        chunks = await chunker.chunk(content)
+        const isJsonYaml =
+          metadata.type === 'json' ||
+          metadata.type === 'yaml' ||
+          mimeType.includes('json') ||
+          mimeType.includes('yaml')
+
+        if (isJsonYaml && JsonYamlChunker.isStructuredData(content)) {
+          logger.info('Using JSON/YAML chunker for structured data')
+          chunks = await JsonYamlChunker.chunkJsonYaml(content, {
+            chunkSize,
+            minCharactersPerChunk,
+            maxChunks: MAX_DOCUMENT_CHUNKS,
+          })
+        } else if (StructuredDataChunker.isStructuredData(content, mimeType)) {
+          logger.info('Using structured data chunker for spreadsheet/CSV content')
+          const rowCount = metadata.totalRows ?? metadata.rowCount
+          chunks = await StructuredDataChunker.chunkStructuredData(content, {
+            chunkSize,
+            headers: metadata.headers,
+            totalRows: typeof rowCount === 'number' ? rowCount : undefined,
+            sheetName: metadata.sheetNames?.[0],
+            maxChunks: MAX_DOCUMENT_CHUNKS,
+          })
+        } else {
+          const chunker = new TextChunker({
+            chunkSize,
+            chunkOverlap,
+            minCharactersPerChunk,
+            maxChunks: MAX_DOCUMENT_CHUNKS,
+          })
+          chunks = await chunker.chunk(content)
+        }
       }
+    } catch (error) {
+      if (error instanceof ChunkLimitExceededError) {
+        throw new PermanentDocumentProcessingError(
+          'document_complexity_limit',
+          `This document would produce more than ${error.maxChunks.toLocaleString()} index chunks. Split it into smaller files or increase its knowledge-base chunk size, then retry.`,
+          error
+        )
+      }
+      throw error
+    }
+
+    if (chunks.length === 0) {
+      throw new PermanentDocumentProcessingError(
+        'no_extractable_text',
+        `The chunking strategy produced no indexable text for ${filename}. Adjust the chunking settings or replace the document content, then retry.`
+      )
     }
 
     const characterCount = content.length
@@ -419,20 +458,10 @@ async function handleFileForOCR(
 
   if (isExternalHttps) {
     if (mimeType === 'application/pdf') {
-      logger.info(`handleFileForOCR: Downloading external PDF to check page count`)
-      try {
-        const buffer = await downloadFileWithTimeout(fileUrl, userId)
-        logger.info(`handleFileForOCR: Downloaded external PDF: ${buffer.length} bytes`)
-        return { httpsUrl: fileUrl, buffer }
-      } catch (error) {
-        logger.warn(
-          `handleFileForOCR: Failed to download external PDF for page count check, proceeding without batching`,
-          {
-            errorType: toError(error).name,
-          }
-        )
-        return { httpsUrl: fileUrl, buffer: undefined }
-      }
+      logger.info('handleFileForOCR: Downloading external PDF for OCR admission')
+      const buffer = await downloadFileWithTimeout(fileUrl, userId)
+      logger.info('handleFileForOCR: Downloaded external PDF', { bytes: buffer.length })
+      return { httpsUrl: fileUrl, buffer }
     }
     logger.info(`handleFileForOCR: Using external URL directly`)
     return { httpsUrl: fileUrl, buffer: undefined }
@@ -495,11 +524,7 @@ async function downloadFileWithTimeout(fileUrl: string, userId?: string): Promis
 
 async function downloadFileForBase64(fileUrl: string, userId?: string): Promise<Buffer> {
   if (/^data:/i.test(fileUrl)) {
-    const [, base64Data] = fileUrl.split(',')
-    if (!base64Data) {
-      throw new Error('Invalid data URI format')
-    }
-    return Buffer.from(base64Data, 'base64')
+    return decodeDataUriWithinLimit(fileUrl, MAX_FILE_SIZE).buffer
   }
   if (/^https?:\/\//i.test(fileUrl) || isInternalFileUrl(fileUrl)) {
     return downloadFileWithTimeout(fileUrl, userId)
@@ -509,15 +534,52 @@ async function downloadFileForBase64(fileUrl: string, userId?: string): Promise<
   )
 }
 
-function processOCRContent(result: OCRResult): string {
+function assertOcrOutputTextWithinLimit(content: string): void {
+  const outputBytes = Buffer.byteLength(content, 'utf8')
+  if (outputBytes <= MAX_OCR_OUTPUT_TEXT_BYTES) return
+
+  throw new PermanentDocumentProcessingError(
+    'document_complexity_limit',
+    `OCR extracted ${outputBytes.toLocaleString()} bytes of text, exceeding the safe limit of ${MAX_OCR_OUTPUT_TEXT_BYTES.toLocaleString()} bytes. Split the document into smaller files and retry.`
+  )
+}
+
+function processOCRContent(result: OCRResult, filename: string, expectedPages?: number): string {
   if (!result.success) {
     throw new Error(`OCR processing failed: ${result.error || 'Unknown error'}`)
   }
 
   const content = result.output?.content || ''
-  if (!content.trim()) {
-    throw new Error('OCR returned empty content')
+  const pageCount = result.output?.metadata?.pageCount
+  const pagesProcessed = result.output?.metadata?.usageInfo?.pagesProcessed
+  if (pageCount === 0) {
+    throw new Error('OCR provider returned no page results')
   }
+  if (
+    expectedPages !== undefined &&
+    (pageCount !== expectedPages ||
+      (Number.isFinite(pagesProcessed) && pagesProcessed !== expectedPages))
+  ) {
+    throw new Error(
+      `OCR provider returned an incomplete page result: expected ${expectedPages}, received ${pageCount ?? 0}`
+    )
+  }
+  if (
+    expectedPages === undefined &&
+    (!Number.isFinite(pageCount) ||
+      !Number.isFinite(pagesProcessed) ||
+      pageCount !== pagesProcessed)
+  ) {
+    throw new Error('OCR provider did not report a complete page count for this PDF')
+  }
+  if (!content.trim()) {
+    throw new PermanentDocumentProcessingError(
+      'no_extractable_text',
+      unreadableDocumentMessage(filename)
+    )
+  }
+
+  assertOcrOutputTextWithinLimit(content)
 
   logger.info('OCR completed')
   return content
@@ -559,23 +621,49 @@ async function makeOCRRequest(
       signal: controller.signal,
     })
 
-    clearTimeout(timeoutId)
-
-    if (!response.ok) {
-      const errorText = await response.text()
-      throw new APIError(
-        `OCR failed: ${response.status} ${response.statusText} - ${errorText}`,
-        response.status
-      )
+    const responseBodyLimit = response.ok ? MAX_OCR_RESPONSE_BYTES : DEFAULT_MAX_ERROR_BODY_BYTES
+    let responseText: string
+    try {
+      responseText = await readResponseTextWithLimit(response, {
+        maxBytes: responseBodyLimit,
+        label: response.ok ? 'OCR success response' : 'OCR error response',
+        signal: controller.signal,
+      })
+    } catch (error) {
+      if (response.ok && isPayloadSizeLimitError(error)) {
+        throw new Error(
+          `OCR provider response exceeded the safe envelope limit of ${MAX_OCR_RESPONSE_BYTES} bytes`,
+          { cause: error }
+        )
+      }
+      if (!response.ok && isPayloadSizeLimitError(error)) {
+        responseText = ''
+      } else {
+        throw error
+      }
     }
 
-    return response
+    if (!response.ok) {
+      if (response.status === 413) {
+        throw new PermanentDocumentProcessingError(
+          'document_complexity_limit',
+          'The OCR provider rejected this document because the request was too large. Split or optimize the document and retry.'
+        )
+      }
+      throw new APIError(`OCR failed: ${response.status}`, response.status)
+    }
+
+    return new Response(responseText, {
+      status: response.status,
+      headers: response.headers,
+    })
   } catch (error) {
-    clearTimeout(timeoutId)
     if (error instanceof Error && error.name === 'AbortError') {
       throw new Error('OCR API request timed out')
     }
     throw error
+  } finally {
+    clearTimeout(timeoutId)
   }
 }
 
@@ -593,6 +681,7 @@ async function parseWithAzureMistralOCR(
   )
 
   const fileBuffer = await downloadFileForBase64(fileUrl, userId)
+  const requestPolicy = getAzureMistralOcrRequestPolicy(env.OCR_AZURE_MODEL_NAME!)
 
   try {
     /**
@@ -603,14 +692,24 @@ async function parseWithAzureMistralOCR(
      */
     const content =
       mimeType === 'application/pdf'
-        ? await ocrPdfInChunks(fileBuffer, 'azure-mistral', (chunk) =>
-            recognizeWithAzureOCR(chunk.buffer, mimeType)
-          )
+        ? await ocrPdfInChunks(fileBuffer, 'azure-mistral', filename, requestPolicy, (chunk) => {
+            const pageCount = chunk.endPage - chunk.startPage + 1
+            return recognizeWithAzureOCR(
+              chunk.buffer,
+              mimeType,
+              pageCount > 0 ? pageCount : undefined
+            )
+          })
         : await recognizeWithAzureOCR(fileBuffer, mimeType)
 
     if (!content.trim()) {
-      throw new Error('Azure Mistral OCR returned empty content')
+      throw new PermanentDocumentProcessingError(
+        'no_extractable_text',
+        unreadableDocumentMessage(filename)
+      )
     }
+
+    assertOcrOutputTextWithinLimit(content)
 
     logger.info('Azure Mistral OCR completed')
     return { content, processingMethod: 'mistral-ocr' as const, cloudUrl: undefined }
@@ -623,7 +722,11 @@ async function parseWithAzureMistralOCR(
 }
 
 /** Sends one document to Azure Mistral OCR inline, as a base64 data URI. */
-async function recognizeWithAzureOCR(buffer: Buffer, mimeType: string): Promise<string> {
+async function recognizeWithAzureOCR(
+  buffer: Buffer,
+  mimeType: string,
+  expectedPages?: number
+): Promise<string> {
   const dataUri = `data:${mimeType};base64,${buffer.toString('base64')}`
 
   const response = await retryWithExponentialBackoff(
@@ -648,13 +751,34 @@ async function recognizeWithAzureOCR(buffer: Buffer, mimeType: string): Promise<
 
   const ocrResult = (await response.json()) as AzureOCRResponse
 
+  const returnedPages = ocrResult.pages?.length ?? 0
+  const processedPages = ocrResult.usage_info?.pages_processed
+  if (expectedPages !== undefined) {
+    if (
+      returnedPages !== expectedPages ||
+      (processedPages !== undefined && processedPages !== expectedPages)
+    ) {
+      throw new Error(
+        `OCR provider returned an incomplete page result: expected ${expectedPages}, received ${returnedPages}`
+      )
+    }
+  } else if (
+    returnedPages === 0 ||
+    !Number.isFinite(processedPages) ||
+    processedPages !== returnedPages
+  ) {
+    throw new Error('OCR provider did not report a complete page count for this PDF')
+  }
+
   /**
    * A response carrying no pages is no content. Returning the raw payload instead
    * would be indexed as though it were the document: stitched into a chunked run
    * as recovered text, and in a single-document run it would satisfy the
    * empty-content check that exists to catch exactly this.
    */
-  return extractPageContent(ocrResult.pages || [])
+  const content = extractPageContent(ocrResult.pages || [])
+  assertOcrOutputTextWithinLimit(content)
+  return content
 }
 
 async function parseWithMistralOCR(
@@ -686,12 +810,18 @@ async function parseWithMistralOCR(
     logger.info('PDF page count resolved', { pageCount })
   }
 
-  const needsBatching = pageCount > MISTRAL_MAX_PAGES
+  const needsBatching =
+    Boolean(buffer) &&
+    (pageCount > MISTRAL_OCR_REQUEST_POLICY.maxPages ||
+      buffer!.length > MISTRAL_OCR_REQUEST_POLICY.maxBytes)
 
   if (needsBatching && buffer) {
-    logger.info(
-      `PDF has ${pageCount} pages, exceeds limit of ${MISTRAL_MAX_PAGES}. Splitting and processing in chunks.`
-    )
+    logger.info('PDF exceeds a Mistral OCR request limit; splitting into bounded chunks', {
+      bytes: buffer.length,
+      pageCount,
+      maxBytes: MISTRAL_OCR_REQUEST_POLICY.maxBytes,
+      maxPages: MISTRAL_OCR_REQUEST_POLICY.maxPages,
+    })
     return processMistralOCRInBatches(filename, apiKey, buffer, userId, cloudUrl)
   }
 
@@ -700,7 +830,7 @@ async function parseWithMistralOCR(
   try {
     const response = await executeMistralOCRRequest(params, userId)
     const result = (await mistralParserTool.transformResponse!(response, params)) as OCRResult
-    const content = processOCRContent(result)
+    const content = processOCRContent(result, filename, pageCount > 0 ? pageCount : undefined)
 
     return { content, processingMethod: 'mistral-ocr' as const, cloudUrl }
   } catch (error) {
@@ -747,16 +877,19 @@ async function executeMistralOCRRequest(
 async function processChunk(
   chunk: { buffer: Buffer; startPage: number; endPage: number },
   chunkIndex: number,
-  totalChunks: number,
   filename: string,
   apiKey: string,
   userId?: string
-): Promise<{ index: number; content: string | null }> {
+): Promise<string> {
   const chunkPageCount = chunk.endPage - chunk.startPage + 1
 
-  logger.info(
-    `Processing chunk ${chunkIndex + 1}/${totalChunks} (pages ${chunk.startPage + 1}-${chunk.endPage + 1}, ${chunkPageCount} pages)`
-  )
+  logger.info('Processing OCR chunk', {
+    chunk: chunkIndex + 1,
+    startPage: chunk.startPage + 1,
+    endPage: chunk.endPage + 1,
+    pages: chunkPageCount,
+    bytes: chunk.buffer.length,
+  })
 
   let uploadedKey: string | null = null
 
@@ -799,17 +932,31 @@ async function processChunk(
     const response = await executeMistralOCRRequest(params, userId)
     const result = (await mistralParserTool.transformResponse!(response, params)) as OCRResult
 
-    if (result.success && result.output?.content) {
-      logger.info(`Chunk ${chunkIndex + 1}/${totalChunks} completed successfully`)
-      return { index: chunkIndex, content: result.output.content }
+    if (!result.success) {
+      throw new Error(`OCR processing failed: ${result.error || 'Unknown error'}`)
     }
-    logger.warn(`Chunk ${chunkIndex + 1}/${totalChunks} returned no content`)
-    return { index: chunkIndex, content: null }
+
+    const pageCount = result.output?.metadata?.pageCount
+    const pagesProcessed = result.output?.metadata?.usageInfo?.pagesProcessed
+    if (
+      chunkPageCount > 0 &&
+      (pageCount !== chunkPageCount ||
+        (Number.isFinite(pagesProcessed) && pagesProcessed !== chunkPageCount))
+    ) {
+      throw new Error(
+        `OCR provider returned an incomplete page result: expected ${chunkPageCount}, received ${pageCount}`
+      )
+    }
+
+    const content = result.output?.content ?? ''
+    assertOcrOutputTextWithinLimit(content)
+    logger.info(`Chunk ${chunkIndex + 1} completed successfully`)
+    return content
   } catch (error) {
-    logger.error(`Chunk ${chunkIndex + 1}/${totalChunks} failed:`, {
+    logger.error(`Chunk ${chunkIndex + 1} failed:`, {
       errorType: toError(error).name,
     })
-    return { index: chunkIndex, content: null }
+    throw error
   } finally {
     if (uploadedKey) {
       try {
@@ -827,11 +974,11 @@ async function processChunk(
 /**
  * Runs a PDF through OCR a chunk at a time and stitches the pages back together.
  *
- * A provider that caps how many pages one request may carry needs the document
- * split, and both providers cap at the same limit — so the splitting, the
- * concurrency, the ordering and the partial-failure rule live here once rather
- * than being restated per provider, where they had already drifted into one
- * provider chunking and the other refusing anything over the cap.
+ * A provider that caps how many pages or bytes one request may carry needs the
+ * document split according to its own policy. The splitting, concurrency,
+ * ordering, and partial-failure rule live here once rather than being restated
+ * per provider, where they had already drifted into one provider chunking and
+ * the other refusing anything over the cap.
  *
  * A document is indexed whole or not at all: if any chunk fails, the document
  * fails, because a partial result reports success while page ranges are missing
@@ -840,84 +987,179 @@ async function processChunk(
 async function ocrPdfInChunks(
   pdfBuffer: Buffer,
   provider: string,
-  recognize: (
-    chunk: { buffer: Buffer; startPage: number; endPage: number },
-    chunkIndex: number,
-    totalChunks: number
-  ) => Promise<string | null>
+  filename: string,
+  policy: OcrRequestPolicy,
+  recognize: (chunk: PdfOcrChunk, chunkIndex: number) => Promise<string | null>
 ): Promise<string> {
-  const totalPages = await getPdfPageCount(pdfBuffer)
+  const detectedPageCount = await getPdfPageCount(pdfBuffer)
 
   /**
-   * Splitting has to load the document, which an encrypted or malformed PDF will
-   * refuse. That must not decide whether the file reaches OCR at all: those are
-   * exactly the documents with no readable text layer, so OCR is their only route,
-   * and the provider may well accept bytes that a local parser would not. When the
-   * split fails the document is sent whole and the page cap is left to the
-   * provider — the behaviour before it was chunked.
+   * An encrypted or malformed PDF may be acceptable to the provider even when
+   * pdf-lib cannot load it. It can still be sent whole when its measured bytes
+   * and known page count fit the request policy. Once a known limit is exceeded,
+   * however, sending it unsplit would knowingly violate the provider contract.
    */
-  let pdfChunks: { buffer: Buffer; startPage: number; endPage: number }[]
+  let sourcePdf: PDFDocument | null = null
+  let totalPages = detectedPageCount
   try {
-    pdfChunks = await splitPdfIntoChunks(pdfBuffer, MISTRAL_MAX_PAGES)
+    sourcePdf = await PDFDocument.load(pdfBuffer)
+    totalPages = sourcePdf.getPageCount()
   } catch (error) {
-    logger.info('PDF could not be split for OCR, sending it whole', {
+    logger.info('PDF could not be loaded for OCR splitting', {
       provider,
       error: toError(error).message,
     })
-    pdfChunks = [{ buffer: pdfBuffer, startPage: 0, endPage: Math.max(0, totalPages - 1) }]
   }
 
-  logger.info('Splitting PDF for OCR', {
+  if (totalPages > MAX_OCR_PDF_PAGES) {
+    throw new PermanentDocumentProcessingError(
+      'document_complexity_limit',
+      `This PDF has ${totalPages.toLocaleString()} pages, exceeding the safe OCR limit of ${MAX_OCR_PDF_PAGES.toLocaleString()}. Split it into smaller files and retry.`
+    )
+  }
+
+  const minimumChunkCount = totalPages > 0 ? Math.ceil(totalPages / policy.maxPages) : 1
+  if (minimumChunkCount > policy.maxChunks) {
+    throw new PermanentDocumentProcessingError(
+      'document_complexity_limit',
+      `This PDF requires at least ${minimumChunkCount.toLocaleString()} OCR requests, exceeding the safe limit of ${policy.maxChunks.toLocaleString()}. Split it into smaller files and retry.`
+    )
+  }
+
+  const requiresSplitting = pdfBuffer.length > policy.maxBytes || totalPages > policy.maxPages
+  if (requiresSplitting && (!sourcePdf || totalPages === 0)) {
+    throw new PermanentDocumentProcessingError(
+      'document_complexity_limit',
+      `This PDF exceeds the OCR provider's per-request limit and could not be split safely. Split or optimize the PDF and retry.`
+    )
+  }
+
+  logger.info('OCR PDF request policy resolved', {
     provider,
+    bytes: pdfBuffer.length,
     totalPages,
-    chunks: pdfChunks.length,
-    maxPagesPerChunk: MISTRAL_MAX_PAGES,
-    concurrency: MAX_CONCURRENT_CHUNKS,
+    requiresSplitting,
+    maxBytesPerRequest: policy.maxBytes,
+    maxPagesPerRequest: policy.maxPages,
+    maxChunks: policy.maxChunks,
+    concurrency: policy.concurrency,
   })
 
-  const results: { index: number; content: string | null }[] = []
+  type ChunkOutcome =
+    | { index: number; kind: 'content'; content: string }
+    | { index: number; kind: 'empty' }
+    | { index: number; kind: 'failure'; error: unknown }
 
-  for (let i = 0; i < pdfChunks.length; i += MAX_CONCURRENT_CHUNKS) {
-    const batch = pdfChunks.slice(i, i + MAX_CONCURRENT_CHUNKS)
+  const outcomes: ChunkOutcome[] = []
+  let cumulativeSplitBytes = 0
+  let cumulativeOutputBytes = 0
+  let nextPage = 0
+  let nextChunkIndex = 0
+  let wholeDocumentPending = !requiresSplitting
+
+  while (wholeDocumentPending || nextPage < totalPages) {
+    const batch: Array<{ chunk: PdfOcrChunk; index: number }> = []
+
+    if (wholeDocumentPending) {
+      batch.push({
+        chunk: {
+          buffer: pdfBuffer,
+          startPage: 0,
+          endPage: totalPages > 0 ? totalPages - 1 : -1,
+        },
+        index: nextChunkIndex++,
+      })
+      wholeDocumentPending = false
+      nextPage = totalPages
+    } else {
+      for (let slot = 0; slot < policy.concurrency && nextPage < totalPages; slot++) {
+        if (nextChunkIndex >= policy.maxChunks) {
+          throw new PermanentDocumentProcessingError(
+            'document_complexity_limit',
+            `Byte-aware OCR splitting requires more than the safe limit of ${policy.maxChunks.toLocaleString()} requests. Split or optimize the PDF and retry.`
+          )
+        }
+
+        const chunk = await buildLargestFittingPdfChunk(sourcePdf!, nextPage, totalPages, policy)
+        cumulativeSplitBytes += chunk.buffer.length
+        if (cumulativeSplitBytes > MAX_OCR_SPLIT_BYTES) {
+          throw new PermanentDocumentProcessingError(
+            'document_complexity_limit',
+            `Splitting this PDF for OCR exceeded the safe cumulative limit of ${MAX_OCR_SPLIT_BYTES.toLocaleString()} bytes. Split it into smaller files and retry.`
+          )
+        }
+
+        batch.push({ chunk, index: nextChunkIndex++ })
+        nextPage = chunk.endPage + 1
+      }
+    }
+
     const batchResults = await Promise.all(
-      batch.map((chunk, batchIndex) => {
-        const index = i + batchIndex
-        return recognize(chunk, index, pdfChunks.length).then(
-          (content) => ({ index, content }),
-          (error) => {
-            logger.warn('OCR chunk failed', {
-              provider,
-              chunk: index + 1,
-              error: toError(error).message,
-            })
-            return { index, content: null }
-          }
-        )
+      batch.map(async ({ chunk, index }): Promise<ChunkOutcome> => {
+        try {
+          const content = await recognize(chunk, index)
+          return content && content.trim().length > 0
+            ? { index, kind: 'content', content }
+            : { index, kind: 'empty' }
+        } catch (error) {
+          logger.warn('OCR chunk failed', {
+            provider,
+            chunk: index + 1,
+            error: toError(error).message,
+          })
+          return { index, kind: 'failure', error }
+        }
       })
     )
-    results.push(...batchResults)
+    for (const outcome of batchResults) {
+      if (outcome.kind !== 'content') continue
+      cumulativeOutputBytes += Buffer.byteLength(outcome.content, 'utf8')
+      if (cumulativeOutputBytes > MAX_OCR_OUTPUT_TEXT_BYTES) {
+        throw new PermanentDocumentProcessingError(
+          'document_complexity_limit',
+          `OCR extracted more than the safe limit of ${MAX_OCR_OUTPUT_TEXT_BYTES.toLocaleString()} bytes of text. Split the document into smaller files and retry.`
+        )
+      }
+    }
+    outcomes.push(...batchResults)
   }
 
-  const recovered = results
-    .sort((a, b) => a.index - b.index)
-    .map((r) => r.content)
-    .filter((content): content is string => content !== null && content.trim().length > 0)
+  const chunkCount = outcomes.length
 
-  /**
-   * Each chunk has already exhausted its own retries, so a missing one is a real
-   * failure rather than a blip. Failing the document leaves it visible with a
-   * reason and eligible for the stuck-document sweep, which can retry it and
-   * produce a complete result — whereas indexing what came back would be
-   * indistinguishable from a document that never had those pages.
-   */
-  if (recovered.length < pdfChunks.length) {
+  const failures = outcomes.filter(
+    (outcome): outcome is Extract<ChunkOutcome, { kind: 'failure' }> => outcome.kind === 'failure'
+  )
+  if (failures.length > 0) {
+    const permanentFailure = failures.find(
+      (failure) => failure.error instanceof PermanentDocumentProcessingError
+    )?.error
+    if (permanentFailure) throw permanentFailure
+
     throw new Error(
-      `OCR recovered ${recovered.length} of ${pdfChunks.length} chunks; ` +
-        'indexing the document would omit the rest'
+      `OCR completed ${outcomes.length - failures.length} of ${chunkCount} chunks; indexing the document would omit the rest`,
+      { cause: new AggregateError(failures.map((failure) => failure.error)) }
     )
   }
 
-  return recovered.join('\n\n')
+  const recovered = outcomes
+    .sort((a, b) => a.index - b.index)
+    .flatMap((outcome) => (outcome.kind === 'content' ? [outcome.content] : []))
+
+  /**
+   * Provider-specific checks already proved that every requested page was
+   * represented. If every complete range is nevertheless blank, the document
+   * has no text to index; a mixture of blank and nonblank pages remains valid.
+   */
+  if (recovered.length === 0) {
+    throw new PermanentDocumentProcessingError(
+      'no_extractable_text',
+      unreadableDocumentMessage(filename)
+    )
+  }
+
+  const content = recovered.join('\n\n')
+  assertOcrOutputTextWithinLimit(content)
+  return content
 }
 
 async function processMistralOCRInBatches(
@@ -931,8 +1173,12 @@ async function processMistralOCRInBatches(
   processingMethod: 'mistral-ocr'
   cloudUrl?: string
 }> {
-  const content = await ocrPdfInChunks(pdfBuffer, 'mistral', (chunk, index, total) =>
-    processChunk(chunk, index, total, filename, apiKey, userId).then((r) => r.content)
+  const content = await ocrPdfInChunks(
+    pdfBuffer,
+    'mistral',
+    filename,
+    MISTRAL_OCR_REQUEST_POLICY,
+    (chunk, index) => processChunk(chunk, index, filename, apiKey, userId)
   )
 
   return { content, processingMethod: 'mistral-ocr', cloudUrl }
@@ -966,7 +1212,9 @@ async function parseWithFileParser(
     let metadata: FileParseMetadata = {}
 
     if (/^data:/i.test(fileUrl)) {
-      content = await parseDataURI(fileUrl, filename, mimeType)
+      const result = await parseDataURI(fileUrl, filename, mimeType)
+      content = result.content
+      metadata = result.metadata || {}
     } else if (/^https?:\/\//i.test(fileUrl) || isInternalFileUrl(fileUrl)) {
       // Internal URLs may arrive as an app-relative `/api/files/serve/...` path
       // (some ingestion callers store the relative path); downloadFileFromUrl
@@ -987,22 +1235,15 @@ async function parseWithFileParser(
   }
 }
 
-async function parseDataURI(fileUrl: string, filename: string, mimeType: string): Promise<string> {
-  const [header, base64Data] = fileUrl.split(',')
-  if (!base64Data) {
-    throw new Error('Invalid data URI format')
-  }
-
-  if (mimeType === 'text/plain') {
-    return header.includes('base64')
-      ? Buffer.from(base64Data, 'base64').toString('utf8')
-      : decodeURIComponent(base64Data)
-  }
-
+async function parseDataURI(
+  fileUrl: string,
+  filename: string,
+  mimeType: string
+): Promise<FileParseResult> {
+  const { buffer } = decodeDataUriWithinLimit(fileUrl, MAX_FILE_SIZE)
   const extension = resolveParserExtension(filename, mimeType, 'txt')
-  const buffer = Buffer.from(base64Data, 'base64')
-  const result = await parseBuffer(buffer, extension)
-  return result.content
+  logger.info('Parsing bounded data URI', { bytes: buffer.length, extension })
+  return parseBuffer(buffer, extension)
 }
 
 async function parseHttpFile(

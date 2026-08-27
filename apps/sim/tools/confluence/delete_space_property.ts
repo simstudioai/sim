@@ -68,6 +68,7 @@ export const confluenceDeleteSpacePropertyTool: ToolConfig<
   },
 
   request: {
+    internal: true,
     url: () => '/api/tools/confluence/space-properties',
     method: 'POST',
     headers: (params: ConfluenceDeleteSpacePropertyParams) => ({

@@ -46,6 +46,21 @@ describe('unreadable document handling', () => {
     await expect(parse('Deck.pptx')).rejects.toThrow(/No text could be extracted/)
   })
 
+  it('preserves degraded parser metadata for data-URI documents', async () => {
+    mockParseBuffer.mockResolvedValue({
+      content: 'Unable to extract text from PowerPoint file.',
+      metadata: { extractionMethod: 'fallback', degraded: true },
+    })
+
+    await expect(
+      processDocument(
+        'data:application/vnd.ms-powerpoint;base64,Ynl0ZXM=',
+        'Deck.ppt',
+        'application/vnd.ms-powerpoint'
+      )
+    ).rejects.toThrow(/Re-save it as PPTX/)
+  })
+
   it('names the modern container for a legacy format, which re-saving genuinely fixes', async () => {
     mockParseBuffer.mockResolvedValue({
       content: 'Unable to extract text from DOC file.',

@@ -128,6 +128,8 @@ export interface RunCommandOptions {
   signal?: AbortSignal
   /** Run as root. The shell and Pi paths depend on this; the code path does not. */
   rootUser?: boolean
+  /** Never relaunch this command when provider acknowledgement is ambiguous. */
+  atMostOnce?: boolean
   onStdout?: (chunk: string) => void
   onStderr?: (chunk: string) => void
 }

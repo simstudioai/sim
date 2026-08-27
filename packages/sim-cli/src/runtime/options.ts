@@ -2,6 +2,7 @@ import { type Command, Option } from 'commander'
 import type { CommandSpec } from '../contract/types'
 import type { V2OperationName } from '../generated/v2-api'
 import {
+  cursorSlot,
   type FieldSpec,
   flagNameFor,
   flagSpecFor,
@@ -37,11 +38,56 @@ function describeField(
   return flag.describe ?? descriptor.describe ?? `Set ${name.replaceAll('-', ' ') || field}`
 }
 
+/**
+ * The one instruction a route contract gives that a terminal cannot follow.
+ *
+ * Several v2 body fields document themselves as changed by sending JSON `null`,
+ * which is accurate for the API and untypeable here: those fields are string
+ * flags, so `--description null` sends the four characters. The contract prose
+ * is correct and stays as written; this warns the reader that the literal is
+ * all they can type, without inventing a substitute — an empty string empties a
+ * description but is not what `null` means on, say, `oauthClientSecret`.
+ */
+function literalNullHint(documented: string, name: string): string {
+  return /\bnull\b/i.test(documented) ? ` (--${name} null sends the word, not JSON null)` : ''
+}
+
+/**
+ * The wire's boolean vocabulary, which a bare flag cannot offer.
+ *
+ * A boolean query param documents the spellings an HTTP caller may send
+ * (`true`, `1`, `yes`, `on`, …) and closes by saying the listed ones are the
+ * whole accepted set. That is correct for the API and publishes unchanged in
+ * the OpenAPI specs, but this CLI renders those fields as a bare `--flag` and
+ * its `--no-flag` twin, neither of which takes a value — so the sentence points
+ * at a list the reader is never shown, in `--help` and in the generated
+ * reference alike. Dropping it here keeps the terminal honest without weakening
+ * the prose REST callers actually need.
+ */
+const WIRE_VOCABULARY_SENTENCE = /\s*The listed spellings[^.]*\.\s*/g
+
+function withoutWireVocabulary(documented: string): string {
+  return documented.replace(WIRE_VOCABULARY_SENTENCE, ' ').trim()
+}
+
+/**
+ * What `--limit` means on an operation that does not paginate.
+ *
+ * The pager's `0 for everything` spelling is false here: these routes bound the
+ * field at `1`, and the unbounded form is the flag left off entirely. Said in
+ * `--help` because nothing else in the terminal says it — the refusal only
+ * arrives from the server, after the caller has already typed the command.
+ */
+const NON_PAGINATED_LIMIT_HINT =
+  ' (caps a --filter match only; omit it to act on every match, and note 0 is not accepted)'
+
 function addFieldOption(
   command: Command,
   operation: V2OperationName,
   field: string,
-  descriptor: FieldSpec
+  descriptor: FieldSpec,
+  slot: 'query' | 'body' | 'headers',
+  paginates: boolean
 ): void {
   if (field === PROFILE_INJECTED_FIELD || field === 'cursor') return
 
@@ -51,7 +97,15 @@ function addFieldOption(
   const name = flagNameFor(operation, field)
   const short = flag.short ? `-${flag.short}, ` : ''
 
-  if (field === 'limit' && (descriptor.kind === 'number' || descriptor.kind === 'integer')) {
+  // Gated on the operation actually paginating, not on the field's name: a
+  // `limit` on a non-paginating operation is a row cap the wire reads
+  // literally, and commander's `100` default rode into the body of every
+  // filtered `tables rows batch-delete` as a silent ceiling on what it deleted.
+  if (
+    paginates &&
+    field === 'limit' &&
+    (descriptor.kind === 'number' || descriptor.kind === 'integer')
+  ) {
     command.option(
       '--limit <n>',
       'Maximum items to return (0 for everything)',
@@ -60,38 +114,56 @@ function addFieldOption(
     return
   }
 
-  const documented = describeField(flag, descriptor, name, field)
+  const documented = `${describeField(flag, descriptor, name, field)}${
+    field === 'limit' && (descriptor.kind === 'number' || descriptor.kind === 'integer')
+      ? NON_PAGINATED_LIMIT_HINT
+      : ''
+  }`
 
   if (descriptor.kind === 'boolean' || flag.boolean) {
+    const booleanDoc = withoutWireVocabulary(documented)
     if (descriptor.required) {
       command.addOption(
-        new Option(`${short}--${name} <true|false>`, `${documented} (required)`)
+        new Option(`${short}--${name} <true|false>`, `${booleanDoc} (required)`)
           .choices(['true', 'false'])
           .makeOptionMandatory()
       )
       return
     }
 
-    command.option(`${short}--${name}`, documented)
+    command.option(`${short}--${name}`, booleanDoc)
     // The twin exists to send an explicit `false`. Restating the positive
     // flag's prose here inverts its meaning ("Return only deployed workflows"
     // on the flag that stops doing exactly that), so it names its counterpart
     // instead and lets the reader look up one description, not two.
-    if (!flag.boolean) command.option(`--no-${name}`, `Send --${name} as false`)
+    if (!flag.boolean || flag.negatable) {
+      command.option(`--no-${name}`, `Send --${name} as false`)
+    }
     return
   }
 
   const takesList = flag.list === true
   const wantsJson = takesJson(descriptor, flag)
-  const placeholder = takesList ? '<value...>' : wantsJson ? '<json|@file>' : '<value>'
+  const placeholder = takesList
+    ? '<value...>'
+    : flag.rowCap
+      ? '<n>'
+      : wantsJson
+        ? '<json|@file>'
+        : '<value>'
   const choices = flag.choices ?? descriptor.values
+  /**
+   * Only a body field reaches the wire as JSON, and only a plain scalar flag is
+   * stuck with the literal: a `<json|@file>` flag parses `null` into the value.
+   */
+  const literalNull = slot === 'body' && !takesList && !wantsJson
   const describe = `${documented}${
     takesList
-      ? ' (space-separated, or @path / @- with one value per line)'
+      ? ' (space-separated, or @path / @- with one value per line; @@value for a literal leading @)'
       : wantsJson
         ? ' (JSON, or @path / @- to read a file or stdin)'
         : ''
-  }${descriptor.required ? ' (required)' : ''}`
+  }${descriptor.required ? ' (required)' : ''}${literalNull ? literalNullHint(documented, name) : ''}`
 
   const renamedFrom = flag.renamedFrom ?? []
   const option = new Option(`${short}--${name} ${placeholder}`, describe)
@@ -136,11 +208,12 @@ export function addOperationOptions(
     )
   }
 
-  for (const slot of ['query', 'body'] as const) {
+  const paginates = cursorSlot(operationSpec) !== null
+  for (const slot of ['query', 'body', 'headers'] as const) {
     for (const [field, descriptor] of Object.entries(operationSpec[slot] ?? {})) {
       if (commandSpec.requestFields && !commandSpec.requestFields.includes(field)) continue
       if (commandSpec.positionals?.includes(field)) continue
-      addFieldOption(command, operation, field, descriptor)
+      addFieldOption(command, operation, field, descriptor, slot, paginates)
     }
   }
 
@@ -179,6 +252,20 @@ export function addOperationOptions(
     // flag is absent, in a TTY or not. Calling it "Skip the confirmation" sent
     // readers looking for a question the CLI never asks, and hid that the flag
     // is the only way the command ever runs.
-    command.option('-y, --yes', 'Confirm this destructive operation (required)')
+    // A dry run is exempt at the gate itself, so on an operation that accepts
+    // `--dry-run` the flag is not unconditionally required and saying so
+    // outright would send a caller reaching for `--yes` to preview a change.
+    const exemptedByDryRun =
+      operationSpec.query?.dryRun !== undefined || operationSpec.body?.dryRun !== undefined
+    // Not "destructive": the gate also covers operations that only add —
+    // `files unzip` writes the archive's contents into the workspace and
+    // destroys nothing — so the adjective was wrong on the help line while the
+    // refusal itself, which states the operation's own consequence, was right.
+    command.option(
+      '-y, --yes',
+      exemptedByDryRun
+        ? 'Confirm this operation (required unless --dry-run)'
+        : 'Confirm this operation (required)'
+    )
   }
 }

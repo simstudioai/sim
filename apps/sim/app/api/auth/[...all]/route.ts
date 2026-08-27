@@ -1,14 +1,21 @@
 import { toNextJsHandler } from 'better-auth/next-js'
 import { type NextRequest, NextResponse } from 'next/server'
+import { sharedCredentialGroupOAuthCallbackContract } from '@/lib/api/contracts/credential-groups'
+import { parseRequest } from '@/lib/api/server'
 import { auth } from '@/lib/auth'
 import { createAnonymousSession, ensureAnonymousUserExists } from '@/lib/auth/anonymous'
 import { isAuthDisabled } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { isCredentialGroupOAuthState } from '@/lib/credential-groups/oauth-state'
+import { getCredentialGroupStandardOAuthProviderFromProviderId } from '@/lib/credential-groups/providers'
+import { enforcePublicCredentialGroupIpRateLimit } from '@/lib/credential-groups/rate-limit'
+import { handleCredentialGroupOAuthCallback } from '@/app/api/credential-groups/oauth-callback'
 
 export const dynamic = 'force-dynamic'
 
 const { GET: betterAuthGET, POST: betterAuthPOST } = toNextJsHandler(auth.handler)
 const SAFE_ORGANIZATION_POST_PATHS = new Set(['organization/check-slug', 'organization/set-active'])
+const OAUTH_CALLBACK_PATH_PREFIX = 'oauth2/callback/'
 
 /**
  * SAML protocol endpoints the IdP posts to (`saml2/callback/:id`,
@@ -25,6 +32,19 @@ function getAuthPath(request: NextRequest): string {
 
 function isBlockedOrganizationMutationPath(path: string): boolean {
   return path.startsWith('organization/') && !SAFE_ORGANIZATION_POST_PATHS.has(path)
+}
+
+function getCredentialGroupCallbackProviderId(request: NextRequest, path: string): string | null {
+  const state = request.nextUrl.searchParams.get('state')
+  if (
+    !state ||
+    !isCredentialGroupOAuthState(state) ||
+    !path.startsWith(OAUTH_CALLBACK_PATH_PREFIX)
+  ) {
+    return null
+  }
+  const providerId = path.slice(OAUTH_CALLBACK_PATH_PREFIX.length)
+  return providerId && !providerId.includes('/') ? providerId : null
 }
 
 /**
@@ -53,6 +73,33 @@ function isBlockedSsoMutationPath(path: string): boolean {
 
 export const GET = withRouteHandler(async (request: NextRequest) => {
   const path = getAuthPath(request)
+  const credentialGroupProviderId = getCredentialGroupCallbackProviderId(request, path)
+
+  if (credentialGroupProviderId) {
+    const limited = await enforcePublicCredentialGroupIpRateLimit(request, 'oauth-callback')
+    const parsed = await parseRequest(sharedCredentialGroupOAuthCallbackContract, request, {
+      params: Promise.resolve({ providerId: credentialGroupProviderId }),
+    })
+    if (!parsed.success) return limited ?? parsed.response
+
+    let provider
+    try {
+      provider = getCredentialGroupStandardOAuthProviderFromProviderId(
+        parsed.data.params.providerId
+      )
+    } catch {
+      return NextResponse.json(
+        { error: 'Unsupported managed OAuth provider.' },
+        { status: 400, headers: { 'Cache-Control': 'no-store' } }
+      )
+    }
+    return handleCredentialGroupOAuthCallback({
+      request,
+      provider,
+      query: parsed.data.query,
+      limited,
+    })
+  }
 
   if (path === 'get-session' && isAuthDisabled) {
     await ensureAnonymousUserExists()

@@ -13,11 +13,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const {
   mockCheckWorkspaceAccess,
   mockGetUserEntityPermissions,
+  mockResolveOrCreateChat,
   mockRunHeadlessCopilotLifecycle,
   mockSendInboxResponse,
 } = vi.hoisted(() => ({
   mockCheckWorkspaceAccess: vi.fn(),
   mockGetUserEntityPermissions: vi.fn(),
+  mockResolveOrCreateChat: vi.fn(),
   mockRunHeadlessCopilotLifecycle: vi.fn(),
   mockSendInboxResponse: vi.fn(),
 }))
@@ -34,7 +36,7 @@ vi.mock('@/lib/billing/core/billing-attribution', () => ({
 }))
 
 vi.mock('@/lib/copilot/chat/lifecycle', () => ({
-  resolveOrCreateChat: vi.fn(),
+  resolveOrCreateChat: mockResolveOrCreateChat,
 }))
 
 vi.mock('@/lib/copilot/chat/messages-store', () => ({
@@ -94,6 +96,7 @@ vi.mock('@/lib/workspaces/utils', () => ({
   getWorkspaceBilledAccountUserId: vi.fn().mockResolvedValue('owner-1'),
 }))
 
+import { MOTHERSHIP_CHAT_DEFAULT_MODEL } from '@/lib/copilot/constants'
 import { executeInboxTask } from '@/lib/mothership/inbox/executor'
 
 const INBOX_TASK = {
@@ -132,6 +135,12 @@ describe('Inbox execution actor', () => {
       chatId: 'chat-1',
     })
     mockSendInboxResponse.mockResolvedValue('response-1')
+    mockResolveOrCreateChat.mockResolvedValue({
+      chatId: 'chat-1',
+      chat: { id: 'chat-1' },
+      conversationHistory: [],
+      isNew: true,
+    })
     dbChainMockFns.returning
       .mockResolvedValueOnce([{ id: 'task-1' }])
       .mockResolvedValueOnce([{ model: 'claude-opus-4-8' }])
@@ -203,6 +212,23 @@ describe('Inbox execution actor', () => {
       })
     )
     expect(mockGetUserEntityPermissions).not.toHaveBeenCalled()
+  })
+
+  it('stamps the shared mothership model on the chat it creates for a task', async () => {
+    queueTableRows(schemaMock.mothershipInboxTask, [{ ...INBOX_TASK, chatId: null }])
+    queueTableRows(schemaMock.workspace, [WORKSPACE])
+    queueTableRows(schemaMock.user, [{ id: 'member-1' }])
+    mockGetUserEntityPermissions.mockResolvedValue('write')
+
+    await executeInboxTask('task-1')
+
+    expect(mockResolveOrCreateChat).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceId: 'workspace-1',
+        type: 'mothership',
+        model: MOTHERSHIP_CHAT_DEFAULT_MODEL,
+      })
+    )
   })
 
   it('leaves an external sender with no permission at none rather than promoting to read', async () => {

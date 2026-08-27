@@ -84,6 +84,7 @@ export const confluenceGetPageDescendantsTool: ToolConfig<
   },
 
   request: {
+    internal: true,
     url: () => '/api/tools/confluence/page-descendants',
     method: 'POST',
     headers: (params: ConfluenceGetPageDescendantsParams) => ({

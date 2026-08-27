@@ -76,6 +76,31 @@ describe('browser session store', () => {
     expect(getBrowserSession('chat-test').sessionAlive).toBe(false)
   })
 
+  it('retains a main-frame load failure in the active page state', () => {
+    useBrowserSessionStore.getState().setPageState({
+      tabId: '1',
+      scopeId: 'chat-test',
+      title: '',
+      url: 'http://localhost:3004/login',
+      loading: false,
+      canGoBack: false,
+      canGoForward: false,
+      issue: {
+        kind: 'load-error',
+        code: -102,
+        description: 'ERR_CONNECTION_REFUSED',
+        url: 'http://localhost:3004/login',
+      },
+    })
+
+    expect(getBrowserSession('chat-test').pageState?.issue).toEqual({
+      kind: 'load-error',
+      code: -102,
+      description: 'ERR_CONNECTION_REFUSED',
+      url: 'http://localhost:3004/login',
+    })
+  })
+
   it('reorders tabs optimistically without changing the active page', () => {
     const store = useBrowserSessionStore.getState()
     store.setTabsState({

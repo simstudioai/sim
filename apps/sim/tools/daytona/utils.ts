@@ -1,19 +1,21 @@
 import type { DaytonaSandboxSummary } from '@/tools/daytona/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const DAYTONA_API_BASE_URL = 'https://app.daytona.io/api'
 
 export const DAYTONA_TOOLBOX_BASE_URL = 'https://proxy.app.daytona.io/toolbox'
 
 /**
- * Trims and URL-encodes a sandbox identifier, rejecting empty values so a
- * blank ID can never resolve to a different API route.
+ * Trims and URL-encodes a sandbox identifier so it can only ever resolve to the
+ * intended sandbox-scoped route.
+ *
+ * Delegates to {@link safeUrlPathSegment}, which additionally rejects the dot
+ * segments `.` and `..`: percent-encoding leaves those intact and the URL
+ * parser then normalizes them away, popping a path segment. See that helper's
+ * documentation for the full explanation.
  */
 export function encodeSandboxId(sandboxId: string): string {
-  const trimmed = sandboxId?.trim()
-  if (!trimmed) {
-    throw new Error('Sandbox ID is required')
-  }
-  return encodeURIComponent(trimmed)
+  return safeUrlPathSegment(sandboxId, 'Sandbox ID')
 }
 
 /**

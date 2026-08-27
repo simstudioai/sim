@@ -4,7 +4,7 @@ The official Python SDK for [Sim](https://sim.ai), allowing you to execute workf
 
 ## Server compatibility
 
-`0.2.x` talks to the v2 API and has no fallback to the older endpoints, so it requires a Sim deployment that serves `POST /api/v2/workflows/{id}/execute`. That surface is newer than the endpoints `0.1.x` used, and a deployment can also have it switched off — a self-hosted build serves `/api/v2` only when the operator enables `V2_API`. Where it is unavailable every v2 route answers 404, so `execute_workflow` raises `SimStudioError('HTTP 404: Not Found')` — enable or upgrade the v2 API on the server, or pin `simstudio-sdk<0.2`, which keeps using `/api/workflows/{id}/execute` and `/api/jobs/{id}`.
+`0.2.x` talks to the v2 API and has no fallback to the older endpoints, so it requires a Sim deployment that serves `POST /api/v2/workflows/{id}/execute`. That surface is newer than the endpoints `0.1.x` used. If it is unavailable, `execute_workflow` raises `SimStudioError('HTTP 404: Not Found')` — upgrade the server or pin `simstudio-sdk<0.2`, which keeps using `/api/workflows/{id}/execute` and `/api/jobs/{id}`.
 
 ## Upgrading from 0.1.x to 0.2.0
 

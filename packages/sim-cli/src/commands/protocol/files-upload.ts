@@ -11,6 +11,7 @@ export function attachFileUpload(files: Command): void {
   files
     .command('upload')
     .argument('<path>', 'Local file to upload')
+    .allowExcessArguments(false)
     .description('Upload a file to the workspace')
     .option('--folder <path>', 'Folder path as shown in the app; defaults to the root folder')
     .option('--name <name>', 'Store it under a different name')
@@ -52,6 +53,15 @@ export function attachFileUpload(files: Command): void {
       if (!completed.file) {
         throw new Error(`File upload ${session.id} completed without a file`)
       }
+      /**
+       * The file record, and nothing about the session that carried it.
+       *
+       * The session is over by the time this line runs — completed on success,
+       * aborted on failure — so its id names nothing a caller can go on to ask
+       * about, and its token is a live credential that also authorizes
+       * aborting and completing the transfer. This command runs in CI, where
+       * stdout is retained and broadly readable; neither belongs in it.
+       */
       printProtocolResult(profile.output, completed.file)
     })
 }

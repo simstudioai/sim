@@ -5,10 +5,15 @@ import {
   credentialGroupEnrollmentListQuerySchema,
   credentialGroupSchema,
   inviteCredentialGroupEnrollmentsBodySchema,
+  sharedCredentialGroupOAuthCallbackContract,
   updateCredentialGroupBodySchema,
 } from '@/lib/api/contracts/credential-groups'
 
 describe('credential group contracts', () => {
+  it('describes the shared managed OAuth callback as a redirect', () => {
+    expect(sharedCredentialGroupOAuthCallbackContract.response).toEqual({ mode: 'redirect' })
+  })
+
   it('accepts a group before account types are added', () => {
     const parsed = createCredentialGroupBodySchema.parse({
       name: 'Support team',

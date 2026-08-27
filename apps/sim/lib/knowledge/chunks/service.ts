@@ -340,6 +340,7 @@ export async function batchChunkOperation(
 
   const errors: string[] = []
   let successCount = 0
+  let matchedIds = new Set<string>()
 
   if (operation === 'delete') {
     // Handle batch delete with transaction for consistency
@@ -354,15 +355,13 @@ export async function batchChunkOperation(
         .from(embedding)
         .where(and(eq(embedding.documentId, documentId), inArray(embedding.id, chunkIds)))
 
-      if (chunksToDelete.length === 0) {
-        errors.push('No matching chunks found to delete')
-        return
-      }
+      matchedIds = new Set(chunksToDelete.map(({ id }) => id))
+      if (chunksToDelete.length === 0) return
 
       const totalTokensToRemove = chunksToDelete.reduce((sum, chunk) => sum + chunk.tokenCount, 0)
       const totalCharsToRemove = chunksToDelete.reduce((sum, chunk) => sum + chunk.contentLength, 0)
 
-      const deleteResult = await tx
+      await tx
         .delete(embedding)
         .where(and(eq(embedding.documentId, documentId), inArray(embedding.id, chunkIds)))
 
@@ -380,16 +379,27 @@ export async function batchChunkOperation(
   } else {
     const enabled = operation === 'enable'
 
-    await db
+    const updatedChunks = await db
       .update(embedding)
       .set({
         enabled,
         updatedAt: new Date(),
       })
       .where(and(eq(embedding.documentId, documentId), inArray(embedding.id, chunkIds)))
+      .returning({ id: embedding.id })
 
-    // For enable/disable, we assume all chunks were processed successfully
-    successCount = chunkIds.length
+    successCount = updatedChunks.length
+    matchedIds = new Set(updatedChunks.map(({ id }) => id))
+  }
+
+  /**
+   * One rule for all three operations: an id naming no chunk in this document
+   * is reported in `errors[]` and never fails the request, so a caller can tell
+   * which ids it named were wrong instead of inferring it from `processed`.
+   */
+  const unmatchedIds = chunkIds.filter((chunkId) => !matchedIds.has(chunkId))
+  if (unmatchedIds.length > 0) {
+    errors.push(`No matching chunks found to ${operation}: ${unmatchedIds.join(', ')}`)
   }
 
   logger.info(

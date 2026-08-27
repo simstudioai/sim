@@ -156,6 +156,24 @@ describe('credential connection commands', () => {
     expect(help).not.toContain('--service-account-json')
   })
 
+  it('marks its mandatory flags required in the help it renders', () => {
+    // Commander enforces `requiredOption` but renders nothing to say so — the
+    // marker is literal text the generated flags carry, so a hand-written
+    // command is the one place a required flag can look optional.
+    const flat = (...names: string[]) =>
+      commandAt(...names)
+        .helpInformation()
+        .replace(/\s+/g, ' ')
+
+    expect(flat('credentials', 'create')).toContain(
+      'Name shown for the credential in Sim (required)'
+    )
+    expect(flat('credentials', 'create')).toContain('read a file or stdin) (required)')
+    expect(flat('credentials', 'connect')).toContain(
+      'Name shown for the new credential in Sim (required)'
+    )
+  })
+
   it('rejects missing and unsupported provider fields before creation', async () => {
     mockRequest.mockReset().mockResolvedValue({
       data: [
@@ -239,5 +257,39 @@ describe('credential connection commands', () => {
       body: { workspaceId: 'ws_local', credentialId: 'cred_1' },
     })
     expect(vi.mocked(console.log).mock.calls.flat().join('\n')).toContain('authorizationUrl')
+  })
+})
+
+describe('credentials update --name', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks()
+    output.format = 'json'
+    mockRequest.mockReset()
+    mockRequest.mockResolvedValue({ data: { id: 'cred-1', displayName: 'renamed' } })
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+  })
+
+  async function update(...argv: string[]): Promise<void> {
+    await program().parseAsync(['node', 'sim', 'credentials', 'update', 'cred-1', ...argv])
+  }
+
+  it('accepts --name as an alias for --display-name', async () => {
+    await update('--name', 'renamed')
+
+    expect(mockRequest).toHaveBeenCalledOnce()
+    expect(mockRequest.mock.calls[0][1].body).toMatchObject({ displayName: 'renamed' })
+  })
+
+  it('keeps --display-name working', async () => {
+    await update('--display-name', 'renamed')
+
+    expect(mockRequest.mock.calls[0][1].body).toMatchObject({ displayName: 'renamed' })
+  })
+
+  it('refuses both spellings of the same field', async () => {
+    await expect(update('--name', 'one', '--display-name', 'two')).rejects.toThrow(
+      '--name and --display-name are the same field; pass one, not both'
+    )
+    expect(mockRequest).not.toHaveBeenCalled()
   })
 })

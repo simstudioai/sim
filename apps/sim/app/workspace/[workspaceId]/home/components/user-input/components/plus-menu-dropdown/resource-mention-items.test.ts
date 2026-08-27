@@ -4,6 +4,7 @@ import {
   TERMINAL_SESSION_RESOURCE_ID,
 } from '@/lib/copilot/resources/types'
 import type { AvailableItem } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown/resource-folder-tree'
+import { byResourceMenuOrder } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import {
   buildMentionPreview,
   resourceMentionMatches,
@@ -156,5 +157,18 @@ describe('buildMentionPreview', () => {
   it('keeps a family shorter than the cap intact', () => {
     const preview = buildMentionPreview([{ type: 'workflow', items: many(2) }], () => 5)
     expect(preview).toHaveLength(2)
+  })
+})
+
+describe('byResourceMenuOrder', () => {
+  it('places workflows before logs without changing the surrounding order', () => {
+    const ordered = [
+      { type: 'task', items: [{ id: 'chat-1', name: 'Glean migration' }] },
+      { type: 'log', items: [{ id: 'log-1', name: 'Glean' }] },
+      { type: 'workflow', items: [{ id: 'workflow-1', name: 'Glean' }] },
+      { type: 'browser', items: [{ id: 'browser', name: 'Browser' }] },
+    ].sort(byResourceMenuOrder)
+
+    expect(ordered.map((group) => group.type)).toEqual(['task', 'workflow', 'log', 'browser'])
   })
 })

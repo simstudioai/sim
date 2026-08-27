@@ -77,9 +77,9 @@ sim workflows list
 ```
 
 ```
-ID      NAME           FOLDER     DEPLOYED  RUNS  LAST RUN
-wf_7Yb2 Refund triage  /Support   yes       412   2026-08-15 14:02:11
-wf_9Kd4 Weekly digest  /Reporting no        18    2026-08-11 09:00:04
+ID                                    NAME           FOLDER     DEPLOYED  RUNS  LAST RUN
+3a9e21d8-5f47-4c0b-b2ea-91d7c6034ef8  Refund triage  /Support   yes       412   2026-08-15 14:02:11
+b8c0d247-9e13-4a86-97f5-2ad4e1638c09  Weekly digest  /Reporting no        18    2026-08-11 09:00:04
 ```
 </Step>
 
@@ -87,7 +87,7 @@ wf_9Kd4 Weekly digest  /Reporting no        18    2026-08-11 09:00:04
 ### Run one
 
 ```bash
-sim workflows run wf_7Yb2 --input '{"ticketId":"T-4821"}'
+sim workflows run 3a9e21d8-5f47-4c0b-b2ea-91d7c6034ef8 --input '{"ticketId":"T-4821"}'
 ```
 
 A workflow must be deployed before it can be run. Deploy from the editor, or
@@ -106,8 +106,8 @@ sim <resource> [sub-resource] <verb> [arguments] [options]
 
 ```bash
 sim workflows list
-sim tables rows query tbl_123 --limit 50
-sim knowledge documents upload kb_123 ./handbook.pdf
+sim tables rows query tbl_9f3c1a05d4b7426e8c2f0917ab35de64 --limit 50
+sim knowledge documents upload 4c1b7f60-2d55-4a3e-9c18-70b6ea2f9d31 ./handbook.pdf
 ```
 
 Resource groups are plural, and each also accepts its singular spelling —
@@ -146,8 +146,10 @@ sim tables rows query --help
 | [`workflow-mcp-servers`](/cli/workflow-mcp-servers) | Publish workflows as MCP tools for outside agents |
 | [`meta`](/cli/meta) | Check what this API supports and which limits apply |
 
-The [command reference](/cli/commands) documents every subcommand, argument, and
-flag, and is generated from the CLI itself.
+The [command overview](/cli/commands) has the global options and the commands
+that take no resource; the [complete reference](/cli/reference) documents every
+subcommand, argument, and flag on one page. Both are generated from the CLI
+itself.
 
 ## Where to go next
 
@@ -156,4 +158,5 @@ flag, and is generated from the CLI itself.
 - [Output formats](/cli/output) — `table`, `json`, `yaml`, and `text`, and when to use each
 - [Scripting](/cli/scripting) — piping, file inputs, exit codes, and automation recipes
 - [Troubleshooting](/cli/troubleshooting) — what each error means, and how to resolve it
-- [Command reference](/cli/commands) — every command, argument, and flag
+- [Command overview](/cli/commands) — global options, the command groups, and the commands that take no resource
+- [Complete reference](/cli/reference) — every command, argument, and flag on a single page

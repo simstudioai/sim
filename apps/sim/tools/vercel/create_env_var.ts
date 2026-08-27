@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { VercelCreateEnvVarParams, VercelCreateEnvVarResponse } from '@/tools/vercel/types'
 
 export const vercelCreateEnvVarTool: ToolConfig<
@@ -79,7 +80,7 @@ export const vercelCreateEnvVarTool: ToolConfig<
       if (params.teamId) query.set('teamId', params.teamId.trim())
       if (params.slug) query.set('slug', params.slug.trim())
       const qs = query.toString()
-      return `https://api.vercel.com/v10/projects/${params.projectId.trim()}/env${qs ? `?${qs}` : ''}`
+      return `https://api.vercel.com/v10/projects/${safeUrlPathSegment(params.projectId, 'projectId')}/env${qs ? `?${qs}` : ''}`
     },
     method: 'POST',
     headers: (params: VercelCreateEnvVarParams) => ({

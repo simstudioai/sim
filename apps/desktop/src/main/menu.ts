@@ -1,6 +1,6 @@
 import type { MenuItemConstructorOptions } from 'electron'
 import { app, BrowserWindow, Menu } from 'electron'
-import type { ConfigStore } from '@/main/config'
+import { type ConfigStore, isSimCloudOrigin } from '@/main/config'
 import { DOCS_URL, STATUS_URL } from '@/main/external-links'
 import { openExternalSafe } from '@/main/navigation'
 import type {
@@ -15,6 +15,8 @@ export interface MenuDeps {
   getMainWindow: () => BrowserWindow | null
   allowHttpLocalhost: () => boolean
   openSettings: () => void
+  /** Opens the native server picker (see main/server-window.ts). */
+  openServerSettings: () => void
   newWindow: () => void
   newChat: () => void
   /**
@@ -155,6 +157,7 @@ export function buildMenuTemplate(deps: MenuDeps): MenuItemConstructorOptions[] 
       submenu: [
         { role: 'about' },
         { label: 'Settings…', accelerator: 'CmdOrCtrl+,', click: deps.openSettings },
+        { label: 'Server…', click: deps.openServerSettings },
         { label: 'Check for Updates…', click: deps.checkForUpdates },
         { label: 'Sign Out', click: deps.signOut },
         { type: 'separator' },
@@ -250,10 +253,16 @@ export function buildMenuTemplate(deps: MenuDeps): MenuItemConstructorOptions[] 
           label: 'Sim Documentation',
           click: () => void openExternalSafe(DOCS_URL, deps.allowHttpLocalhost()),
         },
-        {
-          label: 'Sim Status',
-          click: () => void openExternalSafe(STATUS_URL, deps.allowHttpLocalhost()),
-        },
+        // Omitted for a self-hosted shell, like the offline page's status
+        // button — see isSimCloudOrigin.
+        ...(isSimCloudOrigin(deps.config.getOrigin())
+          ? [
+              {
+                label: 'Sim Status',
+                click: () => void openExternalSafe(STATUS_URL, deps.allowHttpLocalhost()),
+              },
+            ]
+          : []),
       ],
     },
   ]

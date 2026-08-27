@@ -77,7 +77,7 @@ export const sixtyfourEnrichCompanyTool: ToolConfig<
         leadStruct: params.leadStruct,
       }),
     },
-    url: 'https://api.sixtyfour.ai/enrich-company',
+    url: 'https://api.sixtyfour.ai/company-intelligence',
     method: 'POST',
     headers: (params) => ({
       'Content-Type': 'application/json',

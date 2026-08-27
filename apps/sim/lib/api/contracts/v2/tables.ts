@@ -436,7 +436,7 @@ export const v2ListTablesQuerySchema = z
     scope: v2TableScopeSchema
       .default('active')
       .describe(
-        'Which lifecycle set to list: `active` (default) for live tables, `archived` for tables a `DELETE` archived and `POST /tables/{tableId}/restore` can bring back. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too.'
+        'Which lifecycle set to list: `active` (default) for live tables, `archived` for tables a delete archived and a table restore can bring back. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too.'
       ),
     folderPath: v2FolderPathInputSchema
       .optional()
@@ -664,7 +664,7 @@ export const v2RestoreTableFolderBodySchema = z
   .object({
     workspaceId: workspaceIdSchema.describe('Workspace that owns the archived folder.'),
     path: v2NonRootFolderPathInputSchema.describe(
-      'Path the folder held when `DELETE /api/v2/tables/folders` archived it.'
+      'Path the folder held when a folder delete archived it.'
     ),
   })
   .strict()
@@ -1185,7 +1185,7 @@ export const v2UpsertTableRowBodySchema = upsertTableRowBodySchema
   .omit(OMIT_PRIVATE_PROVENANCE)
   .extend({
     data: v2RowDataSchema.describe(
-      'Complete set of row cells keyed by column name. On the update branch this REPLACES the matched row: any column not present here is cleared, unlike the merging `PATCH /api/v2/tables/{tableId}/rows/{rowId}`.'
+      'Complete set of row cells keyed by column name. On the update branch this REPLACES the matched row: any column not present here is cleared, unlike a single-row update, which merges.'
     ),
   })
   .strict()
@@ -2215,6 +2215,28 @@ export const v2TableImportStatusSchema = z.enum([
 ])
 export type V2TableImportStatus = z.output<typeof v2TableImportStatusSchema>
 
+/**
+ * One record the CSV parser dropped. `line` locates it in the source file so the
+ * caller can fix the file rather than diff the imported table against it.
+ */
+const v2TableImportRejectedSampleSchema = z
+  .object({
+    code: z.string().describe('CSV parser error code, e.g. CSV_QUOTE_NOT_CLOSED.'),
+    line: z
+      .number()
+      .int()
+      .nonnegative()
+      .nullable()
+      .describe('1-based source line the parser had reached when it gave up, or null.'),
+    message: z.string().describe('Parser message for the dropped record.'),
+  })
+  .strict()
+  .meta({
+    id: 'V2TableImportRejectedSample',
+    title: 'Rejected import record',
+    description: 'One source record a table import could not read.',
+  })
+
 export const v2TableImportSchema = z
   .object({
     id: z.string().describe('Unique table-import identifier.'),
@@ -2224,6 +2246,23 @@ export const v2TableImportSchema = z
     target: v2TableImportTargetSchema.describe('New or existing table import target.'),
     tableId: z.string().nullable().describe('Resulting or target table identifier.'),
     rowsProcessed: z.number().int().nonnegative().describe('Rows processed so far.'),
+    rowsRejected: z
+      .number()
+      .int()
+      .nonnegative()
+      .describe(
+        'Lower bound on the source records the CSV parser could not read and dropped, counted as one per parser failure. A single failure can discard more than one record — an unterminated quote swallows the rest of the file and is reported once — so the true loss may be larger. Non-zero means the import is partial even when the status is completed; zero is not a guarantee that nothing was dropped.'
+      ),
+    cellsRejected: z
+      .number()
+      .int()
+      .nonnegative()
+      .describe(
+        'Non-empty cell values the target column type could not represent. Their rows were imported with the cell left blank.'
+      ),
+    rejectedSamples: z
+      .array(v2TableImportRejectedSampleSchema)
+      .describe('Bounded sample of the dropped records, for locating them in the source file.'),
     error: z.string().nullable().describe('Terminal failure reason, or null.'),
     createdAt: v2TimestampSchema.describe('ISO 8601 creation timestamp.'),
     updatedAt: v2TimestampSchema.describe('ISO 8601 last-update timestamp.'),
@@ -2507,7 +2546,21 @@ export const v2TableRunDispatchSchema = z
         rowIds: z
           .array(z.string())
           .optional()
-          .describe('Explicit rows the dispatch targets; absent means every eligible row.'),
+          .describe(
+            'Explicit rows the dispatch targets. Absent means it was given no row list and walks every eligible row, narrowed by `filtered` and `excludeRowIds` when either is present.'
+          ),
+        filtered: z
+          .boolean()
+          .optional()
+          .describe(
+            'Present and true when a stored filter narrows which rows run. The filter itself is not published: it is held compiled, in a different grammar from the predicate the request was written in. Absent means no filter narrows the dispatch — which, with no `rowIds` and no `excludeRowIds`, is what means every eligible row.'
+          ),
+        excludeRowIds: z
+          .array(z.string())
+          .optional()
+          .describe(
+            'Rows the walk skips. Independent of `filtered`: a dispatch may exclude rows from a filtered set or from every eligible row. Never present alongside `rowIds`, which the run rejects and the walk would ignore.'
+          ),
       })
       .strict()
       .describe('What the dispatch was asked to run.'),

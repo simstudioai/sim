@@ -40,6 +40,7 @@ import {
   consumeCredentialGroupOAuthAttempt,
   createCredentialGroupOAuthAttempt,
   credentialGroupOAuthNonceMatches,
+  isCredentialGroupOAuthState,
 } from '@/lib/credential-groups/oauth-state'
 
 describe('credential group OAuth state', () => {
@@ -62,12 +63,14 @@ describe('credential group OAuth state', () => {
       authorizationAppId: 'google:app',
       scopeVersion: 1,
       requiredScopes: ['openid', 'email'],
-      redirectUri: 'https://sim.ai/api/credential-groups/oauth/gmail/callback',
+      redirectUri: 'https://sim.ai/api/auth/oauth2/callback/google-email',
       codeVerifier: 'code-verifier',
       invitationToken: 'invitation-token',
     })
 
     const stored = [...values.values()][0]
+    expect(isCredentialGroupOAuthState(created.state)).toBe(true)
+    expect(isCredentialGroupOAuthState(created.nonce)).toBe(false)
     expect(stored).not.toContain('code-verifier')
     expect(stored).not.toContain('invitation-token')
 

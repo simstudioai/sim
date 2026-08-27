@@ -1,4 +1,4 @@
-import { workspaceFiles } from '@sim/db/schema'
+import { type WorkspaceFileRow, workspaceFileColumns, workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
@@ -8,7 +8,7 @@ import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { generateWorkspaceFileKey } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { copyWorkspaceFileSecretProvenanceInTx } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { downloadFile, uploadFile } from '@/lib/uploads/core/storage-service'
-import type { StorageContext } from '@/lib/uploads/shared/types'
+import { getWorkspaceFileSize, type StorageContext } from '@/lib/uploads/shared/types'
 import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
 
 const logger = createLogger('ForkChatFiles')
@@ -28,7 +28,7 @@ export const FORKABLE_CHAT_FILE_CONTEXT: StorageContext = 'mothership'
 /** Max concurrent blob byte-copies during a chat fork. */
 const CHAT_BLOB_COPY_CONCURRENCY = 4
 
-export type ForkableChatFileRow = typeof workspaceFiles.$inferSelect
+export type ForkableChatFileRow = WorkspaceFileRow
 
 /** One blob byte-copy to run after the fork transaction commits. */
 export interface ChatBlobCopyTask {
@@ -61,7 +61,7 @@ export async function listForkableChatFiles(
   chatId: string
 ): Promise<ForkableChatFileRow[]> {
   return db
-    .select()
+    .select(workspaceFileColumns)
     .from(workspaceFiles)
     .where(
       and(
@@ -125,6 +125,7 @@ export async function planChatFileCopies(params: {
       key: targetKey,
       chatId: newChatId,
       userId,
+      sizeBytes: getWorkspaceFileSize(row),
       deletedAt: null,
       uploadedAt: now,
       updatedAt: now,

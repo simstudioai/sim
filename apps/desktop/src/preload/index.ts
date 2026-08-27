@@ -33,6 +33,8 @@ import type {
   DesktopOAuthConnectScope,
   DesktopPreferenceKey,
   DesktopPreferences,
+  DesktopServerChangeResult,
+  DesktopServerConfiguration,
   DesktopUpdateState,
   DesktopWindowState,
   DesktopZoomPercent,
@@ -112,6 +114,12 @@ function shellVersion(): string {
 const api: SimDesktopApi = {
   version: shellVersion(),
   openExternal: (url: string): Promise<boolean> => ipcRenderer.invoke('desktop:open-external', url),
+  ...(process.platform === 'darwin' || process.platform === 'win32'
+    ? {
+        openMicrophoneSettings: (): Promise<boolean> =>
+          ipcRenderer.invoke('desktop:open-microphone-settings'),
+      }
+    : {}),
   beginOAuthConnect: (providerId: string, scope?: DesktopOAuthConnectScope): Promise<boolean> =>
     ipcRenderer.invoke('desktop:oauth-connect', providerId, scope),
   onOAuthConnectComplete: (callback: (result: DesktopOAuthConnectResult) => void): (() => void) => {
@@ -123,6 +131,15 @@ const api: SimDesktopApi = {
   },
   offlineRetry: (): void => {
     ipcRenderer.send('offline:retry')
+  },
+  server: {
+    open: (): void => {
+      ipcRenderer.send('server:open')
+    },
+    getConfiguration: (): Promise<DesktopServerConfiguration> =>
+      ipcRenderer.invoke('server:get-configuration'),
+    setOrigin: (origin: string): Promise<DesktopServerChangeResult> =>
+      ipcRenderer.invoke('server:set-origin', origin),
   },
   localFilesystem: (request: LocalFilesystemRequest): Promise<LocalFilesystemResponse> =>
     ipcRenderer.invoke('desktop:local-filesystem', request),
@@ -439,7 +456,7 @@ const api: SimDesktopApi = {
     write: (terminalId: string, data: string, scopeId: string): void => {
       ipcRenderer.send('terminal:write', terminalId, data, scopeId)
     },
-    paste: (terminalId: string, scopeId: string): Promise<boolean> =>
+    paste: (terminalId: string, scopeId: string) =>
       ipcRenderer.invoke('terminal:paste', terminalId, scopeId),
     resize: (terminalId: string, cols: number, rows: number, scopeId: string): void => {
       ipcRenderer.send('terminal:resize', terminalId, cols, rows, scopeId)

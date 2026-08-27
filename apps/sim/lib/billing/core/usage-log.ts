@@ -180,8 +180,8 @@ async function resolveBillingContext(
 }
 
 /**
- * Returns post-cutover usage for an attributed billing entity/period.
- * Legacy pre-cutover usage remains in userStats as a baseline until reset.
+ * Returns attributed ledger usage for a billing entity/period. The ledger is
+ * the sole source of truth for usage — there is no userStats baseline.
  */
 export async function getBillingPeriodUsageCost(
   billingEntity: BillingEntity,
@@ -320,6 +320,47 @@ export async function getBillingPeriodUsageCostByUser(
     )
   }
   if (userIds) conditions.push(inArray(usageLog.userId, [...userIds]))
+
+  const rows = await executor
+    .select({
+      userId: usageLog.userId,
+      cost: sql<string>`COALESCE(SUM(${usageLog.cost}), 0)`,
+    })
+    .from(usageLog)
+    .where(and(...conditions))
+    .groupBy(usageLog.userId)
+
+  return new Map(rows.map((row) => [row.userId, Number.parseFloat(row.cost ?? '0')]))
+}
+
+/**
+ * Per-user ledger cost for every stamped billing period fully contained in
+ * `[from, to]`. Rows are matched on their write-time period stamps
+ * (`billing_period_start >= from AND billing_period_end <= to`), not on
+ * `created_at`, so a row written moments after rollover but stamped with the
+ * prior period is still attributed to that prior period.
+ *
+ * Used by the cycle-close sweep, whose window is normally exactly one period
+ * (`from` = the closed period's start, `to` = its end == the current period's
+ * start); a wider window absorbs multi-period catch-up after missed sweeps.
+ */
+export async function getStampedPeriodRangeUsageCostByUser(
+  billingEntity: BillingEntity,
+  range: { from: Date; to: Date },
+  source?: UsageLogSource | UsageLogSource[],
+  executor: DbClient = db
+): Promise<Map<string, number>> {
+  const conditions = [
+    eq(usageLog.billingEntityType, billingEntity.type),
+    eq(usageLog.billingEntityId, billingEntity.id),
+    gte(usageLog.billingPeriodStart, range.from),
+    lte(usageLog.billingPeriodEnd, range.to),
+  ]
+  if (source) {
+    conditions.push(
+      Array.isArray(source) ? inArray(usageLog.source, source) : eq(usageLog.source, source)
+    )
+  }
 
   const rows = await executor
     .select({

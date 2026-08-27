@@ -1,10 +1,5 @@
 import { DEFAULT_BILLING_CONCURRENCY_LIMITS } from '@/lib/billing/concurrency-defaults'
-import {
-  CREDIT_TIERS,
-  CREDITS_PER_DOLLAR,
-  DAILY_REFRESH_RATE,
-  DEFAULT_FREE_CREDITS,
-} from '@/lib/billing/constants'
+import { CREDIT_TIERS, CREDITS_PER_DOLLAR, DEFAULT_FREE_CREDITS } from '@/lib/billing/constants'
 
 /**
  * Looks up a credit tier by name, so a column binds to the right tier even if
@@ -21,10 +16,6 @@ const MAX_TIER = tierByName('Max')
 
 /** Formats a credit count with thousands separators (e.g. 25000 → "25,000"). */
 const formatCredits = (credits: number): string => credits.toLocaleString('en-US')
-
-/** Daily refresh credits for a plan: 1% of plan dollars/day, in credits. */
-const dailyRefreshCredits = (dollars: number): number =>
-  Math.round(dollars * DAILY_REFRESH_RATE * CREDITS_PER_DOLLAR)
 
 /** A brand icon rendered in a cell instead of a check/em-dash/text. */
 export interface CellIcon {
@@ -94,11 +85,11 @@ export const COMPARISON_SECTIONS: ComparisonSection[] = [
         ],
       },
       {
-        label: 'Daily refresh',
+        label: 'Weekly refresh',
         values: [
           false,
-          `+${formatCredits(dailyRefreshCredits(PRO_TIER.dollars))}`,
-          `+${formatCredits(dailyRefreshCredits(MAX_TIER.dollars))}`,
+          `+${formatCredits(PRO_TIER.weeklyRefreshCredits)}`,
+          `+${formatCredits(MAX_TIER.weeklyRefreshCredits)}`,
           'Custom',
         ],
       },

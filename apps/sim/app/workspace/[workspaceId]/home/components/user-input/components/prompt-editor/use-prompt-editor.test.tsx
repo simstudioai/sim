@@ -11,6 +11,7 @@ vi.mock('@/blocks/integration-matcher', () => ({
   getIntegrationMatcher: () => ({ regex: null, byName: new Map() }),
 }))
 
+import { SIM_SELECTION_MIME } from '@/lib/copilot/chat/selection-clipboard'
 import type { PlusMenuHandle } from '@/app/workspace/[workspaceId]/home/components/user-input/components/constants'
 import {
   type UsePromptEditorProps,
@@ -278,6 +279,42 @@ describe('usePromptEditor context insertion', () => {
     unmount()
   })
 
+  it('pastes a large table selection as a compact context chip', () => {
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      callback(0)
+      return 1
+    })
+    const context = {
+      kind: 'table_selection',
+      tableId: 'table-1',
+      tableName: 'Large table',
+      rowIds: ['row-1'],
+      label: 'Large table (1 row)',
+    } satisfies ChatContext
+    const { result, textarea, unmount } = renderPromptEditor({ workspaceId: 'ws-1' })
+    const preventDefault = vi.fn()
+
+    act(() => {
+      result().handlePaste({
+        currentTarget: textarea,
+        clipboardData: {
+          getData: (type: string) => {
+            if (type === 'text/plain') return 'x'.repeat(1_000_001)
+            if (type === SIM_SELECTION_MIME) return JSON.stringify(context)
+            return ''
+          },
+        },
+        preventDefault,
+      } as unknown as React.ClipboardEvent<HTMLTextAreaElement>)
+    })
+
+    expect(preventDefault).toHaveBeenCalledOnce()
+    expect(result().value).toBe('@Large table (1 row) ')
+    expect(result().contexts).toEqual([context])
+
+    unmount()
+  })
+
   it('suffixes duplicate visible labels so two browser selections coexist', () => {
     vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
       callback(0)
@@ -295,7 +332,9 @@ describe('usePromptEditor context insertion', () => {
       label: 'Browser · Another page title',
       selection: { text: 'second selection', url: 'https://example.com' },
     } satisfies ChatContext
-    const { result, textarea, unmount } = renderPromptEditor({ workspaceId: 'ws-1' })
+    const { result, textarea, unmount } = renderPromptEditor({
+      workspaceId: 'ws-1',
+    })
 
     act(() => {
       result().insertContext(first)

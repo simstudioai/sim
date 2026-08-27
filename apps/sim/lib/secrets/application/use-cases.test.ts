@@ -17,6 +17,7 @@ const { mocks } = vi.hoisted(() => ({
     keyAccess: vi.fn(),
     personalMetadata: vi.fn(),
     setWorkspace: vi.fn(),
+    updateWorkspaceMetadata: vi.fn(),
     setPersonal: vi.fn(),
     deletePersonal: vi.fn(),
     listCredentials: vi.fn(),
@@ -67,6 +68,7 @@ vi.mock('@/lib/credentials/secret-values', () => ({
   readWorkspaceSecretValues: mocks.readWorkspaceValues,
   setPersonalSecret: mocks.setPersonal,
   setWorkspaceSecret: mocks.setWorkspace,
+  updateWorkspaceSecretMetadata: mocks.updateWorkspaceMetadata,
 }))
 
 import {
@@ -130,6 +132,10 @@ describe('secret application use cases', () => {
     mocks.workspaceAccess.mockResolvedValue({ hasAccess: true, canWrite: true, canAdmin: false })
     mocks.keyAccess.mockResolvedValue({ knownKeys: new Set(), adminKeys: new Set() })
     mocks.setWorkspace.mockResolvedValue({ created: true, updatedAt: personalUpdatedAt })
+    mocks.updateWorkspaceMetadata.mockResolvedValue({
+      created: false,
+      updatedAt: personalUpdatedAt,
+    })
     mocks.setPersonal.mockResolvedValue({ created: true, updatedAt: personalUpdatedAt })
     mocks.personalMetadata.mockResolvedValue(null)
     mocks.deletePersonal.mockResolvedValue(true)
@@ -442,6 +448,139 @@ describe('secret application use cases', () => {
 
     expect(result.secret).toBe(personalSecret)
     expect(mocks.personalMetadata).not.toHaveBeenCalled()
+  })
+
+  it('updates workspace metadata through the update-only manager, never re-encrypting the value', async () => {
+    const result = await setSecretUseCase.execute({
+      principal: session,
+      input: {
+        workspaceId: workspace.workspaceId,
+        name: secret.envKey,
+        scope: 'workspace',
+        unredacted: false,
+      },
+    })
+
+    expect(mocks.updateWorkspaceMetadata).toHaveBeenCalledWith({
+      workspaceId: workspace.workspaceId,
+      name: secret.envKey,
+      description: undefined,
+      unredacted: false,
+    })
+    expect(mocks.setWorkspace).not.toHaveBeenCalled()
+    expect(mocks.setPersonal).not.toHaveBeenCalled()
+    expect(result.created).toBe(false)
+  })
+
+  it('still checks the per-key ACL before a metadata-only write', async () => {
+    mocks.workspaceAccess.mockResolvedValue({ hasAccess: true, canWrite: true, canAdmin: false })
+    mocks.keyAccess.mockResolvedValue({
+      knownKeys: new Set([secret.envKey]),
+      adminKeys: new Set(),
+    })
+
+    await expect(
+      setSecretUseCase.execute({
+        principal: session,
+        input: {
+          workspaceId: workspace.workspaceId,
+          name: secret.envKey,
+          scope: 'workspace',
+          unredacted: true,
+        },
+      })
+    ).rejects.toThrow(/Credential admin permission required/)
+
+    expect(mocks.updateWorkspaceMetadata).not.toHaveBeenCalled()
+  })
+
+  it('reports a metadata write against a missing secret as not found rather than creating one', async () => {
+    mocks.updateWorkspaceMetadata.mockResolvedValue(null)
+
+    await expect(
+      setSecretUseCase.execute({
+        principal: session,
+        input: {
+          workspaceId: workspace.workspaceId,
+          name: secret.envKey,
+          scope: 'workspace',
+          unredacted: true,
+        },
+      })
+    ).rejects.toMatchObject({ code: 'not_found' })
+
+    expect(mocks.setWorkspace).not.toHaveBeenCalled()
+  })
+
+  it('reports a secret deleted between the metadata write and the response read as not found', async () => {
+    mocks.updateWorkspaceMetadata.mockResolvedValue({
+      created: false,
+      updatedAt: personalUpdatedAt,
+    })
+    mocks.listCredentials.mockResolvedValue({ data: [], nextCursorKeys: null })
+
+    await expect(
+      setSecretUseCase.execute({
+        principal: session,
+        input: {
+          workspaceId: workspace.workspaceId,
+          name: secret.envKey,
+          scope: 'workspace',
+          unredacted: true,
+        },
+      })
+    ).rejects.toMatchObject({ code: 'not_found' })
+  })
+
+  it('refuses a workspace write that names none of the three writable fields', async () => {
+    await expect(
+      setSecretUseCase.execute({
+        principal: session,
+        input: {
+          workspaceId: workspace.workspaceId,
+          name: secret.envKey,
+          scope: 'workspace',
+        },
+      })
+    ).rejects.toThrow(/value, description, or unredacted is required/)
+
+    expect(mocks.updateWorkspaceMetadata).not.toHaveBeenCalled()
+    expect(mocks.setWorkspace).not.toHaveBeenCalled()
+  })
+
+  it('refuses a value-less personal write in the use case, not just the contract', async () => {
+    await expect(
+      setSecretUseCase.execute({
+        principal: session,
+        input: {
+          workspaceId: workspace.workspaceId,
+          name: personalSecret.envKey,
+          scope: 'personal',
+        },
+      })
+    ).rejects.toThrow(/value is required for a personal secret/)
+
+    expect(mocks.setPersonal).not.toHaveBeenCalled()
+    expect(mocks.updateWorkspaceMetadata).not.toHaveBeenCalled()
+  })
+
+  it('audits a metadata-only write as an update rather than as setting a value', async () => {
+    await setSecretUseCase.execute({
+      principal: session,
+      input: {
+        workspaceId: workspace.workspaceId,
+        name: secret.envKey,
+        scope: 'workspace',
+        unredacted: false,
+      },
+    })
+
+    expect(mocks.audit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        description: `Updated workspace secret "${secret.envKey}" metadata`,
+        metadata: expect.objectContaining({ unredacted: false, operation: 'secrets.set' }),
+      })
+    )
   })
 
   it('deletes a personal secret for the caller rather than for one workspace', async () => {

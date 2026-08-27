@@ -52,8 +52,9 @@ export const GET = defineV2JsonRoute({
     ),
   }),
   useCase: listWorkflowMcpDeployments,
-  present: ({ servers, nextCursorKeys }, { query }) => ({
+  present: ({ servers, nextCursorKeys, toolNamesTruncated }, { query }) => ({
     data: servers.map(toV2WorkflowMcpServerListItem),
+    toolNamesTruncated,
     nextCursor: writeSortedCursor(
       nextCursorKeys,
       query.sortBy,

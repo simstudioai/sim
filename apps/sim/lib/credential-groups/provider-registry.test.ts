@@ -2,11 +2,15 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { createGoogleManagedOAuthConnector } from '@/lib/auth/connectors/managed-oauth'
+import {
+  createAtlassianManagedOAuthConnector,
+  createGoogleManagedOAuthConnector,
+} from '@/lib/auth/connectors/managed-oauth'
 import { getCredentialGroupProviderAdapter } from '@/lib/credential-groups/provider-registry'
 import {
   getCredentialGroupProviderFromProviderId,
   getCredentialGroupProviderService,
+  getCredentialGroupStandardOAuthProviderFromProviderId,
 } from '@/lib/credential-groups/providers'
 import { SLACK_MANAGED_USER_SCOPES } from '@/lib/credential-groups/slack-managed-user-scopes'
 
@@ -31,6 +35,20 @@ describe('Credential Group provider registry', () => {
     expect(getCredentialGroupProviderFromProviderId(service.providerId)).toBe('google-calendar')
   })
 
+  it.each(['confluence', 'jira'] as const)(
+    'maps %s to its existing OAuth provider and adapter',
+    (provider) => {
+      const service = getCredentialGroupProviderService(provider)
+
+      expect(service.providerId).toBe(provider)
+      expect(getCredentialGroupProviderFromProviderId(service.providerId)).toBe(provider)
+      expect(getCredentialGroupStandardOAuthProviderFromProviderId(service.providerId)).toBe(
+        provider
+      )
+      expect(getCredentialGroupProviderAdapter(provider).provider).toBe(provider)
+    }
+  )
+
   it('uses provider-owned scope implication rules', () => {
     const managedOAuth = createGoogleManagedOAuthConnector('google-email')
     const canonicalScopes = getCredentialGroupProviderService('gmail').scopes
@@ -46,6 +64,14 @@ describe('Credential Group provider registry', () => {
   it('requires the complete Google Calendar scope policy', () => {
     const managedOAuth = createGoogleManagedOAuthConnector('google-calendar')
     const requiredScopes = getCredentialGroupProviderService('google-calendar').scopes
+
+    expect(managedOAuth.hasRequiredScopes(requiredScopes, requiredScopes)).toBe(true)
+    expect(managedOAuth.hasRequiredScopes(requiredScopes.slice(1), requiredScopes)).toBe(false)
+  })
+
+  it.each(['confluence', 'jira'] as const)('requires the complete %s scope policy', (provider) => {
+    const managedOAuth = createAtlassianManagedOAuthConnector(provider)
+    const requiredScopes = getCredentialGroupProviderService(provider).scopes
 
     expect(managedOAuth.hasRequiredScopes(requiredScopes, requiredScopes)).toBe(true)
     expect(managedOAuth.hasRequiredScopes(requiredScopes.slice(1), requiredScopes)).toBe(false)
@@ -68,6 +94,9 @@ describe('Credential Group provider registry', () => {
   it('fails fast for an unregistered managed provider ID', () => {
     expect(() => getCredentialGroupProviderFromProviderId('unknown-provider')).toThrow(
       'Unsupported managed credential provider'
+    )
+    expect(() => getCredentialGroupStandardOAuthProviderFromProviderId('slack')).toThrow(
+      'Unsupported managed OAuth provider'
     )
   })
 })

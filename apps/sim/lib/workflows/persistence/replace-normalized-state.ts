@@ -1,7 +1,8 @@
 import { db } from '@sim/db'
-import { workflow } from '@sim/db/schema'
+import { workflow, workflowBlocks, workflowEdges, workflowSubflows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, isNull } from 'drizzle-orm'
+import { getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
+import { and, eq, inArray, isNull, ne } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx } from '@/lib/db/types'
 import { extractAndPersistCustomTools } from '@/lib/workflows/persistence/custom-tools-persistence'
@@ -20,6 +21,157 @@ export class WorkflowStatePersistenceError extends Error {
     super('Failed to save workflow state')
     this.name = 'WorkflowStatePersistenceError'
   }
+}
+
+/** The three global-primary-key id families one normalized write inserts. */
+export interface WorkflowGraphIds {
+  blockIds: string[]
+  edgeIds: string[]
+  subflowIds: string[]
+}
+
+/**
+ * The ids a write of `state` would insert.
+ *
+ * Derived from the prepared state rather than from the caller's body, and read
+ * by both the dry-run preview and the committed write, so the two cannot
+ * disagree about what is about to be claimed.
+ *
+ * Each family is read from whichever side `saveWorkflowToNormalizedTables`
+ * inserts, which is not the same side for all three. Blocks are inserted as
+ * `block.id` — the record's own field, taken from `Object.values` — so a body
+ * whose record key differs from the block's `id` is checked on the value that
+ * reaches the table. Subflow rows are the opposite: their ids come from
+ * `generateLoopBlocks`/`generateParallelBlocks`, which key every container by
+ * its record key, so those are collected from `Object.keys`.
+ *
+ * Subflow ids are collected separately even though they are container block
+ * ids: `workflow_subflows` has its own global primary key, so the same value
+ * can be free as a block id and taken as a subflow id.
+ */
+export function collectWorkflowGraphIds(state: PreparedWorkflowState): WorkflowGraphIds {
+  return {
+    blockIds: Object.values(state.blocks).map((block) => block.id),
+    edgeIds: state.edges.map((edge) => edge.id),
+    subflowIds: [...Object.keys(state.loops), ...Object.keys(state.parallels)],
+  }
+}
+
+/** How many offending ids a conflict message names before it summarizes the rest. */
+const MAX_REPORTED_CONFLICT_IDS = 5
+
+/**
+ * Renders the offending ids, and only the ids.
+ *
+ * Never the workflow or workspace that holds them: the caller supplied these
+ * values, so naming them back discloses nothing they did not already have,
+ * where naming the owner would.
+ */
+function describeClaimedIds(ids: string[]): string {
+  const sorted = [...ids].sort()
+  const shown = sorted.slice(0, MAX_REPORTED_CONFLICT_IDS).join(', ')
+  const remaining = sorted.length - MAX_REPORTED_CONFLICT_IDS
+  return remaining > 0 ? `${shown} (and ${remaining} more)` : shown
+}
+
+/**
+ * Refuses a graph whose ids are already owned by a different workflow.
+ *
+ * `workflow_blocks.id`, `workflow_edges.id`, and `workflow_subflows.id` are
+ * global primary keys, but the replace deletes only the rows scoped to this
+ * workflow — so an id owned elsewhere survives the delete and the insert faults
+ * on it. Detecting it here turns a caller-reachable 500 into a 409 that names
+ * what to change.
+ *
+ * The `ne(workflowId)` half is what keeps the ordinary round-trip working: ids
+ * this workflow already holds are deleted before the insert, so they are not a
+ * conflict.
+ */
+export async function assertWorkflowGraphIdsUnclaimed(
+  executor: DbOrTx,
+  workflowId: string,
+  ids: WorkflowGraphIds
+): Promise<void> {
+  const [blocks, edges, subflows] = await Promise.all([
+    ids.blockIds.length > 0
+      ? executor
+          .select({ id: workflowBlocks.id })
+          .from(workflowBlocks)
+          .where(
+            and(inArray(workflowBlocks.id, ids.blockIds), ne(workflowBlocks.workflowId, workflowId))
+          )
+      : Promise.resolve([] as { id: string }[]),
+    ids.edgeIds.length > 0
+      ? executor
+          .select({ id: workflowEdges.id })
+          .from(workflowEdges)
+          .where(
+            and(inArray(workflowEdges.id, ids.edgeIds), ne(workflowEdges.workflowId, workflowId))
+          )
+      : Promise.resolve([] as { id: string }[]),
+    ids.subflowIds.length > 0
+      ? executor
+          .select({ id: workflowSubflows.id })
+          .from(workflowSubflows)
+          .where(
+            and(
+              inArray(workflowSubflows.id, ids.subflowIds),
+              ne(workflowSubflows.workflowId, workflowId)
+            )
+          )
+      : Promise.resolve([] as { id: string }[]),
+  ])
+
+  const conflicts: string[] = []
+  if (blocks.length > 0) {
+    conflicts.push(
+      `Block ids already used by another workflow: ${describeClaimedIds(blocks.map((row) => row.id))}`
+    )
+  }
+  if (edges.length > 0) {
+    conflicts.push(
+      `Edge ids already used by another workflow: ${describeClaimedIds(edges.map((row) => row.id))}`
+    )
+  }
+  if (subflows.length > 0) {
+    conflicts.push(
+      `Subflow ids already used by another workflow: ${describeClaimedIds(subflows.map((row) => row.id))}`
+    )
+  }
+
+  if (conflicts.length > 0) {
+    throw new OrchestrationError('conflict', conflicts.join('; '))
+  }
+}
+
+/** Postgres SQLSTATE for a unique-constraint violation. */
+const UNIQUE_VIOLATION = '23505'
+
+const GRAPH_ID_CONSTRAINTS = [
+  'workflow_blocks_pkey',
+  'workflow_edges_pkey',
+  'workflow_subflows_pkey',
+] as const
+
+/**
+ * Whether a driver fault is another workflow having claimed one of these ids.
+ *
+ * The pre-check is the good-message path, not the correctness boundary: the
+ * row lock covers the target workflow, not the workflow that would claim an id,
+ * so under READ COMMITTED two concurrent writes carrying the same fresh id can
+ * both pass the check and one insert still faults. This keeps that race a 409.
+ *
+ * Read through the `cause` chain: Drizzle wraps every driver fault in a
+ * `DrizzleQueryError` whose own message is the SQL text and whose `code` is
+ * absent, so a top-level field read never sees the driver's SQLSTATE. The
+ * constraint name is compared exactly rather than searched for in a message,
+ * so an unrelated constraint merely containing one of these names is not
+ * misclassified.
+ */
+function isGraphIdUniqueViolation(error: unknown): boolean {
+  if (getPostgresErrorCode(error) !== UNIQUE_VIOLATION) return false
+  const constraint = getPostgresConstraintName(error)
+  return GRAPH_ID_CONSTRAINTS.some((name) => name === constraint)
 }
 
 export interface ReplaceWorkflowState {
@@ -121,7 +273,20 @@ export async function replaceWorkflowNormalizedState(
       deployedAt: resolved.deployedAt,
     } as WorkflowState
 
-    const result = await saveWorkflowToNormalizedTables(workflowId, workflowState, tx)
+    await assertWorkflowGraphIdsUnclaimed(tx, workflowId, collectWorkflowGraphIds(prepared.state))
+
+    let result: Awaited<ReturnType<typeof saveWorkflowToNormalizedTables>>
+    try {
+      result = await saveWorkflowToNormalizedTables(workflowId, workflowState, tx)
+    } catch (error) {
+      if (isGraphIdUniqueViolation(error)) {
+        throw new OrchestrationError(
+          'conflict',
+          'Another workflow claimed one of the submitted block, edge, or subflow ids while this write was in flight'
+        )
+      }
+      throw error
+    }
     if (!result.success) return result
 
     const updateData: Partial<typeof workflow.$inferInsert> = {

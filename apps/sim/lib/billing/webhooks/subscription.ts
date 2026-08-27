@@ -5,15 +5,17 @@ import { createLogger } from '@sim/logger'
 import { and, eq, inArray, ne } from 'drizzle-orm'
 import { calculateSubscriptionOverage, isSubscriptionOrgScoped } from '@/lib/billing/core/billing'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
+import {
+  claimTerminalPeriod,
+  closeElapsedPeriodBeforeDeletion,
+  writeFinalPeriodBookkeeping,
+} from '@/lib/billing/cycle-close'
 import { restoreUserProSubscription } from '@/lib/billing/organizations/membership'
 import { isEnterprise, isPaid, isPro, isTeam } from '@/lib/billing/plan-helpers'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
 import { stripeWebhookIdempotency } from '@/lib/billing/webhooks/idempotency'
-import {
-  getBilledOverageForSubscription,
-  resetUsageForSubscription,
-} from '@/lib/billing/webhooks/invoices'
+import { getBilledOverageForSubscription } from '@/lib/billing/webhooks/invoices'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { detachOrganizationWorkspaces } from '@/lib/workspaces/organization-workspaces'
 
@@ -185,35 +187,17 @@ export async function handleSubscriptionCreated(
         const wasFreePreviously = otherActiveSubscriptions.length === 0
         const isPaidPlan = isPaid(subscriptionData.plan)
 
-        if (wasFreePreviously && isPaidPlan) {
-          logger.info('Detected free -> paid transition, resetting usage', {
-            subscriptionId: subscriptionData.id,
-            referenceId: subscriptionData.referenceId,
-            plan: subscriptionData.plan,
-          })
-
-          await resetUsageForSubscription({
-            plan: subscriptionData.plan,
-            referenceId: subscriptionData.referenceId,
-            periodStart: subscriptionData.periodStart ?? null,
-            periodEnd: subscriptionData.periodEnd ?? null,
-          })
-
-          logger.info('Successfully reset usage for free -> paid transition', {
-            subscriptionId: subscriptionData.id,
-            referenceId: subscriptionData.referenceId,
-            plan: subscriptionData.plan,
-          })
-        } else {
-          logger.info('No usage reset needed', {
-            subscriptionId: subscriptionData.id,
-            referenceId: subscriptionData.referenceId,
-            plan: subscriptionData.plan,
-            wasFreePreviously,
-            isPaidPlan,
-            otherActiveSubscriptionsCount: otherActiveSubscriptions.length,
-          })
-        }
+        // No usage reset on free -> paid: usage is the attributed ledger, and
+        // the new subscription's period window starts empty by construction
+        // (rows are stamped with the paid period at write time).
+        logger.info('Processed subscription creation', {
+          subscriptionId: subscriptionData.id,
+          referenceId: subscriptionData.referenceId,
+          plan: subscriptionData.plan,
+          wasFreePreviously,
+          isPaidPlan,
+          otherActiveSubscriptionsCount: otherActiveSubscriptions.length,
+        })
 
         if (wasFreePreviously && isPaidPlan) {
           // Best-effort instrumentation; a transient DB error here must never abort
@@ -276,8 +260,10 @@ export async function handleSubscriptionDeleted(
     referenceId: string
     stripeSubscriptionId: string | null
     seats?: number | null
+    billingInterval?: string | null
     periodStart?: Date | null
     periodEnd?: Date | null
+    metadata?: unknown
   },
   stripeEventId?: string
 ) {
@@ -299,15 +285,45 @@ export async function handleSubscriptionDeleted(
       'subscription-deleted',
       idempotencyIdentifier,
       async () => {
-        const totalOverage = await calculateSubscriptionOverage(subscription)
+        // Settle any elapsed period the sweep has not closed yet — a deleted
+        // subscription leaves the sweep's candidate set, so this is the last
+        // chance to bill it (and to reset the threshold tracker so the
+        // terminal settlement below is not offset by the elapsed period's
+        // collections).
+        await closeElapsedPeriodBeforeDeletion(subscription.id)
+
+        // Then claim the terminal period BEFORE computing or charging: this
+        // reads the row's fresh period (webhook payloads can be stale across
+        // a rollover) and serializes with the cycle-close sweep. A lagging
+        // marker here means the close above deferred OR a rollover committed
+        // in between — run the close once more (it settles a freshly elapsed
+        // period; a deferred close defers again, loudly), then seal so the
+        // marker cannot be raced indefinitely and an in-flight sweep aborts
+        // its conflicting close.
+        let terminal = await claimTerminalPeriod(subscription.id)
+        if (!terminal.markerWasCurrent) {
+          await closeElapsedPeriodBeforeDeletion(subscription.id)
+          terminal = await claimTerminalPeriod(subscription.id, { sealLagging: true })
+        }
+        const settlementPeriod = {
+          periodStart: terminal.periodStart ?? subscription.periodStart ?? null,
+          periodEnd: terminal.periodEnd ?? subscription.periodEnd ?? null,
+        }
+
+        const totalOverage = await calculateSubscriptionOverage({
+          ...subscription,
+          ...settlementPeriod,
+        })
         const stripe = requireStripeClient()
 
         if (isEnterprise(subscription.plan)) {
-          await resetUsageForSubscription({
+          await writeFinalPeriodBookkeeping({
+            id: subscription.id,
             plan: subscription.plan,
             referenceId: subscription.referenceId,
-            periodStart: subscription.periodStart ?? null,
-            periodEnd: subscription.periodEnd ?? null,
+            billingInterval: subscription.billingInterval ?? null,
+            ...settlementPeriod,
+            metadata: subscription.metadata,
           })
 
           const dormantResult = await transitionOrganizationToDormantState(
@@ -343,7 +359,15 @@ export async function handleSubscriptionDeleted(
           return { totalOverage: 0, kind: 'enterprise' as const }
         }
 
-        const billedOverage = await getBilledOverageForSubscription(subscription)
+        // The tracker only ever holds collections for the period that began
+        // at the close marker — the threshold gate blocks settlement while
+        // the marker lags. If the marker was still lagging at claim time
+        // (the elapsed close above deferred), the tracked amount belongs to
+        // that forgiven elapsed period, not the terminal window: subtracting
+        // it would under-bill the final invoice, so count nothing.
+        const billedOverage = terminal.markerWasCurrent
+          ? await getBilledOverageForSubscription(subscription)
+          : 0
         const remainingOverage = Math.max(0, totalOverage - billedOverage)
 
         logger.info('Subscription deleted overage calculation', {
@@ -423,11 +447,13 @@ export async function handleSubscriptionDeleted(
           })
         }
 
-        await resetUsageForSubscription({
+        await writeFinalPeriodBookkeeping({
+          id: subscription.id,
           plan: subscription.plan,
           referenceId: subscription.referenceId,
-          periodStart: subscription.periodStart ?? null,
-          periodEnd: subscription.periodEnd ?? null,
+          billingInterval: subscription.billingInterval ?? null,
+          ...settlementPeriod,
+          metadata: subscription.metadata,
         })
 
         let restoredProCount = 0

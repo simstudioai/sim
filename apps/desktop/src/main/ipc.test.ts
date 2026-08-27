@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
+import { PASTE_LIMITS } from '@sim/utils/paste'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => import('@/test/electron-mock'))
@@ -130,7 +131,7 @@ import {
 } from '@/main/browser-import'
 import { getSearchSuggestions } from '@/main/browser-search/suggestions'
 import { trackInputActivity } from '@/main/input-activity'
-import { type IpcDeps, registerIpcHandlers } from '@/main/ipc'
+import { type IpcDeps, openMicrophoneSettings, registerIpcHandlers } from '@/main/ipc'
 import { LocalFilesystemService } from '@/main/local-filesystem'
 import { TerminalRegistry } from '@/main/terminal/registry'
 import { findCachedTerminalThemeProfile, listTerminalThemeProfiles } from '@/main/terminal-themes'
@@ -316,6 +317,11 @@ describe('registerIpcHandlers', () => {
         check: vi.fn(),
         install: vi.fn(),
       },
+      server: {
+        open: vi.fn(),
+        getConfiguration: vi.fn(() => ({ origin: APP, defaultOrigin: APP, isSimCloud: true })),
+        setOrigin: vi.fn(async () => ({ ok: true as const, origin: APP, unchanged: true })),
+      },
     }
     registerIpcHandlers(deps)
   })
@@ -330,6 +336,26 @@ describe('registerIpcHandlers', () => {
     expect(await invoke.get('desktop:open-external')?.(appEvent, 'javascript:alert(1)')).toBe(false)
     expect(await invoke.get('desktop:open-external')?.(appEvent, 42)).toBe(false)
     expect(shell.openExternal).toHaveBeenCalledTimes(1)
+  })
+
+  it('opens microphone privacy settings only for the trusted app origin', async () => {
+    const { invoke } = collectHandlers()
+    const handler = invoke.get('desktop:open-microphone-settings')
+
+    expect(await handler?.(evilEvent)).toBe(false)
+    expect(await handler?.(appEvent)).toBe(process.platform === 'darwin')
+    expect(shell.openExternal).toHaveBeenCalledTimes(process.platform === 'darwin' ? 1 : 0)
+  })
+
+  it('uses fixed native microphone settings URLs', async () => {
+    await expect(openMicrophoneSettings('darwin')).resolves.toBe(true)
+    expect(shell.openExternal).toHaveBeenLastCalledWith(
+      'x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone'
+    )
+
+    await expect(openMicrophoneSettings('win32')).resolves.toBe(true)
+    expect(shell.openExternal).toHaveBeenLastCalledWith('ms-settings:privacy-microphone')
+    await expect(openMicrophoneSettings('linux')).resolves.toBe(false)
   })
 
   it('keeps live search suggestions behind the app origin and privacy preference', async () => {
@@ -1668,6 +1694,28 @@ describe('registerIpcHandlers', () => {
     vi.mocked(clipboard.readText).mockReturnValue('')
     expect(await invoke.get('terminal:paste')?.(activeAppEvent, 't1', 'chat-a')).toBe(false)
     expect(write).not.toHaveBeenCalled()
+  })
+
+  it('rejects an oversized terminal paste before writing to the PTY', async () => {
+    const { invoke } = collectHandlers()
+    const write = vi.spyOn(deps.terminal, 'write').mockImplementation(() => {})
+    vi.mocked(clipboard.readText).mockReturnValue('x'.repeat(PASTE_LIMITS.TERMINAL_BYTES + 1))
+
+    await expect(invoke.get('terminal:paste')?.(activeAppEvent, 't1', 'chat-a')).resolves.toBe(
+      'too-large'
+    )
+    expect(write).not.toHaveBeenCalled()
+  })
+
+  it('writes an admitted terminal paste in bounded chunks', async () => {
+    const { invoke } = collectHandlers()
+    const write = vi.spyOn(deps.terminal, 'write').mockImplementation(() => {})
+    const text = 'x'.repeat(70 * 1024)
+    vi.mocked(clipboard.readText).mockReturnValue(text)
+
+    await expect(invoke.get('terminal:paste')?.(activeAppEvent, 't1', 'chat-a')).resolves.toBe(true)
+    expect(write).toHaveBeenCalledTimes(2)
+    expect(write.mock.calls.map((call) => call[2]).join('')).toBe(text)
   })
 
   it('gates a command smuggled inside a fake OSC or DCS reply', () => {

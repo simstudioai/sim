@@ -127,7 +127,7 @@ export const createIndexTool: ToolConfig<
         try {
           body.settings = JSON.parse(params.settings)
         } catch {
-          // Ignore invalid settings
+          throw new Error('Invalid JSON provided for settings')
         }
       }
 
@@ -135,7 +135,7 @@ export const createIndexTool: ToolConfig<
         try {
           body.mappings = JSON.parse(params.mappings)
         } catch {
-          // Ignore invalid mappings
+          throw new Error('Invalid JSON provided for mappings')
         }
       }
 

@@ -604,7 +604,11 @@ describe('provisionRuntimeDependencies', () => {
     ]
     expect(command).toContain('apt-get update')
     expect(command).toContain("'curl=7.88.1-10+deb12u8' 'jq'")
-    expect(options).toMatchObject({ rootUser: true, signal: controller.signal })
+    expect(options).toMatchObject({
+      rootUser: true,
+      signal: controller.signal,
+      atMostOnce: true,
+    })
     expect(options.timeoutMs).toBeGreaterThan(0)
     expect(options.timeoutMs).toBeLessThanOrEqual(90_000)
     expect(sandbox.writeFile).not.toHaveBeenCalled()

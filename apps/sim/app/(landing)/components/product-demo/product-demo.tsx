@@ -40,7 +40,7 @@ export function ProductDemo() {
           </div>
           <h2
             id='product-demo-heading'
-            className='text-balance font-medium text-[22px] text-[var(--text-primary)] leading-[1.3] max-sm:text-[20px]'
+            className='text-balance text-[22px] text-[var(--text-primary)] leading-[1.3] max-sm:text-[20px]'
           >
             Describe it. Sim builds it.
           </h2>

@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { Agent } from 'undici'
 import { describe, expect, it } from 'vitest'
 import { isTransportTimeoutError, withCallerOwnedDeadline } from '@/lib/core/utils/fetch-deadline'
 
@@ -12,6 +13,20 @@ describe('withCallerOwnedDeadline', () => {
    */
   it('disarms the transport timer rather than negotiating a value', () => {
     expect(withCallerOwnedDeadline({}).timeout).toBe(false)
+  })
+
+  /*
+   * Tests run under Node, where `timeout: false` is ignored and undici's
+   * 300s `headersTimeout` default is what killed async (Trigger.dev) sandbox
+   * runs. The dispatcher is what disarms it there; dropping it regresses every
+   * worker-side internal route call longer than five minutes.
+   */
+  it('attaches a dispatcher on runtimes whose fetch is undici', () => {
+    expect(withCallerOwnedDeadline({}).dispatcher).toBeInstanceOf(Agent)
+  })
+
+  it('reuses one dispatcher across calls so pooled connections are shared', () => {
+    expect(withCallerOwnedDeadline({}).dispatcher).toBe(withCallerOwnedDeadline({}).dispatcher)
   })
 
   it('preserves the init the caller already built', () => {
@@ -26,6 +41,7 @@ describe('withCallerOwnedDeadline', () => {
     const original: RequestInit = { method: 'POST' }
     withCallerOwnedDeadline(original)
     expect('timeout' in original).toBe(false)
+    expect('dispatcher' in original).toBe(false)
   })
 })
 

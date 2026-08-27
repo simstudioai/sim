@@ -33,7 +33,7 @@ export function FeaturePlatformPanel({
         <span className='flex size-6 items-center justify-center rounded-md bg-[var(--surface-5)]'>
           <Icon className='size-[14px] text-[var(--text-icon)]' />
         </span>
-        <span className='font-medium text-[var(--text-primary)] text-base'>{title}</span>
+        <span className='text-[var(--text-primary)] text-base'>{title}</span>
       </div>
       {children}
     </div>

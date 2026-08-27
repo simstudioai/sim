@@ -141,7 +141,6 @@ const FULL_SET_LISTS = [
  */
 const CURSOR_BINDINGS: Record<string, readonly string[]> = {
   'GET /api/v2/audit-logs': [
-    'organizationId',
     'includeDeparted',
     'action',
     'resourceType',
@@ -300,6 +299,10 @@ const CURSOR_BOUND_PATH_PARAMS: Record<string, readonly string[]> = {
  * correctness gain.
  */
 const UNBOUND_PARAMS: Record<string, Record<string, string>> = {
+  'GET /api/v2/audit-logs': {
+    organizationId:
+      'Asserted scope, not a filter: an account belongs to at most one organization, so naming it and omitting it select the same sequence. The resolved id is decided inside the application use case, so the route cannot stamp it without resolving an authorization decision itself.',
+  },
   'GET /api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]/chunks': {
     workspaceId:
       'Asserted scope, not a filter: the sequence is one document, named by the path. A mismatched workspace is refused by authorization before paging.',
@@ -740,6 +743,21 @@ describe('v2 list pagination split', () => {
       expect(
         bound.filter((param) => NEVER_BOUND.has(param)),
         `${key} binds limit or cursor`
+      ).toEqual([])
+    }
+  })
+
+  /**
+   * A param declared in both maps reads as bound while the route exempts it —
+   * exactly the drift this pair of declarations exists to prevent, and the one
+   * shape the accepted-param checks above cannot see, since both maps are
+   * compared only against what the contract accepts.
+   */
+  it('never both binds and exempts the same param', () => {
+    for (const [key, bound] of Object.entries(CURSOR_BINDINGS)) {
+      expect(
+        bound.filter((param) => param in (UNBOUND_PARAMS[key] ?? {})),
+        `${key} declares a param as cursor-bound and as deliberately unbound at once.`
       ).toEqual([])
     }
   })

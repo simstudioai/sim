@@ -49,7 +49,6 @@ describe('v2 API key authentication', () => {
 
     expect(result).toEqual({
       principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
-      rolloutUserId: 'user-1',
       rateLimitSubjectIds: ['api-key:key-1', 'user:user-1'],
       rateLimitSubscription: null,
       keyType: 'personal',
@@ -106,7 +105,6 @@ describe('v2 API key authentication', () => {
 
     expect(result).toEqual({
       principal: { kind: 'workspace_api_key', workspaceId: 'workspace-1', keyId: 'key-1' },
-      rolloutUserId: 'billing-owner-1',
       rateLimitSubjectIds: ['api-key:key-1', 'workspace:workspace-1'],
       rateLimitSubscription: { plan: 'team', referenceId: 'organization-1' },
       keyType: 'workspace',
