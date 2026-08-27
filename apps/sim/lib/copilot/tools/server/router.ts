@@ -4,9 +4,7 @@ import { z } from 'zod'
 import { getBlockVisibilityForCopilot } from '@/lib/copilot/block-visibility'
 import {
   CreateEmptyFile,
-  CreateTableView,
   DownloadFile,
-  EditTableView,
   Ffmpeg,
   GenerateAudio,
   GenerateImage,
@@ -51,8 +49,6 @@ import { ffmpegServerTool } from '@/lib/copilot/tools/server/media/ffmpeg'
 import { generateAudioServerTool } from '@/lib/copilot/tools/server/media/generate-audio'
 import { generateVideoServerTool } from '@/lib/copilot/tools/server/media/generate-video'
 import { searchOnlineServerTool } from '@/lib/copilot/tools/server/other/search-online'
-import { createTableViewServerTool } from '@/lib/copilot/tools/server/table/create-table-view'
-import { editTableViewServerTool } from '@/lib/copilot/tools/server/table/edit-table-view'
 import { queryUserTableServerTool } from '@/lib/copilot/tools/server/table/query-user-table'
 import { tableAutomationsServerTool } from '@/lib/copilot/tools/server/table/table-automations'
 import { tableColumnsServerTool } from '@/lib/copilot/tools/server/table/table-columns'
@@ -158,9 +154,6 @@ const WRITE_ACTIONS: Record<string, string[]> = {
   [GenerateVideo.id]: ['generate'],
   [GenerateAudio.id]: ['generate'],
   [Ffmpeg.id]: ['*'],
-  // Saved-view create/edit are writes on the table regardless of arguments.
-  [CreateTableView.id]: ['*'],
-  [EditTableView.id]: ['*'],
   // Paid external-provider lookups (hosted-key cost), like the media tools.
   [enrichmentRunServerTool.name]: ['*'],
 }
@@ -194,8 +187,6 @@ const baseServerToolRegistry: Record<string, BaseServerTool> = {
   [tableAutomationsServerTool.name]: tableAutomationsServerTool,
   [tableEnrichmentsServerTool.name]: tableEnrichmentsServerTool,
   [tableViewsServerTool.name]: tableViewsServerTool,
-  [createTableViewServerTool.name]: createTableViewServerTool,
-  [editTableViewServerTool.name]: editTableViewServerTool,
   [workspaceFileServerTool.name]: workspaceFileServerTool,
   [editContentServerTool.name]: editContentServerTool,
   [createFileServerTool.name]: createFileServerTool,

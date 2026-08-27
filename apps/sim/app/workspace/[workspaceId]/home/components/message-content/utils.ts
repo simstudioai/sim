@@ -58,8 +58,6 @@ const TOOL_ICONS: Record<string, IconComponent> = {
   search_knowledge_base: Database,
   table: TableIcon,
   query_user_table: TableIcon,
-  create_table_view: TableIcon,
-  edit_table_view: TableIcon,
   job: Calendar,
   agent: AgentIcon,
   custom_tool: Wrench,

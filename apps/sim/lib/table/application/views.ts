@@ -3,16 +3,12 @@ import { resolvePrincipalAttribution } from '@sim/auth/principal'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { TableSchema, TableViewConfig } from '@/lib/table'
 import { defineAuthorizedTableUseCase } from '@/lib/table/application/authorized-table-use-case'
-import {
-  resolveActiveTableContext,
-  resolveTableWorkspaceContext,
-} from '@/lib/table/application/context'
+import { resolveActiveTableContext } from '@/lib/table/application/context'
 import { tableOperations } from '@/lib/table/application/operations'
 import {
   createTableView,
   deleteTableView,
   getTableView,
-  getTableViewTableId,
   listTableViews,
   TableViewValidationError,
   updateTableView,
@@ -69,37 +65,8 @@ export const readTableViewUseCase = defineAuthorizedTableUseCase({
   },
 })
 
-export interface ResolveTableViewOwnerInput {
-  viewId: string
-  workspaceId: string
-}
-
-/**
- * Names the table a view belongs to, for a caller holding only a view id (the
- * agent's edit_table_view). Authorized at workspace level on purpose: the
- * context carries no tableId yet, so a delegated principal needs no table scope
- * to ask, and the answer is only an id. The caller then re-enters the
- * table-scoped use cases with that id — which is where the table itself, and
- * the principal's scope for it, are authorized.
- */
-export const resolveTableViewOwnerUseCase = defineAuthorizedTableUseCase({
-  operation: tableOperations.readView,
-  resolveContext: ({ input }: { input: ResolveTableViewOwnerInput }) =>
-    resolveTableWorkspaceContext(input.workspaceId),
-  async execute({ input, context }) {
-    const tableId = await getTableViewTableId(input.viewId, context.workspaceId)
-    if (!tableId)
-      throw new OrchestrationError(
-        'not_found',
-        `View "${input.viewId}" not found in this workspace — view ids are listed in each table's views.json.`
-      )
-    return { tableId }
-  },
-})
-
 export interface CreateTableViewInput extends TableViewInput {
-  /** Omit to number the view after the ones the table already has (`View N`). */
-  name?: string
+  name: string
   config: TableViewConfig
   /** Make the new view the table's default, demoting the previous one in the same transaction. */
   isDefault?: boolean

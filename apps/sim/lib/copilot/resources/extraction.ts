@@ -1,10 +1,8 @@
 import { toRecord } from '@sim/utils/object'
 import {
   CreateEmptyFile,
-  CreateTableView,
   CreateWorkflow,
   DownloadFile,
-  EditTableView,
   EditWorkflow,
   Ffmpeg,
   GenerateAudio,
@@ -15,6 +13,7 @@ import {
   PrepareFileEdit,
   Rm,
   RunFunction,
+  TableViews,
   UserTable,
 } from '@/lib/copilot/generated/tool-catalog-v1'
 import type { MothershipResource, MothershipResourceType } from './types'
@@ -24,13 +23,12 @@ type ResourceType = MothershipResourceType
 
 const RESOURCE_TOOL_NAMES: Set<string> = new Set([
   UserTable.id,
+  TableViews.id,
   CreateEmptyFile.id,
   PrepareFileEdit.id,
   DownloadFile.id,
   CreateWorkflow.id,
   EditWorkflow.id,
-  CreateTableView.id,
-  EditTableView.id,
   RunFunction.id,
   ManageKnowledgeBase.id,
   Knowledge.id,
@@ -56,6 +54,7 @@ function getWorkspaceFileTarget(
 }
 
 const READ_ONLY_TABLE_OPS = new Set(['get', 'get_schema', 'get_row', 'query_rows'])
+const READ_ONLY_VIEW_OPS = new Set(['list_views', 'get_view'])
 const READ_ONLY_KB_OPS = new Set(['get', 'query', 'list_tags', 'get_tag_usage'])
 const READ_ONLY_KNOWLEDGE_ACTIONS = new Set(['listed', 'queried'])
 
@@ -200,12 +199,14 @@ export function extractResourcesFromToolResult(
       return []
     }
 
-    // The view tools name their table AND the view they touched, so the panel
-    // opens the table pinned to that view rather than its default.
-    case CreateTableView.id:
-    case EditTableView.id: {
-      const tableId = data.tableId
-      if (typeof tableId !== 'string' || !tableId) return []
+    // The table agent's view tool. A write names the table it touched and — for
+    // create/update/set-default — the view, so the panel opens the table pinned
+    // to that view; a delete opens the table unpinned. Reads open nothing.
+    case TableViews.id: {
+      if (READ_ONLY_VIEW_OPS.has(getOperation(params) ?? '')) return []
+      const args = toRecord(params?.args)
+      const tableId = (data.tableId as string) ?? (args.tableId as string)
+      if (!tableId) return []
       const viewId = data.viewId
       return [
         {

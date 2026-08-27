@@ -722,21 +722,6 @@ describe('resource-naming titles', () => {
     expect(getToolDisplayTitle('table_rows', { operation: 'update' })).toBe('Updating rows')
   })
 
-  it('names the view the direct view tools create or edit', () => {
-    expect(
-      getToolDisplayTitle('create_table_view', {
-        tableId: 'tbl_1',
-        name: 'Overdue',
-        tableName: 'Invoices',
-      })
-    ).toBe('Creating view Overdue in Invoices')
-    expect(getToolDisplayTitle('create_table_view', { tableId: 'tbl_1' })).toBe('Creating view')
-    expect(getToolDisplayTitle('edit_table_view', { viewId: 'view_1', name: 'Late' })).toBe(
-      'Editing view Late'
-    )
-    expect(getToolDisplayTitle('edit_table_view', { viewId: 'view_1' })).toBe('Editing view')
-  })
-
   it('names the block behind a block-schema read', () => {
     expect(getToolDisplayTitle('read', { path: 'components/blocks/slack_v2.json' })).toBe(
       'Loading Slack'

@@ -18,7 +18,6 @@ import {
   createTableView,
   deleteTableView,
   getTableView,
-  getTableViewTableId,
   normalizeStoredViewConfig,
   pruneViewConfig,
   updateTableView,
@@ -732,22 +731,6 @@ describe('view config column-reference normalization', () => {
   })
 })
 
-describe('getTableViewTableId', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    resetDbChainMock()
-  })
-
-  it('names the table a view belongs to', async () => {
-    queueTableRows(tableViews, [{ tableId: 'table-1' }])
-    expect(await getTableViewTableId('view-1', 'ws-1')).toBe('table-1')
-  })
-
-  it('reads a view outside the asserted workspace as missing', async () => {
-    expect(await getTableViewTableId('view-elsewhere', 'ws-1')).toBeNull()
-  })
-})
-
 describe('default-view writers share the views lock', () => {
   const columns: ColumnDefinition[] = []
   const viewRow = {
@@ -765,22 +748,6 @@ describe('default-view writers share the views lock', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
-  })
-
-  it('numbers an unnamed view after the ones the table has, from the count read under the lock', async () => {
-    queueTableRows(tableViews, [{ total: 2 }])
-    dbChainMockFns.returning.mockResolvedValueOnce([{ ...viewRow, name: 'View 3' }])
-
-    const view = await createTableView({
-      tableId: 'table-1',
-      workspaceId: 'ws-1',
-      config: {},
-      userId: 'user-1',
-      columns,
-    })
-
-    expect(dbChainMockFns.values).toHaveBeenCalledWith(expect.objectContaining({ name: 'View 3' }))
-    expect(view.name).toBe('View 3')
   })
 
   it('promoting a view takes the per-table advisory lock the create path holds', async () => {

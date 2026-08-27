@@ -1367,7 +1367,7 @@ export function serializeTableViews(
         hiddenColumns: view.hiddenColumns?.length ? view.hiddenColumns : undefined,
         updatedAt: view.updatedAt instanceof Date ? view.updatedAt.toISOString() : view.updatedAt,
       })),
-      note: 'Query a view via query_user_table {operation: "query_rows", args: {tableId, view: "<view id>"}} — the saved filter ANDs with any extra filter you pass. Create or change a view with create_table_view / edit_table_view (main agent) or table_views (table agent).',
+      note: 'Query a view via query_user_table {operation: "query_rows", args: {tableId, view: "<view id>"}} — the saved filter ANDs with any extra filter you pass. Manage views via the table agent (table_views).',
     },
     null,
     2

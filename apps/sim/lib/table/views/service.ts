@@ -385,24 +385,6 @@ export async function getTableView(
   return row ? toTableView(row, columns) : null
 }
 
-/**
- * The table a view belongs to, scoped to the workspace the caller asserted so a
- * view id from another workspace reads as missing rather than naming its owner.
- * Lets a caller holding only a view id (the agent's edit_table_view) reach the
- * table-scoped use cases without a lookup surface of its own.
- */
-export async function getTableViewTableId(
-  viewId: string,
-  workspaceId: string
-): Promise<string | null> {
-  const [row] = await db
-    .select({ tableId: tableViews.tableId })
-    .from(tableViews)
-    .where(and(eq(tableViews.id, viewId), eq(tableViews.workspaceId, workspaceId)))
-    .limit(1)
-  return row?.tableId ?? null
-}
-
 function normalizeName(name: string): string {
   const trimmed = name.trim()
   if (!trimmed) throw new TableViewValidationError('View name cannot be empty')
@@ -432,11 +414,7 @@ async function withTableViewsLock<T>(
 export interface CreateTableViewData {
   tableId: string
   workspaceId: string
-  /**
-   * Omit for `View N`, numbered after the views the table has — decided under
-   * the views lock, so two unnamed creates can never pick the same N.
-   */
-  name?: string
+  name: string
   config: TableViewConfig
   userId: string
   columns: ColumnDefinition[]
@@ -476,7 +454,7 @@ export interface CreateTableViewData {
  * creating a view would fail for the duration of an unrelated long mutation.
  */
 export async function createTableView(data: CreateTableViewData): Promise<TableView> {
-  const explicitName = data.name === undefined ? undefined : normalizeName(data.name)
+  const name = normalizeName(data.name)
   const config = normalizeViewConfigForStorage(
     data.config,
     data.columns,
@@ -520,7 +498,7 @@ export async function createTableView(data: CreateTableViewData): Promise<TableV
         id: generateId(),
         tableId: data.tableId,
         workspaceId: data.workspaceId,
-        name: explicitName ?? `View ${existingTotal + 1}`,
+        name,
         config,
         isDefault: data.isDefault === true || existingTotal === 0,
         createdBy: data.userId,
