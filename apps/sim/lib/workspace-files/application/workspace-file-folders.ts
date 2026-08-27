@@ -264,15 +264,21 @@ async function findArchivedFolderIdByPath(workspaceId: string, path: string): Pr
     throw new OrchestrationError('validation', 'The workspace root cannot be restored')
   }
   const archived = await listWorkspaceFileFolders(workspaceId, { scope: 'archived' })
-  const match = archived.find((folder) => {
+  const matches = archived.filter((folder) => {
     const segments = parseWorkspaceFileFolderDisplayPath(folder.path)
     return (
       segments.length === target.length &&
       segments.every((segment, index) => segment === target[index])
     )
   })
-  if (!match) throw new OrchestrationError('not_found', 'Folder not found')
-  return match.id
+  if (matches.length === 0) throw new OrchestrationError('not_found', 'Folder not found')
+  if (matches.length > 1) {
+    throw new OrchestrationError(
+      'conflict',
+      'Multiple archived folders share this path. Restore by folder id instead.'
+    )
+  }
+  return matches[0].id
 }
 
 async function executeRestoreWorkspaceFileFolder(args: {
