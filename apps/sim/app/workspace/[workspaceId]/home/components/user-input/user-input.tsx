@@ -512,13 +512,10 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
     return () => window.cancelAnimationFrame(raf)
   }, [textareaRef])
 
-  const handleContainerClick = useCallback(
-    (e: React.MouseEvent<HTMLDivElement>) => {
-      if ((e.target as HTMLElement).closest('button, [role="dialog"]')) return
-      textareaRef.current?.focus()
-    },
-    [textareaRef]
-  )
+  const handleContainerClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if ((e.target as HTMLElement).closest('button, [role="dialog"]')) return
+    textareaRef.current?.focus()
+  }
 
   const handleSubmit = useCallback(() => {
     const currentFiles = filesRef.current

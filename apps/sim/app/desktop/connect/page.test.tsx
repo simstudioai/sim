@@ -143,6 +143,29 @@ describe('DesktopConnectPage', () => {
     )
   })
 
+  it.each(['trello', 'instagram', 'shopify'])(
+    'starts %s through its dedicated authorize route in the system browser',
+    async (provider) => {
+      await expect(
+        DesktopConnectPage(
+          pageProps({
+            provider,
+            state: VALID_STATE,
+            port: PORT,
+            draftId: 'draft-1',
+          })
+        )
+      ).rejects.toThrow('NEXT_REDIRECT:')
+
+      const authorize = new URL(mockRedirect.mock.calls[0][0])
+      expect(authorize.pathname).toBe(`/api/auth/${provider}/authorize`)
+      expect(authorize.searchParams.get('draftId')).toBe('draft-1')
+      expect(authorize.searchParams.get('returnUrl')).toBe(
+        `https://sim.test/desktop/connect/complete?state=${VALID_STATE}&port=${PORT}`
+      )
+    }
+  )
+
   it('rejects a malformed request without reading the session', async () => {
     const invalid = [
       { provider: 'Google', state: VALID_STATE, port: PORT },

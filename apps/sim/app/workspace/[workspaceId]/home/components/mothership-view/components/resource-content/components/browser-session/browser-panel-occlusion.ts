@@ -30,6 +30,7 @@ export type BrowserPanelSnapshotLayer = 'modal' | 'popover'
 export type BrowserPanelOverlay =
   | 'credentials'
   | 'downloads'
+  | 'permissions'
   | 'resources'
   | 'suggestions'
   | 'tab'
@@ -37,7 +38,11 @@ export type BrowserPanelOverlay =
 
 export interface BrowserPanelOverlayController {
   /** True when the renderer overlay owns the painted frame; false when fallback handled it. */
-  requestOverlay: (overlay: BrowserPanelOverlay, fallback: () => void) => Promise<boolean>
+  requestOverlay: (
+    overlay: BrowserPanelOverlay,
+    fallback: () => void,
+    onOwnershipLost?: () => void
+  ) => Promise<boolean>
   closeOverlay: (overlay: BrowserPanelOverlay) => Promise<void>
 }
 
@@ -217,6 +222,7 @@ export function useBrowserPanelOcclusion(
   const [activeOverlay, setActiveOverlay] = useState<BrowserPanelOverlay | null>(null)
   const snapshotRenderRef = useRef<SnapshotRender | null>(null)
   const activeOverlayRef = useRef<BrowserPanelOverlay | null>(null)
+  const activeOverlayOwnershipLostRef = useRef<(() => void) | null>(null)
   const pendingOverlayRef = useRef<BrowserPanelOverlay | null>(null)
   const activeTabIdRef = useRef(activeTabId)
   const panelVisibleRef = useRef(panelVisible)
@@ -444,9 +450,12 @@ export function useBrowserPanelOcclusion(
   }, [cancelPendingPaint, reconcile])
 
   const clearBrowserOverlay = useCallback(() => {
+    const onOwnershipLost = activeOverlayOwnershipLostRef.current
     pendingOverlayRef.current = null
     activeOverlayRef.current = null
+    activeOverlayOwnershipLostRef.current = null
     if (mountedRef.current) setActiveOverlay(null)
+    onOwnershipLost?.()
   }, [])
 
   const prepareScreenOcclusion = useCallback((): Promise<boolean> => {
@@ -471,6 +480,7 @@ export function useBrowserPanelOcclusion(
       }
       if (activeOverlayRef.current === overlay) {
         activeOverlayRef.current = null
+        activeOverlayOwnershipLostRef.current = null
         setActiveOverlay(null)
       }
       if (pendingOverlayRef.current === overlay) pendingOverlayRef.current = null
@@ -480,7 +490,11 @@ export function useBrowserPanelOcclusion(
   )
 
   const requestOverlay = useCallback(
-    async (overlay: BrowserPanelOverlay, fallback: () => void): Promise<boolean> => {
+    async (
+      overlay: BrowserPanelOverlay,
+      fallback: () => void,
+      onOwnershipLost?: () => void
+    ): Promise<boolean> => {
       if (!panelVisibleRef.current || screenOcclusionPresentRef.current) return false
       if (activeOverlayRef.current === overlay) return true
       if (pendingOverlayRef.current === overlay) {
@@ -491,17 +505,15 @@ export function useBrowserPanelOcclusion(
       // A different renderer popover can replace the current one without
       // revealing the native page between them. Keeping a pending popover owns
       // the existing captured frame while the old controlled menu closes.
+      if (activeOverlayRef.current) clearBrowserOverlay()
       pendingOverlayRef.current = overlay
-      if (activeOverlayRef.current) {
-        activeOverlayRef.current = null
-        setActiveOverlay(null)
-      }
       const ready = await scheduleReconcile()
       if (!mountedRef.current || pendingOverlayRef.current !== overlay) return false
 
       if (ready && nativeHiddenRef.current && desiredLayer() === 'popover') {
         pendingOverlayRef.current = null
         activeOverlayRef.current = overlay
+        activeOverlayOwnershipLostRef.current = onOwnershipLost ?? null
         setActiveOverlay(overlay)
         return true
       }
@@ -511,7 +523,7 @@ export function useBrowserPanelOcclusion(
       fallback()
       return false
     },
-    [desiredLayer, scheduleReconcile]
+    [clearBrowserOverlay, desiredLayer, scheduleReconcile]
   )
 
   // The canonical modal pauses its first visible frame and dispatches this
@@ -592,6 +604,7 @@ export function useBrowserPanelOcclusion(
       screenOcclusionPresentRef.current = false
       pendingOverlayRef.current = null
       activeOverlayRef.current = null
+      activeOverlayOwnershipLostRef.current = null
       transitionVersionRef.current++
       cancelPendingPaint()
       // Run once now and once behind any in-flight capture/hide. The second

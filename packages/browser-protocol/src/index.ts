@@ -159,6 +159,7 @@ export interface BrowserPanelAction {
     | 'zoom-in'
     | 'zoom-out'
     | 'zoom-reset'
+    | 'respond-media-permission'
     | 'takeover-done'
   /** Absolute URL for `navigate` (typed into the panel's URL bar). */
   url?: string
@@ -166,6 +167,19 @@ export interface BrowserPanelAction {
   tabId?: string
   /** Optional free-text instruction submitted with `takeover-done`. */
   takeoverResponse?: string
+  /** Exact pending media request being answered. */
+  requestId?: string
+  /** User decision for `respond-media-permission`. */
+  allowed?: boolean
+}
+
+export type BrowserMediaDevice = 'microphone' | 'camera'
+
+/** One document-scoped media request awaiting an explicit user decision. */
+export interface BrowserMediaPermissionRequest {
+  requestId: string
+  origin: string
+  devices: BrowserMediaDevice[]
 }
 
 /** Live state of the active page, pushed to the panel header. */
@@ -180,6 +194,8 @@ export interface BrowserPageState {
   canGoForward: boolean
   /** Recoverable problem replacing the native page surface. Optional for older shells. */
   issue?: BrowserPageIssue
+  /** Main-frame media request awaiting a renderer-owned permission prompt. */
+  mediaPermissionRequest?: BrowserMediaPermissionRequest
 }
 
 /** A recoverable top-level page problem rendered by Sim instead of a blank native view. */

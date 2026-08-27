@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, stat } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, stat, truncate, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -258,15 +258,78 @@ describe('CredentialVault', () => {
     await expect(vault.clear()).resolves.toBeUndefined()
   })
 
-  it('reads a corrupt or undecryptable vault as empty instead of throwing', async () => {
+  it('preserves an undecryptable vault until clear explicitly resets it', async () => {
     const provider = encryption()
-    provider.decryptString = vi.fn(() => {
+    provider.decryptString.mockImplementationOnce(() => {
       throw new Error('wrong key')
     })
     const vault = new CredentialVault(vaultPath, encryption())
     await vault.importCredentials(CANDIDATES, 'keep-existing')
+    const original = await readFile(vaultPath, 'utf8')
 
     const brokenVault = new CredentialVault(vaultPath, provider)
     await expect(brokenVault.list()).resolves.toEqual([])
+    expect(brokenVault.isAvailable()).toBe(false)
+    await expect(brokenVault.importCredentials(CANDIDATES, 'replace')).resolves.toEqual({
+      added: 0,
+      updated: 0,
+      skipped: 2,
+    })
+    await expect(readFile(vaultPath, 'utf8')).resolves.toBe(original)
+
+    await brokenVault.clear()
+    expect(brokenVault.isAvailable()).toBe(true)
+    await expect(brokenVault.importCredentials([CANDIDATES[0]], 'keep-existing')).resolves.toEqual({
+      added: 1,
+      updated: 0,
+      skipped: 0,
+    })
+    await expect(brokenVault.list()).resolves.toHaveLength(1)
+  })
+
+  it('preserves an oversized vault until explicit clear resets persistence', async () => {
+    await writeFile(vaultPath, '')
+    await truncate(vaultPath, 64 * 1024 * 1024 + 1)
+    const vault = new CredentialVault(vaultPath, encryption())
+
+    await expect(vault.list()).resolves.toEqual([])
+    expect(vault.isAvailable()).toBe(false)
+    await expect(vault.importCredentials(CANDIDATES, 'replace')).resolves.toMatchObject({
+      added: 0,
+    })
+    expect((await stat(vaultPath)).size).toBe(64 * 1024 * 1024 + 1)
+
+    await vault.clear()
+    await expect(vault.importCredentials([CANDIDATES[0]], 'keep-existing')).resolves.toMatchObject({
+      added: 1,
+    })
+  })
+
+  it('blocks a stored credential with fields outside the persistence contract', async () => {
+    const provider = encryption()
+    const payload = [
+      {
+        id: 'credential-1',
+        origin: 'https://example.com',
+        username: 'ada',
+        password: 'secret',
+        icon: { unexpected: true },
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+        source: 'chrome',
+      },
+    ]
+    const original = JSON.stringify({
+      version: 1,
+      ciphertext: provider.encryptString(JSON.stringify(payload)).toString('base64'),
+    })
+    await writeFile(vaultPath, original)
+    const vault = new CredentialVault(vaultPath, provider)
+
+    await expect(vault.list()).resolves.toEqual([])
+    await expect(vault.importCredentials(CANDIDATES, 'replace')).resolves.toMatchObject({
+      added: 0,
+    })
+    await expect(readFile(vaultPath, 'utf8')).resolves.toBe(original)
   })
 })

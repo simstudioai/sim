@@ -1,6 +1,6 @@
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   APP_NAME_FOR_CHANNEL,
@@ -180,23 +180,58 @@ describe('createConfigStore', () => {
     expect(reloaded.getOrigin()).toBe('https://www.sim.ai')
   })
 
-  it('recovers from a corrupted settings file', () => {
+  it('uses safe defaults until an explicit server choice replaces the corrupt file', () => {
     const filePath = tempSettingsPath()
-    writeFileSync(filePath, '{not json')
+    const original = '{not json'
+    writeFileSync(filePath, original)
     const store = createConfigStore(filePath, {})
+
+    expect(store.isPersistenceAvailable()).toBe(false)
     expect(store.getOrigin()).toBe(DEFAULT_ORIGIN)
+    store.set('zoomLevel', 1.5)
+    store.flush()
+    expect(readFileSync(filePath, 'utf8')).toBe(original)
+
+    expect(store.setOrigin('https://self-hosted.example')).toEqual({
+      ok: true,
+      origin: 'https://self-hosted.example',
+    })
+    expect(store.isPersistenceAvailable()).toBe(true)
+    expect(JSON.parse(readFileSync(filePath, 'utf8')).origin).toBe('https://self-hosted.example')
+    const settingsDirectory = dirname(filePath)
+    const backups = readdirSync(settingsDirectory).filter((name) => name.includes('.corrupt-'))
+    expect(backups).toHaveLength(0)
   })
 
-  it('falls back to the default origin when the stored origin is invalid', () => {
+  it('does not carry settings across an invalid stored origin or retain them after repair', () => {
     const filePath = tempSettingsPath()
-    writeFileSync(filePath, JSON.stringify({ origin: 'http://evil.example' }))
+    const original = JSON.stringify({
+      origin: 'http://evil.example',
+      browserKnownSites: [{ hostname: 'private.example', lastVisitedAt: '2026-01-01' }],
+      browserDownloadDirectory: '/private/downloads',
+    })
+    writeFileSync(filePath, original)
     const store = createConfigStore(filePath, {})
+
+    expect(store.isPersistenceAvailable()).toBe(false)
     expect(store.getOrigin()).toBe(DEFAULT_ORIGIN)
+    expect(store.get('browserKnownSites')).toBeUndefined()
+    expect(store.get('browserDownloadDirectory')).toBeUndefined()
+    store.set('zoomLevel', 2)
+    store.flush()
+    expect(readFileSync(filePath, 'utf8')).toBe(original)
+
+    expect(store.setOrigin('https://self-hosted.example').ok).toBe(true)
+    const repaired = JSON.parse(readFileSync(filePath, 'utf8'))
+    expect(repaired.browserKnownSites).toBeUndefined()
+    expect(repaired.browserDownloadDirectory).toBeUndefined()
+    expect(readFileSync(filePath, 'utf8')).not.toContain('private.example')
   })
 
   it('honors a valid SIM_DESKTOP_ORIGIN override without persisting it', () => {
     const filePath = tempSettingsPath()
     const store = createConfigStore(filePath, { SIM_DESKTOP_ORIGIN: 'http://127.0.0.1:4600' })
+    expect(store.isPersistenceAvailable()).toBe(true)
     expect(store.getOrigin()).toBe('http://127.0.0.1:4600')
     store.set('zoomLevel', 1)
     store.flush()
@@ -234,6 +269,33 @@ describe('createConfigStore', () => {
     store.setOrigin('https://sim.example.com')
 
     expect(JSON.parse(readFileSync(filePath, 'utf8')).origin).toBe('https://sim.example.com')
+  })
+
+  it('keeps the active origin unchanged when its immediate write fails', () => {
+    const filePath = tempSettingsPath()
+    const parent = dirname(filePath)
+    const store = createConfigStore(filePath, {})
+    rmSync(parent, { recursive: true })
+    writeFileSync(parent, 'not a directory')
+
+    try {
+      expect(store.setOrigin('https://sim.example.com')).toEqual({
+        ok: false,
+        error: 'Could not save the desktop settings file',
+      })
+      expect(store.getOrigin()).toBe(DEFAULT_ORIGIN)
+      expect(store.isPersistenceAvailable()).toBe(false)
+
+      rmSync(parent)
+      mkdirSync(parent)
+      expect(store.setOrigin('https://sim.example.com')).toEqual({
+        ok: true,
+        origin: 'https://sim.example.com',
+      })
+      expect(store.isPersistenceAvailable()).toBe(true)
+    } finally {
+      rmSync(parent, { recursive: true, force: true })
+    }
   })
 
   it('ignores an invalid SIM_DESKTOP_ORIGIN override', () => {
