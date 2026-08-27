@@ -239,9 +239,13 @@ describe('WorkflowBlockHandler', () => {
     mockContext = {
       workflowId: 'parent-workflow-id',
       userId: 'user-1',
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
       blockStates: new Map(),
       blockLogs: [],
-      metadata: { duration: 0 },
+      metadata: {
+        duration: 0,
+        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      },
       environmentVariables: {},
       decisions: { router: new Map(), condition: new Map() },
       loopExecutions: new Map(),
@@ -386,6 +390,7 @@ describe('WorkflowBlockHandler', () => {
         subjectUserId: 'user-1',
         workflowId: 'parent-workflow-id',
         executionId: 'parent-execution-id',
+        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
       })
     })
 
@@ -630,9 +635,14 @@ describe('WorkflowBlockHandler', () => {
       expect(executorOptions[0].contextExtensions.userId).toBe('owner-9')
       expect(executorOptions[0].contextExtensions.workspaceId).toBe('workspace-source')
       expect(executorOptions[0].contextExtensions.executorDelegationOrigin).toEqual({
-        subjectUserId: 'owner-9',
         workflowId: 'source-workflow-id',
         executionId: loggingSessionArgs[0][1],
+        principal: {
+          kind: 'system',
+          serviceId: 'internal',
+          workspaceId: 'workspace-source',
+          workflowId: 'source-workflow-id',
+        },
       })
     })
 
@@ -1605,9 +1615,14 @@ describe('WorkflowBlockHandler', () => {
       await handler.execute(ctx, customBlock(), {})
 
       expect(executorOptions[0].contextExtensions.executorDelegationOrigin).toEqual({
-        subjectUserId: 'owner-9',
         workflowId: 'source-workflow-id',
         executionId: executorOptions[0].contextExtensions.executionId,
+        principal: {
+          kind: 'system',
+          serviceId: 'internal',
+          workspaceId: 'workspace-source',
+          workflowId: 'source-workflow-id',
+        },
       })
     })
 
@@ -1984,6 +1999,7 @@ describe('WorkflowBlockHandler', () => {
         subjectUserId: 'user-1',
         workflowId: 'parent-workflow-id',
         executionId: 'parent-execution-id',
+        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
       })
       expect(mockBuildExecutorDelegationHeaders).toHaveBeenCalledWith(
         extensions.executorDelegationOrigin

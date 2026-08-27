@@ -220,6 +220,12 @@ async function executeCopilotRun(params: {
     sourceExecutionId: string
   }
 }): Promise<ExecutionResult> {
+  if (
+    params.principal.kind === 'credential_group_enrollment' ||
+    (params.principal.kind === 'delegated' && params.principal.serviceId === 'executor')
+  ) {
+    throw new Error('The principal cannot start a Copilot workflow execution')
+  }
   const actorUserId = requirePrincipalSubjectUserId(params.principal)
   const boundExecution = params.input.lifecycle.boundExecution
   // Reuse the caller's already-claimed execution id so the claim and the log
@@ -252,6 +258,7 @@ async function executeCopilotRun(params: {
       actorUserId,
       {
         enabled: true,
+        principal: params.principal,
         useDraftState: params.input.useDraftState,
         workflowTriggerType: 'copilot',
         /** `requirePrincipalSubjectUserId` above rejects every principal that cannot name a caller. */

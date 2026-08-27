@@ -71,6 +71,7 @@ function createMockContext(overrides: Partial<ExecutionContext> = {}): Execution
     workspaceId: 'test-workspace',
     executionId: 'test-execution',
     userId: 'test-user',
+    principal: { kind: 'session', userId: 'test-user', sessionId: 'test-session' },
     blockStates: new Map(),
     executedBlocks: new Set(),
     blockLogs: [],

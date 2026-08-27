@@ -1,3 +1,4 @@
+import type { WorkflowExecutionPrincipal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { workflow as workflowTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -374,6 +375,7 @@ function bindRequestAbort(
 type AsyncExecutionParams = {
   requestId: string
   workflowId: string
+  principal: WorkflowExecutionPrincipal
   userId: string
   billingAttribution: BillingAttributionSnapshot
   workspaceId: string
@@ -985,6 +987,26 @@ async function handleExecutePost(
       reqLogger.error('Workflow authorization succeeded without a workspace')
       return NextResponse.json({ error: 'Invalid workflow execution context' }, { status: 500 })
     }
+    let executionPrincipal: WorkflowExecutionPrincipal
+    if (auth.principal) {
+      executionPrincipal = auth.principal
+    } else if (isPublicApiAccess) {
+      executionPrincipal = {
+        kind: 'system',
+        serviceId: 'public_api',
+        workspaceId: workflowWorkspaceId,
+        workflowId,
+      }
+    } else if (auth.authType === AuthType.INTERNAL_JWT) {
+      executionPrincipal = {
+        kind: 'system',
+        serviceId: 'internal',
+        workspaceId: workflowWorkspaceId,
+        workflowId,
+      }
+    } else {
+      throw new Error('Authenticated workflow execution is missing its principal')
+    }
     if (auth.authType === AuthType.API_KEY) {
       if (auth.apiKeyType === 'workspace' && auth.workspaceId !== workflowWorkspaceId) {
         return NextResponse.json({ error: WORKSPACE_KEY_SCOPE_DENIED }, { status: 403 })
@@ -1247,6 +1269,7 @@ async function handleExecutePost(
       const asyncResult = await handleAsyncExecution({
         requestId,
         workflowId,
+        principal: executionPrincipal,
         userId: actorUserId,
         billingAttribution,
         workspaceId,
@@ -1386,6 +1409,7 @@ async function handleExecutePost(
         workflowId,
         workspaceId,
         userId: actorUserId,
+        principal: executionPrincipal,
         billingAttribution,
         sessionUserId: isClientSession ? userId : undefined,
         workflowUserId: workflow.userId,
@@ -1718,6 +1742,7 @@ async function handleExecutePost(
               base64MaxBytes,
               abortSignal,
               executionMode: 'stream',
+              principal: executionPrincipal,
               enforceCredentialAccess: useAuthenticatedUserAsActor,
               isPublicApiAccess,
               billingAttribution,
@@ -2128,6 +2153,7 @@ async function handleExecutePost(
             workflowId,
             workspaceId,
             userId: actorUserId,
+            principal: executionPrincipal,
             billingAttribution,
             sessionUserId: isClientSession ? userId : undefined,
             workflowUserId: workflow.userId,

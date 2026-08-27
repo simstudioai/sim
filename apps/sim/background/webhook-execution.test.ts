@@ -25,6 +25,7 @@ const {
   mockLoadDeploymentVersionState,
   mockGetProviderHandler,
   mockSetResolvedSecretTraceRegistry,
+  mockExecutionSnapshot,
   mockEnqueue,
   mockGetJobQueue,
 } = vi.hoisted(() => {
@@ -38,6 +39,7 @@ const {
     mockReleaseExecutionSlot: vi.fn(),
     mockGetProviderHandler: vi.fn(() => ({})),
     mockSetResolvedSecretTraceRegistry: vi.fn(),
+    mockExecutionSnapshot: vi.fn(),
     mockLoadDeploymentVersionState: vi.fn(
       async (_workflowId: string, deploymentVersionId: string) => ({
         blocks: {},
@@ -132,7 +134,7 @@ vi.mock('@/lib/oauth/credential-service', () => ({
 }))
 
 vi.mock('@/executor/execution/snapshot', () => ({
-  ExecutionSnapshot: class {},
+  ExecutionSnapshot: mockExecutionSnapshot,
 }))
 
 vi.mock('@/tools/safe-assign', () => ({ safeAssign: vi.fn() }))
@@ -229,6 +231,17 @@ describe('executeWebhookJob fault vs error handling', () => {
   const payload: WebhookExecutionPayload = {
     webhookId: 'webhook-1',
     workflowId: 'workflow-1',
+    principal: {
+      version: 1,
+      principal: {
+        kind: 'system',
+        serviceId: 'webhook',
+        webhookId: 'webhook-1',
+        workflowId: 'workflow-1',
+        workspaceId: 'workspace-1',
+        provider: 'gmail',
+      },
+    },
     userId: 'user-1',
     billingAttribution,
     executionId: 'execution-1',
@@ -238,6 +251,19 @@ describe('executeWebhookJob fault vs error handling', () => {
     headers: {},
     path: '/webhook',
     workspaceId: 'workspace-1',
+  }
+  const legacyPayload = {
+    webhookId: payload.webhookId,
+    workflowId: payload.workflowId,
+    userId: payload.userId,
+    billingAttribution: payload.billingAttribution,
+    executionId: payload.executionId,
+    requestId: payload.requestId,
+    provider: payload.provider,
+    body: payload.body,
+    headers: payload.headers,
+    path: payload.path,
+    workspaceId: payload.workspaceId,
   }
 
   beforeEach(() => {
@@ -282,6 +308,65 @@ describe('executeWebhookJob fault vs error handling', () => {
       decryptionFailures: [],
     })
     dbChainMockFns.limit.mockResolvedValue([{ id: 'webhook-1' }])
+  })
+
+  it('restores a legacy queued webhook as its canonical system principal', async () => {
+    mockExecuteWorkflowCore.mockResolvedValueOnce({
+      success: true,
+      status: 'completed',
+      output: {},
+      logs: [],
+      executionState: {
+        blockStates: {},
+        executedBlocks: [],
+        blockLogs: [],
+        decisions: {},
+        completedLoops: [],
+        activeExecutionPath: [],
+      },
+    })
+
+    await executeWebhookJob(legacyPayload)
+
+    expect(mockExecutionSnapshot).toHaveBeenCalledWith(
+      expect.objectContaining({
+        principal: {
+          kind: 'system',
+          serviceId: 'webhook',
+          webhookId: 'webhook-1',
+          workflowId: 'workflow-1',
+          workspaceId: 'workspace-1',
+          provider: 'gmail',
+        },
+      }),
+      expect.anything(),
+      expect.anything(),
+      expect.any(Object),
+      expect.any(Array)
+    )
+  })
+
+  it('persists the reconstructed legacy principal on setup retries', async () => {
+    executionPreprocessingMockFns.mockPreprocessExecution.mockResolvedValueOnce({
+      success: false,
+      error: {
+        message: 'Internal error while fetching workflow',
+        statusCode: 500,
+        retryable: true,
+        cause: { code: 'CONNECT_TIMEOUT' },
+      },
+    })
+
+    await expect(executeWebhookJob(legacyPayload)).resolves.toMatchObject({
+      success: false,
+      requeued: true,
+    })
+
+    expect(mockEnqueue).toHaveBeenCalledTimes(1)
+    expect(mockEnqueue.mock.calls[0][1]).toMatchObject({
+      principal: payload.principal,
+      infraRetryCount: 1,
+    })
   })
 
   it('completes the run (does not throw) when the failure was finalized by core', async () => {

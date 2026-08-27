@@ -1,4 +1,8 @@
-import type { DelegatedPrincipal, Principal } from '@sim/auth/principal'
+import {
+  type DelegatedPrincipal,
+  type Principal,
+  resolvePrincipalSubject,
+} from '@sim/auth/principal'
 import type { db } from '@sim/db'
 import {
   type PermissionType,
@@ -203,12 +207,14 @@ export async function authorizeWorkspaceOperation<C extends WorkspaceAuthorizati
       ) {
         throw new DelegatedWorkspaceAuthorizationError()
       }
-      await requireCurrentHumanPermission(
-        principal.subjectUserId,
-        context,
-        operation.minimumRole,
-        options
-      )
+      const subject = resolvePrincipalSubject(principal)
+      if (subject?.kind === 'sim_user') {
+        await requireCurrentHumanPermission(subject.userId, context, operation.minimumRole, options)
+        return
+      }
+      if (principal.serviceId !== 'executor') {
+        throw new DelegatedWorkspaceAuthorizationError()
+      }
       return
     }
   }

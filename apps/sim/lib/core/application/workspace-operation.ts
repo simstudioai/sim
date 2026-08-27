@@ -1,9 +1,4 @@
-import type {
-  CredentialGroupEnrollmentPrincipal,
-  DelegatedPrincipal,
-  DelegatedServiceId,
-  Principal,
-} from '@sim/auth/principal'
+import type { DelegatedPrincipal, DelegatedServiceId, Principal } from '@sim/auth/principal'
 import type { PermissionType } from '@sim/platform-authz/workspace'
 import type { ApplicationOperation, PrincipalKind } from '@/lib/core/application/operation'
 
@@ -11,11 +6,13 @@ type WorkspaceApiKeyPolicy<R extends PermissionType> = R extends 'admin' ? 'deny
 
 export type { PrincipalKind }
 
+type WorkspaceOperationPrincipal = Extract<Principal, { kind: PrincipalKind }>
+
 type NonDelegatedPrincipalForOperation<
   O extends { readonly principalKinds: readonly PrincipalKind[] },
 > = Exclude<
-  Extract<Principal, { kind: O['principalKinds'][number] }>,
-  DelegatedPrincipal | CredentialGroupEnrollmentPrincipal
+  Extract<WorkspaceOperationPrincipal, { kind: O['principalKinds'][number] }>,
+  DelegatedPrincipal
 >
 
 type DelegatedPrincipalForOperation<

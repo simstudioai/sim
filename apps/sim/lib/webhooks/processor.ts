@@ -1,3 +1,4 @@
+import { type ExternalUserSubject, serializePrincipal } from '@sim/auth/principal'
 import { db, webhook, webhookPathClaim, workflow, workflowDeploymentVersion } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
@@ -26,6 +27,7 @@ import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { WEBHOOK_MAX_BODY_BYTES } from '@/lib/webhooks/constants'
 import { deliverableWebhookPredicate } from '@/lib/webhooks/delivery-predicate'
+import { createWebhookExecutionPrincipal } from '@/lib/webhooks/execution-principal'
 import {
   getPendingWebhookVerification,
   matchesPendingWebhookVerificationProbe,
@@ -63,6 +65,8 @@ export interface WebhookProcessorOptions {
   receivedAt?: number
   /** Epoch ms of the originating provider interaction (e.g. Slack x-slack-request-timestamp). */
   triggerTimestampMs?: number
+  /** Provider-authenticated external actor. Never derived from workflow input. */
+  subject?: ExternalUserSubject
 }
 
 export interface WebhookPreprocessingResult {
@@ -740,6 +744,15 @@ async function queueWebhookExecutionWithResult(
     const payload = {
       webhookId: foundWebhook.id,
       workflowId: foundWorkflow.id,
+      principal: serializePrincipal(
+        createWebhookExecutionPrincipal({
+          webhookId: foundWebhook.id,
+          workflowId: foundWorkflow.id,
+          workspaceId,
+          provider: foundWebhook.provider,
+          ...(options.subject ? { subject: options.subject } : {}),
+        })
+      ),
       userId: actorUserId,
       billingAttribution,
       executionId,
@@ -1035,6 +1048,14 @@ export async function processPolledWebhookEvent(
     const payload = {
       webhookId: foundWebhook.id,
       workflowId: foundWorkflow.id,
+      principal: serializePrincipal(
+        createWebhookExecutionPrincipal({
+          webhookId: foundWebhook.id,
+          workflowId: foundWorkflow.id,
+          workspaceId,
+          provider,
+        })
+      ),
       userId: actorUserId,
       billingAttribution,
       executionId,

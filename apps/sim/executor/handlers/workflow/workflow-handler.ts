@@ -1,3 +1,4 @@
+import { resolvePrincipalSubject } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { findCause, getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -324,15 +325,22 @@ export class WorkflowBlockHandler implements BlockHandler {
     /** Settled in `finally` once the child is fully done — see `trackChildRun`. */
     let settleChildRun: (() => void) | undefined
     try {
-      if (!loadUserId) {
-        throw new Error('Workflow child loading requires a human execution subject')
+      if (!ctx.principal) {
+        throw new Error('Workflow child loading requires an execution principal')
       }
+      const principalSubject = resolvePrincipalSubject(ctx.principal)
       const workflowReadDelegationOrigin: ExecutorDelegationOrigin = isCustomBlock
-        ? { subjectUserId: loadUserId, workflowId }
+        ? {
+            ...(loadUserId ? { subjectUserId: loadUserId } : {}),
+            workflowId,
+          }
         : (ctx.executorDelegationOrigin ?? {
-            subjectUserId: loadUserId,
+            ...(principalSubject?.kind === 'sim_user'
+              ? { subjectUserId: principalSubject.userId }
+              : {}),
             workflowId: ctx.workflowId,
             ...(ctx.executionId ? { executionId: ctx.executionId } : {}),
+            principal: ctx.principal,
           })
       if (!isCustomBlock) childExecutorDelegationOrigin = workflowReadDelegationOrigin
       const workflowReadHeaders = await buildExecutorDelegationHeaders(workflowReadDelegationOrigin)
@@ -570,9 +578,14 @@ export class WorkflowBlockHandler implements BlockHandler {
           throw new Error('Custom block child logging failed to start')
         }
         childExecutorDelegationOrigin = {
-          subjectUserId: loadUserId,
           workflowId,
           executionId: childExecutionId,
+          principal: {
+            kind: 'system',
+            serviceId: 'internal',
+            workspaceId: sourceWorkspaceId,
+            workflowId,
+          },
         }
         // The child no longer shares the parent's execution id, so it no longer
         // hears the parent's cancellation event — bridge it explicitly.
@@ -744,6 +757,7 @@ export class WorkflowBlockHandler implements BlockHandler {
           enforceCredentialAccess: ctx.enforceCredentialAccess,
           workspaceId: childWorkspaceId,
           userId: childUserId,
+          principal: childExecutorDelegationOrigin?.principal ?? ctx.principal,
           executorDelegationOrigin: childExecutorDelegationOrigin,
           executionId: childExecutionId ?? ctx.executionId,
           // Large values are cached per execution id, so a child running under its

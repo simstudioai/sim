@@ -1,3 +1,9 @@
+import {
+  parsePrincipal,
+  resolvePrincipalSubject,
+  serializePrincipal,
+  type WorkflowExecutionPrincipal,
+} from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
 import { generateId } from '@sim/utils/id'
@@ -16,16 +22,18 @@ export interface InternalTokenClaims {
 }
 
 export interface GenerateInternalDelegationTokenInput {
-  subjectUserId: string
+  subjectUserId?: string
   workflowId: string
   executionId?: string
+  principal?: WorkflowExecutionPrincipal
 }
 
 export interface VerifiedInternalDelegation {
   serviceId: 'executor'
-  subjectUserId: string
+  subjectUserId?: string
   workflowId: string
   executionId?: string
+  principal?: WorkflowExecutionPrincipal
   delegationId: string
   issuedAt: Date
   expiresAt: Date
@@ -91,38 +99,60 @@ function requireNonEmptyDelegationClaim(value: string, name: string): string {
   return value
 }
 
-/** Generates a subject-bearing executor token bound to a workflow and optional execution origin. */
+/** Generates an executor token bound to its workflow origin and authenticated caller. */
 export async function generateInternalDelegationToken(
   input: GenerateInternalDelegationTokenInput
 ): Promise<string> {
-  const subjectUserId = requireNonEmptyDelegationClaim(input.subjectUserId, 'subjectUserId')
+  const suppliedSubjectUserId = input.subjectUserId
+    ? requireNonEmptyDelegationClaim(input.subjectUserId, 'subjectUserId')
+    : undefined
+  const principalSubject = input.principal ? resolvePrincipalSubject(input.principal) : null
+  if (principalSubject?.kind === 'external_user' && suppliedSubjectUserId) {
+    throw new Error('External workflow subjects cannot be represented as Sim users')
+  }
+  if (!principalSubject && input.principal && suppliedSubjectUserId) {
+    throw new Error('Actorless workflow principals cannot be represented as Sim users')
+  }
+  if (
+    principalSubject?.kind === 'sim_user' &&
+    suppliedSubjectUserId &&
+    suppliedSubjectUserId !== principalSubject.userId
+  ) {
+    throw new Error('Internal delegation subject does not match its workflow principal')
+  }
+  const subjectUserId =
+    principalSubject?.kind === 'sim_user' ? principalSubject.userId : suppliedSubjectUserId
+  if (!subjectUserId && !input.principal) {
+    throw new Error('Internal delegation requires a workflow principal or Sim user subject')
+  }
   const workflowId = requireNonEmptyDelegationClaim(input.workflowId, 'workflowId')
   const issuedAtSeconds = Math.floor(Date.now() / 1000)
   const executionId = input.executionId
     ? requireNonEmptyDelegationClaim(input.executionId, 'executionId')
     : undefined
 
-  return new SignJWT({
+  let token = new SignJWT({
     type: 'internal_delegation',
     serviceId: 'executor',
     workflowId,
+    ...(input.principal ? { principal: serializePrincipal(input.principal) } : {}),
     ...(executionId ? { executionId } : {}),
   })
     .setProtectedHeader({ alg: 'HS256' })
-    .setSubject(subjectUserId)
     .setJti(generateId())
     .setIssuedAt(issuedAtSeconds)
     .setExpirationTime(issuedAtSeconds + INTERNAL_DELEGATION_TTL_SECONDS)
     .setIssuer(INTERNAL_DELEGATION_ISSUER)
     .setAudience(INTERNAL_DELEGATION_AUDIENCE)
-    .sign(getJwtSecret())
+  if (subjectUserId) token = token.setSubject(subjectUserId)
+  return token.sign(getJwtSecret())
 }
 
 function readVerifiedDelegationClaim(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value : null
 }
 
-/** Verifies a scoped executor delegation without accepting legacy or actorless tokens. */
+/** Verifies a scoped executor delegation without accepting unbound legacy tokens. */
 export async function verifyInternalDelegationToken(
   token: string
 ): Promise<VerifiedInternalDelegation> {
@@ -146,11 +176,18 @@ export async function verifyInternalDelegationToken(
     payload.executionId === undefined ? undefined : readVerifiedDelegationClaim(payload.executionId)
   const delegationId = readVerifiedDelegationClaim(payload.jti)
   const nowSeconds = Math.floor(Date.now() / 1000)
+  let principal: WorkflowExecutionPrincipal | undefined
+  if (payload.principal !== undefined) {
+    try {
+      principal = parsePrincipal(payload.principal)
+    } catch {
+      throw new InvalidInternalDelegationTokenError()
+    }
+  }
 
   if (
     payload.type !== 'internal_delegation' ||
     payload.serviceId !== 'executor' ||
-    !subjectUserId ||
     !workflowId ||
     executionId === null ||
     !delegationId ||
@@ -163,10 +200,21 @@ export async function verifyInternalDelegationToken(
     throw new InvalidInternalDelegationTokenError()
   }
 
+  const principalSubject = principal ? resolvePrincipalSubject(principal) : null
+  if (
+    (!principal && !subjectUserId) ||
+    (principalSubject?.kind === 'sim_user' && principalSubject.userId !== subjectUserId) ||
+    (principalSubject?.kind === 'external_user' && subjectUserId) ||
+    (principal && !principalSubject && subjectUserId)
+  ) {
+    throw new InvalidInternalDelegationTokenError()
+  }
+
   return {
     serviceId: 'executor',
-    subjectUserId,
+    ...(subjectUserId ? { subjectUserId } : {}),
     workflowId,
+    ...(principal ? { principal } : {}),
     ...(executionId ? { executionId } : {}),
     delegationId,
     issuedAt: new Date(payload.iat * 1000),
