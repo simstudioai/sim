@@ -17,7 +17,7 @@ describe('columnTypeOptionsForTable', () => {
     )
 
     expect(availableTtl?.disabledReason).toBeUndefined()
-    expect(unavailableTtl?.disabledReason).toBe('Only one TTL column allowed per table')
+    expect(unavailableTtl?.disabledReason).toBe('Only one Expiration column allowed per table')
   })
 
   it('keeps TTL enabled while editing the existing TTL column', () => {

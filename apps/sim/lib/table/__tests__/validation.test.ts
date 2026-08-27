@@ -204,7 +204,7 @@ describe('Validation', () => {
       } as TableSchema)
 
       expect(result.valid).toBe(false)
-      expect(result.errors).toContain('A table can have at most 1 TTL column')
+      expect(result.errors).toContain('A table can have at most 1 Expiration column')
     })
 
     it('should reject null schema', () => {

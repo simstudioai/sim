@@ -62,13 +62,13 @@ describe('TTL column mutation limit', () => {
   it('rejects adding a second TTL column before persistence', async () => {
     await expect(
       addTableColumn('table-1', { name: 'another_expiry', type: 'ttl' }, 'request-1')
-    ).rejects.toThrow('A table can have at most 1 TTL column')
+    ).rejects.toThrow('A table can have at most 1 Expiration column')
   })
 
   it('rejects retyping another column to TTL before scanning cells', async () => {
     await expect(
       updateColumnType({ tableId: 'table-1', columnName: 'name', newType: 'ttl' }, 'request-1')
-    ).rejects.toThrow('A table can have at most 1 TTL column')
+    ).rejects.toThrow('A table can have at most 1 Expiration column')
     expect(mockTimeoutExecute).toHaveBeenCalled()
   })
 })

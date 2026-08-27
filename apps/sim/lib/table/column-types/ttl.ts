@@ -64,7 +64,7 @@ function epochSecondsToEditable(value: unknown, timeZone?: string): string | nul
 
 export const ttlColumnType: ColumnTypeDefinition = {
   id: 'ttl',
-  label: 'TTL',
+  label: 'Expiration',
   maxPerTable: 1,
   icon: TypeTtl,
   jsonbCast: 'numeric',
