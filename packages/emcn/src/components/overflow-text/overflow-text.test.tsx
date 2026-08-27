@@ -137,4 +137,21 @@ describe('OverflowText', () => {
 
     expect(resizeObserverCount).toBe(1)
   })
+
+  it('remeasures when an existing label changes', () => {
+    act(() => root.render(<OverflowText label='Short' />))
+    const label = host.querySelector<HTMLElement>('span')
+    if (!label) throw new Error('Overflow label did not render')
+
+    setWidths(label, 100, 60)
+    expect(label.className).not.toContain('mask-image:linear-gradient')
+
+    Object.defineProperty(label, 'scrollWidth', { configurable: true, value: 180 })
+    act(() => root.render(<OverflowText label='A newly long workflow name' />))
+    expect(label.className).toContain('mask-image:linear-gradient')
+
+    Object.defineProperty(label, 'scrollWidth', { configurable: true, value: 60 })
+    act(() => root.render(<OverflowText label='Short again' />))
+    expect(label.className).not.toContain('mask-image:linear-gradient')
+  })
 })

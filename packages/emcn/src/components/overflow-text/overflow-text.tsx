@@ -39,7 +39,7 @@ export const OverflowText = memo(function OverflowText({
   className,
   showWhen,
 }: OverflowTextProps) {
-  const { ref: textRef, node, isOverflowing } = useIsOverflowing<HTMLSpanElement>()
+  const { ref: textRef, node, isOverflowing } = useIsOverflowing<HTMLSpanElement>(label)
   const { state, handlers } = useFloatingTooltip(() => {
     const element = node.current
     if (!element || label.length === 0) return false

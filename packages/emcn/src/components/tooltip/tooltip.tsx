@@ -254,15 +254,20 @@ function unobserveOverflow(element: Element | null) {
 }
 
 /**
- * Tracks whether an element's text is horizontally clipped, re-measuring via a
- * shared `ResizeObserver` (or window resizes when the API is unavailable).
+ * Tracks whether an element's text is horizontally clipped, re-measuring when
+ * `measurementKey` changes and via a shared `ResizeObserver` (or window resizes
+ * when the API is unavailable).
  *
  * Returns a callback `ref` to attach to the element — the observer follows the
  * element across mount, unmount, and reassignment, so it is safe to use on
  * conditionally rendered children. `node` is a stable ref for reading the
  * current element (e.g. for live measurements in event handlers).
+ *
+ * @param measurementKey - Value whose changes may alter the element's rendered width.
  */
-export function useIsOverflowing<T extends HTMLElement = HTMLElement>(): {
+export function useIsOverflowing<T extends HTMLElement = HTMLElement>(
+  measurementKey?: unknown
+): {
   ref: (node: T | null) => void
   node: React.RefObject<T | null>
   isOverflowing: boolean
@@ -296,6 +301,10 @@ export function useIsOverflowing<T extends HTMLElement = HTMLElement>(): {
       unobserveOverflow(nodeRef.current)
     }
   }, [measure])
+
+  React.useLayoutEffect(() => {
+    measure()
+  }, [measure, measurementKey])
 
   return { ref, node: nodeRef, isOverflowing }
 }
