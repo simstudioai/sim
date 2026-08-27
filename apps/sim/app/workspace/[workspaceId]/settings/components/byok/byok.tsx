@@ -71,12 +71,7 @@ import {
   useUpsertOrganizationBYOKKey,
 } from '@/hooks/queries/byok-keys'
 
-/**
- * Every provider the BYOK page can render. A provider listed here but missing
- * from {@link PROVIDER_SECTIONS} is dropped by the sectioned renderer, so the
- * two lists are kept in sync by a test rather than by memory.
- */
-export const PROVIDERS: (BYOKManagerProvider & { id: BYOKProviderId })[] = [
+const PROVIDERS: (BYOKManagerProvider & { id: BYOKProviderId })[] = [
   {
     id: 'openai',
     name: 'OpenAI',
@@ -343,7 +338,7 @@ export const PROVIDERS: (BYOKManagerProvider & { id: BYOKProviderId })[] = [
  * {@link PROVIDERS} belongs to exactly one section; rows keep their
  * {@link PROVIDERS} order within each group.
  */
-export const PROVIDER_SECTIONS: BYOKProviderSection[] = [
+const PROVIDER_SECTIONS: BYOKProviderSection[] = [
   {
     label: 'Models',
     ids: [

@@ -68,12 +68,17 @@ export function tinyfishAgentHosting<P>(): ToolHostingConfig<P> {
 /**
  * Hosting config for the Search API.
  *
- * Search never draws on the TinyFish wallet, so the hosted key costs nothing to
- * run. The documented ceiling is 30 requests/minute per account, so a key pool
- * only raises the total when each key belongs to a separate TinyFish account.
- * Each workspace therefore gets a third of one account's budget.
+ * Search is free at any wallet balance, so the hosted key costs nothing to run.
+ * It is still worth hosting: free is not unauthenticated — the endpoint requires
+ * an `X-API-Key`, so without a hosted key a user would have to create a TinyFish
+ * account before they could search at all.
  *
- * Source: https://www.tinyfish.ai/pricing
+ * Because nothing is billed, the rate limit is the only backpressure. TinyFish
+ * enforces 30 requests/minute **per API key**, so the numbered key pool raises
+ * the ceiling proportionally, and this per-workspace share lets roughly three
+ * workspaces run flat out against a single key.
+ *
+ * Source: https://docs.tinyfish.ai/search-api/reference
  */
 export function tinyfishSearchHosting<P>(): ToolHostingConfig<P> {
   return {
@@ -94,17 +99,21 @@ export function tinyfishSearchHosting<P>(): ToolHostingConfig<P> {
 /**
  * Hosting config for the Fetch API.
  *
- * Fetch is free but its documented ceiling is measured in URLs (150/minute), not
+ * Fetch is free at any wallet balance and is hosted for the same reason as Search:
+ * the endpoint still requires an API key, so hosting is what makes it work without
+ * the user holding a TinyFish account.
+ *
+ * Its documented ceiling is measured in URLs (150/minute **per API key**), not in
  * requests, and one request carries up to 10 URLs. The URL count is therefore
  * tracked as its own dimension so a workspace batching 10 URLs per call is
  * throttled on the same axis TinyFish enforces. Usage is read from the submitted
- * list rather than the returned arrays, because TinyFish counts a URL it could
- * not fetch and the response would undercount one that landed in neither array.
+ * list rather than the returned arrays, because TinyFish counts a URL it could not
+ * fetch and the response would undercount one that landed in neither array.
  *
- * The 40/minute per-workspace share of the 150/minute account ceiling leaves room
- * for roughly three workspaces to run flat out on one key.
+ * The 40/minute per-workspace share leaves room for roughly three workspaces to
+ * run flat out against a single key.
  *
- * Source: https://www.tinyfish.ai/pricing
+ * Source: https://docs.tinyfish.ai/fetch-api/reference
  */
 export function tinyfishFetchHosting<P>(): ToolHostingConfig<P> {
   return {
