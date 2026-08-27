@@ -1,5 +1,6 @@
 import { ChipTag, cn } from '@sim/emcn'
 import { ShieldCheck } from '@sim/emcn/icons'
+import colorMixFallbacks from '@/app/(landing)/components/shared/color-mix-fallbacks/color-mix-fallbacks.module.css'
 import { FeatureGraphicShell } from '@/app/(landing)/enterprise/components/feature-graphics/feature-graphic-shell'
 import styles from '@/app/(landing)/enterprise/components/feature-graphics/standards-graphic.module.css'
 
@@ -86,8 +87,18 @@ export function StandardsGraphic({
       <div aria-hidden='true' className='absolute inset-0 pr-8 max-lg:pr-6'>
         <div className='relative h-full'>
           <div className='-translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-1/2 h-[250px] w-[320px]'>
-            <div className='absolute top-0 left-[48px] size-[224px] rounded-full border border-[color:color-mix(in_srgb,var(--text-muted-inverse)_22%,transparent)] [mask-image:linear-gradient(to_bottom,black_30%,transparent_92%)]' />
-            <div className='absolute top-[36px] left-[84px] size-[152px] rounded-full border border-[color:color-mix(in_srgb,var(--text-muted-inverse)_35%,transparent)]' />
+            <div
+              className={cn(
+                'absolute top-0 left-[48px] size-[224px] rounded-full border [mask-image:linear-gradient(to_bottom,black_30%,transparent_92%)]',
+                colorMixFallbacks.inverseBorder22
+              )}
+            />
+            <div
+              className={cn(
+                'absolute top-[36px] left-[84px] size-[152px] rounded-full border',
+                colorMixFallbacks.inverseBorder35
+              )}
+            />
 
             <svg
               className='absolute inset-0'
@@ -141,21 +152,33 @@ export function StandardsGraphic({
               <path
                 d='M 90 112.5 L 122 112.5'
                 pathLength={1}
-                className={styles.connector}
-                stroke='color-mix(in srgb, var(--text-muted-inverse) 45%, transparent)'
+                className={cn(styles.connector, colorMixFallbacks.inverseStroke45)}
                 strokeWidth='1'
               />
               <path
                 d='M 198 112.5 L 230 112.5'
                 pathLength={1}
-                className={cn(styles.connector, styles.connectorTrailing)}
-                stroke='color-mix(in srgb, var(--text-muted-inverse) 45%, transparent)'
+                className={cn(
+                  styles.connector,
+                  styles.connectorTrailing,
+                  colorMixFallbacks.inverseStroke45
+                )}
                 strokeWidth='1'
               />
             </svg>
 
-            <span className='absolute top-[108px] left-[118px] size-2 rounded-full border border-[color:color-mix(in_srgb,var(--text-muted-inverse)_70%,transparent)] bg-[var(--text-secondary)]' />
-            <span className='absolute top-[108px] left-[194px] size-2 rounded-full border border-[color:color-mix(in_srgb,var(--text-muted-inverse)_70%,transparent)] bg-[var(--text-secondary)]' />
+            <span
+              className={cn(
+                'absolute top-[108px] left-[118px] size-2 rounded-full border bg-[var(--text-secondary)]',
+                colorMixFallbacks.inverseBorder70
+              )}
+            />
+            <span
+              className={cn(
+                'absolute top-[108px] left-[194px] size-2 rounded-full border bg-[var(--text-secondary)]',
+                colorMixFallbacks.inverseBorder70
+              )}
+            />
 
             <div
               className={cn(

@@ -1,0 +1,115 @@
+.navbarGlass {
+  background-color: var(--bg);
+}
+
+.mobileBackdrop {
+  background-color: var(--text-primary);
+  opacity: 0.08;
+}
+
+.mutedText60 {
+  color: var(--text-muted);
+}
+
+.loaderOuter {
+  --landing-loader-outer: var(--text-body);
+}
+
+.inverseBorder45 {
+  border-color: var(--text-muted-inverse);
+}
+
+.inverseBackground45 {
+  background-color: var(--text-muted-inverse);
+}
+
+.mutedBackground35 {
+  background-color: var(--text-muted);
+}
+
+.mutedBorder60 {
+  border-color: var(--text-muted);
+}
+
+.inverseBorder22 {
+  border-color: var(--text-muted-inverse);
+}
+
+.inverseBorder35 {
+  border-color: var(--text-muted-inverse);
+}
+
+.inverseBorder70 {
+  border-color: var(--text-muted-inverse);
+}
+
+.mutedStroke35 {
+  stroke: var(--text-muted);
+}
+
+.inverseStroke28 {
+  stroke: var(--text-muted-inverse);
+}
+
+.inverseStroke45 {
+  stroke: var(--text-muted-inverse);
+}
+
+@supports (color: color-mix(in srgb, red, blue)) {
+  .navbarGlass {
+    background-color: color-mix(in srgb, var(--bg) 92%, transparent);
+  }
+
+  .mobileBackdrop {
+    background-color: color-mix(in srgb, var(--text-primary) 8%, transparent);
+    opacity: 1;
+  }
+
+  .mutedText60 {
+    color: color-mix(in srgb, var(--text-muted) 60%, transparent);
+  }
+
+  .loaderOuter {
+    --landing-loader-outer: color-mix(in srgb, var(--text-body) 76%, var(--white));
+  }
+
+  .inverseBorder45 {
+    border-color: color-mix(in srgb, var(--text-muted-inverse) 45%, transparent);
+  }
+
+  .inverseBackground45 {
+    background-color: color-mix(in srgb, var(--text-muted-inverse) 45%, transparent);
+  }
+
+  .mutedBackground35 {
+    background-color: color-mix(in srgb, var(--text-muted) 35%, transparent);
+  }
+
+  .mutedBorder60 {
+    border-color: color-mix(in srgb, var(--text-muted) 60%, transparent);
+  }
+
+  .inverseBorder22 {
+    border-color: color-mix(in srgb, var(--text-muted-inverse) 22%, transparent);
+  }
+
+  .inverseBorder35 {
+    border-color: color-mix(in srgb, var(--text-muted-inverse) 35%, transparent);
+  }
+
+  .inverseBorder70 {
+    border-color: color-mix(in srgb, var(--text-muted-inverse) 70%, transparent);
+  }
+
+  .mutedStroke35 {
+    stroke: color-mix(in srgb, var(--text-muted) 35%, transparent);
+  }
+
+  .inverseStroke28 {
+    stroke: color-mix(in srgb, var(--text-muted-inverse) 28%, transparent);
+  }
+
+  .inverseStroke45 {
+    stroke: color-mix(in srgb, var(--text-muted-inverse) 45%, transparent);
+  }
+}

@@ -1,10 +1,11 @@
 import { cn } from '@sim/emcn'
 import { SlackIcon } from '@/components/icons'
+import colorMixFallbacks from '@/app/(landing)/components/shared/color-mix-fallbacks/color-mix-fallbacks.module.css'
 import { FeatureGraphicShell } from '@/app/(landing)/enterprise/components/feature-graphics'
 import styles from '@/app/(landing)/logs/components/feature-graphics/failure-alert-graphic.module.css'
 
 /** Shared hairline ink for the run row, connector, and notification window. */
-const OUTLINE_INK = 'border-[color:color-mix(in_srgb,var(--text-muted-inverse)_45%,transparent)]'
+const OUTLINE_INK = colorMixFallbacks.inverseBorder45
 
 /**
  * A failure caught by alerting, told top to bottom as the deploy tile's
@@ -54,7 +55,7 @@ export function FailureAlertGraphic() {
         <span
           className={cn(
             'relative mt-2 mb-2 min-h-4 w-px flex-1 overflow-hidden',
-            'bg-[color:color-mix(in_srgb,var(--text-muted-inverse)_45%,transparent)]'
+            colorMixFallbacks.inverseBackground45
           )}
         >
           <span className={styles.sweep} />

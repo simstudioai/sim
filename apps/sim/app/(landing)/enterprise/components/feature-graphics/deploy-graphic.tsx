@@ -2,6 +2,7 @@ import type { CSSProperties } from 'react'
 import { ChipTag, chipContentLabelClass, chipGeometryClass, cn } from '@sim/emcn'
 import { CircleCheck, Lock } from '@sim/emcn/icons'
 import { ThinkingLoader } from '@/components/ui'
+import colorMixFallbacks from '@/app/(landing)/components/shared/color-mix-fallbacks/color-mix-fallbacks.module.css'
 import styles from '@/app/(landing)/enterprise/components/feature-graphics/deploy-graphic.module.css'
 import { FeatureGraphicShell } from '@/app/(landing)/enterprise/components/feature-graphics/feature-graphic-shell'
 
@@ -100,7 +101,12 @@ export function DeployGraphic({
           <ChipTag variant='mono'>{versionTag}</ChipTag>
         </div>
 
-        <span className='relative mt-1.5 min-h-3 w-px flex-1 overflow-hidden bg-[color:color-mix(in_srgb,var(--text-muted-inverse)_45%,transparent)]'>
+        <span
+          className={cn(
+            'relative mt-1.5 min-h-3 w-px flex-1 overflow-hidden',
+            colorMixFallbacks.inverseBackground45
+          )}
+        >
           <span className={styles.sweep} />
         </span>
 
@@ -116,11 +122,21 @@ export function DeployGraphic({
           </span>
         </span>
 
-        <span className='relative mt-2.5 mb-1.5 min-h-3 w-px flex-1 overflow-hidden bg-[color:color-mix(in_srgb,var(--text-muted-inverse)_45%,transparent)]'>
+        <span
+          className={cn(
+            'relative mt-2.5 mb-1.5 min-h-3 w-px flex-1 overflow-hidden',
+            colorMixFallbacks.inverseBackground45
+          )}
+        >
           <span className={cn(styles.sweep, styles.sweepLower)} />
         </span>
 
-        <div className='relative h-24 w-full rounded-t-xl border border-[color:color-mix(in_srgb,var(--text-muted-inverse)_45%,transparent)] border-b-0'>
+        <div
+          className={cn(
+            'relative h-24 w-full rounded-t-xl border border-b-0',
+            colorMixFallbacks.inverseBorder45
+          )}
+        >
           <span
             className={cn(
               '-inset-px absolute rounded-t-xl border border-[var(--text-inverse)] border-b-0',

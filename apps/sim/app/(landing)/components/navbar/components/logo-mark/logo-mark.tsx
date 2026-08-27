@@ -3,6 +3,7 @@
 import { type CSSProperties, type ReactNode, useState } from 'react'
 import { cn } from '@sim/emcn'
 import { ThinkingLoader } from '@/components/ui'
+import colorMixFallbacks from '@/app/(landing)/components/shared/color-mix-fallbacks/color-mix-fallbacks.module.css'
 
 interface LogoMarkProps {
   /** Server-rendered Sim wordmark, shown by default. */
@@ -18,7 +19,7 @@ interface LogoMarkProps {
  */
 const LOADER_INK = {
   '--tl-grad-inner': 'var(--text-body)',
-  '--tl-grad-outer': 'color-mix(in srgb, var(--text-body) 76%, #fff)',
+  '--tl-grad-outer': 'var(--landing-loader-outer)',
   '--tl-glow': 'transparent',
 } as CSSProperties
 
@@ -35,7 +36,7 @@ export function LogoMark({ children }: LogoMarkProps) {
 
   return (
     <span
-      className='relative inline-flex items-center'
+      className={cn('relative inline-flex items-center', colorMixFallbacks.loaderOuter)}
       // Transform + its transition are inline on purpose: Tailwind's
       // `transition-transform` utility (its var-based transform composition)
       // prevents the scale from applying on this element, so the transition is
