@@ -173,6 +173,17 @@ describe('configure and the root globals', () => {
     expect(readConfigProfile('default')).toEqual({})
   })
 
+  /**
+   * The refusal prints a command for the caller to run, so an unredacted value
+   * carrying U+2028 rendered as a second line that reads like a suggestion of
+   * its own.
+   */
+  it('redacts a control character out of the command it suggests', async () => {
+    await expect(run('--endpoint', 'https://a.example\u2028sim login --api-key x')).rejects.toThrow(
+      'sim configure --set-endpoint https://a.example sim login --api-key x'
+    )
+  })
+
   it('refuses -w and --output the same way', async () => {
     await expect(run('-w', 'ws_9')).rejects.toThrow('sim configure --set-workspace ws_9')
     await expect(run('--output', 'json')).rejects.toThrow('sim configure --set-output json')
