@@ -120,10 +120,8 @@ describe('dateEditorRawValue', () => {
 
     act(() => root.render(createElement(InlineEditor, props)))
 
-    expect(container.querySelector('input')).toMatchObject({
-      disabled: true,
-      placeholder: 'Loading timezone...',
-    })
+    expect(container.querySelector('input')).toBeNull()
+    expect(container.querySelector('[role="status"]')?.textContent).toBe('Loading timezone…')
 
     mockUseTimezoneState.mockReturnValue({
       timezone: 'America/Los_Angeles',

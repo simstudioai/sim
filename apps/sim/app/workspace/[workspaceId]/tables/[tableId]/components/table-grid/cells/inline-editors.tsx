@@ -81,15 +81,9 @@ function InlineDateEditor(props: InlineEditorProps) {
 
   if (ttlTimezoneUnavailable) {
     return (
-      <input
-        type='text'
-        value=''
-        disabled
-        placeholder={
-          timezoneState.status === 'error' ? 'Timezone unavailable' : 'Loading timezone...'
-        }
-        className='w-full min-w-0 border-none bg-transparent p-0 text-[var(--text-muted)] text-small outline-none'
-      />
+      <span role='status' className='w-full min-w-0 truncate text-[var(--text-muted)] text-small'>
+        {timezoneState.status === 'error' ? 'Timezone unavailable' : 'Loading timezone…'}
+      </span>
     )
   }
 
