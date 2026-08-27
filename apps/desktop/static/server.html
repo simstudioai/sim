@@ -204,8 +204,14 @@
         input.setAttribute('aria-invalid', tone === 'error' ? 'true' : 'false')
       }
 
+      // Set for the whole life of a request. Without it the input handler below
+      // re-enables Connect mid-flight, letting a second change race the first.
+      // The main process guards the transaction itself; this keeps the page
+      // from asking for something it will only be refused.
+      let pending = false
+
       function syncConnectEnabled() {
-        connect.disabled = input.value.trim().length === 0
+        connect.disabled = pending || input.value.trim().length === 0
       }
 
       input.addEventListener('input', () => {
@@ -219,6 +225,8 @@
       cancel.addEventListener('click', () => window.close())
 
       async function submit() {
+        if (pending) return
+        pending = true
         connect.disabled = true
         setMessage('Connecting…')
         try {
@@ -235,6 +243,7 @@
         } catch {
           setMessage('The server could not be changed.', 'error')
         } finally {
+          pending = false
           syncConnectEnabled()
         }
       }

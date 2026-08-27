@@ -100,6 +100,14 @@ export interface ServerWindowHandle {
  */
 export function createServerWindow(deps: ServerWindowDeps): ServerWindowHandle {
   let win: BrowserWindow | null = null
+  /**
+   * Serializes the destructive part of a change, the way the sign-out
+   * coordinator guards its own teardown. The picker re-enables its button
+   * while a request is pending, and the IPC boundary is reachable regardless
+   * of what the page does, so without this two changes could interleave their
+   * teardown and their write and let the later write pick the next server.
+   */
+  let changeInFlight = false
 
   const getConfiguration = (): DesktopServerConfiguration => {
     const origin = deps.config.getOrigin()
@@ -177,36 +185,51 @@ export function createServerWindow(deps: ServerWindowDeps): ServerWindowHandle {
       return { ok: true, origin, unchanged: true }
     }
 
-    // Fail closed, and clear BEFORE persisting. If a store cannot be emptied,
-    // the shell must not move: the incoming deployment would otherwise inherit
-    // folder grants and authenticated browser sessions the outgoing one was
-    // given, and they are restored on the next startup. Nothing has been
-    // written at this point, so refusing leaves the shell exactly where it was
-    // rather than stranding it on a half-applied change.
-    const surviving = await deps.clearDeploymentScopedState().catch((error) => {
-      logger.error('Deployment-scoped teardown threw', { error: getErrorMessage(error) })
-      return ['local file access and built-in browser sessions']
-    })
-    if (surviving.length > 0) {
-      logger.error('Refusing to change server; deployment-scoped state survived', { surviving })
-      return {
-        ok: false,
-        error: `Could not clear ${surviving.join(' or ')} from the current server, so the server was not changed. Try again, or sign out first.`,
+    if (changeInFlight) {
+      return { ok: false, error: 'A server change is already in progress.' }
+    }
+    changeInFlight = true
+    try {
+      // Fail closed, and clear BEFORE persisting. If a store cannot be emptied,
+      // the shell must not move: the incoming deployment would otherwise
+      // inherit folder grants and authenticated browser sessions the outgoing
+      // one was given, and they are restored on the next startup. Nothing has
+      // been written at this point, so refusing leaves the shell on the server
+      // it was already using rather than half-applying the change.
+      const surviving = await deps.clearDeploymentScopedState().catch((error) => {
+        logger.error('Deployment-scoped teardown threw', { error: getErrorMessage(error) })
+        return ['local file access and built-in browser sessions']
+      })
+      if (surviving.length > 0) {
+        logger.error('Refusing to change server; deployment-scoped state survived', { surviving })
+        // Deliberately describes the whole teardown, not just what failed. The
+        // stores clear independently, so one may already be empty by now, and
+        // there is nothing to roll back to — a revoked cookie jar and deleted
+        // security-scoped bookmarks cannot be un-deleted. Saying "some may have
+        // been cleared" is the honest account, and a retry is safe: clearing an
+        // already-empty store succeeds, so it finishes the job rather than
+        // repeating it.
+        return {
+          ok: false,
+          error: `Could not clear ${surviving.join(' or ')} from the current server, so the server was not changed. Some local access may already have been cleared. Try again to finish, or sign out first.`,
+        }
       }
-    }
 
-    logger.info('Server origin changed; relaunching', { from: current, to: origin })
-    deps.config.setOrigin(raw)
-    for (const key of ORIGIN_SCOPED_SETTINGS) {
-      deps.config.set(key, undefined)
+      logger.info('Server origin changed; relaunching', { from: current, to: origin })
+      deps.config.setOrigin(raw)
+      for (const key of ORIGIN_SCOPED_SETTINGS) {
+        deps.config.set(key, undefined)
+      }
+      // setOrigin writes through immediately; the clears above are debounced
+      // like every other setting. `before-quit` flushes too, but doing it here
+      // keeps the write independent of the Electron quit sequence.
+      deps.config.flush()
+      close()
+      deps.relaunch()
+      return { ok: true, origin, unchanged: false }
+    } finally {
+      changeInFlight = false
     }
-    // setOrigin writes through immediately; the clears above are debounced like
-    // every other setting. `before-quit` flushes too, but doing it here keeps
-    // the write independent of the Electron quit sequence.
-    deps.config.flush()
-    close()
-    deps.relaunch()
-    return { ok: true, origin, unchanged: false }
   }
 
   return { open, getConfiguration, setOrigin }

@@ -114,6 +114,48 @@ describe('server window', () => {
     expect(deps.clearDeploymentScopedState).not.toHaveBeenCalled()
   })
 
+  // The picker re-enables its button while a request is pending, and the IPC
+  // boundary is reachable regardless of what the page does, so the transaction
+  // has to be serialized here rather than in the renderer.
+  it('refuses a second change while one is in flight', async () => {
+    let release: (() => void) | undefined
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const slow = makeDeps({
+      clearDeploymentScopedState: vi.fn(async (): Promise<readonly string[]> => {
+        await gate
+        return []
+      }),
+    })
+    const handle = createServerWindow(slow)
+
+    const first = handle.setOrigin('https://sim.other.example')
+    const second = await handle.setOrigin('https://sim.third.example')
+
+    expect(second).toMatchObject({ ok: false })
+    expect(second).toHaveProperty('error', expect.stringContaining('already in progress'))
+    release?.()
+    await expect(first).resolves.toMatchObject({ ok: true, unchanged: false })
+    expect(slow.relaunch).toHaveBeenCalledTimes(1)
+    expect(slow.config.setOrigin).toHaveBeenCalledTimes(1)
+    expect(slow.config.setOrigin).toHaveBeenCalledWith('https://sim.other.example')
+  })
+
+  // The guard must not latch: a refused change has to leave the picker usable.
+  it('allows a later change once the first has settled', async () => {
+    const failing = makeDeps({
+      clearDeploymentScopedState: vi.fn(async () => ['local file access']),
+    })
+    const handle = createServerWindow(failing)
+
+    await handle.setOrigin('https://sim.other.example')
+    const second = await handle.setOrigin('https://sim.third.example')
+
+    expect(second).toMatchObject({ ok: false })
+    expect(second).toHaveProperty('error', expect.stringContaining('local file access'))
+  })
+
   // Fail closed. A store that could not be emptied is access the incoming
   // deployment would inherit and that startup would restore, so the change is
   // refused outright — and because nothing is persisted until the teardown
@@ -127,6 +169,10 @@ describe('server window', () => {
 
     expect(result).toMatchObject({ ok: false })
     expect(result).toHaveProperty('error', expect.stringContaining('local file access'))
+    // The stores clear independently, so the other one may already be empty and
+    // cannot be restored. Naming only the failure would read as "nothing
+    // happened", which is not what happened.
+    expect(result).toHaveProperty('error', expect.stringContaining('may already have been cleared'))
     expect(failing.relaunch).not.toHaveBeenCalled()
     expect(failing.config.setOrigin).not.toHaveBeenCalled()
     expect(failing.config.getOrigin()).toBe(CURRENT)
