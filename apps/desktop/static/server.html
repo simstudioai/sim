@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; font-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'"
+    />
+    <title>Sim - Server</title>
+    <style>
+      @font-face {
+        font-family: 'Season Sans';
+        src:
+          url('../../sim/public/brand/fonts/SeasonSansUprightsVF.woff2') format('woff2'),
+          url('./SeasonSansUprightsVF.woff2') format('woff2');
+        font-style: normal;
+        font-weight: 300 800;
+        font-display: block;
+      }
+      /* The window pre-paints backgroundColorFor(...) before this document
+         renders, so --bg must track the same system preference or a dark-mode
+         operator sees the picker flash from dark to white on open. */
+      :root {
+        color-scheme: light dark;
+        --bg: #fefefe;
+        --text-primary: #1a1a1a;
+        --text-body: #434343;
+        --text-muted: #7a7a7a;
+        --text-inverse: #ffffff;
+        --surface-hover: #f2f2f2;
+        --border: #e0e0e0;
+        --border-strong: #b4b4b4;
+        --error: #b42318;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0c0c0c;
+          --text-primary: #fafafa;
+          --text-body: #d4d4d4;
+          --text-muted: #8a8a8a;
+          --text-inverse: #0c0c0c;
+          --surface-hover: #1f1f1f;
+          --border: #2a2a2a;
+          --border-strong: #4a4a4a;
+          --error: #f97066;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+      }
+      body {
+        display: flex;
+        flex-direction: column;
+        padding-top: max(env(titlebar-area-height, 38px), 38px);
+        background: var(--bg);
+        color: var(--text-primary);
+        font-family: 'Season Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        -webkit-font-smoothing: antialiased;
+        user-select: none;
+      }
+      .drag {
+        flex: none;
+        height: 8px;
+        -webkit-app-region: drag;
+      }
+      main {
+        display: flex;
+        flex: 1;
+        flex-direction: column;
+        gap: 6px;
+        padding: 4px 28px 24px;
+      }
+      h1 {
+        margin: 0;
+        font-size: 22px;
+        font-weight: 400;
+        letter-spacing: -0.02em;
+        line-height: 1.2;
+      }
+      p {
+        margin: 0;
+        color: var(--text-muted);
+        font-size: 13px;
+        line-height: 20px;
+      }
+      label {
+        margin-top: 14px;
+        color: var(--text-body);
+        font-size: 13px;
+        line-height: 20px;
+      }
+      input {
+        height: 34px;
+        width: 100%;
+        padding: 0 10px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--bg);
+        color: var(--text-primary);
+        font: inherit;
+        font-size: 14px;
+        outline: none;
+        user-select: text;
+        transition: border-color 150ms cubic-bezier(0.4, 0, 0.2, 1);
+      }
+      input:focus {
+        border-color: var(--border-strong);
+      }
+      input[aria-invalid='true'] {
+        border-color: var(--error);
+      }
+      #message {
+        min-height: 18px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 11px;
+        line-height: 18px;
+      }
+      #message[data-tone='error'] {
+        color: var(--error);
+      }
+      .actions {
+        display: flex;
+        gap: 8px;
+        justify-content: flex-end;
+        margin-top: auto;
+      }
+      button {
+        display: inline-flex;
+        height: 30px;
+        align-items: center;
+        appearance: none;
+        border: 0;
+        border-radius: 8px;
+        padding: 0 12px;
+        background: transparent;
+        color: var(--text-body);
+        font: inherit;
+        font-size: 14px;
+        line-height: 20px;
+        cursor: pointer;
+        outline: none;
+        transition:
+          color 150ms cubic-bezier(0.4, 0, 0.2, 1),
+          background-color 150ms cubic-bezier(0.4, 0, 0.2, 1);
+      }
+      button.primary {
+        background: var(--text-primary);
+        color: var(--text-inverse);
+      }
+      button[disabled] {
+        cursor: default;
+        opacity: 0.5;
+      }
+      @media (hover: hover) and (pointer: fine) {
+        button.primary:not([disabled]):hover {
+          background: var(--text-body);
+        }
+        button.secondary:not([disabled]):hover {
+          background: var(--surface-hover);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="drag"></div>
+    <main>
+      <h1>Sim server</h1>
+      <p>
+        Point this app at your own Sim deployment. Self-hosted servers must use HTTPS; localhost may
+        use HTTP.
+      </p>
+      <label for="origin">Server URL</label>
+      <input
+        id="origin"
+        type="url"
+        inputmode="url"
+        autocomplete="off"
+        autocapitalize="off"
+        spellcheck="false"
+        placeholder="https://sim.example.com"
+      />
+      <div id="message" role="status"></div>
+      <div class="actions">
+        <button class="secondary" id="cancel">Cancel</button>
+        <button class="primary" id="connect" disabled>Connect</button>
+      </div>
+    </main>
+    <script>
+      const bridge = window.simDesktop?.server
+      const input = document.getElementById('origin')
+      const connect = document.getElementById('connect')
+      const cancel = document.getElementById('cancel')
+      const message = document.getElementById('message')
+
+      function setMessage(text, tone) {
+        message.textContent = text || ''
+        if (tone) message.setAttribute('data-tone', tone)
+        else message.removeAttribute('data-tone')
+        input.setAttribute('aria-invalid', tone === 'error' ? 'true' : 'false')
+      }
+
+      // Set for the whole life of a request. Without it the input handler below
+      // re-enables Connect mid-flight, letting a second change race the first.
+      // The main process guards the transaction itself; this keeps the page
+      // from asking for something it will only be refused.
+      let pending = false
+
+      function syncConnectEnabled() {
+        connect.disabled = pending || input.value.trim().length === 0
+      }
+
+      input.addEventListener('input', () => {
+        // Clear a stale rejection as soon as the value it described changes.
+        if (message.getAttribute('data-tone') === 'error') setMessage('')
+        syncConnectEnabled()
+      })
+      input.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' && !connect.disabled) submit()
+      })
+      cancel.addEventListener('click', () => window.close())
+
+      async function submit() {
+        if (pending) return
+        pending = true
+        connect.disabled = true
+        setMessage('Connecting…')
+        try {
+          const result = await bridge?.setOrigin(input.value)
+          if (!result) {
+            setMessage('The desktop shell is unavailable.', 'error')
+          } else if (!result.ok) {
+            setMessage(result.error, 'error')
+          } else if (result.unchanged) {
+            // Nothing restarts, so this window is the only place that can say so.
+            setMessage('Already connected to this server.')
+          }
+          // A successful change relaunches the app; nothing below runs.
+        } catch {
+          setMessage('The server could not be changed.', 'error')
+        } finally {
+          pending = false
+          syncConnectEnabled()
+        }
+      }
+
+      connect.addEventListener('click', submit)
+
+      bridge
+        ?.getConfiguration()
+        .then(({ origin, defaultOrigin }) => {
+          input.value = origin
+          input.select()
+          syncConnectEnabled()
+          if (origin !== defaultOrigin) {
+            setMessage(`This build defaults to ${defaultOrigin}`)
+          }
+        })
+        .catch(() => setMessage('Could not read the current server.', 'error'))
+    </script>
+  </body>
+</html>

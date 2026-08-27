@@ -42,6 +42,30 @@ describe('parseSetupArguments', () => {
     )
   })
 
+  it('parses desktop options', () => {
+    expect(parseSetupArguments(['desktop'])).toEqual({ kind: 'desktop', noOpen: false })
+    expect(parseSetupArguments(['desktop', '--no-open'])).toEqual({
+      kind: 'desktop',
+      noOpen: true,
+    })
+    expect(parseSetupArguments(['desktop', '--url', 'https://sim.example.com'])).toEqual({
+      kind: 'desktop',
+      noOpen: false,
+      url: 'https://sim.example.com',
+    })
+    expect(parseSetupArguments(['desktop', '--url=https://sim.example.com'])).toEqual({
+      kind: 'desktop',
+      noOpen: false,
+      url: 'https://sim.example.com',
+    })
+    expect(() => parseSetupArguments(['desktop', '--url'])).toThrow(
+      '--url requires a deployment URL'
+    )
+    expect(() => parseSetupArguments(['desktop', '--nope'])).toThrow(
+      'Unknown desktop option: --nope'
+    )
+  })
+
   it('validates add operands before loading configuration', () => {
     expect(parseSetupArguments(['add', 'email'])).toEqual({
       kind: 'add',

@@ -180,6 +180,22 @@ export function canonicalOrigin(origin: string): string {
 }
 
 /**
+ * Whether an origin is one of Sim's own deployments rather than a self-hosted
+ * one. Sim-operated resources — the public status page above all — describe
+ * only these, so a shell pointed elsewhere must not be offered them: telling a
+ * self-hoster whose server is down to consult a page that is always green
+ * sends the person who most needs an answer to the one place that has none.
+ */
+export function isSimCloudOrigin(origin: string): boolean {
+  try {
+    const host = new URL(origin).hostname.toLowerCase()
+    return host === 'sim.ai' || host.endsWith('.sim.ai')
+  } catch {
+    return false
+  }
+}
+
+/**
  * Maps a server origin to its cookie/storage partition. Each origin gets an
  * isolated persistent partition so sessions never leak across instances.
  */
@@ -339,6 +355,12 @@ export function createConfigStore(
       // only repairs it on the next launch. The canonical origin is also
       // returned so the caller sees what was actually stored.
       const origin = canonicalOrigin(validated.origin)
+      // Re-confirming the origin already stored is the common case in the
+      // server picker, and setOrigin's write is a synchronous mkdir + whole-file
+      // write + rename on the main thread. There is nothing to persist.
+      if (origin === settings.origin) {
+        return { ok: true, origin }
+      }
       settings.origin = origin
       // Not debounced: changing the origin tears the session down and
       // reloads, so a pending write could be lost on the way out — and this
