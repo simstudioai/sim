@@ -3871,7 +3871,22 @@ export const auditLog = pgTable(
   })
 )
 
-export const usageLogCategoryEnum = pgEnum('usage_log_category', ['model', 'fixed', 'tool'])
+/**
+ * `model_unbilled` records model usage Sim does not charge for — a call funded by
+ * the customer's own provider key (BYOK). Its `cost` is always `0` and its value is
+ * the token counts in `metadata`, so the org usage panel can report volume the
+ * billing ledger has no reason to know about.
+ *
+ * It is deliberately a distinct category rather than a `category = 'model'` row with
+ * `cost = 0`: every existing and future `where category = 'model'` billing query
+ * stays blind to these rows unless it opts in.
+ */
+export const usageLogCategoryEnum = pgEnum('usage_log_category', [
+  'model',
+  'fixed',
+  'tool',
+  'model_unbilled',
+])
 export const usageLogSourceEnum = pgEnum('usage_log_source', [
   'workflow',
   'wand',

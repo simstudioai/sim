@@ -27,6 +27,21 @@ export function getBrowserTimezone(): string {
 }
 
 /**
+ * Rejects a timezone that is not an IANA name.
+ *
+ * Timezones reach SQL through `AT TIME ZONE`, which takes an identifier rather than
+ * a bound parameter, so an unvalidated value off a query string would be
+ * interpolated into the statement. Every bucketed aggregate calls this first.
+ */
+export function assertValidTimezone(timezone: string): void {
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: timezone })
+  } catch {
+    throw new Error(`Invalid timezone: ${timezone}. Use an IANA name like "America/Los_Angeles".`)
+  }
+}
+
+/**
  * Every IANA timezone identifier the runtime knows, for populating a picker;
  * falls back to a curated common set on runtimes without `Intl.supportedValuesOf`.
  */

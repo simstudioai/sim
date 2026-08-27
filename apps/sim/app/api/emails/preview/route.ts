@@ -160,7 +160,7 @@ const emailTemplates = {
       scope: 'organization',
       currentUsage: 500,
       limit: 500,
-      ctaLink: 'https://sim.ai/organization/org_123/settings/billing',
+      ctaLink: 'https://sim.ai/workspace/ws_123/settings/billing',
     }),
 
   // Operational notification emails

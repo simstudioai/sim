@@ -181,8 +181,8 @@ describe('SettingsHeaderShell static meta', () => {
   })
 
   it('lets a body claim the header with nothing in it, suppressing the meta entirely', () => {
-    // How SettingsUnavailable opts out: it renders its own centred heading, so the routed
-    // section's catalog title must not caption it.
+    // How a surface that draws its own centred heading opts out: the routed section's
+    // catalog title must not also caption it.
     function OwnHeadingBody() {
       useSettingsHeader(EMPTY_HEADER)
       return <div />

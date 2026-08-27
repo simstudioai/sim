@@ -1,0 +1,161 @@
+---
+title: Usage Tracking
+description: See where your organization's credits go, by member, workspace, and model
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { FAQ } from '@/components/ui/faq'
+import { Image } from '@/components/ui/image'
+
+Usage tracking shows how your organization consumes credits across every part of the platform — which members, which workspaces, which models, and which product features. Use it to monitor spend against your commitment, find what is driving it, and export the underlying events for chargeback.
+
+All figures are in **credits** (1 credit = $0.005). See [cost calculation](/platform/costs) for how credits are derived.
+
+---
+
+## Viewing usage
+
+Go to **Settings → Organization → Usage tracking** in your workspace.
+
+<Image src="/static/enterprise/usage-tracking-overview.png" alt="Usage tracking Overview tab showing the period selector, credits used against the organization limit, a daily usage chart, and a Sources breakdown listing Sim Chat, Workflow, and Agent block" width={900} height={578} />
+
+The period selector applies to every tab:
+
+| Period | What it covers |
+|--------|----------------|
+| **Current period** | Your organization's current billing period |
+| **Previous period** | The period immediately before it |
+| **Last 7 days** / **Last 30 days** | A rolling window ending now |
+| **Custom range** | Any range up to 92 days |
+
+<Callout type="info">
+  Daily bars are drawn in your browser's timezone, while a billing period begins at a fixed UTC instant. The first and last bar of a period can therefore be partial, and two admins in different timezones will see the same total split across slightly different days.
+</Callout>
+
+### Tabs
+
+| Tab | Answers |
+|-----|---------|
+| **Overview** | How much have we used, against what limit, and what kind of work was it |
+| **Members** | Which people are driving usage |
+| **Workspaces** | Which workspaces are driving usage — select one to drill in |
+| **Models** | Which models we are paying for |
+| **BYOK** | What ran on our own provider keys |
+
+Selecting a workspace opens its detail view, which splits that workspace's usage into **Sources** (what kind of work) and **Workflows** (the individual workflow runs). **Open logs** jumps to that workspace's execution logs.
+
+<Image src="/static/enterprise/usage-tracking-workspace-detail.png" alt="A workspace's detail view with a Sources section listing Sim Chat and Workflow, and a Workflows section ranking individual workflows by credits" width={900} height={598} />
+
+The two sections answer different questions, and the difference is the point: **Sources** adds up to the workspace's total, while **Workflows** covers only the workflow-run part of it. In the example above, Sources totals 4,435 credits but the workflows list only accounts for the 161 credits under Workflow — the other 4,274 came from Chat, which no workflow produced.
+
+---
+
+## What each source means
+
+A **source** is the part of the platform that consumed the credits. Every charge belongs to exactly one source, so the Sources breakdown always adds up to your total.
+
+| Source | Platform features that bill to it |
+|--------|-----------------------------------|
+| **Workflow** | Every workflow run — model calls made on Sim's hosted keys, hosted-key tool calls (web search, scraping, and similar), and the per-run base charge |
+| **Sim Chat** | The Chat panel, agent calls made through the API, and the email Inbox |
+| **Agent block** | The Agent block running inside a workflow |
+| **Knowledge Base** | Embedding documents on upload or connector sync, and semantic search queries |
+| **Wand** | Inline AI generation in editors |
+| **Enrichment** | Table column enrichment |
+| **Voice input** | Voice sessions |
+| **Voice output** | Spoken responses in deployed chats |
+| **Sim Chat (MCP)** | Retired. Appears only for historical periods |
+
+### Nuances worth knowing
+
+These follow from how charges are recorded, and they explain most questions about why a number looks the way it does.
+
+**Workflow covers the whole run, not just the base charge.** A workflow row includes three things: the models it called on Sim's hosted keys, any hosted-key tool calls, and the per-run base charge. Model usage typically dominates, but the per-run charge is not negligible — across a high-volume organization it commonly accounts for around a fifth of workflow spend, because it applies to every run whether or not the workflow calls a model.
+
+**Agent block is billed separately from the workflow that contains it.** An Agent block runs inside a workflow but is metered on its own, so its credits appear under **Agent block** rather than **Workflow**. Nothing is counted twice — but it also means Workflow alone understates what your workflows cost. Read the two lines together.
+
+**Sim Chat covers three surfaces.** The Chat panel, headless agent calls through the API, and the Inbox all record as **Sim Chat** and cannot be separated from one another. If you need per-surface attribution today, separate them by workspace instead.
+
+**Only workflow runs carry workflow attribution.** Chat, Agent block, Wand, Knowledge Base, and voice usage are not produced by a workflow and have no workflow attached. That is the gap between a workspace's **Sources** and **Workflows** sections shown above.
+
+**Some usage has no workspace.** Agent calls made through the API may not name a workspace, particularly from headless or self-hosted callers. That usage is grouped under **No workspace** on the Workspaces tab. It is still counted in your total.
+
+**Models excludes non-model charges.** The Models tab covers model usage only, so it will read lower than your period total — the difference is per-run base charges, hosted-key tool charges, and fixed charges such as voice sessions.
+
+<Callout type="warning">
+  Each tab is a different slice of the same charges, not an additional set of them. Members, Workspaces, and Sources each add up to your period total on their own; adding two tabs together double-counts.
+</Callout>
+
+---
+
+## Bring your own keys (BYOK)
+
+When a workspace or organization supplies its own provider key, Sim does not charge for that model usage. Those calls are still recorded so you can see the volume.
+
+The **BYOK** tab groups this usage by provider and reports **tokens** rather than credits, because the credit cost is zero by definition. Tokens on your own keys are not included in the credit totals anywhere else in the panel.
+
+<Callout type="info">
+  Tool calls and Chat usage made on your own keys are not yet recorded. BYOK currently covers model usage in workflow runs.
+</Callout>
+
+---
+
+## Exporting
+
+**Export** downloads the events behind the current period and filters as a CSV with columns `Date, Source, Description, Workflow, Credits`.
+
+**All events** opens the full ledger — every credit-consuming event, newest first, with its own filters and export.
+
+Very large exports are capped. When that happens the download still succeeds and Sim tells you it was truncated; narrow the date range to capture everything.
+
+---
+
+<FAQ items={[
+  {
+    question: "Who can view usage tracking?",
+    answer: "Organization owners and admins. On Sim Cloud you must be on the Enterprise plan. Regular members cannot see organization usage, including their own."
+  },
+  {
+    question: "Why doesn't the Models tab add up to my total?",
+    answer: "The Models tab covers model usage only. Your total also includes per-run base charges, hosted-key tool charges, and fixed charges such as voice sessions. Use the Sources breakdown on the Overview tab for a figure that reconciles to the total."
+  },
+  {
+    question: "Why is Sim Chat so much larger than Workflow?",
+    answer: "Sim Chat covers the Chat panel, API agent calls, and the Inbox together, and conversational usage is typically token-heavy. It is common for Chat to be the largest line in an organization that uses it."
+  },
+  {
+    question: "Can I see how much the Inbox or the API specifically costs?",
+    answer: "Not directly — both record as Sim Chat. Where those surfaces run in dedicated workspaces, the Workspaces tab gives you the equivalent breakdown."
+  },
+  {
+    question: "What is “No workspace”?",
+    answer: "Usage that was not attributed to a workspace, most often agent calls made through the API without a workspace context. It is included in your organization total."
+  },
+  {
+    question: "Is there an API for usage data?",
+    answer: "Not currently. Usage tracking is a settings surface; use the CSV export to move the data into your own systems."
+  },
+  {
+    question: "Why does a period show partial days at each end?",
+    answer: "Daily buckets follow your browser's timezone while billing periods begin at a fixed UTC instant, so the first and last bucket of a period can cover part of a day."
+  },
+  {
+    question: "Does this match my invoice?",
+    answer: "The Overview total for the current period is the same figure your billing page reports. Rolling windows such as Last 7 days do not align with a billing period and will not match an invoice."
+  }
+]} />
+
+---
+
+## Self-hosted setup
+
+Self-hosted deployments use environment variables instead of the billing/plan check.
+
+### Environment variables
+
+```bash
+USAGE_MONITORING_ENABLED=true
+NEXT_PUBLIC_USAGE_MONITORING_ENABLED=true
+```
+
+Once enabled, usage tracking is viewable in **Settings → Organization → Usage tracking** for organization owners and admins.

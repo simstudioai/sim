@@ -21,9 +21,12 @@ import type { DbClient, DbOrTx } from '@/lib/db/types'
 const logger = createLogger('UsageLog')
 
 /**
- * Usage log category types
+ * Usage log category types.
+ *
+ * `model_unbilled` is reporting-only — see {@link UNBILLED_USAGE_CATEGORIES}. Code
+ * that means "a charge" must not treat it as one.
  */
-export type UsageLogCategory = 'model' | 'fixed' | 'tool'
+export type UsageLogCategory = 'model' | 'fixed' | 'tool' | 'model_unbilled'
 
 /**
  * Usage log source types
@@ -41,6 +44,26 @@ export const COPILOT_USAGE_SOURCES: UsageLogSource[] = [
   'mcp_copilot',
   'mothership_block',
 ]
+
+/**
+ * Categories that record usage Sim does not charge for. Their `cost` is always `0`
+ * and their value is the token counts in `metadata`, so usage reporting can show
+ * volume that the billing ledger has no reason to know about.
+ *
+ * These are the only categories exempt from {@link recordUsage}'s `cost > 0` filter.
+ * Every billing aggregate over usage_log is `SUM(cost)`, so zero-cost rows leave
+ * every existing total unchanged.
+ */
+export const UNBILLED_USAGE_CATEGORIES = [
+  'model_unbilled',
+] as const satisfies readonly UsageLogCategory[]
+
+const UNBILLED_USAGE_CATEGORY_SET: ReadonlySet<string> = new Set(UNBILLED_USAGE_CATEGORIES)
+
+/** True for a category whose rows are recorded for reporting rather than billing. */
+export function isUnbilledUsageCategory(category: UsageLogCategory): boolean {
+  return UNBILLED_USAGE_CATEGORY_SET.has(category)
+}
 
 /**
  * Metadata for 'model' category charges
@@ -397,7 +420,7 @@ export async function recordUsage(params: RecordUsageParams): Promise<void> {
     tx,
   } = params
 
-  const validEntries = entries.filter((e) => e.cost > 0)
+  const validEntries = entries.filter((e) => e.cost > 0 || isUnbilledUsageCategory(e.category))
 
   if (validEntries.length === 0) {
     return
@@ -724,14 +747,23 @@ interface UsageLogFilter {
   endDate?: Date
 }
 
-type UsageLogScope = { kind: 'user'; userId: string } | { kind: 'workspace'; workspaceId: string }
+type UsageLogScope =
+  | { kind: 'user'; userId: string }
+  | { kind: 'workspace'; workspaceId: string }
+  /** Every event billed to a payer, regardless of which actor or workspace produced it. */
+  | { kind: 'billingEntity'; entity: BillingEntity }
+
+function scopeCondition(scope: UsageLogScope) {
+  if (scope.kind === 'user') return eq(usageLog.userId, scope.userId)
+  if (scope.kind === 'workspace') return eq(usageLog.workspaceId, scope.workspaceId)
+  return and(
+    eq(usageLog.billingEntityType, scope.entity.type),
+    eq(usageLog.billingEntityId, scope.entity.id)
+  )
+}
 
 function buildUsageLogConditions(scope: UsageLogScope, filter: UsageLogFilter) {
-  const conditions = [
-    scope.kind === 'user'
-      ? eq(usageLog.userId, scope.userId)
-      : eq(usageLog.workspaceId, scope.workspaceId),
-  ]
+  const conditions = [scopeCondition(scope)]
   if (filter.source) {
     conditions.push(
       Array.isArray(filter.source)
@@ -1027,6 +1059,20 @@ export function getUserUsageLogs(
   options: GetUsageLogsOptions = {}
 ): Promise<UsageLogsResult> {
   return getUsageLogs({ kind: 'user', userId }, options)
+}
+
+/**
+ * Gets every usage event billed to a payer, regardless of actor or workspace.
+ *
+ * This is the organization-wide ledger the usage panel pages through. It reuses this
+ * module's keyset pagination, cursor handling, and workflow-name join rather than
+ * reimplementing them — the only thing it adds is the scope predicate.
+ */
+export function getBillingEntityUsageLogs(
+  entity: BillingEntity,
+  options: GetUsageLogsOptions = {}
+): Promise<UsageLogsResult> {
+  return getUsageLogs({ kind: 'billingEntity', entity }, options)
 }
 
 /** Gets usage logs attributed to the selected workspace, regardless of actor. */

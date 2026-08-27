@@ -38,6 +38,7 @@ import {
   OrganizationSlugTakenError,
 } from '@/lib/billing/organizations/create-organization'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { attachOwnedWorkspacesToOrganization } from '@/lib/workspaces/organization-workspaces'
 import { withAdminAuth } from '@/app/api/v1/admin/middleware'
 import {
   adminInvalidJsonResponse,
@@ -150,6 +151,25 @@ export const POST = withRouteHandler(
         slug,
       })
 
+      /**
+       * Organization settings are reached only through a workspace the organization
+       * owns, so an organization that owns none leaves its own admin with no route
+       * to administer it. Attaching the owner's existing workspaces is what makes the
+       * organization reachable, and matches what `POST /api/organizations` already
+       * does — this path was the inconsistent one.
+       *
+       * An owner with no workspaces has nothing to attach and stays unreachable until
+       * one exists. Creating a workspace only closes that gap once the organization
+       * carries a usable Team/Enterprise plan; without one the creation policy still
+       * resolves to a personal workspace.
+       */
+      const { attachedWorkspaceIds } = await attachOwnedWorkspacesToOrganization({
+        ownerUserId: ownerId,
+        organizationId,
+        externalMemberPolicy: 'keep-external',
+        includeArchived: true,
+      })
+
       const [createdOrg] = await db
         .select(organizationColumns)
         .from(organization)
@@ -161,6 +181,7 @@ export const POST = withRouteHandler(
         slug,
         ownerId,
         memberId,
+        attachedWorkspaceIds,
       })
 
       recordAudit({

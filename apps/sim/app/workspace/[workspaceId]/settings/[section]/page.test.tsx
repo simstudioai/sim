@@ -42,6 +42,18 @@ vi.mock('@/components/settings/navigation', () => ({
   getOrganizationSettingsFeatures: vi.fn(() => ({})),
   isOrganizationSettingsSectionAvailable: mockIsOrganizationSettingsSectionAvailable,
   resolveWorkspaceNavigation: mockResolveWorkspaceNavigation,
+  /** Mirrors the registry-derived map; a section absent here gets no organization gate. */
+  UNIFIED_TO_ORGANIZATION_SECTION: {
+    organization: 'members',
+    billing: 'billing',
+    'access-control': 'access-control',
+    'audit-logs': 'audit-logs',
+    sso: 'sso',
+    sessions: 'sessions',
+    'data-retention': 'data-retention',
+    'data-drains': 'data-drains',
+    whitelabeling: 'whitelabeling',
+  },
   workspaceSectionUsesPermissionConfig: vi.fn((section: string) =>
     ['secrets', 'api-keys', 'inbox', 'mcp', 'custom-tools'].includes(section)
   ),

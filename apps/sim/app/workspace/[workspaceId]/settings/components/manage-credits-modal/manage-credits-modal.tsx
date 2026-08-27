@@ -19,7 +19,12 @@ import {
 export interface ManageCreditsTarget {
   userId: string
   name: string
-  email: string
+  /**
+   * Optional: only ever read as a fallback when `name` is blank. Callers that
+   * already resolved a display name — the usage panel resolves name-or-email
+   * server-side — have nothing to add here.
+   */
+  email?: string
 }
 
 interface ManageCreditsModalProps {
