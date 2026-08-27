@@ -256,6 +256,51 @@ describe('collectToolPinnedFields', () => {
     expect(fields[0].title).toBe(`${'T'.repeat(40)}…`)
   })
 
+  it('keeps a canonical group blocked when only one half is unstateable', () => {
+    // A `file-upload` basic half beside a `short-input` file-reference twin: the twin must not
+    // state a raw reference (a presigned URL carries its credential) just because its sibling
+    // was skipped.
+    expect(
+      collect({
+        subBlocks: [
+          sub({
+            id: 'attachmentFiles',
+            title: 'Attachments',
+            type: 'file-upload',
+            canonicalParamId: 'attachments',
+          }),
+          sub({
+            id: 'attachments',
+            title: 'Attachments',
+            type: 'short-input',
+            canonicalParamId: 'attachments',
+          }),
+        ],
+        resolvedResourceParams: { attachments: 'https://example.com/f?X-Amz-Signature=abc' },
+        toolParams: toolParams('attachments'),
+      })
+    ).toEqual([])
+  })
+
+  it('keeps a canonical group blocked when only one half is a password field', () => {
+    expect(
+      collect({
+        subBlocks: [
+          sub({
+            id: 'authBasic',
+            title: 'Auth',
+            type: 'short-input',
+            password: true,
+            canonicalParamId: 'auth',
+          }),
+          sub({ id: 'authAdvanced', title: 'Auth', type: 'short-input', canonicalParamId: 'auth' }),
+        ],
+        resolvedResourceParams: { auth: 'hunter2' },
+        toolParams: toolParams('auth'),
+      })
+    ).toEqual([])
+  })
+
   it('drops a non-finite number', () => {
     expect(
       collect({
@@ -272,6 +317,22 @@ describe('collectPinnedFieldsFromParams', () => {
     expect(collectPinnedFieldsFromParams({ channel: 'general', limit: 5 }, sourceOptions)).toEqual([
       { title: 'channel', value: 'general' },
       { title: 'limit', value: 5 },
+    ])
+  })
+
+  it('withholds secret-ish names a remote schema may use', () => {
+    // Param names here are authored by the MCP server, not by Sim, so the Sim-tuned
+    // `isPasswordParameter` list is not sufficient on its own.
+    const remote = {
+      authorization: 'Bearer abc',
+      cookie: 'sid=1',
+      signature: 'deadbeef',
+      connectionString: 'postgres://u:p@h/db',
+      otp: '123456',
+      channel: 'general',
+    }
+    expect(collectPinnedFieldsFromParams(remote, sourceOptions)).toEqual([
+      { title: 'channel', value: 'general' },
     ])
   })
 

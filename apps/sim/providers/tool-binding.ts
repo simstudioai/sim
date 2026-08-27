@@ -52,11 +52,14 @@ const UNSTATEABLE_SUBBLOCK_TYPES: ReadonlySet<string> = new Set([
 ])
 
 /**
- * Covers the one secret spelling `isPasswordParameter` misses — it tests for `password`, not
- * `passphrase`, and three blocks declare a `passphrase` field. Those all set `password: true` as
- * well, so this only matters for a field that forgets the flag.
+ * Secret-ish names `isPasswordParameter` does not cover. It is tuned to Sim-authored param ids
+ * (`password`, `apiKey`, `token`, `secret`, `key`, `credential`, …), but this module also states
+ * params named by a REMOTE MCP schema, where these spellings are common and just as sensitive.
+ * `passphrase` is the one that also occurs in Sim's own blocks — three declare it, all of them
+ * with `password: true`, so that flag is the real guard and this is the backstop.
  */
-const SUPPLEMENTAL_SECRET_PATTERN = /passphrase/i
+const SUPPLEMENTAL_SECRET_PATTERN =
+  /passphrase|authorization|bearer|cookie|session|signature|connectionstring|dsn|webhookurl|\botp\b|\bpin\b/i
 
 /**
  * Shape a configured value must have to be treated as a resolvable resource id.
@@ -186,10 +189,19 @@ export function collectToolPinnedFields(input: CollectToolPinnedFieldsInput): To
   // whole group rather than from whichever subblock is being scanned. Without this a resource
   // entered in advanced mode takes the literal path: a knowledge base id would be stated verbatim,
   // and a credential would be dropped entirely by the secret-name check below.
+  // Decisions that must hold for a whole canonical group, not for whichever half is scanned first.
+  // A group's advanced half is a plain `short-input`, so its kind has to come from the group — and
+  // a group blocked by ANY half must stay blocked, or a `file-upload` basic half would skip without
+  // claiming the param and let its `short-input` twin state a raw file reference.
   const kindByParamId = new Map<string, ResolvableKind>()
+  const blockedParamIds = new Set<string>()
   for (const subBlock of subBlocks) {
+    const paramId = subBlock.canonicalParamId ?? subBlock.id
     const kind = RESOURCE_SUBBLOCK_KINDS[subBlock.type]
-    if (kind) kindByParamId.set(subBlock.canonicalParamId ?? subBlock.id, kind)
+    if (kind) kindByParamId.set(paramId, kind)
+    if (subBlock.password || subBlock.hidden || UNSTATEABLE_SUBBLOCK_TYPES.has(subBlock.type)) {
+      blockedParamIds.add(paramId)
+    }
   }
 
   const fields: ToolPinnedField[] = []
@@ -200,8 +212,7 @@ export function collectToolPinnedFields(input: CollectToolPinnedFieldsInput): To
     if (seenParamIds.has(paramId)) continue
     if (selfDescribedParamId && paramId === selfDescribedParamId) continue
 
-    if (subBlock.password || subBlock.hidden) continue
-    if (UNSTATEABLE_SUBBLOCK_TYPES.has(subBlock.type)) continue
+    if (blockedParamIds.has(paramId)) continue
 
     const kind = kindByParamId.get(paramId)
 

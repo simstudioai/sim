@@ -233,16 +233,24 @@ export async function buildSimToolSpecs(
   }
 
   const providers = configuredTools.map(({ provider }) => provider)
-  // Pi resolves secret provenance per tool CALL rather than per format, so at this point it cannot
-  // say which individual tool carries one. Withhold literal values for the whole run when any input
-  // resolved a secret — coarse, but it errs toward stating less.
-  const withholdLiteralValues = Boolean(
-    ctx.resolvedSecretTraceRegistry?.hasResolvedInputProjections()
-  )
-  if (withholdLiteralValues) {
-    logger.debug('Withholding pinned literal values: an input in this run resolved a secret')
+
+  // Withhold a tool's literal values only when that tool's own params resolved a secret, asking
+  // the registry the same per-input-path question the Agent block asks. A run-wide flag would be
+  // safe but near-useless here: one `{{API_KEY}}` anywhere in a workflow would blank the literals
+  // on every Pi tool for the whole run.
+  const registry = ctx.resolvedSecretTraceRegistry
+  const withheld = new Set<ProviderToolConfig>()
+  if (registry) {
+    for (const { provider, toolIndex } of configuredTools) {
+      const provenance = registry.exportCommittedProvenanceForInputPaths([
+        ['tools', String(toolIndex), 'params'],
+      ])
+      // An incomplete projection means the registry cannot vouch for the value; treat that the
+      // same as carrying a secret.
+      if (!provenance.complete || provenance.entries.length > 0) withheld.add(provider)
+    }
   }
-  await annotateToolPinnedParams(ctx, providers, () => withholdLiteralValues)
+  await annotateToolPinnedParams(ctx, providers, (tool) => withheld.has(tool))
   assignProviderToolIdentities(providers)
   return configuredTools.map(({ provider, toolIndex }) =>
     buildSimToolSpec(ctx, inputTools, provider, toolIndex)
