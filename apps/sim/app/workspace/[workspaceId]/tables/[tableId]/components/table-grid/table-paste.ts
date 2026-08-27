@@ -21,47 +21,31 @@ export function parseBoundedTsv(text: string, columnLimit: number): ParsedTableP
   if (!text || columnLimit < 1) return { rows: [], maxColumns: 0 }
 
   const rows: string[][] = []
-  let row: string[] = []
-  let column = 0
-  let cellStart = 0
   let maxColumns = 0
-
-  const finishCell = (end: number) => {
-    if (column < columnLimit) row.push(text.slice(cellStart, end))
-    column += 1
-  }
-
-  const finishRow = () => {
-    if (row.length > 0) {
-      maxColumns = Math.max(maxColumns, row.length)
-      rows.push(row)
-    }
-    row = []
-    column = 0
-  }
-
-  for (let index = 0; index <= text.length; index++) {
-    if (index === text.length) {
-      if (cellStart < text.length || column > 0) {
-        finishCell(index)
-        finishRow()
+  const pushRow = (rowStart: number, rowEnd: number) => {
+    const row: string[] = []
+    let cellStart = rowStart
+    while (row.length < columnLimit) {
+      const tab = text.indexOf('\t', cellStart)
+      if (tab < 0 || tab >= rowEnd) {
+        row.push(text.slice(cellStart, rowEnd))
+        break
       }
-      break
+      row.push(text.slice(cellStart, tab))
+      cellStart = tab + 1
     }
-
-    const code = text.charCodeAt(index)
-    if (code === 9) {
-      finishCell(index)
-      cellStart = index + 1
-      continue
-    }
-    if (code !== 10 && code !== 13) continue
-
-    finishCell(index)
-    finishRow()
-    if (code === 13 && text.charCodeAt(index + 1) === 10) index += 1
-    cellStart = index + 1
+    maxColumns = Math.max(maxColumns, row.length)
+    rows.push(row)
   }
+
+  let rowStart = 0
+  const rowBreak = /\r\n|\r|\n/g
+  let match: RegExpExecArray | null
+  while ((match = rowBreak.exec(text))) {
+    pushRow(rowStart, match.index)
+    rowStart = rowBreak.lastIndex
+  }
+  if (rowStart < text.length) pushRow(rowStart, text.length)
 
   return { rows, maxColumns }
 }

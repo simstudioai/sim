@@ -100,6 +100,10 @@ export function utf8ByteLength(value: string, stopAfter = Number.POSITIVE_INFINI
   return utf8ByteLengthRange(value, 0, value.length, stopAfter)
 }
 
+function isGuaranteedWithinUtf8Limit(characters: number, limit: number): boolean {
+  return characters <= Math.floor(limit / 3)
+}
+
 function normalizedSelection(input: TextPasteAdmissionInput): {
   currentText: string
   start: number
@@ -139,6 +143,40 @@ export function assessTextPaste(input: TextPasteAdmissionInput): TextPasteAdmiss
     }
   }
 
+  const projectsResult =
+    input.maxResultBytes !== undefined || input.maxResultCharacters !== undefined
+  if (
+    !projectsResult &&
+    input.maxPastedBytes !== undefined &&
+    isGuaranteedWithinUtf8Limit(pastedText.length, input.maxPastedBytes)
+  ) {
+    return { accepted: true }
+  }
+
+  const selection = projectsResult ? normalizedSelection(input) : null
+  const resultCharacters = selection
+    ? selection.currentText.length - (selection.end - selection.start) + pastedText.length
+    : undefined
+  if (
+    input.maxResultCharacters !== undefined &&
+    resultCharacters !== undefined &&
+    resultCharacters > input.maxResultCharacters
+  ) {
+    return {
+      accepted: false,
+      reason: 'result-characters',
+      actual: resultCharacters,
+      limit: input.maxResultCharacters,
+    }
+  }
+  if (
+    input.maxResultBytes !== undefined &&
+    resultCharacters !== undefined &&
+    isGuaranteedWithinUtf8Limit(resultCharacters, input.maxResultBytes)
+  ) {
+    return { accepted: true, resultCharacters }
+  }
+
   const pastedByteLimit = Math.max(input.maxPastedBytes ?? 0, input.maxResultBytes ?? 0)
   const pastedBytes = pastedByteLimit > 0 ? utf8ByteLength(pastedText, pastedByteLimit) : undefined
 
@@ -155,20 +193,11 @@ export function assessTextPaste(input: TextPasteAdmissionInput): TextPasteAdmiss
     }
   }
 
-  if (input.maxResultBytes === undefined && input.maxResultCharacters === undefined) {
+  if (!projectsResult) {
     return { accepted: true, pastedBytes }
   }
 
-  const { currentText, start, end } = normalizedSelection(input)
-  const resultCharacters = currentText.length - (end - start) + pastedText.length
-  if (input.maxResultCharacters !== undefined && resultCharacters > input.maxResultCharacters) {
-    return {
-      accepted: false,
-      reason: 'result-characters',
-      actual: resultCharacters,
-      limit: input.maxResultCharacters,
-    }
-  }
+  const { currentText, start, end } = selection as ReturnType<typeof normalizedSelection>
 
   if (input.maxResultBytes === undefined) {
     return { accepted: true, pastedBytes, resultCharacters }

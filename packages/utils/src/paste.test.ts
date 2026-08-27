@@ -52,6 +52,12 @@ describe('assessTextPaste', () => {
     })
   })
 
+  it('accepts payloads with worst-case UTF-8 headroom without measuring exact bytes', () => {
+    expect(assessTextPaste({ pastedText: '💡'.repeat(100), maxPastedBytes: 1_000 })).toEqual({
+      accepted: true,
+    })
+  })
+
   it('rejects a projected result above its character limit', () => {
     expect(
       assessTextPaste({

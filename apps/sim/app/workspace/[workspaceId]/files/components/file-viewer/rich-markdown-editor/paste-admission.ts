@@ -34,9 +34,14 @@ export function createRichMarkdownPasteAdmission({
                 const currentText = getCurrentText()
                 const { from, to } = view.state.selection
                 const replacedText = view.state.doc.textBetween(from, to, '\n')
+                const replacesWholeDocument = from <= 1 && to >= view.state.doc.content.size - 1
+                const projectedCharacters = replacesWholeDocument
+                  ? pastedText.length
+                  : Math.max(0, currentText.length - replacedText.length) + pastedText.length
+                if (projectedCharacters <= Math.floor(maxResultBytes / 3)) return false
+
                 const currentBytes = utf8ByteLength(currentText, maxResultBytes)
                 const pastedBytes = utf8ByteLength(pastedText, maxResultBytes)
-                const replacesWholeDocument = from <= 1 && to >= view.state.doc.content.size - 1
                 const replacedBytes = replacesWholeDocument
                   ? currentBytes
                   : utf8ByteLength(replacedText, maxResultBytes)

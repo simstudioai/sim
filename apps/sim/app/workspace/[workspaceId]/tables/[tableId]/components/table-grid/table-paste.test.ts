@@ -22,6 +22,13 @@ describe('parseBoundedTsv', () => {
   it('preserves an intentional empty final cell', () => {
     expect(parseBoundedTsv('a\t', 2)).toEqual({ rows: [['a', '']], maxColumns: 2 })
   })
+
+  it('preserves interior blank rows and classic Mac row separators', () => {
+    expect(parseBoundedTsv('a\r\rb', 2)).toEqual({
+      rows: [['a'], [''], ['b']],
+      maxColumns: 1,
+    })
+  })
 })
 
 describe('exceedsTablePasteRowLimit', () => {
