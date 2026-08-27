@@ -8,13 +8,15 @@ import type { WorkBook } from 'xlsx'
 import { assertOoxmlPreviewWithinLimits } from '@/lib/file-parsers/ooxml-preview-guard'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { useHorizontalWheelScroll } from '@/app/workspace/[workspaceId]/files/components/file-viewer/use-horizontal-wheel-scroll'
+import {
+  readXlsxPreviewData,
+  XLSX_MAX_ROWS,
+} from '@/app/workspace/[workspaceId]/files/components/file-viewer/xlsx-preview-data'
 import { DataTable } from './data-table'
 import { PreviewError, PreviewLoadingFrame, resolvePreviewError } from './preview-shared'
 import { useDocPreviewBinary } from './use-doc-preview-binary'
 
 const logger = createLogger('XlsxPreview')
-
-const XLSX_MAX_ROWS = 1_000
 
 interface XlsxSheet {
   name: string
@@ -83,15 +85,12 @@ export const XlsxPreview = memo(function XlsxPreview({
         const workbook = workbookRef.current!
         const name = sheetNames[activeSheet]
         const sheet = workbook.Sheets[name]
-        const allRows = XLSX.utils.sheet_to_json<string[]>(sheet, { header: 1 })
-        const headers = (allRows[0] ?? []) as string[]
-        const dataRows = allRows.slice(1) as string[][]
-        const truncated = dataRows.length > XLSX_MAX_ROWS
+        const { headers, rows, truncated } = readXlsxPreviewData(XLSX, sheet)
         if (!cancelled) {
           setCurrentSheet({
             name,
             headers,
-            rows: truncated ? dataRows.slice(0, XLSX_MAX_ROWS) : dataRows,
+            rows,
             truncated,
           })
         }
