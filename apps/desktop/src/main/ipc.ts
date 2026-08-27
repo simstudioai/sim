@@ -19,14 +19,16 @@ import {
   isDesktopZoomPercent,
   isPendingDesktopScopeId,
 } from '@sim/desktop-bridge'
+import { createLogger } from '@sim/logger'
 import {
   isTerminalOperation,
   isTerminalToolName,
   type TerminalToolArgs,
 } from '@sim/terminal-protocol'
+import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import type { BrowserWindow, IpcMainEvent, IpcMainInvokeEvent, WebContents } from 'electron'
-import { clipboard, ipcMain } from 'electron'
+import { clipboard, ipcMain, shell } from 'electron'
 import {
   type BrowserToolQueueBoundary,
   cancelActiveTool,
@@ -84,8 +86,34 @@ import type { ScopedEventRouter } from '@/main/scoped-event-router'
 import type { TerminalRegistry } from '@/main/terminal/registry'
 import { findCachedTerminalThemeProfile, listTerminalThemeProfiles } from '@/main/terminal-themes'
 
+const logger = createLogger('DesktopIpc')
+
 /** Workspace/chat ids are opaque tokens; anything else never reaches a URL. */
 const ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/
+
+const MICROPHONE_SETTINGS_URLS: Partial<Record<NodeJS.Platform, string>> = {
+  darwin: 'x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone',
+  win32: 'ms-settings:privacy-microphone',
+}
+
+/** Opens the native microphone privacy pane without accepting a renderer-provided URL. */
+export async function openMicrophoneSettings(
+  platform: NodeJS.Platform = process.platform
+): Promise<boolean> {
+  const settingsUrl = MICROPHONE_SETTINGS_URLS[platform]
+  if (!settingsUrl) return false
+
+  try {
+    await shell.openExternal(settingsUrl)
+    return true
+  } catch (error) {
+    logger.warn('Could not open microphone privacy settings', {
+      error: getErrorMessage(error),
+      platform,
+    })
+    return false
+  }
+}
 
 /**
  * Desktop state is partitioned by the existing chat id. A new-chat view uses
@@ -626,6 +654,12 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       denied: false,
       handler: (url) =>
         typeof url === 'string' ? openExternalSafe(url, deps.allowHttpLocalhost()) : false,
+    },
+    'desktop:open-microphone-settings': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      denied: false,
+      handler: () => openMicrophoneSettings(),
     },
     // OAuth connect handoff: the whole flow runs in the system browser (state
     // is cookie-bound to the initiating user agent), returning via loopback.
