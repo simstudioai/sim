@@ -25432,6 +25432,33 @@
       "tags": ["marketing", "content-management"]
     },
     {
+      "type": "zeliq",
+      "slug": "zeliq",
+      "name": "Zeliq",
+      "description": "Queue waterfall enrichment for verified work emails and mobile phone numbers",
+      "longDescription": "Use Zeliq to queue asynchronous work-email or mobile-phone enrichment from LinkedIn URLs and contact details. Zeliq posts completed enrichment data to the callback URL you provide.",
+      "bgColor": "#FFFFFF",
+      "iconName": "ZeliqIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/zeliq",
+      "operations": [
+        {
+          "name": "Enrich Email",
+          "description": "Queue work-email enrichment from a LinkedIn URL or person and company details. Zeliq posts the completed enrichment to the required callback URL."
+        },
+        {
+          "name": "Enrich Phone",
+          "description": "Queue mobile-phone enrichment from a LinkedIn URL or email address. Zeliq posts the completed enrichment to the required callback URL."
+        }
+      ],
+      "operationCount": 2,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "sales",
+      "tags": ["enrichment", "sales-engagement", "webhooks"]
+    },
+    {
       "type": "zendesk",
       "slug": "zendesk",
       "name": "Zendesk",

@@ -5555,6 +5555,7 @@ import {
   youtubeVideoCategoriesTool,
   youtubeVideoDetailsTool,
 } from '@/tools/youtube'
+import { zeliqEnrichEmailTool, zeliqEnrichPhoneTool } from '@/tools/zeliq'
 import {
   zendeskAutocompleteOrganizationsTool,
   zendeskCreateOrganizationsBulkTool,
@@ -9213,6 +9214,8 @@ export const tools: Record<string, ToolConfig> = {
   findymail_reverse_email_lookup: findymailReverseEmailLookupTool,
   findymail_search_technologies: findymailSearchTechnologiesTool,
   findymail_verify_email: findymailVerifyEmailTool,
+  zeliq_enrich_email: zeliqEnrichEmailTool,
+  zeliq_enrich_phone: zeliqEnrichPhoneTool,
   zerobounce_verify_email: zerobounceVerifyEmailTool,
   zerobounce_get_credits: zerobounceGetCreditsTool,
   neverbounce_verify_email: neverbounceVerifyEmailTool,

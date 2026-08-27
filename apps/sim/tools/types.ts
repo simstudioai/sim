@@ -36,6 +36,7 @@ export type BYOKProviderId =
   | 'fullenrich'
   | 'prospeo'
   | 'wiza'
+  | 'zeliq'
   | 'zerobounce'
   | 'neverbounce'
   | 'millionverifier'

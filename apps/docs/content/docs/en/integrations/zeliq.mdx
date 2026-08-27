@@ -1,0 +1,66 @@
+---
+title: Zeliq
+description: Queue waterfall enrichment for verified work emails and mobile phone numbers
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="zeliq"
+  color="#FFFFFF"
+/>
+
+## Usage Instructions
+
+Use Zeliq to queue asynchronous work-email or mobile-phone enrichment from LinkedIn URLs and contact details. Zeliq posts completed enrichment data to the callback URL you provide.
+
+
+
+## Actions
+
+### Zeliq Enrich Email
+
+Queue work-email enrichment from a LinkedIn URL or person and company details. Zeliq posts the completed enrichment to the required callback URL.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `linkedinUrl` | string | No | LinkedIn profile URL; provide this or person and company details |
+| `firstName` | string | No | First name when enriching without a LinkedIn URL |
+| `lastName` | string | No | Last name when enriching without a LinkedIn URL |
+| `company` | string | No | Company name; provide company or domain with first and last name |
+| `domain` | string | No | Company domain; provide domain or company with first and last name |
+| `callbackUrl` | string | Yes | HTTP or HTTPS URL where Zeliq posts the completed enrichment result |
+| `apiKey` | string | Yes | Zeliq API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP-style acceptance status \(202\) |
+| `message` | string | Zeliq job acceptance message |
+| `jobId` | string | Asynchronous Zeliq enrichment job ID |
+
+### Zeliq Enrich Phone
+
+Queue mobile-phone enrichment from a LinkedIn URL or email address. Zeliq posts the completed enrichment to the required callback URL.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `linkedinUrl` | string | No | LinkedIn profile URL; provide this or an email address |
+| `email` | string | No | Email address; provide this or a LinkedIn profile URL |
+| `callbackUrl` | string | Yes | HTTP or HTTPS URL where Zeliq posts the completed enrichment result |
+| `apiKey` | string | Yes | Zeliq API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP-style acceptance status \(202\) |
+| `message` | string | Zeliq job acceptance message |
+| `jobId` | string | Asynchronous Zeliq enrichment job ID |
+
+

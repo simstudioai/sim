@@ -44,6 +44,7 @@ import {
   WizaIcon,
   xAIIcon,
   ZaiIcon,
+  ZeliqIcon,
   ZeroBounceIcon,
 } from '@/components/icons'
 import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
@@ -335,6 +336,13 @@ const PROVIDERS: (BYOKManagerProvider & { id: BYOKProviderId })[] = [
     placeholder: 'Enter your Enrow API key',
   },
   {
+    id: 'zeliq',
+    name: 'Zeliq',
+    icon: ZeliqIcon,
+    description: 'Asynchronous work-email and mobile-phone enrichment',
+    placeholder: 'Enter your Zeliq API key',
+  },
+  {
     id: 'zerobounce',
     name: 'ZeroBounce',
     icon: ZeroBounceIcon,
@@ -413,6 +421,7 @@ const PROVIDER_SECTIONS: BYOKProviderSection[] = [
       'icypeas',
       'kitt',
       'enrow',
+      'zeliq',
       'zerobounce',
       'neverbounce',
       'millionverifier',

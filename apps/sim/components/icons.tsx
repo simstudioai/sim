@@ -9317,6 +9317,24 @@ export function WizaIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+/** Official Zeliq green symbol from https://www.zeliq.com. */
+export function ZeliqIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      {...props}
+      viewBox='0 0 112 44'
+      fill='none'
+      xmlns='http://www.w3.org/2000/svg'
+      aria-hidden='true'
+    >
+      <path
+        d='M109.983 0C111.014 0 111.407 1.3444 110.54 1.90005L70.5964 27.478C69.9628 27.8837 69.9628 28.8095 70.5964 29.2152L90.7169 42.1C91.5846 42.6556 91.191 44 90.1606 44H1.03331C0.00400424 44 -0.390355 42.6579 0.47534 42.1011L40.2905 16.4923C40.9218 16.0862 40.9218 15.1633 40.2905 14.7573L20.2982 1.89894C19.4325 1.34215 19.8269 0 20.8562 0H109.983Z'
+        fill='#62D762'
+      />
+    </svg>
+  )
+}
+
 export function TriggerDevIcon(props: SVGProps<SVGSVGElement>) {
   const id = useId()
   const gradientId = `triggerdev_paint0_${id}`

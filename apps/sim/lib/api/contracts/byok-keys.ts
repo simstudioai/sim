@@ -33,6 +33,7 @@ export const byokProviderIdSchema = z.enum([
   'fullenrich',
   'prospeo',
   'wiza',
+  'zeliq',
   'zerobounce',
   'neverbounce',
   'millionverifier',
