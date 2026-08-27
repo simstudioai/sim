@@ -14,7 +14,7 @@ export type SlackSelectorCredentialResult =
       isBotToken: boolean
       credentialAccess?: CredentialAccessResult
     }
-  | { ok: false; status: number; error: string }
+  | { ok: false; status: number; error: string; authRequired?: true }
 
 async function resolveStoredSlackCredential(
   principal: Principal,
@@ -47,7 +47,12 @@ async function resolveStoredSlackCredential(
     input.requestId
   )
   if (!accessToken) {
-    return { ok: false, status: 401, error: 'Could not retrieve access token' }
+    return {
+      ok: false,
+      status: 401,
+      error: 'Could not retrieve access token',
+      authRequired: true,
+    }
   }
 
   return {

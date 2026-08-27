@@ -74,6 +74,32 @@ describe('server-resolved Slack selectors', () => {
     expect(providerFetch).not.toHaveBeenCalled()
   })
 
+  it.each([
+    ['channels', listChannels, '/api/tools/slack/channels'],
+    ['users', listUsers, '/api/tools/slack/users'],
+  ])(
+    'preserves the reauthorization marker from the %s credential resolver',
+    async (_name, handler, path) => {
+      mocks.resolveSlackCredential.mockResolvedValue({
+        ok: false,
+        status: 401,
+        error: 'Could not retrieve access token',
+        authRequired: true,
+      })
+      const providerFetch = vi.fn()
+      vi.stubGlobal('fetch', providerFetch)
+
+      const response = await handler(request(path, { credential: 'credential-1' }))
+
+      expect(response.status).toBe(401)
+      expect(await response.json()).toEqual({
+        error: 'Could not retrieve access token',
+        authRequired: true,
+      })
+      expect(providerFetch).not.toHaveBeenCalled()
+    }
+  )
+
   it('supports a workflowless stored credential through the route', async () => {
     vi.stubGlobal(
       'fetch',

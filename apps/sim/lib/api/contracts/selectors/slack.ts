@@ -19,6 +19,7 @@ export const slackUsersBodySchema = credentialWorkflowBodySchema.extend({
 })
 
 export const slackSelectorCredentialBodySchema = credentialWorkflowBodySchema
+export type SlackSelectorCredentialBody = z.input<typeof slackSelectorCredentialBodySchema>
 
 export const slackChannelsSelectorContract = definePostSelector(
   '/api/tools/slack/channels',

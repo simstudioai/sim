@@ -136,6 +136,22 @@ describe('resolveSlackSelectorCredential', () => {
     expect(mocks.refreshToken).not.toHaveBeenCalled()
   })
 
+  it('marks a stored credential for reauthorization when token refresh returns nothing', async () => {
+    mocks.refreshToken.mockResolvedValue(null)
+
+    const result = await resolveSlackSelectorCredential(principal, {
+      credential: 'credential-1',
+      requestId: 'request-1',
+    })
+
+    expect(result).toEqual({
+      ok: false,
+      status: 401,
+      error: 'Could not retrieve access token',
+      authRequired: true,
+    })
+  })
+
   it.each(['xoxb-literal-secret', '{{SLACK_CREDENTIAL}}'])(
     'requires workflow scope before resolving %s',
     async (credential) => {

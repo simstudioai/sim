@@ -57,7 +57,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     })
     if (!resolvedCredential.ok) {
       return NextResponse.json(
-        { error: resolvedCredential.error },
+        {
+          error: resolvedCredential.error,
+          ...(resolvedCredential.authRequired ? { authRequired: true } : {}),
+        },
         { status: resolvedCredential.status }
       )
     }
