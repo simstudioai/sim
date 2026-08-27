@@ -73,12 +73,34 @@ function typeableFields(
   return spellings
 }
 
-/** Rewrites wire names a message quotes into the flags the caller typed. */
+/**
+ * Rewrites wire names a message quotes into the flags the caller typed.
+ *
+ * All or nothing. Only multi-segment camelCase is safely rewritable in prose —
+ * see {@link WIRE_IDENTIFIER} — so a sentence enumerating both kinds came out
+ * half in one vocabulary and half in the other: `At least one of name,
+ * description, or --folder is required` reads as three different things, one of
+ * which is a flag. When a single-word field of the same operation survives the
+ * pass, the whole message is left as the server wrote it: entirely in wire
+ * names, which is at least internally consistent and matches the REST
+ * reference the caller can look the names up in.
+ *
+ * The cost is that a message mentioning `folderPath` and the English word
+ * `name` loses a translation it could have had. That is the deliberate trade —
+ * telling the two apart is the undecidable problem that produced the mixed
+ * sentence in the first place, and an unhelpful sentence beats a misleading one.
+ */
 function retypeMessage(message: string, spellings: Map<string, string>): string {
   let retyped = message
   for (const [field, spelling] of spellings) {
     if (!WIRE_IDENTIFIER.test(field)) continue
     retyped = retyped.replaceAll(new RegExp(`\\b${field}\\b`, 'g'), spelling)
+  }
+  if (retyped === message) return message
+
+  for (const field of spellings.keys()) {
+    if (WIRE_IDENTIFIER.test(field)) continue
+    if (new RegExp(`\\b${field}\\b`).test(retyped)) return message
   }
   return retyped
 }

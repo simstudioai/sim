@@ -419,6 +419,19 @@ describe('list columns', () => {
     expect(columns[columns.length - 1]).toBe(unredacted)
   })
 
+  /**
+   * A custom tool has both a `title` and a `schema.function.name`, and they are
+   * different fields — a column headed `name` showing the title named the other
+   * one, while `--search` and `--sort-by title` both speak of the title.
+   */
+  it('heads the custom-tool column with the field it actually shows', () => {
+    const columns = CLI_CONTRACT.listCustomTools?.columns ?? []
+    const titled = columns.find((column) => (column.path ?? column.header) === 'title')
+
+    expect(titled?.header).toBe('title')
+    expect(columns.some((column) => column.header === 'name')).toBe(false)
+  })
+
   it('keeps the workflow-MCP listings scannable', () => {
     const servers = CLI_CONTRACT.listWorkflowMcpServers?.columns ?? []
     const tools = CLI_CONTRACT.listWorkflowMcpTools?.columns ?? []
@@ -557,6 +570,52 @@ describe('help and gates state what is actually true', () => {
 
     expect(help).toContain('NOT an idempotency key')
     expect(help).toContain('RUN_ID_CONFLICT')
+  })
+
+  /**
+   * `logs stats` returns `totalRuns`, `totalErrors`, `avgLatency`, `segmentMs`,
+   * `timeBounds` and `workflows[]` — and no cost field anywhere. Cost lives in
+   * the billing ledger, so the describe promised a column the command has never
+   * been able to print.
+   */
+  it('does not promise a figure logs stats never returns', () => {
+    expect(CLI_CONTRACT.getLogStats?.describe ?? '').not.toMatch(/cost/i)
+  })
+
+  /**
+   * A workspace API key genuinely sees every member's events, but no row
+   * carries an actor field, so the broader scope arrives unattributable.
+   */
+  it('says the workspace-key ledger arrives unattributed', () => {
+    expect(CLI_CONTRACT.listBillingLogs?.describe ?? '').toContain('unattributed')
+  })
+
+  /**
+   * Only `extract_from_subflow` takes `subflowId` alone; `insert_into_subflow`
+   * creates a block, so it needs an `add`'s `type` and `name` as well.
+   */
+  it('does not lump the two subflow operations into one parameter shape', () => {
+    const help = flatHelp('workflows', 'operations', 'apply')
+
+    expect(help).toContain('extract_from_subflow, whose params carry')
+    expect(help).toMatch(/insert_into_subflow, which creates a block/)
+  })
+
+  /**
+   * None of the four folder lists paginates — the route declares no cursor and
+   * answers with the whole set — and nothing in the terminal said so, next to a
+   * `--limit` on every other `list`.
+   */
+  it('says the folder lists return the whole set', () => {
+    for (const operation of [
+      'listFileFolders',
+      'listKnowledgeFolders',
+      'listTableFolders',
+      'listWorkflowFolders',
+    ] as const) {
+      expect(CLI_CONTRACT[operation]?.describe ?? '').toContain('whole set')
+      expect(V2_OPERATIONS[operation].query).not.toHaveProperty('cursor')
+    }
   })
 
   it('warns about the chunk batch in terms true of every operation it accepts', () => {
@@ -725,9 +784,7 @@ describe('the import cancel refuses through commander, not just in the contract'
   })
 
   it('offers --yes in the help of the one it now gates, and not its sibling', () => {
-    expect(flatHelp('tables', 'imports', 'cancel')).toContain(
-      'Confirm this destructive operation (required)'
-    )
+    expect(flatHelp('tables', 'imports', 'cancel')).toContain('Confirm this operation (required)')
     expect(flatHelp('tables', 'exports', 'cancel')).not.toContain('--yes')
   })
 })

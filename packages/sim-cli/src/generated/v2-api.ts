@@ -752,7 +752,8 @@ export type BulkUpdateKnowledgeDocumentsBody = {
 
 type BulkUpdateKnowledgeDocumentsResponseRef0 = {
   operation: 'enable' | 'disable'
-  updatedCount: number
+  processed: number
+  errors: Array<string>
   documentIds?: Array<string>
 }
 
@@ -10810,7 +10811,7 @@ export const V2_OPERATIONS = {
       workspaceId: {
         kind: 'string',
         describe:
-          'Workspace whose payer should be resolved. A workspace API key is pinned to its own workspace: any other id answers `404 Workspace not found`, which is also what an id that does not exist answers.',
+          'Workspace whose payer should be resolved. Omitting it selects account scope — the payer behind the calling *account*, across every workspace — and only a personal API key has an account to select. A workspace API key that omits it still resolves its own workspace, because omission is the same request as sending that key its own id; it is not a way to widen a workspace key. The response `workspaceId` reports which was resolved and is `null` only on account scope. A workspace API key is pinned to its own workspace: any other id answers `404 Workspace not found`, which is also what an id that does not exist answers.',
       },
     },
   },
@@ -10903,7 +10904,10 @@ export const V2_OPERATIONS = {
     method: 'GET',
     path: '/api/v2/knowledge/[knowledgeBaseId]',
     pathParams: ['knowledgeBaseId'] as const,
-    pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
+    pathParamDocs: {
+      knowledgeBaseId:
+        'Knowledge base to read. Active knowledge bases only: an archived one answers 404 here, is listed by `scope=archived`, and is brought back by the restore endpoint.',
+    },
     responseMode: 'json',
     summary: 'Get Knowledge Base',
     query: {
@@ -10975,7 +10979,10 @@ export const V2_OPERATIONS = {
     method: 'GET',
     path: '/api/v2/logs/[runId]',
     pathParams: ['runId'] as const,
-    pathParamDocs: { runId: 'Unique workflow run identifier.' },
+    pathParamDocs: {
+      runId:
+        'Unique workflow run identifier. A run is addressed globally by this id: unlike the list and statistics routes, this route takes no workspace. The run carries its own workspace and the caller is authorized against that one, so a run the caller cannot reach is concealed as a 404 rather than filtered out.',
+    },
     responseMode: 'json',
     summary: 'Get Log',
   },
@@ -11429,7 +11436,7 @@ export const V2_OPERATIONS = {
       workspaceId: {
         kind: 'string',
         describe:
-          "Narrow the ledger to usage events attributed to one workspace. It does not change whose events are reported — a personal API key always reports the usage of the person holding it, and a workspace API key always reports its own workspace's complete ledger across every member. The response `scope` field says which of the two you received. A workspace API key is pinned to its own workspace: any other id answers `404 Workspace not found`, which is also what an id that does not exist answers.",
+          "Narrow the ledger to usage events attributed to one workspace. It does not change whose events are reported — a personal API key always reports the usage of the person holding it, and a workspace API key always reports its own workspace's complete ledger across every member. The response `scope` field says which of the two you received. Omitting it does not widen a workspace API key: that key has no account behind it, so an omitted id is the same request as its own id and the page still covers exactly one workspace, reported as `scope: workspace`. A ledger spanning every workspace an account touches requires a personal API key. A workspace API key is pinned to its own workspace: any other id answers `404 Workspace not found`, which is also what an id that does not exist answers.",
       },
       period: {
         kind: 'enum',
@@ -11820,7 +11827,7 @@ export const V2_OPERATIONS = {
         values: ['active', 'archived'] as const,
         default: 'active',
         describe:
-          'Which lifecycle set to list: `active` (default) for live knowledge bases, `archived` for knowledge bases a `DELETE` archived and `POST /knowledge/{knowledgeBaseId}/restore` can bring back. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too.',
+          'Which lifecycle set to list: `active` (default) for live knowledge bases, `archived` for knowledge bases a delete archived and the restore operation can bring back. The folder filter resolves against active folders only, so pairing it with `archived` returns an empty page when the containing folder was archived too.',
       },
       folderPath: {
         kind: 'string',
@@ -12311,7 +12318,8 @@ export const V2_OPERATIONS = {
       scope: {
         kind: 'enum',
         values: ['workspace', 'personal'] as const,
-        describe: 'Restrict results to one ownership scope.',
+        describe:
+          "Restrict results to one ownership scope. Personal results are not the caller's full personal set: this list reads the per-workspace credential mirrors of a personal secret, and a mirror exists only for workspaces the caller holds an explicit membership or ownership of. A personal secret is therefore omitted here when the caller reaches this workspace through inherited organization access, even though the same secret can be set and deleted from it. Prefer listing from a workspace the caller is an explicit member of until the mirrors are replaced by canonical personal-secret metadata.",
       },
       search: {
         kind: 'string',
@@ -12509,7 +12517,7 @@ export const V2_OPERATIONS = {
         values: ['active', 'archived'] as const,
         default: 'active',
         describe:
-          'Which lifecycle set to list: `active` (default) for live tables, `archived` for tables a delete archived and a table restore can bring back. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too.',
+          'Which lifecycle set to list: `active` (default) for live tables, `archived` for tables a delete archived and a table restore can bring back. The folder filter resolves against active folders only, so pairing it with `archived` returns an empty page when the containing folder was archived too.',
       },
       folderPath: {
         kind: 'string',

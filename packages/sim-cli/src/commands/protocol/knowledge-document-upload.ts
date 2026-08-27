@@ -1,4 +1,4 @@
-import type { Command } from 'commander'
+import { type Command, Option } from 'commander'
 import { clientFrom } from '../../context'
 import type {
   CompleteKnowledgeDocumentUploadResponse,
@@ -35,6 +35,21 @@ function uploadMetadata(options: KnowledgeDocumentUploadOptions): Record<string,
   return metadata
 }
 
+/**
+ * The recipes the route accepts. Stated as `choices` like every other
+ * constrained flag in this CLI, so `--help` lists them and a typo is refused
+ * before the file is uploaded rather than after.
+ */
+const UPLOAD_RECIPES = ['default', 'plain', 'markdown', 'code'] as const
+
+/**
+ * The route enforces a shape, not BCP-47 conformance, so the help says the
+ * shape and nothing more; a full parser is the route's own deliberate
+ * non-goal and reimplementing one here would refuse tags the server accepts.
+ */
+const LANGUAGE_TAG_HELP =
+  'Document language tag: hyphen-separated letter and digit subtags, for example en or en-US'
+
 export function attachKnowledgeDocumentUpload(documents: Command): void {
   documents
     .command('upload')
@@ -44,8 +59,8 @@ export function attachKnowledgeDocumentUpload(documents: Command): void {
     .description('Upload a document to a knowledge base')
     .option('--name <name>', 'Store it under a different name')
     .option('--tag <value...>', 'Document tags, in tag1 through tag7 order')
-    .option('--recipe <name>', 'Document processing recipe')
-    .option('--lang <code>', 'Document language code')
+    .addOption(new Option('--recipe <name>', 'Document processing recipe').choices(UPLOAD_RECIPES))
+    .option('--lang <code>', LANGUAGE_TAG_HELP)
     .action(
       async (
         knowledgeBaseId: string,

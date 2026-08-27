@@ -1,4 +1,16 @@
+import type { Command } from 'commander'
 import { V2_OPERATIONS, type V2OperationName } from '../generated/v2-api'
+
+/** The full `sim …` path of a command, for a message that has to name it. */
+export function commandPath(command: Command): string {
+  const names: string[] = []
+  let current: Command | null = command
+  while (current) {
+    names.unshift(current.name())
+    current = current.parent
+  }
+  return names.join(' ')
+}
 
 /**
  * Trailing path segments that read as verbs rather than sub-resources, so

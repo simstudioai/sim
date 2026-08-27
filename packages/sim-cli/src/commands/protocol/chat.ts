@@ -142,6 +142,12 @@ function ignoreBrokenPipe(stream: NodeJS.WriteStream): () => void {
  * proxies from idling the connection out. The generated `chat` operation is
  * hidden in the CLI contract in favour of this command.
  */
+/**
+ * The shape the route accepts for `conversationId`: a UUID, which is what the
+ * command prints on stderr at the end of every turn.
+ */
+const CONVERSATION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 export function attachChat(program: Command): void {
   program
     .command('chat')
@@ -164,6 +170,25 @@ Examples:
 `
     )
     .action(async (message: string, options: ChatOptions, command: Command) => {
+      /**
+       * Refused here so the refusal names what the caller typed. The route says
+       * `message cannot be empty` and `conversationId must be a valid
+       * conversation id` — its own field names, and this command builds its
+       * request by hand so nothing retypes them into `<message>` and
+       * `-c/--conversation`. A blank `-c` was worse than misnamed: it is falsy,
+       * so it was dropped from the body and silently started a NEW conversation
+       * instead of continuing one.
+       */
+      if (message.trim() === '') {
+        throw new SimApiError('<message> cannot be empty', 0)
+      }
+      if (options.conversation !== undefined && !CONVERSATION_ID.test(options.conversation)) {
+        throw new SimApiError(
+          '-c/--conversation must be a conversation id — the one printed on stderr after each turn',
+          0
+        )
+      }
+
       const { client, profile } = clientFrom(command)
       const workspaceId = client.requireWorkspace()
 

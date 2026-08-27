@@ -2,7 +2,7 @@ import { Command } from 'commander'
 import { CLI_CONTRACT } from '../contract/commands'
 import type { CommandSpec, CommandVariantSpec } from '../contract/types'
 import { V2_OPERATIONS, type V2OperationName } from '../generated/v2-api'
-import { deriveCommandPath } from './derive'
+import { commandPath, deriveCommandPath } from './derive'
 import { executeOperation } from './execute'
 import { retypeApiError } from './naming'
 import { addOperationOptions } from './options'
@@ -52,16 +52,6 @@ function argumentSyntax(command: Command): string {
       return argument.required ? `<${name}>` : `[${name}]`
     })
     .join(' ')
-}
-
-function commandPath(command: Command): string {
-  const names: string[] = []
-  let current: Command | null = command
-  while (current) {
-    names.unshift(current.name())
-    current = current.parent
-  }
-  return names.join(' ')
 }
 
 function addMissingArgumentExample(command: Command): Command {

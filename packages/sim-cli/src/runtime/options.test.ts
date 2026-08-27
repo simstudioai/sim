@@ -31,9 +31,11 @@ describe('the --yes flag on a destructive command', () => {
    */
   it('describes itself as the confirmation, not as skipping one', () => {
     const help = confirmHelp()
-    expect(help).toMatch(/-y, --yes\s+Confirm this destructive operation \(required\)/)
+    expect(help).toMatch(/-y, --yes\s+Confirm this operation \(required\)/)
     expect(help).not.toMatch(/skip/i)
     expect(help).not.toMatch(/prompt/i)
+    // Nor "destructive": the same gate covers `files unzip`, which only adds.
+    expect(help).not.toMatch(/destructive/i)
   })
 })
 

@@ -35,6 +35,30 @@ export function warnRenamedFlag(from: string, to: string): void {
   warn('flag', `--${from}`, `--${to}`)
 }
 
+/**
+ * Announces that `--workspace` had nothing to act on.
+ *
+ * `-w` is a root-program global, so commander accepts it on every command,
+ * while it is only ever substituted into an operation that declares a
+ * `workspaceId`. On the rest — every workflow-, run- and server-addressed
+ * route, whose id is global and whose scope the server reads off the record
+ * itself — the value was parsed and dropped, so three different `-w` values
+ * produced byte-identical requests and read as a scoping bug.
+ *
+ * Said rather than refused: 39 of the API's operations declare no
+ * `workspaceId`, and a wrapper that appends `-w` to every invocation is
+ * exactly the shape that would break. Warning removes the silence, which is
+ * the part that misled, without failing a call that was already correct.
+ */
+export function warnUnusedWorkspace(command: string): void {
+  const key = `workspace:${command}`
+  if (warned.has(key)) return
+  warned.add(key)
+  process.stderr.write(
+    `warning: --workspace does not apply to "${command}"; the id you passed already identifies the workspace, and the flag was ignored.\n`
+  )
+}
+
 /** Test seam: renames warn once per process, and each test needs a clean slate. */
 export function resetRenameWarnings(): void {
   warned.clear()
