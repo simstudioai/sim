@@ -28,6 +28,7 @@ import {
   writeConfigProfile,
   writeCredentialsProfile,
 } from '../config/index'
+import { ProfileOverrideError, redact } from '../config/profile'
 import { clientFrom, globalsOf, profileFrom } from '../context'
 import {
   type GetMetaResponse,
@@ -91,7 +92,7 @@ function presentAuthentication(source: SettingSource): {
 async function confirmProfileOverwrite(profileName: string): Promise<boolean> {
   if (!process.stdin.isTTY) {
     throw new SimApiError(
-      `Profile "${profileName}" already exists. Re-run with --yes to overwrite it.`,
+      `Profile "${redact(profileName)}" already exists. Re-run with --yes to overwrite it.`,
       0
     )
   }
@@ -99,7 +100,7 @@ async function confirmProfileOverwrite(profileName: string): Promise<boolean> {
   const prompt = createInterface({ input: process.stdin, output: process.stderr })
   try {
     const answer = await prompt.question(
-      `Profile "${profileName}" already exists. Replace its API key and login defaults? (y/N) `
+      `Profile "${redact(profileName)}" already exists. Replace its API key and login defaults? (y/N) `
     )
     return answer.trim().toLowerCase() === 'y' || answer.trim().toLowerCase() === 'yes'
   } finally {
@@ -117,7 +118,7 @@ function validateNewProfileName(profileName: string): void {
   validateProfileName(profileName)
   if (listProfiles().includes(profileName)) {
     throw new SimApiError(
-      `Profile "${profileName}" already exists. Remove it first with: sim logout --all --profile ${profileName}`,
+      `Profile "${redact(profileName)}" already exists. Remove it first with: sim logout --all --profile ${redact(profileName)}`,
       0
     )
   }
@@ -160,13 +161,13 @@ function requireStoredAuthentication(profile: ResolvedProfile): string {
   const storedKey = readCredentialsProfile(authProfile).api_key
   if (profile.sources.apiKey !== 'credentials' || !storedKey) {
     throw new SimApiError(
-      `Cannot create a shared profile from "${profile.name}": the active API key is not stored. Run: sim login --profile ${authProfile}`,
+      `Cannot create a shared profile from "${redact(profile.name)}": the active API key is not stored. Run: sim login --profile ${redact(authProfile)}`,
       0
     )
   }
   if (profile.sources.endpoint === 'flag' || profile.sources.endpoint === 'env') {
     throw new SimApiError(
-      `Cannot create a shared profile from "${profile.name}": the active endpoint comes from ${profile.sources.endpoint}. Save it with: sim configure --profile ${authProfile} --set-endpoint ${profile.endpoint}`,
+      `Cannot create a shared profile from "${redact(profile.name)}": the active endpoint comes from ${profile.sources.endpoint}. Save it with: sim configure --profile ${redact(authProfile)} --set-endpoint ${profile.endpoint}`,
       0
     )
   }
@@ -255,10 +256,10 @@ function addProfileCommand(): Command {
         workspace: normalizeWorkspaceId(workspace.id, 'the workspace response'),
       })
 
-      console.log(chalk.green(`✓ Added profile "${profileName}" in ${configPath()}`))
+      console.log(chalk.green(`✓ Added profile "${safeOneLine(profileName)}" in ${configPath()}`))
       console.log(`  Workspace: ${safeOneLine(workspace.name)} (${workspace.id})`)
-      console.log(`  Authentication: ${authProfile}`)
-      console.log(chalk.dim(`  Try: sim --profile ${profileName} whoami`))
+      console.log(`  Authentication: ${safeOneLine(authProfile)}`)
+      console.log(chalk.dim(`  Try: sim --profile ${safeOneLine(profileName)} whoami`))
     })
 }
 
@@ -277,7 +278,7 @@ export function loginCommand(): Command {
 
         if (authProfile !== profile.name) {
           throw new SimApiError(
-            `Profile "${profile.name}" shares authentication with "${authProfile}". Run: sim login --profile ${authProfile}`,
+            `Profile "${redact(profile.name)}" shares authentication with "${redact(authProfile)}". Run: sim login --profile ${redact(authProfile)}`,
             0
           )
         }
@@ -304,7 +305,7 @@ export function loginCommand(): Command {
         )
 
         console.log(
-          `Signing in to ${chalk.bold(profile.endpoint)} as profile ${chalk.bold(profile.name)}`
+          `Signing in to ${chalk.bold(profile.endpoint)} as profile ${chalk.bold(safeOneLine(profile.name))}`
         )
         console.log(`\nPairing code: ${chalk.bold(auth.pairing)}`)
         console.log(
@@ -386,16 +387,16 @@ export function logoutCommand(): Command {
         const dependents = listAuthenticationDependents(profileName)
         if (dependents.length > 0) {
           throw new SimApiError(
-            `Cannot remove authentication profile "${profileName}" because it is used by: ${dependents.join(', ')}. Remove those profiles first.`,
+            `Cannot remove authentication profile "${redact(profileName)}" because it is used by: ${dependents.map(redact).join(', ')}. Remove those profiles first.`,
             0
           )
         }
         const removed = deleteProfile(profileName)
         if (!removed.config && !removed.credentials) {
-          console.log(chalk.dim(`Nothing stored for profile "${profileName}".`))
+          console.log(chalk.dim(`Nothing stored for profile "${safeOneLine(profileName)}".`))
           return
         }
-        console.log(chalk.green(`✓ Removed profile "${profileName}".`))
+        console.log(chalk.green(`✓ Removed profile "${safeOneLine(profileName)}".`))
         return
       }
 
@@ -403,18 +404,20 @@ export function logoutCommand(): Command {
       const authProfile = resolveAuthenticationProfileName(profile.name)
       if (authProfile !== profile.name) {
         throw new SimApiError(
-          `Profile "${profile.name}" shares authentication with "${authProfile}". Log out of the authentication profile instead: sim logout --profile ${authProfile}`,
+          `Profile "${redact(profile.name)}" shares authentication with "${redact(authProfile)}". Log out of the authentication profile instead: sim logout --profile ${redact(authProfile)}`,
           0
         )
       }
 
       if (!readCredentialsProfile(profile.name).api_key) {
-        console.log(chalk.dim(`No stored key for profile "${profile.name}".`))
+        console.log(chalk.dim(`No stored key for profile "${safeOneLine(profile.name)}".`))
         return
       }
 
       writeCredentialsProfile(profile.name, null)
-      console.log(chalk.green(`✓ Removed the stored key for profile "${profile.name}".`))
+      console.log(
+        chalk.green(`✓ Removed the stored key for profile "${safeOneLine(profile.name)}".`)
+      )
       // The key still exists server-side; leaving that unsaid invites the
       // assumption that logging out revoked it.
       console.log(chalk.dim('  The key itself is still active — revoke it in Settings → API keys.'))
@@ -522,7 +525,7 @@ async function verifyProfile(
       status: 'unauthenticated',
       workspace: null,
       keyType: null,
-      detail: `no API key — run: sim login --profile ${profile.name}`,
+      detail: `no API key — run: sim login --profile ${safeOneLine(profile.name)}`,
     }
   }
 
@@ -536,7 +539,7 @@ async function verifyProfile(
       status: 'no-workspace',
       workspace: null,
       keyType,
-      detail: `no workspace to check against — run: sim configure --profile ${profile.name} --set-workspace <id>`,
+      detail: `no workspace to check against — run: sim configure --profile ${safeOneLine(profile.name)} --set-workspace <id>`,
     }
   }
 
@@ -663,9 +666,9 @@ interface ProfileRow {
 
 const PROFILE_COLUMNS: Column<ProfileRow>[] = [
   { header: '', value: (row) => (row.active ? chalk.green('*') : ' ') },
-  { header: 'profile', value: (row) => text(row.name) },
+  { header: 'profile', value: (row) => safeOneLine(row.name) },
   { header: 'key', value: (row) => (row.error ? text(null) : row.hasKey ? 'yes' : 'no') },
-  { header: 'auth', value: (row) => text(row.authProfile) },
+  { header: 'auth', value: (row) => (row.authProfile ? safeOneLine(row.authProfile) : text(null)) },
   { header: 'error', value: (row) => (row.error ? chalk.red(safeOneLine(row.error)) : text(null)) },
 ]
 
@@ -707,6 +710,12 @@ function profileListingContext(command: Command): { activeName: string; output: 
     return { activeName: profile.name, output: profile.output }
   } catch (error) {
     if (!(error instanceof ProfileConfigError)) throw error
+    // A blank `--profile`/`--endpoint`/`--workspace` is the caller's own
+    // argument, not a broken profile. The tolerance below exists so a listing
+    // still happens when the config is unreadable; letting it also absorb a
+    // refused flag turned `sim --workspace "" profiles` into a successful
+    // listing while every other command exits 1 on the same argv.
+    if (error instanceof ProfileOverrideError) throw error
 
     const globals = globalsOf(command)
     const named = globals.profile || process.env.SIM_PROFILE

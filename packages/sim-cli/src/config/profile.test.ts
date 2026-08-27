@@ -10,6 +10,7 @@ import {
   listAuthenticationDependents,
   listProfiles,
   OUTPUT_FORMATS,
+  ProfileOverrideError,
   resolveAuthenticationProfileName,
   resolveProfile,
   validateProfileName,
@@ -525,6 +526,16 @@ describe('blank root flags', () => {
     expect(() => resolveProfile({ profile: '' })).toThrow(/--profile requires a value/)
   })
 
+  /**
+   * `profiles` tolerates a profile that will not resolve, so the refusal has to
+   * be tellable apart from a broken profile by something the wording cannot
+   * break — otherwise a blank flag is absorbed and the listing exits 0.
+   */
+  it('raises the refusal as its own error class', () => {
+    expect(() => resolveProfile({ workspaceId: '' })).toThrow(ProfileOverrideError)
+    expect(() => resolveProfile({ profile: 'unknown' })).not.toThrow(ProfileOverrideError)
+  })
+
   it('still reads an exported-but-empty environment variable as unset', () => {
     // The convention every profile-based CLI follows, and the reason the empty
     // string cannot simply become significant everywhere.
@@ -587,6 +598,32 @@ describe('redaction of rejected values', () => {
   it('redacts it in the variant printed when nothing is configured yet', () => {
     const message = messageOf(() => resolveProfile({ profile: 'ev\nil' }))
     expect(message).toContain('Unknown profile "ev il"')
+    expect(message).not.toMatch(FORBIDDEN_IN_VALUE)
+  })
+
+  /**
+   * The header line is split on `\n`, so a stored name cannot carry one — but
+   * U+2028 is a line separator the reader keeps and `sanitize` does not strip,
+   * which is why the same redaction the typed name already got has to cover the
+   * two halves of this message that come out of the config file.
+   */
+  it('redacts the suggestion and the configured list, not just the typed name', () => {
+    writeFileSync(configPath(), '[profile st\u2028aging]\nworkspace = ws_1\n')
+
+    const message = messageOf(() => resolveProfile({ profile: 'st\u2028agng' }))
+    expect(message).toBe(
+      'Unknown profile "st agng". Did you mean "st aging"? Configured profiles: st aging.'
+    )
+    expect(message).not.toMatch(FORBIDDEN_IN_VALUE)
+  })
+
+  it('redacts both names an auth_profile refusal quotes', () => {
+    // ESC rather than U+2028 here: the value reader drops a line separator, so
+    // the setting would never be seen at all.
+    writeFileSync(configPath(), '[profile de\u001bv]\nauth_profile = mis\u001bsing\n')
+
+    const message = messageOf(() => resolveAuthenticationProfileName('de\u001bv'))
+    expect(message).toBe('Profile "de v" references missing auth_profile "mis sing".')
     expect(message).not.toMatch(FORBIDDEN_IN_VALUE)
   })
 

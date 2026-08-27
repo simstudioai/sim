@@ -56,6 +56,23 @@ export function redact(value: string): string {
 }
 
 /**
+ * A root flag typed with a value the CLI cannot use.
+ *
+ * Separate from the rest of {@link ProfileConfigError} so a caller that
+ * deliberately tolerates an unresolvable profile — `profiles` shows a broken
+ * one as a marked row rather than aborting, because that is the command you run
+ * *because* a profile is broken — can still refuse the caller's own argument.
+ * The class is the discriminator on purpose: matching the message text would
+ * stop working the first time the wording changes.
+ */
+export class ProfileOverrideError extends ProfileConfigError {
+  constructor(message: string) {
+    super(message)
+    this.name = 'ProfileOverrideError'
+  }
+}
+
+/**
  * The shape a newly created profile name has to have.
  *
  * Enforced only when a profile is being created. A name reaches the config file
@@ -162,21 +179,21 @@ export function resolveAuthenticationProfileName(profile: string): string {
 
   const authProfile = config.auth_profile.trim()
   if (!authProfile) {
-    throw new ProfileConfigError(`Profile "${profile}" has an empty auth_profile.`)
+    throw new ProfileConfigError(`Profile "${redact(profile)}" has an empty auth_profile.`)
   }
   if (authProfile === profile) {
     throw new ProfileConfigError(
-      `Profile "${profile}" cannot use itself as auth_profile. Remove the auth_profile setting instead.`
+      `Profile "${redact(profile)}" cannot use itself as auth_profile. Remove the auth_profile setting instead.`
     )
   }
   if (Object.hasOwn(config, 'endpoint')) {
     throw new ProfileConfigError(
-      `Profile "${profile}" cannot set both auth_profile and endpoint. Set the endpoint on authentication profile "${authProfile}".`
+      `Profile "${redact(profile)}" cannot set both auth_profile and endpoint. Set the endpoint on authentication profile "${redact(authProfile)}".`
     )
   }
   if (readCredentialsProfile(profile).api_key) {
     throw new ProfileConfigError(
-      `Profile "${profile}" cannot set both auth_profile and its own API key. Remove one of them.`
+      `Profile "${redact(profile)}" cannot set both auth_profile and its own API key. Remove one of them.`
     )
   }
 
@@ -184,12 +201,12 @@ export function resolveAuthenticationProfileName(profile: string): string {
   const credentials = readCredentialsProfile(authProfile)
   if (Object.keys(authConfig).length === 0 && Object.keys(credentials).length === 0) {
     throw new ProfileConfigError(
-      `Profile "${profile}" references missing auth_profile "${authProfile}".`
+      `Profile "${redact(profile)}" references missing auth_profile "${redact(authProfile)}".`
     )
   }
   if (Object.hasOwn(authConfig, 'auth_profile')) {
     throw new ProfileConfigError(
-      `Profile "${profile}" references auth_profile "${authProfile}", which also has auth_profile set. Authentication profile references cannot be chained.`
+      `Profile "${redact(profile)}" references auth_profile "${redact(authProfile)}", which also has auth_profile set. Authentication profile references cannot be chained.`
     )
   }
 
@@ -283,7 +300,7 @@ function requireKnownProfile(name: string): void {
 
   const suggestion = nearestProfile(name, known)
   throw new ProfileConfigError(
-    `Unknown profile "${redact(name)}".${suggestion ? ` Did you mean "${suggestion}"?` : ''} Configured profiles: ${known.join(', ')}.`
+    `Unknown profile "${redact(name)}".${suggestion ? ` Did you mean "${redact(suggestion)}"?` : ''} Configured profiles: ${known.map(redact).join(', ')}.`
   )
 }
 
@@ -446,7 +463,7 @@ function refuseBlankOverrides(overrides: ProfileOverrides): void {
   for (const [key, flag] of Object.entries(OVERRIDE_FLAGS)) {
     const value = overrides[key as keyof typeof OVERRIDE_FLAGS]
     if (value !== undefined && value.trim() === '') {
-      throw new ProfileConfigError(
+      throw new ProfileOverrideError(
         `${flag} requires a value. Omit the flag to fall back to what is configured.`
       )
     }

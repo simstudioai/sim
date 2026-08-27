@@ -10,7 +10,6 @@ const mocks = vi.hoisted(() => ({
   listProfiles: vi.fn<() => string[]>(() => []),
   request: vi.fn(),
   readCredentialsProfile: vi.fn<() => Record<string, string>>(() => ({})),
-  ProfileConfigError: class ProfileConfigError extends Error {},
   resolveAuthenticationProfileName: vi.fn((profile: string) => profile),
   pollForKey: vi.fn(async () => ({
     apiKey: 'sim-key',
@@ -49,10 +48,17 @@ vi.mock('../auth/device-flow', () => ({
  */
 vi.mock('../config/index', async () => ({
   ...(await import('../config/profile').then(
-    ({ FORBIDDEN_IN_VALUE, normalizeWorkspaceId, OUTPUT_FORMATS, validateProfileName }) => ({
+    ({
       FORBIDDEN_IN_VALUE,
       normalizeWorkspaceId,
       OUTPUT_FORMATS,
+      ProfileConfigError,
+      validateProfileName,
+    }) => ({
+      FORBIDDEN_IN_VALUE,
+      normalizeWorkspaceId,
+      OUTPUT_FORMATS,
+      ProfileConfigError,
       validateProfileName,
     })
   )),
@@ -62,7 +68,6 @@ vi.mock('../config/index', async () => ({
   deleteProfile: mocks.deleteProfile,
   listAuthenticationDependents: mocks.listAuthenticationDependents,
   listProfiles: mocks.listProfiles,
-  ProfileConfigError: mocks.ProfileConfigError,
   readCredentialsProfile: mocks.readCredentialsProfile,
   resolveAuthenticationProfileName: mocks.resolveAuthenticationProfileName,
   writeConfigProfile: mocks.writeConfigProfile,
@@ -74,6 +79,7 @@ vi.mock('../context', () => ({
   clientFrom: () => ({ client: { request: mocks.request }, profile: mocks.profileFrom() }),
 }))
 
+import { ProfileConfigError, ProfileOverrideError } from '../config/profile'
 import { SimApiError } from '../http/client'
 import { loginCommand, logoutCommand, profilesCommand, whoamiCommand } from './auth'
 
@@ -607,7 +613,7 @@ describe('profiles command', () => {
     // nothing, alone among the commands, because it never resolved at all.
     mocks.listProfiles.mockReturnValue(['default'])
     mocks.profileFrom.mockImplementation(() => {
-      throw new mocks.ProfileConfigError('Unknown profile "bogus".')
+      throw new ProfileConfigError('Unknown profile "bogus".')
     })
 
     await expect(profiles('list', '--profile', 'bogus')).rejects.toThrow('Unknown profile "bogus".')
@@ -665,13 +671,11 @@ describe('profiles command', () => {
     // it throws for exactly the profile this command exists to show.
     mocks.listProfiles.mockReturnValue(['broken', 'default'])
     mocks.profileFrom.mockImplementation(() => {
-      throw new mocks.ProfileConfigError('Profile "broken" references missing auth_profile "gone".')
+      throw new ProfileConfigError('Profile "broken" references missing auth_profile "gone".')
     })
     mocks.resolveAuthenticationProfileName.mockImplementation((profile) => {
       if (profile === 'broken') {
-        throw new mocks.ProfileConfigError(
-          'Profile "broken" references missing auth_profile "gone".'
-        )
+        throw new ProfileConfigError('Profile "broken" references missing auth_profile "gone".')
       }
       return profile
     })
@@ -689,7 +693,7 @@ describe('profiles command', () => {
     // profiles` must fail exactly like `sim profiles --profile typo`.
     mocks.listProfiles.mockReturnValue(['default'])
     mocks.profileFrom.mockImplementation(() => {
-      throw new mocks.ProfileConfigError('Unknown profile "bogus".')
+      throw new ProfileConfigError('Unknown profile "bogus".')
     })
     process.env.SIM_PROFILE = 'bogus'
 
@@ -706,7 +710,7 @@ describe('profiles command', () => {
     // exit 0. The catch exists to tolerate a broken *profile*, not a bad flag.
     mocks.listProfiles.mockReturnValue(['default'])
     mocks.profileFrom.mockImplementation(() => {
-      throw new mocks.ProfileConfigError('Unknown output format "jsonl" from env.')
+      throw new ProfileConfigError('Unknown output format "jsonl" from env.')
     })
     process.env.SIM_OUTPUT = 'jsonl'
 
@@ -718,15 +722,28 @@ describe('profiles command', () => {
     }
   })
 
+  it('refuses a blank root flag rather than absorbing it into the broken-profile fallback', async () => {
+    // The tolerance below exists for a profile that will not resolve. A blank
+    // `--workspace` is the caller's own argument, and swallowing it listed
+    // profiles and exited 0 where every other command exits 1.
+    mocks.listProfiles.mockReturnValue(['default'])
+    mocks.profileFrom.mockImplementation(() => {
+      throw new ProfileOverrideError('--workspace requires a value.')
+    })
+
+    await expect(profiles('list', '--workspace', '')).rejects.toThrow(
+      '--workspace requires a value.'
+    )
+    expect(console.log).not.toHaveBeenCalled()
+  })
+
   it('marks a broken profile and still lists the rest', async () => {
     // `profiles` is the command someone runs *because* a profile is broken, and
     // one bad auth_profile used to abort the listing with nothing shown at all.
     mocks.listProfiles.mockReturnValue(['broken', 'default', 'dev'])
     mocks.resolveAuthenticationProfileName.mockImplementation((profile) => {
       if (profile === 'broken') {
-        throw new mocks.ProfileConfigError(
-          'Profile "broken" references missing auth_profile "gone".'
-        )
+        throw new ProfileConfigError('Profile "broken" references missing auth_profile "gone".')
       }
       return profile
     })
