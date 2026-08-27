@@ -87,6 +87,10 @@ interface ExecutionStopSummary extends ExecutionStopSignalResult {
   signalledExecutionIds: Set<string>
 }
 
+type ActiveResumeCancellationTarget = NonNullable<
+  Awaited<ReturnType<typeof PauseResumeManager.getActiveResumeCancellationTarget>>
+>
+
 function createExecutionStopSummary(): ExecutionStopSummary {
   return {
     cancellation: { durablyRecorded: false, reason: 'redis_unavailable' },
@@ -142,19 +146,13 @@ async function signalExecutionStop(args: {
   }
 }
 
-async function signalActiveResumeStop(args: {
+async function signalAndRecordActiveResumeStop(args: {
   workflowId: string
   executionId: string
   executionDeadlineAt: Date | null
-  target: NonNullable<
-    Awaited<ReturnType<typeof PauseResumeManager.getActiveResumeCancellationTarget>>
-  >
-}): Promise<{
-  target: NonNullable<
-    Awaited<ReturnType<typeof PauseResumeManager.getActiveResumeCancellationTarget>>
-  >
-  signal: ExecutionStopSignalResult
-}> {
+  target: ActiveResumeCancellationTarget
+  summary: ExecutionStopSummary
+}): Promise<boolean> {
   const signal = await signalExecutionStop({
     workflowId: args.workflowId,
     signalExecutionId: args.target.resumeExecutionId,
@@ -162,15 +160,14 @@ async function signalActiveResumeStop(args: {
     executionDeadlineAt: args.executionDeadlineAt,
     queueScope: 'resume',
   })
-  return { target: args.target, signal }
+  mergeExecutionStopSignal(args.summary, args.target.resumeExecutionId, signal)
+  return didActiveResumeStop(args.executionId, args.workflowId, args.target, signal)
 }
 
 async function didActiveResumeStop(
   executionId: string,
   workflowId: string,
-  target: NonNullable<
-    Awaited<ReturnType<typeof PauseResumeManager.getActiveResumeCancellationTarget>>
-  >,
+  target: ActiveResumeCancellationTarget,
   signal: ExecutionStopSignalResult
 ): Promise<boolean> {
   if (signal.accepted) return true
@@ -375,7 +372,33 @@ async function rollbackPausedCancellationAfterAbort(args: {
   return abortResponse
 }
 
-/** Runs the existing workflow cancellation lifecycle after surface authentication. */
+function resolveCancellationReason(args: {
+  activeResumeSignalFailed: boolean
+  pauseReconciliationFailed: boolean
+  effectivePausedCancellationPath: boolean
+  cancellationEventPublished: boolean
+  pausedCancelled: boolean
+  stopSummary: ExecutionStopSummary
+}): NonNullable<CancelWorkflowExecutionResponse['reason']> {
+  if (args.activeResumeSignalFailed) return 'active_resume_signal_failed'
+  if (args.pauseReconciliationFailed) return 'paused_database_cancel_failed'
+  if (args.effectivePausedCancellationPath && !args.cancellationEventPublished) {
+    return 'paused_event_publish_failed'
+  }
+  if (args.effectivePausedCancellationPath && !args.pausedCancelled) {
+    return 'paused_database_cancel_failed'
+  }
+  if (args.effectivePausedCancellationPath) return 'recorded'
+  if (
+    args.stopSummary.queueJobsCancelled > 0 &&
+    !args.stopSummary.cancellation.durablyRecorded &&
+    !args.stopSummary.locallyAborted
+  ) {
+    return 'queue_cancelled'
+  }
+  return args.stopSummary.cancellation.reason
+}
+
 export async function cancelWorkflowExecutionPostAuth({
   workflowId,
   executionId,
@@ -544,23 +567,13 @@ export async function cancelWorkflowExecutionPostAuth({
       let activeResumeSignalFailed = false
       let exactStopSatisfied = true
       if (pausedCancellationStage.kind === 'active_resume') {
-        const activeResumeStop = await signalActiveResumeStop({
+        exactStopSatisfied = await signalAndRecordActiveResumeStop({
           workflowId,
           executionId,
           executionDeadlineAt: execution.executionDeadlineAt,
           target: pausedCancellationStage.target,
+          summary: stopSummary,
         })
-        mergeExecutionStopSignal(
-          stopSummary,
-          activeResumeStop.target.resumeExecutionId,
-          activeResumeStop.signal
-        )
-        exactStopSatisfied = await didActiveResumeStop(
-          executionId,
-          workflowId,
-          activeResumeStop.target,
-          activeResumeStop.signal
-        )
         activeResumeSignalFailed = !exactStopSatisfied
       } else if (isWorkflowGroupExecution && !hasPausedCancellation) {
         const retrySignal = await signalExecutionStop({
@@ -657,23 +670,13 @@ export async function cancelWorkflowExecutionPostAuth({
     let activeResumeSignalAccepted = false
 
     if (activeResumeTarget && !isWorkflowGroupExecution) {
-      const activeResumeStop = await signalActiveResumeStop({
+      activeResumeSignalAccepted = await signalAndRecordActiveResumeStop({
         workflowId,
         executionId,
         executionDeadlineAt: execution.executionDeadlineAt,
         target: activeResumeTarget,
+        summary: stopSummary,
       })
-      mergeExecutionStopSignal(
-        stopSummary,
-        activeResumeStop.target.resumeExecutionId,
-        activeResumeStop.signal
-      )
-      activeResumeSignalAccepted = await didActiveResumeStop(
-        executionId,
-        workflowId,
-        activeResumeStop.target,
-        activeResumeStop.signal
-      )
 
       if (!activeResumeSignalAccepted) {
         const failedResumeEntryId = activeResumeTarget.resumeEntryId
@@ -730,23 +733,13 @@ export async function cancelWorkflowExecutionPostAuth({
         activeResumeEntryId = activeResumeTarget?.resumeEntryId ?? null
 
         if (activeResumeTarget) {
-          const activeResumeStop = await signalActiveResumeStop({
+          activeResumeSignalAccepted = await signalAndRecordActiveResumeStop({
             workflowId,
             executionId,
             executionDeadlineAt: execution.executionDeadlineAt,
             target: activeResumeTarget,
+            summary: stopSummary,
           })
-          mergeExecutionStopSignal(
-            stopSummary,
-            activeResumeStop.target.resumeExecutionId,
-            activeResumeStop.signal
-          )
-          activeResumeSignalAccepted = await didActiveResumeStop(
-            executionId,
-            workflowId,
-            activeResumeStop.target,
-            activeResumeStop.signal
-          )
           if (!activeResumeSignalAccepted) {
             const failedResumeEntryId = activeResumeTarget.resumeEntryId
             await PauseResumeManager.rollbackActiveResumeCancellation(
@@ -919,23 +912,13 @@ export async function cancelWorkflowExecutionPostAuth({
     let activeResumeSignalFailed = false
     if (isWorkflowGroupExecution) {
       if (activeResumeTarget) {
-        const activeResumeStop = await signalActiveResumeStop({
+        activeResumeSignalAccepted = await signalAndRecordActiveResumeStop({
           workflowId,
           executionId,
           executionDeadlineAt: execution.executionDeadlineAt,
           target: activeResumeTarget,
+          summary: stopSummary,
         })
-        mergeExecutionStopSignal(
-          stopSummary,
-          activeResumeStop.target.resumeExecutionId,
-          activeResumeStop.signal
-        )
-        activeResumeSignalAccepted = await didActiveResumeStop(
-          executionId,
-          workflowId,
-          activeResumeStop.target,
-          activeResumeStop.signal
-        )
         activeResumeSignalFailed = !activeResumeSignalAccepted
       } else if (!effectivePausedCancellationPath) {
         const groupSignal = await signalExecutionStop({
@@ -954,32 +937,19 @@ export async function cancelWorkflowExecutionPostAuth({
       )
       if (isPausedCancellationStage(postClaimPausedCancellationStage)) {
         effectivePausedCancellationPath = true
-        pausedCancellationStage = postClaimPausedCancellationStage
         if (postClaimPausedCancellationStage.kind === 'active_resume') {
           const currentActiveResume = postClaimPausedCancellationStage.target
           const alreadyAttemptedCurrentResume =
             currentActiveResume.resumeEntryId === activeResumeEntryId &&
             stopSummary.signalledExecutionIds.has(currentActiveResume.resumeExecutionId)
           if (!alreadyAttemptedCurrentResume) {
-            const activeResumeStop = await signalActiveResumeStop({
+            activeResumeSignalAccepted = await signalAndRecordActiveResumeStop({
               workflowId,
               executionId,
               executionDeadlineAt: execution.executionDeadlineAt,
               target: currentActiveResume,
+              summary: stopSummary,
             })
-            activeResumeEntryId = activeResumeStop.target.resumeEntryId
-            activeResumeTarget = activeResumeStop.target
-            mergeExecutionStopSignal(
-              stopSummary,
-              activeResumeStop.target.resumeExecutionId,
-              activeResumeStop.signal
-            )
-            activeResumeSignalAccepted = await didActiveResumeStop(
-              executionId,
-              workflowId,
-              activeResumeStop.target,
-              activeResumeStop.signal
-            )
           }
           activeResumeSignalFailed = !activeResumeSignalAccepted
         } else {
@@ -1046,21 +1016,14 @@ export async function cancelWorkflowExecutionPostAuth({
     const durablyRecorded = effectivePausedCancellationPath
       ? true
       : stopSummary.cancellation.durablyRecorded
-    const reason = activeResumeSignalFailed
-      ? 'active_resume_signal_failed'
-      : pauseReconciliationFailed
-        ? 'paused_database_cancel_failed'
-        : effectivePausedCancellationPath && !cancellationEventPublished
-          ? 'paused_event_publish_failed'
-          : effectivePausedCancellationPath && !pausedCancelled
-            ? 'paused_database_cancel_failed'
-            : effectivePausedCancellationPath
-              ? 'recorded'
-              : stopSummary.queueJobsCancelled > 0 &&
-                  !stopSummary.cancellation.durablyRecorded &&
-                  !stopSummary.locallyAborted
-                ? 'queue_cancelled'
-                : stopSummary.cancellation.reason
+    const reason = resolveCancellationReason({
+      activeResumeSignalFailed,
+      pauseReconciliationFailed,
+      effectivePausedCancellationPath,
+      cancellationEventPublished,
+      pausedCancelled,
+      stopSummary,
+    })
 
     return cancellationOutcome({
       success,
@@ -1075,13 +1038,14 @@ export async function cancelWorkflowExecutionPostAuth({
       reason,
     })
   } catch (error) {
+    const normalizedError = toError(error)
     logger.error('Failed to cancel execution', {
       workflowId,
       executionId,
-      error: toError(error).message,
+      error: normalizedError.message,
     })
     return NextResponse.json(
-      { error: toError(error).message || 'Failed to cancel execution' },
+      { error: normalizedError.message || 'Failed to cancel execution' },
       { status: 500 }
     )
   }
