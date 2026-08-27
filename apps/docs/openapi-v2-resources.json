@@ -2597,9 +2597,9 @@
             "name": "scope",
             "in": "query",
             "required": false,
-            "description": "Restrict results to one ownership scope.",
+            "description": "Restrict results to one ownership scope. Personal results are not the caller's full personal set: this list reads the per-workspace credential mirrors of a personal secret, and a mirror exists only for workspaces the caller holds an explicit membership or ownership of. A personal secret is therefore omitted here when the caller reaches this workspace through inherited organization access, even though the same secret can be set and deleted from it. Prefer listing from a workspace the caller is an explicit member of until the mirrors are replaced by canonical personal-secret metadata.",
             "schema": {
-              "description": "Restrict results to one ownership scope.",
+              "description": "Restrict results to one ownership scope. Personal results are not the caller's full personal set: this list reads the per-workspace credential mirrors of a personal secret, and a mirror exists only for workspaces the caller holds an explicit membership or ownership of. A personal secret is therefore omitted here when the caller reaches this workspace through inherited organization access, even though the same secret can be set and deleted from it. Prefer listing from a workspace the caller is an explicit member of until the mirrors are replaced by canonical personal-secret metadata.",
               "type": "string",
               "enum": ["workspace", "personal"]
             }

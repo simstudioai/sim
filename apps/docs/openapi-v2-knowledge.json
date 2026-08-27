@@ -55,10 +55,10 @@
             "name": "scope",
             "in": "query",
             "required": false,
-            "description": "Which lifecycle set to list: `active` (default) for live knowledge bases, `archived` for knowledge bases a `DELETE` archived and `POST /knowledge/{knowledgeBaseId}/restore` can bring back. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too.",
+            "description": "Which lifecycle set to list: `active` (default) for live knowledge bases, `archived` for knowledge bases a delete archived and the restore operation can bring back. The folder filter resolves against active folders only, so pairing it with `archived` returns an empty page when the containing folder was archived too.",
             "schema": {
               "default": "active",
-              "description": "Which lifecycle set to list: `active` (default) for live knowledge bases, `archived` for knowledge bases a `DELETE` archived and `POST /knowledge/{knowledgeBaseId}/restore` can bring back. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too.",
+              "description": "Which lifecycle set to list: `active` (default) for live knowledge bases, `archived` for knowledge bases a delete archived and the restore operation can bring back. The folder filter resolves against active folders only, so pairing it with `archived` returns an empty page when the containing folder was archived too.",
               "type": "string",
               "enum": ["active", "archived"]
             }
@@ -264,11 +264,11 @@
             "name": "knowledgeBaseId",
             "in": "path",
             "required": true,
-            "description": "Unique knowledge base identifier.",
+            "description": "Knowledge base to read. Active knowledge bases only: an archived one answers 404 here, is listed by `scope=archived`, and is brought back by the restore endpoint.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique knowledge base identifier."
+              "description": "Knowledge base to read. Active knowledge bases only: an archived one answers 404 here, is listed by `scope=archived`, and is brought back by the restore endpoint."
             }
           },
           {
@@ -6383,22 +6383,29 @@
             "enum": ["enable", "disable"],
             "description": "Operation that was applied."
           },
-          "updatedCount": {
+          "processed": {
             "type": "integer",
             "minimum": 0,
             "maximum": 9007199254740991,
-            "description": "Number of documents the operation changed.",
+            "description": "Number of documents in this knowledge base the operation matched. Documents already in the requested state are counted too, so this is not a count of changes.",
             "examples": [42]
           },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Per-document failures, including any identifier that named no updatable document in the knowledge base. A populated array still answers 200, and a `selectAll` request reports an empty one."
+          },
           "documentIds": {
-            "description": "Identifiers of the documents the operation changed. Present only for an explicit `documentIds` request, which is bounded to 100 documents; a `selectAll` request omits it because the selection is unbounded, and reports `updatedCount` instead.",
+            "description": "Identifiers of the documents the operation matched. Present only for an explicit `documentIds` request, which is bounded to 100 documents; a `selectAll` request omits it because the selection is unbounded, and reports `processed` instead.",
             "type": "array",
             "items": {
               "type": "string"
             }
           }
         },
-        "required": ["operation", "updatedCount"],
+        "required": ["operation", "processed", "errors"],
         "additionalProperties": false,
         "title": "Bulk knowledge document update data",
         "description": "Outcome of a bulk enable or disable across knowledge documents."

@@ -55,10 +55,10 @@
             "name": "scope",
             "in": "query",
             "required": false,
-            "description": "Which lifecycle set to list: `active` (default) for live tables, `archived` for tables a delete archived and a table restore can bring back. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too.",
+            "description": "Which lifecycle set to list: `active` (default) for live tables, `archived` for tables a delete archived and a table restore can bring back. The folder filter resolves against active folders only, so pairing it with `archived` returns an empty page when the containing folder was archived too.",
             "schema": {
               "default": "active",
-              "description": "Which lifecycle set to list: `active` (default) for live tables, `archived` for tables a delete archived and a table restore can bring back. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too.",
+              "description": "Which lifecycle set to list: `active` (default) for live tables, `archived` for tables a delete archived and a table restore can bring back. The folder filter resolves against active folders only, so pairing it with `archived` returns an empty page when the containing folder was archived too.",
               "type": "string",
               "enum": ["active", "archived"]
             }

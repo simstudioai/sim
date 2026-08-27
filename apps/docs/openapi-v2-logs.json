@@ -358,13 +358,13 @@
             "name": "runId",
             "in": "path",
             "required": true,
-            "description": "Unique workflow run identifier.",
+            "description": "Unique workflow run identifier. A run is addressed globally by this id: unlike the list and statistics routes, this route takes no workspace. The run carries its own workspace and the caller is authorized against that one, so a run the caller cannot reach is concealed as a 404 rather than filtered out.",
             "schema": {
               "type": "string",
               "minLength": 1,
               "maxLength": 128,
               "pattern": "^[A-Za-z0-9._:-]+$",
-              "description": "Unique workflow run identifier."
+              "description": "Unique workflow run identifier. A run is addressed globally by this id: unlike the list and statistics routes, this route takes no workspace. The run carries its own workspace and the caller is authorized against that one, so a run the caller cannot reach is concealed as a 404 rather than filtered out."
             }
           }
         ],

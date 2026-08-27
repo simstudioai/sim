@@ -251,7 +251,7 @@ sim billing status [options]
 
 ### sim billing logs
 
-List credit usage events (a personal API key reports only your own events; a workspace API key reports every member's)
+List credit usage events (a personal API key reports only your own events; a workspace API key reports every member's in aggregate, unattributed)
 
 ```bash
 sim billing logs [options]
@@ -389,7 +389,7 @@ sim credentials delete <credentialId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -602,7 +602,7 @@ sim custom-tools delete <customToolId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -694,7 +694,7 @@ sim files batch-delete [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--file-ids <value...>` | Yes | File identifiers to update. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -763,13 +763,13 @@ sim files folders delete <path> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--recursive` | No | Delete the folder and its descendants. |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
 ### sim files folders list
 
-List Folders
+List folders; returns the whole set, so there is no --limit and no paging
 
 ```bash
 sim files folders list [options]
@@ -854,7 +854,7 @@ sim files delete <fileId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -1079,7 +1079,7 @@ sim files unzip <fileId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -1332,7 +1332,7 @@ sim knowledge tags delete <knowledgeBaseId> <tagId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -1362,7 +1362,7 @@ sim knowledge tags cleanup <knowledgeBaseId> [options]
 | --- | --- | --- |
 | `--unused` | No | Whether to remove only the tag definitions no document in the knowledge base still carries a value for. Defaults to true. Pass --no-unused to delete every definition on the knowledge base, which also clears its slot on every document and chunk and is not recoverable. |
 | `--no-unused` | No | Send --unused as false. |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -1487,7 +1487,7 @@ sim knowledge chunks batch-update <knowledgeBaseId> <documentId> [options]
 | --- | --- | --- |
 | `--operation <value>` | Yes | What to do with the selected chunks. Accepted values: `enable`, `disable`, `delete`. |
 | `--chunk <value...>` | Yes | Chunks to operate on, by identifier. An id naming no chunk in the document is reported in errors and does not fail the request. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -1548,7 +1548,7 @@ sim knowledge chunks delete <knowledgeBaseId> <documentId> <chunkId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -1693,7 +1693,7 @@ sim knowledge documents delete <knowledgeBaseId> <documentId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -1828,8 +1828,8 @@ sim knowledge documents upload <knowledgeBaseId> <path> [options]
 | --- | --- | --- |
 | `--name <name>` | No | Store it under a different name. |
 | `--tag <value...>` | No | Document tags, in tag1 through tag7 order. |
-| `--recipe <name>` | No | Document processing recipe. |
-| `--lang <code>` | No | Document language code. |
+| `--recipe <name>` | No | Document processing recipe. Accepted values: `default`, `plain`, `markdown`, `code`. |
+| `--lang <code>` | No | Document language tag: hyphen-separated letter and digit subtags, for example en or en-US. |
 
 </CommandTable>
 
@@ -1913,7 +1913,7 @@ sim knowledge connectors delete <knowledgeBaseId> <connectorId> [options]
 | --- | --- | --- |
 | `--delete-documents` | No | Also permanently delete documents produced by this connector. |
 | `--no-delete-documents` | No | Send --delete-documents as false. |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -2131,13 +2131,13 @@ sim knowledge folders delete <path> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--recursive` | No | Delete the folder and its descendants. |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
 ### sim knowledge folders list
 
-List Folders
+List folders; returns the whole set, so there is no --limit and no paging
 
 ```bash
 sim knowledge folders list [options]
@@ -2203,7 +2203,7 @@ sim knowledge delete <knowledgeBaseId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -2221,7 +2221,7 @@ sim knowledge get <knowledgeBaseId>
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+| `knowledgeBaseId` | Yes | Knowledge base to read. Active knowledge bases only: an archived one answers 404 here, is listed by `scope=archived`, and is brought back by the restore endpoint. |
 
 </CommandTable>
 
@@ -2239,7 +2239,7 @@ sim knowledge list [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--scope <value>` | No | Which lifecycle set to list: `active` (default) for live knowledge bases, `archived` for knowledge bases a `DELETE` archived and `POST /knowledge/&#123;knowledgeBaseId&#125;/restore` can bring back. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too. Accepted values: `active`, `archived`. |
+| `--scope <value>` | No | Which lifecycle set to list: `active` (default) for live knowledge bases, `archived` for knowledge bases a delete archived and the restore operation can bring back. The folder filter resolves against active folders only, so pairing it with `archived` returns an empty page when the containing folder was archived too. Accepted values: `active`, `archived`. |
 | `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
 | `--search <value>` | No | Case-insensitive substring match against the resource name. |
 | `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `createdAt`, `updatedAt`. |
@@ -2407,7 +2407,7 @@ sim logs get <runId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `runId` | Yes | Unique workflow run identifier. |
+| `runId` | Yes | Unique workflow run identifier. A run is addressed globally by this id: unlike the list and statistics routes, this route takes no workspace. The run carries its own workspace and the caller is authorized against that one, so a run the caller cannot reach is concealed as a 404 rather than filtered out. |
 
 </CommandTable>
 
@@ -2423,7 +2423,7 @@ sim logs get <runId> [options]
 
 ### sim logs stats
 
-Summarize run counts, failures, and cost over a window
+Summarize run counts, failures and latency over a window
 
 ```bash
 sim logs stats [options]
@@ -2565,7 +2565,7 @@ sim mcp-servers delete <mcpServerId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -2715,7 +2715,7 @@ sim secrets delete <name> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--scope <value>` | Yes | Whether the secret belongs to the workspace or to the caller. A personal secret belongs to the caller across every workspace, not to one workspace. Accepted values: `workspace`, `personal`. |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -2733,7 +2733,7 @@ sim secrets list [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--scope <value>` | No | Restrict results to one ownership scope. Accepted values: `workspace`, `personal`. |
+| `--scope <value>` | No | Restrict results to one ownership scope. Personal results are not the caller's full personal set: this list reads the per-workspace credential mirrors of a personal secret, and a mirror exists only for workspaces the caller holds an explicit membership or ownership of. A personal secret is therefore omitted here when the caller reaches this workspace through inherited organization access, even though the same secret can be set and deleted from it. Prefer listing from a workspace the caller is an explicit member of until the mirrors are replaced by canonical personal-secret metadata. Accepted values: `workspace`, `personal`. |
 | `--search <value>` | No | Case-insensitive substring match against the secret name. |
 | `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `createdAt`, `updatedAt`. |
 | `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
@@ -2821,7 +2821,7 @@ sim skills delete <skillId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -2926,7 +2926,7 @@ sim skills editors delete <skillId> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--email <value>` | Yes | Email address of a current workspace member. |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -3038,7 +3038,7 @@ sim tables columns delete <tableId> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--column-name <value>` | Yes | Name of the column to delete. |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -3127,7 +3127,7 @@ sim tables groups delete <tableId> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--group-id <value>` | Yes | Workflow group to delete. |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -3204,7 +3204,7 @@ sim tables batch-delete [options]
 | --- | --- | --- |
 | `--table-ids <json\|@file>` | No | Tables to archive, by identifier. (JSON, or @path / @- to read a file or stdin). |
 | `--folder <value...>` | No | Folder path as shown in the app; the leading / is optional (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -3290,7 +3290,7 @@ sim tables rows delete <tableId> <rowId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -3321,7 +3321,7 @@ sim tables rows batch-delete <tableId> [options]
 | `--filter <json\|@file>` | No | Predicate: &#123;"all":[&#123;"field":"status","op":"eq","value":"active"&#125;]&#125;; groups use all/any. Operators: eq, ne, gt, gte, lt, lte, in, nin, contains, ncontains, startsWith, endsWith, like, ilike, nlike, nilike, isEmpty, isNotEmpty, isNull, isNotNull (JSON, or @path / @- to read a file or stdin). |
 | `--limit <value>` | No | Maximum matching rows to delete. (caps a --filter match only; omit it to act on every match, and note 0 is not accepted). |
 | `--row <value...>` | No | Explicit row identifiers to delete. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -3522,7 +3522,7 @@ sim tables rows batch-update <tableId> [options]
 | `--filter <json\|@file>` | Yes | Predicate: &#123;"all":[&#123;"field":"status","op":"eq","value":"active"&#125;]&#125;; groups use all/any. Operators: eq, ne, gt, gte, lt, lte, in, nin, contains, ncontains, startsWith, endsWith, like, ilike, nlike, nilike, isEmpty, isNotEmpty, isNull, isNotNull (JSON, or @path / @- to read a file or stdin). |
 | `--data <json\|@file>` | Yes | Row-data patch applied to every matching row. (JSON, or @path / @- to read a file or stdin). |
 | `--limit <value>` | No | Maximum matching rows to update. (caps a --filter match only; omit it to act on every match, and note 0 is not accepted). |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -3580,7 +3580,7 @@ sim tables dispatches cancel <tableId> <dispatchId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -3763,7 +3763,7 @@ sim tables imports cancel <importId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -3813,7 +3813,7 @@ sim tables cancel-runs <tableId> [options]
 | `--row-id <value>` | No | Row whose runs should be canceled for row scope. |
 | `--filter <json\|@file>` | No | Predicate: &#123;"all":[&#123;"field":"status","op":"eq","value":"active"&#125;]&#125;; groups use all/any. Operators: eq, ne, gt, gte, lt, lte, in, nin, contains, ncontains, startsWith, endsWith, like, ilike, nlike, nilike, isEmpty, isNotEmpty, isNull, isNotNull (JSON, or @path / @- to read a file or stdin). |
 | `--exclude-row-ids <value...>` | No | Rows excluded from an all-scope cancellation. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -3881,13 +3881,13 @@ sim tables folders delete <path> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--recursive` | No | Delete the folder and its descendants. |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
 ### sim tables folders list
 
-List Folders
+List folders; returns the whole set, so there is no --limit and no paging
 
 ```bash
 sim tables folders list [options]
@@ -4001,7 +4001,7 @@ sim tables views delete <tableId> <viewId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -4099,7 +4099,7 @@ sim tables delete <tableId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -4155,7 +4155,7 @@ sim tables list [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--scope <value>` | No | Which lifecycle set to list: `active` (default) for live tables, `archived` for tables a delete archived and a table restore can bring back. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too. Accepted values: `active`, `archived`. |
+| `--scope <value>` | No | Which lifecycle set to list: `active` (default) for live tables, `archived` for tables a delete archived and a table restore can bring back. The folder filter resolves against active folders only, so pairing it with `archived` returns an empty page when the containing folder was archived too. Accepted values: `active`, `archived`. |
 | `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
 | `--search <value>` | No | Case-insensitive substring match against the resource name. |
 | `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `createdAt`, `updatedAt`. |
@@ -4455,7 +4455,7 @@ sim workflow-mcp-servers delete <serverId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -4533,7 +4533,7 @@ sim workflow-mcp-servers tools delete <serverId> <workflowId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -4615,7 +4615,7 @@ Also spelled `sim workflow`.
 Activate Workflow Version (personal API key required)
 
 ```bash
-sim workflows activate create <workflowId> <version>
+sim workflows activate create <workflowId> <version> [options]
 ```
 
 **Arguments**
@@ -4626,6 +4626,16 @@ sim workflows activate create <workflowId> <version>
 | --- | --- | --- |
 | `workflowId` | Yes | Unique workflow identifier. |
 | `version` | Yes | Numeric deployment version. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -4655,12 +4665,12 @@ sim workflows operations apply <workflowId> [options]
 | --- | --- | --- |
 | `--dry-run` | No | Validate and lint without persisting. The response is identical to the committed write of the same body, so a caller can inspect `lint` and then re-send the request for real. Nothing is written, no audit entry is recorded, and collaborators are not notified. |
 | `--no-dry-run` | No | Send --dry-run as false. |
-| `--operations <json\|@file>` | Yes | Edits to apply, in a single batch, keyed by operation_type: [&#123;"operation_type":"add","block_id":"my-fn","params":&#123;"type":"function","name":"My Fn","inputs":&#123;"code":"return &#123;ok:true&#125;"&#125;&#125;&#125;,&#123;"operation_type":"edit","block_id":"&lt;uuid&gt;","params":&#123;"name":"Renamed","connections":&#123;"success":"my-fn"&#125;&#125;&#125;,&#123;"operation_type":"delete","block_id":"&lt;uuid&gt;"&#125;]. Also insert_into_subflow and extract_from_subflow, whose params carry &#123;"subflowId":"&lt;loop-id&gt;"&#125; (JSON, or @path / @- to read a file or stdin). |
+| `--operations <json\|@file>` | Yes | Edits to apply, in a single batch, keyed by operation_type: [&#123;"operation_type":"add","block_id":"my-fn","params":&#123;"type":"function","name":"My Fn","inputs":&#123;"code":"return &#123;ok:true&#125;"&#125;&#125;&#125;,&#123;"operation_type":"edit","block_id":"&lt;uuid&gt;","params":&#123;"name":"Renamed","connections":&#123;"success":"my-fn"&#125;&#125;&#125;,&#123;"operation_type":"delete","block_id":"&lt;uuid&gt;"&#125;]. Also extract_from_subflow, whose params carry &#123;"subflowId":"&lt;loop-id&gt;"&#125;, and insert_into_subflow, which creates a block and so takes an add’s params plus that subflowId (JSON, or @path / @- to read a file or stdin). |
 | `--atomic` | No | Fail the whole batch when any operation is declined or any block input would be dropped. The default applies what it can and reports the rest in `skipped` and `inputValidationErrors`; `true` writes nothing and answers `409` instead. |
 | `--no-atomic` | No | Send --atomic as false. |
 | `--layout <value>` | No | Whether to reposition blocks the batch touched. `targeted` (default) nudges only the affected subgraph; `none` leaves every position exactly as supplied. Accepted values: `targeted`, `none`. |
 | `--set-block-enabled <json\|@file>` | No | Blocks to enable or disable, applied after --operations: [&#123;"block_id":"&lt;uuid&gt;","enabled":false&#125;]. Disabling a loop or parallel cascades to its unlocked descendants; enabling a block whose container is disabled is declined (JSON, or @path / @- to read a file or stdin). |
-| `-y, --yes` | No | Confirm this destructive operation (required unless --dry-run). |
+| `-y, --yes` | No | Confirm this operation (required unless --dry-run). |
 
 </CommandTable>
 
@@ -4689,7 +4699,7 @@ sim workflows variables update <workflowId> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--operations <json\|@file>` | Yes | Variable changes to apply in order, keyed by operation: [&#123;"operation":"add","name":"my_var","type":"string","value":"hello"&#125;,&#123;"operation":"edit","name":"my_var","value":"updated"&#125;,&#123;"operation":"delete","name":"my_var"&#125;] (JSON, or @path / @- to read a file or stdin). |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -4900,13 +4910,13 @@ sim workflows folders delete <path> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--recursive` | No | Delete the folder and its descendants. |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
 ### sim workflows folders list
 
-List Workflow Folders
+List folders; returns the whole set, so there is no --limit and no paging
 
 ```bash
 sim workflows folders list [options]
@@ -4972,7 +4982,7 @@ sim workflows delete <workflowId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -5000,7 +5010,7 @@ sim workflows chat unpublish <workflowId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -5058,7 +5068,7 @@ sim workflows chat publish <workflowId> [options]
 | `--no-include-thinking` | No | Send --include-thinking as false. |
 | `--include-tool-calls` | No | Allow visitors to receive tool lifecycle events. |
 | `--no-include-tool-calls` | No | Send --include-tool-calls as false. |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -5294,7 +5304,7 @@ sim workflows state replace <workflowId> [options]
 | `--loops <json\|@file>` | No | Ignored on write: loop containers are recomputed from `blocks`. (JSON, or @path / @- to read a file or stdin). |
 | `--parallels <json\|@file>` | No | Ignored on write: parallel containers are recomputed from `blocks`. (JSON, or @path / @- to read a file or stdin). |
 | `--variables <json\|@file>` | No | Replacement variable set. Omit to leave the stored variables untouched. (JSON, or @path / @- to read a file or stdin). |
-| `-y, --yes` | No | Confirm this destructive operation (required unless --dry-run). |
+| `-y, --yes` | No | Confirm this operation (required unless --dry-run). |
 
 </CommandTable>
 
@@ -5483,7 +5493,7 @@ sim workflows revert create <workflowId> <version> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -5512,7 +5522,7 @@ sim workflows rollback <workflowId> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--to-version <value>` | No | Deployment version to reactivate. Omit to select the previous active version. |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -5540,7 +5550,7 @@ sim workflows undeploy <workflowId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
