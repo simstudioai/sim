@@ -97,7 +97,7 @@ Get details of a specific Vercel deployment
 | `id` | string | Deployment ID |
 | `name` | string | Deployment name |
 | `url` | string | Unique deployment URL |
-| `readyState` | string | Deployment ready state: QUEUED, BUILDING, ERROR, INITIALIZING, READY, CANCELED |
+| `readyState` | string | Deployment ready state: BLOCKED, BUILDING, CANCELED, ERROR, INITIALIZING, QUEUED, or READY |
 | `status` | string | Deployment status |
 | `target` | string | Target environment |
 | `createdAt` | number | Creation timestamp in milliseconds |
@@ -156,7 +156,7 @@ Create a new deployment or redeploy an existing one
 | `id` | string | Deployment ID |
 | `name` | string | Deployment name |
 | `url` | string | Unique deployment URL |
-| `readyState` | string | Deployment ready state: QUEUED, BUILDING, ERROR, INITIALIZING, READY, CANCELED |
+| `readyState` | string | Deployment ready state: BLOCKED, BUILDING, CANCELED, ERROR, INITIALIZING, QUEUED, or READY |
 | `projectId` | string | Associated project ID |
 | `createdAt` | number | Creation timestamp in milliseconds |
 | `alias` | array | Assigned aliases |

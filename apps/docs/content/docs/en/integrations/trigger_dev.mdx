@@ -185,6 +185,7 @@ Retrieve a Trigger.dev run by its ID, including status, payload, output, attempt
 | `variables` | json | Environment variables in the project environment \(List Env Vars\) |
 | `name` | string | Environment variable or queue name \(env var and queue operations\) |
 | `value` | string | Value of the environment variable \(Get Env Var\) |
+| `isSecret` | boolean | Whether the environment variable is a secret, meaning its value is redacted \(Get Env Var\) |
 | `success` | boolean | Whether the operation succeeded \(env var operations, Complete Waitpoint Token\) |
 | `count` | number | Number of environment variables submitted \(Import Env Vars\) |
 | `queues` | json | Queues in the environment \(List Queues\) |
@@ -262,6 +263,7 @@ Retrieve the result of a Trigger.dev run: whether it succeeded, its output, and 
 | `variables` | json | Environment variables in the project environment \(List Env Vars\) |
 | `name` | string | Environment variable or queue name \(env var and queue operations\) |
 | `value` | string | Value of the environment variable \(Get Env Var\) |
+| `isSecret` | boolean | Whether the environment variable is a secret, meaning its value is redacted \(Get Env Var\) |
 | `success` | boolean | Whether the operation succeeded \(env var operations, Complete Waitpoint Token\) |
 | `count` | number | Number of environment variables submitted \(Import Env Vars\) |
 | `queues` | json | Queues in the environment \(List Queues\) |
@@ -456,6 +458,7 @@ Reschedule a delayed Trigger.dev run with a new delay. Only valid while the run 
 | `variables` | json | Environment variables in the project environment \(List Env Vars\) |
 | `name` | string | Environment variable or queue name \(env var and queue operations\) |
 | `value` | string | Value of the environment variable \(Get Env Var\) |
+| `isSecret` | boolean | Whether the environment variable is a secret, meaning its value is redacted \(Get Env Var\) |
 | `success` | boolean | Whether the operation succeeded \(env var operations, Complete Waitpoint Token\) |
 | `count` | number | Number of environment variables submitted \(Import Env Vars\) |
 | `queues` | json | Queues in the environment \(List Queues\) |
@@ -573,6 +576,7 @@ Create an imperative cron schedule that triggers a Trigger.dev task on a recurri
 | `variables` | json | Environment variables in the project environment \(List Env Vars\) |
 | `name` | string | Environment variable or queue name \(env var and queue operations\) |
 | `value` | string | Value of the environment variable \(Get Env Var\) |
+| `isSecret` | boolean | Whether the environment variable is a secret, meaning its value is redacted \(Get Env Var\) |
 | `success` | boolean | Whether the operation succeeded \(env var operations, Complete Waitpoint Token\) |
 | `count` | number | Number of environment variables submitted \(Import Env Vars\) |
 | `queues` | json | Queues in the environment \(List Queues\) |
@@ -650,6 +654,7 @@ Retrieve a Trigger.dev schedule by its ID.
 | `variables` | json | Environment variables in the project environment \(List Env Vars\) |
 | `name` | string | Environment variable or queue name \(env var and queue operations\) |
 | `value` | string | Value of the environment variable \(Get Env Var\) |
+| `isSecret` | boolean | Whether the environment variable is a secret, meaning its value is redacted \(Get Env Var\) |
 | `success` | boolean | Whether the operation succeeded \(env var operations, Complete Waitpoint Token\) |
 | `count` | number | Number of environment variables submitted \(Import Env Vars\) |
 | `queues` | json | Queues in the environment \(List Queues\) |
@@ -767,6 +772,7 @@ Update an imperative Trigger.dev schedule by its ID, replacing its task, cron ex
 | `variables` | json | Environment variables in the project environment \(List Env Vars\) |
 | `name` | string | Environment variable or queue name \(env var and queue operations\) |
 | `value` | string | Value of the environment variable \(Get Env Var\) |
+| `isSecret` | boolean | Whether the environment variable is a secret, meaning its value is redacted \(Get Env Var\) |
 | `success` | boolean | Whether the operation succeeded \(env var operations, Complete Waitpoint Token\) |
 | `count` | number | Number of environment variables submitted \(Import Env Vars\) |
 | `queues` | json | Queues in the environment \(List Queues\) |
@@ -862,6 +868,7 @@ Activate an imperative Trigger.dev schedule so it resumes triggering its task.
 | `variables` | json | Environment variables in the project environment \(List Env Vars\) |
 | `name` | string | Environment variable or queue name \(env var and queue operations\) |
 | `value` | string | Value of the environment variable \(Get Env Var\) |
+| `isSecret` | boolean | Whether the environment variable is a secret, meaning its value is redacted \(Get Env Var\) |
 | `success` | boolean | Whether the operation succeeded \(env var operations, Complete Waitpoint Token\) |
 | `count` | number | Number of environment variables submitted \(Import Env Vars\) |
 | `queues` | json | Queues in the environment \(List Queues\) |
@@ -939,6 +946,7 @@ Deactivate an imperative Trigger.dev schedule so it stops triggering its task.
 | `variables` | json | Environment variables in the project environment \(List Env Vars\) |
 | `name` | string | Environment variable or queue name \(env var and queue operations\) |
 | `value` | string | Value of the environment variable \(Get Env Var\) |
+| `isSecret` | boolean | Whether the environment variable is a secret, meaning its value is redacted \(Get Env Var\) |
 | `success` | boolean | Whether the operation succeeded \(env var operations, Complete Waitpoint Token\) |
 | `count` | number | Number of environment variables submitted \(Import Env Vars\) |
 | `queues` | json | Queues in the environment \(List Queues\) |
@@ -961,7 +969,7 @@ Deactivate an imperative Trigger.dev schedule so it stops triggering its task.
 
 ### Trigger.dev List Env Vars
 
-List the environment variables of a Trigger.dev project environment. Values are returned in plaintext and will appear in workflow outputs and run history — scope this operation carefully.
+List the environment variables of a Trigger.dev project environment. Secret variables are returned redacted; non-secret values are returned in plaintext and will appear in workflow outputs and run history — scope this operation carefully.
 
 #### Input
 
@@ -977,7 +985,8 @@ List the environment variables of a Trigger.dev project environment. Values are 
 | --------- | ---- | ----------- |
 | `variables` | array | Environment variables in the project environment |
 |   ↳ `name` | string | Name of the environment variable |
-|   ↳ `value` | string | Plaintext value of the environment variable; appears in workflow outputs and run history |
+|   ↳ `value` | string | Value of the environment variable. Secret variables come back redacted, not as the real value; non-secret values are plaintext and appear in workflow outputs and run history |
+|   ↳ `isSecret` | boolean | Whether the variable is a secret. A secret variable's value comes back redacted, so branch on this before treating the value as real |
 
 ### Trigger.dev Create Env Var
 
@@ -1002,7 +1011,7 @@ Create an environment variable in a Trigger.dev project environment.
 
 ### Trigger.dev Get Env Var
 
-Retrieve an environment variable from a Trigger.dev project environment. The value is returned in plaintext and will appear in workflow outputs and run history.
+Retrieve an environment variable from a Trigger.dev project environment. A secret variable is returned redacted; a non-secret value is returned in plaintext and will appear in workflow outputs and run history.
 
 #### Input
 
@@ -1018,7 +1027,8 @@ Retrieve an environment variable from a Trigger.dev project environment. The val
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `name` | string | Name of the environment variable |
-| `value` | string | Plaintext value of the environment variable; appears in workflow outputs and run history |
+| `value` | string | Value of the environment variable. Secret variables come back redacted, not as the real value; non-secret values are plaintext and appear in workflow outputs and run history |
+| `isSecret` | boolean | Whether the variable is a secret. A secret variable's value comes back redacted, so branch on this before treating the value as real |
 
 ### Trigger.dev Update Env Var
 
@@ -1140,6 +1150,7 @@ Retrieve a Trigger.dev queue by ID, task identifier, or custom queue name, inclu
 | `variables` | json | Environment variables in the project environment \(List Env Vars\) |
 | `name` | string | Environment variable or queue name \(env var and queue operations\) |
 | `value` | string | Value of the environment variable \(Get Env Var\) |
+| `isSecret` | boolean | Whether the environment variable is a secret, meaning its value is redacted \(Get Env Var\) |
 | `success` | boolean | Whether the operation succeeded \(env var operations, Complete Waitpoint Token\) |
 | `count` | number | Number of environment variables submitted \(Import Env Vars\) |
 | `queues` | json | Queues in the environment \(List Queues\) |
@@ -1252,6 +1263,7 @@ Pause a Trigger.dev queue so no new runs start. Runs that are currently executin
 | `variables` | json | Environment variables in the project environment \(List Env Vars\) |
 | `name` | string | Environment variable or queue name \(env var and queue operations\) |
 | `value` | string | Value of the environment variable \(Get Env Var\) |
+| `isSecret` | boolean | Whether the environment variable is a secret, meaning its value is redacted \(Get Env Var\) |
 | `success` | boolean | Whether the operation succeeded \(env var operations, Complete Waitpoint Token\) |
 | `count` | number | Number of environment variables submitted \(Import Env Vars\) |
 | `queues` | json | Queues in the environment \(List Queues\) |
@@ -1330,6 +1342,7 @@ Resume a paused Trigger.dev queue so new runs can start again.
 | `variables` | json | Environment variables in the project environment \(List Env Vars\) |
 | `name` | string | Environment variable or queue name \(env var and queue operations\) |
 | `value` | string | Value of the environment variable \(Get Env Var\) |
+| `isSecret` | boolean | Whether the environment variable is a secret, meaning its value is redacted \(Get Env Var\) |
 | `success` | boolean | Whether the operation succeeded \(env var operations, Complete Waitpoint Token\) |
 | `count` | number | Number of environment variables submitted \(Import Env Vars\) |
 | `queues` | json | Queues in the environment \(List Queues\) |
@@ -1409,6 +1422,7 @@ Override the concurrency limit of a Trigger.dev queue with a new value.
 | `variables` | json | Environment variables in the project environment \(List Env Vars\) |
 | `name` | string | Environment variable or queue name \(env var and queue operations\) |
 | `value` | string | Value of the environment variable \(Get Env Var\) |
+| `isSecret` | boolean | Whether the environment variable is a secret, meaning its value is redacted \(Get Env Var\) |
 | `success` | boolean | Whether the operation succeeded \(env var operations, Complete Waitpoint Token\) |
 | `count` | number | Number of environment variables submitted \(Import Env Vars\) |
 | `queues` | json | Queues in the environment \(List Queues\) |
@@ -1487,6 +1501,7 @@ Reset the concurrency limit of a Trigger.dev queue back to its base value, remov
 | `variables` | json | Environment variables in the project environment \(List Env Vars\) |
 | `name` | string | Environment variable or queue name \(env var and queue operations\) |
 | `value` | string | Value of the environment variable \(Get Env Var\) |
+| `isSecret` | boolean | Whether the environment variable is a secret, meaning its value is redacted \(Get Env Var\) |
 | `success` | boolean | Whether the operation succeeded \(env var operations, Complete Waitpoint Token\) |
 | `count` | number | Number of environment variables submitted \(Import Env Vars\) |
 | `queues` | json | Queues in the environment \(List Queues\) |
@@ -1588,6 +1603,7 @@ Retrieve a Trigger.dev deployment by its ID, including its status, version, and 
 | `variables` | json | Environment variables in the project environment \(List Env Vars\) |
 | `name` | string | Environment variable or queue name \(env var and queue operations\) |
 | `value` | string | Value of the environment variable \(Get Env Var\) |
+| `isSecret` | boolean | Whether the environment variable is a secret, meaning its value is redacted \(Get Env Var\) |
 | `success` | boolean | Whether the operation succeeded \(env var operations, Complete Waitpoint Token\) |
 | `count` | number | Number of environment variables submitted \(Import Env Vars\) |
 | `queues` | json | Queues in the environment \(List Queues\) |
@@ -1664,6 +1680,7 @@ Retrieve the latest Trigger.dev deployment in the environment of the API key.
 | `variables` | json | Environment variables in the project environment \(List Env Vars\) |
 | `name` | string | Environment variable or queue name \(env var and queue operations\) |
 | `value` | string | Value of the environment variable \(Get Env Var\) |
+| `isSecret` | boolean | Whether the environment variable is a secret, meaning its value is redacted \(Get Env Var\) |
 | `success` | boolean | Whether the operation succeeded \(env var operations, Complete Waitpoint Token\) |
 | `count` | number | Number of environment variables submitted \(Import Env Vars\) |
 | `queues` | json | Queues in the environment \(List Queues\) |
@@ -1849,6 +1866,7 @@ Retrieve a Trigger.dev waitpoint token by its ID, including its status, timeout,
 | `variables` | json | Environment variables in the project environment \(List Env Vars\) |
 | `name` | string | Environment variable or queue name \(env var and queue operations\) |
 | `value` | string | Value of the environment variable \(Get Env Var\) |
+| `isSecret` | boolean | Whether the environment variable is a secret, meaning its value is redacted \(Get Env Var\) |
 | `success` | boolean | Whether the operation succeeded \(env var operations, Complete Waitpoint Token\) |
 | `count` | number | Number of environment variables submitted \(Import Env Vars\) |
 | `queues` | json | Queues in the environment \(List Queues\) |

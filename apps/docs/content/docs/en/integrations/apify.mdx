@@ -55,8 +55,7 @@ Run an APIFY actor synchronously and get results (max 5 minutes)
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Whether the actor run succeeded |
-| `status` | string | Run status \(SUCCEEDED, FAILED, etc.\) |
+| `success` | boolean | Whether the request returned dataset items \(not the run's own terminal status\) |
 | `items` | array | Dataset items produced by the run |
 
 ### APIFY Run Actor (Async)
@@ -106,8 +105,7 @@ Run a saved APIFY actor task synchronously and get dataset items (max 5 minutes)
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Whether the task run succeeded |
-| `status` | string | Run status \(SUCCEEDED, FAILED, etc.\) |
+| `success` | boolean | Whether the request returned dataset items \(not the run's own terminal status\) |
 | `items` | array | Dataset items produced by the run |
 
 ### APIFY Get Dataset Items

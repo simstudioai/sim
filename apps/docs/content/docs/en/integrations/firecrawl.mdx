@@ -162,7 +162,7 @@ Search for information on the web using Firecrawl
 | `categories` | array | No | Restrict web results to these categories: "github", "research", "pdf", or "developer". "developer" cannot be combined with any other category. |
 | `tbs` | string | No | Time-based search filter \(e.g. "qdr:d" for the past day, "qdr:w" for the past week\) |
 | `location` | string | No | Location to search from \(e.g. "Germany", "San Francisco, California"\) |
-| `country` | string | No | ISO country code for geo-targeting results \(e.g. "US", "DE", "JP"\). Firecrawl defaults to "US" when this is unset, and recommends setting `location` alongside it for best results. |
+| `country` | string | No | ISO country code for geo-targeting results \(e.g. "US", "DE", "JP"\). Firecrawl\'s published OpenAPI declares a bare `default: US`, but its server-side request transform applies that default only when `location` is also unset \(`x.country !== undefined ? x.country : x.location ? undefined : "us"` in the v2 search request schema\). The block ships both a Location and a Country field, so the common configuration — Location filled, Country blank — sends no country at all. Set both for best results. |
 | `firecrawlTimeout` | number | No | How long Firecrawl may spend on the search, in milliseconds \(Firecrawl default: 60000\). Sent as `timeout` in the request body; it does not bound Sim's own transport deadline. |
 | `ignoreInvalidURLs` | boolean | No | Skip results whose URLs cannot be scraped instead of failing the search |
 | `apiKey` | string | Yes | Firecrawl API key |

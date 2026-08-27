@@ -16,8 +16,8 @@ vi.mock('@/tools/metadata-outputs', () => ({
   getToolOutputsMetadata: () => undefined,
 }))
 
-import { VercelBlock } from '@/blocks/blocks/vercel'
 import { getBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
+import { VercelBlock } from '@/blocks/blocks/vercel'
 
 blockHolder.config = VercelBlock as unknown as BlockConfig
 

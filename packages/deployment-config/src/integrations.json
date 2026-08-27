@@ -10046,7 +10046,7 @@
         },
         {
           "name": "Delete Matter",
-          "description": "Permanently delete a matter (must be closed first)"
+          "description": "Soft-delete a matter (must be closed first). The matter moves to the DELETED state and can be restored with Undelete Matter"
         },
         {
           "name": "Undelete Matter",
@@ -10054,7 +10054,7 @@
         },
         {
           "name": "Add Matter Collaborator",
-          "description": "Add a collaborator (or transfer ownership) to a matter"
+          "description": "Add a collaborator to a matter"
         },
         {
           "name": "Remove Matter Collaborator",
@@ -23698,7 +23698,7 @@
         },
         {
           "name": "List Env Vars",
-          "description": "List the environment variables of a Trigger.dev project environment. Values are returned in plaintext and will appear in workflow outputs and run history — scope this operation carefully."
+          "description": "List the environment variables of a Trigger.dev project environment. Secret variables are returned redacted; non-secret values are returned in plaintext and will appear in workflow outputs and run history — scope this operation carefully."
         },
         {
           "name": "Create Env Var",
@@ -23706,7 +23706,7 @@
         },
         {
           "name": "Get Env Var",
-          "description": "Retrieve an environment variable from a Trigger.dev project environment. The value is returned in plaintext and will appear in workflow outputs and run history."
+          "description": "Retrieve an environment variable from a Trigger.dev project environment. A secret variable is returned redacted; a non-secret value is returned in plaintext and will appear in workflow outputs and run history."
         },
         {
           "name": "Update Env Var",

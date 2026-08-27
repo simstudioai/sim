@@ -41,9 +41,9 @@ Retrieve accounts from Salesforce CRM
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `limit` | string | No | Maximum number of results \(default: 100, max: 2000\) |
-| `fields` | string | No | Comma-separated field API names \(e.g., "Id,Name,Industry,Phone"\) |
-| `orderBy` | string | No | Field and direction for sorting \(e.g., "Name ASC" or "CreatedDate DESC"\) |
+| `limit` | string | No | Maximum number of results \(default: 100\) |
+| `fields` | string | No | Comma-separated field API names \(e.g., "Id,Name,Industry,Phone"\) Also accepts FIELDS\(STANDARD\|CUSTOM\|ALL\) and toLabel\(\)/FORMAT\(\)/convertCurrency\(\) around a single field. |
+| `orderBy` | string | No | Field and direction for sorting \(e.g., "Name ASC" or "CreatedDate DESC"\) Bare field API names only, optionally with ASC/DESC and NULLS FIRST/LAST; SOQL functions such as DISTANCE\(\) are not accepted here — use the Salesforce Query tool for those. |
 
 #### Output
 
@@ -153,9 +153,9 @@ Get contact(s) from Salesforce - single contact if ID provided, or list if not
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `contactId` | string | No | Salesforce Contact ID \(18-character string starting with 003\) to get a single contact |
-| `limit` | string | No | Maximum number of results \(default: 100, max: 2000\). Only for list query. |
-| `fields` | string | No | Comma-separated field API names \(e.g., "Id,FirstName,LastName,Email,Phone"\) |
-| `orderBy` | string | No | Field and direction for sorting \(e.g., "LastName ASC"\). Only for list query. |
+| `limit` | string | No | Maximum number of results \(default: 100\). Only for list query. |
+| `fields` | string | No | Comma-separated field API names \(e.g., "Id,FirstName,LastName,Email,Phone"\) Also accepts FIELDS\(STANDARD\|CUSTOM\|ALL\) and toLabel\(\)/FORMAT\(\)/convertCurrency\(\) around a single field. |
+| `orderBy` | string | No | Field and direction for sorting \(e.g., "LastName ASC"\). Only for list query. Bare field API names only, optionally with ASC/DESC and NULLS FIRST/LAST; SOQL functions such as DISTANCE\(\) are not accepted here — use the Salesforce Query tool for those. |
 
 #### Output
 
@@ -267,9 +267,9 @@ Retrieve lead(s) from Salesforce CRM
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `leadId` | string | No | Salesforce Lead ID \(18-character string starting with 00Q\) to get a single lead |
-| `limit` | string | No | Maximum number of results to return \(default: 100, max: 2000\) |
-| `fields` | string | No | Comma-separated list of field API names to return |
-| `orderBy` | string | No | Field and direction for sorting \(e.g., LastName ASC\) |
+| `limit` | string | No | Maximum number of results to return \(default: 100\) |
+| `fields` | string | No | Comma-separated list of field API names to return Also accepts FIELDS\(STANDARD\|CUSTOM\|ALL\) and toLabel\(\)/FORMAT\(\)/convertCurrency\(\) around a single field. |
+| `orderBy` | string | No | Field and direction for sorting \(e.g., LastName ASC\) Bare field API names only, optionally with ASC/DESC and NULLS FIRST/LAST; SOQL functions such as DISTANCE\(\) are not accepted here — use the Salesforce Query tool for those. |
 
 #### Output
 
@@ -373,9 +373,9 @@ Get opportunity(ies) from Salesforce
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `opportunityId` | string | No | Salesforce Opportunity ID \(18-character string starting with 006\) to get a single opportunity |
-| `limit` | string | No | Maximum number of results to return \(default: 100, max: 2000\) |
-| `fields` | string | No | Comma-separated list of field API names to return |
-| `orderBy` | string | No | Field and direction for sorting \(e.g., CloseDate DESC\) |
+| `limit` | string | No | Maximum number of results to return \(default: 100\) |
+| `fields` | string | No | Comma-separated list of field API names to return Also accepts FIELDS\(STANDARD\|CUSTOM\|ALL\) and toLabel\(\)/FORMAT\(\)/convertCurrency\(\) around a single field. |
+| `orderBy` | string | No | Field and direction for sorting \(e.g., CloseDate DESC\) Bare field API names only, optionally with ASC/DESC and NULLS FIRST/LAST; SOQL functions such as DISTANCE\(\) are not accepted here — use the Salesforce Query tool for those. |
 
 #### Output
 
@@ -474,9 +474,9 @@ Get case(s) from Salesforce
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `caseId` | string | No | Salesforce Case ID \(18-character string starting with 500\) to get a single case |
-| `limit` | string | No | Maximum number of results to return \(default: 100, max: 2000\) |
-| `fields` | string | No | Comma-separated list of field API names to return |
-| `orderBy` | string | No | Field and direction for sorting \(e.g., CreatedDate DESC\) |
+| `limit` | string | No | Maximum number of results to return \(default: 100\) |
+| `fields` | string | No | Comma-separated list of field API names to return Also accepts FIELDS\(STANDARD\|CUSTOM\|ALL\) and toLabel\(\)/FORMAT\(\)/convertCurrency\(\) around a single field. |
+| `orderBy` | string | No | Field and direction for sorting \(e.g., CreatedDate DESC\) Bare field API names only, optionally with ASC/DESC and NULLS FIRST/LAST; SOQL functions such as DISTANCE\(\) are not accepted here — use the Salesforce Query tool for those. |
 
 #### Output
 
@@ -575,9 +575,9 @@ Get task(s) from Salesforce
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `taskId` | string | No | Salesforce Task ID \(18-character string starting with 00T\) to get a single task |
-| `limit` | string | No | Maximum number of results to return \(default: 100, max: 2000\) |
-| `fields` | string | No | Comma-separated list of field API names to return |
-| `orderBy` | string | No | Field and direction for sorting \(e.g., ActivityDate DESC\) |
+| `limit` | string | No | Maximum number of results to return \(default: 100\) |
+| `fields` | string | No | Comma-separated list of field API names to return Also accepts FIELDS\(STANDARD\|CUSTOM\|ALL\) and toLabel\(\)/FORMAT\(\)/convertCurrency\(\) around a single field. |
+| `orderBy` | string | No | Field and direction for sorting \(e.g., ActivityDate DESC\) Bare field API names only, optionally with ASC/DESC and NULLS FIRST/LAST; SOQL functions such as DISTANCE\(\) are not accepted here — use the Salesforce Query tool for those. |
 
 #### Output
 

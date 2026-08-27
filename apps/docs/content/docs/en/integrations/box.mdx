@@ -319,7 +319,7 @@ Create a new Box Sign request to send documents for e-signature
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `id` | string | Sign request ID |
-| `status` | string | Request status \(converting, created, sent, viewed, signed, cancelled, declined, expired, error_converting, error_sending, finalizing, error_finalizing\) |
+| `status` | string | Request status \(converting, created, sent, viewed, signed, cancelled, declined, error, error_converting, error_sending, expired, finalizing, error_finalizing\) |
 | `name` | string | Sign request name |
 | `shortId` | string | Human-readable short ID |
 | `signers` | array | List of signers |
@@ -347,7 +347,7 @@ Get the details and status of a Box Sign request
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `id` | string | Sign request ID |
-| `status` | string | Request status \(converting, created, sent, viewed, signed, cancelled, declined, expired, error_converting, error_sending, finalizing, error_finalizing\) |
+| `status` | string | Request status \(converting, created, sent, viewed, signed, cancelled, declined, error, error_converting, error_sending, expired, finalizing, error_finalizing\) |
 | `name` | string | Sign request name |
 | `shortId` | string | Human-readable short ID |
 | `signers` | array | List of signers |
@@ -377,7 +377,7 @@ List all Box Sign requests
 | --------- | ---- | ----------- |
 | `signRequests` | array | List of sign requests |
 |   ↳ `id` | string | Sign request ID |
-|   ↳ `status` | string | Request status \(converting, created, sent, viewed, signed, cancelled, declined, expired, error_converting, error_sending, finalizing, error_finalizing\) |
+|   ↳ `status` | string | Request status \(converting, created, sent, viewed, signed, cancelled, declined, error, error_converting, error_sending, expired, finalizing, error_finalizing\) |
 |   ↳ `name` | string | Sign request name |
 |   ↳ `shortId` | string | Human-readable short ID |
 |   ↳ `signers` | array | List of signers |
@@ -407,7 +407,7 @@ Cancel a pending Box Sign request
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `id` | string | Sign request ID |
-| `status` | string | Request status \(converting, created, sent, viewed, signed, cancelled, declined, expired, error_converting, error_sending, finalizing, error_finalizing\) |
+| `status` | string | Request status \(converting, created, sent, viewed, signed, cancelled, declined, error, error_converting, error_sending, expired, finalizing, error_finalizing\) |
 | `name` | string | Sign request name |
 | `shortId` | string | Human-readable short ID |
 | `signers` | array | List of signers |

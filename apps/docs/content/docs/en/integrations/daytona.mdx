@@ -172,14 +172,14 @@ Execute a shell command inside a Daytona sandbox
 | `command` | string | Yes | Shell command to execute |
 | `cwd` | string | No | Working directory for the command \(defaults to the sandbox working directory\) |
 | `env` | json | No | Environment variables to set for the command as key-value pairs |
-| `commandTimeout` | number | No | Timeout in seconds \(defaults to 10 seconds\) |
+| `commandTimeout` | number | No | Maximum time in seconds to wait for the command to complete; 0 disables the server-side limit. Daytona documents no default, so leaving this blank uses whatever the toolbox daemon applies. |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `exitCode` | number | Exit code of the command \(-1 if missing from the response\) |
-| `result` | string | Combined stdout/stderr output of the command |
+| `result` | string | Standard output from the command |
 
 ### Daytona Run Code
 
@@ -194,14 +194,14 @@ Run Python, JavaScript, or TypeScript code inside a Daytona sandbox
 | `code` | string | Yes | Code to run |
 | `language` | string | Yes | Language of the code: python, javascript, or typescript |
 | `env` | json | No | Environment variables to set for the run as key-value pairs |
-| `runTimeout` | number | No | Timeout in seconds \(defaults to 10 seconds\) |
+| `runTimeout` | number | No | Maximum time in seconds to wait for the code run to complete; 0 disables the server-side limit. Daytona documents no default, so leaving this blank uses whatever the toolbox daemon applies. |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `exitCode` | number | Exit code of the code run \(-1 if missing from the response\) |
-| `result` | string | Combined stdout/stderr output of the code run |
+| `result` | string | Standard output from the code \(same as artifacts.stdout\) |
 | `artifacts` | json | Artifacts produced by the run \(e.g., matplotlib charts\) |
 
 ### Daytona Upload File

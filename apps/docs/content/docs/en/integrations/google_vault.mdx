@@ -325,7 +325,7 @@ Reopen a closed matter
 
 ### Vault Delete Matter
 
-Permanently delete a matter (must be closed first)
+Soft-delete a matter (must be closed first). The matter moves to the DELETED state and can be restored with Undelete Matter
 
 #### Input
 
@@ -357,15 +357,15 @@ Restore a deleted matter
 
 ### Vault Add Matter Collaborator
 
-Add a collaborator (or transfer ownership) to a matter
+Add a collaborator to a matter
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `matterId` | string | Yes | The matter ID \(e.g., "12345678901234567890"\) |
-| `accountId` | string | Yes | Admin SDK account ID of the user to add as a collaborator/owner |
-| `role` | string | Yes | Permission level to grant: COLLABORATOR or OWNER |
+| `accountId` | string | Yes | Admin SDK account ID of the user to add as a collaborator |
+| `role` | string | Yes | Permission level to grant. The API accepts COLLABORATOR only |
 | `sendEmails` | boolean | No | Send a notification email to the added account |
 | `ccMe` | boolean | No | CC the requestor on the notification email \(only relevant if sendEmails is true\) |
 

@@ -1092,7 +1092,7 @@ List the attributes (schema fields) defined on an Attio object or list
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `target` | string | Yes | Whether the attributes belong to an object or a list: objects or lists |
+| `target` | string | Yes | Which collection the attribute belongs to. Must be exactly 'objects' or 'lists'. |
 | `identifier` | string | Yes | The object or list ID or slug \(e.g. people, companies\) |
 | `limit` | number | No | Maximum number of attributes to return |
 | `offset` | number | No | Number of attributes to skip for pagination |
@@ -1129,7 +1129,7 @@ Get a single attribute (schema field) on an Attio object or list
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `target` | string | Yes | Whether the attribute belongs to an object or a list: objects or lists |
+| `target` | string | Yes | Which collection the attribute belongs to. Must be exactly 'objects' or 'lists'. |
 | `identifier` | string | Yes | The object or list ID or slug \(e.g. people, companies\) |
 | `attribute` | string | Yes | The attribute ID or slug |
 
@@ -1162,7 +1162,7 @@ Create a new attribute (schema field) on an Attio object or list
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `target` | string | Yes | Whether to create the attribute on an object or a list: objects or lists |
+| `target` | string | Yes | Which collection the attribute belongs to. Must be exactly 'objects' or 'lists'. |
 | `identifier` | string | Yes | The object or list ID or slug \(e.g. people, companies\) |
 | `title` | string | Yes | The attribute display title |
 | `apiSlug` | string | Yes | The attribute API slug \(unique, snake_case\) |
@@ -1202,7 +1202,7 @@ Update an attribute (schema field) on an Attio object or list
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `target` | string | Yes | Whether the attribute belongs to an object or a list: objects or lists |
+| `target` | string | Yes | Which collection the attribute belongs to. Must be exactly 'objects' or 'lists'. |
 | `identifier` | string | Yes | The object or list ID or slug \(e.g. people, companies\) |
 | `attribute` | string | Yes | The attribute ID or slug to update |
 | `title` | string | No | New attribute display title |

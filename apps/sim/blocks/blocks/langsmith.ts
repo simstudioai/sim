@@ -475,7 +475,7 @@ Common patch fields: outputs, end_time, status, error`,
     feedback_session_id: {
       type: 'string',
       description:
-        "UUID of the tracing project (session) the feedback belongs to. LangSmith documents it as required and its SDK warns (or errors, on SmithDB-only deployments) without it. Left optional here so blocks saved against deployments that still resolve the run server-side keep working.",
+        'UUID of the tracing project (session) the feedback belongs to. LangSmith documents it as required and its SDK warns (or errors, on SmithDB-only deployments) without it. Left optional here so blocks saved against deployments that still resolve the run server-side keep working.',
     },
     session_name: { type: 'string', description: 'Session name' },
     status: { type: 'string', description: 'Run status' },
