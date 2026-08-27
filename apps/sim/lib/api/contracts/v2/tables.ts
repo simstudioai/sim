@@ -436,7 +436,7 @@ export const v2ListTablesQuerySchema = z
     scope: v2TableScopeSchema
       .default('active')
       .describe(
-        'Which lifecycle set to list: `active` (default) for live tables, `archived` for tables a delete archived and a table restore can bring back. The folder filter resolves against active folders only, so pairing it with `archived` returns an empty page when the containing folder was archived too.'
+        'Which lifecycle set to list: `active` (default) for live tables, `archived` for tables archived by a delete, which a restore can bring back. The folder filter resolves against active folders only, so pairing it with `archived` returns an empty page when the containing folder was archived too.'
       ),
     folderPath: v2FolderPathInputSchema
       .optional()

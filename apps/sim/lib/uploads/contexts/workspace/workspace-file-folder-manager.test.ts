@@ -118,17 +118,33 @@ describe('workspace file folder paths', () => {
 
   it('rejects interior control characters that would render differently than they are stored', () => {
     expect(() => normalizeWorkspaceFileItemName('a\tb.txt', 'File')).toThrow(
-      'File name cannot contain control characters'
+      'File name cannot contain control or line-separator characters'
     )
     expect(() => normalizeWorkspaceFileItemName('a\u0000b', 'Folder')).toThrow(
-      'Folder name cannot contain control characters'
+      'Folder name cannot contain control or line-separator characters'
     )
     expect(() => normalizeWorkspaceFileItemName('a\u007fb', 'File')).toThrow(
-      'File name cannot contain control characters'
+      'File name cannot contain control or line-separator characters'
     )
     expect(normalizeWorkspaceFileItemName('\treport.txt\n', 'File')).toBe('report.txt')
     expect(normalizeWorkspaceFileItemName('Q3 report — final.txt', 'File')).toBe(
       'Q3 report — final.txt'
+    )
+  })
+
+  /**
+   * The two Unicode line separators and the C1 controls sanitize out of the
+   * storage key exactly like a C0 control does, and a terminal renders
+   * U+2028/U+2029 as a line break, so a name carrying one is displayed split
+   * across two rows while the key holds a single `_`.
+   */
+  it.each([
+    ['a line separator', 'a\u2028b.txt'],
+    ['a paragraph separator', 'a\u2029b.txt'],
+    ['a C1 control', 'a\u0085b.txt'],
+  ])('rejects %s the storage key would strip', (_label, name) => {
+    expect(() => normalizeWorkspaceFileItemName(name, 'File')).toThrow(
+      'File name cannot contain control or line-separator characters'
     )
   })
 

@@ -204,12 +204,25 @@ export interface WorkspaceFileFolderRestoreResult {
 }
 
 /**
- * C0 controls and DEL. `trim()` already drops them at the edges, so this catches
- * the interior ones — a tab inside a name renders as a space everywhere the name
- * is displayed and is sanitized out of the storage key, so the stored name and
- * every rendering of it disagree with no way for a caller to tell.
+ * Every C0 and C1 control character, plus U+2028 and U+2029.
+ *
+ * `trim()` already drops these at the edges, so this catches the interior ones —
+ * a tab inside a name renders as a space everywhere the name is displayed and is
+ * sanitized out of the storage key, so the stored name and every rendering of it
+ * disagree with no way for a caller to tell.
+ *
+ * The two Unicode line separators are in the set for exactly that reason and are
+ * the reason C1 is here too: `sanitizeFileName` maps everything outside
+ * `[A-Za-z0-9.-]` to `_`, so all of them vanish from the key, while a terminal
+ * listing renders U+2028/U+2029 as a line break and splits one name across two
+ * rows. The CLI's config writer forbids the same set (`FORBIDDEN_IN_VALUE` in
+ * `packages/sim-cli/src/config/ini.ts`) for a different reason — those
+ * characters end a line in a format with no escape syntax — so the two stay
+ * separate constants rather than one shared one: a CLI serializer's
+ * structure-injection rule and this layer's display/storage agreement rule would
+ * be free to diverge, and neither package should own the other's set.
  */
-const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f]/
+const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/
 
 export function normalizeWorkspaceFileItemName(name: string, itemLabel: 'File' | 'Folder'): string {
   const trimmed = name.trim()
@@ -220,7 +233,7 @@ export function normalizeWorkspaceFileItemName(name: string, itemLabel: 'File' |
     throw new Error(`${itemLabel} name cannot contain path separators or dot segments`)
   }
   if (CONTROL_CHARACTERS.test(trimmed)) {
-    throw new Error(`${itemLabel} name cannot contain control characters`)
+    throw new Error(`${itemLabel} name cannot contain control or line-separator characters`)
   }
   return trimmed
 }

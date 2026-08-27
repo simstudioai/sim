@@ -344,7 +344,7 @@ export const v2ListFilesQuerySchema = z
     scope: v2FileScopeSchema
       .default('active')
       .describe(
-        'Which lifecycle set to list: `active` (default) for live files, `archived` for files a delete soft-deleted. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too.'
+        'Which lifecycle set to list: `active` (default) for live files, `archived` for files soft-deleted by a delete, which a restore can bring back. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too.'
       ),
     search: v2SearchSchema.describe('Case-insensitive substring match against the file name.'),
     ...v2SortFields(v2FileSortFields, { sortBy: 'uploadedAt', sortOrder: 'asc' }),
@@ -396,7 +396,7 @@ export const v2GetFileMetadataQuerySchema = z
     scope: v2FileScopeSchema
       .default('active')
       .describe(
-        'Which lifecycle set to read from: `active` (default) resolves live files only and returns `404` for a file a delete soft-deleted; `archived` also resolves soft-deleted files, so metadata stays readable before the file is restored. Authorization is identical for both.'
+        'Which lifecycle set to read from: `active` (default) resolves live files only and returns `404` for a file soft-deleted by a delete; `archived` also resolves soft-deleted files, so metadata stays readable before the file is restored. Authorization is identical for both.'
       ),
   })
   .strict()
@@ -510,7 +510,7 @@ export const v2ListFileFoldersQuerySchema = v2ListFoldersQuerySchema.extend({
   scope: v2FileScopeSchema
     .default('active')
     .describe(
-      'Which lifecycle set to list: `active` (default) returns live folders only; `archived` returns folders a recursive delete soft-deleted, which is how a caller finds a path to hand to the folder restore. Authorization is identical for both.'
+      'Which lifecycle set to list: `active` (default) returns live folders only; `archived` returns folders soft-deleted by a recursive delete, which is how a caller finds a path to hand to the folder restore. Authorization is identical for both.'
     ),
 })
 export type V2ListFileFoldersQuery = z.output<typeof v2ListFileFoldersQuerySchema>

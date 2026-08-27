@@ -10863,7 +10863,7 @@ export const V2_OPERATIONS = {
         values: ['active', 'archived'] as const,
         default: 'active',
         describe:
-          'Which lifecycle set to read from: `active` (default) resolves live files only and returns `404` for a file a delete soft-deleted; `archived` also resolves soft-deleted files, so metadata stays readable before the file is restored. Authorization is identical for both.',
+          'Which lifecycle set to read from: `active` (default) resolves live files only and returns `404` for a file soft-deleted by a delete; `archived` also resolves soft-deleted files, so metadata stays readable before the file is restored. Authorization is identical for both.',
       },
     },
   },
@@ -11733,7 +11733,7 @@ export const V2_OPERATIONS = {
         values: ['active', 'archived'] as const,
         default: 'active',
         describe:
-          'Which lifecycle set to list: `active` (default) returns live folders only; `archived` returns folders a recursive delete soft-deleted, which is how a caller finds a path to hand to the folder restore. Authorization is identical for both.',
+          'Which lifecycle set to list: `active` (default) returns live folders only; `archived` returns folders soft-deleted by a recursive delete, which is how a caller finds a path to hand to the folder restore. Authorization is identical for both.',
       },
     },
   },
@@ -11778,7 +11778,7 @@ export const V2_OPERATIONS = {
         values: ['active', 'archived'] as const,
         default: 'active',
         describe:
-          'Which lifecycle set to list: `active` (default) for live files, `archived` for files a delete soft-deleted. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too.',
+          'Which lifecycle set to list: `active` (default) for live files, `archived` for files soft-deleted by a delete, which a restore can bring back. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too.',
       },
       search: {
         kind: 'string',
@@ -11827,7 +11827,7 @@ export const V2_OPERATIONS = {
         values: ['active', 'archived'] as const,
         default: 'active',
         describe:
-          'Which lifecycle set to list: `active` (default) for live knowledge bases, `archived` for knowledge bases a delete archived and the restore operation can bring back. The folder filter resolves against active folders only, so pairing it with `archived` returns an empty page when the containing folder was archived too.',
+          'Which lifecycle set to list: `active` (default) for live knowledge bases, `archived` for knowledge bases archived by a delete, which a restore can bring back. The folder filter resolves against active folders only, so pairing it with `archived` returns an empty page when the containing folder was archived too.',
       },
       folderPath: {
         kind: 'string',
@@ -12517,7 +12517,7 @@ export const V2_OPERATIONS = {
         values: ['active', 'archived'] as const,
         default: 'active',
         describe:
-          'Which lifecycle set to list: `active` (default) for live tables, `archived` for tables a delete archived and a table restore can bring back. The folder filter resolves against active folders only, so pairing it with `archived` returns an empty page when the containing folder was archived too.',
+          'Which lifecycle set to list: `active` (default) for live tables, `archived` for tables archived by a delete, which a restore can bring back. The folder filter resolves against active folders only, so pairing it with `archived` returns an empty page when the containing folder was archived too.',
       },
       folderPath: {
         kind: 'string',
@@ -12772,7 +12772,7 @@ export const V2_OPERATIONS = {
         values: ['active', 'archived'] as const,
         default: 'active',
         describe:
-          'Which lifecycle set to list: `active` (default) for live workflows, `archived` for workflows a `DELETE` archived. The folder filter resolves against active folders only, so pairing it with `archived` returns an empty page when the containing folder was archived too.',
+          'Which lifecycle set to list: `active` (default) for live workflows, `archived` for workflows archived by a delete, which a restore can bring back. The folder filter resolves against active folders only, so pairing it with `archived` returns an empty page when the containing folder was archived too.',
       },
       folderPath: {
         kind: 'string',

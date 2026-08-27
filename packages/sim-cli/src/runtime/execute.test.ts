@@ -348,6 +348,13 @@ const BULK_UPDATE_CHUNKS: OperationSpec = {
   body: {},
 }
 
+const BULK_UPDATE_DOCUMENTS: OperationSpec = {
+  method: 'PATCH',
+  path: '/api/v2/knowledge/[knowledgeBaseId]/documents',
+  pathParams: ['knowledgeBaseId'],
+  body: {},
+}
+
 const ADD_WORKSPACE_FILES: OperationSpec = {
   method: 'POST',
   path: '/api/v2/knowledge/[knowledgeBaseId]/documents/from-workspace-files',
@@ -421,6 +428,52 @@ describe('a bulk call that touched nothing', () => {
     })
 
     await expect(indexFiles({ file: ['wf_1', 'wf_2'] })).resolves.toBeUndefined()
+  })
+
+  function updateDocuments(flags: Record<string, unknown>) {
+    const host = new Command('leaf')
+    return executeOperation('bulkUpdateKnowledgeDocuments', {}, BULK_UPDATE_DOCUMENTS, [
+      'kb_1',
+      flags,
+      host,
+    ])
+  }
+
+  it('fails the process when no listed document matched', async () => {
+    request.mockResolvedValue({
+      data: {
+        operation: 'disable',
+        processed: 0,
+        errors: ['No matching documents found to disable: d1, d2'],
+      },
+    })
+
+    await expect(updateDocuments({ operation: 'disable', document: ['d1', 'd2'] })).rejects.toThrow(
+      /No matching documents found to disable: d1, d2/
+    )
+  })
+
+  /**
+   * The other selection this endpoint accepts. `--select-all` sends no
+   * identifiers at all, so a check that measures the request by `documentIds`
+   * reads the sweep as "nothing was asked for" and exempts it — and a sweep of
+   * an empty knowledge base is precisely the case a caller needs told about.
+   * `errors` is empty for this selection, so nothing else would report it.
+   */
+  it('fails the process when a select-all sweep matched nothing', async () => {
+    request.mockResolvedValue({ data: { operation: 'disable', processed: 0, errors: [] } })
+
+    await expect(updateDocuments({ operation: 'disable', selectAll: true })).rejects.toThrow(
+      /--select-all matched no documents in this knowledge base\./
+    )
+  })
+
+  it('succeeds on a select-all sweep that matched something', async () => {
+    request.mockResolvedValue({ data: { operation: 'disable', processed: 3, errors: [] } })
+
+    await expect(
+      updateDocuments({ operation: 'disable', selectAll: true })
+    ).resolves.toBeUndefined()
   })
 
   /** Nothing asked for is nothing missed — an empty answer is still an answer. */

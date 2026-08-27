@@ -4,6 +4,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   bulkCreateDocumentsBodySchema,
+  bulkKnowledgeDocumentsContract,
   listKnowledgeDocumentsQuerySchema,
   parseDocumentTagFiltersParam,
   upsertDocumentBodySchema,
@@ -208,5 +209,46 @@ describe('internal document processingOptions', () => {
         keys: ['chunkSize'],
       })
     })
+  })
+})
+
+/**
+ * The route presents the use case's result verbatim, and the internal route
+ * builder runs that object through this schema before it goes on the wire. A
+ * field the schema does not name is therefore not merely untyped — Zod strips
+ * it, and the caller receives a response that silently lacks it.
+ *
+ * Asserted through the contract rather than the bare data schema so the test
+ * covers the object the route actually validates, envelope included.
+ */
+describe('bulkKnowledgeDocumentsContract response', () => {
+  const responseSchema =
+    bulkKnowledgeDocumentsContract.response.mode === 'json'
+      ? bulkKnowledgeDocumentsContract.response.schema
+      : null
+
+  /** The shape `bulkUpdateKnowledgeDocuments` returns, as the route presents it. */
+  const presented = {
+    success: true as const,
+    data: {
+      operation: 'disable',
+      successCount: 0,
+      errors: ['No matching documents found to disable: doc_missing'],
+      updatedDocuments: [],
+      selectAll: false,
+    },
+  }
+
+  it('keeps the per-document diagnostics instead of stripping them', () => {
+    const parsed = responseSchema?.parse(presented) as { data: { errors?: unknown } }
+    expect(parsed.data.errors).toEqual(['No matching documents found to disable: doc_missing'])
+  })
+
+  it('requires the field, because both selections always report one', () => {
+    const withoutErrors = {
+      ...presented,
+      data: { ...presented.data, errors: undefined },
+    }
+    expect(() => responseSchema?.parse(withoutErrors)).toThrow()
   })
 })

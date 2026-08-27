@@ -93,10 +93,10 @@
             "name": "scope",
             "in": "query",
             "required": false,
-            "description": "Which lifecycle set to list: `active` (default) for live files, `archived` for files a delete soft-deleted. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too.",
+            "description": "Which lifecycle set to list: `active` (default) for live files, `archived` for files soft-deleted by a delete, which a restore can bring back. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too.",
             "schema": {
               "default": "active",
-              "description": "Which lifecycle set to list: `active` (default) for live files, `archived` for files a delete soft-deleted. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too.",
+              "description": "Which lifecycle set to list: `active` (default) for live files, `archived` for files soft-deleted by a delete, which a restore can bring back. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too.",
               "type": "string",
               "enum": ["active", "archived"]
             }
@@ -1384,10 +1384,10 @@
             "name": "scope",
             "in": "query",
             "required": false,
-            "description": "Which lifecycle set to read from: `active` (default) resolves live files only and returns `404` for a file a delete soft-deleted; `archived` also resolves soft-deleted files, so metadata stays readable before the file is restored. Authorization is identical for both.",
+            "description": "Which lifecycle set to read from: `active` (default) resolves live files only and returns `404` for a file soft-deleted by a delete; `archived` also resolves soft-deleted files, so metadata stays readable before the file is restored. Authorization is identical for both.",
             "schema": {
               "default": "active",
-              "description": "Which lifecycle set to read from: `active` (default) resolves live files only and returns `404` for a file a delete soft-deleted; `archived` also resolves soft-deleted files, so metadata stays readable before the file is restored. Authorization is identical for both.",
+              "description": "Which lifecycle set to read from: `active` (default) resolves live files only and returns `404` for a file soft-deleted by a delete; `archived` also resolves soft-deleted files, so metadata stays readable before the file is restored. Authorization is identical for both.",
               "type": "string",
               "enum": ["active", "archived"]
             }
@@ -2144,10 +2144,10 @@
             "name": "scope",
             "in": "query",
             "required": false,
-            "description": "Which lifecycle set to list: `active` (default) returns live folders only; `archived` returns folders a recursive delete soft-deleted, which is how a caller finds a path to hand to the folder restore. Authorization is identical for both.",
+            "description": "Which lifecycle set to list: `active` (default) returns live folders only; `archived` returns folders soft-deleted by a recursive delete, which is how a caller finds a path to hand to the folder restore. Authorization is identical for both.",
             "schema": {
               "default": "active",
-              "description": "Which lifecycle set to list: `active` (default) returns live folders only; `archived` returns folders a recursive delete soft-deleted, which is how a caller finds a path to hand to the folder restore. Authorization is identical for both.",
+              "description": "Which lifecycle set to list: `active` (default) returns live folders only; `archived` returns folders soft-deleted by a recursive delete, which is how a caller finds a path to hand to the folder restore. Authorization is identical for both.",
               "type": "string",
               "enum": ["active", "archived"]
             }

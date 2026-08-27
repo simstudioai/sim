@@ -28,4 +28,18 @@ describe('v2 list scope descriptions', () => {
       expect(described).not.toContain('folderPath')
     }
   )
+
+  /**
+   * These are published API descriptions, so the lifecycle clause has to read as
+   * English. It was written as an object relative clause with the pronoun
+   * dropped — "knowledge bases a delete archived and the restore operation can
+   * bring back" — which does not parse on a first read, and the three siblings
+   * each dropped it differently. Pinned as one passive clause so a reword on one
+   * cannot quietly reintroduce the other two spellings.
+   */
+  it.each(SCOPE_DESCRIPTIONS)('describe the archived set readably on %s', (_, described) => {
+    expect(described).toContain('archived by a delete, which a restore can bring back')
+    expect(described).not.toMatch(/\ba delete archived\b/)
+    expect(described).not.toMatch(/`DELETE` archived/)
+  })
 })

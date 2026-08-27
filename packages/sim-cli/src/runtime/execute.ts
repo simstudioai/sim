@@ -134,14 +134,23 @@ export const BULK_OUTCOME_CHECKS: Readonly<Partial<Record<V2OperationName, BulkO
    * selection with `404`, which surfaced as a non-zero exit; it now answers
    * `200` with the same `processed`/`errors` shape chunks always used, so
    * without an entry here that sweep would silently start exiting `0`.
+   *
+   * Unlike the chunk sibling, this body carries two selections: `documentIds`,
+   * or `selectAll` with no identifiers at all. Counting only `documentIds`
+   * therefore reads a `--select-all` sweep as "nothing was asked for" and
+   * exempts it — the one selection that can sweep a whole knowledge base and
+   * find it empty. `errors` is empty for `selectAll` by construction, so that
+   * branch states the miss itself.
    */
   bulkUpdateKnowledgeDocuments: (payload, body) => {
     if (countOf(payload.processed) > 0) return null
+    const selectAll = body?.selectAll === true
     const requested = lengthOf(body?.documentIds)
-    if (requested === 0) return null
+    if (!selectAll && requested === 0) return null
     const reported = (payload.errors as unknown[] | undefined)?.[0]
-    return typeof reported === 'string' && reported
-      ? safeOneLine(reported)
+    if (typeof reported === 'string' && reported) return safeOneLine(reported)
+    return selectAll
+      ? 'Updated nothing: --select-all matched no documents in this knowledge base.'
       : `Updated nothing: none of the ${requested} requested ${requested === 1 ? 'document' : 'documents'} matched.`
   },
   moveTables: (payload) => {

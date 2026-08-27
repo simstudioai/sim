@@ -107,7 +107,7 @@ Also available as `sim files folders ls`.
 | `--search <value>` | No | Case-insensitive substring match against the folder name. |
 | `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `createdAt`, `updatedAt`. |
 | `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
-| `--scope <value>` | No | Which lifecycle set to list: `active` (default) returns live folders only; `archived` returns folders a recursive delete soft-deleted, which is how a caller finds a path to hand to the folder restore. Authorization is identical for both. Accepted values: `active`, `archived`. |
+| `--scope <value>` | No | Which lifecycle set to list: `active` (default) returns live folders only; `archived` returns folders soft-deleted by a recursive delete, which is how a caller finds a path to hand to the folder restore. Authorization is identical for both. Accepted values: `active`, `archived`. |
 
 </CommandTable>
 
@@ -194,7 +194,7 @@ sim files describe <fileId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--scope <value>` | No | Which lifecycle set to read from: `active` (default) resolves live files only and returns `404` for a file a delete soft-deleted; `archived` also resolves soft-deleted files, so metadata stays readable before the file is restored. Authorization is identical for both. Accepted values: `active`, `archived`. |
+| `--scope <value>` | No | Which lifecycle set to read from: `active` (default) resolves live files only and returns `404` for a file soft-deleted by a delete; `archived` also resolves soft-deleted files, so metadata stays readable before the file is restored. Authorization is identical for both. Accepted values: `active`, `archived`. |
 
 </CommandTable>
 
@@ -260,7 +260,7 @@ sim files list [options]
 | `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
 | `--recursive` | No | Whether the folder filter includes files in subfolders. Defaults to true when a search is set, false otherwise, so listing a folder shows that folder while searching one looks through everything in it. Ignored when no folder filter is set, which already spans the workspace. |
 | `--no-recursive` | No | Send --recursive as false. |
-| `--scope <value>` | No | Which lifecycle set to list: `active` (default) for live files, `archived` for files a delete soft-deleted. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too. Accepted values: `active`, `archived`. |
+| `--scope <value>` | No | Which lifecycle set to list: `active` (default) for live files, `archived` for files soft-deleted by a delete, which a restore can bring back. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too. Accepted values: `active`, `archived`. |
 | `--search <value>` | No | Case-insensitive substring match against the file name. |
 | `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `size`, `uploadedAt`, `updatedAt`. |
 | `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |

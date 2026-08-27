@@ -158,7 +158,7 @@ export const v2ListWorkflowsQuerySchema = z
     scope: v2WorkflowScopeSchema
       .default('active')
       .describe(
-        'Which lifecycle set to list: `active` (default) for live workflows, `archived` for workflows a `DELETE` archived. The folder filter resolves against active folders only, so pairing it with `archived` returns an empty page when the containing folder was archived too.'
+        'Which lifecycle set to list: `active` (default) for live workflows, `archived` for workflows archived by a delete, which a restore can bring back. The folder filter resolves against active folders only, so pairing it with `archived` returns an empty page when the containing folder was archived too.'
       ),
     folderPath: v2FolderPathInputSchema
       .optional()

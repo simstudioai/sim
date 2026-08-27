@@ -240,6 +240,15 @@ export const bulkDocumentOperationDataSchema = z.object({
   operation: z.string().optional(),
   successCount: z.number(),
   failedCount: z.number().optional(),
+  /**
+   * Identifiers the selection named that matched no updatable document, and any
+   * other per-document failure. Declared because the response validator strips
+   * what the schema does not name, so omitting it discarded the diagnostics the
+   * operation reports rather than merely leaving them untyped. Always present:
+   * both selections return an array, and a `selectAll` sweep returns an empty
+   * one.
+   */
+  errors: z.array(z.string()),
   updatedDocuments: z
     .array(z.object({ id: z.string(), enabled: z.boolean().optional() }))
     .optional(),
