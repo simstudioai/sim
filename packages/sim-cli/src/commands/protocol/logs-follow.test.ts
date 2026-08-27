@@ -454,7 +454,7 @@ describe('sim logs follow', () => {
   it('rejects a backlog count that is not a whole number of runs', async () => {
     respondWith([])
 
-    await expect(follow('-n', '-1')).rejects.toThrow('--lines must be a non-negative integer')
+    await expect(follow('-n', '-1')).rejects.toThrow('--lines must be a whole number of 0 or more')
     expect(mockRequest).not.toHaveBeenCalled()
   })
 
@@ -516,5 +516,28 @@ describe('sim logs follow', () => {
     for (const [ms] of mockSleep.mock.calls as unknown as Array<[number]>) {
       expect(ms).toBeGreaterThan(0)
     }
+  })
+  /**
+   * Root help states that a `wf_` prefix marks a FILE id and "never names a
+   * workflow", so the example told the reader to pass a file id to
+   * `--workflow`. Workflow ids are bare UUIDs.
+   */
+  it('does not illustrate --workflow with a file-id prefix', () => {
+    const root = new Command('sim').exitOverride()
+    const logs = new Command('logs').exitOverride()
+    root.addCommand(logs)
+    attachLogsFollow(logs)
+    // `helpInformation()` omits `addHelpText('after')`, which is where the
+    // examples live, so the help is captured as the command would print it.
+    let help = ''
+    logs.commands[0].configureOutput({
+      writeOut: (text) => {
+        help += text
+      },
+    })
+    logs.commands[0].outputHelp()
+
+    expect(help).not.toContain('wf_')
+    expect(help).toMatch(/--workflow [0-9a-f]{8}-[0-9a-f]{4}-/)
   })
 })

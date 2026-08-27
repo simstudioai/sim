@@ -113,7 +113,12 @@ async function run(argv: string[], response: unknown = { data: [], nextCursor: n
   mockRequest.mockResolvedValue(response)
   vi.spyOn(console, 'log').mockImplementation(() => {})
   await program().parseAsync(['node', 'sim', ...argv])
-  return mockRequest.mock.calls[0]
+  // `--all-workspaces` asks `/api/v2/meta` whether the key can make an
+  // account-wide read before it makes one, so the operation's own call is not
+  // always the first.
+  const call = mockRequest.mock.calls.find(([path]) => path !== V2_OPERATIONS.getMeta.path)
+  if (!call) throw new Error('the command made no request of its own')
+  return call
 }
 
 describe('commands parsed through commander', () => {
@@ -173,14 +178,12 @@ describe('commands parsed through commander', () => {
           .replace(/\s+/g, ' ')
 
       expect(flat('workflows', 'state', 'replace')).toContain(
-        'Confirm this destructive operation (required unless --dry-run)'
+        'Confirm this operation (required unless --dry-run)'
       )
       expect(flat('workflows', 'operations', 'apply')).toContain(
-        'Confirm this destructive operation (required unless --dry-run)'
+        'Confirm this operation (required unless --dry-run)'
       )
-      expect(flat('tables', 'rows', 'delete')).toContain(
-        'Confirm this destructive operation (required)'
-      )
+      expect(flat('tables', 'rows', 'delete')).toContain('Confirm this operation (required)')
     })
   })
 
@@ -1676,8 +1679,89 @@ describe('bodies and fields the generator cannot flatten', () => {
       expect(options.body).toMatchObject({ rowIds: ['row_1', 'row_2'] })
       expect(options.body).not.toHaveProperty('limit')
     })
+
+    /**
+     * The help says "0 is not accepted" and the CLI sent it anyway: `0`, `-1`
+     * and `1.5` all reached the wire to be refused by the route.
+     */
+    it('refuses a row cap the help already documents as invalid', async () => {
+      for (const [value, message] of [
+        ['0', '--limit must be 1 or more'],
+        ['-1', '--limit must be 1 or more'],
+        ['1.5', '--limit must be a whole number'],
+      ] as const) {
+        for (const command of ['batch-delete', 'batch-update'] as const) {
+          const argv = ['tables', 'rows', command, 'tbl_1', '--filter', '{"all":[]}']
+          if (command === 'batch-update') argv.push('--data', '{"a":1}')
+          argv.push('--limit', value, '--yes')
+          await expect(run(argv)).rejects.toThrow(message)
+        }
+      }
+      expect(mockRequest).not.toHaveBeenCalled()
+    })
+
+    /**
+     * The route decides this with a refine whose message describes the opposite
+     * mistake when neither flag is typed — and half in wire names.
+     */
+    it('requires exactly one of the two ways to choose the rows', async () => {
+      await expect(run(['tables', 'rows', 'batch-delete', 'tbl_1', '--yes'])).rejects.toThrow(
+        '--filter or --row is required to choose the rows to delete'
+      )
+      await expect(
+        run([
+          'tables',
+          'rows',
+          'batch-delete',
+          'tbl_1',
+          '--filter',
+          '{"all":[]}',
+          '--row',
+          'row_1',
+          '--yes',
+        ])
+      ).rejects.toThrow('--filter and --row choose the rows to delete two different ways')
+      expect(mockRequest).not.toHaveBeenCalled()
+    })
   })
 
+  /**
+   * `--limit` on a cursor-paginated operation is a client-side total, stripped
+   * from the request while the CLI walks the pages — so `--limit 0` reached the
+   * whole table with run state attached as many individually-legal pages, which
+   * is what the route's own `limit: 0` refusal exists to prevent.
+   */
+  /**
+   * An `integer` field said so in the contract, and the refusal was left to the
+   * server — which answered in library wording naming neither the flag nor the
+   * value.
+   */
+  it('refuses a fractional or unrepresentable value on an integer flag', async () => {
+    await expect(run(['files', 'read', 'file_1', '--max-bytes', '5.5'])).rejects.toThrow(
+      '--max-bytes must be a whole number'
+    )
+    await expect(
+      run(['files', 'read', 'file_1', '--max-bytes', '999999999999999999999'])
+    ).rejects.toThrow('--max-bytes is outside the whole-number range the API accepts')
+    expect(mockRequest).not.toHaveBeenCalled()
+  })
+
+  /**
+   * `--workspace` is a root-program global, so commander accepts it everywhere
+   * while only an operation declaring `workspaceId` ever uses it. On the rest it
+   * was parsed and dropped, and three different values produced byte-identical
+   * requests.
+   */
+  /**
+   * `activate create` is the deployed cutover addressed by version, the same
+   * production change `rollback` and `undeploy` both gate. `deploy` stays
+   * ungated: it publishes the draft as a NEW version, which is the forward
+   * action the caller asked for and which a rollback undoes.
+   */
+  /**
+   * `--all-workspaces` reaches the wire as the absence of `workspaceId`, so a
+   * workspace key answered with its own workspace's figures and exit 0.
+   */
   it('still gives paginated lists their numeric --limit', async () => {
     const [, options] = await run(['files', 'list', '--limit', '7'])
     expect(options.query).toMatchObject({ limit: 7 })

@@ -467,7 +467,7 @@ function isTransient(error: unknown): boolean {
 function nonNegativeInteger(raw: string, flag: string): number {
   const value = Number(raw)
   if (!Number.isSafeInteger(value) || value < 0) {
-    throw new SimApiError(`${flag} must be a non-negative integer`, 0)
+    throw new SimApiError(`${flag} must be a whole number of 0 or more`, 0)
   }
   return value
 }
@@ -531,7 +531,7 @@ follow.
 
 Examples:
   $ sim logs follow --level error
-  $ sim logs follow --workflow wf_123 -n 0
+  $ sim logs follow --workflow 00000000-0000-4000-8000-000000000000 -n 0
   $ sim --output json logs follow | jq -r '.runId'
 `
     )

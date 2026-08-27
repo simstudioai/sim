@@ -22,7 +22,7 @@ const DISPATCH_ROW_LIMIT_HELP =
  * shape guessable, the same way `TABLE_FILTER_HELP` does for the predicate.
  */
 const WORKFLOW_OPERATIONS_HELP =
-  'Edits to apply, in a single batch, keyed by operation_type: [{"operation_type":"add","block_id":"my-fn","params":{"type":"function","name":"My Fn","inputs":{"code":"return {ok:true}"}}},{"operation_type":"edit","block_id":"<uuid>","params":{"name":"Renamed","connections":{"success":"my-fn"}}},{"operation_type":"delete","block_id":"<uuid>"}]. Also insert_into_subflow and extract_from_subflow, whose params carry {"subflowId":"<loop-id>"}'
+  'Edits to apply, in a single batch, keyed by operation_type: [{"operation_type":"add","block_id":"my-fn","params":{"type":"function","name":"My Fn","inputs":{"code":"return {ok:true}"}}},{"operation_type":"edit","block_id":"<uuid>","params":{"name":"Renamed","connections":{"success":"my-fn"}}},{"operation_type":"delete","block_id":"<uuid>"}]. Also extract_from_subflow, whose params carry {"subflowId":"<loop-id>"}, and insert_into_subflow, which creates a block and so takes an add’s params plus that subflowId'
 const WORKFLOW_SET_BLOCK_ENABLED_HELP =
   'Blocks to enable or disable, applied after --operations: [{"block_id":"<uuid>","enabled":false}]. Disabling a loop or parallel cascades to its unlocked descendants; enabling a block whose container is disabled is declined'
 const WORKFLOW_VARIABLE_OPERATIONS_HELP =
@@ -156,7 +156,7 @@ export const CLI_CONTRACT: CliContract = {
     // `billing status` says its own caveat. The trailing parenthetical is what
     // keeps the generated docs heading unchanged.
     describe:
-      "List credit usage events (a personal API key reports only your own events; a workspace API key reports every member's)",
+      "List credit usage events (a personal API key reports only your own events; a workspace API key reports every member's in aggregate, unattributed)",
     flags: {
       source: { describe: 'Filter by usage source; sim-chat combines Copilot and workspace chat' },
       period: { describe: 'Billing period' },
@@ -423,7 +423,7 @@ export const CLI_CONTRACT: CliContract = {
   },
   getLogStats: {
     command: 'logs stats',
-    describe: 'Summarize run counts, failures, and cost over a window',
+    describe: 'Summarize run counts, failures and latency over a window',
     flags: LOG_LIST_FILTER_FLAGS,
     // Undeclared, the summary fell through to the generic key dump: the whole
     // `workflows` series printed as one truncated line of raw JSON, the window
@@ -829,7 +829,11 @@ export const CLI_CONTRACT: CliContract = {
   listCustomTools: {
     columns: [
       { header: 'id' },
-      { header: 'name', path: 'title' },
+      // `title` and `schema.function.name` are both real and different fields
+      // on this resource — the flags say `--search` matches the title and
+      // `--sort-by title` orders by it — so a column headed `name` showing the
+      // title named the other one.
+      { header: 'title', path: 'title' },
       { header: 'description', path: 'schema.function.description' },
       { header: 'updated', path: 'updatedAt', format: 'timestamp' },
     ],
@@ -1132,7 +1136,15 @@ export const CLI_CONTRACT: CliContract = {
   },
 
   // ─── Resource-scoped, path-addressed folders ──────────────────────────────
+  /**
+   * None of the four folder lists paginates: the route declares no `cursor` and
+   * answers with the whole set. That is deliberate — a folder tree is bounded
+   * where it loads — but the terminal said nothing about it, and a caller
+   * reading `--limit` on every other `list` had no way to tell whether the
+   * answer was the full set or the first page of one.
+   */
   listFileFolders: {
+    describe: 'List folders',
     aliases: ['ls'],
     flags: {
       parentPath: { ...FOLDER_PATH_INPUT, name: 'parent', describe: 'Direct parent folder path' },
@@ -1140,6 +1152,7 @@ export const CLI_CONTRACT: CliContract = {
     columns: FOLDER_LIST_COLUMNS,
   },
   listKnowledgeFolders: {
+    describe: 'List knowledge folders',
     aliases: ['ls'],
     flags: {
       parentPath: { ...FOLDER_PATH_INPUT, name: 'parent', describe: 'Direct parent folder path' },
@@ -1147,6 +1160,7 @@ export const CLI_CONTRACT: CliContract = {
     columns: FOLDER_LIST_COLUMNS,
   },
   listTableFolders: {
+    describe: 'List table folders',
     aliases: ['ls'],
     flags: {
       parentPath: { ...FOLDER_PATH_INPUT, name: 'parent', describe: 'Direct parent folder path' },
@@ -1154,6 +1168,7 @@ export const CLI_CONTRACT: CliContract = {
     columns: FOLDER_LIST_COLUMNS,
   },
   listWorkflowFolders: {
+    describe: 'List workflow folders',
     aliases: ['ls'],
     flags: {
       parentPath: { ...FOLDER_PATH_INPUT, name: 'parent', describe: 'Direct parent folder path' },

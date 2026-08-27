@@ -67,6 +67,38 @@ describe('a validation error restated in the spellings a caller can type', () =>
     expect(retyped.message).not.toContain('--name')
   })
 
+  /**
+   * Some routes name the field inside the message as well as in `path`, and the
+   * details column prints both: `--sort-by: --sort-by: only "startedAt" …`.
+   */
+  it('does not print the field label twice on one detail line', () => {
+    const message =
+      'sortBy: only "startedAt" can order job runs; drop includeJobRuns or sort by "startedAt"'
+    const line = detailLines('listLogs', [{ path: ['sortBy'], message }])[1]
+
+    expect(line).toContain('    --sort-by: only "startedAt"')
+    expect(line).not.toContain('--sort-by: --sort-by:')
+  })
+
+  /**
+   * Only multi-segment camelCase is safely rewritable in prose, so a sentence
+   * enumerating both kinds came out half in flags and half in wire names:
+   * `At least one of name, description, or --folder is required`.
+   */
+  it('never mixes the two vocabularies in one sentence', () => {
+    expect(
+      retype(
+        'updateWorkflow',
+        new SimApiError('At least one of name, description, or folderPath is required', 400)
+      ).message
+    ).toBe('At least one of name, description, or folderPath is required')
+
+    // A sentence with nothing ambiguous left in it still gets the translation.
+    expect(
+      retype('listWorkflows', new SimApiError('folderPath must be canonical', 400)).message
+    ).toBe('--folder must be canonical')
+  })
+
   it('names the global flag the workspace comes from', () => {
     expect(
       detailLines('listLogs', [{ path: ['workspaceId'], message: 'Workspace is required' }])[1]
