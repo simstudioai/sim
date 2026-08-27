@@ -80,6 +80,20 @@ describe('resolveResourceEventPresentation', () => {
     })
   })
 
+  it('follows agent work after the user-selected resource is removed', () => {
+    expect(
+      resolveResourceEventPresentation({
+        ...DEFAULT_INPUT,
+        activeResourceId: null,
+        selectionOwnedByUser: true,
+      })
+    ).toEqual({
+      activateResource: true,
+      markActivity: false,
+      revealPanel: false,
+    })
+  })
+
   it('honors an event that declines activation without revealing the panel', () => {
     expect(
       resolveResourceEventPresentation({

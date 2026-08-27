@@ -26,7 +26,8 @@ export function resolveResourceEventPresentation({
   selectionOwnedByUser,
 }: ResourceEventPresentationInput): ResourceEventPresentation {
   const preserveCollapsedPanel = panelCollapsed && panelCollapseOwnedByUser
-  const preserveSelection = selectionOwnedByUser && activeResourceId !== resourceId
+  const preserveSelection =
+    selectionOwnedByUser && activeResourceId !== null && activeResourceId !== resourceId
   const activateResource = activationRequested && !preserveCollapsedPanel && !preserveSelection
 
   return {
