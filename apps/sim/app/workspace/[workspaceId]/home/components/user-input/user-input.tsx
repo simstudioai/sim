@@ -24,6 +24,7 @@ import {
   AttachedFilesList,
   DropOverlay,
   MicButton,
+  MicrophonePermissionHelp,
   PromptEditor,
   SendButton,
   usePromptEditor,
@@ -102,6 +103,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const { navigateToSettings } = useSettingsNavigation()
   const { userId, onContextAdd, onContextRemove } = useChatSurface()
+  const [microphonePermissionHelpOpen, setMicrophonePermissionHelpOpen] = useState(false)
 
   const [initialValue] = useState(() => {
     if (defaultValue) return defaultValue
@@ -323,19 +325,27 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
   function handleSpeechError(error: SpeechToTextError) {
     if (error === 'microphone-blocked') {
       const desktopBridge = getDesktopBridge()
-      toast.error(
-        desktopBridge
-          ? 'Microphone access is blocked. Allow Sim to use the microphone in your system privacy settings.'
-          : 'Microphone access is blocked. Allow it for this site and try again.',
-        desktopBridge?.openMicrophoneSettings
-          ? {
-              action: {
-                label: 'Open Settings',
-                onClick: () => void desktopBridge.openMicrophoneSettings?.(),
-              },
-            }
-          : undefined
-      )
+      if (desktopBridge) {
+        const { openMicrophoneSettings } = desktopBridge
+        toast.error(
+          'Microphone access is blocked. Allow Sim to use the microphone in your system privacy settings.',
+          openMicrophoneSettings
+            ? {
+                action: {
+                  label: 'Open Settings',
+                  onClick: () => void openMicrophoneSettings(),
+                },
+              }
+            : undefined
+        )
+      } else {
+        toast.error('Microphone access is blocked. Allow it for this site and try again.', {
+          action: {
+            label: 'Show steps',
+            onClick: () => setMicrophonePermissionHelpOpen(true),
+          },
+        })
+      }
       return
     }
     if (error === 'microphone-unavailable') {
@@ -504,7 +514,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
 
   const handleContainerClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
-      if ((e.target as HTMLElement).closest('button')) return
+      if ((e.target as HTMLElement).closest('button, [role="dialog"]')) return
       textareaRef.current?.focus()
     },
     [textareaRef]
@@ -697,6 +707,11 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
       />
 
       {files.isDragging && <DropOverlay />}
+
+      <MicrophonePermissionHelp
+        open={microphonePermissionHelpOpen}
+        onOpenChange={setMicrophonePermissionHelpOpen}
+      />
     </div>
   )
 })
