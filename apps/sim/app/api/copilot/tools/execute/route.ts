@@ -4,6 +4,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { copilotToolExecuteInternalBodySchema } from '@/lib/api/contracts/copilot'
 import { validationErrorResponse } from '@/lib/api/server'
 import { prepareCopilotEnvironmentContext } from '@/lib/copilot/environment-context'
+import { MothershipStreamV1ToolOutcome } from '@/lib/copilot/generated/mothership-stream-v1'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { checkInternalApiKey } from '@/lib/copilot/request/http'
@@ -17,6 +18,7 @@ import { handleResourceSideEffects } from '@/lib/copilot/request/tools/resources
 import type { ToolCallResult } from '@/lib/copilot/request/types'
 import { ensureHandlersRegistered } from '@/lib/copilot/tool-executor'
 import { executeTool } from '@/lib/copilot/tool-executor/executor'
+import { TOOL_EFFECT_PHASE } from '@/lib/copilot/tool-executor/types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
@@ -116,16 +118,35 @@ export const POST = withRouteHandler((request: NextRequest) =>
         [TraceAttr.UserId]: userId,
       })
 
-      let toolRegistry: ResolvedSecretTraceRegistry | undefined
-      let turnRegistry: ResolvedSecretTraceRegistry | undefined
+      let toolRegistry: ResolvedSecretTraceRegistry
+      let turnRegistry: ResolvedSecretTraceRegistry
       try {
         turnRegistry = await getTurnEgressRegistry(userId, workspaceId, messageId)
         toolRegistry = turnRegistry.forkForInputPaths([])
       } catch (err) {
-        logger.error('In-band egress registry unavailable; results will be withheld', {
+        /**
+         * Without a catalog the projection can vouch for nothing, so every result this call
+         * could produce would be withheld. Running the tool anyway was the worst of both
+         * outcomes: the side effect happened and the caller got an opaque sentinel that named
+         * neither the cause nor whether anything had changed. Refusing before dispatch is
+         * both truthful and the only answer that leaves nothing behind.
+         *
+         * The cause is almost always the workspace itself — a deleted or inaccessible id
+         * reaching this lane — which is actionable, so it is reported rather than swallowed.
+         */
+        const reason = getErrorMessage(err)
+        logger.error('In-band egress registry unavailable; refusing the call', {
           toolName,
           toolCallId,
-          error: getErrorMessage(err),
+          userId,
+          workspaceId,
+          error: reason,
+        })
+        rootSpan.setAttributes({ [TraceAttr.ToolOutcome]: MothershipStreamV1ToolOutcome.error })
+        return NextResponse.json({
+          success: false,
+          error: `${toolName} was not run: ${reason}`,
+          output: { resultWithheld: true, effect: TOOL_EFFECT_PHASE.notAttempted },
         })
       }
 
@@ -149,7 +170,7 @@ export const POST = withRouteHandler((request: NextRequest) =>
         })
         const projection = inspectToolResultForCopilot(result, toolRegistry, toolName)
         const projected = projection.result
-        if (projection.safe && toolRegistry?.isComplete() && turnRegistry) {
+        if (projection.safe && toolRegistry.isComplete()) {
           turnRegistry.mergeToolCallRegistry(toolRegistry)
         }
         if (!projected.success) {

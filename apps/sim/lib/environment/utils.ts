@@ -151,6 +151,15 @@ export async function getPersonalAndWorkspaceEnv(
   let workspaceCanAdmin = false
   if (workspaceId) {
     const access = options?.workspaceAccess ?? (await checkWorkspaceAccess(workspaceId, userId))
+    /**
+     * A workspace that no longer exists and one the caller may not read are different facts
+     * and take different corrections — stop using the id versus ask for access. Collapsing
+     * them sent every deleted-workspace call down the access-denied path, where it read as a
+     * permissions problem nobody could reproduce.
+     */
+    if (!access.exists) {
+      throw new Error(`Workspace ${workspaceId} does not exist`)
+    }
     if (!access.hasAccess) {
       throw new Error(`Access denied to workspace ${workspaceId}`)
     }
