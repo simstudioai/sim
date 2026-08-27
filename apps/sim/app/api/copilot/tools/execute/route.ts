@@ -173,6 +173,20 @@ export const POST = withRouteHandler((request: NextRequest) =>
         if (projection.safe && toolRegistry.isComplete()) {
           turnRegistry.mergeToolCallRegistry(toolRegistry)
         }
+        if (!projection.safe) {
+          /**
+           * Reported on its own rather than folded into the failure branch below: a withheld
+           * SUCCESS keeps `projected.success` true, so gating on failure meant the one case
+           * that leaves no other trace — the model reads a bare success — was also the one
+           * case whose cause was never written down.
+           */
+          logger.warn('In-band tool result withheld by egress projection', {
+            toolName,
+            toolCallId,
+            runtimeSucceeded: result.success,
+            ...describeWithholdingCause(projection.cause),
+          })
+        }
         if (!projected.success) {
           logger.warn('In-band tool execution failed', {
             toolName,
@@ -180,7 +194,6 @@ export const POST = withRouteHandler((request: NextRequest) =>
             error: projected.error,
             runtimeSucceeded: result.success,
             projectionSafe: projection.safe,
-            ...(projection.safe ? {} : describeWithholdingCause(projection.cause)),
           })
         }
         if (result.success && chatId) {
