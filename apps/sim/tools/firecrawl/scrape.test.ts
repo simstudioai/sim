@@ -63,3 +63,32 @@ describe('firecrawl scrape timeout is not the transport deadline', () => {
     expect(body.timeout).toBe(45000)
   })
 })
+
+describe('firecrawl scrape numeric coercion', () => {
+  it('drops a non-numeric firecrawlTimeout rather than putting JSON null on the wire', () => {
+    const body = resolveBody({ ...scrapeParams, firecrawlTimeout: 'soon' as unknown as number })
+
+    expect(Object.hasOwn(body, 'timeout')).toBe(false)
+  })
+
+  it('drops non-numeric maxAge and waitFor, which arrive via scrapeOptions passthrough', () => {
+    const body = resolveBody({
+      ...scrapeParams,
+      maxAge: 'fresh' as unknown as number,
+      waitFor: 'a bit' as unknown as number,
+    } as ScrapeParams)
+
+    expect(Object.hasOwn(body, 'maxAge')).toBe(false)
+    expect(Object.hasOwn(body, 'waitFor')).toBe(false)
+  })
+
+  it('still forwards numeric strings, which the block short-inputs produce', () => {
+    const body = resolveBody({
+      ...scrapeParams,
+      firecrawlTimeout: '45000' as unknown as number,
+      waitFor: '250' as unknown as number,
+    } as ScrapeParams)
+
+    expect(body).toMatchObject({ timeout: 45000, waitFor: 250 })
+  })
+})

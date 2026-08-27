@@ -11,7 +11,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
  */
 vi.mock('@sim/utils/helpers', () => ({ sleep: vi.fn().mockResolvedValue(undefined) }))
 
+import { sleep } from '@sim/utils/helpers'
 import { enrowFindEmailTool } from '@/tools/enrow/find_email'
+import { POLL_INTERVAL_MS } from '@/tools/enrow/poll'
 import type {
   EnrowFindEmailParams,
   EnrowFindEmailResponse,
@@ -158,10 +160,10 @@ describe('enrow_find_email', () => {
     expect(result.output.email).toBe('john.doe@stripe.com')
   })
 
-  it('retries a 429 and honors Retry-After', async () => {
+  it('still absorbs a 429, which Enrow documents as impossible on a GET poll', async () => {
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(jsonResponse(429, { message: 'slow down' }, { 'retry-after': '5' }))
+      .mockResolvedValueOnce(jsonResponse(429, { message: 'Too Many Requests' }))
       .mockResolvedValueOnce(jsonResponse(200, DOCUMENTED_FIND_BODY))
     vi.stubGlobal('fetch', fetchMock)
 
@@ -173,6 +175,34 @@ describe('enrow_find_email', () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(2)
     expect(result.output.qualification).toBe('valid')
+  })
+
+  it('escalates the retry delay and ignores an undocumented Retry-After header', async () => {
+    const throttled = () =>
+      jsonResponse(503, { message: 'upstream unavailable' }, { 'retry-after': '5' })
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(throttled())
+      .mockResolvedValueOnce(throttled())
+      .mockResolvedValueOnce(throttled())
+      .mockResolvedValueOnce(jsonResponse(200, DOCUMENTED_FIND_BODY))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await enrowFindEmailTool.postProcess!(submittedFindResult, findParams, executeTool)
+
+    const delays = vi.mocked(sleep).mock.calls.map(([ms]) => ms as number)
+
+    expect(delays).toHaveLength(4)
+    expect(delays[0]).toBe(POLL_INTERVAL_MS)
+
+    // 3000 * 2 ** (attempt - 1) with the shared +/-20% jitter. Enrow documents
+    // that error responses carry no retry hint, so a `Retry-After: 5` header
+    // must not flatten this curve to a flat 5,000 ms.
+    for (const [attempt, delay] of [delays[1], delays[2], delays[3]].entries()) {
+      const exponential = POLL_INTERVAL_MS * 2 ** attempt
+      expect(delay, `attempt ${attempt + 1} delay`).toBeGreaterThanOrEqual(exponential * 0.8)
+      expect(delay, `attempt ${attempt + 1} delay`).toBeLessThan(exponential * 1.2)
+    }
   })
 
   it('gives up on a persistent 500 — an expired search id must surface, not loop', async () => {

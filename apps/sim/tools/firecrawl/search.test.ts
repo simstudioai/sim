@@ -170,6 +170,70 @@ describe('firecrawl block search wiring', () => {
     expect((subBlock?.condition as { value: string[] }).value).toContain('search')
   })
 
+  it.each(['sources', 'categories', 'location', 'country'])(
+    'exposes %s as a search subBlock, so it is not agent-path only',
+    async (id) => {
+      const { FirecrawlBlock } = await import('@/blocks/blocks/firecrawl')
+      const subBlock = FirecrawlBlock.subBlocks.find((block) => block.id === id)
+
+      expect(subBlock, `missing subBlock "${id}"`).toBeDefined()
+      expect((subBlock?.condition as { value: string[] }).value).toContain('search')
+    }
+  )
+
+  it('leaves tbs agent-only — its Google micro-syntax earns no raw text box', async () => {
+    const { FirecrawlBlock } = await import('@/blocks/blocks/firecrawl')
+
+    expect(FirecrawlBlock.subBlocks.find((block) => block.id === 'tbs')).toBeUndefined()
+    expect(searchTool.params.tbs.visibility).toBe('user-or-llm')
+  })
+
+  it('maps the new search subBlocks into the search request params', async () => {
+    const { FirecrawlBlock } = await import('@/blocks/blocks/firecrawl')
+    const params = FirecrawlBlock.tools.config!.params!({
+      operation: 'search',
+      apiKey: 'k',
+      query: 'sim',
+      sources: ['web', 'news'],
+      categories: ['github'],
+      location: 'Germany',
+      country: 'DE',
+    })
+
+    expect(params.sources).toEqual(['web', 'news'])
+    expect(params.categories).toEqual(['github'])
+    expect(params.location).toBe('Germany')
+    expect(params.country).toBe('DE')
+  })
+
+  it('normalizes the comma-string form a multiSelect dropdown can persist', async () => {
+    const { FirecrawlBlock } = await import('@/blocks/blocks/firecrawl')
+    const params = FirecrawlBlock.tools.config!.params!({
+      operation: 'search',
+      apiKey: 'k',
+      query: 'sim',
+      sources: 'web,news',
+      categories: '',
+    })
+
+    expect(params.sources).toEqual(['web', 'news'])
+    expect(Object.hasOwn(params, 'categories')).toBe(false)
+  })
+
+  it('does not leak search-only fields onto another operation', async () => {
+    const { FirecrawlBlock } = await import('@/blocks/blocks/firecrawl')
+    const params = FirecrawlBlock.tools.config!.params!({
+      operation: 'map',
+      apiKey: 'k',
+      url: 'https://example.com',
+      sources: ['web'],
+      country: 'DE',
+    })
+
+    expect(Object.hasOwn(params, 'sources')).toBe(false)
+    expect(Object.hasOwn(params, 'country')).toBe(false)
+  })
+
   it('maps ignoreInvalidURLs into the search request params', async () => {
     const { FirecrawlBlock } = await import('@/blocks/blocks/firecrawl')
     const params = FirecrawlBlock.tools.config!.params!({
@@ -189,6 +253,8 @@ describe('firecrawl search constrained enum params', () => {
       (member: { const?: unknown }) => member.const as string
     )
 
+  // The literal lists below come from https://docs.firecrawl.dev/features/search
+  // (Search Sources and Search Categories), not from the implementation.
   it('constrains sources to the three literals the strict schema accepts', () => {
     expect(constValues('sources').sort()).toEqual(['images', 'news', 'web'])
   })
@@ -211,13 +277,16 @@ describe('firecrawl search constrained enum params', () => {
   })
 })
 
-describe('firecrawl search country default', () => {
-  it('states that the "us" default only applies when location is unset', () => {
-    const description = searchTool.params.country.description ?? ''
+describe('firecrawl search country', () => {
+  it("forwards the caller's country verbatim", () => {
+    expect(resolveBody({ apiKey: 'k', query: 'sim', country: 'DE' }).country).toBe('DE')
+  })
 
-    expect(description).toMatch(/"us"/)
-    expect(description).not.toMatch(/"US"/)
-    expect(description).toMatch(/location/i)
+  it('omits country when unset, leaving Firecrawl to apply its own "US" default', () => {
+    // https://docs.firecrawl.dev/api-reference/v2-endpoint/search documents
+    // `country` with `default: US`, unconditionally. Sim must not pre-fill it,
+    // or a future change to that default silently stops reaching callers.
+    expect(Object.hasOwn(resolveBody({ apiKey: 'k', query: 'sim' }), 'country')).toBe(false)
   })
 })
 
@@ -293,5 +362,34 @@ describe('firecrawl block timeout wiring', () => {
 
     expect(params.timeout).toBe(45000)
     expect(params.firecrawlTimeout).toBeUndefined()
+  })
+})
+
+describe('firecrawl search numeric coercion', () => {
+  it('drops a non-numeric limit rather than putting JSON null on the wire', () => {
+    const body = resolveBody({ apiKey: 'k', query: 'sim', limit: 'ten' as unknown as number })
+
+    expect(Object.hasOwn(body, 'limit')).toBe(false)
+  })
+
+  it('drops a non-numeric firecrawlTimeout rather than putting JSON null on the wire', () => {
+    const body = resolveBody({
+      apiKey: 'k',
+      query: 'sim',
+      firecrawlTimeout: 'soon' as unknown as number,
+    })
+
+    expect(Object.hasOwn(body, 'timeout')).toBe(false)
+  })
+
+  it('still forwards numeric strings, which the block short-inputs produce', () => {
+    const body = resolveBody({
+      apiKey: 'k',
+      query: 'sim',
+      limit: '5' as unknown as number,
+      firecrawlTimeout: '45000' as unknown as number,
+    })
+
+    expect(body).toMatchObject({ limit: 5, timeout: 45000 })
   })
 })

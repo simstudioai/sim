@@ -7,6 +7,24 @@ import type { FirecrawlResponse } from '@/tools/firecrawl/types'
 /** The document being parsed, whether it was uploaded or passed in by reference. */
 const DOCUMENT_FIELD = ['fileUpload', 'fileReference'] as const
 
+/**
+ * Normalize a `multiSelect` dropdown value into the string array the tool wants.
+ *
+ * The control persists either an array of option ids or a comma-joined string
+ * depending on how the value was written, and an untouched field is `null`.
+ * Returns `undefined` when nothing is selected so the caller can omit the key
+ * and let Firecrawl apply its own default.
+ */
+function toSelectedIds(value: unknown): string[] | undefined {
+  const entries = Array.isArray(value) ? value : [value]
+  const ids = entries
+    .filter((entry): entry is string => typeof entry === 'string')
+    .flatMap((entry) => entry.split(','))
+    .map((id) => id.trim())
+    .filter((id) => id.length > 0)
+  return ids.length > 0 ? ids : undefined
+}
+
 export const FirecrawlBlock: BlockConfig<FirecrawlResponse> = {
   type: 'firecrawl',
   name: 'Firecrawl',
@@ -430,6 +448,68 @@ Example 2 - Product Data:
       required: true,
     },
     {
+      id: 'sources',
+      title: 'Sources',
+      type: 'dropdown',
+      multiSelect: true,
+      options: [
+        { label: 'Web', id: 'web' },
+        { label: 'News', id: 'news' },
+        { label: 'Images', id: 'images' },
+      ],
+      placeholder: 'Web',
+      description:
+        'Which result sets to search. Each one is returned as its own array — web, news, images.',
+      condition: {
+        field: 'operation',
+        value: 'search',
+      },
+    },
+    {
+      id: 'categories',
+      title: 'Categories',
+      type: 'dropdown',
+      multiSelect: true,
+      options: [
+        { label: 'GitHub', id: 'github' },
+        { label: 'Research', id: 'research' },
+        { label: 'PDF', id: 'pdf' },
+        { label: 'Developer', id: 'developer' },
+      ],
+      placeholder: 'All categories',
+      description:
+        'Restrict web results to these categories. Developer cannot be combined with the others.',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: 'search',
+      },
+    },
+    {
+      id: 'location',
+      title: 'Location',
+      type: 'short-input',
+      placeholder: 'Germany',
+      description: 'Where to search from. Set Country alongside it for best results.',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: 'search',
+      },
+    },
+    {
+      id: 'country',
+      title: 'Country',
+      type: 'short-input',
+      placeholder: 'US',
+      description: 'ISO country code for geo-targeting, e.g. US, DE, JP.',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: 'search',
+      },
+    },
+    {
       id: 'apiKey',
       title: 'API Key',
       type: 'short-input',
@@ -563,14 +643,21 @@ Example 2 - Product Data:
             if (mobile != null) result.mobile = mobile
             break
 
-          case 'search':
+          case 'search': {
             if (query) result.query = query
             if (timeout) result.firecrawlTimeout = Number.parseInt(timeout)
             if (limit) result.limit = Number.parseInt(limit)
             if (params.ignoreInvalidURLs != null) {
               result.ignoreInvalidURLs = params.ignoreInvalidURLs
             }
+            const sources = toSelectedIds(params.sources)
+            if (sources) result.sources = sources
+            const categories = toSelectedIds(params.categories)
+            if (categories) result.categories = categories
+            if (params.location) result.location = params.location
+            if (params.country) result.country = params.country
             break
+          }
 
           case 'crawl':
             if (url) result.url = url

@@ -1,6 +1,7 @@
 import { firecrawlHosting } from '@/tools/firecrawl/hosting'
 import type { MapParams, MapResponse } from '@/tools/firecrawl/types'
 import { MAP_DOCUMENT_OUTPUT_PROPERTIES } from '@/tools/firecrawl/types'
+import { finiteNumber } from '@/tools/firecrawl/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const mapTool: ToolConfig<MapParams, MapResponse> = {
@@ -89,8 +90,10 @@ export const mapTool: ToolConfig<MapParams, MapResponse> = {
         body.includeSubdomains = params.includeSubdomains
       if (typeof params.ignoreQueryParameters === 'boolean')
         body.ignoreQueryParameters = params.ignoreQueryParameters
-      if (params.limit) body.limit = Number(params.limit)
-      if (params.firecrawlTimeout) body.timeout = Number(params.firecrawlTimeout)
+      const limit = finiteNumber(params.limit)
+      if (limit !== undefined) body.limit = limit
+      const firecrawlTimeout = finiteNumber(params.firecrawlTimeout)
+      if (firecrawlTimeout !== undefined) body.timeout = firecrawlTimeout
       if (params.location) body.location = params.location
 
       return body

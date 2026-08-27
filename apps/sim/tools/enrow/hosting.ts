@@ -9,13 +9,17 @@ export const ENROW_API_KEY_PREFIX = 'ENROW_API_KEY'
 /**
  * Dollar cost of a single Enrow credit.
  *
- * Based on the entry Start plan ($17/month, 1,000 credits = $0.017/credit),
- * which matches Enrow's own Start unit price of $0.017/email for the finder.
- * Per-credit drops at higher tiers (Pro $0.0087, Scale $0.00794), so pricing at
- * the entry tier guarantees hosted-key cost recovery rather than under-billing.
- * The email finder costs 1 credit per valid result and the email verifier
- * costs 0.25 credits per verification.
- * Source: https://enrow.io/pricing
+ * Sourced from the published plan rates on https://enrow.io/pricing: Start
+ * $17 / 1,000 credits ($0.017/credit), Pro $87 / 10,000 ($0.0087), Scale
+ * $397 / 50,000 ($0.00794). The email finder costs 1 credit per valid result
+ * and the email verifier costs 0.25 credits per verification.
+ *
+ * UNCONFIRMED — do not treat as established: whether $0.017 actually recovers
+ * hosted-key cost. The pricing page toggles between Annually (-40%), Monthly
+ * (-30%), and Pay-as-you-go, and we could not determine which mode the $17
+ * figure belongs to without account visibility. If $17 is a discounted rate,
+ * undiscounted pay-as-you-go is higher and this constant under-bills. Settling
+ * it needs a look at an actual Enrow invoice.
  */
 export const ENROW_CREDIT_USD = 0.017
 

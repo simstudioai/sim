@@ -5,6 +5,7 @@ import {
 } from '@/tools/firecrawl/model-input'
 import type { FirecrawlSearchData, SearchParams, SearchResponse } from '@/tools/firecrawl/types'
 import { SEARCH_DATA_OUTPUT } from '@/tools/firecrawl/types'
+import { finiteNumber } from '@/tools/firecrawl/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
@@ -68,7 +69,7 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Two-letter country code to search from. Firecrawl falls back to "us" only when `location` is also unset; setting `location` leaves the country unset instead.',
+        'ISO country code for geo-targeting results (e.g. "US", "DE", "JP"). Firecrawl defaults to "US" when this is unset, and recommends setting `location` alongside it for best results.',
     },
     firecrawlTimeout: {
       type: 'number',
@@ -124,13 +125,15 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
       }
 
       // Add optional parameters if provided (truthy check filters empty strings, null, undefined)
-      if (params.limit) body.limit = Number(params.limit)
+      const limit = finiteNumber(params.limit)
+      if (limit !== undefined) body.limit = limit
       if (params.sources) body.sources = params.sources
       if (params.categories) body.categories = params.categories
       if (params.tbs) body.tbs = params.tbs
       if (params.location) body.location = params.location
       if (params.country) body.country = params.country
-      if (params.firecrawlTimeout) body.timeout = Number(params.firecrawlTimeout)
+      const firecrawlTimeout = finiteNumber(params.firecrawlTimeout)
+      if (firecrawlTimeout !== undefined) body.timeout = firecrawlTimeout
       if (typeof params.ignoreInvalidURLs === 'boolean')
         body.ignoreInvalidURLs = params.ignoreInvalidURLs
       if (params.scrapeOptions) body.scrapeOptions = params.scrapeOptions

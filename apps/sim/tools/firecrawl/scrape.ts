@@ -7,6 +7,7 @@ import {
 } from '@/tools/firecrawl/model-input'
 import type { ScrapeParams, ScrapeResponse } from '@/tools/firecrawl/types'
 import { PAGE_METADATA_OUTPUT_PROPERTIES } from '@/tools/firecrawl/types'
+import { finiteNumber } from '@/tools/firecrawl/utils'
 import { safeAssign } from '@/tools/safe-assign'
 import type { ToolConfig } from '@/tools/types'
 
@@ -92,13 +93,16 @@ export const scrapeTool: ToolConfig<ScrapeParams, ScrapeResponse> = {
       if (typeof params.onlyMainContent === 'boolean') body.onlyMainContent = params.onlyMainContent
       if (params.includeTags) body.includeTags = params.includeTags
       if (params.excludeTags) body.excludeTags = params.excludeTags
-      if (params.maxAge) body.maxAge = Number(params.maxAge)
+      const maxAge = finiteNumber(params.maxAge)
+      if (maxAge !== undefined) body.maxAge = maxAge
       if (params.headers) body.headers = params.headers
-      if (params.waitFor) body.waitFor = Number(params.waitFor)
+      const waitFor = finiteNumber(params.waitFor)
+      if (waitFor !== undefined) body.waitFor = waitFor
       if (typeof params.mobile === 'boolean') body.mobile = params.mobile
       if (typeof params.skipTlsVerification === 'boolean')
         body.skipTlsVerification = params.skipTlsVerification
-      if (params.firecrawlTimeout) body.timeout = Number(params.firecrawlTimeout)
+      const firecrawlTimeout = finiteNumber(params.firecrawlTimeout)
+      if (firecrawlTimeout !== undefined) body.timeout = firecrawlTimeout
       if (params.parsers) body.parsers = params.parsers
       if (params.actions) body.actions = params.actions
       if (params.location) body.location = params.location

@@ -65,3 +65,27 @@ describe('firecrawl map timeout is not the transport deadline', () => {
     expect(body.timeout).toBe(45000)
   })
 })
+
+describe('firecrawl map numeric coercion', () => {
+  it('drops a non-numeric limit rather than putting JSON null on the wire', () => {
+    const body = resolveBody({ ...mapParams, limit: 'ten' as unknown as number })
+
+    expect(Object.hasOwn(body, 'limit')).toBe(false)
+  })
+
+  it('drops a non-numeric firecrawlTimeout rather than putting JSON null on the wire', () => {
+    const body = resolveBody({ ...mapParams, firecrawlTimeout: 'soon' as unknown as number })
+
+    expect(Object.hasOwn(body, 'timeout')).toBe(false)
+  })
+
+  it('still forwards numeric strings, which the block short-inputs produce', () => {
+    const body = resolveBody({
+      ...mapParams,
+      limit: '5' as unknown as number,
+      firecrawlTimeout: '45000' as unknown as number,
+    })
+
+    expect(body).toMatchObject({ limit: 5, timeout: 45000 })
+  })
+})
