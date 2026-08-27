@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { act, useState } from 'react'
+import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { OverflowText } from './overflow-text'
@@ -138,19 +138,13 @@ describe('OverflowText', () => {
   })
 
   it('opens from an external composite control keyboard focus', () => {
-    function CompositeLabel() {
-      const [focusTarget, setFocusTarget] = useState<HTMLButtonElement | null>(null)
-      return (
-        <>
-          <button ref={setFocusTarget} type='button'>
-            Open workflow
-          </button>
-          <OverflowText label='A long workflow name' focusTarget={focusTarget} />
-        </>
+    act(() =>
+      root.render(
+        <button type='button'>
+          <OverflowText label='A long workflow name' focusTarget='nearest-interactive' />
+        </button>
       )
-    }
-
-    act(() => root.render(<CompositeLabel />))
+    )
     const button = host.querySelector('button')
     const label = host.querySelector<HTMLElement>('[data-overflow-text]')
     if (!button || !label) throw new Error('Composite label did not render')

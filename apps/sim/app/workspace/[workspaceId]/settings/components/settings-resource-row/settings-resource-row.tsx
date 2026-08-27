@@ -1,4 +1,4 @@
-import { type ReactNode, useId, useState } from 'react'
+import { type ReactNode, useId } from 'react'
 import { cn, OverflowText } from '@sim/emcn'
 import { ArrowRight } from '@sim/emcn/icons'
 import Link from 'next/link'
@@ -135,7 +135,6 @@ export function SettingsResourceRow({
   flush = false,
   disabled = false,
 }: SettingsResourceRowProps) {
-  const [control, setControl] = useState<HTMLAnchorElement | HTMLButtonElement | null>(null)
   const describedById = useId()
   const isTile = iconVariant === 'tile'
   const isActivatable = !disabled && Boolean(onClick || href)
@@ -163,7 +162,7 @@ export function SettingsResourceRow({
           <OverflowText
             label={title}
             className='text-[var(--text-body)] text-sm'
-            focusTarget={isActivatable ? control : undefined}
+            focusTarget={isActivatable ? 'nearest-interactive' : undefined}
           />
         ) : (
           <span className='truncate text-[var(--text-body)] text-sm'>{title}</span>
@@ -232,7 +231,6 @@ export function SettingsResourceRow({
     >
       {href ? (
         <Link
-          ref={setControl}
           href={href}
           aria-label={clickLabel}
           aria-describedby={description != null ? describedById : undefined}
@@ -242,7 +240,6 @@ export function SettingsResourceRow({
         </Link>
       ) : (
         <button
-          ref={setControl}
           type='button'
           onClick={onClick}
           aria-label={clickLabel}

@@ -86,7 +86,7 @@ const HIDDEN_STATE: FloatingTooltipState = {
  * Drives a pointer-reactive floating tooltip. `canShow` is checked on each
  * gesture and while visible, allowing callers to dismiss the tooltip when its
  * eligibility changes. Returns the current state and stable pointer/focus
- * handlers; `focusTarget` may supply a separate keyboard-focus trigger.
+ * handlers; `getFocusTarget` may supply a separate keyboard-focus trigger.
  */
 export interface UseFloatingTooltipOptions {
   /**
@@ -94,8 +94,8 @@ export interface UseFloatingTooltipOptions {
    * pointer is too close to the top of the viewport.
    */
   preferAbove?: boolean
-  /** External control whose keyboard focus should reveal this tooltip. */
-  focusTarget?: HTMLElement | null
+  /** Resolves an external control whose keyboard focus should reveal this tooltip. */
+  getFocusTarget?: () => HTMLElement | null
   /** Semantic value whose changes should revalidate a visible tooltip. */
   revalidateKey?: unknown
 }
@@ -218,7 +218,7 @@ export function useFloatingTooltip(
   }, [apply, hide, showFromElement, showFromPointer])
 
   React.useEffect(() => {
-    const target = options.focusTarget
+    const target = options.getFocusTarget?.()
     if (!target) return undefined
     const show = () => {
       if (!canShowRef.current(target) || !isFocusVisible(target)) return
@@ -231,7 +231,7 @@ export function useFloatingTooltip(
       target.removeEventListener('focus', show)
       target.removeEventListener('blur', hide)
     }
-  }, [hide, options.focusTarget, showFromElement])
+  }, [hide, options.getFocusTarget, showFromElement])
 
   React.useEffect(() => {
     const trigger = triggerRef.current

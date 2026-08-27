@@ -1,7 +1,7 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { memo } from 'react'
+import { memo, useCallback } from 'react'
 import { cn } from '../../lib/cn'
 import {
   FloatingTooltip,
@@ -25,8 +25,8 @@ export interface OverflowTextProps {
   showWhen?: boolean
   /** Whether the full-value tooltip may open. Disable for visual mirror layers. */
   tooltipEnabled?: boolean
-  /** External composite control whose keyboard focus should reveal the tooltip. */
-  focusTarget?: HTMLElement | null
+  /** Lets the nearest interactive ancestor own keyboard focus for this label. */
+  focusTarget?: 'nearest-interactive'
 }
 
 /**
@@ -47,13 +47,24 @@ export const OverflowText = memo(function OverflowText({
 }: OverflowTextProps) {
   const { ref: textRef, node, isOverflowing } = useIsOverflowing<HTMLSpanElement>(label)
   const tooltipEligible = tooltipEnabled && label.length > 0 && (Boolean(showWhen) || isOverflowing)
+  const getFocusTarget = useCallback(() => {
+    if (focusTarget !== 'nearest-interactive') return null
+    return (
+      node.current?.closest<HTMLElement>(
+        'a[href], button, [role="button"], [tabindex]:not([tabindex="-1"])'
+      ) ?? null
+    )
+  }, [focusTarget, node])
   const { state, handlers } = useFloatingTooltip(
     () => {
       const element = node.current
       if (!tooltipEnabled || !element || label.length === 0) return false
       return Boolean(showWhen) || isTextClipped(element)
     },
-    { focusTarget, revalidateKey: tooltipEligible }
+    {
+      getFocusTarget: focusTarget === 'nearest-interactive' ? getFocusTarget : undefined,
+      revalidateKey: tooltipEligible,
+    }
   )
 
   return (
