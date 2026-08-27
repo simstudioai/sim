@@ -299,27 +299,27 @@ const SELF_HOSTED_SCHEME_PATTERN = /^https?:\/\//i
 /**
  * Normalizes and validates a self-hosted host into an absolute origin.
  *
- * The scheme requirement is a credential-exposure control, not tidiness. A
- * host without one stays a **relative** URL, and the executor resolves every
- * tool URL as `new URL(endpointUrl, getBaseUrl())` — with Sim's own origin as
- * the base:
+ * The scheme requirement is belt-and-braces, not the load-bearing control. A
+ * scheme-less host would be a **relative** URL, and the executor does resolve
+ * tool URLs against Sim's own origin (`new URL(endpointUrl, baseUrl)` in
+ * `tools/index.ts`) — which would send the credential {@link buildAuthHeaders}
+ * attaches to `https://sim.ai/es.internal/...`, or, for a protocol-relative
+ * `//evil.example.com/...`, to an attacker. That resolution is real but
+ * unreachable from here: `assertRequestUrlMatchesTrust` in
+ * `tools/request-transport.ts` runs first, parses every external tool URL with
+ * `new URL(url)` and **no base**, and pins the protocol to `http:`/`https:`.
+ * Both scheme-less forms throw on that parse, and `localhost:9200/...` parses
+ * but fails the protocol pin.
  *
- * ```
- * new URL('es.internal/products/_search', 'https://sim.ai')
- * // => https://sim.ai/es.internal/products/_search
- * new URL('//evil.example.com/x', 'https://sim.ai')
- * // => https://evil.example.com/x   (protocol-relative, inherits the scheme)
- * new URL('localhost:9200/products/_search', 'https://sim.ai')
- * // => protocol "localhost:", origin null
- * ```
+ * What this check buys is the error the user sees. It fires at configuration
+ * time, names the field, and says what to type, instead of letting the request
+ * die later against the transport's generic "invalid external URL" rejection.
+ * Keep it for the message, and do not weaken the transport guard on the
+ * assumption that this one is holding the line — it is the other way round.
  *
- * {@link buildAuthHeaders} attaches `Authorization: ApiKey …` or `Basic …`
- * regardless, so the caller's Elasticsearch credential is sent to Sim's public
- * origin — or, for the protocol-relative form, to an attacker's. The SSRF
- * guard does not catch it either, because the resolved host really is Sim.
- * Only a scheme makes the value absolute, so it is required rather than
- * guessed at: prefixing `https://` ourselves would silently redirect a
- * plaintext-only cluster and turn a typo into a different host.
+ * The scheme is required rather than guessed at: prefixing `https://`
+ * ourselves would silently redirect a plaintext-only cluster and turn a typo
+ * into a different host.
  *
  * The parse that follows catches a scheme-ful value the URL parser still
  * cannot resolve (`https://`, `http://[`). The original string — not the
@@ -341,7 +341,7 @@ function normalizeSelfHostedHost(rawHost: unknown): string {
   if (!SELF_HOSTED_SCHEME_PATTERN.test(host)) {
     throw new Error(
       `Host must start with "http://" or "https://" (received "${host}"). ` +
-        'A host without a scheme is a relative URL and would send your Elasticsearch credential to Sim instead of your cluster.'
+        'A host without a scheme is not an absolute URL, so the request cannot be addressed to your cluster.'
     )
   }
 

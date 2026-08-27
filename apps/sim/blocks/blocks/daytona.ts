@@ -285,7 +285,7 @@ export const DaytonaBlock: BlockConfig = {
       id: 'timeout',
       title: 'Timeout (seconds)',
       type: 'short-input',
-      placeholder: 'Timeout in seconds (defaults to 10)',
+      placeholder: 'Timeout in seconds (0 disables the server-side limit)',
       mode: 'advanced',
       condition: { field: 'operation', value: ['execute_command', 'run_code'] },
     },
@@ -600,7 +600,7 @@ export const DaytonaBlock: BlockConfig = {
     },
     result: {
       type: 'string',
-      description: 'Combined stdout/stderr output (execute command and run code operations)',
+      description: 'Standard output (execute command and run code operations)',
     },
     artifacts: { type: 'json', description: 'Run artifacts such as charts (run code operation)' },
     uploadedPath: {

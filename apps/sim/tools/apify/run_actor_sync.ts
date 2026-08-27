@@ -92,7 +92,7 @@ export const apifyRunActorSyncTool: ToolConfig<RunActorParams, RunActorResult> =
       const errorText = await response.text()
       return {
         success: false,
-        output: { success: false, status: 'ERROR', items: [] },
+        output: { success: false, items: [] },
         error: `APIFY API error: ${errorText}`,
       }
     }
@@ -102,21 +102,25 @@ export const apifyRunActorSyncTool: ToolConfig<RunActorParams, RunActorResult> =
       success: true,
       output: {
         success: true,
-        status: 'SUCCEEDED',
         items: Array.isArray(items) ? items : [],
       },
     }
   },
 
   /**
-   * The sync endpoint answers with a bare dataset-items array and documents no run
-   * identifier — neither in the body nor in a response header (only the
-   * `X-Apify-Pagination-*` family is returned) — so no `runId` is emitted. Wiring a
-   * fabricated id into `apify_get_run` would 404 every time.
+   * The sync endpoint answers with a bare dataset-items array and documents neither a run
+   * identifier nor a run status — not in the body, and not in a response header (only the
+   * `X-Apify-Pagination-*` family is returned). So neither `runId` nor `status` is emitted:
+   * a fabricated id wired into `apify_get_run` would 404 every time, and a hardcoded
+   * `'SUCCEEDED'` would claim a terminal state nothing in the response reports. Whether a
+   * failed run can still answer 201 is unknown — the spec's 201 carries an empty description
+   * — so there is no honest replacement value to substitute.
    */
   outputs: {
-    success: { type: 'boolean', description: 'Whether the actor run succeeded' },
-    status: { type: 'string', description: 'Run status (SUCCEEDED, FAILED, etc.)' },
+    success: {
+      type: 'boolean',
+      description: "Whether the request returned dataset items (not the run's own terminal status)",
+    },
     items: { type: 'array', description: 'Dataset items produced by the run' },
   },
 }

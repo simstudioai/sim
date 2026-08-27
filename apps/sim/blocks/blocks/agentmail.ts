@@ -336,10 +336,14 @@ export const AgentMailBlock: BlockConfig = {
 
     // Delete Thread fields
     /**
-     * AgentMail's DELETE thread endpoint takes no deletion-mode parameter and its own
-     * description reads "Permanently deletes a thread and all of its messages." There is no
-     * trash to move a thread to, so this id — which used to render a dropdown defaulting to
-     * "No (move to trash)" — is now a read-only notice. Keeping the id claimed means the
+     * AgentMail's DELETE thread endpoint declares no deletion-mode parameter — its only
+     * documented inputs are the path ids and the `Authorization` header — and its own
+     * description reads "Permanently deletes a thread and all of its messages." So the choice
+     * this id used to render — a dropdown defaulting to "No (move to trash)" — could not
+     * change the request Sim sends, and named an outcome the endpoint does not document. It is
+     * now a read-only notice. (AgentMail does have a trash label — `include_trash` filters
+     * list results, `label_trash_read` is an API-key scope — but nothing in the delete
+     * endpoint's contract routes a thread there.) Keeping the id claimed means the
      * warning appears exactly where the misleading choice used to sit, and no future subBlock
      * inherits the orphaned 'true'/'false' value still stored in existing workflows.
      */

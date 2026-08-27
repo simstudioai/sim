@@ -69,7 +69,7 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
       required: false,
       visibility: 'user-or-llm',
       description:
-        'ISO country code for geo-targeting results (e.g. "US", "DE", "JP"). Firecrawl defaults to "US" when this is unset, and recommends setting `location` alongside it for best results.',
+        'ISO country code for geo-targeting results (e.g. "US", "DE", "JP"). Firecrawl\'s published OpenAPI declares a bare `default: US`, but its server-side request transform applies that default only when `location` is also unset (`x.country !== undefined ? x.country : x.location ? undefined : "us"` in the v2 search request schema). The block ships both a Location and a Country field, so the common configuration — Location filled, Country blank — sends no country at all. Set both for best results.',
     },
     firecrawlTimeout: {
       type: 'number',

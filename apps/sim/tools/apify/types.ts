@@ -5,8 +5,10 @@ import type { ToolResponse } from '@/tools/types'
  * endpoints.
  *
  * Apify documents that "If the Actor run exceeds 300 seconds, the HTTP response
- * will return the 408 status code (Request Timeout)" on both the actor and the
- * actor-task variant. Sim's own transport falls back to `options.timeout || 300000`
+ * will return the 408 status code (Request Timeout)" on the actor variant. The
+ * actor-task variant's prose is weaker — "The run must finish in 300 seconds
+ * otherwise the HTTP request fails with a timeout error" — and only its
+ * response-code list names 408. Sim's own transport falls back to `options.timeout || 300000`
  * in `lib/core/security/input-validation.server.ts` — the same number — so a run
  * that lands on the boundary is a race between Apify's structured 408 and a
  * generic `Request timed out after 300000ms` that names neither the actor nor the
@@ -59,7 +61,8 @@ export interface RunActorResult extends ToolResponse {
     success: boolean
     /** Absent for the sync endpoint, whose response carries no run identifier. */
     runId?: string
-    status: string
+    /** Absent for the sync endpoint, whose response carries no run status. */
+    status?: string
     datasetId?: string
     items?: unknown[]
   }
@@ -78,7 +81,6 @@ export interface RunTaskParams {
 export interface RunTaskResult extends ToolResponse {
   output: {
     success: boolean
-    status: string
     items: unknown[]
   }
 }

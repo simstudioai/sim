@@ -125,6 +125,14 @@ describe('apify run_actor_sync response contract', () => {
     expect(apifyRunActorSyncTool.outputs?.runId).toBeUndefined()
   })
 
+  it('emits no fabricated run status — the sync body carries no status field', async () => {
+    for (const tool of [apifyRunActorSyncTool, apifyRunTaskTool]) {
+      const result = await tool.transformResponse!(jsonResponse([{ a: 1 }]))
+      expect(Object.hasOwn(result.output, 'status')).toBe(false)
+      expect(tool.outputs?.status).toBeUndefined()
+    }
+  })
+
   it('guards a non-array response body', async () => {
     const result = await apifyRunActorSyncTool.transformResponse!(jsonResponse({ error: 'nope' }))
     expect(result.output.items).toEqual([])

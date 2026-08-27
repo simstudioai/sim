@@ -833,6 +833,13 @@ Example 2 - Product Data:
     urls: { type: 'json', description: 'Array of URLs for extraction or batch scraping' },
     jobId: { type: 'string', description: 'Job ID for status/cancel operations' },
     query: { type: 'string', description: 'Search query terms' },
+    sources: { type: 'json', description: 'Search result sources (web, news, images)' },
+    categories: {
+      type: 'json',
+      description: 'Search result categories to restrict web results to',
+    },
+    location: { type: 'string', description: 'Location to search from' },
+    country: { type: 'string', description: 'ISO country code for geo-targeting search results' },
     prompt: { type: 'string', description: 'Extraction prompt' },
     limit: { type: 'string', description: 'Result/page limit' },
     formats: { type: 'json', description: 'Output formats array' },
@@ -876,6 +883,8 @@ Example 2 - Product Data:
     removeBase64Images: { type: 'boolean', description: 'Remove base64 images, keep alt text' },
     blockAds: { type: 'boolean', description: 'Block ads and popups during parsing' },
     proxy: { type: 'string', description: 'Proxy mode (basic or auto)' },
+    maxConcurrency: { type: 'string', description: 'Maximum number of concurrent scrapes' },
+    ignoreInvalidURLs: { type: 'boolean', description: 'Skip URLs that are invalid for Firecrawl' },
     zeroDataRetention: { type: 'boolean', description: 'Enable zero data retention' },
   },
   outputs: {

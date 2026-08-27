@@ -50,7 +50,8 @@ export const daytonaExecuteCommandTool: ToolConfig<
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Timeout in seconds (defaults to 10 seconds)',
+      description:
+        'Maximum time in seconds to wait for the command to complete; 0 disables the server-side limit. Daytona documents no default, so leaving this blank uses whatever the toolbox daemon applies.',
     },
   },
 
@@ -93,6 +94,6 @@ export const daytonaExecuteCommandTool: ToolConfig<
       type: 'number',
       description: 'Exit code of the command (-1 if missing from the response)',
     },
-    result: { type: 'string', description: 'Combined stdout/stderr output of the command' },
+    result: { type: 'string', description: 'Standard output from the command' },
   },
 }

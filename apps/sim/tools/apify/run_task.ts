@@ -100,7 +100,7 @@ export const apifyRunTaskTool: ToolConfig<RunTaskParams, RunTaskResult> = {
       const errorText = await response.text()
       return {
         success: false,
-        output: { success: false, status: 'ERROR', items: [] },
+        output: { success: false, items: [] },
         error: `APIFY API error: ${errorText}`,
       }
     }
@@ -110,15 +110,20 @@ export const apifyRunTaskTool: ToolConfig<RunTaskParams, RunTaskResult> = {
       success: true,
       output: {
         success: true,
-        status: 'SUCCEEDED',
         items: Array.isArray(items) ? items : [],
       },
     }
   },
 
+  /**
+   * Same contract as `apify_run_actor_sync`: the task sync endpoint returns dataset items
+   * with no run identifier and no run status, so neither is synthesized here.
+   */
   outputs: {
-    success: { type: 'boolean', description: 'Whether the task run succeeded' },
-    status: { type: 'string', description: 'Run status (SUCCEEDED, FAILED, etc.)' },
+    success: {
+      type: 'boolean',
+      description: "Whether the request returned dataset items (not the run's own terminal status)",
+    },
     items: { type: 'array', description: 'Dataset items produced by the run' },
   },
 }
