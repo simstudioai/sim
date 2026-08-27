@@ -1404,6 +1404,16 @@ import {
   foragerPersonWorkEmailsTool,
   foragerWebsiteDetailTool,
 } from '@/tools/forager'
+import {
+  fullEnrichGetContactEnrichmentTool,
+  fullEnrichGetReverseEmailTool,
+  fullEnrichLookupCompanyTool,
+  fullEnrichLookupPersonTool,
+  fullEnrichSearchCompaniesTool,
+  fullEnrichSearchPeopleTool,
+  fullEnrichStartContactEnrichmentTool,
+  fullEnrichStartReverseEmailTool,
+} from '@/tools/fullenrich'
 import { functionExecuteTool } from '@/tools/function'
 import {
   gammaCheckStatusTool,
@@ -6025,6 +6035,14 @@ export const tools: Record<string, ToolConfig> = {
   forager_person_role_search_totals: foragerPersonRoleSearchTotalsTool,
   forager_person_work_emails: foragerPersonWorkEmailsTool,
   forager_website_detail: foragerWebsiteDetailTool,
+  fullenrich_get_contact_enrichment: fullEnrichGetContactEnrichmentTool,
+  fullenrich_get_reverse_email: fullEnrichGetReverseEmailTool,
+  fullenrich_lookup_company: fullEnrichLookupCompanyTool,
+  fullenrich_lookup_person: fullEnrichLookupPersonTool,
+  fullenrich_search_companies: fullEnrichSearchCompaniesTool,
+  fullenrich_search_people: fullEnrichSearchPeopleTool,
+  fullenrich_start_contact_enrichment: fullEnrichStartContactEnrichmentTool,
+  fullenrich_start_reverse_email: fullEnrichStartReverseEmailTool,
   gong_aggregate_activity: gongAggregateActivityTool,
   gong_aggregate_by_period: gongAggregateByPeriodTool,
   gong_answered_scorecards: gongAnsweredScorecardsTool,

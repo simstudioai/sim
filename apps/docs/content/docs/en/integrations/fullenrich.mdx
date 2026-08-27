@@ -1,0 +1,254 @@
+---
+title: FullEnrich
+description: Enrich contacts and search or look up people and companies
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="fullenrich"
+  color="#8164F4"
+/>
+
+## Usage Instructions
+
+Use FullEnrich to enrich batches of contacts with work emails, personal emails, and mobile phones; reverse email addresses; search people and companies; and retrieve standalone person or company profiles.
+
+
+
+## Actions
+
+### FullEnrich Get Contact Enrichment
+
+Retrieve the status, contact records, and historical credit usage for an enrichment.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | FullEnrich API key |
+| `enrichmentId` | string | Yes | Enrichment ID returned by Start Contact Enrichment |
+| `forceResults` | boolean | No | Return available records before the whole enrichment finishes |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Enrichment ID |
+| `name` | string | Enrichment name |
+| `status` | string | Current enrichment status |
+| `records` | array | Contact enrichment records with input, custom, contact_info, and profile fields |
+|   ↳ `input` | json | Original contact enrichment input |
+|   ↳ `custom` | json | Custom string fields returned unchanged |
+|   ↳ `contact_info` | json | Found work emails, personal emails, and mobile phones |
+|   ↳ `profile` | json | Full professional person profile |
+| `costCredits` | number | Historical credits consumed by the enrichment; retrieval itself is free |
+
+### FullEnrich Get Reverse Email
+
+Retrieve the status, matched profiles, and historical credit usage for a reverse lookup.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | FullEnrich API key |
+| `enrichmentId` | string | Yes | Enrichment ID returned by Start Reverse Email |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Reverse lookup ID |
+| `name` | string | Reverse lookup name |
+| `status` | string | Current reverse-lookup status |
+| `records` | array | Reverse-email records with input, custom, and matched profile fields |
+|   ↳ `input` | json | Original email input |
+|   ↳ `custom` | json | Custom string fields returned unchanged |
+|   ↳ `profile` | json | Matched professional person profile |
+| `costCredits` | number | Historical credits consumed by the lookup; retrieval itself is free |
+
+### FullEnrich Lookup Company
+
+Look up one company by domain or professional-network URL or ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | FullEnrich API key |
+| `domain` | string | No | Company domain |
+| `professionalNetworkUrl` | string | No | Professional-network URL of the company |
+| `professionalNetworkId` | number | No | Professional-network ID of the company |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `companies` | array | Companies returned by FullEnrich |
+|   ↳ `id` | string | FullEnrich company identifier |
+|   ↳ `name` | string | Company name |
+|   ↳ `domain` | string | Company domain |
+|   ↳ `website` | string | Company website |
+|   ↳ `description` | string | Company description |
+|   ↳ `year_founded` | number | Year founded |
+|   ↳ `headcount` | number | Exact employee count |
+|   ↳ `headcount_range` | string | Employee-count range |
+|   ↳ `company_type` | string | Company type |
+|   ↳ `locations` | json | Headquarters and office locations |
+|   ↳ `social_profiles` | json | Professional-network profile details |
+|   ↳ `specialties` | json | Company specialties |
+|   ↳ `industry` | json | Company industry information |
+|   ↳ `logo_url` | string | FullEnrich-hosted company logo URL |
+| `credits` | number | Credits reported by FullEnrich for this lookup |
+
+### FullEnrich Lookup Person
+
+Look up one person by name, professional-network URL or ID, optionally disambiguated by company.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | FullEnrich API key |
+| `personName` | string | No | Full name of the person |
+| `personProfessionalNetworkUrl` | string | No | Professional-network profile URL of the person |
+| `personProfessionalNetworkId` | number | No | Professional-network profile ID of the person |
+| `companyProfessionalNetworkUrl` | string | No | Professional-network URL of the company used to disambiguate a name |
+| `companyProfessionalNetworkId` | number | No | Professional-network ID of the company used to disambiguate a name |
+| `companyDomain` | string | No | Company domain used to disambiguate a name |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `people` | array | People returned by FullEnrich |
+|   ↳ `id` | string | FullEnrich person identifier |
+|   ↳ `full_name` | string | Full name |
+|   ↳ `first_name` | string | First name |
+|   ↳ `last_name` | string | Last name |
+|   ↳ `headline` | string | Professional headline |
+|   ↳ `description` | string | Professional profile summary |
+|   ↳ `location` | json | Structured person location |
+|   ↳ `social_profiles` | json | Professional-network profile details |
+|   ↳ `educations` | json | Education history |
+|   ↳ `languages` | json | Languages and proficiency |
+|   ↳ `skills` | json | Professional skills |
+|   ↳ `employment` | json | Current and past employment |
+| `credits` | number | Credits reported by FullEnrich for this lookup |
+
+### FullEnrich Search Companies
+
+Search FullEnrich companies by name, domain, professional network, keywords, industry, type, location, founding year, and headcount.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | FullEnrich API key |
+| `filters` | json | No | Official company-search filter object. Supported keys: names, domains, professional_network_ids, professional_network_urls, keywords, specialties, industries, types, headquarters_locations, founded_years, headcounts, and company_ids. |
+| `offset` | number | No | Number of companies to skip, from 0 to 10,000 |
+| `limit` | number | No | Number of companies to return, from 1 to 100; defaults to 10 |
+| `searchAfter` | string | No | Cursor returned by the previous response for cursor-based pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `companies` | array | Companies returned by FullEnrich |
+|   ↳ `id` | string | FullEnrich company identifier |
+|   ↳ `name` | string | Company name |
+|   ↳ `domain` | string | Company domain |
+|   ↳ `website` | string | Company website |
+|   ↳ `description` | string | Company description |
+|   ↳ `year_founded` | number | Year founded |
+|   ↳ `headcount` | number | Exact employee count |
+|   ↳ `headcount_range` | string | Employee-count range |
+|   ↳ `company_type` | string | Company type |
+|   ↳ `locations` | json | Headquarters and office locations |
+|   ↳ `social_profiles` | json | Professional-network profile details |
+|   ↳ `specialties` | json | Company specialties |
+|   ↳ `industry` | json | Company industry information |
+|   ↳ `logo_url` | string | FullEnrich-hosted company logo URL |
+| `total` | number | Total number of matching companies |
+| `credits` | number | Credits reported by FullEnrich for this request |
+| `offset` | number | Number of results skipped |
+| `searchAfter` | string | Cursor for the next page |
+
+### FullEnrich Search People
+
+Search FullEnrich people by company, identity, location, skills, role, seniority, employment, and education filters.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | FullEnrich API key |
+| `filters` | json | No | Official people-search filter object. Supported keys include current_company_names, current_company_domains, current_position_titles, person_locations, person_skills, and all other documented v2 filters. |
+| `offset` | number | No | Number of people to skip, from 0 to 10,000 |
+| `limit` | number | No | Number of people to return, from 1 to 100; defaults to 10 |
+| `searchAfter` | string | No | Cursor returned by the previous response for cursor-based pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `people` | array | People returned by FullEnrich |
+|   ↳ `id` | string | FullEnrich person identifier |
+|   ↳ `full_name` | string | Full name |
+|   ↳ `first_name` | string | First name |
+|   ↳ `last_name` | string | Last name |
+|   ↳ `headline` | string | Professional headline |
+|   ↳ `description` | string | Professional profile summary |
+|   ↳ `location` | json | Structured person location |
+|   ↳ `social_profiles` | json | Professional-network profile details |
+|   ↳ `educations` | json | Education history |
+|   ↳ `languages` | json | Languages and proficiency |
+|   ↳ `skills` | json | Professional skills |
+|   ↳ `employment` | json | Current and past employment |
+| `total` | number | Total number of matching people |
+| `credits` | number | Credits reported by FullEnrich for this request |
+| `offset` | number | Number of results skipped |
+| `searchAfter` | string | Cursor for the next page |
+
+### FullEnrich Start Contact Enrichment
+
+Start an asynchronous enrichment of up to 100 contacts for work emails, personal emails, and mobile phones.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | FullEnrich API key |
+| `name` | string | Yes | Readable enrichment name shown in the FullEnrich dashboard |
+| `data` | json | Yes | Array of 1-100 contacts. Each requires linkedin_url, or first_name + last_name with domain/company_name, plus enrich_fields. |
+| `webhookUrl` | string | No | HTTPS endpoint notified when the entire enrichment finishes |
+| `contactFinishedWebhookUrl` | string | No | HTTPS endpoint notified when each contact finishes |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `enrichmentId` | string | ID used to retrieve asynchronous enrichment results |
+
+### FullEnrich Start Reverse Email
+
+Start an asynchronous reverse lookup of up to 100 email addresses.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | FullEnrich API key |
+| `name` | string | Yes | Readable reverse-lookup name shown in the FullEnrich dashboard |
+| `data` | json | Yes | Array of 1-100 objects containing email and optional string-valued custom fields |
+| `webhookUrl` | string | No | HTTPS endpoint notified when the entire lookup finishes |
+| `contactFinishedWebhookUrl` | string | No | HTTPS endpoint notified when each email finishes |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `enrichmentId` | string | ID used to retrieve asynchronous reverse-email results |
+
+
