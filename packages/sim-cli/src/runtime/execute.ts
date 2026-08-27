@@ -129,6 +129,19 @@ export const BULK_OUTCOME_CHECKS: Readonly<Partial<Record<V2OperationName, BulkO
       ? safeOneLine(reported)
       : `Updated nothing: none of the ${requested} requested ${requested === 1 ? 'chunk' : 'chunks'} matched.`
   },
+  /**
+   * Only the id-list selection is checked. The filter branch answers with a
+   * deleted count alone — no `requestedCount` — so the guard below self-excludes
+   * on it, which is right: a filter matching nothing deleted nothing because
+   * there was nothing to delete, and failing there would break the second run of
+   * an otherwise idempotent sweep.
+   */
+  deleteTableRows: (payload) => {
+    if (countOf(payload.deletedCount) > 0) return null
+    const requested = countOf(payload.requestedCount)
+    if (requested === 0) return null
+    return `Deleted nothing: none of the ${requested} requested ${requested === 1 ? 'row was' : 'rows were'} deleted.`
+  },
   moveTables: (payload) => {
     if (lengthOf(payload.moved) > 0) return null
     const missed = lengthOf(payload.notFound) + lengthOf(payload.failed)
