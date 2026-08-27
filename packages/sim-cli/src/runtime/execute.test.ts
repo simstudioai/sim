@@ -73,6 +73,19 @@ const MOVE_WORKFLOWS: OperationSpec = {
 
 const MOVE_FLAGS = { workflow: ['wf_1'], to: '/a' }
 
+const DELETE_TABLE_ROWS: OperationSpec = {
+  method: 'DELETE',
+  path: '/api/v2/tables/[tableId]/rows',
+  pathParams: ['tableId'],
+  body: { rowIds: { kind: 'array' }, filter: { kind: 'unknown' } },
+}
+
+/** Invokes a generated command that takes both a path positional and flags. */
+function invokeRowDelete(flags: Record<string, unknown>) {
+  const host = new Command('leaf')
+  return executeOperation('deleteTableRows', {}, DELETE_TABLE_ROWS, ['tbl_1', flags, host])
+}
+
 /** Invokes a generated command that takes its input from flags rather than positionals. */
 function invokeWithFlags(
   operation: 'bulkDeleteTables' | 'bulkDeleteFiles' | 'moveTables' | 'moveWorkflows',
@@ -338,6 +351,48 @@ describe('a bulk call that changed nothing', () => {
     request.mockResolvedValue({ data: { moved: [], skipped: [], notFound: [], failed: [] } })
 
     await expect(invokeWithFlags('moveTables', MOVE_TABLES, {})).resolves.toBeUndefined()
+  })
+
+  it('fails the process when no requested row was deleted', async () => {
+    request.mockResolvedValue({
+      data: {
+        deletedCount: 0,
+        deletedRowIds: [],
+        requestedCount: 1,
+        missingRowIds: ['00000000-0000-0000-0000-000000000000'],
+      },
+    })
+
+    await expect(
+      invokeRowDelete({ row: ['00000000-0000-0000-0000-000000000000'] })
+    ).rejects.toThrow(/Deleted nothing: none of the 1 requested row was deleted\./)
+  })
+
+  it('succeeds on a partial row delete', async () => {
+    request.mockResolvedValue({
+      data: {
+        deletedCount: 1,
+        deletedRowIds: ['row_1'],
+        requestedCount: 2,
+        missingRowIds: ['row_gone'],
+      },
+    })
+
+    await expect(invokeRowDelete({ row: ['row_1', 'row_gone'] })).resolves.toBeUndefined()
+  })
+
+  /**
+   * The selection mode the guard must not touch. A filter answers with a deleted
+   * count and no `requestedCount`, and a filter that matches nothing deleted
+   * nothing because there was nothing left to delete — the second run of an
+   * idempotent sweep, not a failure.
+   */
+  it('succeeds when a filter matched no rows', async () => {
+    request.mockResolvedValue({ data: { deletedCount: 0, deletedRowIds: [] } })
+
+    await expect(
+      invokeRowDelete({ filter: { all: [{ field: 'status', op: 'eq', value: 'archived' }] } })
+    ).resolves.toBeUndefined()
   })
 })
 
