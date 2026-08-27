@@ -1,11 +1,15 @@
 import { createLogger } from '@sim/logger'
+import { NextRequest } from 'next/server'
+import { cancelWorkflowExecutionContract } from '@/lib/api/contracts/workflows'
 import { createCopilotWorkspaceApiKey } from '@/lib/api-key/application/create-api-key'
+import { generateInternalToken } from '@/lib/auth/internal'
 import { messageForCopilotApplicationError } from '@/lib/copilot/application/error'
 import { executeCopilotApiKeyUseCase } from '@/lib/copilot/application/execute-api-key-use-case'
 import {
   executeCopilotWorkflowUseCase,
   messageForCopilotWorkflowError,
 } from '@/lib/copilot/application/execute-workflow-use-case'
+import { requireTrustedCopilotExecutionContext } from '@/lib/copilot/auth/application-delegation'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import {
   TOOL_EFFECT_PHASE,
@@ -15,7 +19,6 @@ import {
 import { requireCopilotWorkspace } from '@/lib/copilot/tools/server/workspace-scope'
 import { decodeVfsPathSegments, encodeVfsPathSegments } from '@/lib/copilot/vfs/path-utils'
 import { PlatformEvents } from '@/lib/core/telemetry'
-import { cancelWorkflowRun } from '@/lib/workflows/application/cancel-run'
 import { createWorkflow } from '@/lib/workflows/application/create-workflow'
 import { moveWorkflowsBulk } from '@/lib/workflows/application/move-workflows-bulk'
 import {
@@ -151,6 +154,12 @@ function resolveRunTriggerBlockId(params: { triggerBlockId?: unknown }): string 
 
 function resolveInputFromExecutionId(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined
+}
+
+function readCancellationRouteError(body: unknown): string | undefined {
+  if (!body || typeof body !== 'object' || !('error' in body)) return undefined
+  const error = body.error
+  return typeof error === 'string' && error.trim() ? error : undefined
 }
 
 function copilotRunLifecycle(context: ExecutionContext) {
@@ -302,15 +311,36 @@ export async function executeCancelWorkflowRun(
       context,
       'Request aborted before workflow run cancellation could be applied.'
     )
-    const result = await executeCopilotWorkflowUseCase(context, cancelWorkflowRun, {
-      workflowId,
-      runId: executionId,
-    })
+    const trustedContext = requireTrustedCopilotExecutionContext(context)
+    const internalToken = await generateInternalToken(trustedContext.userId)
+    const { POST: cancelWorkflowExecution } = await import(
+      '@/app/api/workflows/[id]/executions/[executionId]/cancel/route'
+    )
+    const response = await cancelWorkflowExecution(
+      new NextRequest(
+        `http://localhost/api/workflows/${encodeURIComponent(workflowId)}/executions/${encodeURIComponent(executionId)}/cancel`,
+        {
+          method: 'POST',
+          headers: { authorization: `Bearer ${internalToken}` },
+        }
+      ),
+      { params: Promise.resolve({ id: workflowId, executionId }) }
+    )
+    const responseBody: unknown = await response.json()
+    if (!response.ok) {
+      return {
+        success: false,
+        error:
+          readCancellationRouteError(responseBody) ||
+          `Failed to cancel workflow run (${response.status})`,
+      }
+    }
+    const result = cancelWorkflowExecutionContract.response.schema.parse(responseBody)
 
     return {
       success: result.success,
       output: {
-        workflowId: result.workflowId,
+        workflowId,
         executionId: result.executionId,
         durablyRecorded: result.durablyRecorded,
         locallyAborted: result.locallyAborted,
