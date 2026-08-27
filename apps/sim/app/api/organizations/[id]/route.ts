@@ -1,6 +1,6 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
-import { member, organization } from '@sim/db/schema'
+import { member, organization, organizationColumns } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { and, eq, ne } from 'drizzle-orm'
@@ -64,7 +64,7 @@ export const GET = withRouteHandler(
       }
 
       const organizationEntry = await db
-        .select()
+        .select(organizationColumns)
         .from(organization)
         .where(eq(organization.id, organizationId))
         .limit(1)
@@ -156,7 +156,7 @@ export const PUT = withRouteHandler(
       if (name !== undefined || slug !== undefined || logo !== undefined) {
         if (slug !== undefined) {
           const existingSlug = await db
-            .select()
+            .select(organizationColumns)
             .from(organization)
             .where(and(eq(organization.slug, slug), ne(organization.id, organizationId)))
             .limit(1)
@@ -180,7 +180,7 @@ export const PUT = withRouteHandler(
           .update(organization)
           .set(updateData)
           .where(eq(organization.id, organizationId))
-          .returning()
+          .returning(organizationColumns)
 
         if (updatedOrg.length === 0) {
           return NextResponse.json({ error: 'Organization not found' }, { status: 404 })

@@ -1,5 +1,5 @@
 import { dbReplica } from '@sim/db'
-import { workflowExecutionLogs } from '@sim/db/schema'
+import { workflowExecutionLogColumns, workflowExecutionLogs } from '@sim/db/schema'
 import { and, inArray, isNotNull } from 'drizzle-orm'
 import { MATERIALIZE_CONCURRENCY, mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import {
@@ -13,7 +13,7 @@ import { getOrganizationWorkspaceIds } from '@/lib/data-drains/sources/helpers'
 import type { Cursor, DrainSource, SourcePageInput } from '@/lib/data-drains/types'
 import { materializeExecutionDataForDisplay } from '@/lib/logs/execution/trace-store'
 
-type WorkflowLogRow = typeof workflowExecutionLogs.$inferSelect
+type WorkflowLogRow = Omit<typeof workflowExecutionLogs.$inferSelect, 'cost'>
 
 /**
  * Cursors on `endedAt` (terminal timestamp) rather than `startedAt`. A running
@@ -35,7 +35,7 @@ async function* pages(input: SourcePageInput): AsyncIterable<WorkflowLogRow[]> {
     )
 
     const rows = await dbReplica
-      .select()
+      .select(workflowExecutionLogColumns)
       .from(workflowExecutionLogs)
       .where(
         and(

@@ -118,6 +118,7 @@ export const Panel = memo(function Panel() {
   const router = useRouter()
   const params = useParams()
   const workspaceId = params.workspaceId as string
+  const routeWorkflowId = params.workflowId as string | undefined
 
   const posthog = usePostHog()
   const posthogRef = useRef(posthog)
@@ -397,6 +398,10 @@ export const Panel = memo(function Panel() {
       },
     })
   )
+  const copilotDraftWorkflowId = activeWorkflowId ?? routeWorkflowId
+  const copilotDraftScopeKey = copilotDraftWorkflowId
+    ? `${workspaceId}:workflow-copilot:${copilotDraftWorkflowId}`
+    : undefined
 
   const handleCopilotNewChat = useCallback(() => {
     if (!activeWorkflowId || !workspaceId) return
@@ -943,6 +948,7 @@ export const Panel = memo(function Panel() {
                   onCancelQueueEdit={copilotCancelQueueEdit}
                   userId={session?.user?.id}
                   chatId={copilotResolvedChatId}
+                  draftScopeKey={copilotDraftScopeKey}
                   layout='copilot-view'
                 />
               </div>

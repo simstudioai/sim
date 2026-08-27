@@ -32,6 +32,7 @@ export async function ensureAnonymousUserExists(): Promise<void> {
     }
 
     const existingStats = await db.query.userStats.findFirst({
+      columns: { id: true },
       where: eq(schema.userStats.userId, ANONYMOUS_USER_ID),
     })
 

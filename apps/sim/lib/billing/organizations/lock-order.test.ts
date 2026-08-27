@@ -59,8 +59,6 @@ const GENERIC_ROW = {
   status: 'active',
   cancelAtPeriodEnd: false,
   stripeSubscriptionId: 'stripe-1',
-  currentPeriodCost: '5',
-  proPeriodCostSnapshot: '0',
   storageUsedBytes: 0,
 }
 
