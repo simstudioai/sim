@@ -221,6 +221,7 @@ export interface TriggerDevQueue {
 export interface TriggerDevEnvVar {
   name: string
   value: string
+  isSecret: boolean
 }
 
 /** Raw run result object returned by the run result and batch results endpoints */

@@ -1226,6 +1226,11 @@ Return ONLY the valid JSON object - no explanations, no markdown.`,
       description: 'Environment variable or queue name (env var and queue operations)',
     },
     value: { type: 'string', description: 'Value of the environment variable (Get Env Var)' },
+    isSecret: {
+      type: 'boolean',
+      description:
+        'Whether the environment variable is a secret, meaning its value is redacted (Get Env Var)',
+    },
     success: {
       type: 'boolean',
       description: 'Whether the operation succeeded (env var operations, Complete Waitpoint Token)',

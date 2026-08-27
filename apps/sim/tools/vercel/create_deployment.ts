@@ -131,7 +131,8 @@ export const vercelCreateDeploymentTool: ToolConfig<
     url: { type: 'string', description: 'Unique deployment URL' },
     readyState: {
       type: 'string',
-      description: 'Deployment ready state: QUEUED, BUILDING, ERROR, INITIALIZING, READY, CANCELED',
+      description:
+        'Deployment ready state: BLOCKED, BUILDING, CANCELED, ERROR, INITIALIZING, QUEUED, or READY',
     },
     projectId: { type: 'string', description: 'Associated project ID' },
     createdAt: { type: 'number', description: 'Creation timestamp in milliseconds' },

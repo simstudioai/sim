@@ -105,7 +105,8 @@ export const vercelGetDeploymentTool: ToolConfig<
     url: { type: 'string', description: 'Unique deployment URL' },
     readyState: {
       type: 'string',
-      description: 'Deployment ready state: QUEUED, BUILDING, ERROR, INITIALIZING, READY, CANCELED',
+      description:
+        'Deployment ready state: BLOCKED, BUILDING, CANCELED, ERROR, INITIALIZING, QUEUED, or READY',
     },
     status: {
       type: 'string',

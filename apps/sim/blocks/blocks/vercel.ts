@@ -339,6 +339,8 @@ export const VercelBlock: BlockConfig = {
         { label: 'Error', id: 'ERROR' },
         { label: 'Queued', id: 'QUEUED' },
         { label: 'Canceled', id: 'CANCELED' },
+        { label: 'Initializing', id: 'INITIALIZING' },
+        { label: 'Blocked', id: 'BLOCKED' },
       ],
       condition: { field: 'operation', value: 'list_deployments' },
       mode: 'advanced',
@@ -607,7 +609,6 @@ export const VercelBlock: BlockConfig = {
         { label: 'SvelteKit', id: 'sveltekit' },
         { label: 'Astro', id: 'astro' },
         { label: 'Gatsby', id: 'gatsby' },
-        { label: 'Other', id: 'other' },
       ],
       condition: { field: 'operation', value: ['create_project', 'update_project'] },
       mode: 'advanced',
@@ -2197,7 +2198,16 @@ export const VercelBlock: BlockConfig = {
       description: 'Deployment state',
       condition: {
         field: 'operation',
-        value: ['get_deployment', 'create_deployment', 'cancel_deployment', 'delete_deployment'],
+        value: ['cancel_deployment', 'delete_deployment'],
+      },
+    },
+    readyState: {
+      type: 'string',
+      description:
+        'Deployment ready state: BLOCKED, BUILDING, CANCELED, ERROR, INITIALIZING, QUEUED, or READY',
+      condition: {
+        field: 'operation',
+        value: ['get_deployment', 'create_deployment'],
       },
     },
     deleted: {
@@ -2206,12 +2216,10 @@ export const VercelBlock: BlockConfig = {
       condition: {
         field: 'operation',
         value: [
-          'delete_deployment',
           'delete_project',
           'remove_project_domain',
           'delete_domain',
           'delete_dns_record',
-          'delete_alias',
           'delete_env_var',
           'delete_webhook',
           'delete_edge_config',
@@ -2233,8 +2241,20 @@ export const VercelBlock: BlockConfig = {
     },
     status: {
       type: 'string',
-      description: 'Operation status reported by Vercel',
-      condition: { field: 'operation', value: ['update_edge_config_items'] },
+      description:
+        'Status reported by Vercel: deployment status, check status (registered, running, completed), deletion status, or edge config update status',
+      condition: {
+        field: 'operation',
+        value: [
+          'update_edge_config_items',
+          'get_deployment',
+          'cancel_deployment',
+          'delete_alias',
+          'create_check',
+          'get_check',
+          'update_check',
+        ],
+      },
     },
     count: {
       type: 'number',
