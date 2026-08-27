@@ -13,7 +13,9 @@
  * Run: `bun run scripts/check-bun-version-pins.ts`
  */
 import path from 'node:path'
+import { createLogger } from '@sim/logger'
 
+const logger = createLogger('BunVersionPinsCheck')
 const ROOT = path.resolve(import.meta.dir, '..')
 
 interface Mismatch {
@@ -25,7 +27,7 @@ const rootManifest = await Bun.file(path.join(ROOT, 'package.json')).json()
 const packageManager = rootManifest.packageManager as string | undefined
 const versionMatch = /^bun@(\d+\.\d+\.\d+)$/.exec(packageManager ?? '')
 if (!versionMatch) {
-  console.error(
+  logger.error(
     `Bun version pin audit failed: root package.json "packageManager" is "${packageManager}", ` +
       'expected "bun@<major>.<minor>.<patch>".'
   )
@@ -96,14 +98,15 @@ await Promise.all([
 ])
 
 if (mismatches.length > 0) {
-  console.error(
+  const details = mismatches
+    .sort((a, b) => a.file.localeCompare(b.file))
+    .map(({ file, found }) => `  ${file}: found ${found}`)
+    .join('\n')
+  logger.error(
     `Bun version pin audit failed: expected every pin to match root packageManager ` +
-      `"bun@${expectedVersion}".\n`
+      `"bun@${expectedVersion}".\n\n${details}`
   )
-  for (const { file, found } of mismatches.sort((a, b) => a.file.localeCompare(b.file))) {
-    console.error(`  ${file}: found ${found}`)
-  }
   process.exit(1)
 }
 
-console.log(`Bun version pin audit passed (every pin matches bun@${expectedVersion}).`)
+logger.info(`Bun version pin audit passed (every pin matches bun@${expectedVersion}).`)

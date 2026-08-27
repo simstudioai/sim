@@ -24,7 +24,10 @@
 import { createHash } from 'node:crypto'
 import http from 'node:http'
 import net from 'node:net'
+import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+
+const logger = createLogger('BunWebsocketUpgradeCheck')
 
 const WEBSOCKET_MAGIC = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11'
 const CLIENT_KEY = 'dGhlIHNhbXBsZSBub25jZQ=='
@@ -123,7 +126,7 @@ const BUG_REMEDIATION =
   '`bun run check:bun-version-pins` to check whether a Bun version pin has drifted back below it.'
 
 function reportFailure(reason: string): never {
-  console.error(`Bun WebSocket upgrade audit failed: ${reason}`)
+  logger.error(`Bun WebSocket upgrade audit failed: ${reason}`)
   process.exit(1)
 }
 
@@ -144,4 +147,4 @@ if (result.event !== 'upgrade' || result.statusCode !== 101) {
   )
 }
 
-console.log("Bun WebSocket upgrade audit passed (a 101 response correctly fires 'upgrade').")
+logger.info("Bun WebSocket upgrade audit passed (a 101 response correctly fires 'upgrade').")
