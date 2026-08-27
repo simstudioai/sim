@@ -21,7 +21,9 @@ Profiles work like the AWS CLI: settings live in ~/.sim/config, keys in
 with -P, --profile, or SIM_PROFILE.
 
 Workflow, knowledge-base and workspace IDs are bare UUIDs. Table IDs carry a
-tbl_ prefix and file IDs a wf_ one, so wf_ never names a workflow.
+tbl_ prefix and file IDs a wf_ one, so wf_ never names a workflow. An audit-log
+or custom-tool ID can open with a dash, which reads as a flag; put -- in front
+of it, as in sim audit-logs get -- -HlDcD1z76nK6R4crsUp0.
 
 Examples:
   $ sim login                          Authorize the default profile

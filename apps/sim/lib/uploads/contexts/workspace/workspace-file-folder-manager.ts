@@ -386,6 +386,21 @@ export async function findWorkspaceFileFolderIdByPath(
 }
 
 /**
+ * Selects the minimal columns needed to resolve every file folder's canonical path.
+ *
+ * Includes archived rows: an archived folder can still have an active ancestor, so a
+ * path map built only from archived rows truncates its path to the bare folder name.
+ */
+async function selectFileFolderPathRows(
+  workspaceId: string
+): Promise<Array<Pick<RawWorkspaceFileFolder, 'id' | 'name' | 'parentId'>>> {
+  return db
+    .select({ id: folderTable.id, name: folderTable.name, parentId: folderTable.parentId })
+    .from(folderTable)
+    .where(and(eq(folderTable.workspaceId, workspaceId), isFileFolder))
+}
+
+/**
  * Lists a workspace's file folders, ordered in the database like every other folder
  * list so a name sort uses the same collation and the same `createdAt` tiebreak.
  * Defaults to `position` — `sortOrder ASC, createdAt ASC` — which honours a user's
@@ -420,7 +435,9 @@ export async function listWorkspaceFileFolders(
     )
     .orderBy(...listOrderBy(FOLDER_SORTS[sortBy], sortOrder))
 
-  const paths = buildWorkspaceFileFolderPathMap(rows)
+  const paths = buildWorkspaceFileFolderPathMap(
+    scope === 'archived' ? await selectFileFolderPathRows(workspaceId) : rows
+  )
   return rows.map((row) => mapFolder(row, paths))
 }
 

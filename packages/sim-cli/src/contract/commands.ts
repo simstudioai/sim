@@ -531,6 +531,13 @@ export const CLI_CONTRACT: CliContract = {
     confirm:
       'This changes which deployed version runs in production for every API and chat consumer.',
   },
+  // The same application operation as `rollback`, under a different transition:
+  // both switch production away from the version the caller last chose. Gating
+  // one and not the other was an accident of naming, not a policy.
+  activateWorkflowVersion: {
+    confirm:
+      'This changes which deployed version runs in production for every API and chat consumer.',
+  },
   // POST derives to `... create`, which creates nothing here. Named for the
   // operation instead, matching the shipped `files move`.
   moveWorkflows: {
