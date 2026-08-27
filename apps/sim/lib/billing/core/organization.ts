@@ -1,5 +1,12 @@
 import { db } from '@sim/db'
-import { member, organization, usageLog, user, userStats } from '@sim/db/schema'
+import {
+  member,
+  organization,
+  organizationColumns,
+  usageLog,
+  user,
+  userStats,
+} from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, count, eq, gte, lt, sql } from 'drizzle-orm'
 import { isOrganizationBillingBlocked } from '@/lib/billing/core/access'
@@ -189,7 +196,7 @@ export async function getOrganizationBillingData(
   try {
     // Get organization info
     const orgRecord = await executor
-      .select()
+      .select(organizationColumns)
       .from(organization)
       .where(eq(organization.id, organizationId))
       .limit(1)
@@ -368,7 +375,7 @@ export async function updateOrganizationUsageLimit(
   try {
     // Validate the organization exists
     const orgRecord = await db
-      .select()
+      .select(organizationColumns)
       .from(organization)
       .where(eq(organization.id, organizationId))
       .limit(1)
