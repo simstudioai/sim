@@ -17,6 +17,10 @@ export const BrowserUseBlock: BlockConfig<BrowserUseResponse> = {
   canvasPresentation: {
     defaultTitle: 'Browser Use',
     sentences: {
+      default: [
+        { text: 'Run the browser task', field: 'task', core: true },
+        { text: ', starting at', field: 'startUrl' },
+      ],
       byOperation: {
         browser_use_run_task: [
           { text: 'Run the legacy browser task', field: 'task', core: true },

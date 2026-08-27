@@ -87,14 +87,17 @@ async function readError(response: Response): Promise<string> {
 
 async function pollForCompletion(
   runId: string,
-  apiKey: string
+  apiKey: string,
+  signal?: AbortSignal
 ): Promise<{ summary?: V4RunSummary; error?: string }> {
   const deadline = Date.now() + MAX_POLL_TIME_MS
 
   for (;;) {
+    signal?.throwIfAborted()
     const statusResponse = await fetch(`${API_BASE}/runs/${runId}/status`, {
       method: 'GET',
       headers: { 'X-Browser-Use-API-Key': apiKey },
+      signal,
     })
     if (!statusResponse.ok) {
       return { error: `Failed to read run status: ${await readError(statusResponse)}` }
@@ -105,6 +108,7 @@ async function pollForCompletion(
       const runResponse = await fetch(`${API_BASE}/runs/${runId}`, {
         method: 'GET',
         headers: { 'X-Browser-Use-API-Key': apiKey },
+        signal,
       })
       if (!runResponse.ok) {
         return { error: `Failed to read completed run: ${await readError(runResponse)}` }
@@ -115,6 +119,7 @@ async function pollForCompletion(
     if (Date.now() >= deadline) {
       return { error: `Run did not complete within ${MAX_POLL_TIME_MS / 1000}s` }
     }
+    signal?.throwIfAborted()
     await sleep(POLL_INTERVAL_MS)
   }
 }
@@ -201,7 +206,10 @@ export const runV4Tool: ToolConfig<BrowserUseRunV4Params, BrowserUseRunV4Respons
     },
   },
 
-  directExecution: async (params: BrowserUseRunV4Params): Promise<ToolResponse> => {
+  directExecution: async (
+    params: BrowserUseRunV4Params,
+    signal?: AbortSignal
+  ): Promise<ToolResponse> => {
     const body: Record<string, unknown> = { task: params.task }
     if (params.model) body.model = params.model
     if (params.sessionId) body.sessionId = params.sessionId
@@ -226,6 +234,7 @@ export const runV4Tool: ToolConfig<BrowserUseRunV4Params, BrowserUseRunV4Respons
           'X-Browser-Use-API-Key': params.apiKey,
         },
         body: JSON.stringify(body),
+        signal,
       })
       if (!response.ok) {
         return {
@@ -237,7 +246,7 @@ export const runV4Tool: ToolConfig<BrowserUseRunV4Params, BrowserUseRunV4Respons
 
       const created = (await response.json()) as V4RunCreateResponse
       logger.info(`Created Browser Use V4 run ${created.id}`)
-      const completed = await pollForCompletion(created.id, params.apiKey)
+      const completed = await pollForCompletion(created.id, params.apiKey, signal)
       if (!completed.summary) {
         return { success: false, output: emptyOutput(created), error: completed.error }
       }
