@@ -1,4 +1,5 @@
 import { ChipTag, cn } from '@sim/emcn'
+import colorMixFallbacks from '@/app/(landing)/components/shared/color-mix-fallbacks/color-mix-fallbacks.module.css'
 import { FeatureGraphicShell } from '@/app/(landing)/enterprise/components/feature-graphics'
 import styles from '@/app/(landing)/workflows/components/feature-graphics/workflow-canvas-graphic.module.css'
 
@@ -74,8 +75,11 @@ export function WorkflowCanvasGraphic() {
                 key={path}
                 d={path}
                 pathLength={1}
-                className={cn(styles.edgeDraw, EDGE_DRAW_CLASSES[index])}
-                stroke='color-mix(in srgb, var(--text-muted) 35%, transparent)'
+                className={cn(
+                  styles.edgeDraw,
+                  EDGE_DRAW_CLASSES[index],
+                  colorMixFallbacks.mutedStroke35
+                )}
                 strokeWidth='1'
               />
             ))}

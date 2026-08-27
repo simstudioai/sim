@@ -287,7 +287,7 @@ export function FilesHeroLoop() {
           <div className='min-h-0 flex-1 overflow-hidden'>
             <div
               className={cn(
-                'overflow-hidden transition-all duration-500 ease-out',
+                'overflow-hidden transition-[max-height,opacity] duration-500 ease-out',
                 dropped ? 'max-h-[40px] opacity-100' : 'max-h-0 opacity-0'
               )}
             >
@@ -304,7 +304,7 @@ export function FilesHeroLoop() {
               <div
                 key={row.name}
                 className={cn(
-                  'transition-all duration-300 ease-out',
+                  'transition-[opacity,transform] duration-300 ease-out',
                   index < rowCount ? 'translate-y-0 opacity-100' : '-translate-y-1 opacity-0'
                 )}
               >

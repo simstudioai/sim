@@ -1,4 +1,5 @@
 import { cn, Library } from '@sim/emcn'
+import colorMixFallbacks from '@/app/(landing)/components/shared/color-mix-fallbacks/color-mix-fallbacks.module.css'
 import { FeatureGraphicShell } from '@/app/(landing)/enterprise/components/feature-graphics'
 import styles from '@/app/(landing)/logs/components/feature-graphics/run-trace-graphic.module.css'
 
@@ -71,7 +72,7 @@ const BAR_TONE_CLASS = {
 } as const
 
 /** Shared hairline ink for the window outline, header rule, and icon box. */
-const OUTLINE_INK = 'border-[color:color-mix(in_srgb,var(--text-muted-inverse)_45%,transparent)]'
+const OUTLINE_INK = colorMixFallbacks.inverseBorder45
 
 /**
  * A run's block-by-block trace told inside the agent-code tile's dark

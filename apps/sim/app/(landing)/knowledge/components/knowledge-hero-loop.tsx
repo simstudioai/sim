@@ -229,7 +229,7 @@ export function KnowledgeHeroLoop() {
                     <tr
                       key={row.name}
                       className={cn(
-                        'transition-all duration-300 ease-out',
+                        'transition-[opacity,transform] duration-300 ease-out',
                         index < visibleRows
                           ? 'translate-y-0 opacity-100'
                           : '-translate-y-1 opacity-0'

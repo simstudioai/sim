@@ -1,5 +1,6 @@
 import { ChipTag, cn } from '@sim/emcn'
 import { Clock } from '@sim/emcn/icons'
+import colorMixFallbacks from '@/app/(landing)/components/shared/color-mix-fallbacks/color-mix-fallbacks.module.css'
 import { FeatureGraphicShell } from '@/app/(landing)/enterprise/components/feature-graphics/feature-graphic-shell'
 import styles from '@/app/(landing)/enterprise/components/feature-graphics/lifecycle-graphic.module.css'
 
@@ -69,7 +70,7 @@ export function LifecycleGraphic() {
 
           <div className='flex gap-3'>
             <span className='flex w-2.5 justify-center'>
-              <span className='h-9 w-px bg-[color:color-mix(in_srgb,var(--text-muted)_35%,transparent)]' />
+              <span className={cn('h-9 w-px', colorMixFallbacks.mutedBackground35)} />
             </span>
           </div>
 
@@ -92,12 +93,17 @@ export function LifecycleGraphic() {
             <div key={version.label} className='flex flex-col'>
               <div className='flex gap-3'>
                 <span className='flex w-2.5 justify-center'>
-                  <span className='h-9 w-px bg-[color:color-mix(in_srgb,var(--text-muted)_35%,transparent)]' />
+                  <span className={cn('h-9 w-px', colorMixFallbacks.mutedBackground35)} />
                 </span>
               </div>
               <div className='flex items-center gap-3'>
                 <span className='flex w-2.5 justify-center'>
-                  <span className='size-2 rounded-full border border-[color:color-mix(in_srgb,var(--text-muted)_60%,transparent)] bg-[var(--surface-3)]' />
+                  <span
+                    className={cn(
+                      'size-2 rounded-full border bg-[var(--surface-3)]',
+                      colorMixFallbacks.mutedBorder60
+                    )}
+                  />
                 </span>
                 <span className='flex min-w-0 flex-1 items-center gap-2'>
                   <span className='text-[var(--text-muted)] text-small'>{version.label}</span>
