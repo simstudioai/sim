@@ -1,6 +1,7 @@
 import type { Logger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { pollingIdempotency } from '@/lib/core/idempotency/service'
+import { validatePathSegment } from '@/lib/core/security/input-validation'
 import {
   getProviderConfig,
   type PollingProviderHandler,
@@ -131,6 +132,30 @@ const VALID_OPERATORS = new Set([
   'HAS_PROPERTY',
   'NOT_HAS_PROPERTY',
 ])
+
+/**
+ * Guards a trigger-config value before it becomes a URL path segment.
+ *
+ * `objectType` and `listId` both originate in free-text trigger fields, and the
+ * poller interpolates them into a provider URL while holding the workspace
+ * HubSpot token. `encodeURIComponent` does not neutralize a dot segment — `.`
+ * and `..` are unreserved and the WHATWG parser removes them after decoding —
+ * so `'..'` pops `objects`/`lists` and re-aims the authenticated request.
+ *
+ * HubSpot's own charsets are narrower than this allowlist: object types are
+ * `p7878787_my_object`, `{meta-type}-{unique id}` (`2-123456`, `0-1`), or a bare
+ * `my_object`, and list ids are numeric or a GUID. Nothing legal is rejected.
+ *
+ * Throws, matching how every other config defect in this poller surfaces —
+ * `pollWebhook` catches, logs, and marks the webhook failed.
+ */
+function assertSafePathSegment(value: string, paramName: string): string {
+  const validation = validatePathSegment(value, { paramName })
+  if (!validation.isValid) {
+    throw new Error(`HubSpot ${validation.error}`)
+  }
+  return value
+}
 
 function resolveSearchPath(objectType: string): string {
   if (objectType in BUILT_IN_PATH) {
@@ -647,7 +672,8 @@ async function fetchHubSpotChanges(args: FetchArgs): Promise<HubSpotSearchResult
     logger,
   } = args
 
-  const url = `https://api.hubapi.com/crm/v3/objects/${encodeURIComponent(resolveSearchPath(objectType))}/search`
+  const searchPath = assertSafePathSegment(resolveSearchPath(objectType), 'objectType')
+  const url = `https://api.hubapi.com/crm/v3/objects/${encodeURIComponent(searchPath)}/search`
   const accumulated: HubSpotSearchResult[] = []
   let after: string | undefined
   let pages = 0
@@ -917,6 +943,7 @@ async function fetchListMembershipPages(
   args: FetchListMembershipPagesArgs
 ): Promise<FetchListMembershipPagesResult> {
   const { listId, accessToken, initialAfter, pageLimit, requestId, logger } = args
+  const safeListId = assertSafePathSegment(listId, 'listId')
 
   const records: ListMembershipRecord[] = []
   let after: string | undefined = initialAfter
@@ -927,7 +954,7 @@ async function fetchListMembershipPages(
   while (pages < MAX_PAGES_PER_POLL) {
     const params = new URLSearchParams({ limit: String(HUBSPOT_PAGE_LIMIT) })
     if (after) params.set('after', after)
-    const url = `https://api.hubapi.com/crm/v3/lists/${encodeURIComponent(listId)}/memberships/join-order?${params.toString()}`
+    const url = `https://api.hubapi.com/crm/v3/lists/${encodeURIComponent(safeListId)}/memberships/join-order?${params.toString()}`
     const response = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } })
 
     if (!response.ok) {

@@ -3,7 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { hubspotPipelinesSelectorContract } from '@/lib/api/contracts/selectors/hubspot'
 import { parseRequest } from '@/lib/api/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
-import { validateAlphanumericId } from '@/lib/core/security/input-validation'
+import { validateAlphanumericId, validatePathSegment } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { refreshAccessTokenIfNeeded } from '@/lib/oauth/credential-service'
@@ -12,6 +12,13 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('HubSpotPipelinesAPI')
 
+/**
+ * Built-in object slugs map to a safe plural constant; anything else falls
+ * through to the caller-supplied `objectType`, which the contract constrains
+ * only to a non-empty string. That value lands in a path segment, so it is
+ * validated before use — `encodeURIComponent` alone leaves a `.`/`..` segment
+ * intact and the WHATWG parser removes it, re-aiming the authenticated request.
+ */
 const BUILT_IN_PATH: Record<string, string> = {
   contact: 'contacts',
   company: 'companies',
@@ -58,6 +65,12 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     }
 
     const pathSegment = BUILT_IN_PATH[objectType] ?? objectType
+    const pathSegmentValidation = validatePathSegment(pathSegment, { paramName: 'objectType' })
+    if (!pathSegmentValidation.isValid) {
+      logger.warn(`[${requestId}] Invalid objectType: ${pathSegmentValidation.error}`)
+      return NextResponse.json({ error: pathSegmentValidation.error }, { status: 400 })
+    }
+
     const response = await fetch(
       `https://api.hubapi.com/crm/v3/pipelines/${encodeURIComponent(pathSegment)}`,
       { headers: { Authorization: `Bearer ${accessToken}` } }

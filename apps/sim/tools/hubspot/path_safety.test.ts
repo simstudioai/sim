@@ -35,6 +35,26 @@ const LEGITIMATE = ['12345678901', '0-1', 'contacts', 'p_custom_object', '..foo'
 
 const ID_PREFIX = 'SAFE'
 
+/**
+ * Distinct marker per parameter, so the segment a parameter occupies can be
+ * located.
+ *
+ * A number-typed parameter gets a distinct *numeric* marker rather than a
+ * shared constant. No HubSpot tool interpolates a number into its path today,
+ * but a constant like `1` is indistinguishable between parameters, so one added
+ * later would be invisible to {@link pathParamsOf} and silently uncovered.
+ */
+const NUMBER_MARKER_BASE = 900000001
+const numberMarkers = new Map<string, number>()
+
+function markerFor(name: string, type?: string): string {
+  if (type !== 'number') return `${ID_PREFIX}${name}`
+  if (!numberMarkers.has(name)) {
+    numberMarkers.set(name, NUMBER_MARKER_BASE + numberMarkers.size)
+  }
+  return String(numberMarkers.get(name))
+}
+
 function isTool(value: unknown): value is AnyTool {
   return (
     typeof value === 'object' &&
@@ -56,10 +76,11 @@ function buildParams(tool: AnyTool, poison?: string, value?: string): Record<str
     const type = def.type
     if (type === 'json' || type === 'object') params[name] = {}
     else if (type === 'array') params[name] = []
-    else if (type === 'number') params[name] = 1
+    else if (type === 'number') params[name] = Number(markerFor(name, type))
     else if (type === 'boolean') params[name] = false
-    else params[name] = name === poison ? value : `${ID_PREFIX}${name}`
+    else params[name] = markerFor(name, type)
   }
+  if (poison !== undefined) params[poison] = value
   return params
 }
 
@@ -67,14 +88,16 @@ function buildUrl(tool: AnyTool, poison?: string, value?: string): URL {
   return new URL((tool.request?.url as (p: any) => string)(buildParams(tool, poison, value)))
 }
 
-/** The parameters this tool interpolates into the path (not the query string). */
+/**
+ * The parameters this tool interpolates into the PATH. Classification goes
+ * through `new URL(...).pathname`, so query-zone and host-zone parameters are
+ * excluded structurally rather than by comparing offsets in the raw template.
+ */
 function pathParamsOf(tool: AnyTool): string[] {
-  const raw = (tool.request?.url as (p: any) => string)(buildParams(tool))
-  const queryStart = raw.indexOf('?')
-  return Object.keys(tool.params ?? {}).filter((name) => {
-    const at = raw.indexOf(`${ID_PREFIX}${name}`)
-    return at !== -1 && (queryStart === -1 || at < queryStart)
-  })
+  const pathname = buildUrl(tool).pathname
+  return Object.keys(tool.params ?? {}).filter((name) =>
+    pathname.includes(markerFor(name, (tool.params as any)[name]?.type))
+  )
 }
 
 const PATH_TOOLS = Object.values(toolModule)
@@ -95,10 +118,23 @@ describe('HubSpot path-parameter traversal safety', () => {
     const baselineSegments = baseline.pathname.split('/')
 
     describe.each(pathParams)('guards every path param independently: %s', (param) => {
-      const slot = baselineSegments.indexOf(`${ID_PREFIX}${param}`)
+      const marker = markerFor(param, (tool.params as any)[param]?.type)
+      /**
+       * Located by substring, not by whole-segment equality. A parameter that
+       * shares its segment with another (`/a/${x}-${y}/b`) is invisible to
+       * `segments.indexOf(marker)` — that blind spot hid a real traversal in
+       * the GitHub suite — so the marker is found *within* a segment and the
+       * expected value is substituted in place.
+       */
+      const slot = baselineSegments.findIndex((segment) => segment.includes(marker))
+
+      /** Substituting the marker in place is what makes a shared segment work. */
+      const expectedSegment = (value: string) =>
+        baselineSegments[slot].replace(marker, encodeURIComponent(value))
 
       it('occupies exactly one path segment in the baseline', () => {
         expect(slot).toBeGreaterThan(0)
+        expect(baselineSegments.filter((segment) => segment.includes(marker))).toHaveLength(1)
       })
 
       it.each(REJECTED)('rejects %j', (value) => {
@@ -118,16 +154,14 @@ describe('HubSpot path-parameter traversal safety', () => {
         expect(url.searchParams.get('foo')).toBeNull()
       })
 
-      it.each(LEGITIMATE)('passes %j through unchanged', (value) => {
+      it.each(LEGITIMATE)('passes %j through byte-identical', (value) => {
         const url = buildUrl(tool, param, value)
         const segments = url.pathname.split('/')
 
         expect(url.origin).toBe(baseline.origin)
         expect(segments).toHaveLength(baselineSegments.length)
         baselineSegments.forEach((segment, index) => {
-          expect(index === slot ? decodeURIComponent(segments[index]) : segments[index]).toBe(
-            index === slot ? value : segment
-          )
+          expect(segments[index]).toBe(index === slot ? expectedSegment(value) : segment)
         })
       })
     })
