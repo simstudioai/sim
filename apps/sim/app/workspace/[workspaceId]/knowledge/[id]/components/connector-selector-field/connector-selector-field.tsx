@@ -3,7 +3,6 @@
 import { useMemo, useState } from 'react'
 import { ChipCombobox, type ComboboxOption } from '@sim/emcn'
 import { Loader } from '@sim/emcn/icons'
-import { generateShortId } from '@sim/utils/id'
 import { useParams } from 'next/navigation'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import { SELECTOR_CONTEXT_FIELDS } from '@/lib/workflows/subblocks/context'
@@ -13,6 +12,10 @@ import type {
   ConfigFieldValue,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
 import type { ConnectorConfigField } from '@/connectors/types'
+import {
+  createSelectorCacheScopeRegistry,
+  scopeServerResolvedSelectorContext,
+} from '@/hooks/selectors/context-resolution'
 import { getSelectorDefinition } from '@/hooks/selectors/registry'
 import type { SelectorContext, SelectorKey } from '@/hooks/selectors/types'
 import {
@@ -46,15 +49,12 @@ export function ConnectorSelectorField({
   const params = useParams<{ workspaceId: string; id: string }>()
   const isMulti = Boolean(field.multi)
   const [searchTerm, setSearchTerm] = useState('')
-  const selectorCacheScope = useMemo(
-    () => generateShortId(),
-    [field.id, field.selectorKey, credentialId, sourceConfig]
-  )
+  const definition = getSelectorDefinition(field.selectorKey)
+  const selectorCacheScopes = useMemo(() => createSelectorCacheScopeRegistry(), [])
 
   const context = useMemo<SelectorContext>(() => {
     const ctx: SelectorContext = {
       workspaceId: params.workspaceId,
-      selectorCacheScope,
     }
     if (credentialId) ctx.oauthCredential = credentialId
     if (field.mimeType) ctx.mimeType = field.mimeType
@@ -69,7 +69,7 @@ export function ConnectorSelectorField({
       }
     }
 
-    return ctx
+    return scopeServerResolvedSelectorContext(definition, ctx, selectorCacheScopes)
   }, [
     credentialId,
     field.mimeType,
@@ -78,7 +78,8 @@ export function ConnectorSelectorField({
     configFields,
     canonicalModes,
     params.workspaceId,
-    selectorCacheScope,
+    definition,
+    selectorCacheScopes,
   ])
 
   const depsResolved = useMemo(() => {
@@ -126,7 +127,7 @@ export function ConnectorSelectorField({
    * implementations resolve a record by id, where a partial keystroke is a guaranteed
    * failed upstream request rather than an empty result.
    */
-  const resolvesUnknownIds = Boolean(getSelectorDefinition(field.selectorKey).resolvesUnknownIds)
+  const resolvesUnknownIds = Boolean(definition.resolvesUnknownIds)
   const debouncedSearch = useDebounce(searchTerm.trim(), SEARCH_DEBOUNCE_MS)
   const { data: searchedOption } = useSelectorOptionDetail(field.selectorKey, {
     context,
