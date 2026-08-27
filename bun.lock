@@ -48,6 +48,7 @@
         "safe-regex2": "5.1.0",
       },
       "devDependencies": {
+        "@electron/fuses": "1.8.0",
         "@playwright/test": "1.61.1",
         "@sim/tsconfig": "workspace:*",
         "@types/micromatch": "4.0.10",

@@ -46,12 +46,27 @@ describe('attachWindowOpenPolicy', () => {
       url: 'https://mcp.example/authorize',
       frameName: 'mcp-oauth-s1',
     })
-    expect(result).toEqual({ action: 'allow' })
+    expect(result).toEqual({
+      action: 'allow',
+      overrideBrowserWindowOptions: {
+        webPreferences: expect.objectContaining({
+          preload: undefined,
+          additionalArguments: [],
+          contextIsolation: true,
+          nodeIntegration: false,
+          sandbox: true,
+          webSecurity: true,
+          webviewTag: false,
+        }),
+      },
+    })
   })
 
   it('allows blank children for the blank-then-assign pattern', () => {
     const { contents } = setup()
-    expect(contents.handler?.({ url: 'about:blank', frameName: '' })).toEqual({ action: 'allow' })
+    expect(contents.handler?.({ url: 'about:blank', frameName: '' })).toMatchObject({
+      action: 'allow',
+    })
   })
 
   it('opens internal new-window requests as full Sim windows', () => {

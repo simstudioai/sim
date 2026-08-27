@@ -1,4 +1,5 @@
 import type {
+  BrowserMediaPermissionRequest,
   BrowserPageIssue,
   BrowserPageState,
   BrowserTabState,
@@ -93,6 +94,28 @@ function pageIssueEqual(a: BrowserPageIssue | undefined, b: BrowserPageIssue | u
   return true
 }
 
+function mediaPermissionRequestEqual(
+  a: BrowserMediaPermissionRequest | undefined,
+  b: BrowserMediaPermissionRequest | undefined
+): boolean {
+  if (a === b) return true
+  return Boolean(
+    a &&
+      b &&
+      a.requestId === b.requestId &&
+      a.origin === b.origin &&
+      a.devices.length === b.devices.length &&
+      a.devices.every((device, index) => device === b.devices[index])
+  )
+}
+
+function retainMediaPermissionRequest(
+  current: BrowserMediaPermissionRequest | undefined,
+  incoming: BrowserMediaPermissionRequest | undefined
+): BrowserMediaPermissionRequest | undefined {
+  return mediaPermissionRequestEqual(current, incoming) ? current : incoming
+}
+
 function tabFieldsEqual(a: BrowserTabState, b: BrowserTabState): boolean {
   return (
     a.tabId === b.tabId &&
@@ -147,7 +170,8 @@ function pageStateEqual(a: BrowserPageState | null, b: BrowserPageState | null):
     a.loading === b.loading &&
     a.canGoBack === b.canGoBack &&
     a.canGoForward === b.canGoForward &&
-    pageIssueEqual(a.issue, b.issue)
+    pageIssueEqual(a.issue, b.issue) &&
+    mediaPermissionRequestEqual(a.mediaPermissionRequest, b.mediaPermissionRequest)
   )
 }
 
@@ -208,15 +232,22 @@ export const useBrowserSessionStore = create<BrowserSessionState>()(
           const { scopeId } = pageState
           return withSession(state, scopeId, (current) => {
             if (current.suspended) return current
+            const nextPageState = {
+              ...pageState,
+              mediaPermissionRequest: retainMediaPermissionRequest(
+                current.pageState?.mediaPermissionRequest,
+                pageState.mediaPermissionRequest
+              ),
+            }
             const nextTabs = current.tabs.map((tab) =>
-              tab.tabId === pageState.tabId
+              tab.tabId === nextPageState.tabId
                 ? {
                     ...tab,
-                    url: pageState.url,
-                    title: pageState.title,
-                    loading: pageState.loading,
+                    url: nextPageState.url,
+                    title: nextPageState.title,
+                    loading: nextPageState.loading,
                     active: true,
-                    issue: pageState.issue,
+                    issue: nextPageState.issue,
                   }
                 : tab.active
                   ? { ...tab, active: false }
@@ -225,17 +256,17 @@ export const useBrowserSessionStore = create<BrowserSessionState>()(
             const tabs = tabsEqual(current.tabs, nextTabs) ? current.tabs : nextTabs
             if (
               tabs === current.tabs &&
-              current.activeTabId === pageState.tabId &&
+              current.activeTabId === nextPageState.tabId &&
               current.sessionAlive &&
-              pageStateEqual(current.pageState, pageState)
+              pageStateEqual(current.pageState, nextPageState)
             ) {
               return current
             }
             return {
               ...current,
-              pageState,
+              pageState: nextPageState,
               sessionAlive: true,
-              activeTabId: pageState.tabId,
+              activeTabId: nextPageState.tabId,
               tabs,
             }
           })

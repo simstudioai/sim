@@ -667,8 +667,9 @@ const TerminalView = memo(function TerminalView({
     addMothershipContext(context)
   }, [selectionSnapshot, terminalId])
 
-  const pasteClipboard = useCallback(() => {
+  const pasteClipboard = () => {
     void (async () => {
+      reportTerminalFocused(true, scopeId)
       const result = await pasteIntoTerminal(terminalId, scopeId)
       if (result === true) {
         terminalRef.current?.focus()
@@ -682,7 +683,7 @@ const TerminalView = memo(function TerminalView({
       }
       toast.error('Could not paste from the clipboard. Press ⌘V to paste.')
     })()
-  }, [terminalId, scopeId])
+  }
 
   const newTab = useCallback(() => {
     void openTerminal(undefined, scopeId).catch(() => {

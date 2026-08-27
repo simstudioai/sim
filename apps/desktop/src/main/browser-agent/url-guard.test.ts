@@ -217,6 +217,37 @@ describe('isBlockedSubresourceUrl', () => {
     expect(mockLookup).toHaveBeenCalledTimes(1)
   })
 
+  it('bounds DNS concurrency across distinct hostile hostnames', async () => {
+    let active = 0
+    let peak = 0
+    const releases: Array<() => void> = []
+    mockLookup.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          active++
+          peak = Math.max(peak, active)
+          releases.push(() => {
+            active--
+            resolve([{ address: '93.184.216.34', family: 4 }])
+          })
+        })
+    )
+
+    const verdicts = Array.from({ length: 24 }, (_, index) =>
+      isBlockedSubresourceUrl(`https://parallel-${index}.example/app.js`)
+    )
+    await vi.waitFor(() => expect(mockLookup).toHaveBeenCalledTimes(8))
+    releases.splice(0).forEach((release) => release())
+    await vi.waitFor(() => expect(mockLookup).toHaveBeenCalledTimes(16))
+    releases.splice(0).forEach((release) => release())
+    await vi.waitFor(() => expect(mockLookup).toHaveBeenCalledTimes(24))
+    releases.splice(0).forEach((release) => release())
+    await Promise.all(verdicts)
+
+    expect(peak).toBe(8)
+    expect(mockLookup).toHaveBeenCalledTimes(24)
+  })
+
   it('treats a trailing-dot host as the same host', async () => {
     await isBlockedSubresourceUrl('https://example.com/a.js')
     await isBlockedSubresourceUrl('https://example.com./b.js')

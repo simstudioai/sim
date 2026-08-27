@@ -285,19 +285,51 @@ export function createMainWindow(deps: CreateMainWindowDeps): BrowserWindow {
   win.webContents.on('will-prevent-unload', (event) => {
     const choice = dialog.showMessageBoxSync(win, {
       type: 'question',
-      buttons: ['Leave', 'Stay'],
+      buttons: ['Stay', 'Leave'],
       defaultId: 0,
-      cancelId: 1,
+      cancelId: 0,
       message: 'Leave Sim?',
       detail: 'Changes you made may not be saved.',
     })
-    if (choice === 0) {
+    if (choice === 1) {
       event.preventDefault()
     }
   })
 
+  let recoveryDialog: 'crash' | 'hang' | null = null
+  let crashPendingAfterHang = false
+
+  const showCrashRecovery = (): void => {
+    if (win.isDestroyed()) return
+    if (recoveryDialog !== null) {
+      if (recoveryDialog === 'hang') crashPendingAfterHang = true
+      return
+    }
+    recoveryDialog = 'crash'
+    void dialog
+      .showMessageBox(win, {
+        type: 'error',
+        buttons: ['Reload', 'Quit Sim'],
+        defaultId: 0,
+        cancelId: 0,
+        message: 'Sim encountered a problem',
+        detail: 'The page stopped unexpectedly. Reload to pick up where you left off.',
+      })
+      .then(({ response }) => {
+        if (win.isDestroyed()) return
+        if (response === 0) win.webContents.reload()
+        else app.quit()
+      })
+      .catch((error) => {
+        logger.error('Could not present renderer recovery', { error: getErrorMessage(error) })
+      })
+      .finally(() => {
+        recoveryDialog = null
+      })
+  }
+
   win.webContents.on('render-process-gone', (_event, details) => {
-    if (details.reason === 'clean-exit') {
+    if (details.reason === 'clean-exit' || recoveryDialog === 'crash' || crashPendingAfterHang) {
       return
     }
     deps.events.record('renderer_gone', {
@@ -305,38 +337,12 @@ export function createMainWindow(deps: CreateMainWindowDeps): BrowserWindow {
       exitCode: details.exitCode,
       crashDumpDir: app.getPath('crashDumps'),
     })
-    setTimeout(() => {
-      if (win.isDestroyed()) {
-        return
-      }
-      void dialog
-        .showMessageBox(win, {
-          type: 'error',
-          buttons: ['Reload', 'Quit Sim'],
-          defaultId: 0,
-          cancelId: 0,
-          message: 'Sim encountered a problem',
-          detail: 'The page stopped unexpectedly. Reload to pick up where you left off.',
-        })
-        .then(({ response }) => {
-          if (win.isDestroyed()) {
-            return
-          }
-          if (response === 0) {
-            win.webContents.reload()
-          } else {
-            app.quit()
-          }
-        })
-    }, 0)
+    showCrashRecovery()
   })
 
-  let hangDialogOpen = false
   win.webContents.on('unresponsive', () => {
-    if (hangDialogOpen || win.isDestroyed()) {
-      return
-    }
-    hangDialogOpen = true
+    if (recoveryDialog !== null || win.isDestroyed()) return
+    recoveryDialog = 'hang'
     deps.events.record('renderer_unresponsive')
     void dialog
       .showMessageBox(win, {
@@ -348,14 +354,22 @@ export function createMainWindow(deps: CreateMainWindowDeps): BrowserWindow {
         detail: 'You can wait for it to recover or reload the page.',
       })
       .then(({ response }) => {
-        hangDialogOpen = false
         if (!win.isDestroyed() && response === 1) {
           win.webContents.reload()
         }
       })
-  })
-  win.webContents.on('responsive', () => {
-    hangDialogOpen = false
+      .catch((error) => {
+        logger.error('Could not present unresponsive renderer recovery', {
+          error: getErrorMessage(error),
+        })
+      })
+      .finally(() => {
+        recoveryDialog = null
+        if (crashPendingAfterHang) {
+          crashPendingAfterHang = false
+          showCrashRecovery()
+        }
+      })
   })
 
   let zoomRestored = false

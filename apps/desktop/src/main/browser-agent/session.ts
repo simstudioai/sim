@@ -5,6 +5,8 @@ import type {
   BrowserDataKind,
   BrowserFindRequest,
   BrowserFindResult,
+  BrowserMediaDevice,
+  BrowserMediaPermissionRequest,
   BrowserOmniboxFocusMode,
   BrowserPageIssue,
   BrowserTabState,
@@ -91,6 +93,21 @@ export interface AgentTab {
   syntheticForward?: { url: string; baseHistoryIndex: number }
   preserveSyntheticForwardOnNextNavigation?: boolean
   recoveringUnresponsive?: boolean
+  pendingMediaPermission?: PendingMediaPermission
+  mediaPermissionGrant?: MediaPermissionGrant
+  lastRealUserGestureAt?: number
+}
+
+interface PendingMediaPermission {
+  request: BrowserMediaPermissionRequest
+  documentUrl: string
+  callback: (permissionGranted: boolean) => void
+  timeout: ReturnType<typeof setTimeout>
+}
+
+interface MediaPermissionGrant {
+  origin: string
+  devices: Set<BrowserMediaDevice>
 }
 
 export interface BrowserSessionPersistence {
@@ -139,6 +156,10 @@ export interface AgentSessionEvents {
  * must never outlive the reports.
  */
 const MAX_RECENTLY_CLOSED_TABS = 10
+const MAX_LIVE_TABS_PER_SCOPE = 32
+const MAX_LIVE_TABS_GLOBAL = 96
+const MEDIA_PERMISSION_GESTURE_WINDOW_MS = 10_000
+const MEDIA_PERMISSION_PROMPT_TIMEOUT_MS = 30_000
 
 export type BrowserShortcut = 'focus-omnibox' | 'new-tab' | 'close-tab' | 'find'
 
@@ -226,6 +247,23 @@ function createBrowserScopeState(): BrowserScopeState {
     automationNeedsAttention: false,
     findingTabId: null,
     findingRequestId: null,
+  }
+}
+
+function liveBrowserTabCount(): number {
+  let count = 0
+  for (const state of browserScopeStates.values()) count += state.tabs.length
+  return count
+}
+
+function assertTabCapacity(): void {
+  if (tabs.length >= MAX_LIVE_TABS_PER_SCOPE) {
+    throw new SessionError(`A task browser can have at most ${MAX_LIVE_TABS_PER_SCOPE} open tabs.`)
+  }
+  if (liveBrowserTabCount() >= MAX_LIVE_TABS_GLOBAL) {
+    throw new SessionError(
+      `Sim can have at most ${MAX_LIVE_TABS_GLOBAL} live browser tabs. Close a tab in another task and try again.`
+    )
   }
 }
 
@@ -834,18 +872,9 @@ export async function importAgentCookies(
  */
 const ALLOWED_SITE_PERMISSIONS = new Set(['clipboard-sanitized-write'])
 
-/**
- * Grants a getUserMedia request only when macOS has actually authorized the
- * devices it names. Granting site permission without the OS grant makes the
- * page fail with a misleading NotReadableError instead of a permission prompt,
- * and macOS kills the process outright when the bundle lacks usage strings —
- * so the OS is asked FIRST, which surfaces the system prompt on first use.
- */
-async function ensureOsMediaAccess(mediaTypes: readonly string[] | undefined): Promise<boolean> {
+async function ensureOsMediaAccess(devices: readonly BrowserMediaDevice[]): Promise<boolean> {
   if (process.platform !== 'darwin') return true
-  const wanted = mediaTypes && mediaTypes.length > 0 ? mediaTypes : ['audio', 'video']
-  for (const type of wanted) {
-    const device = type === 'video' ? 'camera' : 'microphone'
+  for (const device of devices) {
     if (systemPreferences.getMediaAccessStatus(device) === 'granted') continue
     const granted = await systemPreferences.askForMediaAccess(device).catch(() => false)
     if (!granted) return false
@@ -853,38 +882,219 @@ async function ensureOsMediaAccess(mediaTypes: readonly string[] | undefined): P
   return true
 }
 
+function mediaOrigin(candidate: unknown): string | null {
+  if (typeof candidate !== 'string' || candidate.length > 8_192) return null
+  try {
+    const url = new URL(candidate)
+    return url.protocol === 'https:' || url.protocol === 'http:' ? url.origin : null
+  } catch {
+    return null
+  }
+}
+
+function requestedMediaDevices(candidate: unknown): BrowserMediaDevice[] | null {
+  if (!Array.isArray(candidate) || candidate.length === 0) return null
+  const devices = new Set<BrowserMediaDevice>()
+  for (const type of candidate) {
+    if (type === 'audio') devices.add('microphone')
+    else if (type === 'video') devices.add('camera')
+    else return null
+  }
+  return [...devices]
+}
+
+function scopedTabForContents(contents: WebContents): { scopeId: string; tab: AgentTab } | null {
+  const scopeId = browserScopeIdForContents(contents)
+  if (!scopeId) return null
+  const tab = browserScopeStates
+    .get(scopeId)
+    ?.tabs.find((candidate) => candidate.view.webContents === contents)
+  return tab ? { scopeId, tab } : null
+}
+
+function mediaRequestIsUserInitiated(scopeId: string, tab: AgentTab): boolean {
+  const win = panelWindow()
+  return (
+    resolveBrowserScopeId(scopeId) === getActiveBrowserScopeId() &&
+    browserScopeStates.get(scopeId)?.activeTabId === tab.id &&
+    isPanelVisible() &&
+    Boolean(win && !win.isDestroyed() && win.isFocused()) &&
+    tab.view.webContents.isFocused() &&
+    typeof tab.lastRealUserGestureAt === 'number' &&
+    Date.now() - tab.lastRealUserGestureAt <= MEDIA_PERMISSION_GESTURE_WINDOW_MS
+  )
+}
+
+function settleMediaPermission(tab: AgentTab, allowed: boolean): boolean {
+  const pending = tab.pendingMediaPermission
+  if (!pending) return false
+  tab.pendingMediaPermission = undefined
+  clearTimeout(pending.timeout)
+  try {
+    pending.callback(allowed)
+  } catch (error) {
+    logger.warn('Could not answer a browser media permission request', {
+      error: getErrorMessage(error),
+    })
+  }
+  return true
+}
+
+function revokeTabMediaPermissions(tab: AgentTab, publish = true): void {
+  const hadPrompt = settleMediaPermission(tab, false)
+  tab.mediaPermissionGrant = undefined
+  if (hadPrompt && publish) publishPageIssue(tab)
+}
+
+/** Pending prompt metadata for the renderer-owned permission bubble. */
+export function mediaPermissionRequestForContents(
+  contents: WebContents
+): BrowserMediaPermissionRequest | undefined {
+  return tabForContents(contents)?.pendingMediaPermission?.request
+}
+
+/** Applies the user's response only to the exact live document that requested it. */
+export async function respondToMediaPermission(requestId: string, allowed: boolean): Promise<void> {
+  const tab = activeTab()
+  const pending = tab?.pendingMediaPermission
+  if (!tab || !pending || pending.request.requestId !== requestId) return
+
+  if (!allowed) {
+    settleMediaPermission(tab, false)
+    publishPageIssue(tab)
+    return
+  }
+
+  const contents = tab.view.webContents
+  const currentOrigin = mediaOrigin(contents.getURL())
+  if (
+    currentOrigin !== pending.request.origin ||
+    contents.getURL() !== pending.documentUrl ||
+    getBrowserScopeId() !== getActiveBrowserScopeId() ||
+    !isPanelVisible()
+  ) {
+    settleMediaPermission(tab, false)
+    publishPageIssue(tab)
+    return
+  }
+
+  const osAllowed = await ensureOsMediaAccess(pending.request.devices)
+  if (
+    tab.pendingMediaPermission !== pending ||
+    tab.view.webContents.isDestroyed() ||
+    mediaOrigin(contents.getURL()) !== pending.request.origin ||
+    contents.getURL() !== pending.documentUrl ||
+    tab.id !== currentScope.activeTabId ||
+    getBrowserScopeId() !== getActiveBrowserScopeId() ||
+    !isPanelVisible()
+  ) {
+    if (tab.pendingMediaPermission === pending) {
+      settleMediaPermission(tab, false)
+      publishPageIssue(tab)
+    }
+    return
+  }
+
+  if (osAllowed) {
+    tab.mediaPermissionGrant = {
+      origin: pending.request.origin,
+      devices: new Set(pending.request.devices),
+    }
+  }
+  settleMediaPermission(tab, osAllowed)
+  publishPageIssue(tab)
+}
+
 /**
  * Default-deny hardening for the agent partition. Site permissions remain
- * denied apart from ALLOWED_SITE_PERMISSIONS and camera/microphone — the agent
- * browser has to join a Google Meet or a Zoom web client like a real browser,
- * and those are dead without getUserMedia. The OS grant still gates every
- * media request, so the user's System Settings choice is the real authority.
+ * denied apart from ALLOWED_SITE_PERMISSIONS. Media is granted only after a
+ * renderer-owned, document-scoped prompt validates the requesting origin,
+ * active visible tab, recent native user input, and operating-system grant.
  * Uploads use Chromium's native file chooser and downloads are saved into the
  * device-level browser download directory.
  */
 function configureAgentPartition(ses: Session): void {
   if (configuredPartitions.has(ses)) return
   configuredPartitions.add(ses)
-  ses.setPermissionRequestHandler((_wc, permission, callback, details) => {
+  ses.setPermissionRequestHandler((contents, permission, callback, details) => {
     if (permission === 'media') {
-      const mediaTypes = (details as { mediaTypes?: readonly string[] })?.mediaTypes
-      void ensureOsMediaAccess(mediaTypes).then(callback)
+      const scoped = scopedTabForContents(contents)
+      const request = details as {
+        isMainFrame?: boolean
+        mediaTypes?: readonly string[]
+        requestingUrl?: string
+        securityOrigin?: string
+      }
+      const devices = requestedMediaDevices(request.mediaTypes)
+      const requestingOrigin = mediaOrigin(request.requestingUrl)
+      const securityOrigin = mediaOrigin(request.securityOrigin)
+      const currentOrigin = mediaOrigin(contents.getURL())
+      if (
+        !scoped ||
+        request.isMainFrame !== true ||
+        !devices ||
+        !requestingOrigin ||
+        (securityOrigin !== null && securityOrigin !== requestingOrigin) ||
+        currentOrigin !== requestingOrigin ||
+        !mediaRequestIsUserInitiated(scoped.scopeId, scoped.tab)
+      ) {
+        callback(false)
+        return
+      }
+
+      revokeTabMediaPermissions(scoped.tab, false)
+      const prompt: BrowserMediaPermissionRequest = {
+        requestId: generateId(),
+        origin: requestingOrigin,
+        devices,
+      }
+      scoped.tab.pendingMediaPermission = {
+        request: prompt,
+        documentUrl: contents.getURL(),
+        callback,
+        timeout: setTimeout(
+          bindToBrowserScope(scoped.scopeId, () => {
+            if (scoped.tab.pendingMediaPermission?.request.requestId !== prompt.requestId) return
+            settleMediaPermission(scoped.tab, false)
+            publishPageIssue(scoped.tab)
+          }),
+          MEDIA_PERMISSION_PROMPT_TIMEOUT_MS
+        ),
+      }
+      const win = panelWindow()
+      if (win && !win.isDestroyed()) win.webContents.focus()
+      withBrowserScope(scoped.scopeId, () => publishPageIssue(scoped.tab))
       return
     }
     callback(ALLOWED_SITE_PERMISSIONS.has(permission))
   })
-  ses.setPermissionCheckHandler((_wc, permission, _origin, details) => {
+  ses.setPermissionCheckHandler((contents, permission, requestingOrigin, details) => {
     if (permission === 'media') {
-      if (process.platform !== 'darwin') return true
-      const mediaType = (details as { mediaType?: string })?.mediaType
-      if (mediaType === 'video')
-        return systemPreferences.getMediaAccessStatus('camera') === 'granted'
-      if (mediaType === 'audio') {
-        return systemPreferences.getMediaAccessStatus('microphone') === 'granted'
-      }
-      return (
-        systemPreferences.getMediaAccessStatus('microphone') === 'granted' ||
-        systemPreferences.getMediaAccessStatus('camera') === 'granted'
+      if (!contents || details.isMainFrame !== true) return false
+      const scoped = scopedTabForContents(contents)
+      const grant = scoped?.tab.mediaPermissionGrant
+      const checkedOrigins = [
+        mediaOrigin(details.securityOrigin),
+        mediaOrigin(requestingOrigin),
+        mediaOrigin(details.requestingUrl),
+      ].filter((origin): origin is string => origin !== null)
+      const currentOrigin = mediaOrigin(contents.getURL())
+      const device =
+        details.mediaType === 'audio'
+          ? 'microphone'
+          : details.mediaType === 'video'
+            ? 'camera'
+            : null
+      return Boolean(
+        scoped &&
+          grant &&
+          device &&
+          checkedOrigins.length > 0 &&
+          checkedOrigins.every((origin) => origin === grant.origin) &&
+          currentOrigin === grant.origin &&
+          grant.devices.has(device) &&
+          (process.platform !== 'darwin' ||
+            systemPreferences.getMediaAccessStatus(device) === 'granted')
       )
     }
     return ALLOWED_SITE_PERMISSIONS.has(permission)
@@ -983,17 +1193,33 @@ function configureAgentPartition(ses: Session): void {
     publishBrowserDownloads(scopeId)
     logger.info('Agent browser download started', { filename })
     item.on('updated', (_updatedEvent, state) => {
+      const liveScopeId = resolveBrowserScopeId(scopeId)
+      if (
+        suspendedBrowserScopes.has(liveScopeId) ||
+        !browserScopeStates.has(liveScopeId) ||
+        !browserDownloadsByScope.get(liveScopeId)?.includes(download)
+      ) {
+        return
+      }
       updateDownloadProgress(download, item)
       download.state = state === 'interrupted' ? 'interrupted' : 'progressing'
-      publishBrowserDownloads(scopeId)
+      publishBrowserDownloads(liveScopeId)
     })
     item.once('done', (_doneEvent, state) => {
       activeDownloadPaths.delete(savePath)
+      const liveScopeId = resolveBrowserScopeId(scopeId)
+      if (
+        suspendedBrowserScopes.has(liveScopeId) ||
+        !browserScopeStates.has(liveScopeId) ||
+        !browserDownloadsByScope.get(liveScopeId)?.includes(download)
+      ) {
+        return
+      }
       updateDownloadProgress(download, item)
       download.state = state
-      trimBrowserDownloads(scopeId)
-      publishBrowserDownloads(scopeId)
-      withBrowserScope(scopeId, persistBrowserSession)
+      trimBrowserDownloads(liveScopeId)
+      publishBrowserDownloads(liveScopeId)
+      withBrowserScope(liveScopeId, persistBrowserSession)
       if (state === 'completed') {
         logger.info('Agent browser download completed', { filename })
         if (process.platform === 'darwin') app.dock?.downloadFinished(savePath)
@@ -1294,6 +1520,15 @@ function createTabView(): WebContentsView {
       zoomFactor: getBrowserDefaultZoomFactor(),
     },
   })
+  try {
+    return initializeTabView(view, scopeId)
+  } catch (error) {
+    if (!view.webContents.isDestroyed()) view.webContents.close()
+    throw error
+  }
+}
+
+function initializeTabView(view: WebContentsView, scopeId: string): WebContentsView {
   view.setBackgroundColor(browserBackgroundColor())
   const contents = view.webContents
   registerAgentWebContents(contents)
@@ -1329,7 +1564,10 @@ function createTabView(): WebContentsView {
         return
       }
       const tab = tabs.find((entry) => entry.view.webContents === contents)
-      if (tab?.id === currentScope.activeTabId) currentScope.visibleTabUserSelected = true
+      if (tab?.id === currentScope.activeTabId) {
+        currentScope.visibleTabUserSelected = true
+        if (mouse.type === 'mouseDown') tab.lastRealUserGestureAt = Date.now()
+      }
     })
   )
   contents.on(
@@ -1385,6 +1623,7 @@ function createTabView(): WebContentsView {
         return
       }
       dismissFind(tab.id)
+      revokeTabMediaPermissions(tab, false)
       tab.pageIssue = {
         kind: 'crashed',
         reason: details.reason,
@@ -1401,6 +1640,7 @@ function createTabView(): WebContentsView {
       const tab = tabs.find((entry) => entry.view === view)
       if (!tab || tab.pageIssue?.kind === 'crashed') return
       dismissFind(tab.id)
+      revokeTabMediaPermissions(tab, false)
       tab.pageIssue = {
         kind: 'unresponsive',
         url: tab.pendingRestoreUrl || contents.getURL(),
@@ -1423,6 +1663,7 @@ function createTabView(): WebContentsView {
       const tab = tabs.find((entry) => entry.view === view)
       if (!isDispatchingAgentInput(contents) && tab?.id === currentScope.activeTabId) {
         currentScope.visibleTabUserSelected = true
+        if (input.type === 'keyDown' && !input.isAutoRepeat) tab.lastRealUserGestureAt = Date.now()
       }
       const shortcut = browserShortcutForInput(input)
       if (!shortcut) return
@@ -1503,6 +1744,8 @@ function createTabView(): WebContentsView {
     'did-start-navigation',
     bindToBrowserScope(scopeId, (details) => {
       if (!details.isMainFrame) return
+      const tab = tabs.find((entry) => entry.view === view)
+      if (tab) revokeTabMediaPermissions(tab)
       notePageNavigationStarted(contents)
       events?.onTabNavigated(contents, false)
     })
@@ -1519,7 +1762,11 @@ function createTabView(): WebContentsView {
   )
   contents.on(
     'destroyed',
-    bindToBrowserScope(scopeId, () => events?.onTabClosed(contents))
+    bindToBrowserScope(scopeId, () => {
+      const tab = tabs.find((entry) => entry.view === view)
+      if (tab) revokeTabMediaPermissions(tab, false)
+      events?.onTabClosed(contents)
+    })
   )
 
   events?.onTabCreated(contents)
@@ -1704,6 +1951,8 @@ function addTabInternal({
   activate = true,
   notify = true,
 }: AddTabOptions = {}): AgentTab {
+  assertTabCapacity()
+  const previousActiveTab = activeTab()
   const transferBrowserFocus =
     activate &&
     (currentScope.focusedBrowserTabId !== null ||
@@ -1717,6 +1966,9 @@ function addTabInternal({
   insertPinnedAware(tab)
   if (currentScope.automationTabId === null) currentScope.automationTabId = tab.id
   if (activate || currentScope.activeTabId === null) {
+    if (previousActiveTab && previousActiveTab.id !== tab.id) {
+      revokeTabMediaPermissions(previousActiveTab, false)
+    }
     currentScope.activeTabId = tab.id
     applyActiveTabThrottling()
     if (!currentScope.restoring) layout()
@@ -1728,6 +1980,30 @@ function addTabInternal({
     events?.onTabsChanged()
   }
   return tab
+}
+
+function closeTabAfterFailedRestore(tab: AgentTab): void {
+  try {
+    revokeTabMediaPermissions(tab, false)
+  } catch (error) {
+    logger.warn('Could not revoke media permissions after browser restore failed', {
+      error: getErrorMessage(error),
+    })
+  }
+  try {
+    detachIfAttached(tab.view)
+  } catch (error) {
+    logger.warn('Could not detach browser tab after browser restore failed', {
+      error: getErrorMessage(error),
+    })
+  }
+  try {
+    if (!tab.view.webContents.isDestroyed()) tab.view.webContents.close()
+  } catch (error) {
+    logger.warn('Could not close browser tab after browser restore failed', {
+      error: getErrorMessage(error),
+    })
+  }
 }
 
 /** Marks the visible page as user-selected without blocking automation on it. */
@@ -1751,8 +2027,6 @@ export function restoreBrowserSession(): void {
   }
   if (currentScope.restored) return
   currentScope.activationOnly = false
-  currentScope.restored = true
-  currentScope.restoring = true
 
   const scopeId = getBrowserScopeId()
   let snapshot: BrowserSessionSnapshot | null = null
@@ -1766,28 +2040,91 @@ export function restoreBrowserSession(): void {
     }
   }
 
-  const restoredTabs: AgentTab[] = []
+  const selectedIndexes = new Set<number>()
   if (snapshot) {
-    browserDownloadsByScope.set(
-      scopeId,
-      snapshot.downloads.map((download) => ({ ...download }))
-    )
-    publishBrowserDownloads(scopeId)
-    for (const entry of snapshot.tabs) {
-      const tab = addTabInternal({ pinned: entry.pinned, activate: false, notify: false })
-      tab.pendingRestoreUrl = entry.url
-      restoredTabs.push(tab)
-      if (entry.url !== 'about:blank') {
-        void tab.view.webContents.loadURL(entry.url).catch(() => {})
-      }
+    for (
+      let index = 0;
+      index < snapshot.tabs.length && selectedIndexes.size < MAX_LIVE_TABS_PER_SCOPE;
+      index++
+    ) {
+      if (snapshot.tabs[index]?.pinned) selectedIndexes.add(index)
     }
-    currentScope.activeTabId = restoredTabs[snapshot.activeIndex]?.id ?? restoredTabs[0]?.id ?? null
-    currentScope.automationTabId = currentScope.activeTabId
-    currentScope.lastPersistedSnapshot = JSON.stringify(snapshot)
+    if (selectedIndexes.size < MAX_LIVE_TABS_PER_SCOPE && snapshot.tabs[snapshot.activeIndex]) {
+      selectedIndexes.add(snapshot.activeIndex)
+    }
+    for (
+      let index = 0;
+      index < snapshot.tabs.length && selectedIndexes.size < MAX_LIVE_TABS_PER_SCOPE;
+      index++
+    ) {
+      selectedIndexes.add(index)
+    }
+  }
+  const selectedEntries = snapshot
+    ? [...selectedIndexes]
+        .sort((left, right) => left - right)
+        .map((index) => ({ entry: snapshot.tabs[index], sourceIndex: index }))
+    : []
+  const availableSlots = Math.max(0, MAX_LIVE_TABS_GLOBAL - liveBrowserTabCount())
+  if (selectedEntries.length > availableSlots) {
+    throw new SessionError(
+      `Sim can have at most ${MAX_LIVE_TABS_GLOBAL} live browser tabs. Close a tab in another task and try again.`
+    )
   }
 
-  currentScope.restoring = false
+  const state = browserScopeState(scopeId)
+  const previousState = {
+    tabs: [...state.tabs],
+    activeTabId: state.activeTabId,
+    automationTabId: state.automationTabId,
+    nextTabId: state.nextTabId,
+    restored: state.restored,
+    lastPersistedSnapshot: state.lastPersistedSnapshot,
+  }
+  const previousDownloads = browserDownloadsByScope.get(scopeId)
+  const restoredTabs: AgentTab[] = []
+  state.restoring = true
+  try {
+    if (snapshot) {
+      browserDownloadsByScope.set(
+        scopeId,
+        snapshot.downloads.map((download) => ({ ...download }))
+      )
+      for (const { entry } of selectedEntries) {
+        const tab = addTabInternal({ pinned: entry.pinned, activate: false, notify: false })
+        tab.pendingRestoreUrl = entry.url
+        restoredTabs.push(tab)
+        if (entry.url !== 'about:blank') {
+          void tab.view.webContents.loadURL(entry.url).catch(() => {})
+        }
+      }
+      const restoredActiveIndex = selectedEntries.findIndex(
+        ({ sourceIndex }) => sourceIndex === snapshot.activeIndex
+      )
+      state.activeTabId = restoredTabs[restoredActiveIndex]?.id ?? restoredTabs[0]?.id ?? null
+      state.automationTabId = state.activeTabId
+      state.lastPersistedSnapshot = JSON.stringify(browserSessionSnapshot())
+    }
+
+    state.restored = true
+  } catch (error) {
+    for (const tab of restoredTabs) closeTabAfterFailedRestore(tab)
+    state.tabs = previousState.tabs
+    state.activeTabId = previousState.activeTabId
+    state.automationTabId = previousState.automationTabId
+    state.nextTabId = previousState.nextTabId
+    state.restored = previousState.restored
+    state.lastPersistedSnapshot = previousState.lastPersistedSnapshot
+    if (previousDownloads) browserDownloadsByScope.set(scopeId, previousDownloads)
+    else browserDownloadsByScope.delete(scopeId)
+    applyActiveTabThrottling()
+    throw error
+  } finally {
+    state.restoring = false
+  }
+
   applyActiveTabThrottling()
+  if (snapshot) publishBrowserDownloads(scopeId)
   const active = activeTab()
   if (active) {
     layout()
@@ -1904,6 +2241,10 @@ export function switchTab(tabId: string): AgentTab {
   const transferBrowserFocus =
     currentScope.focusedBrowserTabId !== null ||
     tabs.some((entry) => entry.view.webContents.isFocused())
+  const previousActiveTab = activeTab()
+  if (previousActiveTab && previousActiveTab.id !== tab.id) {
+    revokeTabMediaPermissions(previousActiveTab, false)
+  }
   currentScope.activeTabId = tab.id
   currentScope.visibleTabUserSelected = true
   // Visible selection does not move the automation exemption; the user may
@@ -1966,6 +2307,7 @@ export function closeTab(tabId: string): void {
   dismissFind(tabId)
   clearAutomationIndicatorsForTab(tabId)
   const [tab] = tabs.splice(index, 1)
+  revokeTabMediaPermissions(tab, false)
   recentlyClosedTabUrls.unshift(sanitizeRestorableUrl(tabUrl(tab)) ?? 'about:blank')
   if (recentlyClosedTabUrls.length > MAX_RECENTLY_CLOSED_TABS) {
     recentlyClosedTabUrls.length = MAX_RECENTLY_CLOSED_TABS
@@ -2197,6 +2539,7 @@ function closeTabFromUser(tabId: string): void {
 function closeLiveTabs(): void {
   dismissFind(currentScope.findingTabId)
   for (const tab of tabs.splice(0)) {
+    revokeTabMediaPermissions(tab, false)
     detachIfAttached(tab.view)
     if (!tab.view.webContents.isDestroyed()) {
       tab.view.webContents.close()

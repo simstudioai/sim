@@ -100,7 +100,7 @@ export async function checkAgentUrl(rawUrl: string): Promise<UrlGuardResult> {
   }
 
   try {
-    const { addresses } = await resolveHostAddresses(host)
+    const { addresses } = await resolveHostAddressesBounded(host)
     if (addresses.some((address) => isBlockedAddress(address))) {
       logger.warn('Blocked agent navigation resolving to private IP', { host })
       return BLOCKED
@@ -151,6 +151,40 @@ const HOST_VERDICT_TTL_MS = 30_000
  * bounded rather than left to grow.
  */
 const MAX_HOST_VERDICTS = 256
+const MAX_CONCURRENT_DNS_LOOKUPS = 8
+const MAX_QUEUED_DNS_LOOKUPS = 64
+
+let activeDnsLookups = 0
+const dnsLookupWaiters: Array<() => void> = []
+
+async function acquireDnsLookupSlot(): Promise<void> {
+  if (activeDnsLookups < MAX_CONCURRENT_DNS_LOOKUPS) {
+    activeDnsLookups++
+    return
+  }
+  if (dnsLookupWaiters.length >= MAX_QUEUED_DNS_LOOKUPS) {
+    throw new Error('DNS lookup queue is full')
+  }
+  await new Promise<void>((resolve) => dnsLookupWaiters.push(resolve))
+}
+
+function releaseDnsLookupSlot(): void {
+  const next = dnsLookupWaiters.shift()
+  if (next) {
+    next()
+    return
+  }
+  activeDnsLookups--
+}
+
+async function resolveHostAddressesBounded(host: string) {
+  await acquireDnsLookupSlot()
+  try {
+    return await resolveHostAddresses(host)
+  } finally {
+    releaseDnsLookupSlot()
+  }
+}
 
 /**
  * The in-flight or settled verdict per host.
@@ -216,7 +250,7 @@ export async function isBlockedSubresourceUrl(rawUrl: string): Promise<boolean> 
   const cached = hostVerdicts.get(host)
   if (cached && Date.now() < cached.expiry) return cached.verdict
 
-  const verdict = resolveHostAddresses(host)
+  const verdict = resolveHostAddressesBounded(host)
     .then(({ addresses }) => {
       const blocked = addresses.some((address) => isBlockedAddress(address))
       if (blocked) {

@@ -245,6 +245,28 @@ describe('DesktopChatSessionStore', () => {
     expect(terminal?.activeIndex).toBe(11)
   })
 
+  it('bounds persisted browser tabs while retaining pinned and active entries', () => {
+    const store = open()
+    const tabs = Array.from({ length: 40 }, (_, index) => ({
+      url: `https://tab-${index}.example/`,
+      pinned: index < 4,
+    }))
+
+    expect(
+      store.setBrowser(ORIGIN, 'chat-bounded', {
+        v: 1,
+        tabs,
+        activeIndex: tabs.length - 1,
+        downloads: [],
+      })
+    ).toBe(true)
+
+    const snapshot = store.getBrowser(ORIGIN, 'chat-bounded')
+    expect(snapshot?.tabs).toHaveLength(32)
+    expect(snapshot?.tabs.filter((tab) => tab.pinned)).toHaveLength(4)
+    expect(snapshot?.tabs[snapshot.activeIndex]?.url).toBe('https://tab-39.example/')
+  })
+
   it('filters unsafe or malformed values while loading an encrypted payload', () => {
     const provider = encryption()
     writeEncryptedPayload(provider, {

@@ -500,10 +500,11 @@ describe('useBrowserPanelOcclusion modal lifecycle', () => {
 
   it('reuses a painted popover frame for a modal without revealing the native view between them', async () => {
     const fallback = vi.fn()
+    const onOwnershipLost = vi.fn()
     const hook = renderOcclusionHook()
 
     act(() => {
-      void hook.result().requestOverlay('resources', fallback)
+      void hook.result().requestOverlay('resources', fallback, onOwnershipLost)
     })
     await flushOcclusionLifecycle()
 
@@ -522,6 +523,7 @@ describe('useBrowserPanelOcclusion modal lifecycle', () => {
     expect(setBrowserPanelOccluded).toHaveBeenCalledTimes(1)
     expect(hook.result().activeOverlay).toBeNull()
     expect(hook.result().snapshotLayer).toBe('modal')
+    expect(onOwnershipLost).toHaveBeenCalledOnce()
 
     await act(async () => {
       await hook.result().closeOverlay('resources')
@@ -540,12 +542,13 @@ describe('useBrowserPanelOcclusion modal lifecycle', () => {
   it('replaces one popover with another without revealing or recapturing the native view', async () => {
     const firstFallback = vi.fn()
     const secondFallback = vi.fn()
+    const firstOwnershipLost = vi.fn()
     const hook = renderOcclusionHook()
     let firstRequest!: Promise<boolean>
     let secondRequest!: Promise<boolean>
 
     act(() => {
-      firstRequest = hook.result().requestOverlay('resources', firstFallback)
+      firstRequest = hook.result().requestOverlay('resources', firstFallback, firstOwnershipLost)
     })
     await flushOcclusionLifecycle()
     expect(await firstRequest).toBe(true)
@@ -560,6 +563,7 @@ describe('useBrowserPanelOcclusion modal lifecycle', () => {
     expect(hook.result().activeOverlay).toBe('tab')
     expect(captureBrowserPanelSnapshot).toHaveBeenCalledOnce()
     expect(setBrowserPanelOccluded).toHaveBeenCalledTimes(1)
+    expect(firstOwnershipLost).toHaveBeenCalledOnce()
     expect(firstFallback).not.toHaveBeenCalled()
     expect(secondFallback).not.toHaveBeenCalled()
     hook.unmount()

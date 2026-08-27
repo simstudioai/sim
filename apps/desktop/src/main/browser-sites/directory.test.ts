@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, stat, truncate, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -72,6 +72,32 @@ describe('SiteDirectory', () => {
       'github.com',
       'linear.app',
     ])
+  })
+
+  it('keeps sites from concurrent imports', async () => {
+    const store = open()
+
+    await Promise.all([
+      store.remember([{ hostname: 'github.com', name: 'GitHub' }]),
+      store.remember([{ hostname: 'linear.app', name: 'Linear' }]),
+    ])
+
+    expect((await store.list()).map((site) => site.hostname).sort()).toEqual([
+      'github.com',
+      'linear.app',
+    ])
+  })
+
+  it('applies concurrent imports and clear in invocation order', async () => {
+    const store = open()
+
+    await Promise.all([
+      store.remember([{ hostname: 'github.com', name: 'GitHub' }]),
+      store.clear(),
+      store.remember([{ hostname: 'linear.app', name: 'Linear' }]),
+    ])
+
+    expect(await store.list()).toEqual([{ hostname: 'linear.app', name: 'Linear' }])
   })
 
   it('keeps an existing icon when a later import only learns a name', async () => {
@@ -204,19 +230,44 @@ describe('SiteDirectory', () => {
     await expect(readFile(path)).rejects.toThrow()
   })
 
-  it('reads as empty rather than throwing on a corrupt file', async () => {
-    await writeFile(path, 'not json at all')
+  it('preserves a corrupt file until clear explicitly resets persistence', async () => {
+    const original = 'not json at all'
+    await writeFile(path, original)
+    const store = open()
 
-    expect(await open().list()).toEqual([])
+    expect(await store.list()).toEqual([])
+    expect(store.isAvailable()).toBe(false)
+    await store.remember([{ hostname: 'github.com', name: 'GitHub' }])
+    expect(await readFile(path, 'utf8')).toBe(original)
+
+    const clearing = store.clear()
+    const remembering = store.remember([{ hostname: 'github.com', name: 'GitHub' }])
+    await Promise.all([clearing, remembering])
+    expect(store.isAvailable()).toBe(true)
+    expect(await store.list()).toEqual([{ hostname: 'github.com', name: 'GitHub' }])
   })
 
-  it('ignores a directory written by a future version', async () => {
-    await writeFile(path, JSON.stringify({ version: 99, payload: 'whatever' }))
+  it('does not overwrite a directory written by a future version', async () => {
+    const original = JSON.stringify({ version: 99, payload: 'whatever' })
+    await writeFile(path, original)
+    const store = open()
 
-    expect(await open().list()).toEqual([])
+    expect(await store.list()).toEqual([])
+    await store.remember([{ hostname: 'github.com', name: 'GitHub' }])
+    expect(await readFile(path, 'utf8')).toBe(original)
   })
 
-  it('drops a directory written before imported hosts became suggestions', async () => {
+  it('does not overwrite a malformed legacy directory', async () => {
+    const original = JSON.stringify({ version: 1 })
+    await writeFile(path, original)
+    const store = open()
+
+    expect(await store.list()).toEqual([])
+    await store.remember([{ hostname: 'github.com', name: 'GitHub' }])
+    expect(await readFile(path, 'utf8')).toBe(original)
+  })
+
+  it('replaces a valid legacy directory on the next import', async () => {
     // Version 1 was seeded from imported cookie hosts — mostly ad and analytics
     // origins — and those records only ever decorated a host the omnibox already
     // had. Version 2 records are offered as suggestions in their own right, so
@@ -224,15 +275,47 @@ describe('SiteDirectory', () => {
     // dropdown. The payload below decrypts cleanly; it is discarded on meaning,
     // not on damage.
     const version1: SiteRecord[] = [{ hostname: 'doubleclick.net', name: 'DoubleClick' }]
-    await writeFile(
-      path,
-      JSON.stringify({
-        version: 1,
-        payload: encryption.encryptString(JSON.stringify(version1)).toString('base64'),
-      })
-    )
+    const original = JSON.stringify({
+      version: 1,
+      payload: encryption.encryptString(JSON.stringify(version1)).toString('base64'),
+    })
+    await writeFile(path, original)
 
-    expect(await open().list()).toEqual([])
+    const store = open()
+    expect(await store.list()).toEqual([])
+
+    await store.remember([{ hostname: 'github.com', name: 'GitHub' }])
+    expect(await store.list()).toEqual([{ hostname: 'github.com', name: 'GitHub' }])
+    expect(await readFile(path, 'utf8')).not.toBe(original)
+  })
+
+  it('preserves an oversized directory until explicit clear', async () => {
+    await writeFile(path, '')
+    await truncate(path, 16 * 1024 * 1024 + 1)
+    const store = open()
+
+    expect(await store.list()).toEqual([])
+    expect(store.isAvailable()).toBe(false)
+    await store.remember([{ hostname: 'github.com', name: 'GitHub' }])
+    expect((await stat(path)).size).toBe(16 * 1024 * 1024 + 1)
+
+    await store.clear()
+    await store.remember([{ hostname: 'github.com', name: 'GitHub' }])
+    expect(await store.list()).toEqual([{ hostname: 'github.com', name: 'GitHub' }])
+  })
+
+  it('blocks stored site records with fields outside the persistence contract', async () => {
+    const payload = [{ hostname: 'github.com', visits: -1 }]
+    const original = JSON.stringify({
+      version: 2,
+      payload: encryption.encryptString(JSON.stringify(payload)).toString('base64'),
+    })
+    await writeFile(path, original)
+    const store = open()
+
+    expect(await store.list()).toEqual([])
+    await store.remember([{ hostname: 'linear.app', name: 'Linear' }])
+    expect(await readFile(path, 'utf8')).toBe(original)
   })
 
   it('skips an entry with no hostname to key it by', async () => {

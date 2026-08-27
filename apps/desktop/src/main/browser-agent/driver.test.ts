@@ -571,6 +571,23 @@ describe('executeTool', () => {
     )
   })
 
+  it('routes an exact renderer media decision through the scoped session boundary', async () => {
+    const respond = vi.spyOn(session, 'respondToMediaPermission').mockResolvedValue()
+
+    await driver.handlePanelAction('chat-test', {
+      action: 'respond-media-permission',
+      requestId: 'request-1',
+      allowed: true,
+    })
+    await driver.handlePanelAction('chat-test', {
+      action: 'respond-media-permission',
+      requestId: 'request-2',
+    })
+
+    expect(respond).toHaveBeenCalledOnce()
+    expect(respond).toHaveBeenCalledWith('request-1', true)
+  })
+
   it('keeps tool queues and tab state isolated by chat scope', async () => {
     await driver.executeTool('chat-a', 'browser_open_tab', {})
     await driver.executeTool('chat-a', 'browser_open_tab', {})

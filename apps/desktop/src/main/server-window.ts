@@ -69,6 +69,8 @@ export interface ServerWindowDeps {
    * failure not hide another's, and lets the caller refuse to move.
    */
   clearDeploymentScopedState: () => Promise<readonly string[]>
+  /** Completes this server wipe only when no stronger account wipe is pending. */
+  completeDeploymentScopedStateChange: () => boolean
   /**
    * Relaunches the shell against the newly stored origin. A full restart rather
    * than an in-place swap: the origin decides the cookie partition, the update
@@ -179,7 +181,7 @@ export function createServerWindow(deps: ServerWindowDeps): ServerWindowHandle {
     // what would actually be written.
     const origin = canonicalOrigin(validated.origin)
     const current = deps.config.getOrigin()
-    if (origin === current) {
+    if (origin === current && deps.config.isPersistenceAvailable()) {
       // Nothing moves, so nothing is torn down. Relaunching anyway would make
       // "confirm the URL I already use" restart the app for no reason.
       return { ok: true, origin, unchanged: true }
@@ -215,15 +217,40 @@ export function createServerWindow(deps: ServerWindowDeps): ServerWindowHandle {
         }
       }
 
-      logger.info('Server origin changed; relaunching', { from: current, to: origin })
-      deps.config.setOrigin(raw)
-      for (const key of ORIGIN_SCOPED_SETTINGS) {
-        deps.config.set(key, undefined)
+      try {
+        if (!deps.completeDeploymentScopedStateChange()) {
+          logger.error('Refusing to change server while account-data recovery is active')
+          return {
+            ok: false,
+            error: 'Finish signing out or restart Sim before changing servers.',
+          }
+        }
+      } catch (error) {
+        logger.error('Could not finish deployment-scoped teardown', {
+          error: getErrorMessage(error),
+        })
+        return {
+          ok: false,
+          error: 'Local account-data recovery is still required. Restart Sim and try again.',
+        }
       }
-      // setOrigin writes through immediately; the clears above are debounced
-      // like every other setting. `before-quit` flushes too, but doing it here
-      // keeps the write independent of the Electron quit sequence.
-      deps.config.flush()
+
+      try {
+        for (const key of ORIGIN_SCOPED_SETTINGS) {
+          deps.config.set(key, undefined)
+        }
+        const stored = deps.config.setOrigin(raw)
+        if (!stored.ok) return stored
+      } catch (error) {
+        logger.error('Could not persist the new server origin', {
+          error: getErrorMessage(error),
+        })
+        return {
+          ok: false,
+          error: 'Could not save the new server URL. Try again.',
+        }
+      }
+      logger.info('Server origin changed; relaunching', { from: current, to: origin })
       close()
       deps.relaunch()
       return { ok: true, origin, unchanged: false }

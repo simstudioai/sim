@@ -1,8 +1,13 @@
+import { mkdtempSync, writeFileSync } from 'node:fs'
+import { rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => import('@/test/electron-mock'))
 
 import { BrowserWindow, type Session } from 'electron'
+import { initializeAccountDataRecovery } from '@/main/account-data-generation'
 import {
   createSessionLifecycleCoordinator,
   decideStartRoute,
@@ -148,6 +153,9 @@ describe('tearDownSession', () => {
       clearStorageData: vi.fn(async () => {
         order.push('session')
       }),
+      clearCache: vi.fn(async () => {
+        order.push('cache')
+      }),
     } as unknown as Session
 
     await tearDownSession(
@@ -167,14 +175,13 @@ describe('tearDownSession', () => {
       }
     )
 
-    expect(order).toEqual(['revoke', 'local', 'browser', 'session'])
+    expect(order).toEqual(['revoke', 'local', 'browser', 'session', 'cache'])
   })
 
-  it('still clears the web session when the browser profile cannot be cleared', async () => {
-    // Sign-out must complete even if the embedded browser is in a bad state;
-    // failing to clear its cookies is bad, failing to sign out is worse.
+  it('attempts every local erasure but rejects when the browser profile survives', async () => {
     const clearStorageData = vi.fn(async () => {})
-    const session = { clearStorageData } as unknown as Session
+    const clearCache = vi.fn(async () => {})
+    const session = { clearStorageData, clearCache } as unknown as Session
 
     await expect(
       tearDownSession(
@@ -186,15 +193,17 @@ describe('tearDownSession', () => {
         },
         async () => {}
       )
-    ).resolves.toBeUndefined()
+    ).rejects.toThrow('account-data stores could not be cleared')
 
     expect(clearStorageData).toHaveBeenCalled()
+    expect(clearCache).toHaveBeenCalled()
   })
 
-  it('continues clearing account state when local teardown fails', async () => {
+  it('attempts every local erasure but rejects when account state survives', async () => {
     const clearStorageData = vi.fn(async () => {})
+    const clearCache = vi.fn(async () => {})
     const clearBrowserProfile = vi.fn(async () => {})
-    const session = { clearStorageData } as unknown as Session
+    const session = { clearStorageData, clearCache } as unknown as Session
 
     await expect(
       tearDownSession(
@@ -206,16 +215,49 @@ describe('tearDownSession', () => {
         clearBrowserProfile,
         async () => {}
       )
-    ).resolves.toBeUndefined()
+    ).rejects.toThrow('account-data stores could not be cleared')
 
     expect(clearBrowserProfile).toHaveBeenCalledOnce()
     expect(clearStorageData).toHaveBeenCalledOnce()
+    expect(clearCache).toHaveBeenCalledOnce()
+  })
+
+  it('continues local erasure when the recovery marker cannot be written', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'sim-account-recovery-'))
+    const blockedParent = join(directory, 'blocked')
+    initializeAccountDataRecovery(join(blockedParent, 'teardown-required.json'))
+    writeFileSync(blockedParent, 'not a directory')
+    const clearHandoffState = vi.fn(async () => {})
+    const clearBrowserProfile = vi.fn(async () => {})
+    const clearStorageData = vi.fn(async () => {})
+    const clearCache = vi.fn(async () => {})
+
+    try {
+      await expect(
+        tearDownSession(
+          { clearStorageData, clearCache } as unknown as Session,
+          clearHandoffState,
+          { filePath: '/tmp/events.log', record: vi.fn() },
+          clearBrowserProfile,
+          async () => {}
+        )
+      ).resolves.toBeUndefined()
+
+      expect(clearHandoffState).toHaveBeenCalledOnce()
+      expect(clearBrowserProfile).toHaveBeenCalledOnce()
+      expect(clearStorageData).toHaveBeenCalledOnce()
+      expect(clearCache).toHaveBeenCalledOnce()
+    } finally {
+      initializeAccountDataRecovery(null)
+      await rm(directory, { recursive: true, force: true })
+    }
   })
 
   it('still clears local state when the server-side revoke fails', async () => {
     // Offline sign-out must not strand the user signed in locally.
     const clearStorageData = vi.fn(async () => {})
-    const session = { clearStorageData } as unknown as Session
+    const clearCache = vi.fn(async () => {})
+    const session = { clearStorageData, clearCache } as unknown as Session
 
     await expect(
       tearDownSession(
@@ -230,6 +272,25 @@ describe('tearDownSession', () => {
     ).resolves.toBeUndefined()
 
     expect(clearStorageData).toHaveBeenCalled()
+  })
+
+  it('rejects when the app cache cannot be cleared', async () => {
+    const session = {
+      clearStorageData: vi.fn(async () => {}),
+      clearCache: vi.fn(async () => {
+        throw new Error('cache busy')
+      }),
+    } as unknown as Session
+
+    await expect(
+      tearDownSession(
+        session,
+        async () => {},
+        { filePath: '/tmp/events.log', record: vi.fn() },
+        async () => {},
+        async () => {}
+      )
+    ).rejects.toThrow('account-data stores could not be cleared')
   })
 })
 
@@ -292,10 +353,12 @@ describe('createSessionLifecycleCoordinator', () => {
     const cookiesOn = vi.fn()
     const webRequestOnCompleted = vi.fn()
     const clearStorageData = vi.fn(async () => {})
+    const clearCache = vi.fn(async () => {})
     const session = {
       cookies: { on: cookiesOn },
       webRequest: { onCompleted: webRequestOnCompleted },
       clearStorageData,
+      clearCache,
       fetch: vi.fn(async () => Response.json(null)),
     } as unknown as Session
     const first = new BrowserWindow()
@@ -332,5 +395,36 @@ describe('createSessionLifecycleCoordinator', () => {
       expect(second.loadURL).toHaveBeenCalledWith(`${APP}/login`)
     })
     expect(clearHandoffState).toHaveBeenCalledOnce()
+  })
+
+  it('shares one awaitable teardown and does not open login when clearing fails', async () => {
+    let releaseBrowserClear: (() => void) | undefined
+    const browserClear = new Promise<void>((resolve) => {
+      releaseBrowserClear = resolve
+    })
+    const win = new BrowserWindow()
+    const coordinator = createSessionLifecycleCoordinator({
+      appSession: {
+        cookies: { on: vi.fn() },
+        clearStorageData: vi.fn(async () => {
+          throw new Error('storage locked')
+        }),
+        clearCache: vi.fn(async () => {}),
+      } as unknown as Session,
+      origin: () => APP,
+      events: { filePath: '/tmp/events.log', record: vi.fn() },
+      clearHandoffState: vi.fn(async () => {}),
+      clearBrowserProfile: vi.fn(() => browserClear),
+      getWindows: () => [win],
+    })
+
+    const first = coordinator.signOut()
+    const second = coordinator.signOut()
+    expect(first).toBe(second)
+    await expect(coordinator.awaitTeardown(1)).resolves.toBe(false)
+
+    releaseBrowserClear?.()
+    await expect(first).resolves.toBe(false)
+    expect(win.loadURL).not.toHaveBeenCalled()
   })
 })

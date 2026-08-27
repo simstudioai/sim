@@ -265,6 +265,7 @@ function recordNotice(notice: string): void {
  */
 function pageStateFor(contents: WebContents, tabId: string): BrowserPageState {
   const issue = session.pageIssueForContents(contents)
+  const mediaPermissionRequest = session.mediaPermissionRequestForContents(contents)
   return {
     scopeId: session.getBrowserScopeId(),
     tabId,
@@ -274,6 +275,7 @@ function pageStateFor(contents: WebContents, tabId: string): BrowserPageState {
     canGoBack: session.canGoBack(contents),
     canGoForward: session.canGoForward(contents),
     ...(issue ? { issue } : {}),
+    ...(mediaPermissionRequest ? { mediaPermissionRequest } : {}),
   }
 }
 
@@ -661,8 +663,9 @@ export async function clearBrowsingData(
 ): Promise<void> {
   // The remembered browsing trail is the local mirror of the cookie jar, so it
   // goes when cookies do and stays when they do not.
-  if (kinds.includes('cookies')) knownSessions?.clear()
+  const settingsCleared = !kinds.includes('cookies') || knownSessions?.clear() !== false
   await session.clearAgentData(kinds)
+  if (!settingsCleared) throw new Error('Browser settings could not be erased')
 }
 
 /**
@@ -671,15 +674,32 @@ export async function clearBrowsingData(
  * in on the same machine must not inherit the previous user's sessions or
  * passwords.
  */
-export async function clearBrowserProfile(): Promise<void> {
-  knownSessions?.clear()
-  await session.clearProfileStorage()
-  await clearCredentials()
+export interface ClearBrowserProfileOptions {
+  /** The server picker will replace the blocked settings file immediately after profile erasure. */
+  settingsPersistence: 'required' | 'server-repair'
+}
+
+export async function clearBrowserProfile(
+  options: ClearBrowserProfileOptions = { settingsPersistence: 'required' }
+): Promise<void> {
+  const settingsCleared = knownSessions?.clear() !== false
+  const outcomes = await Promise.allSettled([session.clearProfileStorage(), clearCredentials()])
   // Last, covering the pinned-tab list `clearProfileStorage` just emptied.
   // Settings writes coalesce, and an erasure that is still sitting in that
   // window when the process dies leaves the previous account's data on disk
   // after sign-out already told the user it was gone.
-  configStore?.flush()
+  if (
+    (!settingsCleared || configStore?.flush() === false) &&
+    options.settingsPersistence === 'required'
+  ) {
+    outcomes.push({ status: 'rejected', reason: new Error('Browser settings could not be erased') })
+  }
+  const failures = outcomes.flatMap((outcome) =>
+    outcome.status === 'rejected' ? [outcome.reason] : []
+  )
+  if (failures.length > 0) {
+    throw new AggregateError(failures, 'Browser profile teardown was incomplete.')
+  }
 }
 
 function str(params: Record<string, unknown>, key: string): string | undefined {
@@ -3795,6 +3815,12 @@ export async function handlePanelAction(
             ? action.takeoverResponse.trim()
             : null
         state.takeoverDone = true
+      }
+      return
+    }
+    if (action.action === 'respond-media-permission') {
+      if (typeof action.requestId === 'string' && typeof action.allowed === 'boolean') {
+        await session.respondToMediaPermission(action.requestId, action.allowed)
       }
       return
     }

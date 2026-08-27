@@ -483,9 +483,6 @@ const api: SimDesktopApi = {
       ipcRenderer.invoke('terminal:dispose-scope', scopeId),
     suspendScope: (scopeId: string): Promise<boolean> =>
       ipcRenderer.invoke('terminal:suspend-scope', scopeId),
-    dispose: (): void => {
-      ipcRenderer.send('terminal:dispose')
-    },
     onData: (
       callback: (terminalId: string, data: string, scopeId: string) => void
     ): (() => void) => {

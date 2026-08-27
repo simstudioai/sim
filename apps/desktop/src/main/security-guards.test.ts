@@ -92,6 +92,15 @@ describe('attachNavigationGuards', () => {
     expect(deps.onConnectIntercept).toHaveBeenCalled()
   })
 
+  it('opens unknown cross-origin departures externally instead of replacing the app page', () => {
+    const contents = makeContents(`${APP}/workspace/ws1`)
+    attachNavigationGuards(contents as unknown as WebContents, makeDeps())
+    const preventDefault = fire(contents, 'will-navigate', 'https://docs.example/page')
+
+    expect(preventDefault).toHaveBeenCalled()
+    expect(shell.openExternal).toHaveBeenCalledWith('https://docs.example/page')
+  })
+
   it('denies non-web schemes', () => {
     const contents = makeContents(`${APP}/workspace/ws1`)
     attachNavigationGuards(contents as unknown as WebContents, makeDeps())
