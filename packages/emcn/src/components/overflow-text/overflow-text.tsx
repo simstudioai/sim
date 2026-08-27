@@ -45,7 +45,7 @@ export const OverflowText = memo(function OverflowText({
   tooltipEnabled = true,
   focusTarget,
 }: OverflowTextProps) {
-  const { ref: textRef, node, isOverflowing } = useIsOverflowing<HTMLSpanElement>(label)
+  const { ref: textRef, node, isOverflowing } = useIsOverflowing<HTMLSpanElement>(children ?? label)
   const tooltipEligible = tooltipEnabled && label.length > 0 && (Boolean(showWhen) || isOverflowing)
   const getFocusTarget = useCallback(() => {
     if (focusTarget !== 'nearest-interactive') return null
@@ -74,7 +74,7 @@ export const OverflowText = memo(function OverflowText({
         data-overflow-text=''
         className={cn(
           className,
-          'min-w-0 overflow-hidden text-clip whitespace-nowrap',
+          'block min-w-0 overflow-hidden text-clip whitespace-nowrap',
           isOverflowing && overflowTextFadeClass
         )}
         {...handlers}

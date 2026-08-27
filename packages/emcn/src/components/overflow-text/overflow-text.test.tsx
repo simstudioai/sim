@@ -85,6 +85,7 @@ describe('OverflowText', () => {
     setWidths(label, 80, 180)
 
     expect(label.classList.contains('overflow-hidden')).toBe(true)
+    expect(label.classList.contains('block')).toBe(true)
     expect(label.classList.contains('text-clip')).toBe(true)
     expect(label.classList.contains('whitespace-nowrap')).toBe(true)
     expect(label.classList.contains('truncate')).toBe(false)
@@ -209,6 +210,30 @@ describe('OverflowText', () => {
     Object.defineProperty(label, 'scrollWidth', { configurable: true, value: 60 })
     act(() => root.render(<OverflowText label='Short again' />))
     expect(label.className).not.toContain('mask-image:linear-gradient')
+  })
+
+  it('remeasures when decorated content changes without changing the label', () => {
+    act(() =>
+      root.render(
+        <OverflowText label='Workflow production'>
+          Workflow <mark>production</mark>
+        </OverflowText>
+      )
+    )
+    const label = host.querySelector<HTMLElement>('span')
+    if (!label) throw new Error('Overflow label did not render')
+
+    setWidths(label, 100, 60)
+    Object.defineProperty(label, 'scrollWidth', { configurable: true, value: 180 })
+    act(() =>
+      root.render(
+        <OverflowText label='Workflow production'>
+          Workflow <strong>production</strong>
+        </OverflowText>
+      )
+    )
+
+    expect(label.className).toContain('mask-image:linear-gradient')
   })
 
   it('remeasures when loaded fonts change text width', () => {
