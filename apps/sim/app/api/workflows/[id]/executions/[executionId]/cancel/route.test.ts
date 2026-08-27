@@ -113,6 +113,7 @@ vi.mock('@/lib/execution/event-buffer', () => ({
 }))
 
 import { cancelWorkflowExecutionContract } from '@/lib/api/contracts/workflows'
+import { cancelWorkflowExecutionPostAuth } from '@/lib/execution/cancel-workflow-execution-post-auth'
 import { POST as cancelExecution } from './route'
 
 /**
@@ -982,6 +983,71 @@ describe('POST /api/workflows/[id]/executions/[executionId]/cancel', () => {
     const response = await POST(makeRequest(), makeParams())
 
     expect(response.status).toBe(403)
+  })
+
+  it('conceals a workflow outside the asserted Copilot workspace', async () => {
+    const response = await cancelWorkflowExecutionPostAuth({
+      workflowId: 'wf-1',
+      executionId: 'ex-1',
+      userId: 'user-1',
+      assertedWorkspaceId: 'workspace-other',
+    })
+
+    expect(response.status).toBe(404)
+    await expect(response.json()).resolves.toEqual({ error: 'Execution not found' })
+    expect(databaseMock.db.select).not.toHaveBeenCalled()
+    expect(mockMarkExecutionCancelled).not.toHaveBeenCalled()
+  })
+
+  it('stops before lookup when cancellation is aborted during authorization', async () => {
+    const controller = new AbortController()
+    workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockImplementationOnce(
+      async () => {
+        controller.abort()
+        return { allowed: true, workflow: { workspaceId: 'workspace-1' } }
+      }
+    )
+
+    const response = await cancelWorkflowExecutionPostAuth({
+      workflowId: 'wf-1',
+      executionId: 'ex-1',
+      userId: 'user-1',
+      abortSignal: controller.signal,
+    })
+
+    expect(response.status).toBe(409)
+    await expect(response.json()).resolves.toEqual({
+      error: 'Request aborted before workflow run cancellation could be applied.',
+    })
+    expect(databaseMock.db.select).not.toHaveBeenCalled()
+    expect(mockMarkExecutionCancelled).not.toHaveBeenCalled()
+  })
+
+  it('stops before mutation when cancellation is aborted during execution lookup', async () => {
+    const controller = new AbortController()
+    dbChainMockFns.limit.mockImplementationOnce(async () => {
+      controller.abort()
+      return [
+        {
+          executionDeadlineAt: null,
+          executionOrigin: null,
+          status: 'running',
+          workspaceId: 'workspace-1',
+        },
+      ]
+    })
+
+    const response = await cancelWorkflowExecutionPostAuth({
+      workflowId: 'wf-1',
+      executionId: 'ex-1',
+      userId: 'user-1',
+      abortSignal: controller.signal,
+    })
+
+    expect(response.status).toBe(409)
+    expect(mockMarkExecutionCancelled).not.toHaveBeenCalled()
+    expect(mockAbortManualExecution).not.toHaveBeenCalled()
+    expect(mockCancelByExecution).not.toHaveBeenCalled()
   })
 
   it('returns 404 when the execution does not belong to the workflow', async () => {

@@ -7,20 +7,15 @@ import type { ExecutionContext } from '@/lib/copilot/request/types'
 const { mocks } = vi.hoisted(() => ({
   mocks: {
     apiKey: vi.fn(),
-    cancelWorkflowExecutionRoute: vi.fn(),
+    cancelWorkflowExecutionPostAuth: vi.fn(),
     executeWorkflowUseCase: vi.fn(),
-    generateInternalToken: vi.fn(),
     hasExecutionResult: vi.fn(),
     readAttemptedExecutionId: vi.fn(),
   },
 }))
 
-vi.mock('@/app/api/workflows/[id]/executions/[executionId]/cancel/route', () => ({
-  POST: mocks.cancelWorkflowExecutionRoute,
-}))
-
-vi.mock('@/lib/auth/internal', () => ({
-  generateInternalToken: mocks.generateInternalToken,
+vi.mock('@/lib/execution/cancel-workflow-execution-post-auth', () => ({
+  cancelWorkflowExecutionPostAuth: mocks.cancelWorkflowExecutionPostAuth,
 }))
 
 vi.mock('@/lib/copilot/application/execute-workflow-use-case', () => ({
@@ -70,7 +65,6 @@ const context = {
 describe('workflow mutation Copilot adapters', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.generateInternalToken.mockResolvedValue('internal-token')
     mocks.hasExecutionResult.mockReturnValue(false)
     mocks.readAttemptedExecutionId.mockReturnValue(undefined)
   })
@@ -175,7 +169,7 @@ describe('workflow mutation Copilot adapters', () => {
   })
 
   it('cancels a workflow run through the same route as the logs UI', async () => {
-    mocks.cancelWorkflowExecutionRoute.mockResolvedValue(
+    mocks.cancelWorkflowExecutionPostAuth.mockResolvedValue(
       Response.json({
         success: true,
         executionId: 'execution-1',
@@ -203,21 +197,17 @@ describe('workflow mutation Copilot adapters', () => {
         reason: 'recorded',
       },
     })
-    expect(mocks.generateInternalToken).toHaveBeenCalledWith('user-1')
-    expect(mocks.cancelWorkflowExecutionRoute).toHaveBeenCalledOnce()
-    const [request, routeContext] = mocks.cancelWorkflowExecutionRoute.mock.calls[0]
-    expect(request.method).toBe('POST')
-    expect(request.headers.get('authorization')).toBe('Bearer internal-token')
-    expect(request.nextUrl.pathname).toBe('/api/workflows/workflow-1/executions/execution-1/cancel')
-    await expect(routeContext.params).resolves.toEqual({
-      id: 'workflow-1',
+    expect(mocks.cancelWorkflowExecutionPostAuth).toHaveBeenCalledWith({
+      workflowId: 'workflow-1',
       executionId: 'execution-1',
+      userId: 'user-1',
+      assertedWorkspaceId: 'workspace-1',
     })
     expect(mocks.executeWorkflowUseCase).not.toHaveBeenCalled()
   })
 
   it('returns the cancellation route error to the Run agent', async () => {
-    mocks.cancelWorkflowExecutionRoute.mockResolvedValue(
+    mocks.cancelWorkflowExecutionPostAuth.mockResolvedValue(
       Response.json({ error: 'Execution cannot be cancelled while completed' }, { status: 409 })
     )
 
@@ -236,7 +226,7 @@ describe('workflow mutation Copilot adapters', () => {
     const result = await executeCancelWorkflowRun({ workflowId: 'workflow-1' }, context)
 
     expect(result).toEqual({ success: false, error: 'executionId is required' })
-    expect(mocks.cancelWorkflowExecutionRoute).not.toHaveBeenCalled()
+    expect(mocks.cancelWorkflowExecutionPostAuth).not.toHaveBeenCalled()
     expect(mocks.executeWorkflowUseCase).not.toHaveBeenCalled()
   })
 

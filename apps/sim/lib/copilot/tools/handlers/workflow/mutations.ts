@@ -1,8 +1,6 @@
 import { createLogger } from '@sim/logger'
-import { NextRequest } from 'next/server'
 import { cancelWorkflowExecutionContract } from '@/lib/api/contracts/workflows'
 import { createCopilotWorkspaceApiKey } from '@/lib/api-key/application/create-api-key'
-import { generateInternalToken } from '@/lib/auth/internal'
 import { messageForCopilotApplicationError } from '@/lib/copilot/application/error'
 import { executeCopilotApiKeyUseCase } from '@/lib/copilot/application/execute-api-key-use-case'
 import {
@@ -19,6 +17,7 @@ import {
 import { requireCopilotWorkspace } from '@/lib/copilot/tools/server/workspace-scope'
 import { decodeVfsPathSegments, encodeVfsPathSegments } from '@/lib/copilot/vfs/path-utils'
 import { PlatformEvents } from '@/lib/core/telemetry'
+import { cancelWorkflowExecutionPostAuth } from '@/lib/execution/cancel-workflow-execution-post-auth'
 import { createWorkflow } from '@/lib/workflows/application/create-workflow'
 import { moveWorkflowsBulk } from '@/lib/workflows/application/move-workflows-bulk'
 import {
@@ -312,20 +311,13 @@ export async function executeCancelWorkflowRun(
       'Request aborted before workflow run cancellation could be applied.'
     )
     const trustedContext = requireTrustedCopilotExecutionContext(context)
-    const internalToken = await generateInternalToken(trustedContext.userId)
-    const { POST: cancelWorkflowExecution } = await import(
-      '@/app/api/workflows/[id]/executions/[executionId]/cancel/route'
-    )
-    const response = await cancelWorkflowExecution(
-      new NextRequest(
-        `http://localhost/api/workflows/${encodeURIComponent(workflowId)}/executions/${encodeURIComponent(executionId)}/cancel`,
-        {
-          method: 'POST',
-          headers: { authorization: `Bearer ${internalToken}` },
-        }
-      ),
-      { params: Promise.resolve({ id: workflowId, executionId }) }
-    )
+    const response = await cancelWorkflowExecutionPostAuth({
+      workflowId,
+      executionId,
+      userId: trustedContext.userId,
+      assertedWorkspaceId: trustedContext.workspaceId,
+      ...(context.abortSignal ? { abortSignal: context.abortSignal } : {}),
+    })
     const responseBody: unknown = await response.json()
     if (!response.ok) {
       return {
