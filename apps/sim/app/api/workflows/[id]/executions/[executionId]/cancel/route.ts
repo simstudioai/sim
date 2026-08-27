@@ -1,30 +1,36 @@
-import { type NextRequest, NextResponse } from 'next/server'
 import { cancelWorkflowExecutionContract } from '@/lib/api/contracts/workflows'
-import { parseRequest } from '@/lib/api/server'
-import { checkHybridAuth } from '@/lib/auth/hybrid'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { cancelWorkflowExecutionPostAuth } from '@/lib/execution/cancel-workflow-execution-post-auth'
+import { defineInternalJsonRoute, internalRateLimits } from '@/lib/api/server/routes'
+import {
+  internalWorkflowErrorPolicies,
+  internalWorkflowSessionOrApiKeyAuth,
+} from '@/lib/workflows/api'
+import { cancelWorkflowRun } from '@/lib/workflows/application/cancel-run'
+import { workflowOperations } from '@/lib/workflows/application/operations'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-export const POST = withRouteHandler(
-  async (req: NextRequest, context: { params: Promise<{ id: string; executionId: string }> }) => {
-    const auth = await checkHybridAuth(req, { requireWorkflowId: false })
-    if (!auth.success || !auth.userId) {
-      return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
-    }
-
-    const parsed = await parseRequest(cancelWorkflowExecutionContract, req, context)
-    if (!parsed.success) return parsed.response
-
-    return cancelWorkflowExecutionPostAuth({
-      workflowId: parsed.data.params.id,
-      executionId: parsed.data.params.executionId,
-      userId: auth.userId,
-      ...(auth.apiKeyType === 'workspace'
-        ? { workspaceApiKeyScope: { workspaceId: auth.workspaceId } }
-        : {}),
-    })
-  }
-)
+export const POST = defineInternalJsonRoute({
+  contract: cancelWorkflowExecutionContract,
+  auth: internalWorkflowSessionOrApiKeyAuth,
+  operation: workflowOperations.cancelRun,
+  rateLimit: internalRateLimits.none({
+    reason: 'Preserve existing internal cancellation behavior',
+  }),
+  errorPolicy: internalWorkflowErrorPolicies.concealRunAuthorization,
+  mapInput: ({ params }, { request }) => ({
+    workflowId: params.id,
+    runId: params.executionId,
+    abortSignal: request.signal,
+  }),
+  useCase: cancelWorkflowRun,
+  present: (result) => ({
+    success: result.success,
+    executionId: result.executionId,
+    redisAvailable: result.redisAvailable,
+    durablyRecorded: result.durablyRecorded,
+    locallyAborted: result.locallyAborted,
+    pausedCancelled: result.pausedCancelled,
+    reason: result.reason,
+  }),
+})

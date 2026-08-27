@@ -1,4 +1,9 @@
-import type { Principal } from '@sim/auth/principal'
+import type {
+  PersonalApiKeyPrincipal,
+  Principal,
+  SessionPrincipal,
+  WorkspaceApiKeyPrincipal,
+} from '@sim/auth/principal'
 import {
   createInternalResourceConcealmentPolicy,
   createInternalSessionOrExecutorAuth,
@@ -8,6 +13,7 @@ import {
   InternalUnauthenticatedError,
   internalErrorResponse,
   internalOrchestrationErrorPolicy,
+  internalSessionAuth,
   type V2ErrorPolicy,
   v2OrchestrationErrorPolicy,
 } from '@/lib/api/server/routes'
@@ -61,25 +67,40 @@ export const internalWorkflowSessionOrExecutorAuth = createInternalSessionOrExec
   audience: WORKFLOW_DELEGATION_AUDIENCE,
 })
 
+type WorkflowApiKeyPrincipal = PersonalApiKeyPrincipal | WorkspaceApiKeyPrincipal
+
+async function authenticateWorkflowApiKey(rawApiKey: string): Promise<WorkflowApiKeyPrincipal> {
+  const result = await authenticateApiKeyFromHeader(rawApiKey)
+  if (!result.success || !result.keyId || !result.keyType) {
+    throw new InternalUnauthenticatedError('Unauthorized')
+  }
+  await updateApiKeyLastUsed(result.keyId)
+
+  if (result.keyType === 'workspace') {
+    if (!result.workspaceId) throw new Error('Workspace API key is missing its workspace scope')
+    return { kind: 'workspace_api_key', workspaceId: result.workspaceId, keyId: result.keyId }
+  }
+  if (!result.userId) throw new Error('Personal API key is missing its credential owner')
+  return { kind: 'personal_api_key', userId: result.userId, keyId: result.keyId }
+}
+
+export const internalWorkflowSessionOrApiKeyAuth: InternalAuthPolicy<
+  SessionPrincipal | WorkflowApiKeyPrincipal
+> = {
+  async authenticate(request) {
+    const rawApiKey = request.headers.get('x-api-key')
+    if (!rawApiKey) return internalSessionAuth.authenticate()
+    return authenticateWorkflowApiKey(rawApiKey)
+  },
+}
+
 export const internalWorkflowReadAuth: InternalAuthPolicy<Principal> = {
   async authenticate(request, params) {
     const rawApiKey = request.headers.get('x-api-key')
     if (!rawApiKey) {
       return internalWorkflowSessionOrExecutorAuth.authenticate(request, params)
     }
-
-    const result = await authenticateApiKeyFromHeader(rawApiKey)
-    if (!result.success || !result.keyId || !result.keyType) {
-      throw new InternalUnauthenticatedError('Unauthorized')
-    }
-    await updateApiKeyLastUsed(result.keyId)
-
-    if (result.keyType === 'workspace') {
-      if (!result.workspaceId) throw new Error('Workspace API key is missing its workspace scope')
-      return { kind: 'workspace_api_key', workspaceId: result.workspaceId, keyId: result.keyId }
-    }
-    if (!result.userId) throw new Error('Personal API key is missing its credential owner')
-    return { kind: 'personal_api_key', userId: result.userId, keyId: result.keyId }
+    return authenticateWorkflowApiKey(rawApiKey)
   },
 }
 
@@ -124,5 +145,9 @@ export const internalWorkflowErrorPolicies = {
   concealWorkflowAuthorization: createInternalResourceConcealmentPolicy({
     base: internalOrchestrationErrorPolicy,
     notFoundMessage: WORKFLOW_NOT_FOUND_MESSAGE,
+  }),
+  concealRunAuthorization: createInternalResourceConcealmentPolicy({
+    base: internalOrchestrationErrorPolicy,
+    notFoundMessage: 'Execution not found',
   }),
 } as const

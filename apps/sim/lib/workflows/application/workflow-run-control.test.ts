@@ -11,6 +11,7 @@ const { MockWorkflowExecutionNotFoundError, mocks } = vi.hoisted(() => {
     mocks: {
       audit: vi.fn(),
       cancel: vi.fn(),
+      capture: vi.fn(),
       resolvePermission: vi.fn(),
       resolveRunContext: vi.fn(),
       resume: vi.fn(),
@@ -19,6 +20,7 @@ const { MockWorkflowExecutionNotFoundError, mocks } = vi.hoisted(() => {
 })
 
 vi.mock('@sim/audit', () => ({ recordAudit: mocks.audit }))
+vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mocks.capture }))
 
 vi.mock('@sim/platform-authz/workspace', () => ({
   permissionSatisfies: (actual: string | null, required: string) => {
@@ -121,14 +123,21 @@ describe('workflow run-control application use cases', () => {
       expect(mocks.resolveRunContext).toHaveBeenCalledWith({
         runId: 'parent-run-1',
         assertedWorkflowId: 'workflow-1',
+        assertedWorkspaceId: undefined,
       })
       expect(mocks.cancel).toHaveBeenCalledWith({
         executionId: 'parent-run-1',
         workflowId: 'workflow-1',
-        userId: actorUserId,
+        attributedUserId: actorUserId,
         workspaceId: 'workspace-1',
-        captureAnalytics: false,
+        abortSignal: undefined,
       })
+      expect(mocks.capture).toHaveBeenCalledWith(
+        actorUserId,
+        'workflow_execution_cancelled',
+        { workflow_id: 'workflow-1', workspace_id: 'workspace-1' },
+        { groups: { workspace: 'workspace-1' } }
+      )
       expect(mocks.audit).not.toHaveBeenCalled()
     }
   )

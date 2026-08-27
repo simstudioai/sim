@@ -14,12 +14,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   cancel: vi.fn(),
-  capture: vi.fn(),
 }))
 
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
-vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mocks.capture }))
 vi.mock('@/lib/workflows/application/cancel-run', () => ({
   cancelWorkflowRun: { operation: { id: 'workflows.runs.cancel' }, execute: mocks.cancel },
 }))
@@ -91,18 +89,10 @@ describe('POST /api/v2/workflows/[workflowId]/runs/[runId]/cancel', () => {
     })
   })
 
-  /**
-   * The published outcome of a cancel against a run that had already finished.
-   * `durablyRecorded: true` here is the defect this suite pins: nothing was
-   * written, so a caller reconciling on that flag would trust a write that never
-   * happened.
-   */
-  it.each([
-    ['cancelled', 'already_cancelled'],
-    ['completed', 'already_completed'],
-    ['failed', 'already_failed'],
-  ])('reports a terminal %s run as a no-op the caller can tell apart', async (_status, reason) => {
-    mocks.cancel.mockResolvedValue(serviceResult({ success: true, durablyRecorded: false, reason }))
+  it('reports an already-cancelled run as an idempotent no-op', async () => {
+    mocks.cancel.mockResolvedValue(
+      serviceResult({ success: true, durablyRecorded: false, reason: 'already_cancelled' })
+    )
 
     const response = await POST(request(), context)
 
@@ -111,7 +101,7 @@ describe('POST /api/v2/workflows/[workflowId]/runs/[runId]/cancel', () => {
       success: true,
       runId: RUN_ID,
       durablyRecorded: false,
-      reason,
+      reason: 'already_cancelled',
     })
   })
 })

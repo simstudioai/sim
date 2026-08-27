@@ -1,57 +1,35 @@
 import { db } from '@sim/db'
 import { workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
 import { getJobQueue } from '@/lib/core/async-jobs'
+import type { ExecutionJobCancellationScope } from '@/lib/core/async-jobs/types'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
+  clearExecutionCancellation,
   type ExecutionCancellationRecordResult,
   markExecutionCancelled,
 } from '@/lib/execution/cancellation'
 import { createExecutionEventWriter, readExecutionMetaState } from '@/lib/execution/event-buffer'
 import { abortManualExecution } from '@/lib/execution/manual-cancellation'
 import { cancelledExecutionLogFields } from '@/lib/logs/execution/cancellation'
-import { captureServerEvent } from '@/lib/posthog/server'
+import { workflowExecutionOriginSql } from '@/lib/logs/execution-origin'
 import {
   cancelWorkflowGroupExecution,
   type PublishableWorkflowGroupCancellation,
   publishWorkflowGroupCancellationEvent,
-  type WorkflowGroupCancellationWrites,
 } from '@/lib/table/workflow-group-cancellation'
-import { WORKFLOW_EXECUTION_JOB_ID_PREFIX } from '@/lib/workflows/executor/execution-job-ids'
-import { resolveWorkflowExecutionOwnership } from '@/lib/workflows/executor/execution-queries'
 import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
 
 const logger = createLogger('CancelWorkflowExecution')
 const PAUSED_CANCELLATION_DB_ATTEMPTS = 3
 const PAUSED_CANCELLATION_DB_RETRY_MS = 200
+const CANCELLATION_ABORTED_MESSAGE =
+  'Request aborted before workflow run cancellation could be applied.'
 
-async function cancelActiveWorkflowJob(executionId: string): Promise<boolean> {
-  try {
-    const queue = await getJobQueue()
-    const job = await queue.getJob(`${WORKFLOW_EXECUTION_JOB_ID_PREFIX}${executionId}`)
-    if (!job || (job.status !== 'pending' && job.status !== 'processing')) return false
-    await queue.cancelJob(job.id)
-    logger.info('Cancelled active workflow queue job', { executionId, jobId: job.id })
-    return true
-  } catch (error) {
-    logger.warn('Failed to cancel active workflow queue job', { executionId, error })
-    return false
-  }
-}
-
-/**
- * Cancellation outcome vocabulary produced by this service, and so the whole
- * vocabulary the public v2 endpoint can return. `recorded`/`redis_unavailable`/
- * `redis_write_failed` come from the Redis record step; the two `paused_*`
- * values from the paused-HITL path; the three `already_*` values report a run
- * that was already terminal when the request arrived, where the cancel claim
- * matched no row and nothing durable was written. The internal cancel route
- * resolves further outcomes on top of these — see
- * `internalCancelWorkflowExecutionReasonSchema` in `lib/api/contracts/workflows`.
- */
 export type CancelWorkflowExecutionReason =
   | 'recorded'
   | 'already_cancelled'
@@ -61,93 +39,9 @@ export type CancelWorkflowExecutionReason =
   | 'redis_write_failed'
   | 'paused_event_publish_failed'
   | 'paused_database_cancel_failed'
-
-/** Maps each log status a cancel claim can never move to the outcome that reports it. */
-const TERMINAL_NO_OP_REASONS = {
-  cancelled: 'already_cancelled',
-  completed: 'already_completed',
-  failed: 'already_failed',
-} as const satisfies Record<string, CancelWorkflowExecutionReason>
-
-type TerminalExecutionStatus = keyof typeof TERMINAL_NO_OP_REASONS
-
-function toTerminalExecutionStatus(
-  status: string | null | undefined
-): TerminalExecutionStatus | null {
-  return typeof status === 'string' && status in TERMINAL_NO_OP_REASONS
-    ? (status as TerminalExecutionStatus)
-    : null
-}
-
-/**
- * What this request's own terminal claim did: moved the run to `cancelled` here
- * and now, provably matched no row, or ran on a path that cannot tell. Every
- * path that can terminalize the run — the direct log claim and the
- * workflow-group transition — answers in this one vocabulary, so the report can
- * ask a single question: did this request durably write?
- *
- * Only the direct claim ever answers `unknown`, and only when it could not run
- * or its statement failed. The workflow-group transition always knows: it
- * reports the writes it performed.
- */
-type TerminalWriteOutcome = 'applied' | 'no_row' | 'unknown'
-
-/**
- * Reads a workflow-group transition's durability off the writes it reported
- * rather than off its `kind`. Terminalizing the workflow log and cancelling the
- * cell sidecar are each a durable write this request performed, and a single
- * `kind` covers both a transition that did one of them and one that did
- * neither: `already_cancelled` leaves a sidecar that was already `cancelled`
- * alone, but may still have terminalized an active workflow log.
- */
-function toTerminalWriteOutcome(writes: WorkflowGroupCancellationWrites): TerminalWriteOutcome {
-  return writes.workflowLogTerminalized || writes.sidecarCancelled ? 'applied' : 'no_row'
-}
-
-/**
- * Names the terminal state the cancel could not move, or `null` when it did
- * real work or when this path cannot tell — in which case the caller keeps the
- * undifferentiated report rather than guessing.
- *
- * A request that durably wrote is never a no-op, whatever the entry snapshot
- * said. A run can be terminal at entry and still owe this request a real write:
- * a workflow-group run whose log is already `cancelled` can carry a sidecar left
- * in `error`, and reconciling it is a durable cancellation that the entry
- * snapshot cannot see.
- *
- * The status read at entry is not enough on its own in the other direction
- * either: a run that finishes between that read and the claim leaves a stale
- * non-terminal snapshot behind a cancel that wrote nothing. The claim's own row
- * count settles that, and a plain post-read cannot: after a successful cancel
- * the row reads `cancelled` too, so the state has to be attributed to whoever
- * wrote it. A claim that moved no row against a non-terminal snapshot re-reads
- * the row it lost the race to, through the same ownership query the entry read
- * came from.
- *
- * Purely observational — it gates no effect, and a read failure falls back to
- * the undifferentiated report rather than failing the cancel.
- */
-async function resolveTerminalNoOpReason(
-  executionId: string,
-  workflowId: string,
-  priorTerminalStatus: TerminalExecutionStatus | null,
-  terminalWrite: TerminalWriteOutcome
-): Promise<CancelWorkflowExecutionReason | null> {
-  if (terminalWrite === 'applied') return null
-  if (priorTerminalStatus !== null) return TERMINAL_NO_OP_REASONS[priorTerminalStatus]
-  if (terminalWrite !== 'no_row') return null
-  try {
-    const { priorStatus } = await resolveWorkflowExecutionOwnership(executionId, workflowId)
-    const terminalStatus = toTerminalExecutionStatus(priorStatus)
-    return terminalStatus !== null ? TERMINAL_NO_OP_REASONS[terminalStatus] : null
-  } catch (error) {
-    logger.warn('Failed to re-read execution status after an unmatched cancel claim', {
-      executionId,
-      error,
-    })
-    return null
-  }
-}
+  | 'queue_cancelled'
+  | 'active_resume_signal_failed'
+  | 'cancellation_not_finalized'
 
 export interface CancelWorkflowExecutionResult {
   success: boolean
@@ -159,9 +53,209 @@ export interface CancelWorkflowExecutionResult {
   reason?: CancelWorkflowExecutionReason
 }
 
+async function cancelQueuedExecutionJobs(
+  workflowId: string,
+  executionId: string,
+  scope: ExecutionJobCancellationScope
+): Promise<number> {
+  try {
+    const queue = await getJobQueue()
+    return await queue.cancelByExecution({ workflowId, executionId }, scope)
+  } catch (error) {
+    logger.warn('Failed to cancel queued execution jobs', {
+      workflowId,
+      executionId,
+      error: toError(error).message,
+    })
+    return 0
+  }
+}
+
+function abortLocalExecution(executionId: string): boolean {
+  try {
+    return abortManualExecution(executionId)
+  } catch (error) {
+    logger.warn('Failed to abort local execution', {
+      executionId,
+      error: toError(error).message,
+    })
+    return false
+  }
+}
+
+interface ExecutionStopSignalResult {
+  cancellation: ExecutionCancellationRecordResult
+  locallyAborted: boolean
+  queueJobsCancelled: number
+  accepted: boolean
+}
+
+interface ExecutionStopSummary extends ExecutionStopSignalResult {
+  signalledExecutionIds: Set<string>
+}
+
+type ActiveResumeCancellationTarget = NonNullable<
+  Awaited<ReturnType<typeof PauseResumeManager.getActiveResumeCancellationTarget>>
+>
+
+function createExecutionStopSummary(): ExecutionStopSummary {
+  return {
+    cancellation: { durablyRecorded: false, reason: 'redis_unavailable' },
+    locallyAborted: false,
+    queueJobsCancelled: 0,
+    accepted: false,
+    signalledExecutionIds: new Set<string>(),
+  }
+}
+
+function mergeExecutionStopSignal(
+  summary: ExecutionStopSummary,
+  signalExecutionId: string,
+  result: ExecutionStopSignalResult
+): void {
+  if (result.cancellation.durablyRecorded || !summary.cancellation.durablyRecorded) {
+    summary.cancellation = result.cancellation
+  }
+  summary.locallyAborted = summary.locallyAborted || result.locallyAborted
+  summary.queueJobsCancelled += result.queueJobsCancelled
+  summary.accepted = summary.accepted || result.accepted
+  summary.signalledExecutionIds.add(signalExecutionId)
+}
+
+/**
+ * Commits cancellation after the caller's final abort check. Once signalling begins, the
+ * operation must finish reconciliation because workers may already have observed the durable,
+ * local, or queued signal; attempting to honor a later abort could revive only part of a run.
+ */
+async function signalExecutionStop(args: {
+  workflowId: string
+  signalExecutionId: string
+  queueBindingExecutionId?: string
+  executionDeadlineAt: Date | null
+  queueScope?: ExecutionJobCancellationScope
+}): Promise<ExecutionStopSignalResult> {
+  const cancellation = await markExecutionCancelled(args.signalExecutionId, {
+    executionDeadlineAt: args.executionDeadlineAt,
+  })
+  const locallyAborted = abortLocalExecution(args.signalExecutionId)
+  const queueJobsCancelled = args.queueScope
+    ? await cancelQueuedExecutionJobs(
+        args.workflowId,
+        args.queueBindingExecutionId ?? args.signalExecutionId,
+        args.queueScope
+      )
+    : 0
+  return {
+    cancellation,
+    locallyAborted,
+    queueJobsCancelled,
+    accepted: cancellation.durablyRecorded || locallyAborted || queueJobsCancelled > 0,
+  }
+}
+
+async function signalAndRecordActiveResumeStop(args: {
+  workflowId: string
+  executionId: string
+  executionDeadlineAt: Date | null
+  target: ActiveResumeCancellationTarget
+  summary: ExecutionStopSummary
+}): Promise<boolean> {
+  const signal = await signalExecutionStop({
+    workflowId: args.workflowId,
+    signalExecutionId: args.target.resumeExecutionId,
+    queueBindingExecutionId: args.executionId,
+    executionDeadlineAt: args.executionDeadlineAt,
+    queueScope: 'resume',
+  })
+  mergeExecutionStopSignal(args.summary, args.target.resumeExecutionId, signal)
+  return didActiveResumeStop(args.executionId, args.workflowId, args.target, signal)
+}
+
+async function didActiveResumeStop(
+  executionId: string,
+  workflowId: string,
+  target: ActiveResumeCancellationTarget,
+  signal: ExecutionStopSignalResult
+): Promise<boolean> {
+  if (signal.accepted) return true
+  const currentTarget = await PauseResumeManager.getActiveResumeCancellationTarget(
+    executionId,
+    workflowId
+  )
+  if (currentTarget && currentTarget.resumeEntryId !== target.resumeEntryId) {
+    logger.warn('A replacement resume became active while cancellation was staged', {
+      executionId,
+      previousResumeEntryId: target.resumeEntryId,
+      currentResumeEntryId: currentTarget.resumeEntryId,
+    })
+  }
+  return currentTarget === null
+}
+
+type PausedCancellationStage = Awaited<
+  ReturnType<typeof PauseResumeManager.stagePausedCancellation>
+>
+
+function isPausedCancellationStage(
+  stage: PausedCancellationStage
+): stage is Exclude<PausedCancellationStage, { kind: 'not_paused' }> {
+  return stage.kind !== 'not_paused'
+}
+
+async function clearStopSignalMarkers(summary: ExecutionStopSummary): Promise<void> {
+  await Promise.all(
+    [...summary.signalledExecutionIds].map((executionId) => clearExecutionCancellation(executionId))
+  )
+}
+
+type ExecutionLogCancellationClaim =
+  | { kind: 'cancelled' }
+  | { kind: 'conflict'; status: string }
+  | { kind: 'not_found' }
+
+async function claimExecutionLogCancellation(args: {
+  executionId: string
+  workflowId: string
+  workspaceId: string
+}): Promise<ExecutionLogCancellationClaim> {
+  const now = new Date()
+  const [cancelledExecution] = await db
+    .update(workflowExecutionLogs)
+    .set(cancelledExecutionLogFields(now))
+    .where(
+      and(
+        eq(workflowExecutionLogs.executionId, args.executionId),
+        eq(workflowExecutionLogs.workflowId, args.workflowId),
+        eq(workflowExecutionLogs.workspaceId, args.workspaceId),
+        inArray(workflowExecutionLogs.status, ['running', 'pending'])
+      )
+    )
+    .returning({ status: workflowExecutionLogs.status })
+
+  if (cancelledExecution?.status === 'cancelled') return { kind: 'cancelled' }
+
+  const currentExecution = await db
+    .select({ status: workflowExecutionLogs.status })
+    .from(workflowExecutionLogs)
+    .where(
+      and(
+        eq(workflowExecutionLogs.executionId, args.executionId),
+        eq(workflowExecutionLogs.workflowId, args.workflowId),
+        eq(workflowExecutionLogs.workspaceId, args.workspaceId)
+      )
+    )
+    .limit(1)
+    .then((rows) => rows[0])
+
+  if (!currentExecution) return { kind: 'not_found' }
+  if (currentExecution.status === 'cancelled') return { kind: 'cancelled' }
+  return { kind: 'conflict', status: currentExecution.status }
+}
+
 async function completePausedCancellationWithRetry(
   executionId: string,
-  workflowId: string
+  workflowId: string,
+  options: { logMissing?: boolean } = {}
 ): Promise<boolean> {
   for (let attempt = 1; attempt <= PAUSED_CANCELLATION_DB_ATTEMPTS; attempt++) {
     try {
@@ -170,10 +264,12 @@ async function completePausedCancellationWithRetry(
         logger.info('Paused execution cancelled in database', { executionId, attempt })
         return true
       }
-      logger.warn('Paused execution cancellation could not be completed in database', {
-        executionId,
-        attempt,
-      })
+      if (options.logMissing !== false) {
+        logger.warn('Paused execution cancellation could not be completed in database', {
+          executionId,
+          attempt,
+        })
+      }
       return false
     } catch (error) {
       logger.warn('Failed to complete paused execution cancellation in database', {
@@ -189,14 +285,21 @@ async function completePausedCancellationWithRetry(
   return false
 }
 
-async function ensurePausedCancellationEventPublished(
+async function ensureCancellationEventPublished(
   executionId: string,
   workflowId: string,
   context: { workspaceId?: string; userId?: string } = {}
 ): Promise<boolean> {
-  const metaState = await readExecutionMetaState(executionId)
-  if (metaState.status === 'found' && metaState.meta.status === 'cancelled') {
-    return true
+  try {
+    const metaState = await readExecutionMetaState(executionId)
+    if (metaState.status === 'found' && metaState.meta.status === 'cancelled') {
+      return true
+    }
+  } catch (error) {
+    logger.warn('Failed to read execution state before publishing cancellation', {
+      executionId,
+      error: toError(error).message,
+    })
   }
 
   const writer = createExecutionEventWriter(executionId, {
@@ -217,14 +320,14 @@ async function ensurePausedCancellationEventPublished(
     )
     return true
   } catch (error) {
-    logger.warn('Failed to publish paused execution cancellation event', {
+    logger.warn('Failed to publish execution cancellation event', {
       executionId,
       error,
     })
     return false
   } finally {
     await writer.close().catch((error) => {
-      logger.warn('Failed to close paused cancellation event writer', {
+      logger.warn('Failed to close cancellation event writer', {
         executionId,
         error,
       })
@@ -233,14 +336,13 @@ async function ensurePausedCancellationEventPublished(
 }
 
 export interface CancelWorkflowExecutionInput {
-  executionId: string
   workflowId: string
-  /** Actor for the analytics event. */
-  userId: string
-  /** Workflow's workspace; feeds the event writer + analytics grouping. */
-  workspaceId?: string
-  /** Legacy callers emit product analytics here; migrated adapters emit it after success. */
-  captureAnalytics?: boolean
+  executionId: string
+  /** Human attribution resolved by the authorized application use case. */
+  attributedUserId: string
+  /** Canonical workspace resolved with the workflow run. */
+  workspaceId: string
+  abortSignal?: AbortSignal
 }
 
 export class WorkflowExecutionNotFoundError extends Error {
@@ -250,312 +352,670 @@ export class WorkflowExecutionNotFoundError extends Error {
   }
 }
 
+function throwCancellationAborted(): never {
+  throw new OrchestrationError('conflict', CANCELLATION_ABORTED_MESSAGE)
+}
+
+function throwIfCancellationAborted(abortSignal?: AbortSignal): void {
+  if (abortSignal?.aborted) throwCancellationAborted()
+}
+
+async function rollbackPausedCancellationAfterAbort(args: {
+  stage: PausedCancellationStage
+  workflowId: string
+  executionId: string
+  abortSignal?: AbortSignal
+}): Promise<boolean> {
+  if (!args.abortSignal?.aborted) return false
+
+  if (args.stage.kind === 'active_resume') {
+    const rolledBack = await PauseResumeManager.rollbackActiveResumeCancellation(
+      args.executionId,
+      args.workflowId,
+      args.stage.target.resumeEntryId
+    )
+    if (!rolledBack) {
+      logger.warn('Aborted cancellation could not be rolled back; completing cancellation', {
+        executionId: args.executionId,
+        activeResumeEntryId: args.stage.target.resumeEntryId,
+      })
+      return false
+    }
+  } else if (args.stage.kind === 'idle') {
+    await PauseResumeManager.clearPausedCancellationIntent(args.executionId, args.workflowId)
+  }
+
+  return true
+}
+
+function resolveCancellationReason(args: {
+  activeResumeSignalFailed: boolean
+  pauseReconciliationFailed: boolean
+  effectivePausedCancellationPath: boolean
+  cancellationEventPublished: boolean
+  pausedCancelled: boolean
+  stopSummary: ExecutionStopSummary
+}): CancelWorkflowExecutionReason {
+  if (args.activeResumeSignalFailed) return 'active_resume_signal_failed'
+  if (args.pauseReconciliationFailed) return 'paused_database_cancel_failed'
+  if (args.effectivePausedCancellationPath && !args.cancellationEventPublished) {
+    return 'paused_event_publish_failed'
+  }
+  if (args.effectivePausedCancellationPath && !args.pausedCancelled) {
+    return 'paused_database_cancel_failed'
+  }
+  if (args.effectivePausedCancellationPath) return 'recorded'
+  if (
+    args.stopSummary.queueJobsCancelled > 0 &&
+    !args.stopSummary.cancellation.durablyRecorded &&
+    !args.stopSummary.locallyAborted
+  ) {
+    return 'queue_cancelled'
+  }
+  return args.stopSummary.cancellation.reason
+}
+
 /**
- * Cancels a workflow execution across the Redis abort record, the in-process
- * aborter, the paused-HITL machinery, the workflow-group table cell sidecar, and
- * the plan concurrency reservation. The interleaving is order-sensitive. Auth is
- * the caller's responsibility; this throws on unexpected infrastructure errors.
- *
- * A workflow-group run whose cell sidecar refuses the claim throws
- * `OrchestrationError('conflict')` rather than returning a success-shaped result:
- * the cancel did not fully happen, and the internal route already answers 409 for
- * exactly these two outcomes.
+ * Applies the full queued, active, paused, resumed, and workflow-group
+ * cancellation lifecycle to an already-authorized canonical workflow run.
+ * Authorization and principal handling belong to `cancelWorkflowRun`; this
+ * service accepts only canonical identifiers and returns transport-neutral
+ * results or orchestration errors.
  */
-export async function cancelWorkflowExecution(
-  input: CancelWorkflowExecutionInput
-): Promise<CancelWorkflowExecutionResult> {
-  const { executionId, workflowId, userId, workspaceId } = input
-
-  const { belongsToWorkflow, workflowGroupWorkspaceId, priorStatus } =
-    await resolveWorkflowExecutionOwnership(executionId, workflowId)
-  if (!belongsToWorkflow) throw new WorkflowExecutionNotFoundError()
-  const priorTerminalStatus = toTerminalExecutionStatus(priorStatus)
-
-  let pausedCancellationStarted = false
-  let pausedCancelled = false
+export async function cancelWorkflowExecution({
+  workflowId,
+  executionId,
+  attributedUserId,
+  workspaceId,
+  abortSignal,
+}: CancelWorkflowExecutionInput): Promise<CancelWorkflowExecutionResult> {
   try {
-    pausedCancellationStarted = await PauseResumeManager.beginPausedCancellation(
+    throwIfCancellationAborted(abortSignal)
+
+    const execution = await db
+      .select({
+        executionDeadlineAt: workflowExecutionLogs.executionDeadlineAt,
+        executionOrigin: workflowExecutionOriginSql(),
+        status: workflowExecutionLogs.status,
+        workspaceId: workflowExecutionLogs.workspaceId,
+      })
+      .from(workflowExecutionLogs)
+      .where(
+        and(
+          eq(workflowExecutionLogs.executionId, executionId),
+          eq(workflowExecutionLogs.workflowId, workflowId),
+          eq(workflowExecutionLogs.workspaceId, workspaceId)
+        )
+      )
+      .limit(1)
+      .then((rows) => rows[0])
+
+    throwIfCancellationAborted(abortSignal)
+
+    if (!execution) {
+      const queueJobsCancelled = await cancelQueuedExecutionJobs(
+        workflowId,
+        executionId,
+        'standalone'
+      )
+      if (queueJobsCancelled > 0) {
+        const locallyAborted = abortLocalExecution(executionId)
+        const cancellation = await markExecutionCancelled(executionId)
+        await PauseResumeManager.blockQueuedResumesForCancellation(executionId, workflowId).catch(
+          (error) => {
+            logger.warn('Failed to block queued resumes after queued-run cancellation', {
+              executionId,
+              error,
+            })
+          }
+        )
+        await releaseExecutionSlot(executionId).catch((error) => {
+          logger.warn('Failed to release reservation after queued-run cancellation', {
+            executionId,
+            error,
+          })
+        })
+
+        return {
+          success: true,
+          executionId,
+          redisAvailable: cancellation.reason !== 'redis_unavailable',
+          durablyRecorded: cancellation.durablyRecorded,
+          locallyAborted,
+          pausedCancelled: false,
+          reason: 'queue_cancelled',
+        }
+      }
+
+      throw new WorkflowExecutionNotFoundError()
+    }
+
+    const isWorkflowGroupExecution = execution.executionOrigin === 'workflow_group'
+
+    if (execution.status === 'cancelled') {
+      let groupCancellationToPublish: PublishableWorkflowGroupCancellation | null = null
+      let groupCancellationCommitted = false
+      if (isWorkflowGroupExecution) {
+        throwIfCancellationAborted(abortSignal)
+
+        const workflowGroupCancellation = await cancelWorkflowGroupExecution({
+          workspaceId: execution.workspaceId,
+          workflowId,
+          executionId,
+        })
+        if (workflowGroupCancellation.kind === 'conflict') {
+          throw new OrchestrationError(
+            'conflict',
+            `Workflow group execution cannot be reconciled while ${workflowGroupCancellation.status}`
+          )
+        }
+        if (workflowGroupCancellation.kind === 'not_workflow_group') {
+          throw new OrchestrationError(
+            'conflict',
+            'Workflow group execution is no longer the active table execution'
+          )
+        }
+        if (
+          workflowGroupCancellation.kind === 'cancelled' ||
+          workflowGroupCancellation.kind === 'already_cancelled'
+        ) {
+          groupCancellationToPublish = workflowGroupCancellation
+          groupCancellationCommitted = true
+        }
+      }
+
+      const stopSummary = createExecutionStopSummary()
+      let pausedCancelled = false
+      const pausedCancellationStage = await PauseResumeManager.stagePausedCancellation(
+        executionId,
+        workflowId
+      )
+      if (
+        !groupCancellationCommitted &&
+        (await rollbackPausedCancellationAfterAbort({
+          stage: pausedCancellationStage,
+          workflowId,
+          executionId,
+          abortSignal,
+        }))
+      ) {
+        throwCancellationAborted()
+      }
+
+      const hasPausedCancellation = isPausedCancellationStage(pausedCancellationStage)
+      const requiresCancellationEvent = hasPausedCancellation || isWorkflowGroupExecution
+      let cancellationEventPublished = !requiresCancellationEvent
+      let activeResumeSignalFailed = false
+      let exactStopSatisfied = true
+      if (pausedCancellationStage.kind === 'active_resume') {
+        exactStopSatisfied = await signalAndRecordActiveResumeStop({
+          workflowId,
+          executionId,
+          executionDeadlineAt: execution.executionDeadlineAt,
+          target: pausedCancellationStage.target,
+          summary: stopSummary,
+        })
+        activeResumeSignalFailed = !exactStopSatisfied
+      } else if (isWorkflowGroupExecution && !hasPausedCancellation) {
+        const retrySignal = await signalExecutionStop({
+          workflowId,
+          signalExecutionId: executionId,
+          executionDeadlineAt: execution.executionDeadlineAt,
+        })
+        mergeExecutionStopSignal(stopSummary, executionId, retrySignal)
+        exactStopSatisfied = retrySignal.accepted
+      }
+
+      if (groupCancellationToPublish && exactStopSatisfied) {
+        await publishWorkflowGroupCancellationEvent(groupCancellationToPublish, executionId)
+      }
+
+      if (requiresCancellationEvent && exactStopSatisfied) {
+        cancellationEventPublished = await ensureCancellationEventPublished(
+          executionId,
+          workflowId,
+          {
+            workspaceId: execution.workspaceId,
+            userId: attributedUserId,
+          }
+        )
+      }
+      if (hasPausedCancellation && cancellationEventPublished && exactStopSatisfied) {
+        pausedCancelled = await completePausedCancellationWithRetry(executionId, workflowId, {
+          logMissing: false,
+        })
+      }
+
+      if (exactStopSatisfied) {
+        await releaseExecutionSlot(executionId).catch((error) => {
+          logger.warn('Failed to release reservation while reconciling cancelled execution', {
+            executionId,
+            error: toError(error).message,
+          })
+        })
+      }
+
+      if (pausedCancelled) {
+        await clearStopSignalMarkers(stopSummary)
+      }
+
+      const pausedReconciliationSucceeded =
+        exactStopSatisfied &&
+        (!hasPausedCancellation || (cancellationEventPublished && pausedCancelled))
+      return {
+        success: pausedReconciliationSucceeded,
+        executionId,
+        redisAvailable: requiresCancellationEvent ? cancellationEventPublished : true,
+        durablyRecorded: false,
+        locallyAborted: stopSummary.locallyAborted,
+        pausedCancelled,
+        reason: activeResumeSignalFailed
+          ? 'active_resume_signal_failed'
+          : !exactStopSatisfied
+            ? stopSummary.cancellation.reason
+            : hasPausedCancellation && !cancellationEventPublished
+              ? 'paused_event_publish_failed'
+              : hasPausedCancellation && !pausedCancelled
+                ? 'paused_database_cancel_failed'
+                : 'already_cancelled',
+      }
+    }
+
+    if (execution.status !== 'running' && execution.status !== 'pending') {
+      throw new OrchestrationError(
+        'conflict',
+        `Execution cannot be cancelled while ${execution.status}`
+      )
+    }
+
+    logger.info('Cancel execution requested', { workflowId, executionId, attributedUserId })
+
+    const stopSummary = createExecutionStopSummary()
+    let pausedCancelled = false
+    let pausedCancellationStage = await PauseResumeManager.stagePausedCancellation(
       executionId,
       workflowId
     )
-  } catch (error) {
-    logger.warn('Failed to begin paused execution cancellation in database', {
-      executionId,
-      error,
-    })
-  }
-  const pendingPausedCancellation = pausedCancellationStarted
-    ? null
-    : await PauseResumeManager.getPausedCancellationStatus(executionId, workflowId)
-  const isPausedCancellationPath = pausedCancellationStarted || pendingPausedCancellation !== null
-
-  const cancellation: ExecutionCancellationRecordResult = isPausedCancellationPath
-    ? { durablyRecorded: false, reason: 'redis_unavailable' }
-    : await markExecutionCancelled(executionId)
-  const locallyAborted = isPausedCancellationPath ? false : abortManualExecution(executionId)
-  const queuedJobCancelled = isPausedCancellationPath
-    ? false
-    : await cancelActiveWorkflowJob(executionId)
-
-  if (pausedCancellationStarted) {
-    logger.info('Paused execution cancellation reserved in database', { executionId })
-  } else if (cancellation.durablyRecorded) {
-    logger.info('Execution marked as cancelled in Redis', { executionId })
-  } else if (queuedJobCancelled) {
-    logger.info('Execution cancelled in workflow queue', { executionId })
-  } else if (locallyAborted) {
-    logger.info('Execution cancelled via local in-process fallback', { executionId })
-  } else if (!pausedCancellationStarted) {
-    logger.warn('Execution cancellation was not durably recorded', {
-      executionId,
-      reason: cancellation.reason,
-    })
-  }
-
-  if (
-    !isPausedCancellationPath &&
-    (cancellation.durablyRecorded || queuedJobCancelled || locallyAborted)
-  ) {
-    await PauseResumeManager.blockQueuedResumesForCancellation(executionId, workflowId).catch(
-      (error) => {
-        logger.warn('Failed to block queued paused resumes after cancellation', {
-          executionId,
-          error,
-        })
-      }
-    )
-  } else if (!isPausedCancellationPath) {
-    await PauseResumeManager.clearPausedCancellationIntent(executionId, workflowId).catch(
-      (error) => {
-        logger.warn('Failed to clear paused cancellation intent after unsuccessful cancellation', {
-          executionId,
-          error,
-        })
-      }
-    )
-  }
-
-  let pausedCancellationPublished = false
-  let pausedCancellationPublishFailed = false
-  if (pausedCancellationStarted) {
-    pausedCancellationPublished = await ensurePausedCancellationEventPublished(
-      executionId,
-      workflowId,
-      { workspaceId, userId }
-    )
-    pausedCancellationPublishFailed = !pausedCancellationPublished
-    if (pausedCancellationPublished) {
-      pausedCancelled = await completePausedCancellationWithRetry(executionId, workflowId)
+    if (
+      await rollbackPausedCancellationAfterAbort({
+        stage: pausedCancellationStage,
+        workflowId,
+        executionId,
+        abortSignal,
+      })
+    ) {
+      throwCancellationAborted()
     }
-  } else {
-    if (pendingPausedCancellation === 'cancelled') {
-      pausedCancellationPublished = await ensurePausedCancellationEventPublished(
-        executionId,
+
+    let effectivePausedCancellationPath = isPausedCancellationStage(pausedCancellationStage)
+    let activeResumeTarget =
+      pausedCancellationStage.kind === 'active_resume' ? pausedCancellationStage.target : null
+    let activeResumeEntryId = activeResumeTarget?.resumeEntryId ?? null
+    let activeResumeSignalAccepted = false
+
+    if (activeResumeTarget && !isWorkflowGroupExecution) {
+      activeResumeSignalAccepted = await signalAndRecordActiveResumeStop({
         workflowId,
-        { workspaceId, userId }
-      )
-      pausedCancellationPublishFailed = !pausedCancellationPublished
-      pausedCancelled = pausedCancellationPublished
-    } else if (pendingPausedCancellation === 'cancelling') {
-      pausedCancellationPublished = await ensurePausedCancellationEventPublished(
         executionId,
+        executionDeadlineAt: execution.executionDeadlineAt,
+        target: activeResumeTarget,
+        summary: stopSummary,
+      })
+
+      if (!activeResumeSignalAccepted) {
+        const failedResumeEntryId = activeResumeTarget.resumeEntryId
+        await PauseResumeManager.rollbackActiveResumeCancellation(
+          executionId,
+          workflowId,
+          failedResumeEntryId
+        ).catch((error) => {
+          logger.warn('Failed to roll back active resume cancellation intent', {
+            executionId,
+            activeResumeEntryId: failedResumeEntryId,
+            error: toError(error).message,
+          })
+        })
+        await clearStopSignalMarkers(stopSummary)
+        return {
+          success: false,
+          executionId,
+          redisAvailable: stopSummary.cancellation.reason !== 'redis_unavailable',
+          durablyRecorded: stopSummary.cancellation.durablyRecorded,
+          locallyAborted: stopSummary.locallyAborted,
+          pausedCancelled: false,
+          reason: 'active_resume_signal_failed',
+        }
+      }
+    } else if (!effectivePausedCancellationPath && !isWorkflowGroupExecution) {
+      const signal = await signalExecutionStop({
         workflowId,
-        { workspaceId, userId }
+        signalExecutionId: executionId,
+        executionDeadlineAt: execution.executionDeadlineAt,
+        queueScope: 'standalone',
+      })
+      mergeExecutionStopSignal(stopSummary, executionId, signal)
+
+      if (!signal.accepted) {
+        pausedCancellationStage = await PauseResumeManager.stagePausedCancellation(
+          executionId,
+          workflowId
+        )
+        const postLateStageAbort = await rollbackPausedCancellationAfterAbort({
+          stage: pausedCancellationStage,
+          workflowId,
+          executionId,
+          abortSignal,
+        })
+        if (postLateStageAbort) {
+          await clearStopSignalMarkers(stopSummary)
+          throwCancellationAborted()
+        }
+
+        effectivePausedCancellationPath = isPausedCancellationStage(pausedCancellationStage)
+        activeResumeTarget =
+          pausedCancellationStage.kind === 'active_resume' ? pausedCancellationStage.target : null
+        activeResumeEntryId = activeResumeTarget?.resumeEntryId ?? null
+
+        if (activeResumeTarget) {
+          activeResumeSignalAccepted = await signalAndRecordActiveResumeStop({
+            workflowId,
+            executionId,
+            executionDeadlineAt: execution.executionDeadlineAt,
+            target: activeResumeTarget,
+            summary: stopSummary,
+          })
+          if (!activeResumeSignalAccepted) {
+            const failedResumeEntryId = activeResumeTarget.resumeEntryId
+            await PauseResumeManager.rollbackActiveResumeCancellation(
+              executionId,
+              workflowId,
+              failedResumeEntryId
+            ).catch((error) => {
+              logger.warn('Failed to roll back late active resume cancellation intent', {
+                executionId,
+                activeResumeEntryId: failedResumeEntryId,
+                error: toError(error).message,
+              })
+            })
+            await clearStopSignalMarkers(stopSummary)
+            return {
+              success: false,
+              executionId,
+              redisAvailable: stopSummary.cancellation.reason !== 'redis_unavailable',
+              durablyRecorded: stopSummary.cancellation.durablyRecorded,
+              locallyAborted: stopSummary.locallyAborted,
+              pausedCancelled: false,
+              reason: 'active_resume_signal_failed',
+            }
+          }
+        } else if (!effectivePausedCancellationPath) {
+          return {
+            success: false,
+            executionId,
+            redisAvailable: stopSummary.cancellation.reason !== 'redis_unavailable',
+            durablyRecorded: stopSummary.cancellation.durablyRecorded,
+            locallyAborted: stopSummary.locallyAborted,
+            pausedCancelled: false,
+            reason: stopSummary.cancellation.reason,
+          }
+        }
+      }
+    }
+
+    let terminalCancellationClaimed = false
+    let competingTerminalStatus: string | null = null
+    let workflowGroupNoLongerActive = false
+    let groupCancellationToPublish: PublishableWorkflowGroupCancellation | null = null
+    try {
+      if (isWorkflowGroupExecution) {
+        const workflowGroupCancellation = await cancelWorkflowGroupExecution({
+          workspaceId: execution.workspaceId,
+          workflowId,
+          executionId,
+        })
+        if (workflowGroupCancellation.kind === 'conflict') {
+          competingTerminalStatus = workflowGroupCancellation.status
+        } else if (workflowGroupCancellation.kind === 'not_workflow_group') {
+          workflowGroupNoLongerActive = true
+        } else {
+          terminalCancellationClaimed = true
+          if (
+            workflowGroupCancellation.kind === 'cancelled' ||
+            workflowGroupCancellation.kind === 'already_cancelled'
+          ) {
+            groupCancellationToPublish = workflowGroupCancellation
+          }
+        }
+      } else {
+        const claim = await claimExecutionLogCancellation({
+          executionId,
+          workflowId,
+          workspaceId: execution.workspaceId,
+        })
+        if (claim.kind === 'cancelled') {
+          terminalCancellationClaimed = true
+        } else {
+          competingTerminalStatus = claim.kind === 'conflict' ? claim.status : 'no_longer_active'
+        }
+      }
+    } catch (dbError) {
+      logger.warn('Failed to finalize cancelled execution directly', {
+        executionId,
+        error: toError(dbError).message,
+      })
+    }
+
+    if (workflowGroupNoLongerActive) {
+      await clearStopSignalMarkers(stopSummary)
+      if (activeResumeEntryId) {
+        await PauseResumeManager.rollbackActiveResumeCancellation(
+          executionId,
+          workflowId,
+          activeResumeEntryId
+        ).catch((error) => {
+          logger.warn('Failed to roll back active resume after group target disappeared', {
+            executionId,
+            activeResumeEntryId,
+            error: toError(error).message,
+          })
+        })
+      } else if (effectivePausedCancellationPath) {
+        await PauseResumeManager.clearPausedCancellationIntent(executionId, workflowId).catch(
+          (error) => {
+            logger.warn('Failed to clear cancellation intent after group target disappeared', {
+              executionId,
+              error: toError(error).message,
+            })
+          }
+        )
+      }
+      throw new OrchestrationError(
+        'conflict',
+        'Workflow group execution is no longer the active table execution'
       )
-      pausedCancellationPublishFailed = !pausedCancellationPublished
-      if (pausedCancellationPublished) {
+    }
+
+    if (competingTerminalStatus) {
+      await clearStopSignalMarkers(stopSummary)
+      if (activeResumeEntryId) {
+        await PauseResumeManager.rollbackActiveResumeCancellation(
+          executionId,
+          workflowId,
+          activeResumeEntryId
+        ).catch((error) => {
+          logger.warn('Failed to roll back active resume after terminal race', {
+            executionId,
+            activeResumeEntryId,
+            error: toError(error).message,
+          })
+        })
+      } else if (effectivePausedCancellationPath) {
+        await PauseResumeManager.clearPausedCancellationIntent(executionId, workflowId).catch(
+          (error) => {
+            logger.warn('Failed to clear cancellation intent after terminal race', {
+              executionId,
+              error: toError(error).message,
+            })
+          }
+        )
+      }
+      throw new OrchestrationError(
+        'conflict',
+        isWorkflowGroupExecution
+          ? `Workflow group execution cannot be cancelled while ${competingTerminalStatus}`
+          : `Execution cannot be cancelled while ${competingTerminalStatus}`
+      )
+    }
+
+    if (!terminalCancellationClaimed) {
+      if (effectivePausedCancellationPath && !stopSummary.accepted) {
+        if (activeResumeEntryId) {
+          await PauseResumeManager.rollbackActiveResumeCancellation(
+            executionId,
+            workflowId,
+            activeResumeEntryId
+          )
+        } else {
+          await PauseResumeManager.clearPausedCancellationIntent(executionId, workflowId)
+        }
+      }
+      return {
+        success: false,
+        executionId,
+        redisAvailable: stopSummary.cancellation.reason !== 'redis_unavailable',
+        durablyRecorded: stopSummary.cancellation.durablyRecorded,
+        locallyAborted: stopSummary.locallyAborted,
+        pausedCancelled: false,
+        reason: 'cancellation_not_finalized',
+      }
+    }
+
+    let pauseReconciliationFailed = false
+    let activeResumeSignalFailed = false
+    if (isWorkflowGroupExecution) {
+      if (activeResumeTarget) {
+        activeResumeSignalAccepted = await signalAndRecordActiveResumeStop({
+          workflowId,
+          executionId,
+          executionDeadlineAt: execution.executionDeadlineAt,
+          target: activeResumeTarget,
+          summary: stopSummary,
+        })
+        activeResumeSignalFailed = !activeResumeSignalAccepted
+      } else if (!effectivePausedCancellationPath) {
+        const groupSignal = await signalExecutionStop({
+          workflowId,
+          signalExecutionId: executionId,
+          executionDeadlineAt: execution.executionDeadlineAt,
+        })
+        mergeExecutionStopSignal(stopSummary, executionId, groupSignal)
+      }
+    }
+
+    try {
+      const postClaimPausedCancellationStage = await PauseResumeManager.stagePausedCancellation(
+        executionId,
+        workflowId
+      )
+      if (isPausedCancellationStage(postClaimPausedCancellationStage)) {
+        effectivePausedCancellationPath = true
+        if (postClaimPausedCancellationStage.kind === 'active_resume') {
+          const currentActiveResume = postClaimPausedCancellationStage.target
+          const alreadyAttemptedCurrentResume =
+            currentActiveResume.resumeEntryId === activeResumeEntryId &&
+            stopSummary.signalledExecutionIds.has(currentActiveResume.resumeExecutionId)
+          if (!alreadyAttemptedCurrentResume) {
+            activeResumeSignalAccepted = await signalAndRecordActiveResumeStop({
+              workflowId,
+              executionId,
+              executionDeadlineAt: execution.executionDeadlineAt,
+              target: currentActiveResume,
+              summary: stopSummary,
+            })
+          }
+          activeResumeSignalFailed = !activeResumeSignalAccepted
+        } else {
+          activeResumeSignalFailed = false
+        }
+      }
+    } catch (error) {
+      pauseReconciliationFailed = true
+      effectivePausedCancellationPath = true
+      logger.warn('Failed to recheck paused execution after terminal cancellation claim', {
+        executionId,
+        error: toError(error).message,
+      })
+    }
+
+    const executionStopSatisfied = effectivePausedCancellationPath
+      ? !activeResumeSignalFailed
+      : stopSummary.accepted
+    if (groupCancellationToPublish && executionStopSatisfied && !pauseReconciliationFailed) {
+      await publishWorkflowGroupCancellationEvent(groupCancellationToPublish, executionId)
+    }
+    let cancellationEventPublished = false
+    if (executionStopSatisfied && !pauseReconciliationFailed) {
+      cancellationEventPublished = await ensureCancellationEventPublished(executionId, workflowId, {
+        workspaceId: execution.workspaceId,
+        userId: attributedUserId,
+      })
+    }
+
+    if (effectivePausedCancellationPath) {
+      if (cancellationEventPublished && !pauseReconciliationFailed && !activeResumeSignalFailed) {
         pausedCancelled = await completePausedCancellationWithRetry(executionId, workflowId)
       }
-    }
-  }
-
-  if (
-    pausedCancellationPublishFailed &&
-    (pausedCancellationStarted || pendingPausedCancellation === 'cancelling')
-  ) {
-    await PauseResumeManager.clearPausedCancellationIntent(executionId, workflowId).catch(
-      (error) => {
-        logger.warn('Failed to clear paused cancellation intent after publish failure', {
+    } else if (executionStopSatisfied) {
+      await releaseExecutionSlot(executionId).catch((error) => {
+        logger.warn('Failed to release reservation after execution cancellation', {
           executionId,
-          error,
+          error: toError(error).message,
         })
-      }
-    )
-  }
-
-  const success =
-    (isPausedCancellationPath
-      ? pausedCancelled && pausedCancellationPublished
-      : cancellation.durablyRecorded || queuedJobCancelled) || locallyAborted
-
-  /**
-   * Frees the plan concurrency reservation once the stop-the-work effects above
-   * have actually taken. The paused path keeps its reservation because a paused
-   * run never held an in-flight slot to give back, and an unsuccessful ordinary
-   * cancel keeps it because the run may still be executing.
-   */
-  const releaseSlotForStoppedExecution = async (): Promise<void> => {
-    if (!success || isPausedCancellationPath) return
-    await releaseExecutionSlot(executionId).catch((error) => {
-      logger.warn('Failed to release reservation after execution cancellation', {
-        executionId,
-        error,
       })
-    })
-  }
-
-  /**
-   * The sidecar transition can fail outright — a lost claim, a serialization
-   * conflict, a connection blip. The stop-the-work effects above have already
-   * fired, so the run is going down regardless and the reservation must not be
-   * stranded; but the cell is left in an unknown state, so the failure is
-   * re-thrown rather than swallowed into a success-shaped result.
-   */
-  let groupCancellation: Awaited<ReturnType<typeof cancelWorkflowGroupExecution>> | null = null
-  if (workflowGroupWorkspaceId) {
-    try {
-      groupCancellation = await cancelWorkflowGroupExecution({
-        workspaceId: workflowGroupWorkspaceId,
-        workflowId,
-        executionId,
-      })
-    } catch (error) {
-      logger.error('Workflow group execution cancellation failed unexpectedly', {
-        executionId,
-        error,
-      })
-      await releaseSlotForStoppedExecution()
-      throw error
     }
-  }
 
-  /**
-   * Both refusals mean the cell claim was lost, never that the run is still
-   * going: the sidecar conflicts only on a terminal workflow log or a terminal
-   * cell, and `not_workflow_group` means the log is not a group run at all.
-   * Every refusal is a terminal-or-absent state that carries no evidence of
-   * liveness, so nothing is left running to hold the reservation and it is
-   * released before the 409 rather than left to expire. (The Redis abort record
-   * is reversible — see `clearExecutionCancellation` — but a refusal gives no
-   * reason to reverse it.)
-   */
-  if (groupCancellation?.kind === 'conflict') {
-    logger.warn('Workflow group execution could not be cancelled', {
+    const success = effectivePausedCancellationPath
+      ? pausedCancelled &&
+        cancellationEventPublished &&
+        !pauseReconciliationFailed &&
+        !activeResumeSignalFailed
+      : executionStopSatisfied
+
+    if (effectivePausedCancellationPath && pausedCancelled && cancellationEventPublished) {
+      await clearStopSignalMarkers(stopSummary)
+    }
+
+    const durablyRecorded = effectivePausedCancellationPath
+      ? true
+      : stopSummary.cancellation.durablyRecorded
+    const reason = resolveCancellationReason({
+      activeResumeSignalFailed,
+      pauseReconciliationFailed,
+      effectivePausedCancellationPath,
+      cancellationEventPublished,
+      pausedCancelled,
+      stopSummary,
+    })
+
+    return {
+      success,
       executionId,
-      status: groupCancellation.status,
-    })
-    await releaseSlotForStoppedExecution()
-    throw new OrchestrationError(
-      'conflict',
-      `Workflow group execution cannot be cancelled while ${groupCancellation.status}`
-    )
-  }
-  if (groupCancellation?.kind === 'not_workflow_group') {
-    logger.warn('Workflow group execution is no longer the active table execution', { executionId })
-    await releaseSlotForStoppedExecution()
-    throw new OrchestrationError(
-      'conflict',
-      'Workflow group execution is no longer the active table execution'
-    )
-  }
-
-  const groupCancellationToPublish: PublishableWorkflowGroupCancellation | null =
-    groupCancellation?.kind === 'cancelled' || groupCancellation?.kind === 'already_cancelled'
-      ? groupCancellation
-      : null
-
-  /**
-   * The claim's row count is read back only to report it — `returning` changes
-   * what the statement returns, never the row it writes or the rows it matches.
-   */
-  let terminalWrite: TerminalWriteOutcome = 'unknown'
-  if (groupCancellation !== null) {
-    terminalWrite = toTerminalWriteOutcome(groupCancellation.writes)
-  } else if (
-    (cancellation.durablyRecorded || queuedJobCancelled || locallyAborted) &&
-    !pausedCancelled
-  ) {
-    try {
-      const cancelledAt = new Date()
-      const claimedRows = await db
-        .update(workflowExecutionLogs)
-        .set(cancelledExecutionLogFields(cancelledAt))
-        .where(
-          and(
-            eq(workflowExecutionLogs.executionId, executionId),
-            eq(workflowExecutionLogs.status, 'running')
-          )
-        )
-        .returning({ id: workflowExecutionLogs.id })
-      terminalWrite = claimedRows.length > 0 ? 'applied' : 'no_row'
-    } catch (dbError) {
-      logger.warn('Failed to update execution log status directly', {
-        executionId,
-        error: dbError,
-      })
+      redisAvailable:
+        effectivePausedCancellationPath || pausedCancelled
+          ? cancellationEventPublished
+          : stopSummary.cancellation.reason !== 'redis_unavailable',
+      durablyRecorded,
+      locallyAborted: stopSummary.locallyAborted,
+      pausedCancelled,
+      reason,
     }
-  }
-
-  if (groupCancellationToPublish && success) {
-    await publishWorkflowGroupCancellationEvent(groupCancellationToPublish, executionId)
-  }
-
-  await releaseSlotForStoppedExecution()
-
-  if (success && input.captureAnalytics !== false) {
-    captureServerEvent(
-      userId,
-      'workflow_execution_cancelled',
-      { workflow_id: workflowId, workspace_id: workspaceId ?? '' },
-      workspaceId ? { groups: { workspace: workspaceId } } : undefined
-    )
-  }
-
-  const durablyRecorded = isPausedCancellationPath
-    ? pausedCancellationPublished
-    : pausedCancelled || cancellation.durablyRecorded || queuedJobCancelled
-  const reason: CancelWorkflowExecutionReason = pausedCancellationPublishFailed
-    ? 'paused_event_publish_failed'
-    : !pausedCancelled && isPausedCancellationPath
-      ? 'paused_database_cancel_failed'
-      : pausedCancelled && !pausedCancellationPublished
-        ? 'paused_event_publish_failed'
-        : pausedCancelled || isPausedCancellationPath
-          ? 'recorded'
-          : queuedJobCancelled
-            ? 'recorded'
-            : cancellation.reason
-
-  /**
-   * A run that was already terminal when the request arrived cannot be
-   * cancelled again: the claim's `status = 'running'` predicate matched no row
-   * and no terminal metadata moved, so `recorded`/`durablyRecorded: true` would
-   * claim a durable write that never happened. Every effect above still ran
-   * exactly as before — only the report changes. The request is still satisfied,
-   * because the run is not running, so `success` stays `true`.
-   *
-   * Reinterpreting is only ever right when nothing else went wrong. A terminal
-   * run — cancelled, or force-failed with paused state left behind — can still
-   * carry real paused-HITL reconciliation work, and a genuine failure there owes
-   * the caller the step that failed, not a no-op. So only an otherwise-clean
-   * `recorded` is a candidate, whatever the prior status was — and only when
-   * this request wrote nothing durable on any path.
-   */
-  const terminalNoOpReason =
-    reason === 'recorded' && !pausedCancelled
-      ? await resolveTerminalNoOpReason(executionId, workflowId, priorTerminalStatus, terminalWrite)
-      : null
-
-  return {
-    success: terminalNoOpReason ? true : success,
-    executionId,
-    redisAvailable:
-      isPausedCancellationPath || pausedCancelled
-        ? pausedCancellationPublished
-        : cancellation.reason !== 'redis_unavailable',
-    durablyRecorded: terminalNoOpReason ? false : durablyRecorded,
-    locallyAborted,
-    pausedCancelled,
-    reason: terminalNoOpReason ?? reason,
+  } catch (error) {
+    const normalizedError = toError(error)
+    logger.error('Failed to cancel execution', {
+      workflowId,
+      executionId,
+      error: normalizedError.message,
+    })
+    throw error
   }
 }

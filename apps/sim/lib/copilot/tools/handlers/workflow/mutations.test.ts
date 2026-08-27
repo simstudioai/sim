@@ -7,21 +7,16 @@ import type { ExecutionContext } from '@/lib/copilot/request/types'
 const { mocks } = vi.hoisted(() => ({
   mocks: {
     apiKey: vi.fn(),
-    cancelWorkflowExecutionPostAuth: vi.fn(),
     executeWorkflowUseCase: vi.fn(),
     hasExecutionResult: vi.fn(),
     readAttemptedExecutionId: vi.fn(),
   },
 }))
 
-vi.mock('@/lib/execution/cancel-workflow-execution-post-auth', () => ({
-  cancelWorkflowExecutionPostAuth: mocks.cancelWorkflowExecutionPostAuth,
-}))
-
 vi.mock('@/lib/copilot/application/execute-workflow-use-case', () => ({
   executeCopilotWorkflowUseCase: mocks.executeWorkflowUseCase,
-  messageForCopilotWorkflowError: (_error: unknown, fallback = 'Workflow operation failed') =>
-    fallback,
+  messageForCopilotWorkflowError: (error: unknown, fallback = 'Workflow operation failed') =>
+    error instanceof Error && 'code' in error ? error.message : fallback,
 }))
 
 vi.mock('@/lib/copilot/application/execute-api-key-use-case', () => ({
@@ -168,18 +163,16 @@ describe('workflow mutation Copilot adapters', () => {
     )
   })
 
-  it('cancels a workflow run through the same route as the logs UI', async () => {
-    mocks.cancelWorkflowExecutionPostAuth.mockResolvedValue(
-      Response.json({
-        success: true,
-        executionId: 'execution-1',
-        redisAvailable: true,
-        durablyRecorded: true,
-        locallyAborted: false,
-        pausedCancelled: false,
-        reason: 'recorded',
-      })
-    )
+  it('cancels a workflow run through the canonical application use case', async () => {
+    mocks.executeWorkflowUseCase.mockResolvedValue({
+      success: true,
+      executionId: 'execution-1',
+      redisAvailable: true,
+      durablyRecorded: true,
+      locallyAborted: false,
+      pausedCancelled: false,
+      reason: 'recorded',
+    })
 
     const result = await executeCancelWorkflowRun(
       { workflowId: 'workflow-1', executionId: 'execution-1' },
@@ -197,18 +190,24 @@ describe('workflow mutation Copilot adapters', () => {
         reason: 'recorded',
       },
     })
-    expect(mocks.cancelWorkflowExecutionPostAuth).toHaveBeenCalledWith({
-      workflowId: 'workflow-1',
-      executionId: 'execution-1',
-      userId: 'user-1',
-      assertedWorkspaceId: 'workspace-1',
-    })
-    expect(mocks.executeWorkflowUseCase).not.toHaveBeenCalled()
+    expect(mocks.executeWorkflowUseCase).toHaveBeenCalledWith(
+      context,
+      expect.objectContaining({
+        operation: expect.objectContaining({ id: 'workflows.runs.cancel' }),
+      }),
+      {
+        workflowId: 'workflow-1',
+        runId: 'execution-1',
+        assertedWorkspaceId: 'workspace-1',
+      }
+    )
   })
 
-  it('returns the cancellation route error to the Run agent', async () => {
-    mocks.cancelWorkflowExecutionPostAuth.mockResolvedValue(
-      Response.json({ error: 'Execution cannot be cancelled while completed' }, { status: 409 })
+  it('returns a cancellation application error to the Run agent', async () => {
+    mocks.executeWorkflowUseCase.mockRejectedValue(
+      Object.assign(new Error('Execution cannot be cancelled while completed'), {
+        code: 'conflict',
+      })
     )
 
     const result = await executeCancelWorkflowRun(
@@ -226,7 +225,6 @@ describe('workflow mutation Copilot adapters', () => {
     const result = await executeCancelWorkflowRun({ workflowId: 'workflow-1' }, context)
 
     expect(result).toEqual({ success: false, error: 'executionId is required' })
-    expect(mocks.cancelWorkflowExecutionPostAuth).not.toHaveBeenCalled()
     expect(mocks.executeWorkflowUseCase).not.toHaveBeenCalled()
   })
 
