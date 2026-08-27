@@ -38,7 +38,7 @@ export const TinyFishBlock: BlockConfig<TinyFishRunResponse> = {
   docsLink: 'https://docs.sim.ai/integrations/tinyfish',
   category: 'tools',
   integrationType: IntegrationType.AI,
-  bgColor: '#FF6700',
+  bgColor: '#FFFFFF',
   icon: TinyFishIcon,
   canvasPresentation: {
     defaultTitle: 'TinyFish',

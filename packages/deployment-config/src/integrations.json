@@ -23504,7 +23504,7 @@
       "name": "TinyFish",
       "description": "Automate and read the live web",
       "longDescription": "Integrate TinyFish into the workflow. Give a web agent a natural-language goal and let it drive a real browser on any site, queue and track long-running automations, search the web, and fetch pages as clean markdown.",
-      "bgColor": "#FF6700",
+      "bgColor": "#FFFFFF",
       "iconName": "TinyFishIcon",
       "docsUrl": "https://docs.sim.ai/integrations/tinyfish",
       "operations": [
