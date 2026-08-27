@@ -149,7 +149,7 @@ Attach a score, correction, or comment to a LangSmith run.
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | LangSmith API key |
 | `runId` | string | Yes | ID of the run to attach feedback to |
-| `sessionId` | string | No | UUID of the tracing project \(session\) the feedback belongs to. Optional — in LangSmith\'s OpenAPI spec only `key` is required by POST /api/v1/feedback, and the official SDK sends feedback without a session_id. Supply it when you have it: some LangSmith deployments cannot locate the run without it. Never guess it — use the sessionId reported by a preceding langsmith_get_run for the same run, or look the project up with GET /api/v1/sessions. |
+| `sessionId` | string | No | UUID of the tracing project \(session\) the feedback belongs to. Optional — in the LangSmith OpenAPI spec only `key` is required by POST /api/v1/feedback, and the official SDK sends feedback without a session_id. Supply it when you have it: some LangSmith deployments cannot locate the run without it. Never guess it — use the sessionId reported by a preceding langsmith_get_run for the same run, or look the project up with GET /api/v1/sessions. |
 | `key` | string | Yes | Feedback metric name \(e.g. "correctness", "user_score"\) |
 | `score` | number | No | Numeric score for the feedback metric |
 | `value` | string | No | Categorical value for the feedback metric, e.g. "good". A JSON scalar or object typed here \("1", "true", \'\{"label":"good"\}\'\) is sent with its JSON type; anything else is sent as a string. |
