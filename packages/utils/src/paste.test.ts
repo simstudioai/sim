@@ -88,9 +88,9 @@ it('formats binary paste limits', () => {
   expect(formatPasteLimit(5 * 1024 * 1024)).toBe('5 MiB')
 })
 
-it('keeps non-contract paste ceilings in crash-only territory', () => {
+it('keeps crash-only ceilings high and aligns file editing with its content contract', () => {
   expect(PASTE_LIMITS.DEFAULT_BYTES).toBe(32 * 1024 * 1024)
-  expect(PASTE_LIMITS.TEXT_EDITOR_BYTES).toBe(32 * 1024 * 1024)
+  expect(PASTE_LIMITS.TEXT_EDITOR_BYTES).toBe(50 * 1024 * 1024)
   expect(PASTE_LIMITS.TERMINAL_BYTES).toBe(8 * 1024 * 1024)
   expect(PASTE_LIMITS.STRUCTURED_BYTES).toBe(32 * 1024 * 1024)
 })

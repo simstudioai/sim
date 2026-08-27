@@ -3,8 +3,8 @@ export const PASTE_LIMITS = {
   DEFAULT_BYTES: 32 * 1024 * 1024,
   /** Matches the existing collaborative-document seed boundary. */
   RICH_MARKDOWN_BYTES: 5 * 1024 * 1024,
-  /** Stays below the 50 MiB JSON request boundary while allowing genuinely large source files. */
-  TEXT_EDITOR_BYTES: 32 * 1024 * 1024,
+  /** Matches the inline workspace-file content boundary. */
+  TEXT_EDITOR_BYTES: 50 * 1024 * 1024,
   /** Matches the deployed chat request contract. */
   CHAT_CHARACTERS: 1_000_000,
   /** A Unicode scalar can occupy at most four UTF-8 bytes. */

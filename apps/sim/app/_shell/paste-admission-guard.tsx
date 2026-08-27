@@ -33,11 +33,10 @@ export function PasteAdmissionGuard() {
         return
       }
 
-      if (readSelectionContextFromClipboard(event.clipboardData)) return
+      const acceptsSelectionContext = event.target.closest('[data-paste-selection-context]')
+      if (acceptsSelectionContext && readSelectionContextFromClipboard(event.clipboardData)) return
 
       const text = event.clipboardData?.getData('text/plain') ?? ''
-      if (!text) return
-
       const policyElement = event.target.closest('[data-paste-max-bytes]')
       const maxPastedBytes =
         finitePositiveAttribute(policyElement, 'data-paste-max-bytes') ?? PASTE_LIMITS.DEFAULT_BYTES
@@ -45,19 +44,37 @@ export function PasteAdmissionGuard() {
         policyElement,
         'data-paste-max-characters'
       )
-      const admission = assessTextPaste({
-        pastedText: text,
-        maxPastedBytes,
-        maxPastedCharacters,
-      })
-      if (admission.accepted) return
+      const textAdmission = text
+        ? assessTextPaste({
+            pastedText: text,
+            maxPastedBytes,
+            maxPastedCharacters,
+          })
+        : null
+      const htmlPolicyElement = event.target.closest('[data-paste-max-html-bytes]')
+      const maxPastedHtmlBytes = finitePositiveAttribute(
+        htmlPolicyElement,
+        'data-paste-max-html-bytes'
+      )
+      const html = maxPastedHtmlBytes ? (event.clipboardData?.getData('text/html') ?? '') : ''
+      const htmlAdmission =
+        html && maxPastedHtmlBytes
+          ? assessTextPaste({ pastedText: html, maxPastedBytes: maxPastedHtmlBytes })
+          : null
+      const rejection =
+        textAdmission && !textAdmission.accepted
+          ? textAdmission
+          : htmlAdmission && !htmlAdmission.accepted
+            ? htmlAdmission
+            : null
+      if (!rejection) return
 
       event.preventDefault()
       event.stopImmediatePropagation()
       const limit =
-        admission.reason === 'pasted-characters'
-          ? `${admission.limit.toLocaleString()} characters`
-          : formatPasteLimit(admission.limit)
+        rejection.reason === 'pasted-characters'
+          ? `${rejection.limit.toLocaleString()} characters`
+          : formatPasteLimit(rejection.limit)
       notifyRef.current.warning('Paste is too large for this editor', {
         description: `The clipboard content was left unchanged. This editor supports up to ${limit}.`,
       })

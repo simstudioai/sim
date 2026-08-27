@@ -17,7 +17,11 @@ import { PasteAdmissionGuard } from '@/app/_shell/paste-admission-guard'
 let host: HTMLDivElement
 let root: Root
 
-function dispatchPaste(target: Element, text: string, selectionContext?: string): Event {
+function dispatchPaste(
+  target: Element,
+  text: string,
+  options: { selectionContext?: string; html?: string } = {}
+): Event {
   const event = new Event('paste', {
     bubbles: true,
     cancelable: true,
@@ -27,7 +31,8 @@ function dispatchPaste(target: Element, text: string, selectionContext?: string)
     value: {
       getData: (type: string) => {
         if (type === 'text/plain') return text
-        if (type === SIM_SELECTION_MIME) return selectionContext ?? ''
+        if (type === SIM_SELECTION_MIME) return options.selectionContext ?? ''
+        if (type === 'text/html') return options.html ?? ''
         return ''
       },
     },
@@ -93,7 +98,23 @@ describe('PasteAdmissionGuard', () => {
     expect(dispatchPaste(editable, 'a').defaultPrevented).toBe(false)
   })
 
-  it('lets a compact Sim selection reference bypass its large plain-text representation', () => {
+  it('lets a prompt consume a compact Sim selection reference before its large plain text', () => {
+    const input = document.createElement('textarea')
+    input.dataset.pasteMaxBytes = '4'
+    input.dataset.pasteSelectionContext = 'reference'
+    host.appendChild(input)
+    const selectionContext = JSON.stringify({
+      kind: 'table_selection',
+      tableId: 'table-1',
+      tableName: 'Large table',
+      rowIds: ['row-1'],
+      label: 'Large table (1 row)',
+    })
+
+    expect(dispatchPaste(input, '12345', { selectionContext }).defaultPrevented).toBe(false)
+  })
+
+  it('still bounds a Sim selection plain-text representation outside the prompt', () => {
     const input = document.createElement('textarea')
     input.dataset.pasteMaxBytes = '4'
     host.appendChild(input)
@@ -105,6 +126,18 @@ describe('PasteAdmissionGuard', () => {
       label: 'Large table (1 row)',
     })
 
-    expect(dispatchPaste(input, '12345', selectionContext).defaultPrevented).toBe(false)
+    expect(dispatchPaste(input, '12345', { selectionContext }).defaultPrevented).toBe(true)
+  })
+
+  it('bounds rich HTML separately from its smaller plain-text representation', () => {
+    const editable = document.createElement('div')
+    editable.setAttribute('contenteditable', 'true')
+    editable.dataset.pasteMaxBytes = '100'
+    editable.dataset.pasteMaxHtmlBytes = '10'
+    host.appendChild(editable)
+
+    expect(dispatchPaste(editable, 'abc', { html: '<strong>abc</strong>' }).defaultPrevented).toBe(
+      true
+    )
   })
 })

@@ -18,6 +18,7 @@ import { SkillsMenuDropdown } from '@/app/workspace/[workspaceId]/home/component
 import {
   computeMentionHighlightRanges,
   extractContextTokens,
+  SKILL_CHIP_TRIGGER,
   stripMentionTrigger,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/utils'
 
@@ -79,7 +80,9 @@ export function PromptEditor({
    * Un-warming on blur would just re-open the race on the next focus.
    */
   const [hasFocused, setHasFocused] = useState(false)
-  const usePlainTextMode = value.length > PASTE_RENDER_THRESHOLDS.ENHANCED_TEXT_CHARACTERS
+  const usePlainTextMode =
+    value.length > PASTE_RENDER_THRESHOLDS.ENHANCED_TEXT_CHARACTERS &&
+    !value.includes(SKILL_CHIP_TRIGGER)
 
   /**
    * Autosize: grow the textarea to its full content height; the scroller caps
@@ -250,6 +253,7 @@ export function PromptEditor({
           onPaste={readOnly ? undefined : editor.handlePaste}
           data-paste-max-bytes={PASTE_LIMITS.CHAT_BYTES}
           data-paste-max-characters={PASTE_LIMITS.CHAT_CHARACTERS}
+          data-paste-selection-context='reference'
           onCopy={editor.handleCopy}
           onCut={readOnly ? undefined : editor.handleCut}
           onSelect={readOnly ? undefined : editor.handleSelectAdjust}
