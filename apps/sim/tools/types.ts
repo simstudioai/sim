@@ -96,6 +96,8 @@ export interface ToolResponse {
   success: boolean // Whether the tool execution was successful
   output: Record<string, any> // The structured output from the tool
   error?: string // Error message if success is false
+  /** False when replaying the operation could duplicate external side effects. */
+  retryable?: boolean
   /**
    * HTTP status owned by SIM itself (e.g. hosted-key rate limiting or
    * exhaustion), carried so it survives the throw → `ToolResponse` flattening

@@ -24,4 +24,35 @@ describe('function execute contract', () => {
 
     expect(result.success).toBe(true)
   })
+
+  it('requires a workspace destination for a sandbox file export', () => {
+    const result = bodySchema.safeParse({
+      code: 'return 1',
+      outputSandboxPath: '/tmp/result.csv',
+    })
+
+    expect(result.success).toBe(false)
+    expect(result.error?.issues).toContainEqual(expect.objectContaining({ path: ['outputPath'] }))
+  })
+
+  it('rejects a whitespace-only workspace destination for a sandbox file export', () => {
+    const result = bodySchema.safeParse({
+      code: 'return 1',
+      outputSandboxPath: '/tmp/result.csv',
+      outputPath: '   ',
+    })
+
+    expect(result.success).toBe(false)
+    expect(result.error?.issues).toContainEqual(expect.objectContaining({ path: ['outputPath'] }))
+  })
+
+  it('accepts a sandbox file export with its workspace destination', () => {
+    const result = bodySchema.safeParse({
+      code: 'return 1',
+      outputSandboxPath: '/tmp/result.csv',
+      outputPath: 'files/result.csv',
+    })
+
+    expect(result.success).toBe(true)
+  })
 })

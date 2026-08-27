@@ -3,6 +3,11 @@ import { toError } from '@sim/utils/errors'
 import { randomInt } from '@sim/utils/random'
 import { getConfiguredCacheProvider } from '@/lib/core/config/env-capabilities.server'
 import { getRedisClient } from '@/lib/core/config/redis'
+import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
+import {
+  getExecutionSignalChannel,
+  publishLocalExecutionSignal,
+} from '@/lib/execution/execution-signal'
 import { LARGE_VALUE_THRESHOLD_BYTES } from '@/lib/execution/payloads/large-value-ref'
 import { compactExecutionPayload } from '@/lib/execution/payloads/serializer'
 import type { LargeValueStoreContext } from '@/lib/execution/payloads/store'
@@ -15,18 +20,21 @@ import {
   ExecutionResourceLimitError,
   isExecutionResourceLimitError,
 } from '@/lib/execution/resource-errors'
-import type { ExecutionEvent } from '@/lib/workflows/executor/execution-events'
+import type { BlockStartedData, ExecutionEvent } from '@/lib/workflows/executor/execution-events'
 
 const logger = createLogger('ExecutionEventBuffer')
 
 const REDIS_PREFIX = 'execution:stream:'
-const TTL_SECONDS = 60 * 60 // 1 hour
+export const EXECUTION_STREAM_PROTOCOL_VERSION = 1
+const TERMINAL_TTL_SECONDS = 60 * 60
+const ACTIVE_TTL_SECONDS = Math.ceil(getMaxExecutionTimeout() / 1000) + TERMINAL_TTL_SECONDS
 const EVENT_LIMIT = 1000
 const RESERVE_BATCH = 100
 const FLUSH_INTERVAL_MS = 15
 const FLUSH_MAX_RETRY_INTERVAL_MS = 1000
 const FLUSH_MAX_BATCH = 200
 const MAX_PENDING_EVENTS = 1000
+const MAX_ACTIVE_BLOCK_SNAPSHOT_BYTES = 256 * 1024
 /**
  * Bytes a single execution may buffer before its events start offloading
  * aggressively, and the per-value threshold applied once it does.
@@ -85,47 +93,47 @@ for i = 1, new_prune_count do
 end
 local net_bytes = new_bytes - pruned_bytes
 if net_bytes > 0 then
-  local execution_current = tonumber(redis.call('GET', KEYS[4]) or '0')
+  local execution_current = tonumber(redis.call('GET', KEYS[5]) or '0')
   if execution_limit > 0 and execution_current + net_bytes > execution_limit then
     return {0, 'execution_redis_bytes', execution_current, pruned_bytes}
   end
   local user_current = 0
-  if #KEYS >= 5 then
-    user_current = tonumber(redis.call('GET', KEYS[5]) or '0')
+  if #KEYS >= 6 then
+    user_current = tonumber(redis.call('GET', KEYS[6]) or '0')
     if user_limit > 0 and user_current + net_bytes > user_limit then
       return {0, 'user_redis_bytes', user_current, pruned_bytes}
     end
   end
-  redis.call('INCRBY', KEYS[4], net_bytes)
-  redis.call('EXPIRE', KEYS[4], budget_ttl_seconds)
-  if #KEYS >= 5 then
-    redis.call('INCRBY', KEYS[5], net_bytes)
-    if redis.call('TTL', KEYS[5]) < 0 then
-      redis.call('EXPIRE', KEYS[5], budget_ttl_seconds)
+  redis.call('INCRBY', KEYS[5], net_bytes)
+  redis.call('EXPIRE', KEYS[5], budget_ttl_seconds)
+  if #KEYS >= 6 then
+    redis.call('INCRBY', KEYS[6], net_bytes)
+    if redis.call('TTL', KEYS[6]) < 0 then
+      redis.call('EXPIRE', KEYS[6], budget_ttl_seconds)
     end
   end
 elseif net_bytes < 0 then
   local release_bytes = -net_bytes
-  local execution_next = redis.call('DECRBY', KEYS[4], release_bytes)
+  local execution_next = redis.call('DECRBY', KEYS[5], release_bytes)
   if execution_next <= 0 then
-    redis.call('DEL', KEYS[4])
+    redis.call('DEL', KEYS[5])
   else
-    redis.call('EXPIRE', KEYS[4], budget_ttl_seconds)
+    redis.call('EXPIRE', KEYS[5], budget_ttl_seconds)
   end
-  if #KEYS >= 5 then
-    local user_next = redis.call('DECRBY', KEYS[5], release_bytes)
+  if #KEYS >= 6 then
+    local user_next = redis.call('DECRBY', KEYS[6], release_bytes)
     if user_next <= 0 then
-      redis.call('DEL', KEYS[5])
-    elseif redis.call('TTL', KEYS[5]) < 0 then
-      redis.call('EXPIRE', KEYS[5], budget_ttl_seconds)
+      redis.call('DEL', KEYS[6])
+    elseif redis.call('TTL', KEYS[6]) < 0 then
+      redis.call('EXPIRE', KEYS[6], budget_ttl_seconds)
     end
   end
 else
-  if redis.call('EXISTS', KEYS[4]) == 1 then
-    redis.call('EXPIRE', KEYS[4], budget_ttl_seconds)
-  end
-  if #KEYS >= 5 and redis.call('EXISTS', KEYS[5]) == 1 and redis.call('TTL', KEYS[5]) < 0 then
+  if redis.call('EXISTS', KEYS[5]) == 1 then
     redis.call('EXPIRE', KEYS[5], budget_ttl_seconds)
+  end
+  if #KEYS >= 6 and redis.call('EXISTS', KEYS[6]) == 1 and redis.call('TTL', KEYS[6]) < 0 then
+    redis.call('EXPIRE', KEYS[6], budget_ttl_seconds)
   end
 end
 for i = 9, #ARGV, 2 do
@@ -136,14 +144,31 @@ redis.call('EXPIRE', KEYS[2], tonumber(ARGV[1]))
 redis.call('ZREMRANGEBYRANK', KEYS[1], 0, -tonumber(ARGV[2]) - 1)
 local oldest = redis.call('ZRANGE', KEYS[1], 0, 0, 'WITHSCORES')
 if terminal_status ~= '' then
-  redis.call('HSET', KEYS[3], 'status', terminal_status, 'updatedAt', ARGV[3])
+  redis.call('HSET', KEYS[3], 'status', terminal_status, 'updatedAt', ARGV[3], 'activeBlockStarts', '[]')
   redis.call('EXPIRE', KEYS[3], tonumber(ARGV[1]))
 end
 if oldest[2] then
   redis.call('HSET', KEYS[3], 'earliestEventId', tostring(math.floor(tonumber(oldest[2]))), 'updatedAt', ARGV[3])
   redis.call('EXPIRE', KEYS[3], tonumber(ARGV[1]))
 end
+redis.call('PUBLISH', KEYS[4], 'event')
 return {1, oldest[2] or false, pruned_bytes}
+`
+const MARK_TERMINAL_META_SCRIPT = `
+redis.call('HSET', KEYS[1], 'status', ARGV[1], 'updatedAt', ARGV[2], 'activeBlockStarts', '[]')
+redis.call('EXPIRE', KEYS[1], tonumber(ARGV[3]))
+redis.call('PUBLISH', KEYS[2], 'event')
+return 1
+`
+const SET_ACTIVE_BLOCK_STARTS_SCRIPT = `
+local status = redis.call('HGET', KEYS[1], 'status')
+if status == 'complete' or status == 'error' or status == 'cancelled' then
+  return 1
+end
+redis.call('HSET', KEYS[1], 'activeBlockStarts', ARGV[1], 'updatedAt', ARGV[2])
+redis.call('EXPIRE', KEYS[1], tonumber(ARGV[3]))
+redis.call('PUBLISH', KEYS[2], 'event')
+return 1
 `
 const RESET_STREAM_SCRIPT = `
 local entries = redis.call('ZRANGE', KEYS[1], 0, -1)
@@ -252,11 +277,18 @@ function trimFinalBlockLogsForEventData(data: unknown): unknown {
 
 export interface ExecutionStreamMeta {
   status: ExecutionStreamStatus
+  protocolVersion?: number
   userId?: string
   workflowId?: string
   updatedAt?: string
   earliestEventId?: number
   replayStartEventId?: number
+  activeBlockStarts?: ActiveBlockStartSnapshot[]
+}
+
+export interface ActiveBlockStartSnapshot {
+  eventId: number
+  data: BlockStartedData
 }
 
 export type TerminalExecutionStreamStatus = Exclude<ExecutionStreamStatus, 'active'>
@@ -369,9 +401,7 @@ function canUseMemoryEventBuffer(): boolean {
 
 function pruneExpiredMemoryStreams(now = Date.now()): void {
   for (const [executionId, stream] of memoryExecutionStreams) {
-    if (stream.expiresAt <= now) {
-      memoryExecutionStreams.delete(executionId)
-    }
+    if (stream.expiresAt <= now) memoryExecutionStreams.delete(executionId)
   }
 }
 
@@ -383,7 +413,7 @@ function getMemoryStream(executionId: string): MemoryExecutionStream {
       events: [],
       meta: null,
       nextEventId: 1,
-      expiresAt: Date.now() + TTL_SECONDS * 1000,
+      expiresAt: Date.now() + ACTIVE_TTL_SECONDS * 1000,
     }
     memoryExecutionStreams.set(executionId, stream)
   }
@@ -391,23 +421,8 @@ function getMemoryStream(executionId: string): MemoryExecutionStream {
 }
 
 function touchMemoryStream(stream: MemoryExecutionStream): void {
-  stream.expiresAt = Date.now() + TTL_SECONDS * 1000
-}
-
-function isReplayBeforeAvailableEvents(
-  afterEventId: number,
-  earliestEventId?: number,
-  replayStartEventId?: number
-): earliestEventId is number {
-  if (earliestEventId === undefined || !Number.isFinite(earliestEventId)) return false
-  if (
-    afterEventId === 0 &&
-    replayStartEventId !== undefined &&
-    Number.isFinite(replayStartEventId)
-  ) {
-    return earliestEventId > replayStartEventId
-  }
-  return afterEventId + 1 < earliestEventId
+  const terminal = stream.meta?.status && stream.meta.status !== 'active'
+  stream.expiresAt = Date.now() + (terminal ? TERMINAL_TTL_SECONDS : ACTIVE_TTL_SECONDS) * 1000
 }
 
 function readMemoryMeta(executionId: string): ExecutionMetaReadResult {
@@ -437,7 +452,7 @@ function createMemoryExecutionEventWriter(
   executionId: string,
   context: ExecutionEventWriterContext = {}
 ): ExecutionEventWriter {
-  const writeMemoryEvent = async (event: ExecutionEvent) => {
+  const writeMemoryEvent = async (event: ExecutionEvent, publish: boolean) => {
     const stream = getMemoryStream(executionId)
     const compactEvent = await compactEventForBuffer(event, context)
     const entry = {
@@ -458,25 +473,44 @@ function createMemoryExecutionEventWriter(
       }
     }
     touchMemoryStream(stream)
+    if (publish) publishLocalExecutionSignal(executionId, 'event')
     return entry
   }
 
   return {
-    write: writeMemoryEvent,
+    write: (event) => writeMemoryEvent(event, true),
     writeTerminal: async (event, status) => {
-      const entry = await writeMemoryEvent(event)
+      const entry = await writeMemoryEvent(event, false)
       const stream = getMemoryStream(executionId)
       stream.meta = {
         ...stream.meta,
         status,
         updatedAt: new Date().toISOString(),
+        activeBlockStarts: [],
       }
       touchMemoryStream(stream)
+      publishLocalExecutionSignal(executionId, 'event')
       return entry
     },
     flush: async () => {},
     close: async () => {},
   }
+}
+
+function isReplayBeforeAvailableEvents(
+  afterEventId: number,
+  earliestEventId?: number,
+  replayStartEventId?: number
+): earliestEventId is number {
+  if (earliestEventId === undefined || !Number.isFinite(earliestEventId)) return false
+  if (
+    afterEventId === 0 &&
+    replayStartEventId !== undefined &&
+    Number.isFinite(replayStartEventId)
+  ) {
+    return earliestEventId > replayStartEventId
+  }
+  return afterEventId + 1 < earliestEventId
 }
 
 export async function flushExecutionStreamReplayBuffer(
@@ -505,19 +539,21 @@ export async function flushExecutionStreamReplayBuffer(
 export async function resetExecutionStreamBuffer(executionId: string): Promise<boolean> {
   const redis = getRedisClient()
   if (!redis) {
-    if (!canUseMemoryEventBuffer()) {
-      logger.warn('resetExecutionStreamBuffer: Redis client unavailable', { executionId })
-      return false
+    if (canUseMemoryEventBuffer()) {
+      const stream = getMemoryStream(executionId)
+      stream.events = []
+      stream.meta = {
+        status: 'active',
+        protocolVersion: EXECUTION_STREAM_PROTOCOL_VERSION,
+        replayStartEventId: stream.nextEventId,
+        updatedAt: new Date().toISOString(),
+        activeBlockStarts: [],
+      }
+      touchMemoryStream(stream)
+      return true
     }
-    const stream = getMemoryStream(executionId)
-    stream.events = []
-    stream.meta = {
-      status: 'active',
-      replayStartEventId: stream.nextEventId,
-      updatedAt: new Date().toISOString(),
-    }
-    stream.expiresAt = Date.now() + TTL_SECONDS * 1000
-    return true
+    logger.warn('resetExecutionStreamBuffer: Redis client unavailable', { executionId })
+    return false
   }
 
   try {
@@ -543,7 +579,7 @@ export async function resetExecutionStreamBuffer(executionId: string): Promise<b
       ...budgetKeys,
       String(replayStartEventId),
       new Date().toISOString(),
-      TTL_SECONDS,
+      ACTIVE_TTL_SECONDS,
       getExecutionRedisBudgetLimits().ttlSeconds
     )
     return true
@@ -566,6 +602,15 @@ export async function setExecutionMeta(
       const stream = getMemoryStream(executionId)
       const status = meta.status ?? stream.meta?.status
       if (!status) return false
+      if (meta.activeBlockStarts !== undefined) {
+        const activeBlockStarts = JSON.stringify(meta.activeBlockStarts)
+        if (
+          meta.activeBlockStarts.length > EVENT_LIMIT ||
+          Buffer.byteLength(activeBlockStarts, 'utf8') > MAX_ACTIVE_BLOCK_SNAPSHOT_BYTES
+        ) {
+          return false
+        }
+      }
       stream.meta = {
         ...stream.meta,
         ...meta,
@@ -584,17 +629,95 @@ export async function setExecutionMeta(
       updatedAt: new Date().toISOString(),
     }
     if (meta.status) payload.status = meta.status
+    if (meta.protocolVersion !== undefined) {
+      payload.protocolVersion = String(meta.protocolVersion)
+    }
     if (meta.userId) payload.userId = meta.userId
     if (meta.workflowId) payload.workflowId = meta.workflowId
     if (meta.earliestEventId !== undefined) payload.earliestEventId = String(meta.earliestEventId)
     if (meta.replayStartEventId !== undefined) {
       payload.replayStartEventId = String(meta.replayStartEventId)
     }
+    if (meta.activeBlockStarts !== undefined) {
+      const activeBlockStarts = JSON.stringify(meta.activeBlockStarts)
+      if (
+        meta.activeBlockStarts.length > EVENT_LIMIT ||
+        Buffer.byteLength(activeBlockStarts, 'utf8') > MAX_ACTIVE_BLOCK_SNAPSHOT_BYTES
+      ) {
+        logger.warn('Active execution snapshot exceeds its retention bound', {
+          executionId,
+          activeBlocks: meta.activeBlockStarts.length,
+        })
+        return false
+      }
+      payload.activeBlockStarts = activeBlockStarts
+    }
     await redis.hset(key, payload)
-    await redis.expire(key, TTL_SECONDS)
+    const ttlSeconds =
+      meta.status && meta.status !== 'active' ? TERMINAL_TTL_SECONDS : ACTIVE_TTL_SECONDS
+    await redis.expire(key, ttlSeconds)
     return true
   } catch (error) {
     logger.warn('Failed to update execution meta', {
+      executionId,
+      error: toError(error).message,
+    })
+    return false
+  }
+}
+
+export async function setExecutionActiveBlockStarts(
+  executionId: string,
+  activeBlockStarts: ActiveBlockStartSnapshot[]
+): Promise<boolean> {
+  if (activeBlockStarts.length > EVENT_LIMIT) {
+    logger.warn('Active execution snapshot exceeds its retention bound', {
+      executionId,
+      activeBlocks: activeBlockStarts.length,
+    })
+    return false
+  }
+  const serializedSnapshot = JSON.stringify(activeBlockStarts)
+  if (Buffer.byteLength(serializedSnapshot, 'utf8') > MAX_ACTIVE_BLOCK_SNAPSHOT_BYTES) {
+    logger.warn('Active execution snapshot exceeds its retention bound', {
+      executionId,
+      activeBlocks: activeBlockStarts.length,
+    })
+    return false
+  }
+
+  const redis = getRedisClient()
+  if (!redis) {
+    if (canUseMemoryEventBuffer()) {
+      const stream = getMemoryStream(executionId)
+      if (!stream.meta?.status) return false
+      if (stream.meta.status !== 'active') return true
+      stream.meta = {
+        ...stream.meta,
+        activeBlockStarts,
+        updatedAt: new Date().toISOString(),
+      }
+      touchMemoryStream(stream)
+      publishLocalExecutionSignal(executionId, 'event')
+      return true
+    }
+    logger.warn('setExecutionActiveBlockStarts: Redis client unavailable', { executionId })
+    return false
+  }
+
+  try {
+    await redis.eval(
+      SET_ACTIVE_BLOCK_STARTS_SCRIPT,
+      2,
+      getMetaKey(executionId),
+      getExecutionSignalChannel(executionId),
+      serializedSnapshot,
+      new Date().toISOString(),
+      ACTIVE_TTL_SECONDS
+    )
+    return true
+  } catch (error) {
+    logger.warn('Failed to update active execution snapshot', {
       executionId,
       error: toError(error).message,
     })
@@ -610,6 +733,7 @@ export async function initializeExecutionStreamMeta(
     const metaPersisted = await setExecutionMeta(executionId, {
       ...meta,
       status: 'active',
+      protocolVersion: EXECUTION_STREAM_PROTOCOL_VERSION,
     })
     if (metaPersisted) return true
     logger.warn('Failed to persist active execution meta during initialization', {
@@ -620,14 +744,56 @@ export async function initializeExecutionStreamMeta(
   return false
 }
 
+/** Records a terminal state and wakes observers when the terminal event itself could not persist. */
+export async function markExecutionStreamTerminal(
+  executionId: string,
+  status: TerminalExecutionStreamStatus
+): Promise<boolean> {
+  const redis = getRedisClient()
+  if (!redis) {
+    if (canUseMemoryEventBuffer()) {
+      const stream = getMemoryStream(executionId)
+      stream.meta = {
+        ...stream.meta,
+        status,
+        protocolVersion: EXECUTION_STREAM_PROTOCOL_VERSION,
+        updatedAt: new Date().toISOString(),
+        activeBlockStarts: [],
+      }
+      touchMemoryStream(stream)
+      publishLocalExecutionSignal(executionId, 'event')
+      return true
+    }
+    logger.warn('markExecutionStreamTerminal: Redis client unavailable', { executionId })
+    return false
+  }
+  try {
+    await redis.eval(
+      MARK_TERMINAL_META_SCRIPT,
+      2,
+      getMetaKey(executionId),
+      getExecutionSignalChannel(executionId),
+      status,
+      new Date().toISOString(),
+      TERMINAL_TTL_SECONDS
+    )
+    return true
+  } catch (error) {
+    logger.warn('Failed to mark execution stream terminal', {
+      executionId,
+      status,
+      error: toError(error).message,
+    })
+    return false
+  }
+}
+
 export async function readExecutionMetaState(
   executionId: string
 ): Promise<ExecutionMetaReadResult> {
   const redis = getRedisClient()
   if (!redis) {
-    if (canUseMemoryEventBuffer()) {
-      return readMemoryMeta(executionId)
-    }
+    if (canUseMemoryEventBuffer()) return readMemoryMeta(executionId)
     logger.warn('readExecutionMetaState: Redis client unavailable', { executionId })
     return { status: 'unavailable', error: 'Redis client unavailable' }
   }
@@ -640,6 +806,8 @@ export async function readExecutionMetaState(
       status: 'found',
       meta: {
         status: meta.status,
+        protocolVersion:
+          meta.protocolVersion !== undefined ? Number(meta.protocolVersion) : undefined,
         userId: meta.userId,
         workflowId: meta.workflowId,
         updatedAt: meta.updatedAt,
@@ -647,6 +815,7 @@ export async function readExecutionMetaState(
           meta.earliestEventId !== undefined ? Number(meta.earliestEventId) : undefined,
         replayStartEventId:
           meta.replayStartEventId !== undefined ? Number(meta.replayStartEventId) : undefined,
+        activeBlockStarts: parseActiveBlockStarts(meta.activeBlockStarts),
       },
     }
   } catch (error) {
@@ -659,15 +828,30 @@ export async function readExecutionMetaState(
   }
 }
 
+function parseActiveBlockStarts(value: string | undefined): ActiveBlockStartSnapshot[] | undefined {
+  if (!value) return undefined
+  try {
+    const parsed: unknown = JSON.parse(value)
+    if (!Array.isArray(parsed)) return undefined
+    return parsed.filter(
+      (entry): entry is ActiveBlockStartSnapshot =>
+        typeof entry === 'object' &&
+        entry !== null &&
+        typeof (entry as ActiveBlockStartSnapshot).eventId === 'number' &&
+        typeof (entry as ActiveBlockStartSnapshot).data?.blockId === 'string'
+    )
+  } catch {
+    return undefined
+  }
+}
+
 export async function readExecutionEventsState(
   executionId: string,
   afterEventId: number
 ): Promise<ExecutionEventsReadResult> {
   const redis = getRedisClient()
   if (!redis) {
-    if (canUseMemoryEventBuffer()) {
-      return readMemoryEvents(executionId, afterEventId)
-    }
+    if (canUseMemoryEventBuffer()) return readMemoryEvents(executionId, afterEventId)
     return { status: 'unavailable', error: 'Redis client unavailable' }
   }
   try {
@@ -726,20 +910,7 @@ export function createExecutionEventWriter(
       logger.info('createExecutionEventWriter: using in-memory event buffer', { executionId })
       return createMemoryExecutionEventWriter(executionId, context)
     }
-    logger.warn(
-      'createExecutionEventWriter: Redis client unavailable, events will not be buffered',
-      {
-        executionId,
-      }
-    )
-    return {
-      write: async (event) => ({ eventId: 0, executionId, event }),
-      writeTerminal: async () => {
-        throw new Error(`Execution event buffer unavailable for ${executionId}`)
-      },
-      flush: async () => {},
-      close: async () => {},
-    }
+    throw new Error(`Redis execution event buffer unavailable for ${executionId}`)
   }
 
   let pending: ExecutionEventEntry[] = []
@@ -901,12 +1072,13 @@ export function createExecutionEventWriter(
       const flushResult = getFlushScriptResult(
         await redis.eval(
           FLUSH_EVENTS_SCRIPT,
-          3 + budgetKeys.length,
+          4 + budgetKeys.length,
           key,
           getSeqKey(executionId),
           getMetaKey(executionId),
+          getExecutionSignalChannel(executionId),
           ...budgetKeys,
-          TTL_SECONDS,
+          chunkTerminalStatus ? TERMINAL_TTL_SECONDS : ACTIVE_TTL_SECONDS,
           EVENT_LIMIT,
           new Date().toISOString(),
           chunkTerminalStatus ?? '',
@@ -1118,9 +1290,8 @@ export function createExecutionEventWriter(
         throw error
       }
       // `pendingTerminalStatus` still being set means the status never reached
-      // Redis even though the events did, which would leave readers polling an
-      // `active` stream. Treat it as a failed terminal publish so the caller
-      // degrades instead of reporting a success that readers cannot observe.
+      // Redis even though the events did. Treat it as a failed terminal publish
+      // instead of reporting a success that readers cannot observe.
       if (!ok || pendingTerminalStatus) {
         discardTerminalEntry(entry)
         // Report why when the budget was the cause, so the run surfaces the

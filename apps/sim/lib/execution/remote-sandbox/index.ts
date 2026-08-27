@@ -715,6 +715,7 @@ async function executeShellInSandboxWithinBudget(
         maxOutputBytes: MAX_SANDBOX_PROCESS_OUTPUT_BYTES,
         signal,
         rootUser: true,
+        atMostOnce: true,
       })
     } catch (error) {
       throwIfAborted(signal)
