@@ -25,6 +25,8 @@ export interface OverflowTextProps {
   showWhen?: boolean
   /** Whether the full-value tooltip may open. Disable for visual mirror layers. */
   tooltipEnabled?: boolean
+  /** External composite control whose keyboard focus should reveal the tooltip. */
+  focusTarget?: HTMLElement | null
 }
 
 /**
@@ -41,13 +43,18 @@ export const OverflowText = memo(function OverflowText({
   className,
   showWhen,
   tooltipEnabled = true,
+  focusTarget,
 }: OverflowTextProps) {
   const { ref: textRef, node, isOverflowing } = useIsOverflowing<HTMLSpanElement>(label)
-  const { state, handlers } = useFloatingTooltip(() => {
-    const element = node.current
-    if (!tooltipEnabled || !element || label.length === 0) return false
-    return Boolean(showWhen) || isTextClipped(element)
-  })
+  const tooltipEligible = tooltipEnabled && label.length > 0 && (Boolean(showWhen) || isOverflowing)
+  const { state, handlers } = useFloatingTooltip(
+    () => {
+      const element = node.current
+      if (!tooltipEnabled || !element || label.length === 0) return false
+      return Boolean(showWhen) || isTextClipped(element)
+    },
+    { focusTarget, revalidateKey: tooltipEligible }
+  )
 
   return (
     <>

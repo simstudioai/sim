@@ -1,4 +1,4 @@
-import { type ReactNode, useId } from 'react'
+import { type ReactNode, useId, useState } from 'react'
 import { cn, OverflowText } from '@sim/emcn'
 import { ArrowRight } from '@sim/emcn/icons'
 import Link from 'next/link'
@@ -135,8 +135,10 @@ export function SettingsResourceRow({
   flush = false,
   disabled = false,
 }: SettingsResourceRowProps) {
+  const [control, setControl] = useState<HTMLAnchorElement | HTMLButtonElement | null>(null)
   const describedById = useId()
   const isTile = iconVariant === 'tile'
+  const isActivatable = !disabled && Boolean(onClick || href)
   const cluster = (
     <>
       {icon == null ? null : iconVariant === 'custom' ? (
@@ -158,7 +160,11 @@ export function SettingsResourceRow({
       )}
       <div className='relative z-10 flex min-w-0 flex-col justify-center gap-[1px] text-left'>
         {typeof title === 'string' ? (
-          <OverflowText label={title} className='text-[var(--text-body)] text-sm' />
+          <OverflowText
+            label={title}
+            className='text-[var(--text-body)] text-sm'
+            focusTarget={isActivatable ? control : undefined}
+          />
         ) : (
           <span className='truncate text-[var(--text-body)] text-sm'>{title}</span>
         )}
@@ -226,6 +232,7 @@ export function SettingsResourceRow({
     >
       {href ? (
         <Link
+          ref={setControl}
           href={href}
           aria-label={clickLabel}
           aria-describedby={description != null ? describedById : undefined}
@@ -235,6 +242,7 @@ export function SettingsResourceRow({
         </Link>
       ) : (
         <button
+          ref={setControl}
           type='button'
           onClick={onClick}
           aria-label={clickLabel}

@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { act } from 'react'
+import { act, useState } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { OverflowText } from './overflow-text'
@@ -100,6 +100,9 @@ describe('OverflowText', () => {
     expect(document.querySelector('[data-native-surface-overlay]')?.textContent).toBe(
       'A long workflow name'
     )
+
+    setWidths(label, 200, 180)
+    expect(document.querySelector('[data-native-surface-overlay]')).toBeNull()
   })
 
   it('leaves a fitting label unmasked and does not open a tooltip', () => {
@@ -132,6 +135,33 @@ describe('OverflowText', () => {
       )
     })
     expect(document.querySelector('[data-native-surface-overlay]')).toBeNull()
+  })
+
+  it('opens from an external composite control keyboard focus', () => {
+    function CompositeLabel() {
+      const [focusTarget, setFocusTarget] = useState<HTMLButtonElement | null>(null)
+      return (
+        <>
+          <button ref={setFocusTarget} type='button'>
+            Open workflow
+          </button>
+          <OverflowText label='A long workflow name' focusTarget={focusTarget} />
+        </>
+      )
+    }
+
+    act(() => root.render(<CompositeLabel />))
+    const button = host.querySelector('button')
+    const label = host.querySelector<HTMLElement>('[data-overflow-text]')
+    if (!button || !label) throw new Error('Composite label did not render')
+
+    setWidths(label, 80, 180)
+    vi.spyOn(button, 'matches').mockReturnValue(true)
+    act(() => button.focus())
+
+    expect(document.querySelector('[data-native-surface-overlay]')?.textContent).toBe(
+      'A long workflow name'
+    )
   })
 
   it('keeps decorated visible content out of the plain tooltip label', () => {

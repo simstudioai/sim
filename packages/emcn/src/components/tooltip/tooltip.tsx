@@ -83,11 +83,10 @@ const HIDDEN_STATE: FloatingTooltipState = {
 }
 
 /**
- * Drives a pointer-reactive floating tooltip. `canShow` is queried on every
- * gesture with the event target, letting the caller gate the tooltip on its own
- * overflow measurement. Returns the current {@link FloatingTooltipState} to feed
- * a {@link FloatingTooltip} and a stable set of {@link FloatingTooltipHandlers}
- * to spread onto the trigger element.
+ * Drives a pointer-reactive floating tooltip. `canShow` is checked on each
+ * gesture and while visible, allowing callers to dismiss the tooltip when its
+ * eligibility changes. Returns the current state and stable pointer/focus
+ * handlers; `focusTarget` may supply a separate keyboard-focus trigger.
  */
 export interface UseFloatingTooltipOptions {
   /**
@@ -95,6 +94,10 @@ export interface UseFloatingTooltipOptions {
    * pointer is too close to the top of the viewport.
    */
   preferAbove?: boolean
+  /** External control whose keyboard focus should reveal this tooltip. */
+  focusTarget?: HTMLElement | null
+  /** Semantic value whose changes should revalidate a visible tooltip. */
+  revalidateKey?: unknown
 }
 
 export function useFloatingTooltip(
@@ -126,41 +129,49 @@ export function useFloatingTooltip(
     setState((current) => (current.visible ? HIDDEN_STATE : current))
   }, [reset])
 
-  const handlers = React.useMemo<FloatingTooltipHandlers>(() => {
-    const apply = (clientX: number, clientY: number, motion: TooltipMotion) => {
-      const next = { ...getTooltipPosition(clientX, clientY, preferAboveRef.current), ...motion }
-      setState((current) =>
-        current.visible &&
-        current.x === next.x &&
-        current.y === next.y &&
-        current.alignX === next.alignX &&
-        current.alignY === next.alignY &&
-        current.skew === next.skew &&
-        current.scaleX === next.scaleX &&
-        current.scaleY === next.scaleY
-          ? current
-          : { visible: true, ...next }
-      )
-    }
+  const apply = React.useCallback((clientX: number, clientY: number, motion: TooltipMotion) => {
+    const next = { ...getTooltipPosition(clientX, clientY, preferAboveRef.current), ...motion }
+    setState((current) =>
+      current.visible &&
+      current.x === next.x &&
+      current.y === next.y &&
+      current.alignX === next.alignX &&
+      current.alignY === next.alignY &&
+      current.skew === next.skew &&
+      current.scaleX === next.scaleX &&
+      current.scaleY === next.scaleY
+        ? current
+        : { visible: true, ...next }
+    )
+  }, [])
 
-    /** Reveals the tooltip at the pointer, seeding velocity tracking from it. */
-    const showFromPointer = (clientX: number, clientY: number) => {
+  const showFromPointer = React.useCallback(
+    (clientX: number, clientY: number) => {
       reset()
       lastPointerRef.current = { x: clientX, y: clientY, time: performance.now() }
       apply(clientX, clientY, NEUTRAL_MOTION)
-    }
+    },
+    [apply, reset]
+  )
 
-    /**
-     * Reveals the tooltip anchored to an element's box rather than the pointer.
-     * Velocity tracking stays cleared: seeding it from the box would make the next
-     * `pointermove` read the box-to-cursor delta as velocity and spike the flourish
-     * when the pointer already happens to be over the trigger.
-     */
-    const showFromElement = (clientX: number, clientY: number) => {
+  /**
+   * Anchors the tooltip to an element without seeding pointer velocity; using the
+   * box position would make the next pointer move produce a false motion spike.
+   */
+  const showFromElement = React.useCallback(
+    (target: HTMLElement) => {
       reset()
-      apply(clientX, clientY, NEUTRAL_MOTION)
-    }
+      const rect = target.getBoundingClientRect()
+      apply(
+        rect.left + rect.width / 2,
+        preferAboveRef.current ? rect.top : rect.bottom,
+        NEUTRAL_MOTION
+      )
+    },
+    [apply, reset]
+  )
 
+  const handlers = React.useMemo<FloatingTooltipHandlers>(() => {
     return {
       onPointerEnter: (event) => {
         if (!canShowRef.current(event.currentTarget)) return
@@ -200,14 +211,32 @@ export function useFloatingTooltip(
         if (!canShowRef.current(target)) return
         if (!isFocusVisible(target)) return
         triggerRef.current = target
-        const rect = target.getBoundingClientRect()
-        /* Anchor on the edge the bubble grows away from, so a `preferAbove`
-           tooltip measures from the trigger's top rather than its bottom. */
-        showFromElement(rect.left + rect.width / 2, preferAboveRef.current ? rect.top : rect.bottom)
+        showFromElement(target)
       },
       onBlur: hide,
     }
-  }, [hide, reset])
+  }, [apply, hide, showFromElement, showFromPointer])
+
+  React.useEffect(() => {
+    const target = options.focusTarget
+    if (!target) return undefined
+    const show = () => {
+      if (!canShowRef.current(target) || !isFocusVisible(target)) return
+      triggerRef.current = target
+      showFromElement(target)
+    }
+    target.addEventListener('focus', show)
+    target.addEventListener('blur', hide)
+    return () => {
+      target.removeEventListener('focus', show)
+      target.removeEventListener('blur', hide)
+    }
+  }, [hide, options.focusTarget, showFromElement])
+
+  React.useEffect(() => {
+    const trigger = triggerRef.current
+    if (state.visible && (!trigger || !canShowRef.current(trigger))) hide()
+  }, [hide, options.revalidateKey, state.visible])
 
   /**
    * A keyboard- or script-driven UI change can hide the trigger with no pointer or focus event —
