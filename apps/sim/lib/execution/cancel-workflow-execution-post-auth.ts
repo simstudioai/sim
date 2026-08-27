@@ -111,6 +111,11 @@ function mergeExecutionStopSignal(
   summary.signalledExecutionIds.add(signalExecutionId)
 }
 
+/**
+ * Commits cancellation after the caller's final abort check. Once signalling begins, the
+ * operation must finish reconciliation because workers may already have observed the durable,
+ * local, or queued signal; attempting to honor a later abort could revive only part of a run.
+ */
 async function signalExecutionStop(args: {
   workflowId: string
   signalExecutionId: string
@@ -339,6 +344,28 @@ function cancellationAbortedResponse(abortSignal?: AbortSignal): NextResponse | 
   return abortSignal?.aborted
     ? NextResponse.json({ error: CANCELLATION_ABORTED_MESSAGE }, { status: 409 })
     : null
+}
+
+async function rollbackPausedCancellationAfterAbort(args: {
+  stage: PausedCancellationStage
+  workflowId: string
+  executionId: string
+  abortSignal?: AbortSignal
+}): Promise<NextResponse | null> {
+  const abortResponse = cancellationAbortedResponse(args.abortSignal)
+  if (!abortResponse) return null
+
+  if (args.stage.kind === 'active_resume') {
+    await PauseResumeManager.rollbackActiveResumeCancellation(
+      args.executionId,
+      args.workflowId,
+      args.stage.target.resumeEntryId
+    )
+  } else if (args.stage.kind === 'idle') {
+    await PauseResumeManager.clearPausedCancellationIntent(args.executionId, args.workflowId)
+  }
+
+  return abortResponse
 }
 
 /** Runs the existing workflow cancellation lifecycle after surface authentication. */
@@ -593,6 +620,14 @@ export async function cancelWorkflowExecutionPostAuth({
       executionId,
       workflowId
     )
+    const postStageAbort = await rollbackPausedCancellationAfterAbort({
+      stage: pausedCancellationStage,
+      workflowId,
+      executionId,
+      abortSignal,
+    })
+    if (postStageAbort) return postStageAbort
+
     let effectivePausedCancellationPath = isPausedCancellationStage(pausedCancellationStage)
     let activeResumeTarget =
       pausedCancellationStage.kind === 'active_resume' ? pausedCancellationStage.target : null
@@ -656,6 +691,17 @@ export async function cancelWorkflowExecutionPostAuth({
           executionId,
           workflowId
         )
+        const postLateStageAbort = await rollbackPausedCancellationAfterAbort({
+          stage: pausedCancellationStage,
+          workflowId,
+          executionId,
+          abortSignal,
+        })
+        if (postLateStageAbort) {
+          await clearStopSignalMarkers(stopSummary)
+          return postLateStageAbort
+        }
+
         effectivePausedCancellationPath = isPausedCancellationStage(pausedCancellationStage)
         activeResumeTarget =
           pausedCancellationStage.kind === 'active_resume' ? pausedCancellationStage.target : null

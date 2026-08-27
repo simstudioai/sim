@@ -1050,6 +1050,50 @@ describe('POST /api/workflows/[id]/executions/[executionId]/cancel', () => {
     expect(mockCancelByExecution).not.toHaveBeenCalled()
   })
 
+  it('rolls back pause staging when cancellation is aborted during staging', async () => {
+    const controller = new AbortController()
+    mockStagePausedCancellation.mockImplementationOnce(async () => {
+      controller.abort()
+      return { kind: 'idle' }
+    })
+
+    const response = await cancelWorkflowExecutionPostAuth({
+      workflowId: 'wf-1',
+      executionId: 'ex-1',
+      userId: 'user-1',
+      abortSignal: controller.signal,
+    })
+
+    expect(response.status).toBe(409)
+    expect(mockClearPausedCancellationIntent).toHaveBeenCalledWith('ex-1', 'wf-1')
+    expect(mockMarkExecutionCancelled).not.toHaveBeenCalled()
+    expect(mockAbortManualExecution).not.toHaveBeenCalled()
+    expect(mockCancelByExecution).not.toHaveBeenCalled()
+  })
+
+  it('rolls back an active resume staged while cancellation is aborted', async () => {
+    const controller = new AbortController()
+    mockStagePausedCancellation.mockImplementationOnce(async () => {
+      controller.abort()
+      return { kind: 'active_resume', target: ACTIVE_RESUME_TARGET }
+    })
+
+    const response = await cancelWorkflowExecutionPostAuth({
+      workflowId: 'wf-1',
+      executionId: 'ex-1',
+      userId: 'user-1',
+      abortSignal: controller.signal,
+    })
+
+    expect(response.status).toBe(409)
+    expect(mockRollbackActiveResumeCancellation).toHaveBeenCalledWith(
+      'ex-1',
+      'wf-1',
+      'resume-entry-1'
+    )
+    expect(mockMarkExecutionCancelled).not.toHaveBeenCalled()
+  })
+
   it('returns 404 when the execution does not belong to the workflow', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([])
 
