@@ -109,8 +109,12 @@ describe('POST /api/copilot/tools/execute (in-band)', () => {
 
     expect(mockHandler).not.toHaveBeenCalled()
     expect(body.success).toBe(false)
-    expect(body.error).toContain('Workspace ws-gone does not exist')
     expect(body.output).toEqual({ resultWithheld: true, effect: 'not_attempted' })
+    // The thrown reason is an unprojectable environment failure — the catalog that would
+    // vouch for it is the very thing missing — so it stays in the log.
+    expect(body.error).not.toContain('does not exist')
+    expect(body.error).toContain(BASE_BODY.workspaceId)
+    expect(body.error).toContain('could not be resolved')
   })
 
   it('reuses one turn registry across calls that share a messageId', async () => {

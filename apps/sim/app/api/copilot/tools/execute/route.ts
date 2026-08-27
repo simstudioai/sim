@@ -134,18 +134,25 @@ export const POST = withRouteHandler((request: NextRequest) =>
          * The cause is almost always the workspace itself — a deleted or inaccessible id
          * reaching this lane — which is actionable, so it is reported rather than swallowed.
          */
-        const reason = getErrorMessage(err)
         logger.error('In-band egress registry unavailable; refusing the call', {
           toolName,
           toolCallId,
           userId,
           workspaceId,
-          error: reason,
+          error: getErrorMessage(err),
         })
         rootSpan.setAttributes({ [TraceAttr.ToolOutcome]: MothershipStreamV1ToolOutcome.error })
+        /**
+         * The thrown reason stays in the log. It is an environment or database failure that
+         * nothing here can project — the catalog it needed is the very thing that is missing —
+         * so this is the one message on this route that must be fixed text. The workspace id
+         * is echoed because the caller supplied it, and it is what makes this actionable.
+         */
         return NextResponse.json({
           success: false,
-          error: `${toolName} was not run: ${reason}`,
+          error: workspaceId
+            ? `${toolName} was not run: its workspace (${workspaceId}) could not be resolved. Check that the workspace exists and is accessible before retrying.`
+            : `${toolName} was not run: its execution environment could not be resolved.`,
           output: { resultWithheld: true, effect: TOOL_EFFECT_PHASE.notAttempted },
         })
       }

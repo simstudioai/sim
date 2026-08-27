@@ -53,7 +53,14 @@ const ATTEMPTED_EXECUTION_ID = 'attemptedExecutionId'
 export function attachAttemptedExecutionId(error: unknown, executionId: string): void {
   if (!isAttachableThrown(error) || !executionId) return
   if (Object.hasOwn(error, ATTEMPTED_EXECUTION_ID)) return
-  Object.assign(error, { [ATTEMPTED_EXECUTION_ID]: executionId })
+  /**
+   * A frozen or sealed failure would otherwise throw here and replace the original error
+   * partway through cleanup, turning a diagnostic aid into the thing that loses the
+   * diagnosis. Losing the id is the lesser failure, and the log still records the run.
+   */
+  try {
+    Object.assign(error, { [ATTEMPTED_EXECUTION_ID]: executionId })
+  } catch {}
 }
 
 /** Reads the dispatched-run id a thrown value carries, if dispatch was reached at all. */

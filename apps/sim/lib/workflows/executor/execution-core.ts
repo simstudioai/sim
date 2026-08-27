@@ -424,6 +424,7 @@ async function executeWorkflowCoreImpl(
   let processedInput = input || {}
   let deploymentVersionId: string | undefined
   let loggingStarted = false
+  let executorStarted = false
   let resolvedSecretTraceRegistry: ResolvedSecretTraceRegistry | undefined
   const pendingLifecycleCallbacks = new Set<Promise<void>>()
 
@@ -1051,6 +1052,14 @@ async function executeWorkflowCoreImpl(
       contextExtensions,
     })
 
+    /**
+     * The last statement before a block can run, and therefore the only honest answer to
+     * "could a side effect have occurred". The logging session is the wrong proxy in both
+     * directions: `safeStart`'s result is never checked, so blocks execute even when it
+     * fails — reporting nothing started for a run that did — and it flips before trigger
+     * resolution and serialization, reporting a run for failures that never reached a block.
+     */
+    executorStarted = true
     const result = runFromBlock
       ? ((await executorInstance.executeFromBlock(
           workflowId,
@@ -1098,17 +1107,12 @@ async function executeWorkflowCoreImpl(
     return result
   } catch (error: unknown) {
     /**
-     * Whether the run had started when it failed, read before the recovery `safeStart` below
-     * writes a row for the failure itself. This — not entry into this function — is what says
-     * blocks may have executed: everything above it (custom-block loading, state loading,
-     * environment and secret setup) fails having run nothing, and a caller told otherwise
-     * would refuse a retry that was safe.
-     *
-     * The thrown value is rethrown exactly as received, including a non-Error one, because
-     * the finalization guard below identifies it. A primitive therefore carries no id, which
-     * costs nothing today: every throw site past `safeStart` raises an Error.
+     * Named only once a block could have run. The thrown value is rethrown exactly as
+     * received, including a non-Error one, because the finalization guard below identifies
+     * it; a primitive therefore carries no id, which costs nothing today because every throw
+     * site past this point raises an Error.
      */
-    if (loggingStarted) attachAttemptedExecutionId(error, executionId)
+    if (executorStarted) attachAttemptedExecutionId(error, executionId)
     const errorCause = describeErrorCause(error)
     logger.error(
       `[${requestId}] Execution failed:`,
