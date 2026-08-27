@@ -138,6 +138,7 @@ function parseResource(value: unknown, context: string): MothershipResource {
     type: value.type,
     id: value.id,
     title: value.title,
+    ...(typeof value.viewId === 'string' && value.viewId ? { viewId: value.viewId } : {}),
   }
 }
 

@@ -68,6 +68,7 @@ import { useInlineRename } from '@/hooks/use-inline-rename'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useLogDetailsUIStore } from '@/stores/logs/store'
 import type { DeletedRowSnapshot } from '@/stores/table/types'
+import { useTableViewPinStore } from '@/stores/table/view-pin/store'
 import {
   type ColumnConfig,
   ColumnConfigSidebar,
@@ -700,6 +701,28 @@ export function Table({
     flushPendingViewConfig,
     tableData?.metadata,
   ])
+
+  /**
+   * A view the agent just created or edited (see the view-pin store). Applied
+   * only once the views list carries it — the pin arrives ahead of the list
+   * refetch, and writing the URL earlier would name a view the effect above
+   * resolves to nothing and treats as dead. First adoption is left to that
+   * effect (it honours `initialViewId` itself); a pin that turns out to be the
+   * view already applied is consumed without a URL write.
+   */
+  const viewPin = useTableViewPinStore((state) => state.pins[tableId])
+  const consumeViewPin = useTableViewPinStore((state) => state.consume)
+  useEffect(() => {
+    if (!embedded || !viewPin) return
+    if (appliedViewRevisionRef.current === undefined) return
+    if (!views.some((view) => view.id === viewPin.viewId)) return
+    consumeViewPin(tableId, viewPin.seq)
+    if (activeViewId === viewPin.viewId || appliedViewRevisionRef.current.id === viewPin.viewId) {
+      return
+    }
+    preservedViewStateRef.current = null
+    setTableParams({ view: viewPin.viewId })
+  }, [embedded, viewPin, views, activeViewId, tableId, consumeViewPin, setTableParams])
 
   /**
    * Live state pruned the same way `pruneViewConfig` prunes the stored config on

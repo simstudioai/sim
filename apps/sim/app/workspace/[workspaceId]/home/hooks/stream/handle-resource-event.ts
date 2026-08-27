@@ -13,6 +13,7 @@ import {
 import type { StreamLoopContext } from '@/app/workspace/[workspaceId]/home/hooks/stream/stream-context'
 import type { MothershipResourceType } from '@/app/workspace/[workspaceId]/home/types'
 import { removeWorkflowFromActiveCache } from '@/hooks/queries/utils/workflow-cache'
+import { useTableViewPinStore } from '@/stores/table/view-pin/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 type ResourceEvent = Extract<
@@ -44,11 +45,20 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
   } = ctx.deps
   const onResourceEvent = onResourceEventRef.current
   const payload = parsed.payload
+  // A saved view the agent just created or edited: the table opens on it, and
+  // an already-open table switches to it.
+  const pinnedViewId =
+    payload.resource.type === 'table' &&
+    typeof payload.resource.viewId === 'string' &&
+    payload.resource.viewId.trim()
+      ? payload.resource.viewId
+      : undefined
   const resource = canonicalizeDesktopSessionResource({
     type: payload.resource.type as MothershipResourceType,
     id: payload.resource.id,
     title:
       typeof payload.resource.title === 'string' ? payload.resource.title : payload.resource.id,
+    ...(pinnedViewId ? { viewId: pinnedViewId } : {}),
   })
 
   if (payload.op === MothershipStreamV1ResourceOp.remove) {
@@ -110,6 +120,21 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
   if (completedPreviewHandoff && isCompletedPreviewHandoffCurrent) {
     completedPreviewResourceHandoffRef.current.delete(resource.id)
     previewActivationOwnerRef.current.delete(completedPreviewHandoff.sessionId)
+  }
+  if (pinnedViewId) {
+    if (!wasAdded) {
+      // The tab already exists: carry the newest pin so a remount adopts it.
+      setResources((current) =>
+        current.some((r) => r.type === 'table' && r.id === resource.id && r.viewId !== pinnedViewId)
+          ? current.map((r) =>
+              r.type === 'table' && r.id === resource.id ? { ...r, viewId: pinnedViewId } : r
+            )
+          : current
+      )
+    }
+    // Consumed by the embedded table once its views list carries the view —
+    // which may be after the refetch below lands, or after the tab first opens.
+    useTableViewPinStore.getState().pin(resource.id, pinnedViewId)
   }
   invalidateResourceQueries(queryClient, workspaceId, resource.type, resource.id)
 

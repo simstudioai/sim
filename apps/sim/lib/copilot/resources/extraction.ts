@@ -1,8 +1,10 @@
 import { toRecord } from '@sim/utils/object'
 import {
   CreateEmptyFile,
+  CreateTableView,
   CreateWorkflow,
   DownloadFile,
+  EditTableView,
   EditWorkflow,
   Ffmpeg,
   GenerateAudio,
@@ -27,6 +29,8 @@ const RESOURCE_TOOL_NAMES: Set<string> = new Set([
   DownloadFile.id,
   CreateWorkflow.id,
   EditWorkflow.id,
+  CreateTableView.id,
+  EditTableView.id,
   RunFunction.id,
   ManageKnowledgeBase.id,
   Knowledge.id,
@@ -194,6 +198,23 @@ export function extractResourcesFromToolResult(
         return [{ type: 'knowledgebase', id: kbId, title: kbName }]
       }
       return []
+    }
+
+    // The view tools name their table AND the view they touched, so the panel
+    // opens the table pinned to that view rather than its default.
+    case CreateTableView.id:
+    case EditTableView.id: {
+      const tableId = data.tableId
+      if (typeof tableId !== 'string' || !tableId) return []
+      const viewId = data.viewId
+      return [
+        {
+          type: 'table',
+          id: tableId,
+          title: (data.tableName as string) || 'Table',
+          ...(typeof viewId === 'string' && viewId ? { viewId } : {}),
+        },
+      ]
     }
 
     case Knowledge.id: {

@@ -19,7 +19,7 @@ import {
 import type { ChatResource } from '@/lib/copilot/resources/persistence'
 import {
   canonicalizeDesktopSessionResource,
-  GENERIC_RESOURCE_TITLES,
+  mergeChatResource,
   sanitizeChatResources,
 } from '@/lib/copilot/resources/types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -73,18 +73,9 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     const key = `${resource.type}:${resource.id}`
     const prev = existing.find((r) => `${r.type}:${r.id}` === key)
 
-    let merged: ChatResource[]
-    if (prev) {
-      if (GENERIC_RESOURCE_TITLES.has(prev.title) && !GENERIC_RESOURCE_TITLES.has(resource.title)) {
-        merged = existing.map((r) =>
-          `${r.type}:${r.id}` === key ? { ...r, title: resource.title } : r
-        )
-      } else {
-        merged = existing
-      }
-    } else {
-      merged = [...existing, resource]
-    }
+    const merged: ChatResource[] = prev
+      ? existing.map((r) => (`${r.type}:${r.id}` === key ? mergeChatResource(r, resource) : r))
+      : [...existing, resource]
 
     await db
       .update(copilotChats)

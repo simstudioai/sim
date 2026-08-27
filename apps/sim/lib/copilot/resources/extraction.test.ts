@@ -194,3 +194,39 @@ describe('extractDeletedResourcesFromToolResult', () => {
     ).toEqual([{ type: 'knowledgebase', id: 'kb-1', title: 'Docs' }])
   })
 })
+
+describe('extractResourcesFromToolResult for the view tools', () => {
+  it.each(['create_table_view', 'edit_table_view'])(
+    '%s opens the table pinned to the view it touched',
+    (toolName) => {
+      const resources = extractResourcesFromToolResult(
+        toolName,
+        { tableId: 'tbl_1' },
+        {
+          success: true,
+          message: 'Created view "Overdue" (view_1) on table "Invoices"',
+          data: {
+            viewId: 'view_1',
+            tableId: 'tbl_1',
+            tableName: 'Invoices',
+            view: { id: 'view_1', name: 'Overdue', isDefault: false, filter: null, sort: null },
+          },
+        }
+      )
+
+      expect(resources).toEqual([
+        { type: 'table', id: 'tbl_1', title: 'Invoices', viewId: 'view_1' },
+      ])
+    }
+  )
+
+  it('yields nothing for a failed view call, which names no table', () => {
+    expect(
+      extractResourcesFromToolResult(
+        'edit_table_view',
+        { viewId: 'view_1' },
+        { success: false, message: 'viewId is required' }
+      )
+    ).toEqual([])
+  })
+})

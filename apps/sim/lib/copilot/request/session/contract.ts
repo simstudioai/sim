@@ -273,7 +273,11 @@ function isValidResourcePayload(payload: JsonRecord): boolean {
   // Dropping a blank id here is the only guard covering both branches
   // downstream: the handler adds a suppressed file resource to the tab strip
   // directly, bypassing the checks in `addResource`.
-  return hasAddressableId(resource.id) && typeof resource.type === 'string'
+  return (
+    hasAddressableId(resource.id) &&
+    typeof resource.type === 'string' &&
+    (resource.viewId === undefined || typeof resource.viewId === 'string')
+  )
 }
 
 function isValidRunPayload(payload: JsonRecord): boolean {

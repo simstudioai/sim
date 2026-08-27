@@ -227,3 +227,32 @@ describe('stream session contract parser', () => {
     expect(parsed.reason).toBe('invalid_json')
   })
 })
+
+describe('resource event view pins', () => {
+  it('accepts a table resource pinned to a saved view', () => {
+    const event = {
+      ...BASE_ENVELOPE,
+      type: 'resource' as const,
+      payload: {
+        op: 'upsert' as const,
+        resource: { id: 'tbl-1', type: 'table', title: 'Invoices', viewId: 'view-1' },
+      },
+    }
+
+    expect(isContractStreamEventEnvelope(event)).toBe(true)
+    expect(parsePersistedStreamEventEnvelope(event).ok).toBe(true)
+  })
+
+  it('rejects a pin that is not a string', () => {
+    const event = {
+      ...BASE_ENVELOPE,
+      type: 'resource' as const,
+      payload: {
+        op: 'upsert' as const,
+        resource: { id: 'tbl-1', type: 'table', title: 'Invoices', viewId: 42 },
+      },
+    }
+
+    expect(isContractStreamEventEnvelope(event)).toBe(false)
+  })
+})

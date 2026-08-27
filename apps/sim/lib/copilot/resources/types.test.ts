@@ -8,6 +8,7 @@ import {
   isEphemeralResource,
   type MothershipResource,
   MothershipResourceType,
+  mergeChatResource,
   PERSISTED_RESOURCE_TYPES,
   sanitizeChatResources,
   TERMINAL_SESSION_RESOURCE_ID,
@@ -151,5 +152,34 @@ describe('unaddressable resources', () => {
       resource: { type: 'file', id: '', title: 'reporte-russell.md' },
     })
     expect(parsed.success).toBe(false)
+  })
+})
+
+describe('mergeChatResource', () => {
+  const stored = resource({ type: 'table', id: 'tbl-1', title: 'Invoices' })
+
+  it('adds a resource the chat does not have yet', () => {
+    expect(mergeChatResource(undefined, stored)).toBe(stored)
+  })
+
+  it('keeps the stored entry when the newcomer changes nothing', () => {
+    expect(mergeChatResource(stored, { ...stored })).toBe(stored)
+  })
+
+  it('replaces a placeholder title but never a specific one', () => {
+    const placeholder = resource({ type: 'table', id: 'tbl-1', title: 'Table' })
+    expect(mergeChatResource(placeholder, stored).title).toBe('Invoices')
+    expect(mergeChatResource(stored, placeholder).title).toBe('Invoices')
+  })
+
+  it('moves the pin to the view the agent touched last and keeps it across unpinned re-adds', () => {
+    const pinnedA = mergeChatResource(stored, { ...stored, viewId: 'view-a' })
+    expect(pinnedA.viewId).toBe('view-a')
+
+    const pinnedB = mergeChatResource(pinnedA, { ...stored, viewId: 'view-b' })
+    expect(pinnedB.viewId).toBe('view-b')
+
+    // A row edit re-adds the table without a view — the tab stays on view-b.
+    expect(mergeChatResource(pinnedB, stored)).toBe(pinnedB)
   })
 })

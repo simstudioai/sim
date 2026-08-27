@@ -3,7 +3,7 @@ import { copilotChats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { eq, sql } from 'drizzle-orm'
-import { GENERIC_RESOURCE_TITLES, type MothershipResource, sanitizeChatResources } from './types'
+import { type MothershipResource, mergeChatResource, sanitizeChatResources } from './types'
 
 export {
   extractDeletedResourcesFromToolResult,
@@ -51,13 +51,7 @@ export async function persistChatResources(
 
     for (const r of sanitizeChatResources(toMerge)) {
       const key = `${r.type}:${r.id}`
-      const prev = map.get(key)
-      if (
-        !prev ||
-        (GENERIC_RESOURCE_TITLES.has(prev.title) && !GENERIC_RESOURCE_TITLES.has(r.title))
-      ) {
-        map.set(key, r)
-      }
+      map.set(key, mergeChatResource(map.get(key), r))
     }
 
     const merged = Array.from(map.values())

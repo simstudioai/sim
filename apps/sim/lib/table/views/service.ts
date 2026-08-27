@@ -385,6 +385,24 @@ export async function getTableView(
   return row ? toTableView(row, columns) : null
 }
 
+/**
+ * The table a view belongs to, scoped to the workspace the caller asserted so a
+ * view id from another workspace reads as missing rather than naming its owner.
+ * Lets a caller holding only a view id (the agent's edit_table_view) reach the
+ * table-scoped use cases without a lookup surface of its own.
+ */
+export async function getTableViewTableId(
+  viewId: string,
+  workspaceId: string
+): Promise<string | null> {
+  const [row] = await db
+    .select({ tableId: tableViews.tableId })
+    .from(tableViews)
+    .where(and(eq(tableViews.id, viewId), eq(tableViews.workspaceId, workspaceId)))
+    .limit(1)
+  return row?.tableId ?? null
+}
+
 function normalizeName(name: string): string {
   const trimmed = name.trim()
   if (!trimmed) throw new TableViewValidationError('View name cannot be empty')
@@ -418,6 +436,12 @@ export interface CreateTableViewData {
   config: TableViewConfig
   userId: string
   columns: ColumnDefinition[]
+  /**
+   * Make the new view the table's default, demoting the previous default in the
+   * same transaction. The first view on a table is the default regardless — a
+   * table that has views always keeps one.
+   */
+  isDefault?: boolean
   /**
    * Whether to refuse a filter, sort, or column-layout reference naming no live
    * column. Set by the `/api/v2` surface only, whose caller authored the config
@@ -471,6 +495,21 @@ export async function createTableView(data: CreateTableViewData): Promise<TableV
       )
     }
 
+    // Demote before inserting — the partial unique index rejects a second
+    // default, and the views lock keeps a concurrent promote from interleaving.
+    if (data.isDefault === true && existingTotal > 0) {
+      await trx
+        .update(tableViews)
+        .set({ isDefault: false })
+        .where(
+          and(
+            eq(tableViews.tableId, data.tableId),
+            eq(tableViews.workspaceId, data.workspaceId),
+            eq(tableViews.isDefault, true)
+          )
+        )
+    }
+
     const [created] = await trx
       .insert(tableViews)
       .values({
@@ -479,7 +518,7 @@ export async function createTableView(data: CreateTableViewData): Promise<TableV
         workspaceId: data.workspaceId,
         name,
         config,
-        isDefault: existingTotal === 0,
+        isDefault: data.isDefault === true || existingTotal === 0,
         createdBy: data.userId,
       })
       .returning()

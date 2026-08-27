@@ -221,6 +221,7 @@ export function resolveIntegrationToolDisplayTitle(tool: {
  * client resolves the id against the workflow registry.
  */
 const TABLE_SCOPED_TOOL_IDS = new Set<string>([
+  'create_table_view',
   'table_automations',
   'table_columns',
   'table_enrichments',

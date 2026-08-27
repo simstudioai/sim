@@ -18,6 +18,7 @@ import {
   createTableView,
   deleteTableView,
   getTableView,
+  getTableViewTableId,
   normalizeStoredViewConfig,
   pruneViewConfig,
   updateTableView,
@@ -177,6 +178,42 @@ describe('table-view mutations signal collaborators', () => {
       expect(dbChainMockFns.values).toHaveBeenCalledWith(expect.objectContaining({ isDefault }))
     }
   )
+
+  it('createTableView with isDefault demotes the current default in the same transaction', async () => {
+    queueTableRows(tableViews, [{ total: 2 }])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ ...viewRow, isDefault: true }])
+
+    await createTableView({
+      tableId: 'table-1',
+      workspaceId: 'ws-1',
+      name: 'My View',
+      config: {},
+      userId: 'user-1',
+      columns,
+      isDefault: true,
+    })
+
+    expect(dbChainMockFns.set).toHaveBeenCalledWith({ isDefault: false })
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(expect.objectContaining({ isDefault: true }))
+  })
+
+  it('createTableView without isDefault never demotes, even on a first view (which is default anyway)', async () => {
+    queueTableRows(tableViews, [{ total: 0 }])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ ...viewRow, isDefault: true }])
+
+    await createTableView({
+      tableId: 'table-1',
+      workspaceId: 'ws-1',
+      name: 'My View',
+      config: {},
+      userId: 'user-1',
+      columns,
+      isDefault: false,
+    })
+
+    expect(dbChainMockFns.set).not.toHaveBeenCalled()
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(expect.objectContaining({ isDefault: true }))
+  })
 
   it('updateTableView signals when the target view exists', async () => {
     queueTableRows(tableViews, [{ id: 'view-1' }]) // the in-transaction existence pre-check
@@ -692,5 +729,21 @@ describe('view config column-reference normalization', () => {
     expect(
       pruneViewConfig({ sort: [{ field: 'createdAt', direction: 'desc' }] }, columns).sort
     ).toEqual([{ field: 'createdAt', direction: 'desc' }])
+  })
+})
+
+describe('getTableViewTableId', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('names the table a view belongs to', async () => {
+    queueTableRows(tableViews, [{ tableId: 'table-1' }])
+    expect(await getTableViewTableId('view-1', 'ws-1')).toBe('table-1')
+  })
+
+  it('reads a view outside the asserted workspace as missing', async () => {
+    expect(await getTableViewTableId('view-elsewhere', 'ws-1')).toBeNull()
   })
 })

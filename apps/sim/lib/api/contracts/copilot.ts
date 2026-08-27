@@ -106,6 +106,8 @@ export const addCopilotChatResourceBodySchema = z.object({
     // Matches the bound the chat-send path enforces.
     id: requiredFieldSchema('resource.id cannot be empty'),
     title: z.string(),
+    // Saved view a table tab is pinned to (type "table" only).
+    viewId: z.string().min(1).optional(),
   }),
 })
 export type AddCopilotChatResourceBody = z.input<typeof addCopilotChatResourceBodySchema>
@@ -423,6 +425,7 @@ const copilotChatResourceSchema = z.object({
   type: copilotResourceTypeSchema,
   id: z.string(),
   title: z.string(),
+  viewId: z.string().optional(),
 })
 
 const copilotAvailableModelSchema = z.object({

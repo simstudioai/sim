@@ -201,6 +201,8 @@ const mothershipChatResourceItemSchema = z.object({
   type: z.string(),
   id: z.string(),
   title: z.string(),
+  /** Saved view a table tab is pinned to (type "table" only); dropped here, it would be lost on reorder. */
+  viewId: z.string().min(1).optional(),
 })
 
 const mothershipChatResourcesResponseSchema = z.object({

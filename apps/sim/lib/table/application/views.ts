@@ -3,7 +3,10 @@ import { resolvePrincipalAttribution } from '@sim/auth/principal'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { TableSchema, TableViewConfig } from '@/lib/table'
 import { defineAuthorizedTableUseCase } from '@/lib/table/application/authorized-table-use-case'
-import { resolveActiveTableContext } from '@/lib/table/application/context'
+import {
+  resolveActiveTableContext,
+  resolveActiveTableViewContext,
+} from '@/lib/table/application/context'
 import { tableOperations } from '@/lib/table/application/operations'
 import {
   createTableView,
@@ -65,9 +68,41 @@ export const readTableViewUseCase = defineAuthorizedTableUseCase({
   },
 })
 
+export interface ReadTableViewByIdInput {
+  viewId: string
+  workspaceId: string
+}
+
+/**
+ * Reads a view addressed by id alone. The owning table is resolved from the view
+ * (workspace-scoped), so a caller holding only a view id — the agent's
+ * edit_table_view — reaches the same table-scoped authorization as the tableId
+ * variant, and gets the table back to address the write that follows.
+ */
+export const readTableViewByIdUseCase = defineAuthorizedTableUseCase({
+  operation: tableOperations.readView,
+  resolveContext: ({ input }: { input: ReadTableViewByIdInput }) =>
+    resolveActiveTableViewContext({
+      viewId: input.viewId,
+      assertedWorkspaceId: input.workspaceId,
+    }),
+  async execute({ context }) {
+    const columns = (context.table.schema as TableSchema).columns
+    const view = await getTableView(context.viewId, context.table.id, columns, context.workspaceId)
+    if (!view)
+      throw new OrchestrationError(
+        'not_found',
+        'View not found on this table — list the views on this table for valid view ids'
+      )
+    return { view, columns, table: context.table }
+  },
+})
+
 export interface CreateTableViewInput extends TableViewInput {
   name: string
   config: TableViewConfig
+  /** Make the new view the table's default, demoting the previous one in the same transaction. */
+  isDefault?: boolean
 }
 
 export const createTableViewUseCase = defineAuthorizedTableUseCase({
@@ -88,6 +123,7 @@ export const createTableViewUseCase = defineAuthorizedTableUseCase({
         workspaceId: context.workspaceId,
         name: input.name,
         config: input.config,
+        isDefault: input.isDefault,
         userId: attribution.attributedUserId,
         columns,
         strictRefs: true,

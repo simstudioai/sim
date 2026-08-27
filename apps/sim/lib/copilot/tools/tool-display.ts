@@ -128,6 +128,20 @@ function splitTableTitle(name: string, args: ToolArgs): string {
   }
 }
 
+/**
+ * Titles for the direct view tools. create_table_view carries the table id, so
+ * enrichment can name the table; edit_table_view addresses the view alone.
+ */
+function tableViewToolTitle(name: string, args: ToolArgs): string {
+  const view = stringArg(args, 'name')
+  const suffix = view ? ` ${view}` : ''
+  if (name === 'create_table_view') {
+    const table = stringArg(args, 'tableName')
+    return `Creating view${suffix}${table ? ` in ${table}` : ''}`
+  }
+  return `Editing view${suffix}`
+}
+
 function deploymentTitle(args: ToolArgs, deploymentType: string): string {
   const verb = stringArg(args, 'action') === 'undeploy' ? 'Undeploying' : 'Deploying'
   const workflow = firstStringArg(args, 'workflowName', 'name', 'title')
@@ -546,6 +560,8 @@ const TOOL_TITLES: Record<string, string> = {
   table_automations: 'Wiring automation',
   table_enrichments: 'Configuring enrichment',
   table_views: 'Editing views',
+  create_table_view: 'Creating view',
+  edit_table_view: 'Editing view',
   prepare_file_edit: 'Editing file',
   apply_file_edit: 'Writing changes',
   create_workflow: 'Creating workflow',
@@ -825,6 +841,9 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
     case 'table_enrichments':
     case 'table_views':
       return splitTableTitle(name, args)
+    case 'create_table_view':
+    case 'edit_table_view':
+      return tableViewToolTitle(name, args)
     case 'search_knowledge_base':
       return searchKnowledgeBaseTitle(args)
     case 'manage_sandbox':

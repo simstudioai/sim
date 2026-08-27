@@ -212,6 +212,27 @@ export const GENERIC_RESOURCE_TITLES = new Set<string>([
   'Log',
 ])
 
+/**
+ * Folds a re-added resource into the stored entry with the same type+id. The
+ * stored title wins unless it was a placeholder. A table's saved-view pin is
+ * replaced when the newcomer carries one — the tab reopens on the view the
+ * agent touched last — and kept when it does not, so an unrelated row edit
+ * never unpins the tab.
+ */
+export function mergeChatResource(
+  prev: MothershipResource | undefined,
+  next: MothershipResource
+): MothershipResource {
+  if (!prev) return next
+  const title =
+    GENERIC_RESOURCE_TITLES.has(prev.title) && !GENERIC_RESOURCE_TITLES.has(next.title)
+      ? next.title
+      : prev.title
+  const viewId = next.viewId ?? prev.viewId
+  if (title === prev.title && viewId === prev.viewId) return prev
+  return { ...prev, title, ...(viewId !== undefined ? { viewId } : {}) }
+}
+
 export const VFS_DIR_TO_RESOURCE: Record<string, MothershipResourceType> = {
   tables: 'table',
   files: 'file',

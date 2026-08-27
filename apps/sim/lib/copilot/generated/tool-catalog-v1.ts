@@ -37,6 +37,7 @@ export interface ToolCatalogEntry {
     | 'connect_slack_bot'
     | 'cp'
     | 'create_empty_file'
+    | 'create_table_view'
     | 'create_workflow'
     | 'create_workspace_mcp_server'
     | 'delete_workspace_mcp_server'
@@ -46,6 +47,7 @@ export interface ToolCatalogEntry {
     | 'deploy_as_mcp'
     | 'diff_workflows'
     | 'download_file'
+    | 'edit_table_view'
     | 'edit_workflow'
     | 'extensions'
     | 'extract_doc_assets'
@@ -165,6 +167,7 @@ export interface ToolCatalogEntry {
     | 'connect_slack_bot'
     | 'cp'
     | 'create_empty_file'
+    | 'create_table_view'
     | 'create_workflow'
     | 'create_workspace_mcp_server'
     | 'delete_workspace_mcp_server'
@@ -174,6 +177,7 @@ export interface ToolCatalogEntry {
     | 'deploy_as_mcp'
     | 'diff_workflows'
     | 'download_file'
+    | 'edit_table_view'
     | 'edit_workflow'
     | 'extensions'
     | 'extract_doc_assets'
@@ -1739,6 +1743,82 @@ export const CreateEmptyFile: ToolCatalogEntry = {
   capabilities: ['file_output'],
 }
 
+export const CreateTableView: ToolCatalogEntry = {
+  id: 'create_table_view',
+  name: 'create_table_view',
+  route: 'sim',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      config: {
+        type: 'object',
+        description:
+          "Saved configuration, in the same shape as an entry of the table's views.json. Omit for an unfiltered view that shows every row and column.",
+        properties: {
+          filter: {
+            type: ['object', 'null'],
+            description:
+              'Row predicate, same grammar as query_rows filters: {"all":[...]} / {"any":[...]} of {field, op, value} leaves with exact column NAMES. Omit or null to show every row.',
+          },
+          hiddenColumns: {
+            type: 'array',
+            description:
+              'Column names hidden in the UI while this view is active. Display-only — queries through the view still return every column.',
+            items: { type: 'string' },
+          },
+          sort: {
+            type: ['array', 'null'],
+            description:
+              'Ordered sort spec, e.g. [{"field":"due","direction":"asc"}], with column NAMES. Omit or null for the table\'s natural order.',
+            items: {
+              type: 'object',
+              properties: {
+                direction: {
+                  type: 'string',
+                  description: 'Sort direction for this column.',
+                  enum: ['asc', 'desc'],
+                },
+                field: { type: 'string', description: 'Exact column name to sort by.' },
+              },
+              required: ['field', 'direction'],
+            },
+          },
+        },
+      },
+      isDefault: {
+        type: 'boolean',
+        description:
+          "Make this view the table's default: the view the table opens on when nobody has picked one. At most one per table; setting it clears the previous default.",
+      },
+      name: {
+        type: 'string',
+        description:
+          'Display name for the view, e.g. "Overdue". Defaults to "View N" when omitted. References always use the view id, so the name is purely display.',
+      },
+      tableId: { type: 'string', description: "Table ID (tbl_...) from the table's meta.json." },
+    },
+    required: ['tableId'],
+  },
+  resultSchema: {
+    type: 'object',
+    properties: {
+      data: {
+        type: 'object',
+        description:
+          '{ viewId, tableId, tableName, view } — view is the created view in the same shape as a views.json entry.',
+      },
+      message: {
+        type: 'string',
+        description: 'Human-readable outcome summary, including the new view id.',
+      },
+      success: { type: 'boolean', description: 'Whether the view was created.' },
+    },
+    required: ['success', 'message'],
+  },
+  requiredPermission: 'write',
+}
+
 export const CreateWorkflow: ToolCatalogEntry = {
   id: 'create_workflow',
   name: 'create_workflow',
@@ -2232,6 +2312,78 @@ export const DownloadFile: ToolCatalogEntry = {
   },
   requiredPermission: 'write',
   capabilities: ['file_output'],
+}
+
+export const EditTableView: ToolCatalogEntry = {
+  id: 'edit_table_view',
+  name: 'edit_table_view',
+  route: 'sim',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      config: {
+        type: 'object',
+        description:
+          "Configuration parts to replace, in the same shape as an entry of the table's views.json. Each part you include replaces the saved one; omitted parts are kept.",
+        properties: {
+          filter: {
+            type: ['object', 'null'],
+            description:
+              'Row predicate, same grammar as query_rows filters: {"all":[...]} / {"any":[...]} of {field, op, value} leaves with exact column NAMES. Omit to keep the saved filter; null to clear it.',
+          },
+          hiddenColumns: {
+            type: 'array',
+            description:
+              'Column names hidden in the UI while this view is active; replaces the saved list (pass [] to unhide everything). Display-only — queries through the view still return every column.',
+            items: { type: 'string' },
+          },
+          sort: {
+            type: ['array', 'null'],
+            description:
+              'Ordered sort spec, e.g. [{"field":"due","direction":"asc"}], with column NAMES. Omit to keep the saved sort; null to clear it.',
+            items: {
+              type: 'object',
+              properties: {
+                direction: {
+                  type: 'string',
+                  description: 'Sort direction for this column.',
+                  enum: ['asc', 'desc'],
+                },
+                field: { type: 'string', description: 'Exact column name to sort by.' },
+              },
+              required: ['field', 'direction'],
+            },
+          },
+        },
+      },
+      isDefault: {
+        type: 'boolean',
+        description:
+          "true makes this view the table's default (clearing the previous default); false demotes it. Omit to leave the flag as it is.",
+      },
+      name: {
+        type: 'string',
+        description: 'New display name for the view. Omit to keep the current name.',
+      },
+      viewId: { type: 'string', description: "View ID from the table's views.json." },
+    },
+    required: ['viewId'],
+  },
+  resultSchema: {
+    type: 'object',
+    properties: {
+      data: {
+        type: 'object',
+        description:
+          '{ viewId, tableId, tableName, view } — view is the updated view in the same shape as a views.json entry.',
+      },
+      message: { type: 'string', description: 'Human-readable outcome summary.' },
+      success: { type: 'boolean', description: 'Whether the view was updated.' },
+    },
+    required: ['success', 'message'],
+  },
+  requiredPermission: 'write',
 }
 
 export const EditWorkflow: ToolCatalogEntry = {
@@ -7007,6 +7159,7 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [ConnectSlackBot.id]: ConnectSlackBot,
   [Cp.id]: Cp,
   [CreateEmptyFile.id]: CreateEmptyFile,
+  [CreateTableView.id]: CreateTableView,
   [CreateWorkflow.id]: CreateWorkflow,
   [CreateWorkspaceMcpServer.id]: CreateWorkspaceMcpServer,
   [DeleteWorkspaceMcpServer.id]: DeleteWorkspaceMcpServer,
@@ -7016,6 +7169,7 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [DeployAsMcp.id]: DeployAsMcp,
   [DiffWorkflows.id]: DiffWorkflows,
   [DownloadFile.id]: DownloadFile,
+  [EditTableView.id]: EditTableView,
   [EditWorkflow.id]: EditWorkflow,
   [Extensions.id]: Extensions,
   [ExtractDocAssets.id]: ExtractDocAssets,

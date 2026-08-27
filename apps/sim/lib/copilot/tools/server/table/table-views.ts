@@ -1,7 +1,12 @@
 import { executeCopilotTableUseCase } from '@/lib/copilot/application/execute-table-use-case'
 import { TableViews } from '@/lib/copilot/generated/tool-catalog-v1'
 import type { BaseServerTool, ServerToolContext } from '@/lib/copilot/tools/server/base-tool'
-import type { SortSpec, TablePredicateInput, TableSchema, TableViewConfig } from '@/lib/table'
+import {
+  presentTableView,
+  type TableViewToolConfig,
+  viewToolConfigToPatch,
+} from '@/lib/copilot/tools/server/table/view-tool-shared'
+import type { TableSchema, TableViewConfig } from '@/lib/table'
 import {
   createTableViewUseCase,
   deleteTableViewUseCase,
@@ -9,7 +14,6 @@ import {
   readTableViewUseCase,
   updateTableViewUseCase,
 } from '@/lib/table/application/views'
-import { viewConfigIdsToNames, viewConfigNamesToIds } from '@/lib/table/views/service'
 
 type TableViewsArgs = {
   operation: string
@@ -39,32 +43,8 @@ export const tableViewsServerTool: BaseServerTool<TableViewsArgs, TableViewsResu
     if (!tableId) return { success: false, message: 'Table ID is required' }
     if (!workspaceId) return { success: false, message: 'Workspace ID is required' }
 
-    const presentView = (
-      view: { id: string; name: string; isDefault: boolean; config: TableViewConfig },
-      columns: TableSchema['columns']
-    ) => {
-      const named = viewConfigIdsToNames(view.config, columns)
-      return {
-        id: view.id,
-        name: view.name,
-        isDefault: view.isDefault,
-        filter: named.filter ?? null,
-        sort: named.sort ?? null,
-        hiddenColumns: named.hiddenColumns?.length ? named.hiddenColumns : undefined,
-      }
-    }
-
-    // Build the patch from only the keys the caller actually sent: the update
-    // path shallow-merges this into the stored config, so including an absent
-    // part as `null` silently wiped a view's saved sort when only the filter
-    // changed (and vice versa) — the doc promises "omit to keep".
-    const namedConfigFromArgs = (columns: TableSchema['columns']): TableViewConfig => {
-      const patch: Record<string, unknown> = {}
-      if (args.filter !== undefined) patch.filter = args.filter as TablePredicateInput | null
-      if (args.sort !== undefined) patch.sort = args.sort as SortSpec | null
-      if (args.hiddenColumns !== undefined) patch.hiddenColumns = args.hiddenColumns as string[]
-      return viewConfigNamesToIds(patch as TableViewConfig, columns)
-    }
+    const namedConfigFromArgs = (columns: TableSchema['columns']): TableViewConfig =>
+      viewToolConfigToPatch(args as TableViewToolConfig, columns)
 
     switch (operation) {
       case 'list_views': {
@@ -75,7 +55,7 @@ export const tableViewsServerTool: BaseServerTool<TableViewsArgs, TableViewsResu
           { tableId }
         )
         const columns = (result.table.schema as TableSchema).columns
-        const views = result.views.map((view) => presentView(view, columns))
+        const views = result.views.map((view) => presentTableView(view, columns))
         return {
           success: true,
           message: `Table has ${views.length} view(s)`,
@@ -94,7 +74,7 @@ export const tableViewsServerTool: BaseServerTool<TableViewsArgs, TableViewsResu
         return {
           success: true,
           message: 'View loaded',
-          data: { view: presentView(result.view, columns) },
+          data: { view: presentTableView(result.view, columns) },
         }
       }
       case 'create_view': {
@@ -124,7 +104,10 @@ export const tableViewsServerTool: BaseServerTool<TableViewsArgs, TableViewsResu
           success: true,
           message: `Created view "${created.view.name}" (${created.view.id})${args.isDefault === true ? ' as default' : ''}`,
           data: {
-            view: presentView({ ...created.view, isDefault: args.isDefault === true }, columns),
+            view: presentTableView(
+              { ...created.view, isDefault: args.isDefault === true },
+              columns
+            ),
           },
         }
       }
@@ -155,7 +138,7 @@ export const tableViewsServerTool: BaseServerTool<TableViewsArgs, TableViewsResu
         return {
           success: true,
           message: `Updated view "${updated.view.name}"`,
-          data: { view: presentView(updated.view, columns) },
+          data: { view: presentTableView(updated.view, columns) },
         }
       }
       case 'delete_view': {
@@ -186,7 +169,7 @@ export const tableViewsServerTool: BaseServerTool<TableViewsArgs, TableViewsResu
         return {
           success: true,
           message: `"${updated.view.name}" is now the default view`,
-          data: { view: presentView(updated.view, columns) },
+          data: { view: presentTableView(updated.view, columns) },
         }
       }
       default:

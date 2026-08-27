@@ -282,6 +282,7 @@ export interface MothershipStreamV1ResourceDescriptor {
   id: string
   title?: string
   type: string
+  viewId?: string
 }
 export interface MothershipStreamV1ResourceRemoveEventEnvelope {
   payload: MothershipStreamV1ResourceRemovePayload

@@ -300,6 +300,9 @@ const RESOURCE_INVALIDATORS: Record<
   table: (qc, _wId, id) => {
     qc.invalidateQueries({ queryKey: tableKeys.lists() })
     qc.invalidateQueries({ queryKey: tableKeys.detail(id) })
+    // A view the agent just created must be in the list before the embedded
+    // table can switch to it; see the view-pin store.
+    qc.invalidateQueries({ queryKey: tableKeys.views(id) })
   },
   file: (qc, wId, id) => {
     qc.invalidateQueries({ queryKey: workspaceFilesKeys.lists() })

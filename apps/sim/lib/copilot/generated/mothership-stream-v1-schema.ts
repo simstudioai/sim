@@ -372,6 +372,9 @@ export const MOTHERSHIP_STREAM_V1_SCHEMA: JsonSchema = {
         type: {
           type: 'string',
         },
+        viewId: {
+          type: 'string',
+        },
       },
       required: ['type', 'id'],
       type: 'object',

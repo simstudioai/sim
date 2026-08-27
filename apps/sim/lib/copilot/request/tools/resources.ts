@@ -118,6 +118,8 @@ export async function handleResourceSideEffects(
                 ...(projectedResources[index].path !== undefined
                   ? { path: projectedResources[index].path }
                   : {}),
+                // An id, never secret material — read from the raw result.
+                ...(resource.viewId !== undefined ? { viewId: resource.viewId } : {}),
               }))
             : []
 
@@ -141,7 +143,12 @@ export async function handleResourceSideEffects(
               type: MothershipStreamV1EventType.resource,
               payload: {
                 op: MothershipStreamV1ResourceOp.upsert,
-                resource: { type: resource.type, id: resource.id, title: resource.title },
+                resource: {
+                  type: resource.type,
+                  id: resource.id,
+                  title: resource.title,
+                  ...(resource.viewId !== undefined ? { viewId: resource.viewId } : {}),
+                },
               },
             })
           }
