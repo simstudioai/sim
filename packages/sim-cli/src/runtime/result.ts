@@ -47,6 +47,12 @@ function at(row: unknown, path: string): unknown {
  * decode is shown as it arrived rather than dropped — the point is to show the
  * name, and a malformed one is still the truth about what the server holds.
  *
+ * A segment whose decoded name contains the separator is shown in wire form for
+ * the same reason: decoding it would print a root folder named `a/b` as
+ * `/a/b`, byte-identical to a folder `b` nested under `a` — and the printed
+ * path is what people paste back, so `folders delete` addressed the other
+ * folder. Rendering must not manufacture structure that is not there.
+ *
  * Callers must reach this only from a `table` or `text` rendering path — the
  * hand-written `ls` builds its own columns and so decodes through here directly.
  * `json` and `yaml` render from the raw payload so that switching format never
@@ -57,7 +63,8 @@ export function decodeFolderPath(value: string): string {
     .split('/')
     .map((segment) => {
       try {
-        return decodeURIComponent(segment)
+        const decoded = decodeURIComponent(segment)
+        return decoded.includes('/') ? segment : decoded
       } catch {
         return segment
       }
@@ -278,9 +285,12 @@ export function renderPage(
   format: OutputFormat,
   rows: unknown[],
   spec: CommandSpec,
-  envelope?: unknown
+  envelope?: unknown,
+  options: { truncated?: boolean } = {}
 ): void {
   writePageNote(spec, envelope)
+  writeEnvelopeTruncation(envelope)
+  writeCursorTruncation(rows.length, options.truncated === true)
   printList(
     format,
     rows,
@@ -304,14 +314,145 @@ function writePageNote(spec: CommandSpec, envelope: unknown): void {
   process.stderr.write(chalk.dim(`${spec.pageNote.label}: ${String(value)}\n`))
 }
 
+/**
+ * Response fields that state the server itself clipped what it returned.
+ *
+ * Matched by shape rather than listed per command, so a flag added to a route
+ * envelope is surfaced the day it lands: the CLI accumulates the rows and
+ * prints those, so an envelope field reaches no output format on its own.
+ */
+const TRUNCATION_FLAG = /^truncated$|^[A-Za-z0-9]+Truncated$/
+
+/**
+ * Negating prefixes whose `Truncated` suffix states the opposite.
+ *
+ * A bare `Truncated$` match also accepts `notTruncated` and `isNotTruncated`,
+ * where `true` means the answer is whole, and a note about a clip that did not
+ * happen is the worst thing this can print. These four prefixes are the
+ * spellings worth anticipating rather than a decision procedure for English —
+ * a field negated some other way slips through and has to be added here.
+ */
+const NEGATED_TRUNCATION_FLAG = /^(?:not|un|non|never)Truncated$|(?:Not|Un|Non|Never)Truncated$/
+
+/** The flags one object raised, in the spelling the wire used. */
+function truncationFlags(container: unknown): string[] {
+  if (!container || typeof container !== 'object' || Array.isArray(container)) return []
+  return Object.entries(container)
+    .filter(
+      ([key, value]) =>
+        value === true && TRUNCATION_FLAG.test(key) && !NEGATED_TRUNCATION_FLAG.test(key)
+    )
+    .map(([key]) => key)
+}
+
+/**
+ * The flags a whole response raised, on its envelope or inside its payload.
+ *
+ * Two responses state their clip one level down: `files text`, whose file body
+ * stops at `maxBytes`, and `tables rows search`, whose match list the server
+ * stops building. An envelope-only scan said nothing about either — silently
+ * handing back a partial file is the same defect the note exists to close, on a
+ * worse payload than a short list.
+ *
+ * Only `data` is descended, and only while it is an object: a page's `data` is
+ * the rows, and a row's keys are the user's rather than the API's, so a shape
+ * match there is a guess about a name somebody else chose.
+ */
+function responseTruncationFlags(envelope: unknown): string[] {
+  return [...truncationFlags(envelope), ...truncationFlags(at(envelope, 'data'))]
+}
+
+/**
+ * Carries a truncation stated on any page, not only the first.
+ *
+ * The envelope is otherwise the first page's, because a fact about the whole
+ * query (billing's `scope`) is stated once — but `toolNamesTruncated` is
+ * computed per page, so a walk that clipped on page 7 would have said nothing.
+ */
+export function foldPageEnvelope(current: unknown, page: unknown): unknown {
+  if (current === undefined) return page
+  const raised = truncationFlags(page)
+  if (raised.length === 0 || !current || typeof current !== 'object') return current
+  return {
+    ...(current as Record<string, unknown>),
+    ...Object.fromEntries(raised.map((flag) => [flag, true])),
+  }
+}
+
+/** `toolNamesTruncated` as a reader says it. */
+function spellOut(flag: string): string {
+  return flag
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .toLowerCase()
+    .trim()
+}
+
+/**
+ * What a flag says was clipped, read from the words before its suffix.
+ *
+ * `toolNamesTruncated` on `workflow-mcp-servers list` is a clip of each row's
+ * tool names, not of the servers, so one wording about "this list" named the
+ * wrong thing on the one endpoint whose subject is not the list. A bare
+ * `truncated` carries no subject and stands for the whole answer — and so does
+ * `isTruncated`, whose `is` is a copula rather than a subject: dropping it is
+ * what keeps "the server clipped **the is** it returned" from being printed.
+ * Only that one prefix is stripped, and only where it stands alone or before a
+ * real subject (`isToolNamesTruncated`), so a field genuinely beginning `is`
+ * (`issuesTruncated`) keeps its name. Like the negation veto above, this is a
+ * spelling worth anticipating rather than a decision procedure for English.
+ */
+function clippedSubject(flag: string): string {
+  const subject = flag.replace(/^truncated$|Truncated$/, '').replace(/^is(?=[A-Z]|$)/, '')
+  return subject ? `the ${spellOut(subject)} it returned` : 'this result'
+}
+
+/**
+ * States a server-side clip once, on stderr, in every format.
+ *
+ * The API answers a clipped inventory with a flag on the envelope, and the CLI
+ * printed only `data` — so `--output json` could not tell a complete list from
+ * one the server cut short. stdout stays byte-for-byte the rows, for the reason
+ * `writePageNote` gives.
+ */
+function writeEnvelopeTruncation(envelope: unknown): void {
+  for (const flag of responseTruncationFlags(envelope)) {
+    process.stderr.write(
+      chalk.dim(
+        `${spellOut(flag)}: the server clipped ${clippedSubject(flag)}, so the answer is incomplete\n`
+      )
+    )
+  }
+}
+
+/**
+ * States that the walk stopped at `--limit` while more pages remained.
+ *
+ * `sim tools list` answered 100 of 4708 rows with an exit code of 0 and nothing
+ * on stderr, in every format — indistinguishable from a complete inventory.
+ * Said whenever a cursor survives, including when the caller set a small limit:
+ * the answer is incomplete either way, and the caller who capped it is the one
+ * most likely to reuse the result as if it were whole.
+ */
+function writeCursorTruncation(count: number, truncated: boolean): void {
+  if (!truncated) return
+  process.stderr.write(
+    chalk.dim(`showing the first ${count}; more results exist — re-run with --limit 0 for all\n`)
+  )
+}
+
 /** Renders one non-paginated operation result according to its CLI contract. */
 export function renderResult(
   operation: V2OperationName,
   format: OutputFormat,
   raw: unknown,
   spec: CommandSpec,
-  options: RenderResultOptions = {}
+  options: RenderResultOptions = {},
+  envelope?: unknown
 ): void {
+  // Before any branch: the flag lives on the envelope `execute` unwraps one
+  // line before rendering, and states a fact about the payload below it.
+  writeEnvelopeTruncation(envelope)
+
   if (spec.document) {
     printDocument(format, raw)
     return

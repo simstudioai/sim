@@ -9,6 +9,7 @@ import {
   validateAuthToken,
 } from '@/lib/core/security/deployment'
 import { resolveActiveShareByToken } from '@/lib/public-shares/share-manager'
+import { getWorkspaceFileSize } from '@/lib/uploads/shared/types'
 import { PublicFileAuth } from '@/app/f/[token]/public-file-auth'
 import { PublicFileEmailAuth } from '@/app/f/[token]/public-file-email-auth'
 import { PublicFileSSOAuth } from '@/app/f/[token]/public-file-sso-auth'
@@ -117,7 +118,7 @@ export default async function PublicFilePage({ params }: PublicFilePageProps) {
       token={token}
       name={file.originalName}
       type={file.contentType}
-      size={file.size}
+      size={getWorkspaceFileSize(file)}
       version={file.updatedAt.getTime()}
       workspaceName={workspaceName}
       ownerName={ownerName}

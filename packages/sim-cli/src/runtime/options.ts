@@ -2,6 +2,7 @@ import { type Command, Option } from 'commander'
 import type { CommandSpec } from '../contract/types'
 import type { V2OperationName } from '../generated/v2-api'
 import {
+  cursorSlot,
   type FieldSpec,
   flagNameFor,
   flagSpecFor,
@@ -69,12 +70,24 @@ function withoutWireVocabulary(documented: string): string {
   return documented.replace(WIRE_VOCABULARY_SENTENCE, ' ').trim()
 }
 
+/**
+ * What `--limit` means on an operation that does not paginate.
+ *
+ * The pager's `0 for everything` spelling is false here: these routes bound the
+ * field at `1`, and the unbounded form is the flag left off entirely. Said in
+ * `--help` because nothing else in the terminal says it — the refusal only
+ * arrives from the server, after the caller has already typed the command.
+ */
+const NON_PAGINATED_LIMIT_HINT =
+  ' (caps a --filter match only; omit it to act on every match, and note 0 is not accepted)'
+
 function addFieldOption(
   command: Command,
   operation: V2OperationName,
   field: string,
   descriptor: FieldSpec,
-  slot: 'query' | 'body' | 'headers'
+  slot: 'query' | 'body' | 'headers',
+  paginates: boolean
 ): void {
   if (field === PROFILE_INJECTED_FIELD || field === 'cursor') return
 
@@ -84,7 +97,15 @@ function addFieldOption(
   const name = flagNameFor(operation, field)
   const short = flag.short ? `-${flag.short}, ` : ''
 
-  if (field === 'limit' && (descriptor.kind === 'number' || descriptor.kind === 'integer')) {
+  // Gated on the operation actually paginating, not on the field's name: a
+  // `limit` on a non-paginating operation is a row cap the wire reads
+  // literally, and commander's `100` default rode into the body of every
+  // filtered `tables rows batch-delete` as a silent ceiling on what it deleted.
+  if (
+    paginates &&
+    field === 'limit' &&
+    (descriptor.kind === 'number' || descriptor.kind === 'integer')
+  ) {
     command.option(
       '--limit <n>',
       'Maximum items to return (0 for everything)',
@@ -93,7 +114,11 @@ function addFieldOption(
     return
   }
 
-  const documented = describeField(flag, descriptor, name, field)
+  const documented = `${describeField(flag, descriptor, name, field)}${
+    field === 'limit' && (descriptor.kind === 'number' || descriptor.kind === 'integer')
+      ? NON_PAGINATED_LIMIT_HINT
+      : ''
+  }`
 
   if (descriptor.kind === 'boolean' || flag.boolean) {
     const booleanDoc = withoutWireVocabulary(documented)
@@ -134,7 +159,7 @@ function addFieldOption(
   const literalNull = slot === 'body' && !takesList && !wantsJson
   const describe = `${documented}${
     takesList
-      ? ' (space-separated, or @path / @- with one value per line)'
+      ? ' (space-separated, or @path / @- with one value per line; @@value for a literal leading @)'
       : wantsJson
         ? ' (JSON, or @path / @- to read a file or stdin)'
         : ''
@@ -183,11 +208,12 @@ export function addOperationOptions(
     )
   }
 
+  const paginates = cursorSlot(operationSpec) !== null
   for (const slot of ['query', 'body', 'headers'] as const) {
     for (const [field, descriptor] of Object.entries(operationSpec[slot] ?? {})) {
       if (commandSpec.requestFields && !commandSpec.requestFields.includes(field)) continue
       if (commandSpec.positionals?.includes(field)) continue
-      addFieldOption(command, operation, field, descriptor, slot)
+      addFieldOption(command, operation, field, descriptor, slot, paginates)
     }
   }
 

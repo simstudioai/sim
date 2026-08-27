@@ -1,4 +1,5 @@
-import { type SQL, sql } from 'drizzle-orm'
+import { omit } from '@sim/utils/object'
+import { getTableColumns, type SQL, sql } from 'drizzle-orm'
 import {
   type AnyPgColumn,
   bigint,
@@ -2105,9 +2106,9 @@ export const workspaceFiles = pgTable(
      */
     displayName: text('display_name'),
     contentType: text('content_type').notNull(),
-    // contract-pending(after #6188 is fully deployed and sizeBytes is backfilled): drop size — new code dual-writes and reads sizeBytes first
-    size: integer('size').notNull(),
-    /** Exact byte size for files above PostgreSQL's int4 ceiling; legacy rows fall back to `size`. */
+    /** contract-pending(after the cutover is fully deployed and size_bytes has no NULLs): drop size, workspace_files_sync_size_columns, and the temporary dev cutover runner — all application reads and writes use size_bytes */
+    size: integer('size').notNull().default(0),
+    /** Exact byte size. The deploy migration backfills existing rows before this release serves traffic. */
     sizeBytes: bigint('size_bytes', { mode: 'number' }),
     /**
      * Intrinsic pixel dimensions of an image file, captured lazily on first view (and stored so later
@@ -2172,6 +2173,10 @@ export const workspaceFiles = pgTable(
       .where(sql`${table.deletedAt} IS NOT NULL`),
   })
 )
+
+/** Canonical application projection; the legacy `size` bridge is migration-only. */
+export const workspaceFileColumns = omit(getTableColumns(workspaceFiles), ['size'])
+export type WorkspaceFileRow = Omit<typeof workspaceFiles.$inferSelect, 'size'>
 
 export const uploadSessionStatusEnum = pgEnum('upload_session_status', [
   'uploading',
@@ -3872,7 +3877,7 @@ export const usageLog = pgTable(
      * a heap fetch per matched row.
      *
      * `userId`/`createdAt` sit immediately after the shared equality prefix because
-     * the daily-refresh rollup filters on them and NOT on `billingPeriodEnd`;
+     * the weekly-refresh rollup filters on them and NOT on `billingPeriodEnd`;
      * putting `billingPeriodEnd` in that slot would end the usable prefix at
      * `billingPeriodStart` and leave that query scanning the whole period.
      * `billingPeriodEnd` is functionally determined by `billingPeriodStart`, so it

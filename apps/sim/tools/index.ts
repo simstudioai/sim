@@ -2604,8 +2604,9 @@ async function executeToolRequest(
           try {
             /*
              * `controller` above is armed with `timeout`, so the plan deadline is
-             * already enforced in-process; the transport timer is disarmed so its
-             * 300s default cannot undercut it.
+             * already enforced in-process; the transport timers (Bun's idle timer,
+             * undici's header/body timers in the Node workers) are disarmed so
+             * their 300s defaults cannot undercut it.
              */
             const internalResponse = await fetch(
               fullUrl,

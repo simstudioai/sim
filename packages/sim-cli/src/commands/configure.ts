@@ -7,9 +7,25 @@ import {
   resolveAuthenticationProfileName,
   writeConfigProfile,
 } from '../config/index'
-import { normalizeEndpoint } from '../config/profile'
-import { profileFrom } from '../context'
+import { normalizeEndpoint, normalizeWorkspaceId, redact } from '../config/profile'
+import { globalsOf, profileFrom } from '../context'
 import { SimApiError } from '../http/client'
+
+/**
+ * The root globals that have a `--set-` twin on this command.
+ *
+ * `sim configure --endpoint https://x` parses cleanly — the globals are legal
+ * anywhere in argv — but `configure` only ever stored its own `--set-` flags, so
+ * the value was discarded and the command exited 0 after printing the settings
+ * it did not change, which reads exactly like a confirmation. Refusing and
+ * naming the twin is the honest answer; making the global write instead would
+ * give one command a persistent side effect the same flag has on no other.
+ */
+const GLOBAL_FLAG_TWINS = [
+  { option: 'endpoint', flag: '--endpoint', setFlag: '--set-endpoint' },
+  { option: 'workspace', flag: '-w, --workspace', setFlag: '--set-workspace' },
+  { option: 'output', flag: '--output', setFlag: '--set-output' },
+] as const
 
 /**
  * Rejects a `--set-…` flag given an empty value.
@@ -49,6 +65,16 @@ export function configureCommand(): Command {
         },
         command: Command
       ) => {
+        const globals = globalsOf(command)
+        for (const { option, flag, setFlag } of GLOBAL_FLAG_TWINS) {
+          const value = globals[option]
+          if (value === undefined) continue
+          throw new SimApiError(
+            `${flag} applies to a single command and is not stored. To save it, run: sim configure ${setFlag} ${value}`,
+            0
+          )
+        }
+
         // `configure --profile x --set-…` is a documented way to create a
         // profile, so the name is allowed to be one that does not exist yet.
         const profile = profileFrom(command, { allowUnknownProfile: true })
@@ -68,7 +94,9 @@ export function configureCommand(): Command {
           }
           updates.endpoint = normalizeEndpoint(options.setEndpoint, '--set-endpoint')
         }
-        if (options.setWorkspace) updates.workspace = options.setWorkspace
+        if (options.setWorkspace) {
+          updates.workspace = normalizeWorkspaceId(options.setWorkspace, '--set-workspace')
+        }
         if (options.setOutput) {
           if (!(OUTPUT_FORMATS as readonly string[]).includes(options.setOutput)) {
             throw new SimApiError(
@@ -81,7 +109,10 @@ export function configureCommand(): Command {
 
         for (const key of options.unset ?? []) {
           if (!['endpoint', 'workspace', 'output'].includes(key)) {
-            throw new SimApiError(`Cannot unset "${key}". Use endpoint, workspace, or output.`, 0)
+            throw new SimApiError(
+              `Cannot unset "${redact(key)}". Use endpoint, workspace, or output.`,
+              0
+            )
           }
           if (key === 'endpoint' && authProfile !== profile.name) {
             throw new SimApiError(
@@ -101,6 +132,15 @@ export function configureCommand(): Command {
           for (const [key, value] of Object.entries(current)) {
             console.log(`${chalk.dim(`${key}:`)} ${value}`)
           }
+          return
+        }
+
+        // An unset against a profile with nothing stored writes nothing — the
+        // file layer refuses to conjure a section for a removal — so reporting
+        // an update would claim a change that did not happen.
+        const removalOnly = Object.values(updates).every((value) => value === null)
+        if (removalOnly && Object.keys(readConfigProfile(profile.name)).length === 0) {
+          console.log(chalk.dim(`No settings stored for profile "${profile.name}".`))
           return
         }
 

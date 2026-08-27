@@ -1,6 +1,7 @@
 import { Command } from 'commander'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { V2_OPERATIONS } from '../generated/v2-api'
+import { SimApiError } from '../http/client'
 import { buildProgram } from '../program'
 import { assertNoReservedProgramFlags, buildGeneratedCommands } from './build'
 import { kebab } from './derive'
@@ -19,6 +20,10 @@ import type { OperationSpec } from './types'
  * catch that class of bug.
  */
 
+/** `SimClient.requireWorkspace`'s message, verbatim, for the mocked client. */
+const NO_WORKSPACE_FOR_PROFILE =
+  'No workspace set for profile "default". Pass --workspace, or run: sim configure --profile default --set-workspace <id>'
+
 const { mockRequest, output, profileState } = vi.hoisted(() => ({
   mockRequest: vi.fn(),
   output: { format: 'json' },
@@ -30,7 +35,9 @@ vi.mock('../context', () => ({
     client: {
       request: mockRequest,
       requireWorkspace: () => {
-        if (!profileState.workspaceId) throw new Error('workspace required')
+        // The client's own wording, so a command that skips `requireWorkspace`
+        // is visible here rather than passing on a placeholder.
+        if (!profileState.workspaceId) throw new Error(NO_WORKSPACE_FOR_PROFILE)
         return profileState.workspaceId
       },
     },
@@ -78,6 +85,17 @@ function wireSpelledFlags(command: Command, prefix: string[] = []): string[] {
     .map((option) => `${path.join(' ')} ${option.long}`)
   for (const child of command.commands) offenders.push(...wireSpelledFlags(child, path))
   return offenders
+}
+
+/** `commandAt`, but on the real program, so hand-written commands are present. */
+function builtCommandAt(...names: string[]): Command {
+  let current = buildProgram()
+  for (const name of names) {
+    const next = current.commands.find((command) => command.name() === name)
+    if (!next) throw new Error(`Missing command ${names.join(' ')}`)
+    current = next
+  }
+  return current
 }
 
 function commandAt(...names: string[]): Command {
@@ -192,6 +210,93 @@ describe('commands parsed through commander', () => {
     expect(program().commands.some((command) => command.name() === 'folders')).toBe(false)
   })
 
+  /**
+   * ~59 v2 operations refuse a workspace API key. The restriction is stated in
+   * the OpenAPI description, and before the generator carried it into the
+   * operation table `--help` advertised them identically to their
+   * workspace-key-capable siblings — the caller met the rule as a `403` only
+   * after the request had gone out.
+   */
+  describe('a command whose operation refuses a workspace API key', () => {
+    it('says so in the help line it falls back to from the spec summary', () => {
+      expect(commandAt('secrets', 'list').helpInformation()).toContain(
+        '(personal API key required)'
+      )
+      expect(commandAt('mcp-servers', 'tools', 'list').description()).toContain(
+        '(personal API key required)'
+      )
+    })
+
+    /**
+     * The suffix goes after the whole `describe ?? summary ?? METHOD path`
+     * chain. Folding it into the summary branch would drop it on every command
+     * carrying a hand-written `describe`, which is most of the restricted ones.
+     */
+    it('says so on a command carrying a hand-written describe', () => {
+      expect(commandAt('workflows', 'undeploy').description()).toBe(
+        'Take a workflow out of deployment (personal API key required)'
+      )
+    })
+
+    it('leaves a workspace-key-capable sibling unsuffixed', () => {
+      expect(commandAt('mcp-servers', 'list').description()).not.toContain('personal API key')
+      expect(commandAt('workflows', 'list').description()).not.toContain('personal API key')
+    })
+
+    /**
+     * A fully hand-written command renders its own `.description()` and so
+     * never reaches the generated path. Left to itself it sits in a menu beside
+     * suffixed siblings, which reads as the one command that does take a
+     * workspace key — the exact confusion the suffix exists to remove.
+     */
+    it('says so on a fully hand-written command', () => {
+      for (const path of [
+        ['secrets', 'set'],
+        ['credentials', 'create'],
+        ['credentials', 'connect'],
+        ['credentials', 'reconnect'],
+      ]) {
+        expect(`${path.join(' ')}: ${builtCommandAt(...path).description()}`).toContain(
+          '(personal API key required)'
+        )
+      }
+    })
+
+    /**
+     * Catches the next hand-written command rather than only the four that
+     * exist: a restricted operation invoked from `src/commands` has to state
+     * the restriction through the one helper that owns the wording.
+     *
+     * Reading the source is what makes this general — a hand-written command
+     * declares nothing that ties it back to its operation at runtime, so the
+     * `V2_OPERATIONS.<name>` reference is the only link there is.
+     */
+    it('is enforced for every restricted operation a hand-written command calls', async () => {
+      const { readdirSync, readFileSync } = await import('node:fs')
+      const { join } = await import('node:path')
+      const root = join(import.meta.dirname, '..', 'commands')
+
+      const sources = readdirSync(root, { recursive: true, withFileTypes: true })
+        .filter((entry) => entry.isFile() && entry.name.endsWith('.ts'))
+        .filter((entry) => !entry.name.endsWith('.test.ts'))
+        .map((entry) => join(entry.parentPath, entry.name))
+
+      const unsuffixed: string[] = []
+      for (const source of sources) {
+        const text = readFileSync(source, 'utf8')
+        for (const [, operation] of text.matchAll(/V2_OPERATIONS\.([A-Za-z]+)/g)) {
+          const spec = (V2_OPERATIONS as Record<string, OperationSpec>)[operation]
+          if (!spec?.personalKeyOnly) continue
+          const suffixed = new RegExp(`describeOperation\\(\\s*V2_OPERATIONS\\.${operation}\\b`)
+          if (suffixed.test(text)) continue
+          unsuffixed.push(`${source.slice(root.length + 1)} calls ${operation}`)
+        }
+      }
+
+      expect([...new Set(unsuffixed)]).toEqual([])
+    })
+  })
+
   it('describes generated resource and sub-resource groups', () => {
     expect(commandAt('tables').description()).toBe('Manage tables')
     expect(commandAt('tables', 'rows').description()).toBe('Manage table rows')
@@ -295,7 +400,7 @@ describe('commands parsed through commander', () => {
     profileState.workspaceId = null
     const [, unconfiguredAccountOptions] = await run(['billing', 'status', '--all-workspaces'])
     expect(unconfiguredAccountOptions.query).toEqual({})
-    await expect(run(['billing', 'status'])).rejects.toThrow('workspace required')
+    await expect(run(['billing', 'status'])).rejects.toThrow(NO_WORKSPACE_FOR_PROFILE)
     profileState.workspaceId = 'ws_local'
     await expect(
       run(['--workspace', 'ws_other', 'billing', 'status', '--all-workspaces'])
@@ -454,15 +559,26 @@ describe('commands parsed through commander', () => {
     expect(tablePath).toBe('/api/v2/tables/tbl_1')
     expect(tableOptions.body).toEqual({ workspaceId: 'ws_local', folderPath: 'Archive' })
 
-    const [workflowPath, workflowOptions] = await run(['workflow', 'mv', 'wf_1', 'Archive'])
-    expect(workflowPath).toBe('/api/v2/workflows/wf_1')
+    const [workflowPath, workflowOptions] = await run([
+      'workflow',
+      'mv',
+      '00000000-0000-4000-8000-00000000000a',
+      'Archive',
+    ])
+    expect(workflowPath).toBe('/api/v2/workflows/00000000-0000-4000-8000-00000000000a')
     expect(workflowOptions.body).toEqual({ folderPath: 'Archive' })
 
     const [knowledgePath, knowledgeOptions] = await run(['kb', 'mv', 'kb_1', 'Archive'])
     expect(knowledgePath).toBe('/api/v2/knowledge/kb_1')
     expect(knowledgeOptions.body).toEqual({ workspaceId: 'ws_local', folderPath: 'Archive' })
 
-    const [, updateOptions] = await run(['workflow', 'update', 'wf_1', '--description', 'Updated'])
+    const [, updateOptions] = await run([
+      'workflow',
+      'update',
+      '00000000-0000-4000-8000-00000000000a',
+      '--description',
+      'Updated',
+    ])
     expect(updateOptions.body).toEqual({ description: 'Updated' })
 
     const moveHelp = commandAt('workflows', 'mv').helpInformation()
@@ -541,10 +657,12 @@ describe('commands parsed through commander', () => {
     })
     expect(workspacePath).toBe('/api/v2/workspaces/ws_local')
 
+    // The workspace arrives as a path parameter here, and used to skip
+    // `requireWorkspace` — so this one precondition had two wordings, and the
+    // one these two commands printed never named the profile.
     profileState.workspaceId = null
-    await expect(run(['workspace', 'get'])).rejects.toThrow(
-      'No workspace set. Pass --workspace, or run: sim configure --set-workspace <id>'
-    )
+    await expect(run(['workspace', 'get'])).rejects.toThrow(NO_WORKSPACE_FOR_PROFILE)
+    await expect(run(['workspace', 'members'])).rejects.toThrow(NO_WORKSPACE_FOR_PROFILE)
     profileState.workspaceId = 'ws_local'
 
     const membersHelp = commandAt('workspaces', 'members').helpInformation()
@@ -555,9 +673,38 @@ describe('commands parsed through commander', () => {
     expect(membersOptions.query).toEqual({ limit: 100, cursor: null })
   })
 
+  /**
+   * The server names its own fields — right for an OpenAPI reader, untypeable
+   * here: `drop includeJobRuns` names no flag this CLI has.
+   */
+  it('restates a rejected wire field as the flag the caller typed', async () => {
+    mockRequest.mockReset()
+    mockRequest.mockRejectedValue(
+      new SimApiError(
+        'sortBy: only "startedAt" can order job runs; drop includeJobRuns or sort by "startedAt"',
+        400,
+        'BAD_REQUEST',
+        [{ path: ['sortBy'], message: 'sortBy: drop includeJobRuns' }]
+      )
+    )
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+
+    await expect(
+      program().parseAsync(['node', 'sim', 'logs', 'list', '--include-job-runs'])
+    ).rejects.toThrow(/drop --include-job-runs/)
+  })
+
   it('comma-joins a repeated list flag', async () => {
-    const [, options] = await run(['logs', 'list', '--workflow', 'wf_1', 'wf_2'])
-    expect(options.query).toMatchObject({ workflowIds: 'wf_1,wf_2' })
+    const [, options] = await run([
+      'logs',
+      'list',
+      '--workflow',
+      '00000000-0000-4000-8000-00000000000a',
+      '00000000-0000-4000-8000-00000000000b',
+    ])
+    expect(options.query).toMatchObject({
+      workflowIds: '00000000-0000-4000-8000-00000000000a,00000000-0000-4000-8000-00000000000b',
+    })
   })
 
   it('injects the profile workspace without a flag', async () => {
@@ -580,11 +727,21 @@ describe('commands parsed through commander', () => {
     expect(help).toContain('agent_1.content')
     expect(help).not.toContain('--output <value...>')
 
-    const [, withoutInput] = await run(['workflows', 'run', 'wf_1'], { data: { success: true } })
+    const [, withoutInput] = await run(
+      ['workflows', 'run', '00000000-0000-4000-8000-00000000000a'],
+      { data: { success: true } }
+    )
     expect(withoutInput.body).toEqual({})
 
     const [, selected] = await run(
-      ['workflows', 'run', 'wf_1', '--select-output', 'agent.answer', 'save.result'],
+      [
+        'workflows',
+        'run',
+        '00000000-0000-4000-8000-00000000000a',
+        '--select-output',
+        'agent.answer',
+        'save.result',
+      ],
       { data: { success: true } }
     )
     expect(selected.body).toEqual({ selectedOutputs: ['agent.answer', 'save.result'] })
@@ -638,6 +795,9 @@ describe('commands parsed through commander', () => {
     const help = commandAt('files', 'move').helpInformation()
     expect(help).toContain('--file-ids <value...>')
     expect(help).toMatch(/space-separated.*@path.*one\s+value\s+per\s+line/s)
+    // The escape a value that genuinely starts with `@` needs, said where the
+    // caller reads before typing rather than only after the read fails.
+    expect(help).toContain('@@')
   })
 
   it('advertises the file-content encoding choices', () => {
@@ -680,23 +840,38 @@ describe('commands parsed through commander', () => {
       'get',
       'run_1',
       '--workflow',
-      'wf_1',
+      '00000000-0000-4000-8000-00000000000a',
       '--include-output',
       '--select-output',
       'agent.content',
       'writer.text',
     ])
-    expect(path).toBe('/api/v2/workflows/wf_1/runs/run_1')
+    expect(path).toBe('/api/v2/workflows/00000000-0000-4000-8000-00000000000a/runs/run_1')
     expect(options.query).toEqual({
       includeOutput: true,
       selectedOutputs: 'agent.content,writer.text',
     })
 
-    const [listPath] = await run(['workflows', 'runs', 'list', '--workflow', 'wf_1'])
-    expect(listPath).toBe('/api/v2/workflows/wf_1/runs')
+    const [listPath] = await run([
+      'workflows',
+      'runs',
+      'list',
+      '--workflow',
+      '00000000-0000-4000-8000-00000000000a',
+    ])
+    expect(listPath).toBe('/api/v2/workflows/00000000-0000-4000-8000-00000000000a/runs')
 
-    const [cancelPath] = await run(['workflows', 'runs', 'cancel', 'run_1', '--workflow', 'wf_1'])
-    expect(cancelPath).toBe('/api/v2/workflows/wf_1/runs/run_1/cancel')
+    const [cancelPath] = await run([
+      'workflows',
+      'runs',
+      'cancel',
+      'run_1',
+      '--workflow',
+      '00000000-0000-4000-8000-00000000000a',
+    ])
+    expect(cancelPath).toBe(
+      '/api/v2/workflows/00000000-0000-4000-8000-00000000000a/runs/run_1/cancel'
+    )
 
     const resumeHelp = commandAt('workflows', 'runs', 'resume').helpInformation()
     expect(resumeHelp).toContain('<runId>')
@@ -709,13 +884,15 @@ describe('commands parsed through commander', () => {
       'resume',
       'run_1',
       '--workflow',
-      'wf_1',
+      '00000000-0000-4000-8000-00000000000a',
       '--context',
       'ctx_1',
       '--input',
       '{"approved":true}',
     ])
-    expect(resumePath).toBe('/api/v2/workflows/wf_1/runs/run_1/resume')
+    expect(resumePath).toBe(
+      '/api/v2/workflows/00000000-0000-4000-8000-00000000000a/runs/run_1/resume'
+    )
     expect(resumeOptions.body).toEqual({
       contextId: 'ctx_1',
       input: { approved: true },
@@ -823,8 +1000,12 @@ describe('single-resource rendering', () => {
     // the record builder kept only scalars, so `workflow` and `state` — the
     // entire export — vanished with no indication anything was missing.
     const printed = await lines(
-      ['workflows', 'get', 'wf_1'],
-      { id: 'wf_1', name: 'Onboarding', inputs: [{ name: 'email', type: 'string' }] },
+      ['workflows', 'get', '00000000-0000-4000-8000-00000000000a'],
+      {
+        id: '00000000-0000-4000-8000-00000000000a',
+        name: 'Onboarding',
+        inputs: [{ name: 'email', type: 'string' }],
+      },
       'text'
     )
 
@@ -833,9 +1014,16 @@ describe('single-resource rendering', () => {
   })
 
   it('truncates a nested value in the table, and only there', async () => {
-    const payload = { id: 'wf_1', state: { blocks: 'x'.repeat(5000) } }
+    const payload = {
+      id: '00000000-0000-4000-8000-00000000000a',
+      state: { blocks: 'x'.repeat(5000) },
+    }
 
-    const table = await lines(['workflows', 'get', 'wf_1'], payload, 'table')
+    const table = await lines(
+      ['workflows', 'get', '00000000-0000-4000-8000-00000000000a'],
+      payload,
+      'table'
+    )
     const clamped = table.find((line) => line.startsWith('state')) ?? ''
     expect(clamped.length).toBeLessThan(300)
     expect(clamped).toMatch(/…$/)
@@ -843,7 +1031,11 @@ describe('single-resource rendering', () => {
     // `text` is the format built for pipes, so it carries the whole value: the
     // clamp is a legibility cap on the human table, and clamping before the
     // format branch silently truncated commands whose output is one long value.
-    const piped = await lines(['workflows', 'get', 'wf_1'], payload, 'text')
+    const piped = await lines(
+      ['workflows', 'get', '00000000-0000-4000-8000-00000000000a'],
+      payload,
+      'text'
+    )
     const whole = piped.find((line) => line.startsWith('state')) ?? ''
     expect(whole).toContain('x'.repeat(5000))
   })
@@ -852,15 +1044,20 @@ describe('single-resource rendering', () => {
     // Redirecting this to a file has to yield something `import` accepts, so
     // `table`/`text` — which flatten and truncate — must not be honoured here.
     const printed = await lines(
-      ['workflows', 'export', 'wf_1'],
-      { version: '1.0', exportedAt: 'now', workflow: { id: 'wf_1' }, state: { blocks: {} } },
+      ['workflows', 'export', '00000000-0000-4000-8000-00000000000a'],
+      {
+        version: '1.0',
+        exportedAt: 'now',
+        workflow: { id: '00000000-0000-4000-8000-00000000000a' },
+        state: { blocks: {} },
+      },
       'text'
     )
 
     expect(JSON.parse(printed.join('\n'))).toEqual({
       version: '1.0',
       exportedAt: 'now',
-      workflow: { id: 'wf_1' },
+      workflow: { id: '00000000-0000-4000-8000-00000000000a' },
       state: { blocks: {} },
     })
   })
@@ -1125,6 +1322,44 @@ describe('pagination slot', () => {
     expect(stderr.mock.calls.map(([chunk]) => String(chunk)).join('')).toContain('fetched 1')
   })
 
+  /**
+   * `parseInt` truncated the value before it was checked, so a fractional was
+   * silently floored and `-0.5` parsed to `-0` — not less than zero, and then
+   * equal to the `0` that means "everything". Both walked a workspace the
+   * caller had asked to cap.
+   */
+  it('refuses a limit that is not a whole number, before any request', async () => {
+    for (const value of ['-0.5', '-0.9', '3.9', '1.5', '', ' ']) {
+      mockRequest.mockReset()
+      vi.spyOn(console, 'log').mockImplementation(() => {})
+      await expect(
+        program().parseAsync(['node', 'sim', 'files', 'list', '--limit', value])
+      ).rejects.toThrow(/--limit must be a whole number of 0 or more/)
+      expect(mockRequest).not.toHaveBeenCalled()
+    }
+  })
+
+  it('reads a limit the way the caller wrote it', async () => {
+    mockRequest.mockReset()
+    mockRequest.mockResolvedValue({
+      data: Array.from({ length: 20 }, (_row, index) => ({ id: `f_${index}` })),
+      nextCursor: null,
+    })
+    const printed: string[] = []
+    vi.spyOn(console, 'log').mockImplementation((line: string) => {
+      printed.push(line)
+    })
+
+    // `parseInt(…, 10)` stopped at the `x` and read 0, which meant everything.
+    await program().parseAsync(['node', 'sim', 'files', 'list', '--limit', '0x10'])
+    expect(JSON.parse(printed[0])).toHaveLength(16)
+
+    printed.length = 0
+    // And stopped at the `e`, reading a single row where 1000 was asked for.
+    await program().parseAsync(['node', 'sim', 'files', 'list', '--limit', '1e3'])
+    expect(JSON.parse(printed[0])).toHaveLength(20)
+  })
+
   it('uses a valid per-page size for unlimited and large totals', async () => {
     for (const requested of ['0', '250']) {
       mockRequest.mockReset()
@@ -1214,19 +1449,25 @@ describe('a body field the contract clears with null', () => {
    * is as far as the terminal goes, and the word is only ever the word.
    */
   it('sends an empty string as empty and the word null as text, with no companion flag', async () => {
-    const [, empty] = await run(['workflows', 'update', 'wf_1', '--description', ''], {
-      data: { id: 'wf_1' },
-    })
+    const [, empty] = await run(
+      ['workflows', 'update', '00000000-0000-4000-8000-00000000000a', '--description', ''],
+      {
+        data: { id: '00000000-0000-4000-8000-00000000000a' },
+      }
+    )
     expect(empty.body).toMatchObject({ description: '' })
 
-    const [, literal] = await run(['workflows', 'update', 'wf_1', '--description', 'null'], {
-      data: { id: 'wf_1' },
-    })
+    const [, literal] = await run(
+      ['workflows', 'update', '00000000-0000-4000-8000-00000000000a', '--description', 'null'],
+      {
+        data: { id: '00000000-0000-4000-8000-00000000000a' },
+      }
+    )
     expect(literal.body).toMatchObject({ description: 'null' })
 
-    await expect(run(['workflows', 'update', 'wf_1', '--no-description'])).rejects.toThrow(
-      /unknown option/
-    )
+    await expect(
+      run(['workflows', 'update', '00000000-0000-4000-8000-00000000000a', '--no-description'])
+    ).rejects.toThrow(/unknown option/)
   })
 })
 
@@ -1339,6 +1580,101 @@ describe('bodies and fields the generator cannot flatten', () => {
         ).rejects.toThrow(/--max-rows must be a whole number between 1 and 1,000,000/)
         expect(mockRequest).not.toHaveBeenCalled()
       }
+    })
+  })
+
+  /**
+   * The pager's flag was handed to any field named `limit`, so a bulk mutation
+   * that does not paginate carried commander's `100` default into its body: a
+   * filter matching 250 rows deleted 100, exited 0, and said nothing.
+   */
+  describe('a row cap on a mutation that does not paginate', () => {
+    const FILTER = '{"all":[{"field":"status","op":"eq","value":"active"}]}'
+
+    it('leaves the cap off the wire entirely when it is not typed', async () => {
+      const [, omitted] = await run([
+        'tables',
+        'rows',
+        'batch-delete',
+        'tbl_1',
+        '--filter',
+        FILTER,
+        '--yes',
+      ])
+      expect(omitted.body).not.toHaveProperty('limit')
+
+      const [, updated] = await run([
+        'tables',
+        'rows',
+        'batch-update',
+        'tbl_1',
+        '--filter',
+        FILTER,
+        '--data',
+        '{"status":"done"}',
+        '--yes',
+      ])
+      expect(updated.body).not.toHaveProperty('limit')
+    })
+
+    it('sends the cap the caller typed, unrounded by the pager', async () => {
+      const [, given] = await run([
+        'tables',
+        'rows',
+        'batch-delete',
+        'tbl_1',
+        '--filter',
+        FILTER,
+        '--limit',
+        '3',
+        '--yes',
+      ])
+      expect(given.body).toMatchObject({ limit: 3 })
+    })
+
+    it('documents the cap as the contract states it, without the pager default', () => {
+      for (const command of ['batch-delete', 'batch-update']) {
+        const help = commandAt('tables', 'rows', command).helpInformation()
+        expect(help).toContain('Maximum matching rows to')
+        expect(help).not.toContain('Maximum items to return')
+        expect(help).not.toMatch(/--limit[^\n]*default/)
+        // The help block wraps, so the sentence is matched across the break.
+        expect(help).toMatch(/caps a --filter\s+match only/)
+        expect(help).toMatch(/0\s+is not accepted/)
+      }
+    })
+
+    it('refuses a cap typed alongside the id list that supersedes it', async () => {
+      await expect(
+        run([
+          'tables',
+          'rows',
+          'batch-delete',
+          'tbl_1',
+          '--row',
+          'row_1',
+          'row_2',
+          '--limit',
+          '1',
+          '--yes',
+        ])
+      ).rejects.toThrow(/--limit caps a --filter match .* --row list; pass one, not both/)
+      expect(mockRequest).not.toHaveBeenCalled()
+    })
+
+    it('still deletes an explicit id list, with no cap on the wire', async () => {
+      const [, options] = await run([
+        'tables',
+        'rows',
+        'batch-delete',
+        'tbl_1',
+        '--row',
+        'row_1',
+        'row_2',
+        '--yes',
+      ])
+      expect(options.body).toMatchObject({ rowIds: ['row_1', 'row_2'] })
+      expect(options.body).not.toHaveProperty('limit')
     })
   })
 
@@ -1462,7 +1798,7 @@ describe('flags the root program would swallow', () => {
   /**
    * Commander matches the root's own options anywhere in argv, including after a
    * subcommand name, so a leaf declaring one never sees it: `sim workflows
-   * rollback wf_1 --version 1` printed the CLI version and exited 0 without
+   * rollback 00000000-0000-4000-8000-00000000000a --version 1` printed the CLI version and exited 0 without
    * issuing a request — a rollback that silently did nothing, with no output to
    * tell anyone. The generic sweep is the point; the rollback assertion below
    * only records the one case that got through.
@@ -1482,13 +1818,20 @@ describe('flags the root program would swallow', () => {
 
   it('exposes the rollback target version under a name of its own', async () => {
     const [path, init] = await run(
-      ['workflows', 'rollback', 'wf_1', '--to-version', '3', '--yes'],
+      [
+        'workflows',
+        'rollback',
+        '00000000-0000-4000-8000-00000000000a',
+        '--to-version',
+        '3',
+        '--yes',
+      ],
       {
         data: {},
       }
     )
 
-    expect(path).toBe('/api/v2/workflows/wf_1/rollback')
+    expect(path).toBe('/api/v2/workflows/00000000-0000-4000-8000-00000000000a/rollback')
     expect(init.body).toMatchObject({ version: 3 })
   })
 })
@@ -1524,21 +1867,29 @@ describe('headers the route contract declares', () => {
    * operation the assembled tree no longer offers.
    */
   it('sends a declared header when the flag is passed, and omits the slot when it is not', async () => {
-    const [, sent] = await run(['workflows', 'run', 'wf_1', '--run-id', 'run_mine'], {
-      data: { status: 'completed' },
-    })
+    const [, sent] = await run(
+      ['workflows', 'run', '00000000-0000-4000-8000-00000000000a', '--run-id', 'run_mine'],
+      {
+        data: { status: 'completed' },
+      }
+    )
     expect(sent.headers).toEqual({ 'x-run-id': 'run_mine' })
 
-    const [, unset] = await run(['workflows', 'run', 'wf_1'], { data: { status: 'completed' } })
+    const [, unset] = await run(['workflows', 'run', '00000000-0000-4000-8000-00000000000a'], {
+      data: { status: 'completed' },
+    })
     expect(unset.headers).toBeUndefined()
   })
 
   it('sends no headers for an operation whose contract declares none', async () => {
     // Paired with an operation that does declare one, so the absence below means
     // "declares none" rather than "never sends headers".
-    const [, sent] = await run(['workflows', 'run', 'wf_1', '--run-id', 'run_mine'], {
-      data: { status: 'completed' },
-    })
+    const [, sent] = await run(
+      ['workflows', 'run', '00000000-0000-4000-8000-00000000000a', '--run-id', 'run_mine'],
+      {
+        data: { status: 'completed' },
+      }
+    )
     expect(sent.headers).toEqual({ 'x-run-id': 'run_mine' })
 
     const [, options] = await run(['tables', 'list'])
@@ -1551,7 +1902,16 @@ describe('headers the route contract declares', () => {
    */
   it('does not expose the call-chain header Sim writes for itself', async () => {
     await expect(
-      run(['workflows', 'run', 'wf_1', '--x-sim-via', 'wf_0'], { data: { status: 'completed' } })
+      run(
+        [
+          'workflows',
+          'run',
+          '00000000-0000-4000-8000-00000000000a',
+          '--x-sim-via',
+          '00000000-0000-4000-8000-000000000000',
+        ],
+        { data: { status: 'completed' } }
+      )
     ).rejects.toThrow(/unknown option/)
   })
 
@@ -1561,13 +1921,18 @@ describe('headers the route contract declares', () => {
    * spelled as a raw HTTP header.
    */
   it('exposes the run-id header under a domain name, not its wire spelling', async () => {
-    const [, options] = await run(['workflows', 'run', 'wf_1', '--run-id', 'run_mine'], {
-      data: { status: 'completed' },
-    })
+    const [, options] = await run(
+      ['workflows', 'run', '00000000-0000-4000-8000-00000000000a', '--run-id', 'run_mine'],
+      {
+        data: { status: 'completed' },
+      }
+    )
     expect(options.headers).toEqual({ 'x-run-id': 'run_mine' })
 
     await expect(
-      run(['workflows', 'run', 'wf_1', '--x-run-id', 'run_mine'], { data: { status: 'completed' } })
+      run(['workflows', 'run', '00000000-0000-4000-8000-00000000000a', '--x-run-id', 'run_mine'], {
+        data: { status: 'completed' },
+      })
     ).rejects.toThrow(/unknown option/)
   })
 
@@ -1713,5 +2078,124 @@ describe('the billing ledger a key can see', () => {
 
     expect(lines).toHaveLength(1)
     expect(lines[0].split('\t')[2]).toBe('workflow')
+  })
+})
+
+describe('a list that is not the whole answer', () => {
+  /** Captures stderr for one invocation, in one output format. */
+  async function noteFor(
+    format: 'table' | 'text' | 'json',
+    argv: string[],
+    response: unknown
+  ): Promise<string> {
+    const errors: string[] = []
+    const written = vi
+      .spyOn(process.stderr, 'write')
+      .mockImplementation((chunk: string | Uint8Array) => {
+        errors.push(String(chunk))
+        return true
+      })
+    output.format = format
+    try {
+      await run(argv, response)
+    } finally {
+      output.format = 'json'
+      written.mockRestore()
+    }
+    return errors.join('')
+  }
+
+  /**
+   * `sim tools list` answered 100 rows of 4708 with exit 0 and an empty
+   * stderr, in every format — a clipped inventory that read as the inventory.
+   */
+  it('says so, once, on stderr, in every format', async () => {
+    for (const format of ['table', 'text', 'json'] as const) {
+      const note = await noteFor(format, ['tools', 'list', '--limit', '2'], {
+        data: [{ id: 'a' }, { id: 'b' }],
+        nextCursor: 'c1',
+      })
+
+      expect(note).toContain('more results exist')
+      expect(note).toContain('--limit 0')
+    }
+  })
+
+  it('says nothing when the list is complete', async () => {
+    const note = await noteFor('table', ['tools', 'list', '--limit', '2'], {
+      data: [{ id: 'a' }, { id: 'b' }],
+      nextCursor: null,
+    })
+
+    expect(note).not.toContain('more results exist')
+  })
+
+  /**
+   * The server clips an inventory itself and says so on the envelope, which the
+   * CLI dropped: `--output json` prints `data` alone, so a reconciling caller
+   * could not tell a clipped list from a complete one.
+   */
+  it('carries a truncation the server stated on the envelope', async () => {
+    const paged = await noteFor('json', ['workflow-mcp-servers', 'list'], {
+      data: [{ id: 'srv_1' }],
+      nextCursor: null,
+      toolNamesTruncated: true,
+    })
+    expect(paged).toContain('tool names truncated')
+
+    const unpaged = await noteFor('json', ['workflow-mcp-servers', 'tools', 'list', 'srv_1'], {
+      data: [{ toolName: 't' }],
+      nextCursor: null,
+      truncated: true,
+    })
+    expect(unpaged).toContain('truncated')
+  })
+
+  it('says nothing when the server states the list is whole', async () => {
+    const note = await noteFor('json', ['workflow-mcp-servers', 'list'], {
+      data: [{ id: 'srv_1' }],
+      nextCursor: null,
+      toolNamesTruncated: false,
+    })
+
+    expect(note).not.toContain('truncated')
+  })
+
+  /** A flag raised on a later page is the same fact, and used to be lost. */
+  it('carries a truncation stated on a page after the first', async () => {
+    mockRequest.mockReset()
+    mockRequest
+      .mockResolvedValueOnce({ data: [{ id: 'a' }], nextCursor: 'c1', toolNamesTruncated: false })
+      .mockResolvedValueOnce({ data: [{ id: 'b' }], nextCursor: null, toolNamesTruncated: true })
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+    const errors: string[] = []
+    const written = vi
+      .spyOn(process.stderr, 'write')
+      .mockImplementation((chunk: string | Uint8Array) => {
+        errors.push(String(chunk))
+        return true
+      })
+
+    try {
+      await program().parseAsync(['node', 'sim', 'workflow-mcp-servers', 'list', '--limit', '0'])
+    } finally {
+      written.mockRestore()
+    }
+
+    expect(errors.join('')).toContain('tool names truncated')
+  })
+
+  it('leaves the rows on stdout exactly as they were', async () => {
+    const lines: string[] = []
+    mockRequest.mockReset()
+    mockRequest.mockResolvedValue({ data: [{ id: 'a' }, { id: 'b' }], nextCursor: 'c1' })
+    vi.spyOn(console, 'log').mockImplementation((line: string) => {
+      lines.push(line)
+    })
+    vi.spyOn(process.stderr, 'write').mockReturnValue(true)
+
+    await program().parseAsync(['node', 'sim', 'tools', 'list', '--limit', '2'])
+
+    expect(JSON.parse(lines.join('\n'))).toEqual([{ id: 'a' }, { id: 'b' }])
   })
 })

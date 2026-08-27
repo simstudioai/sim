@@ -59,10 +59,10 @@
             "name": "scope",
             "in": "query",
             "required": false,
-            "description": "Which lifecycle set to list: `active` (default) for live workflows, `archived` for workflows a `DELETE` archived. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too.",
+            "description": "Which lifecycle set to list: `active` (default) for live workflows, `archived` for workflows a `DELETE` archived. The folder filter resolves against active folders only, so pairing it with `archived` returns an empty page when the containing folder was archived too.",
             "schema": {
               "default": "active",
-              "description": "Which lifecycle set to list: `active` (default) for live workflows, `archived` for workflows a `DELETE` archived. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too.",
+              "description": "Which lifecycle set to list: `active` (default) for live workflows, `archived` for workflows a `DELETE` archived. The folder filter resolves against active folders only, so pairing it with `archived` returns an empty page when the containing folder was archived too.",
               "type": "string",
               "enum": ["active", "archived"]
             }
@@ -338,7 +338,7 @@
       "put": {
         "operationId": "replaceWorkflowState",
         "summary": "Replace Workflow State",
-        "description": "Replace a workflow’s editable draft graph wholesale. `loops` and `parallels` are accepted but ignored — both are recomputed from `blocks`. Omitting `variables` leaves the stored variables untouched.\n\nLast write wins: concurrent writers are serialized by a row lock, so each lands a complete self-consistent graph and the later one replaces the earlier entirely. There is no partially-written state and no conflict detection.\n\nThis does not change what the deployed endpoint serves. Deployments are immutable versioned snapshots, and no schedule or webhook registration is touched. The only visible consequence is that `needsRedeployment` becomes true; `POST /workflows/{workflowId}/deploy` publishes the draft.\n\n`lint` is advisory and never blocks the write. `lint.fieldIssues` is the most actionable part for a headless builder — it names blocks missing a required field, which fail at run time — and `lint.unresolvedReferences` names credential, resource, tool, and skill values that do not resolve. A workspace API key is rejected with `403`; use a personal API key.\n\nSet `?dryRun=true` to validate and lint without persisting: nothing is written, no audit entry is recorded, and collaborators are not notified. The response carries the same shape and the same validation and `lint` findings the committed write would, with `dryRun: true` — but `needsRedeployment` describes the state before the write, and warnings raised by persistence itself are necessarily absent.",
+        "description": "Replace a workflow’s editable draft graph wholesale. `loops` and `parallels` are accepted but ignored — both are recomputed from `blocks`. Omitting `variables` leaves the stored variables untouched.\n\nLast write wins: concurrent writers are serialized by a row lock, so each lands a complete self-consistent graph and the later one replaces the earlier entirely. There is no partially-written state. Ids are the one conflict that is detected: block, edge, and subflow ids are globally unique, so a body carrying an id another workflow already owns is refused with `409` rather than written.\n\nThis does not change what the deployed endpoint serves. Deployments are immutable versioned snapshots, and no schedule or webhook registration is touched. The only visible consequence is that `needsRedeployment` becomes true; `POST /workflows/{workflowId}/deploy` publishes the draft.\n\n`lint` is advisory and never blocks the write. `lint.fieldIssues` is the most actionable part for a headless builder — it names blocks missing a required field, which fail at run time — and `lint.unresolvedReferences` names credential, resource, tool, and skill values that do not resolve. A workspace API key is rejected with `403`; use a personal API key.\n\nSet `?dryRun=true` to validate and lint without persisting: nothing is written, no audit entry is recorded, and collaborators are not notified. The response carries the same shape and the same validation and `lint` findings the committed write would, with `dryRun: true` — including the warnings the write’s own preparation step raises, and the same `409` when an id is already owned by another workflow. Only `needsRedeployment` differs: it describes the state before the write.",
         "tags": ["Workflows"],
         "parameters": [
           {
@@ -437,7 +437,7 @@
       "post": {
         "operationId": "applyWorkflowOperations",
         "summary": "Apply Workflow Operations",
-        "description": "Apply a batch of semantic edits — add, edit, delete, and subflow membership changes — to a workflow graph, plus an optional set of block enable/disable changes.\n\nBest-effort per operation, atomic per write. The engine applies what it can to an in-memory graph and reports the rest in `skipped`, each with a machine-readable `type`; exactly one write of the fully-resolved graph then happens, so there is never a partially-applied graph. `deferred` is **not** a failure list: a forward-referencing edge is wired automatically once its target block exists, in this batch or a later one, so re-issuing a deferred edge is wrong.\n\nSet `atomic` to fail closed: any genuine skipped item, or any block input that would be dropped rather than persisted, then aborts before the write and answers `409` with `error.details.code: \"OPERATIONS_NOT_APPLIED\"`, the same `skipped` array, and a `droppedInputs` array, having persisted nothing.\n\nA `block_id` you supply on an `add` or `insert_into_subflow` is only a label unless it is already a UUID: the engine mints one and returns the pairing in `mintedBlockIds`. References between operations in the same batch are remapped for you, so `triage` can be wired up in the same call it is created in — but a later request must use the minted id. Send your own UUIDs when you want an id you chose to survive across requests.\n\nOperation `params` is an open object because the accepted inputs come from the block registry, not from this contract — see the per-operation schemas for the envelope: `inputs` keyed by sub-block id, with `retry`, `triggerMode` and `advancedMode` beside it rather than inside it, and `connections` keyed by source handle. `GET /blocks/{blockId}` publishes the inputs a given block type accepts.\n\n`lint` is advisory and never blocks the write. `lint.fieldIssues` is the most actionable part for a headless builder — it names blocks missing a required field, which fail at run time — and `lint.unresolvedReferences` names credential, resource, tool, and skill values that do not resolve. Those values stay persisted; only `inputValidationErrors` lists inputs that were actually dropped.\n\nAs with `PUT /workflows/{workflowId}/state`, this changes only the draft; deploy to publish it. A workspace API key is rejected with `403`; use a personal API key.\n\nSet `?dryRun=true` to validate and lint without persisting: nothing is written, no audit entry is recorded, and collaborators are not notified. The response carries the same shape and the same validation and `lint` findings the committed write would, with `dryRun: true` — but `needsRedeployment` describes the state before the write, and warnings raised by persistence itself are necessarily absent.",
+        "description": "Apply a batch of semantic edits — add, edit, delete, and subflow membership changes — to a workflow graph, plus an optional set of block enable/disable changes.\n\nBest-effort per operation, atomic per write. The engine applies what it can to an in-memory graph and reports the rest in `skipped`, each with a machine-readable `type`; exactly one write of the fully-resolved graph then happens, so there is never a partially-applied graph. `deferred` is **not** a failure list: a forward-referencing edge is wired automatically once its target block exists, in this batch or a later one, so re-issuing a deferred edge is wrong.\n\nSet `atomic` to fail closed: any genuine skipped item, or any block input that would be dropped rather than persisted, then aborts before the write and answers `409` with `error.details.code: \"OPERATIONS_NOT_APPLIED\"`, the same `skipped` array, and a `droppedInputs` array, having persisted nothing.\n\nA `block_id` you supply on an `add` or `insert_into_subflow` is only a label unless it is already a UUID: the engine mints one and returns the pairing in `mintedBlockIds`. References between operations in the same batch are remapped for you, so `triage` can be wired up in the same call it is created in — but a later request must use the minted id. Send your own UUIDs when you want an id you chose to survive across requests.\n\nOperation `params` is an open object because the accepted inputs come from the block registry, not from this contract — see the per-operation schemas for the envelope: `inputs` keyed by sub-block id, with `retry`, `triggerMode` and `advancedMode` beside it rather than inside it, and `connections` keyed by source handle. `GET /blocks/{blockId}` publishes the inputs a given block type accepts. The Agent block’s `inputs.tools` value is the important exception to that open catalog shape: it is published here as the named `AgentToolInput` union, covering catalog integrations, workspace custom tools, and MCP tools.\n\n`lint` is advisory and never blocks the write. `lint.fieldIssues` is the most actionable part for a headless builder — it names blocks missing a required field, which fail at run time — and `lint.unresolvedReferences` names credential, resource, tool, and skill values that do not resolve. Those values stay persisted; only `inputValidationErrors` lists inputs that were actually dropped.\n\nAs with `PUT /workflows/{workflowId}/state`, this changes only the draft; deploy to publish it. A workspace API key is rejected with `403`; use a personal API key.\n\nSet `?dryRun=true` to validate and lint without persisting: nothing is written, no audit entry is recorded, and collaborators are not notified. The response carries the same shape and the same validation and `lint` findings the committed write would, with `dryRun: true` — including the warnings the write’s own preparation step raises, and the same `409` when an id is already owned by another workflow. Only `needsRedeployment` differs: it describes the state before the write.",
         "tags": ["Workflows"],
         "parameters": [
           {
@@ -5972,6 +5972,32 @@
                     "type": "string",
                     "minLength": 1,
                     "description": "Block display name."
+                  },
+                  "inputs": {
+                    "allOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "tools": {
+                            "description": "Agent tools configuration. Applies to a `tool-input` field; other block inputs remain catalog-defined.",
+                            "$ref": "#/components/schemas/AgentToolInput"
+                          }
+                        },
+                        "additionalProperties": {
+                          "description": "One block-specific input whose accepted shape is published by the block catalog."
+                        }
+                      },
+                      {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string"
+                        },
+                        "additionalProperties": {
+                          "description": "One block-specific input whose accepted shape is published by the block catalog."
+                        }
+                      }
+                    ],
+                    "description": "Block configuration keyed by sub-block id."
                   }
                 },
                 "required": ["type", "name"],
@@ -5998,13 +6024,51 @@
                 "description": "Block the operation targets. For `add`, the id the new block will be given."
               },
               "params": {
-                "type": "object",
-                "propertyNames": {
-                  "type": "string"
-                },
-                "additionalProperties": {
-                  "description": "One operation parameter; see the description for the accepted keys."
-                },
+                "allOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "inputs": {
+                        "allOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "tools": {
+                                "description": "Agent tools configuration. Applies to a `tool-input` field; other block inputs remain catalog-defined.",
+                                "$ref": "#/components/schemas/AgentToolInput"
+                              }
+                            },
+                            "additionalProperties": {
+                              "description": "One block-specific input whose accepted shape is published by the block catalog."
+                            }
+                          },
+                          {
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {
+                              "description": "One block-specific input whose accepted shape is published by the block catalog."
+                            }
+                          }
+                        ],
+                        "description": "Block configuration keyed by sub-block id."
+                      }
+                    },
+                    "additionalProperties": {
+                      "description": "One operation parameter; see the description for the accepted keys."
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
+                    "additionalProperties": {
+                      "description": "One operation parameter; see the description for the accepted keys."
+                    }
+                  }
+                ],
                 "description": "Fields to change on the target block. Send only what changes. Accepted keys: `inputs`, `name`, `connections`, `removeEdges`, `nestedNodes`, `retry`, `triggerMode`, `advancedMode`. `inputs` carries the block's own configuration keyed by sub-block id, for example `inputs: { model: \"gpt-4o\", systemPrompt: \"...\" }` — never wrapped in `subBlocks`. Block-level settings sit beside `inputs`, never inside it: `retry`, `triggerMode`, `advancedMode`. `connections` is keyed by source handle and each value is a target block id, `{ block, handle }`, or an array of either; `success` is accepted as an alias for the `source` handle. Re-sending `connections` replaces that block's outgoing edges, so use `removeEdges` — `[{ targetBlockId, sourceHandle? }]`, `sourceHandle` defaulting to `source` — to drop one edge without restating the rest."
               }
             },
@@ -6058,6 +6122,32 @@
                     "type": "string",
                     "minLength": 1,
                     "description": "Block display name."
+                  },
+                  "inputs": {
+                    "allOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "tools": {
+                            "description": "Agent tools configuration. Applies to a `tool-input` field; other block inputs remain catalog-defined.",
+                            "$ref": "#/components/schemas/AgentToolInput"
+                          }
+                        },
+                        "additionalProperties": {
+                          "description": "One block-specific input whose accepted shape is published by the block catalog."
+                        }
+                      },
+                      {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string"
+                        },
+                        "additionalProperties": {
+                          "description": "One block-specific input whose accepted shape is published by the block catalog."
+                        }
+                      }
+                    ],
+                    "description": "Block configuration keyed by sub-block id."
                   }
                 },
                 "required": ["subflowId", "type", "name"],
@@ -6105,6 +6195,249 @@
         ],
         "title": "Workflow edit operation",
         "description": "One semantic edit against a workflow graph."
+      },
+      "AgentToolInput": {
+        "maxItems": 100,
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/AgentTool"
+        },
+        "description": "The complete value stored in an Agent block’s `tools` input.",
+        "title": "Agent tools input"
+      },
+      "AgentTool": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/AgentIntegrationTool"
+          },
+          {
+            "$ref": "#/components/schemas/AgentCustomTool"
+          },
+          {
+            "$ref": "#/components/schemas/AgentMcpTool"
+          }
+        ],
+        "title": "Agent tool",
+        "description": "A catalog integration operation, workspace custom tool, or MCP tool available to an Agent."
+      },
+      "AgentIntegrationTool": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "pattern": "^(?!(?:custom-tool|mcp)$).+$",
+            "description": "Catalog block id, such as `cloudwatch` or `slack`. Use the block id, never an underlying tool id."
+          },
+          "operation": {
+            "description": "Operation id from `GET /api/v2/blocks/{blockId}`. Required when the block exposes multiple operations; it may differ from the underlying tool id.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "usageControl": {
+            "type": "string",
+            "enum": ["auto", "force", "none"],
+            "description": "When the Agent may call the tool: `auto` lets the model decide, `force` requires a call, and `none` disables it. Omitted means `auto`."
+          },
+          "params": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "description": "One tool parameter value."
+            },
+            "description": "Parameters fixed by the workflow author. Parameters left out remain available for the model to supply when the tool declares them."
+          }
+        },
+        "required": ["type"],
+        "additionalProperties": {
+          "description": "Forward-compatible integration tool metadata preserved by the workflow editor."
+        },
+        "title": "Agent integration tool",
+        "description": "A catalog integration operation the Agent may call. Resolve valid block and operation ids through the block catalog.",
+        "examples": [
+          {
+            "type": "cloudwatch",
+            "operation": "describe_alarm_history",
+            "usageControl": "auto",
+            "params": {}
+          }
+        ]
+      },
+      "AgentCustomTool": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "custom-tool",
+                "description": "Custom-tool discriminator."
+              },
+              "customToolId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255,
+                "description": "Custom tool id returned by `GET /api/v2/custom-tools`."
+              },
+              "usageControl": {
+                "type": "string",
+                "enum": ["auto", "force", "none"],
+                "description": "When the Agent may call the tool: `auto` lets the model decide, `force` requires a call, and `none` disables it. Omitted means `auto`."
+              }
+            },
+            "required": ["type", "customToolId"],
+            "additionalProperties": {
+              "description": "Forward-compatible custom tool metadata preserved by the workflow editor."
+            }
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "custom-tool",
+                "description": "Custom-tool discriminator."
+              },
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "description": "Function declaration discriminator.",
+                    "type": "string",
+                    "const": "function"
+                  },
+                  "function": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64,
+                        "description": "Function name presented to the model."
+                      },
+                      "description": {
+                        "description": "What the inline custom tool does.",
+                        "type": "string"
+                      },
+                      "parameters": {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string"
+                        },
+                        "additionalProperties": {
+                          "description": "One JSON Schema keyword on the function parameters."
+                        },
+                        "description": "JSON Schema describing the function arguments."
+                      }
+                    },
+                    "required": ["name", "parameters"],
+                    "additionalProperties": {
+                      "description": "Additional function declaration metadata."
+                    },
+                    "description": "OpenAI-style function definition."
+                  }
+                },
+                "required": ["function"],
+                "additionalProperties": {
+                  "description": "Additional custom tool declaration metadata."
+                },
+                "description": "Inline OpenAI-style function declaration."
+              },
+              "code": {
+                "type": "string",
+                "description": "Inline tool implementation executed by the Function runtime."
+              },
+              "usageControl": {
+                "type": "string",
+                "enum": ["auto", "force", "none"],
+                "description": "When the Agent may call the tool: `auto` lets the model decide, `force` requires a call, and `none` disables it. Omitted means `auto`."
+              }
+            },
+            "required": ["type", "schema", "code"],
+            "additionalProperties": {
+              "description": "Forward-compatible custom tool metadata preserved by the workflow editor."
+            }
+          }
+        ],
+        "title": "Agent custom tool",
+        "description": "A workspace custom tool. Reference `customToolId` is the preferred shape; the inline declaration is retained for legacy workflow round trips.",
+        "examples": [
+          {
+            "type": "custom-tool",
+            "customToolId": "cst_01J9X2ABCDEF",
+            "usageControl": "auto"
+          }
+        ]
+      },
+      "AgentMcpTool": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "mcp",
+            "description": "MCP-tool discriminator."
+          },
+          "params": {
+            "allOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "serverId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128,
+                    "description": "MCP server id returned by `GET /api/v2/mcp-servers`."
+                  },
+                  "toolName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256,
+                    "description": "Tool name returned by the MCP server’s tools endpoint."
+                  }
+                },
+                "required": ["serverId", "toolName"],
+                "additionalProperties": {
+                  "description": "One parameter fixed by the workflow author."
+                }
+              },
+              {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "description": "One parameter fixed by the workflow author."
+                }
+              }
+            ],
+            "description": "MCP server and tool identity plus any tool arguments fixed by the workflow author."
+          },
+          "usageControl": {
+            "type": "string",
+            "enum": ["auto", "force", "none"],
+            "description": "When the Agent may call the tool: `auto` lets the model decide, `force` requires a call, and `none` disables it. Omitted means `auto`."
+          }
+        },
+        "required": ["type", "params"],
+        "additionalProperties": {
+          "description": "Forward-compatible MCP tool metadata preserved by the workflow editor."
+        },
+        "title": "Agent MCP tool",
+        "description": "One tool discovered from a workspace MCP server.",
+        "examples": [
+          {
+            "type": "mcp",
+            "params": {
+              "serverId": "mcp_01J9X2ABCDEF",
+              "toolName": "search_docs"
+            },
+            "usageControl": "auto"
+          }
+        ]
       },
       "ApplyWorkflowOperationsRequest": {
         "type": "object",
@@ -6163,7 +6496,17 @@
                 "block_id": "agent-1",
                 "params": {
                   "type": "agent",
-                  "name": "Triage"
+                  "name": "Triage",
+                  "inputs": {
+                    "tools": [
+                      {
+                        "type": "cloudwatch",
+                        "operation": "describe_alarm_history",
+                        "usageControl": "auto",
+                        "params": {}
+                      }
+                    ]
+                  }
                 }
               }
             ]

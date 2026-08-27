@@ -1368,11 +1368,14 @@ const declaredRoutes = [
     resourceOperation('Secrets', {
       operationId: 'setSecret',
       summary: 'Set Secret',
-      description: `Create or replace a workspace or caller-owned personal secret. The value is encrypted at rest, is write-only, and is never included in the response. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Create or replace a workspace or caller-owned personal secret. The value is encrypted at rest, is write-only, and is never included in the response. Omit \`value\` on a workspace secret to update \`description\` and \`unredacted\` alone: the stored value is left untouched and is never re-encrypted, and because a metadata-only write cannot create a secret it answers \`404\` when the named secret does not exist. A personal secret always requires \`value\`, having no other writable field. ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_ERRORS,
       success: {
         byStatus: {
-          200: { description: 'The existing secret value was replaced.' },
+          200: {
+            description:
+              'The existing secret value was replaced, or its metadata was updated in place.',
+          },
           201: { description: 'The secret was created.' },
         },
       },
@@ -1389,12 +1392,17 @@ const declaredRoutes = [
         v2SetSecretContract.body,
         'SetSecretRequest',
         'Set secret request',
-        'Ownership scope and write-only value for the secret.',
+        'Ownership scope and write-only value for the secret. A workspace secret may instead send description or unredacted alone, without a value.',
         [
           {
             workspaceId: WORKSPACE_ID,
             scope: SECRET_EXAMPLE.scope,
             value: 'YOUR_SECRET_VALUE',
+          },
+          {
+            workspaceId: WORKSPACE_ID,
+            scope: 'workspace',
+            unredacted: false,
           },
         ]
       ),

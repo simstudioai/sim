@@ -169,6 +169,7 @@ vi.mock('@/lib/table/application/folder-paths', () => ({
     index: { idByPath: new Map(), pathById: new Map() },
   }),
   tableFolderPathForId: () => '/',
+  archivableTableFolderPath: () => '/',
 }))
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({

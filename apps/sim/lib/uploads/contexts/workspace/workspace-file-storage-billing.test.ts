@@ -88,6 +88,7 @@ describe('workspace file storage attribution', () => {
             displayName: 'note.txt',
             contentType: 'text/plain',
             size: 5,
+            sizeBytes: 5,
             deletedAt: null,
             uploadedAt: new Date(),
             updatedAt: new Date(),

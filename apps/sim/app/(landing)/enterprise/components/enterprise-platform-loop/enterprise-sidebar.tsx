@@ -107,7 +107,7 @@ export const EnterpriseSidebar = memo(function EnterpriseSidebar({
   activeItem = 'New chat',
 }: EnterpriseSidebarProps = {}) {
   return (
-    <div className='flex h-full w-[238px] flex-shrink-0 flex-col bg-[var(--surface-1)] pt-3'>
+    <div className='isolate flex h-full w-[238px] flex-shrink-0 flex-col bg-[var(--surface-1)] pt-3 will-change-transform'>
       <div className='flex flex-shrink-0 items-center justify-between px-2'>
         <div className={cn(chipVariants(), 'min-w-0 flex-1')}>
           {/* The exact Brightwave mark the homepage capture seeds

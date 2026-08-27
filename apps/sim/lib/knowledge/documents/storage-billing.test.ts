@@ -292,7 +292,7 @@ describe('knowledge document storage attribution', () => {
           key: storageKey,
           workspaceId: 'workspace-1',
           userId: 'external-collaborator',
-          size: 8,
+          sizeBytes: 8,
         },
       ])
       mockIncrementStorageUsageForBillingContextInTx.mockResolvedValue(13)

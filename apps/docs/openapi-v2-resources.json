@@ -2715,26 +2715,26 @@
       "put": {
         "operationId": "setSecret",
         "summary": "Set Secret",
-        "description": "Create or replace a workspace or caller-owned personal secret. The value is encrypted at rest, is write-only, and is never included in the response. A workspace API key is rejected with `403`; use a personal API key.",
+        "description": "Create or replace a workspace or caller-owned personal secret. The value is encrypted at rest, is write-only, and is never included in the response. Omit `value` on a workspace secret to update `description` and `unredacted` alone: the stored value is left untouched and is never re-encrypted, and because a metadata-only write cannot create a secret it answers `404` when the named secret does not exist. A personal secret always requires `value`, having no other writable field. A workspace API key is rejected with `403`; use a personal API key.",
         "tags": ["Secrets"],
         "parameters": [
           {
             "name": "name",
             "in": "path",
             "required": true,
-            "description": "Secret to create, replace, or delete.",
+            "description": "Secret to create or replace.",
             "schema": {
               "type": "string",
               "minLength": 1,
               "maxLength": 255,
               "pattern": "^[A-Za-z0-9_]+$",
-              "description": "Secret to create, replace, or delete."
+              "description": "Secret to create or replace."
             }
           }
         ],
         "requestBody": {
           "required": true,
-          "description": "Ownership scope and write-only value for the secret.",
+          "description": "Ownership scope and write-only value for the secret. A workspace secret may instead send description or unredacted alone, without a value.",
           "content": {
             "application/json": {
               "schema": {
@@ -2745,7 +2745,7 @@
         },
         "responses": {
           "200": {
-            "description": "The existing secret value was replaced.",
+            "description": "The existing secret value was replaced, or its metadata was updated in place.",
             "headers": {
               "X-RateLimit-Limit": {
                 "$ref": "#/components/headers/X-RateLimit-Limit"
@@ -2825,13 +2825,13 @@
             "name": "name",
             "in": "path",
             "required": true,
-            "description": "Secret to create, replace, or delete.",
+            "description": "Secret to delete.",
             "schema": {
               "type": "string",
               "minLength": 1,
               "maxLength": 255,
               "pattern": "^[A-Za-z0-9_]+$",
-              "description": "Secret to create, replace, or delete."
+              "description": "Secret to delete."
             }
           },
           {
@@ -7164,11 +7164,11 @@
             "description": "Whether the secret belongs to the workspace or to the caller. A personal secret belongs to the caller across every workspace, not to one workspace."
           },
           "value": {
+            "description": "Write-only secret value. It is never returned. Omit it on a workspace secret to change description or unredacted alone, leaving the stored value untouched; the secret must already exist. Always required for a personal secret, which carries no other writable field.",
+            "writeOnly": true,
             "type": "string",
             "minLength": 1,
-            "maxLength": 65536,
-            "description": "Write-only secret value. It is never returned.",
-            "writeOnly": true
+            "maxLength": 65536
           },
           "description": {
             "description": "What the secret is for, shown to teammates. Workspace scope only — sending it for a personal secret is rejected. Omit it to leave an existing description untouched; send null or an empty string to clear one.",
@@ -7187,15 +7187,20 @@
             "type": "boolean"
           }
         },
-        "required": ["workspaceId", "scope", "value"],
+        "required": ["workspaceId", "scope"],
         "additionalProperties": false,
         "title": "Set secret request",
-        "description": "Ownership scope and write-only value for the secret.",
+        "description": "Ownership scope and write-only value for the secret. A workspace secret may instead send description or unredacted alone, without a value.",
         "examples": [
           {
             "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
             "scope": "workspace",
             "value": "YOUR_SECRET_VALUE"
+          },
+          {
+            "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+            "scope": "workspace",
+            "unredacted": false
           }
         ]
       },
@@ -7393,7 +7398,7 @@
           },
           "toolNamesTruncated": {
             "type": "boolean",
-            "description": "Whether `toolCount` and `toolNames` under-report. The names are gathered for the whole page under one ceiling, so a page whose servers publish more tools than that ceiling between them reports only part of each server's inventory. Read `GET /api/v2/workflow-mcp-servers/{serverId}/tools` for one server's inventory and check that response's own `truncated`, which reports the same ceiling applied to a single server — only an untruncated response is the authoritative set. Unrelated to `nextCursor`, which is how this list says there are further servers."
+            "description": "Whether `toolCount` and `toolNames` under-report. The names are gathered for the whole page under one ceiling, so a page whose servers publish more tools than that ceiling between them reports only part of each server's inventory. Read one server's tool inventory and check that response's own `truncated`, which reports the same ceiling applied to a single server — only an untruncated response is the authoritative set. Unrelated to `nextCursor`, which is how this list says there are further servers."
           }
         },
         "required": ["data", "nextCursor", "toolNamesTruncated"],
@@ -8189,14 +8194,14 @@
             "items": {
               "type": "string"
             },
-            "description": "Built-in tools this block can run. Resolve one with `GET /api/v2/tools/{toolId}`."
+            "description": "Built-in tools this block can run. Read a tool by its id for the full definition."
           },
           "operationIds": {
             "type": "array",
             "items": {
               "type": "string"
             },
-            "description": "Operations this block exposes. Their fields and tools are on `GET /api/v2/blocks/{blockId}`."
+            "description": "Operations this block exposes. Their fields and tools are on the block read."
           },
           "preview": {
             "type": "boolean",
@@ -8877,14 +8882,14 @@
             "items": {
               "type": "string"
             },
-            "description": "Built-in tools this block can run. Resolve one with `GET /api/v2/tools/{toolId}`."
+            "description": "Built-in tools this block can run. Read a tool by its id for the full definition."
           },
           "operationIds": {
             "type": "array",
             "items": {
               "type": "string"
             },
-            "description": "Operations this block exposes. Their fields and tools are on `GET /api/v2/blocks/{blockId}`."
+            "description": "Operations this block exposes. Their fields and tools are on the block read."
           },
           "preview": {
             "type": "boolean",

@@ -20,6 +20,9 @@ export function shouldShowBrowserTabSpinner(
 
 /** A settled blank-title page is identified by its host, never as still loading. */
 export function browserTabTitle(tab: BrowserTabState): string {
+  if (tab.issue?.kind === 'crashed') return 'Page crashed'
+  if (tab.issue?.kind === 'unresponsive') return 'Not responding'
+  if (tab.issue?.kind === 'load-error') return browserTabHostname(tab.url) ?? 'Page unavailable'
   const title = tab.title.trim()
   if (title) return title
   if (tab.loading) return 'Loading…'

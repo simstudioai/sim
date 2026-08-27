@@ -53,8 +53,8 @@ Your shell consumed the quotes. Wrap the whole value in single quotes, or read i
 from a file:
 
 ```bash
-sim tables rows query tbl_123 --filter '{"all":[{"field":"status","op":"eq","value":"open"}]}'
-sim tables rows query tbl_123 --filter @filter.json
+sim tables rows query tbl_9f3c1a05d4b7426e8c2f0917ab35de64 --filter '{"all":[{"field":"status","op":"eq","value":"open"}]}'
+sim tables rows query tbl_9f3c1a05d4b7426e8c2f0917ab35de64 --filter @filter.json
 ```
 
 ## A value looks truncated
@@ -63,7 +63,7 @@ sim tables rows query tbl_123 --filter @filter.json
 switch to a machine format to see it in full:
 
 ```bash
-sim logs get run_123 --output json
+sim logs get 9c4f0b7e-2d81-4a35-b6e9-70f1c8a2d543 --output json
 ```
 
 ## `sim files get` refuses to print to the terminal
@@ -72,8 +72,8 @@ Writing arbitrary binary to an interactive terminal can corrupt it, so non-text
 content has to go to a file or a pipe:
 
 ```bash
-sim files get file_123 -o ./image.png
-sim files get file_123 | shasum
+sim files get wf_8Kd2NpVrY6zTfQa3XwBmS -o ./image.png
+sim files get wf_8Kd2NpVrY6zTfQa3XwBmS | shasum
 ```
 
 ## A stored output format is invalid

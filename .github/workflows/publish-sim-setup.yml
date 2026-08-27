@@ -55,6 +55,9 @@ jobs:
           NPM_CONFIG_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: bun pm whoami
 
+      - name: Auto-bump package version
+        run: bun run bump:npm-packages sim-setup
+
       - name: Check generated deployment config
         run: bun run deployment-config:check
 
@@ -156,7 +159,7 @@ jobs:
           VERSION: ${{ steps.release.outputs.version }}
         run: |
           if bun pm view "sim-setup@$VERSION" version > /dev/null 2>&1; then
-            echo "sim-setup@$VERSION is already published. Bump packages/sim-setup/package.json before releasing another build." >&2
+            echo "sim-setup@$VERSION is already published. The automatic version bump did not produce a unique release." >&2
             exit 1
           fi
 

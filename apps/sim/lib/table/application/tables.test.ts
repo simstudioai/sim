@@ -59,9 +59,19 @@ vi.mock('@/lib/table/application/context', () => ({
   resolveTableWorkspaceContext: mocks.resolveWorkspaceContext,
 }))
 
+/**
+ * The two projectors are deliberately distinguishable here: the strict one
+ * reproduces the bare `Error` a dangling `folderId` raises in production, so a
+ * listing that reaches for the wrong one fails the test the same way it 500s
+ * the page.
+ */
 vi.mock('@/lib/table/application/folder-paths', () => ({
   resolveTableFolderPath: vi.fn(),
-  tableFolderPathForId: () => '/',
+  tableFolderPathForId: (_index: unknown, folderId: string | null | undefined) => {
+    if (folderId) throw new Error('Table references an inactive or missing folder')
+    return '/'
+  },
+  archivableTableFolderPath: () => '/',
 }))
 
 vi.mock('@/lib/table/events', () => ({ signalTableSchemaChanged: mocks.signal }))
@@ -100,6 +110,59 @@ describe('table list scope', () => {
     mocks.loadFolderIndex.mockResolvedValue({ pathById: new Map() })
     mocks.resolveFolderPathFilter.mockReturnValue({ kind: 'all' })
     mocks.queryTables.mockResolvedValue({ tables: [], nextKeys: null })
+  })
+
+  /**
+   * Archiving a folder cascades onto its tables but leaves each `folderId`
+   * pointing at the soft-deleted row, so the archived scope is exactly the
+   * population whose folder cannot resolve. Projected strictly, one such row
+   * threw and 500'd the whole page — and no cursor position could step past it,
+   * which made every archived table id undiscoverable and `restore` unreachable.
+   */
+  it('renders an archived table whose folder was archived too at the root', async () => {
+    mocks.queryTables.mockResolvedValue({
+      tables: [{ ...ARCHIVED, folderId: 'folder-archived' }],
+      nextKeys: null,
+    })
+
+    const result = await listTablesUseCase.execute({
+      principal: PRINCIPAL,
+      input: {
+        workspaceId: 'workspace-1',
+        scope: 'archived',
+        sortBy: 'createdAt',
+        sortOrder: 'asc',
+        limit: 10,
+      },
+    })
+
+    expect(result.tables).toEqual([
+      { table: { ...ARCHIVED, folderId: 'folder-archived' }, folderPath: '/' },
+    ])
+  })
+
+  /**
+   * The negative leg. A LIVE table pointing at a folder that does not resolve is
+   * a genuine inconsistency, so the active listing must stay loud rather than
+   * quietly re-rooting it.
+   */
+  it('still fails loudly on a dangling folder in the active listing', async () => {
+    mocks.queryTables.mockResolvedValue({
+      tables: [{ ...ARCHIVED, archivedAt: null, folderId: 'folder-archived' }],
+      nextKeys: null,
+    })
+
+    await expect(
+      listTablesUseCase.execute({
+        principal: PRINCIPAL,
+        input: {
+          workspaceId: 'workspace-1',
+          sortBy: 'createdAt',
+          sortOrder: 'asc',
+          limit: 10,
+        },
+      })
+    ).rejects.toThrow('Table references an inactive or missing folder')
   })
 
   it('lets the caller scope the listing without changing the default', async () => {

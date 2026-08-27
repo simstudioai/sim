@@ -142,6 +142,7 @@ import {
   type FileMetadataRecord,
   getFileMetadataByKeys,
 } from '@/lib/uploads/server/metadata'
+import { getWorkspaceFileSize } from '@/lib/uploads/shared/types'
 import { extractStorageKey } from '@/lib/uploads/utils/file-utils'
 import type { processDocument as processDocumentTask } from '@/background/knowledge-processing'
 import { calculateCost } from '@/providers/utils'
@@ -1990,7 +1991,8 @@ function getServerKnownDocumentSize(
   bindingByKey: ReadonlyMap<string, FileMetadataRecord>
 ): number {
   const storageKey = getKnowledgeBaseStorageKey(fileUrl)
-  return storageKey ? (bindingByKey.get(storageKey)?.size ?? fallbackSize) : fallbackSize
+  const binding = storageKey ? bindingByKey.get(storageKey) : undefined
+  return binding ? getWorkspaceFileSize(binding) : fallbackSize
 }
 
 /**

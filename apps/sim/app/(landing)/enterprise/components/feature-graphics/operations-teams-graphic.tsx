@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react'
 import { cn } from '@sim/emcn'
 import { ThinkingLoader } from '@/components/ui'
+import colorMixFallbacks from '@/app/(landing)/components/shared/color-mix-fallbacks/color-mix-fallbacks.module.css'
 import { FeatureGraphicShell } from '@/app/(landing)/enterprise/components/feature-graphics/feature-graphic-shell'
 import styles from '@/app/(landing)/enterprise/components/feature-graphics/operations-teams-graphic.module.css'
 
@@ -118,14 +119,11 @@ const OUT_PATHS = {
   jira: 'M 140 155 C 140 184 224 178 224 206',
 } as const
 
-/** Faint-ink stroke for the resting wires (the deploy tile's guide-line grey, quieter). */
-const QUIET_STROKE = 'color-mix(in srgb, var(--text-muted-inverse) 28%, transparent)'
-
 /** Shared 1px outline ink for the tags, port dots, and router hub ring. */
-const OUTLINE_INK = 'border-[color:color-mix(in_srgb,var(--text-muted-inverse)_45%,transparent)]'
+const OUTLINE_INK = colorMixFallbacks.inverseBorder45
 
 /** Shared SVG props for a resting wire. */
-const WIRE_PROPS = { stroke: QUIET_STROKE, strokeWidth: '1' } as const
+const WIRE_PROPS = { className: colorMixFallbacks.inverseStroke28, strokeWidth: '1' } as const
 
 /** Shared SVG props for a traveling white request-pulse overlay on a wire. */
 const PULSE_PROPS = {
@@ -143,7 +141,7 @@ function PortTag({ port }: { port: Port }) {
     >
       <span
         className={cn(
-          'relative flex h-5 items-center overflow-hidden rounded-md border bg-transparent px-1.5 font-medium text-[var(--text-muted-inverse)] text-caption',
+          'relative flex h-5 items-center overflow-hidden rounded-md border bg-transparent px-1.5 text-[var(--text-muted-inverse)] text-caption',
           OUTLINE_INK
         )}
       >

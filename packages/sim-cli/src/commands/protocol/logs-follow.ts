@@ -62,7 +62,7 @@ const MAX_PAGES_PER_POLL = 10
 const MAX_REMEMBERED_RUNS = 5000
 
 /** Widest a table column renders, matching the `logs list` table. */
-const MAX_CELL_WIDTH = 60
+export const MAX_CELL_WIDTH = 60
 
 /** How often an interruptible wait checks whether Ctrl-C has arrived. */
 const WAIT_SLICE_MS = 250
@@ -135,8 +135,14 @@ function renderCell(value: unknown, format: ColumnSpec['format']): string {
   }
 }
 
-const COLUMNS: Column<LogRow>[] = (CLI_CONTRACT.listLogs?.columns ?? []).map((spec) => ({
+interface FollowColumn extends Column<LogRow> {
+  /** Narrowest this column may lock to, from the contract's `minWidth`. */
+  floor: number
+}
+
+const COLUMNS: FollowColumn[] = (CLI_CONTRACT.listLogs?.columns ?? []).map((spec) => ({
   header: spec.header,
+  floor: Math.min(MAX_CELL_WIDTH, spec.minWidth ?? 0),
   value: (row) => renderCell(at(row, spec.path ?? spec.header), spec.format),
 }))
 
@@ -156,7 +162,7 @@ function pad(value: string, width: number): string {
 }
 
 /**
- * Truncates a cell to its locked column width.
+ * Truncates a cell to the widest a column may ever render.
  *
  * Skipped unless the visible width equals the string length, which is only true
  * of text carrying neither an escape sequence nor a wide character — slicing
@@ -178,18 +184,32 @@ type RowWriter = (rows: LogRow[]) => void
  * table. Locking the widths is what `kubectl get -w` does, for the same reason.
  * The header prints on the first call even when that call carries no rows, so
  * the columns are labelled from the start rather than from the first run.
+ *
+ * The lock decides the layout, never the content: a cell wider than its column
+ * overflows and pushes the rest of its row right, because clamping to a width
+ * the first batch happened to set is how a copyable run id became `9f…`. Cells
+ * are still cut at {@link MAX_CELL_WIDTH}, the cap `logs list` uses, so one
+ * LLM-sized cell cannot take the view. The contract's per-column floors are
+ * what keep the ragged case rare — without them `-n 0` locks every column to
+ * its header label and the whole follow prints askew.
  */
 function createTableWriter(): RowWriter {
   let widths: number[] | null = null
 
   return (rows) => {
-    const lines = rows.map((row) => COLUMNS.map((column) => oneLine(column.value(row))))
+    const lines = rows.map((row) =>
+      COLUMNS.map((column) => clamp(oneLine(column.value(row)), MAX_CELL_WIDTH))
+    )
 
     if (!widths) {
       widths = COLUMNS.map((column, index) =>
         Math.min(
           MAX_CELL_WIDTH,
-          Math.max(visibleWidth(column.header), ...lines.map((line) => visibleWidth(line[index])))
+          Math.max(
+            column.floor,
+            visibleWidth(column.header),
+            ...lines.map((line) => visibleWidth(line[index]))
+          )
         )
       )
       const header = widths
@@ -206,7 +226,7 @@ function createTableWriter(): RowWriter {
     for (const line of lines) {
       console.log(
         line
-          .map((cell, index) => pad(clamp(cell, locked[index]), locked[index]))
+          .map((cell, index) => pad(cell, locked[index]))
           .join('  ')
           .trimEnd()
       )

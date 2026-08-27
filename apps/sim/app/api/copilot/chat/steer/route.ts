@@ -73,7 +73,6 @@ export const POST = withRouteHandler((request: NextRequest) =>
           chatId,
           steeringId,
           content,
-          workspaceId: run?.workspaceId ?? undefined,
         })
         queued = result.queued
         goStatus = result.status

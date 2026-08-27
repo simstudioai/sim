@@ -4,6 +4,7 @@ import type { CommandSpec, CommandVariantSpec } from '../contract/types'
 import { V2_OPERATIONS, type V2OperationName } from '../generated/v2-api'
 import { deriveCommandPath } from './derive'
 import { executeOperation } from './execute'
+import { retypeApiError } from './naming'
 import { addOperationOptions } from './options'
 import { warnRenamedCommand } from './renamed'
 import {
@@ -28,6 +29,20 @@ const GROUP_ALIASES: Readonly<Record<string, string>> = {
   tables: 'table',
   workflows: 'workflow',
   workspaces: 'workspace',
+}
+
+/**
+ * States the personal-key restriction the way every generated command states it.
+ *
+ * The suffix lives here, once, because a fully hand-written command renders its
+ * own `.description()` and never reaches the generated path — three commands
+ * (`secrets set`, `credentials create`, `credentials connect`/`reconnect`) sat
+ * beside siblings that carried the warning and silently read as accepting a
+ * workspace key. Taking the `OperationSpec` rather than a boolean means a
+ * caller has to name the operation it actually calls, so the two cannot drift.
+ */
+export function describeOperation(operationSpec: OperationSpec, described: string): string {
+  return operationSpec.personalKeyOnly ? `${described} (personal API key required)` : described
 }
 
 function argumentSyntax(command: Command): string {
@@ -127,6 +142,54 @@ export function assertNoReservedProgramFlags(program: Command): void {
   for (const child of program.commands) walk(child, [])
 }
 
+/**
+ * Refuses `--help` typed after a command that does not exist.
+ *
+ * Commander answers a help flag before it looks at the operands, so `sim
+ * workspaces zzzz --help` printed the group's help and exited `0` while the
+ * same words without the flag exit `1`. A capability probe reading the exit
+ * code therefore concluded a command exists when it does not.
+ *
+ * Only pure dispatchers are guarded. A command that takes arguments or acts on
+ * its own (`sim files restore <fileId>`, `sim profiles`) legitimately sees an
+ * operand it did not register as a subcommand, and refusing there would break
+ * `--help` on argv the CLI accepts.
+ */
+export function refuseHelpAfterUnknownCommand(program: Command): void {
+  const walk = (command: Command): void => {
+    // Neither the action handler nor `unknownCommand` is in commander's
+    // typings, for the same reason `rawArgs` is not — reaching for them is what
+    // keeps this message, its "did you mean" suggestion, and its error code
+    // identical to the non-help path.
+    const internals = command as Command & {
+      _actionHandler?: unknown
+      unknownCommand: () => never
+    }
+    const dispatchesOnly =
+      command.commands.length > 0 &&
+      !internals._actionHandler &&
+      command.registeredArguments.length === 0
+
+    if (dispatchesOnly) {
+      const known = new Set<string>(['help'])
+      for (const child of command.commands) {
+        known.add(child.name())
+        for (const alias of child.aliases()) known.add(alias)
+      }
+      // `beforeHelp` fires inside `outputHelp()`, before a byte is written, and
+      // by then commander has already assigned the parsed operands.
+      command.on('beforeHelp', () => {
+        const first = command.args[0]
+        if (first === undefined || first.startsWith('-') || known.has(first)) return
+        internals.unknownCommand()
+      })
+    }
+
+    for (const child of command.commands) walk(child)
+  }
+  walk(program)
+}
+
 function configureOperation(
   command: Command,
   operation: V2OperationName,
@@ -213,13 +276,23 @@ function configureOperation(
     }
   }
 
+  // Appended after the whole fallback chain, not inside the summary branch: a
+  // command with a hand-written `describe` needs the restriction stated just as
+  // much as one falling back to the spec summary.
   command.description(
-    spec.describe ?? operationSpec.summary ?? `${operationSpec.method} ${operationSpec.path}`
+    describeOperation(
+      operationSpec,
+      spec.describe ?? operationSpec.summary ?? `${operationSpec.method} ${operationSpec.path}`
+    )
   )
   addOperationOptions(command, operation, spec, operationSpec)
   assertNoReservedFlags(command, operation)
+  // The last frame that still knows which operation ran, and so the only one
+  // that can say `--include-job-runs` where the server said `includeJobRuns`.
   command.action((...invocation: unknown[]) =>
-    executeOperation(operation, spec, operationSpec, invocation)
+    executeOperation(operation, spec, operationSpec, invocation).catch((error) => {
+      throw retypeApiError(error, operation, spec, operationSpec)
+    })
   )
   return command
 }

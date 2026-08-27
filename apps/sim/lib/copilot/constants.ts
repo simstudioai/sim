@@ -77,3 +77,16 @@ export const TOOL_RESULT_MAX_INLINE_CHARS =
 export const COPILOT_MODES = ['ask', 'build', 'plan'] as const
 
 export const COPILOT_REQUEST_MODES = ['ask', 'build', 'plan', 'agent'] as const
+
+/**
+ * Model stamped on a mothership conversation row created outside the
+ * interactive send path: `POST /api/mothership/chats` (an empty chat), the
+ * `sim chat` API turn, and the inbox executor's chat for an email task.
+ * Shared so those three cannot drift onto different models for the same
+ * conversation type.
+ *
+ * The interactive send path (`lib/copilot/chat/post.ts`) does not read this:
+ * the chat it creates is stamped with the model it also runs the turn and
+ * generates the title with, which that module owns separately.
+ */
+export const MOTHERSHIP_CHAT_DEFAULT_MODEL = 'claude-opus-4-8'

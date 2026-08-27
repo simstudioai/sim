@@ -1,10 +1,11 @@
 import { cn } from '@sim/emcn'
 import { SlackIcon } from '@/components/icons'
+import colorMixFallbacks from '@/app/(landing)/components/shared/color-mix-fallbacks/color-mix-fallbacks.module.css'
 import { FeatureGraphicShell } from '@/app/(landing)/enterprise/components/feature-graphics'
 import styles from '@/app/(landing)/logs/components/feature-graphics/failure-alert-graphic.module.css'
 
 /** Shared hairline ink for the run row, connector, and notification window. */
-const OUTLINE_INK = 'border-[color:color-mix(in_srgb,var(--text-muted-inverse)_45%,transparent)]'
+const OUTLINE_INK = colorMixFallbacks.inverseBorder45
 
 /**
  * A failure caught by alerting, told top to bottom as the deploy tile's
@@ -37,12 +38,10 @@ export function FailureAlertGraphic() {
             styles.runRow
           )}
         >
-          <span className='font-medium text-[var(--text-inverse)] text-caption'>
-            Nightly data sync
-          </span>
+          <span className='text-[var(--text-inverse)] text-caption'>Nightly data sync</span>
           <span
             className={cn(
-              'flex h-5 items-center rounded-md border px-1.5 font-medium text-[var(--text-muted-inverse)] text-caption',
+              'flex h-5 items-center rounded-md border px-1.5 text-[var(--text-muted-inverse)] text-caption',
               OUTLINE_INK
             )}
           >
@@ -54,7 +53,7 @@ export function FailureAlertGraphic() {
         <span
           className={cn(
             'relative mt-2 mb-2 min-h-4 w-px flex-1 overflow-hidden',
-            'bg-[color:color-mix(in_srgb,var(--text-muted-inverse)_45%,transparent)]'
+            colorMixFallbacks.inverseBackground45
           )}
         >
           <span className={styles.sweep} />
@@ -76,13 +75,13 @@ export function FailureAlertGraphic() {
             >
               <SlackIcon className='size-[12px]' />
             </span>
-            <span className='min-w-0 flex-1 truncate font-medium text-[var(--text-inverse)] text-small'>
+            <span className='min-w-0 flex-1 truncate text-[var(--text-inverse)] text-small'>
               #oncall
             </span>
             <span className='shrink-0 text-[var(--text-muted-inverse)] text-caption'>Now</span>
           </div>
           <div className='px-3 pt-2.5 pb-4'>
-            <span className='block font-medium text-[var(--text-inverse)] text-small'>
+            <span className='block text-[var(--text-inverse)] text-small'>
               Run failed: Nightly data sync
             </span>
             <span className='mt-1 block text-[var(--text-muted-inverse)] text-caption'>

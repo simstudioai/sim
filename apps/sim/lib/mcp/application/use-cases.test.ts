@@ -147,6 +147,11 @@ describe('MCP server application use cases', () => {
     )
   })
 
+  /**
+   * The message reaches the REST API and the CLI alike, so it names the
+   * operation and the server it collided with rather than an HTTP endpoint only
+   * one of those two callers can reach.
+   */
   it('rejects an existing live URL before mutation and audit', async () => {
     mocks.idState.mockResolvedValueOnce({ deleted: false })
 
@@ -155,7 +160,18 @@ describe('MCP server application use cases', () => {
         principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
         input: { workspaceId: workspace.workspaceId, name: server.name, url: server.url },
       })
-    ).rejects.toMatchObject({ code: 'conflict' })
+    ).rejects.toMatchObject({
+      code: 'conflict',
+      message: expect.stringContaining('Update that server instead of creating a new one'),
+    })
+
+    mocks.idState.mockResolvedValueOnce({ deleted: false })
+    await expect(
+      createMcpServerUseCase.execute({
+        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        input: { workspaceId: workspace.workspaceId, name: server.name, url: server.url },
+      })
+    ).rejects.toMatchObject({ message: expect.not.stringMatching(/\/api\/v2\//) })
 
     expect(mocks.create).not.toHaveBeenCalled()
     expect(mocks.audit).not.toHaveBeenCalled()

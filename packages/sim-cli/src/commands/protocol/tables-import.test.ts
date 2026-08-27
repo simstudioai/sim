@@ -77,6 +77,48 @@ describe('tables import argument guards', () => {
     await expect(runImport(['f.csv', '--mode', 'append'])).rejects.toThrow(/applies to --table-id/)
   })
 
+  it('refuses to replace an existing table without --yes', async () => {
+    await expect(runImport(['f.csv', '--table-id', 't', '--mode', 'replace'])).rejects.toThrow(
+      /Re-run with --yes to confirm/
+    )
+    expect(mockRequest).not.toHaveBeenCalled()
+  })
+
+  it('replaces an existing table once --yes is passed', async () => {
+    mockRequest.mockResolvedValue({
+      data: {
+        session: { id: 'i1', status: 'completed', tableId: 't', rowsProcessed: 0, error: null },
+        uploadToken: null,
+        transfer: null,
+      },
+    })
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+
+    await runImport(['--file-id', 'w_1', '--table-id', 't', '--mode', 'replace', '--yes'])
+
+    expect(mockRequest).toHaveBeenCalled()
+    const body = (mockRequest.mock.calls[0][1] as { body: Record<string, unknown> }).body
+    expect(body.target).toEqual({ type: 'existing', tableId: 't', mode: 'replace' })
+  })
+
+  it('leaves the shapes that write nothing away ungated', async () => {
+    mockRequest.mockResolvedValue({
+      data: {
+        session: { id: 'i1', status: 'completed', tableId: 't', rowsProcessed: 0, error: null },
+        uploadToken: null,
+        transfer: null,
+      },
+    })
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+
+    await runImport(['--file-id', 'w_1', '--table-id', 't', '--mode', 'append'])
+    expect(mockRequest).toHaveBeenCalled()
+
+    mockRequest.mockClear()
+    await runImport(['--file-id', 'w_1', '--name', 'Customers'])
+    expect(mockRequest).toHaveBeenCalled()
+  })
+
   it('rejects an invalid import mode before making a request', async () => {
     await expect(
       runImport(['--file-id', 'w_1', '--name', 'Customers', '--mode', 'merge'])

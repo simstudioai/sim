@@ -1,10 +1,11 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { dbChainMockFns, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   appendCopilotChatMessages,
+  persistCopilotChatTurn,
   replaceCopilotChatMessages,
 } from '@/lib/copilot/chat/messages-store'
 import type { PersistedMessage } from '@/lib/copilot/chat/persisted-message'
@@ -229,6 +230,43 @@ describe('messages-store', () => {
       const toolCall = lastRowContent(0).contentBlocks?.[0].toolCall
       expect(toolCall?.result).toEqual({ success: false, error: 'too big' })
       expect(JSON.stringify(lastValuesRows())).not.toContain('huge')
+    })
+  })
+
+  describe('persistCopilotChatTurn', () => {
+    it('claims the chat row by id AND liveness, so a soft-deleted chat matches nothing', async () => {
+      dbChainMockFns.returning.mockResolvedValueOnce([{ model: 'claude-sonnet-4-5' }])
+
+      await persistCopilotChatTurn('chat-1', [userMsg, assistantMsg])
+
+      // The chain mock ignores predicates, so the predicate itself is the
+      // assertion: without the liveness term the update still matches an
+      // archived row and the turn lands in a conversation the user deleted.
+      expect(dbChainMockFns.where).toHaveBeenCalledWith({
+        type: 'and',
+        conditions: [
+          { type: 'eq', left: schemaMock.copilotChats.id, right: 'chat-1' },
+          { type: 'isNull', column: schemaMock.copilotChats.deletedAt },
+        ],
+      })
+    })
+
+    it('writes the transcript with the chat model when the row is still live', async () => {
+      dbChainMockFns.returning.mockResolvedValueOnce([{ model: 'claude-sonnet-4-5' }])
+
+      await persistCopilotChatTurn('chat-1', [userMsg, assistantMsg])
+
+      const rows = lastValuesRows()
+      expect(rows.map((r) => r.messageId)).toEqual(['msg-user-1', 'msg-asst-1'])
+      expect(rows[0].model).toBe('claude-sonnet-4-5')
+    })
+
+    it('writes nothing when the claim matches no row', async () => {
+      dbChainMockFns.returning.mockResolvedValueOnce([])
+
+      await persistCopilotChatTurn('chat-1', [userMsg, assistantMsg])
+
+      expect(dbChainMockFns.insert).not.toHaveBeenCalled()
     })
   })
 })

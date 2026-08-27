@@ -5,15 +5,21 @@
  */
 export const MAX_WORKSPACE_FILE_SIZE = 5 * 1024 * 1024 * 1024
 
-const MAX_POSTGRES_INTEGER = 2_147_483_647
-
 /**
- * Keeps the legacy int4 metadata projection writable while `size_bytes` stores the exact value.
+ * Returns the canonical workspace-file byte size after the `size_bytes` cutover.
+ *
+ * The migration backfills every existing row before the new application image is
+ * promoted, and its compatibility trigger fills the column for writes from an old
+ * image during rollout. A null therefore indicates migration drift, not a legacy row.
  */
-export function toLegacyWorkspaceFileSize(size: number): number {
-  if (!Number.isSafeInteger(size) || size < 0)
-    throw new Error(`Invalid workspace file size: ${size}`)
-  return Math.min(size, MAX_POSTGRES_INTEGER)
+export function getWorkspaceFileSize(file: { sizeBytes: number | null }): number {
+  if (file.sizeBytes === null) {
+    throw new Error('Workspace file is missing canonical size_bytes metadata')
+  }
+  if (!Number.isSafeInteger(file.sizeBytes) || file.sizeBytes < 0) {
+    throw new Error(`Invalid workspace file size: ${file.sizeBytes}`)
+  }
+  return file.sizeBytes
 }
 
 /**

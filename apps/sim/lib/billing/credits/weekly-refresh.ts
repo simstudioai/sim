@@ -1,12 +1,14 @@
 /**
- * Daily Refresh Credits
+ * Weekly Refresh Credits
  *
- * Each billing period is divided into 1-day windows starting from `periodStart`.
- * Users receive `planDollars * DAILY_REFRESH_RATE` in "included" usage per day.
- * Usage within that allowance does not count toward the plan limit (use-it-or-lose-it).
+ * Each billing period is divided into 7-day windows starting from `periodStart`.
+ * Paid plans receive a fixed `weeklyRefreshDollars * seats` allowance of
+ * "included" usage per window. Usage within that allowance does not count toward
+ * the plan limit (use-it-or-lose-it). A partial final window receives the full
+ * allowance — the MIN cap never prorates.
  *
  * The total refresh consumed in a period is:
- *   SUM( MIN(day_usage, daily_refresh_amount) ) for each day
+ *   SUM( MIN(week_usage, weekly_allowance) ) for each week
  *
  * This is subtracted from ledger period usage to derive "effective billable usage".
  *
@@ -22,35 +24,34 @@ import { db } from '@sim/db'
 import { usageLog } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, gte, lt, or, sql, sum } from 'drizzle-orm'
-import { DAILY_REFRESH_RATE } from '@/lib/billing/constants'
 import type { BillingEntity, UsageQueryPeriod } from '@/lib/billing/core/usage-log'
 import type { DbClient } from '@/lib/db/types'
 
-const logger = createLogger('DailyRefresh')
+const logger = createLogger('WeeklyRefresh')
 
 const MS_PER_DAY = 86_400_000
 const MAX_BILLING_PERIOD_DAYS = 370
 
-interface BillingPeriodUsageWithDailyRefreshParams {
+interface BillingPeriodUsageWithWeeklyRefreshParams {
   billingEntity: BillingEntity
   billingPeriod: UsageQueryPeriod
   refreshPeriodStart: Date
   refreshPeriodEnd?: Date | null
-  planDollars: number
+  weeklyRefreshDollars: number
   seats?: number
 }
 
 /**
- * Reads the exact ledger total and the daily-refresh buckets from one snapshot.
+ * Reads the exact ledger total and the weekly-refresh buckets from one snapshot.
  *
  * The two aggregates intentionally keep different predicates. Ledger totals
  * use both captured period bounds (or a reporting-time window), while refresh
  * membership is the captured period-start stamp alone — created-at only
- * buckets rows into days, clamped into the period (see
- * `computeDailyRefreshConsumed` for why).
+ * buckets rows into weeks, clamped into the period (see
+ * `computeWeeklyRefreshConsumed` for why).
  */
-export async function computeBillingPeriodUsageWithDailyRefresh(
-  params: BillingPeriodUsageWithDailyRefreshParams,
+export async function computeBillingPeriodUsageWithWeeklyRefresh(
+  params: BillingPeriodUsageWithWeeklyRefreshParams,
   executor: DbClient = db
 ): Promise<{ ledgerUsage: number; refreshConsumed: number }> {
   const {
@@ -58,12 +59,12 @@ export async function computeBillingPeriodUsageWithDailyRefresh(
     billingPeriod,
     refreshPeriodStart,
     refreshPeriodEnd,
-    planDollars,
+    weeklyRefreshDollars,
     seats = 1,
   } = params
   const now = new Date()
   const cap = refreshPeriodEnd && refreshPeriodEnd < now ? refreshPeriodEnd : now
-  const dailyRefreshDollars = planDollars * DAILY_REFRESH_RATE * seats
+  const weeklyAllowanceDollars = weeklyRefreshDollars * seats
   const refreshWindowActive = cap > refreshPeriodStart
   const refreshFilter = refreshWindowActive
     ? eq(usageLog.billingPeriodStart, refreshPeriodStart)
@@ -89,16 +90,16 @@ export async function computeBillingPeriodUsageWithDailyRefresh(
   const capEpoch = Math.floor(cap.getTime() / 1000)
   const rows = await executor
     .select({
-      dayIndex:
-        sql<number>`FLOOR((LEAST(GREATEST(EXTRACT(EPOCH FROM ${usageLog.createdAt}), ${startEpoch}), ${capEpoch - 1}) - ${startEpoch}) / 86400)`.as(
-          'day_index'
+      weekIndex:
+        sql<number>`FLOOR((LEAST(GREATEST(EXTRACT(EPOCH FROM ${usageLog.createdAt}), ${startEpoch}), ${capEpoch - 1}) - ${startEpoch}) / 604800)`.as(
+          'week_index'
         ),
       ledgerTotal:
         sql<string>`SUM(SUM(${usageLog.cost}) FILTER (WHERE ${ledgerPeriodFilter})) OVER ()`.as(
           'ledger_total'
         ),
-      refreshDayTotal: sql<string>`SUM(${usageLog.cost}) FILTER (WHERE ${refreshFilter})`.as(
-        'refresh_day_total'
+      refreshWeekTotal: sql<string>`SUM(${usageLog.cost}) FILTER (WHERE ${refreshFilter})`.as(
+        'refresh_week_total'
       ),
     })
     .from(usageLog)
@@ -109,12 +110,12 @@ export async function computeBillingPeriodUsageWithDailyRefresh(
         scanFilter
       )
     )
-    .groupBy(sql`day_index`)
+    .groupBy(sql`week_index`)
 
   let refreshConsumed = 0
   for (const row of rows) {
-    const dayUsage = Number.parseFloat(row.refreshDayTotal ?? '0')
-    refreshConsumed += Math.min(dayUsage, dailyRefreshDollars)
+    const weekUsage = Number.parseFloat(row.refreshWeekTotal ?? '0')
+    refreshConsumed += Math.min(weekUsage, weeklyAllowanceDollars)
   }
 
   return {
@@ -124,32 +125,32 @@ export async function computeBillingPeriodUsageWithDailyRefresh(
 }
 
 /**
- * Compute the total daily refresh credits a billing entity consumed in a
- * period, using a single aggregating SQL query grouped by day offset.
+ * Compute the total weekly refresh credits a billing entity consumed in a
+ * period, using a single aggregating SQL query grouped by week offset.
  *
- * For each day from `periodStart`:
- *   consumed_today = MIN(actual_usage_today, daily_refresh_dollars)
+ * For each 7-day window from `periodStart`:
+ *   consumed_this_week = MIN(actual_usage_this_week, weekly_allowance_dollars)
  *
  * Rows are scoped purely by the entity and period stamps — see the module
  * header for why no actor list participates.
  *
- * @returns Total dollars of refresh consumed across all days (to subtract from usage)
+ * @returns Total dollars of refresh consumed across all weeks (to subtract from usage)
  */
-export async function computeDailyRefreshConsumed(
+export async function computeWeeklyRefreshConsumed(
   params: {
     billingEntity: BillingEntity
     periodStart: Date
     periodEnd?: Date | null
-    planDollars: number
+    weeklyRefreshDollars: number
     seats?: number
   },
   executor: DbClient = db
 ): Promise<number> {
-  const { billingEntity, periodStart, periodEnd, planDollars, seats = 1 } = params
+  const { billingEntity, periodStart, periodEnd, weeklyRefreshDollars, seats = 1 } = params
 
-  if (planDollars <= 0) return 0
+  if (weeklyRefreshDollars <= 0) return 0
 
-  const dailyRefreshDollars = planDollars * DAILY_REFRESH_RATE * seats
+  const weeklyAllowanceDollars = weeklyRefreshDollars * seats
 
   const now = new Date()
   const cap = periodEnd && periodEnd < now ? periodEnd : now
@@ -162,19 +163,19 @@ export async function computeDailyRefreshConsumed(
   }
 
   // Membership mirrors the ledger sums exactly: the entity and period stamps
-  // alone. Created-at only assigns the day bucket, clamped into the period —
+  // alone. Created-at only assigns the week bucket, clamped into the period —
   // a straggler row written after the rollover (billing attribution is frozen
   // at run start) is billed by the stamp-based close, so it must consume
-  // refresh on the period's final day rather than fall out of the deduction.
+  // refresh in the period's final week rather than fall out of the deduction.
   const startEpoch = Math.floor(periodStart.getTime() / 1000)
   const capEpoch = Math.floor(cap.getTime() / 1000)
   const rows = await executor
     .select({
-      dayIndex:
-        sql<number>`FLOOR((LEAST(GREATEST(EXTRACT(EPOCH FROM ${usageLog.createdAt}), ${startEpoch}), ${capEpoch - 1}) - ${startEpoch}) / 86400)`.as(
-          'day_index'
+      weekIndex:
+        sql<number>`FLOOR((LEAST(GREATEST(EXTRACT(EPOCH FROM ${usageLog.createdAt}), ${startEpoch}), ${capEpoch - 1}) - ${startEpoch}) / 604800)`.as(
+          'week_index'
         ),
-      dayTotal: sum(usageLog.cost).as('day_total'),
+      weekTotal: sum(usageLog.cost).as('week_total'),
     })
     .from(usageLog)
     .where(
@@ -184,19 +185,19 @@ export async function computeDailyRefreshConsumed(
         eq(usageLog.billingPeriodStart, periodStart)
       )
     )
-    .groupBy(sql`day_index`)
+    .groupBy(sql`week_index`)
 
   let totalConsumed = 0
   for (const row of rows) {
-    const dayUsage = Number.parseFloat(row.dayTotal ?? '0')
-    totalConsumed += Math.min(dayUsage, dailyRefreshDollars)
+    const weekUsage = Number.parseFloat(row.weekTotal ?? '0')
+    totalConsumed += Math.min(weekUsage, weeklyAllowanceDollars)
   }
 
-  logger.debug('Daily refresh computed', {
+  logger.debug('Weekly refresh computed', {
     billingEntityType: billingEntity.type,
     periodStart: periodStart.toISOString(),
-    days: dayCount,
-    dailyRefreshDollars,
+    weeks: Math.ceil(dayCount / 7),
+    weeklyAllowanceDollars,
     totalConsumed,
   })
 

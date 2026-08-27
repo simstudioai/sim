@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { Checkbox, cn } from '@sim/emcn'
 import { ChevronDown, Table, TypeBoolean, TypeText } from '@sim/emcn/icons'
 import { HeroLoopShell } from '@/app/(landing)/components/shared/hero-loop-shell'
-import { RESET_FADE_MS } from '@/app/(landing)/hooks/use-design-scale'
+import { PLATFORM_LOOP_RESET_FADE_MS } from '@/app/(landing)/components/shared/platform-loop-constants'
 import { useMotionSafeCycle } from '@/app/(landing)/hooks/use-motion-safe-cycle'
 import styles from '@/app/(landing)/tables/components/tables-hero-loop.module.css'
 
@@ -287,12 +287,12 @@ function TablesGridPane({ rowCount, filledCount }: TablesGridPaneProps) {
     <div className='flex h-full flex-col overflow-hidden bg-[var(--bg)]'>
       <div className='border-[var(--border)] border-b px-4 py-[8.5px]'>
         <div className='flex items-center gap-3'>
-          <span className='inline-flex items-center px-2 py-1 font-medium text-[var(--text-secondary)] text-sm'>
+          <span className='inline-flex items-center px-2 py-1 text-[var(--text-secondary)] text-sm'>
             <Table className='mr-3 size-[14px] text-[var(--text-icon)]' />
             Tables
           </span>
           <span className='select-none text-[var(--text-icon)] text-sm'>/</span>
-          <span className='inline-flex items-center px-2 py-1 font-medium text-[var(--text-body)] text-sm'>
+          <span className='inline-flex items-center px-2 py-1 text-[var(--text-body)] text-sm'>
             Leads
             <ChevronDown className='ml-2 size-[14px] shrink-0 text-[var(--text-muted)]' />
           </span>
@@ -340,8 +340,8 @@ function TablesGridPane({ rowCount, filledCount }: TablesGridPaneProps) {
 
 /**
  * The tables hero's editor loop - the grid-pane sibling of the workflows
- * editor loop. Same architecture (fixed 1280x735 design-space layer scaled
- * to the window via ResizeObserver + `transform: scale`, a parent-owned
+ * editor loop. Same architecture (a fixed 1280x735 HTML design surface fitted
+ * to the window via the shared responsive stage, a parent-owned
  * clock driving a presentational pane, reduced-motion showing the finished
  * frame) and the same live {@link EnterpriseSidebar} with its Tables nav
  * row highlighted, but the workspace pane is the Leads table itself: the
@@ -377,7 +377,7 @@ export function TablesHeroLoop() {
           ...Array.from({ length: TOTAL_FILLED_CELLS }, (_, i) =>
             setTimeout(() => setFilledCount(i + 1), sweepAt + i * CELL_STEP_MS)
           ),
-          setTimeout(() => setFading(true), totalMs - RESET_FADE_MS),
+          setTimeout(() => setFading(true), totalMs - PLATFORM_LOOP_RESET_FADE_MS),
         ],
         totalMs,
       }

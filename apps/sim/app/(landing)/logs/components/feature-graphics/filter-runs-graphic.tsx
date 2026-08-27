@@ -55,7 +55,7 @@ export function FilterRunsGraphic() {
       >
         <div className='w-full max-w-[312px] sm:max-lg:[@container(min-width:500px)]:max-w-[400px]'>
           <div className='mb-2.5 flex items-center justify-between'>
-            <span className='font-medium text-[var(--text-primary)] text-base'>Search runs</span>
+            <span className='text-[var(--text-primary)] text-base'>Search runs</span>
             <ChipTag variant='mono' className='bg-[var(--surface-6)]'>
               3 matches
             </ChipTag>
@@ -87,7 +87,7 @@ export function FilterRunsGraphic() {
                   ROW_STEP_CLASSES[index]
                 )}
               >
-                <span className='min-w-0 truncate font-medium text-[var(--text-primary)] text-caption'>
+                <span className='min-w-0 truncate text-[var(--text-primary)] text-caption'>
                   {run.workflow}
                 </span>
                 <span className='flex shrink-0 items-center gap-2.5'>

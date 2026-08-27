@@ -1001,6 +1001,46 @@ export interface SimDesktopWindowStateApi {
   onStateChange(callback: (state: DesktopWindowState) => void): () => void
 }
 
+/**
+ * The Sim deployment an installed shell is pointed at. The bundle bakes only a
+ * DEFAULT origin; navigation, CSP, cookie partition, and the update feed are
+ * all derived from the configured one.
+ */
+export interface DesktopServerConfiguration {
+  /** The origin the shell is currently pointed at. */
+  origin: string
+  /** The origin this build falls back to when nothing is stored. */
+  defaultOrigin: string
+  /**
+   * Whether the configured origin is one of Sim's own deployments. Sim-operated
+   * resources (the public status page) describe only those, so a self-hosted
+   * shell must not be pointed at them.
+   */
+  isSimCloud: boolean
+}
+
+/** Outcome of a server change. On success the shell relaunches immediately. */
+export type DesktopServerChangeResult =
+  | { ok: true; origin: string; unchanged: boolean }
+  | { ok: false; error: string }
+
+/**
+ * Reading and changing the server origin. Exposed only to the shell's own
+ * bundled `file:` pages: the surface that changes which server the app talks
+ * to must stay reachable when that server cannot be reached at all, and must
+ * never be drivable by a page the current server serves.
+ */
+export interface SimDesktopServerApi {
+  /** Opens the shell's native server-selection window. */
+  open(): void
+  getConfiguration(): Promise<DesktopServerConfiguration>
+  /**
+   * Validates and persists a new server origin, then relaunches the shell.
+   * Resolves with an error message when the origin is rejected.
+   */
+  setOrigin(origin: string): Promise<DesktopServerChangeResult>
+}
+
 export interface SimDesktopApi {
   /** Installed shell version (plain semver, e.g. `0.3.1`). */
   version: string
@@ -1017,6 +1057,11 @@ export interface SimDesktopApi {
    */
   onOAuthConnectComplete(callback: (result: DesktopOAuthConnectResult) => void): () => void
   offlineRetry(): void
+  /**
+   * Optional because shells older than this surface do not expose it. Only
+   * the shell's own bundled pages can call it — see {@link SimDesktopServerApi}.
+   */
+  server?: SimDesktopServerApi
   localFilesystem(request: LocalFilesystemRequest): Promise<LocalFilesystemResponse>
   /** Subscribe to commands initiated by the native application menu. */
   onCommand(callback: (command: DesktopCommand) => void): () => void

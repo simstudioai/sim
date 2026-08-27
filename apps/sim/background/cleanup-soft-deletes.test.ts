@@ -121,7 +121,7 @@ describe('cleanup soft deletes', () => {
           key: 'workspace/ws-1/file-failed',
           workspaceId: 'ws-1',
           context: 'workspace',
-          size: 11,
+          sizeBytes: 11,
         },
       ])
     mockDeleteFiles.mockResolvedValueOnce({
@@ -148,18 +148,18 @@ describe('cleanup soft deletes', () => {
           key: 'workspace/ws-1/file-deleted',
           workspaceId: 'ws-1',
           context: 'workspace',
-          size: 7,
+          sizeBytes: 7,
         },
         {
           id: 'file-restored',
           key: 'workspace/ws-1/file-restored',
           workspaceId: 'ws-1',
           context: 'workspace',
-          size: 13,
+          sizeBytes: 13,
         },
       ])
     mockDeleteFiles.mockResolvedValueOnce({ deleted: 2, failed: [] })
-    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'file-deleted', size: 7 }])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'file-deleted', sizeBytes: 7 }])
 
     await runCleanupSoftDeletes(basePayload)
 
@@ -184,7 +184,7 @@ describe('cleanup soft deletes', () => {
           key: 'mothership/chat-file',
           workspaceId: 'ws-1',
           context: 'mothership',
-          size: 17,
+          sizeBytes: 17,
         },
       ])
     mockDeleteFiles.mockResolvedValueOnce({ deleted: 1, failed: [] })
@@ -196,6 +196,26 @@ describe('cleanup soft deletes', () => {
     expect(dbChainMockFns.delete).toHaveBeenCalled()
     expect(mockResolveStorageBillingContext).not.toHaveBeenCalled()
     expect(mockDecrementStorageUsageForBillingContextInTx).not.toHaveBeenCalled()
+  })
+
+  it('fails before deleting storage when canonical size metadata is missing', async () => {
+    mockSelectRowsByIdChunks
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          id: 'file-missing-size',
+          key: 'workspace/ws-1/file-missing-size',
+          workspaceId: 'ws-1',
+          context: 'workspace',
+          sizeBytes: null,
+        },
+      ])
+
+    await expect(runCleanupSoftDeletes(basePayload)).rejects.toThrow(
+      'Workspace file is missing canonical size_bytes metadata'
+    )
+    expect(mockDeleteFiles).not.toHaveBeenCalled()
   })
 
   it('hard-deletes retained documents before deleting an expired knowledge base', async () => {

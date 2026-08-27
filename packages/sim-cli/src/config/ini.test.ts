@@ -174,3 +174,133 @@ output = json
     )
   })
 })
+
+/**
+ * The format has no escape syntax, so anything that can end a line is structure
+ * rather than data. These pin the refusal at the writer — the single place
+ * untrusted text enters the document.
+ */
+describe('ini write guards', () => {
+  const INJECTIONS = [
+    'ws_1\nendpoint = http://elsewhere.invalid',
+    'ws_1\r\nendpoint = http://elsewhere.invalid',
+    'ws_1\u2028endpoint = http://elsewhere.invalid',
+    'ws_1\u2029endpoint = http://elsewhere.invalid',
+  ]
+
+  it('refuses a value that would be read back as a second setting', () => {
+    for (const value of INJECTIONS) {
+      const doc = parseIni(SAMPLE)
+      expect(() => setSectionValues(doc, 'default', { workspace: value })).toThrow(
+        /Refusing to write a value/
+      )
+    }
+  })
+
+  it('refuses a section name that would forge another section header', () => {
+    const doc = parseIni(SAMPLE)
+    expect(() =>
+      setSectionValues(doc, 'profile evil]\n[default', { workspace: 'ws_evil' })
+    ).toThrow(/Refusing to write a section/)
+    expect(() => setSectionValues(doc, 'profile evil]', { workspace: 'ws_evil' })).toThrow(
+      /Refusing to write a section/
+    )
+  })
+
+  /**
+   * The assertion that matters: whatever is written, reading the file back
+   * cannot produce a section or a setting nobody asked for.
+   */
+  it('cannot forge a section or a setting through a write-then-read cycle', () => {
+    for (const payload of [...INJECTIONS, 'ws]\n[default]\nendpoint = http://elsewhere.invalid']) {
+      const doc = parseIni(SAMPLE)
+      expect(() => setSectionValues(doc, `profile ${payload}`, { workspace: 'ws' })).toThrow()
+      expect(() => setSectionValues(doc, 'profile dev', { workspace: payload })).toThrow()
+
+      const reread = parseIni(serializeIni(doc))
+      expect(listSections(reread)).toEqual(['default', 'profile dev'])
+      expect(getSection(reread, 'default')).toEqual({
+        endpoint: 'https://sim.ai',
+        workspace: 'ws_1',
+      })
+      expect(getSection(reread, 'profile dev')).toEqual({ endpoint: 'http://localhost:3000' })
+    }
+  })
+
+  /**
+   * A whitespace-only value reads back as the empty string, so the key would
+   * look stored while resolving as unset.
+   */
+  it('refuses a blank value', () => {
+    const doc = parseIni(SAMPLE)
+    expect(() => setSectionValues(doc, 'default', { workspace: '   ' })).toThrow(/blank value/)
+  })
+
+  /**
+   * The reader trims a section name and a value, so padded text would be stored
+   * as one thing and read back as another: the read reports it missing, and the
+   * next write appends a second block or key rather than updating the first.
+   */
+  it.each([' profile dev', 'profile dev ', '  profile dev  '])(
+    'refuses the padded section name %j',
+    (name) => {
+      const doc = parseIni(SAMPLE)
+      expect(() => setSectionValues(doc, name, { workspace: 'ws_1' })).toThrow(
+        /Refusing to write a section/
+      )
+    }
+  )
+
+  it.each([' ws_1', 'ws_1 ', '  ws_1  '])('refuses the padded value %j', (value) => {
+    const doc = parseIni(SAMPLE)
+    expect(() => setSectionValues(doc, 'default', { workspace: value })).toThrow(
+      /Refusing to write a value/
+    )
+  })
+
+  it('leaves a legitimate value untouched', () => {
+    const doc = parseIni(SAMPLE)
+    setSectionValues(doc, 'profile staging-1.eu', { endpoint: 'https://staging.example' })
+    expect(getSection(parseIni(serializeIni(doc)), 'profile staging-1.eu')).toEqual({
+      endpoint: 'https://staging.example',
+    })
+  })
+
+  /**
+   * `listProfiles` counts section names, so a section conjured by a removal made
+   * an unknown profile pass the "does this profile exist?" check for good.
+   */
+  it('does not create a section for a removal-only update', () => {
+    const doc = parseIni('')
+    setSectionValues(doc, 'profile fresh', { workspace: null })
+    expect(listSections(doc)).toEqual([])
+    expect(serializeIni(doc)).toBe('')
+  })
+})
+
+/**
+ * A write names one section, so it must leave every other section's bytes
+ * alone. The header was the exception: `parseIni` trims the bracketed text to
+ * get the name and the writer rebuilt `[${name}]` from it, so a `configure
+ * --set-output` on `default` silently reformatted a hand-written
+ * `[profile   padded   ]` it had never been asked to touch.
+ */
+describe('section headers survive a write to another section', () => {
+  it('re-emits an unrelated padded header byte for byte', () => {
+    const doc = parseIni(
+      '[default]\nendpoint = https://sim.ai\n\n[profile   padded   ]\nworkspace = ws_1\n'
+    )
+
+    setSectionValues(doc, 'default', { output: 'json' })
+
+    expect(serializeIni(doc)).toContain('[profile   padded   ]')
+  })
+
+  it('generates a header for a section the writer created', () => {
+    const doc = parseIni('[default]\nendpoint = https://sim.ai\n')
+
+    setSectionValues(doc, 'profile dev', { workspace: 'ws_2' })
+
+    expect(serializeIni(doc)).toContain('[profile dev]')
+  })
+})

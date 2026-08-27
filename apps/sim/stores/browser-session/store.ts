@@ -1,4 +1,9 @@
-import type { BrowserPageState, BrowserTabState, BrowserTabsState } from '@sim/browser-protocol'
+import type {
+  BrowserPageIssue,
+  BrowserPageState,
+  BrowserTabState,
+  BrowserTabsState,
+} from '@sim/browser-protocol'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import {
@@ -78,6 +83,16 @@ function isPristineSession(session: BrowserSessionData): boolean {
   )
 }
 
+function pageIssueEqual(a: BrowserPageIssue | undefined, b: BrowserPageIssue | undefined): boolean {
+  if (a === b) return true
+  if (!a || !b || a.kind !== b.kind || a.url !== b.url) return false
+  if (a.kind === 'load-error') {
+    return b.kind === 'load-error' && a.code === b.code && a.description === b.description
+  }
+  if (a.kind === 'crashed') return b.kind === 'crashed' && a.reason === b.reason
+  return true
+}
+
 function tabFieldsEqual(a: BrowserTabState, b: BrowserTabState): boolean {
   return (
     a.tabId === b.tabId &&
@@ -85,7 +100,8 @@ function tabFieldsEqual(a: BrowserTabState, b: BrowserTabState): boolean {
     a.title === b.title &&
     a.loading === b.loading &&
     a.active === b.active &&
-    a.pinned === b.pinned
+    a.pinned === b.pinned &&
+    pageIssueEqual(a.issue, b.issue)
   )
 }
 
@@ -110,6 +126,7 @@ function retainSettledTabTitles(
     if (
       incoming.title.trim() === '' &&
       !incoming.loading &&
+      !incoming.issue &&
       current?.url === incoming.url &&
       current.title.trim() !== ''
     ) {
@@ -129,7 +146,8 @@ function pageStateEqual(a: BrowserPageState | null, b: BrowserPageState | null):
     a.title === b.title &&
     a.loading === b.loading &&
     a.canGoBack === b.canGoBack &&
-    a.canGoForward === b.canGoForward
+    a.canGoForward === b.canGoForward &&
+    pageIssueEqual(a.issue, b.issue)
   )
 }
 
@@ -198,6 +216,7 @@ export const useBrowserSessionStore = create<BrowserSessionState>()(
                     title: pageState.title,
                     loading: pageState.loading,
                     active: true,
+                    issue: pageState.issue,
                   }
                 : tab.active
                   ? { ...tab, active: false }
@@ -252,6 +271,7 @@ export const useBrowserSessionStore = create<BrowserSessionState>()(
                     loading: activeTab.loading,
                     canGoBack: false,
                     canGoForward: false,
+                    ...(activeTab.issue ? { issue: activeTab.issue } : {}),
                   }
             const sessionAlive = tabs.length > 0
             if (

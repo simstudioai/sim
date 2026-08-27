@@ -33,6 +33,8 @@ import type {
   DesktopOAuthConnectScope,
   DesktopPreferenceKey,
   DesktopPreferences,
+  DesktopServerChangeResult,
+  DesktopServerConfiguration,
   DesktopUpdateState,
   DesktopWindowState,
   DesktopZoomPercent,
@@ -123,6 +125,15 @@ const api: SimDesktopApi = {
   },
   offlineRetry: (): void => {
     ipcRenderer.send('offline:retry')
+  },
+  server: {
+    open: (): void => {
+      ipcRenderer.send('server:open')
+    },
+    getConfiguration: (): Promise<DesktopServerConfiguration> =>
+      ipcRenderer.invoke('server:get-configuration'),
+    setOrigin: (origin: string): Promise<DesktopServerChangeResult> =>
+      ipcRenderer.invoke('server:set-origin', origin),
   },
   localFilesystem: (request: LocalFilesystemRequest): Promise<LocalFilesystemResponse> =>
     ipcRenderer.invoke('desktop:local-filesystem', request),

@@ -15,6 +15,8 @@ Every command below also accepts the [global options](/cli/commands#global-optio
 sim workflows activate create <workflowId> <version>
 ```
 
+Activate Workflow Version (personal API key required)
+
 **Arguments**
 
 <CommandTable>
@@ -31,6 +33,8 @@ sim workflows activate create <workflowId> <version>
 ```bash
 sim workflows operations apply <workflowId> [options]
 ```
+
+Apply Workflow Operations (personal API key required)
 
 **Arguments**
 
@@ -138,7 +142,7 @@ Show run status (requested outputs are included in JSON or YAML output)
 | --- | --- | --- |
 | `--workflow <workflowId>` | Yes | Workflow ID. |
 | `--include-output` | No | Include the final output in JSON or YAML output. |
-| `--select-output <value...>` | No | Include blockName.field values in JSON or YAML output (e.g. agent_1.content) (space-separated, or @path / @- with one value per line). |
+| `--select-output <value...>` | No | Include blockId or blockId.path values in JSON or YAML output; block names are not resolved on a finished run (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
 | `--include-file-base64` | No | Inline each produced file's bytes as base64. Requires `includeOutput`. A file above the inline ceiling answers `413` naming its download path; fetch large files from `downloadPath` instead. |
 | `--no-include-file-base64` | No | Send --include-file-base64 as false. |
 | `--base64-max-bytes <value>` | No | Per-file inline ceiling, lowering but never raising the server limit of 16 MiB. |
@@ -357,6 +361,8 @@ sim workflows delete <workflowId> [options]
 sim workflows chat unpublish <workflowId> [options]
 ```
 
+Take a workflow’s chat deployment offline (personal API key required)
+
 **Arguments**
 
 <CommandTable>
@@ -383,6 +389,8 @@ sim workflows chat unpublish <workflowId> [options]
 sim workflows chat status <workflowId>
 ```
 
+Show a workflow’s chat deployment (personal API key required)
+
 **Arguments**
 
 <CommandTable>
@@ -398,6 +406,8 @@ sim workflows chat status <workflowId>
 ```bash
 sim workflows chat publish <workflowId> [options]
 ```
+
+Publish or replace a workflow’s chat deployment (personal API key required)
 
 **Arguments**
 
@@ -436,6 +446,8 @@ sim workflows chat publish <workflowId> [options]
 ```bash
 sim workflows deploy <workflowId> [options]
 ```
+
+Deploy Workflow (personal API key required)
 
 **Arguments**
 
@@ -510,7 +522,7 @@ sim workflows run <workflowId> [options]
 | `--input <json\|@file>` | No | Trigger input as JSON (JSON, or @path / @- to read a file or stdin). |
 | `--async` | No | Queue the run and return immediately. |
 | `--execution-timeout-seconds <value>` | No | Requested server-side timeout for an asynchronous run, in seconds. An upper bound, not the effective timeout: the run uses the smaller of this value and the plan's execution timeout, so requesting more than the plan allows silently yields the plan timeout. Rejected with `400` unless `async` is true. |
-| `--select-output <value...>` | No | Return blockName.field values (e.g. agent_1.content); missing fields are omitted (space-separated, or @path / @- with one value per line). |
+| `--select-output <value...>` | No | Return blockName.field values from the streamed result (e.g. agent_1.content), requires --follow; missing fields are omitted (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
 | `--include-file-base64` | No | Inline eligible output files as base64 content. Rejected when `async` is true. |
 | `--no-include-file-base64` | No | Send --include-file-base64 as false. |
 | `--base64-max-bytes <value>` | No | Maximum total bytes of file content to inline as base64, lowering but never raising the server limit of 16 MiB. Rejected when `async` is true. |
@@ -580,6 +592,8 @@ sim workflows deployment status <workflowId>
 sim workflows deployment update <workflowId> [options]
 ```
 
+Update Workflow Public API Access (personal API key required)
+
 **Arguments**
 
 <CommandTable>
@@ -621,6 +635,8 @@ sim workflows state get <workflowId>
 ```bash
 sim workflows state replace <workflowId> [options]
 ```
+
+Replace Workflow State (personal API key required)
 
 **Arguments**
 
@@ -751,7 +767,7 @@ sim workflows list [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--scope <value>` | No | Which lifecycle set to list: `active` (default) for live workflows, `archived` for workflows a `DELETE` archived. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too. Accepted values: `active`, `archived`. |
+| `--scope <value>` | No | Which lifecycle set to list: `active` (default) for live workflows, `archived` for workflows a `DELETE` archived. The folder filter resolves against active folders only, so pairing it with `archived` returns an empty page when the containing folder was archived too. Accepted values: `active`, `archived`. |
 | `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
 | `--deployed-only` | No | Return only workflows with an active deployment when true. |
 | `--no-deployed-only` | No | Send --deployed-only as false. |
@@ -774,7 +790,7 @@ sim workflows move [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--workflow <value...>` | Yes | Workflows to move. Duplicates are collapsed. (space-separated, or @path / @- with one value per line). |
+| `--workflow <value...>` | Yes | Workflows to move. Duplicates are collapsed. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
 | `--to <value>` | Yes | Destination folder path; / moves the workflows to the workspace root. |
 
 </CommandTable>
@@ -800,6 +816,8 @@ sim workflows restore <workflowId>
 ```bash
 sim workflows revert create <workflowId> <version> [options]
 ```
+
+Revert Workflow To Version (personal API key required)
 
 **Arguments**
 
@@ -828,6 +846,8 @@ sim workflows revert create <workflowId> <version> [options]
 sim workflows rollback <workflowId> [options]
 ```
 
+Rollback Workflow (personal API key required)
+
 **Arguments**
 
 <CommandTable>
@@ -854,6 +874,8 @@ sim workflows rollback <workflowId> [options]
 ```bash
 sim workflows undeploy <workflowId> [options]
 ```
+
+Take a workflow out of deployment (personal API key required)
 
 **Arguments**
 

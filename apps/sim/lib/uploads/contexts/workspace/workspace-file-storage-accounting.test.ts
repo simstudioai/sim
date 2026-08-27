@@ -141,6 +141,7 @@ const FILE_ROW = {
   displayName: 'note.txt',
   contentType: 'text/plain',
   size: 5,
+  sizeBytes: 5,
   deletedAt: null,
   uploadedAt: new Date('2026-07-01T00:00:00.000Z'),
   updatedAt: new Date('2026-07-01T00:00:00.000Z'),
@@ -666,12 +667,13 @@ describe('workspace file metadata and storage accounting', () => {
   })
 
   it('uploads an overwrite before atomically swapping the locked row and exact delta', async () => {
-    const concurrentFile = { ...FILE_ROW, size: 7 }
+    const concurrentFile = { ...FILE_ROW, size: 7, sizeBytes: 7 }
     const replacementKey = `${FILE_ROW.key}-replacement`
     const updatedFile = {
       ...concurrentFile,
       key: replacementKey,
       size: 10,
+      sizeBytes: 10,
       updatedAt: new Date('2026-07-03T00:00:00.000Z'),
     }
     dbChainMockFns.limit.mockResolvedValueOnce([FILE_ROW]).mockResolvedValueOnce([concurrentFile])
@@ -715,7 +717,7 @@ describe('workspace file metadata and storage accounting', () => {
 
   it('cleans up only the new overwrite object when atomic finalization fails', async () => {
     const replacementKey = `${FILE_ROW.key}-replacement`
-    const updatedFile = { ...FILE_ROW, key: replacementKey, size: 10 }
+    const updatedFile = { ...FILE_ROW, key: replacementKey, size: 10, sizeBytes: 10 }
     dbChainMockFns.limit.mockResolvedValueOnce([FILE_ROW]).mockResolvedValueOnce([FILE_ROW])
     dbChainMockFns.returning.mockResolvedValueOnce([updatedFile])
     mockUploadFile.mockResolvedValueOnce({ key: replacementKey })
@@ -744,6 +746,7 @@ describe('workspace file metadata and storage accounting', () => {
     const updatedFile = {
       ...MD_ROW,
       size: 12,
+      sizeBytes: 12,
       updatedAt: new Date('2026-07-05T00:00:00.000Z'),
       contentUpdatedAt: new Date('2026-07-04T00:00:00.000Z'),
     }
@@ -764,7 +767,7 @@ describe('workspace file metadata and storage accounting', () => {
   })
 
   it('does NOT merge when syncLiveDoc is false (the relay persist / empty-shell opt-out)', async () => {
-    const updatedFile = { ...MD_ROW, size: 12 }
+    const updatedFile = { ...MD_ROW, size: 12, sizeBytes: 12 }
     dbChainMockFns.limit.mockResolvedValueOnce([MD_ROW]).mockResolvedValueOnce([MD_ROW])
     dbChainMockFns.returning.mockResolvedValueOnce([updatedFile])
     mockUploadFile.mockResolvedValueOnce({ key: MD_ROW.key })
@@ -782,7 +785,7 @@ describe('workspace file metadata and storage accounting', () => {
   })
 
   it('does NOT merge a non-markdown write (the collaborative editor only renders markdown)', async () => {
-    const updatedFile = { ...FILE_ROW, size: 10 }
+    const updatedFile = { ...FILE_ROW, size: 10, sizeBytes: 10 }
     dbChainMockFns.limit.mockResolvedValueOnce([FILE_ROW]).mockResolvedValueOnce([FILE_ROW])
     dbChainMockFns.returning.mockResolvedValueOnce([updatedFile])
     mockUploadFile.mockResolvedValueOnce({ key: FILE_ROW.key })
@@ -799,7 +802,7 @@ describe('workspace file metadata and storage accounting', () => {
   })
 
   it('writes when the expectedUpdatedAt optimistic-concurrency guard matches', async () => {
-    const updatedFile = { ...FILE_ROW, size: 12 }
+    const updatedFile = { ...FILE_ROW, size: 12, sizeBytes: 12 }
     dbChainMockFns.limit.mockResolvedValueOnce([FILE_ROW]).mockResolvedValueOnce([FILE_ROW])
     dbChainMockFns.returning.mockResolvedValueOnce([updatedFile])
     mockUploadFile.mockResolvedValueOnce({ key: FILE_ROW.key })

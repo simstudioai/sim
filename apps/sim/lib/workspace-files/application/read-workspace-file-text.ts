@@ -50,9 +50,14 @@ export interface ReadWorkspaceFileTextResult {
  */
 async function readSourceBuffer(file: WorkspaceFileRecord, maxBytes: number): Promise<Buffer> {
   if (file.size > maxBytes) {
+    /**
+     * Sizes render with `includeBytes` because a caller-supplied `maxBytes` is
+     * routinely under 1 KB, and the default formatting collapses every sub-1 KB
+     * value to "0 Bytes" — naming neither the real size nor the limit to raise.
+     */
     throw new OrchestrationError(
       'payload_too_large',
-      `"${file.name}" is ${formatFileSize(file.size)}, above the ${formatFileSize(maxBytes)} text-extraction limit; download the raw bytes with GET /api/v2/files/${file.id}`
+      `"${file.name}" is ${formatFileSize(file.size, { includeBytes: true })}, above the ${formatFileSize(maxBytes, { includeBytes: true })} text-extraction limit; download the raw bytes instead of extracting text`
     )
   }
   return fetchWorkspaceFileBuffer(file, { maxBytes })
@@ -74,7 +79,7 @@ async function executeReadWorkspaceFileText({
   if (!isSupportedFileType(extension)) {
     throw new OrchestrationError(
       'validation',
-      `Text extraction is not supported for "${file.name}"; download the raw bytes with GET /api/v2/files/${file.id}`
+      `Text extraction is not supported for "${file.name}"; download the raw bytes instead of extracting text`
     )
   }
 
@@ -93,7 +98,7 @@ async function executeReadWorkspaceFileText({
         await resolveRenderedWorkspaceArtifact(file, principal, {
           maxBytes,
           tooLargeMessage: (limit) =>
-            `"${file.name}" renders to more than ${limit}, above the text-extraction limit; download the raw bytes with GET /api/v2/files/${file.id}`,
+            `"${file.name}" renders to more than ${limit}, above the text-extraction limit; download the raw bytes instead of extracting text`,
         })
       ).buffer
     : await readSourceBuffer(file, maxBytes)

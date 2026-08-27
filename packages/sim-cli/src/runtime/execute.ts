@@ -9,11 +9,12 @@ import { DEFAULT_LIMIT } from './options'
 import { warnRenamedFlag } from './renamed'
 import {
   buildRequest,
+  cursorSlot,
   flagNameFor,
   isProfileWorkspacePath,
   PROFILE_INJECTED_FIELD,
 } from './request'
-import { renderPage, renderResult } from './result'
+import { foldPageEnvelope, renderPage, renderResult } from './result'
 import type { OperationSpec } from './types'
 
 /**
@@ -93,6 +94,17 @@ export const BULK_OUTCOME_CHECKS: Readonly<Partial<Record<V2OperationName, BulkO
     if (requested === 0) return null
     return `Deleted nothing: none of the ${requested} requested ${requested === 1 ? 'file was' : 'files were'} deleted.`
   },
+  /**
+   * `added` empty with `failed` populated is a call that indexed nothing. An
+   * empty request — no file resolved to a reference at all — is not a failure,
+   * so it is left alone.
+   */
+  addWorkspaceFilesToKnowledgeBase: (payload) => {
+    if (lengthOf(payload.added) > 0) return null
+    const failed = lengthOf(payload.failed)
+    if (failed === 0) return null
+    return `Indexed nothing: none of the ${failed} requested ${failed === 1 ? 'file was' : 'files were'} added.`
+  },
   bulkDeleteTables: (payload) => {
     const items = payload.deletedItems as { tables?: unknown; folders?: unknown } | undefined
     const deleted = countOf(items?.tables) + countOf(items?.folders)
@@ -100,6 +112,22 @@ export const BULK_OUTCOME_CHECKS: Readonly<Partial<Record<V2OperationName, BulkO
     const missed = lengthOf(payload.notFound) + lengthOf(payload.failed)
     if (missed === 0) return null
     return `Deleted nothing: ${missed} of ${missed} ${missed === 1 ? 'item was' : 'items were'} not found or could not be deleted.`
+  },
+  /**
+   * The route answers `200` with `processed: 0` when no listed id matched a
+   * chunk in the document, so a sweep over a stale id list read as a success.
+   * `errors[0]` names the ids it could not find, which is more use than
+   * anything this could restate. A partial hit still succeeds, and a request
+   * that listed no chunk at all has nothing to have missed.
+   */
+  bulkUpdateKnowledgeChunks: (payload, body) => {
+    if (countOf(payload.processed) > 0) return null
+    const requested = lengthOf(body?.chunkIds)
+    if (requested === 0) return null
+    const reported = (payload.errors as unknown[] | undefined)?.[0]
+    return typeof reported === 'string' && reported
+      ? safeOneLine(reported)
+      : `Updated nothing: none of the ${requested} requested ${requested === 1 ? 'chunk' : 'chunks'} matched.`
   },
   moveTables: (payload) => {
     if (lengthOf(payload.moved) > 0) return null
@@ -137,10 +165,34 @@ function bulkFailureMessage(
   return check(payload as Record<string, unknown>, body)
 }
 
-function cursorSlot(operationSpec: OperationSpec): 'query' | 'body' | null {
-  if (operationSpec.query && 'cursor' in operationSpec.query) return 'query'
-  if (operationSpec.body && 'cursor' in operationSpec.body) return 'body'
-  return null
+/**
+ * Fields that cap a filtered mutation, beside the id list that supersedes them.
+ *
+ * `tables rows batch-delete --row a --row b --limit 1` deleted both rows: the
+ * route drops `limit` outright on the ids branch, so the cap was accepted,
+ * ignored, and never mentioned again. The refusal is client-side because that
+ * is where it costs nothing — every already-installed CLI sends `limit: 100`
+ * alongside `--row`, so a server that started rejecting the pair would break
+ * them all.
+ */
+const EXCLUSIVE_CAP_FIELDS: Readonly<
+  Partial<Record<V2OperationName, { cap: string; ids: string }>>
+> = {
+  deleteTableRows: { cap: 'limit', ids: 'rowIds' },
+}
+
+/** Refuses a row cap typed alongside the explicit id list that supersedes it. */
+function assertCapIsUsable(operation: V2OperationName, flags: Record<string, unknown>): void {
+  const exclusive = EXCLUSIVE_CAP_FIELDS[operation]
+  if (!exclusive) return
+
+  const cap = flagNameFor(operation, exclusive.cap)
+  const ids = flagNameFor(operation, exclusive.ids)
+  if (flags[camel(cap)] === undefined || flags[camel(ids)] === undefined) return
+  throw new SimApiError(
+    `--${cap} caps a --filter match and does nothing to an explicit --${ids} list; pass one, not both`,
+    0
+  )
 }
 
 /**
@@ -204,6 +256,7 @@ export async function executeOperation(
   }
 
   foldRenamedFlags(operation, commandSpec, requestFlags)
+  assertCapIsUsable(operation, requestFlags)
 
   /**
    * A dry run writes nothing, so it never needs the destructive confirmation.
@@ -229,18 +282,43 @@ export async function executeOperation(
       (operationSpec.body && PROFILE_INJECTED_FIELD in operationSpec.body)
   )
   const omitsWorkspace = commandSpec.allWorkspaces && requestFlags.allWorkspaces === true
+  /**
+   * A workspace carried in the path is resolved exactly like one carried in a
+   * field. `workspaces get` and `workspaces members` take theirs as a path
+   * parameter, so they skipped `requireWorkspace` and fell into `buildRequest`'s
+   * own fallback: a second wording for the same precondition, and — because
+   * `requireWorkspace` checks the key first — advice to set a workspace on an
+   * install whose actual first step is logging in.
+   */
+  const needsWorkspace =
+    (hasWorkspaceField || commandSpec.profileWorkspacePath === true) && !omitsWorkspace
   const request = buildRequest(
     operation,
     positional,
     requestFlags,
-    hasWorkspaceField && !omitsWorkspace ? client.requireWorkspace() : profile.workspaceId
+    needsWorkspace ? client.requireWorkspace() : profile.workspaceId
   )
   const paging = cursorSlot(operationSpec)
 
   if (paging) {
-    const rawLimit = Number.parseInt(String(requestFlags.limit ?? DEFAULT_LIMIT), 10)
-    if (Number.isNaN(rawLimit) || rawLimit < 0) {
-      throw new SimApiError('--limit must be a non-negative number', 0)
+    /**
+     * Read whole, not up to the first character that stops looking numeric.
+     *
+     * `parseInt` truncated before the guard could see what was typed, so
+     * `--limit 3.9` quietly fetched 3, `--limit 1e3` fetched 1, and
+     * `--limit -0.5` parsed as `-0` — which is not less than zero, so it slipped
+     * the guard and then read as the `0` that means everything. `Number` keeps
+     * the value intact so each of those is refused instead of reinterpreted,
+     * and it reads `0x10` and `1e3` as the caller wrote them.
+     *
+     * The empty string is refused explicitly because `Number('')` is `0`, and
+     * `0` here means "no ceiling": without this, `--limit ''` would go from
+     * today's error to an unbounded walk of a shared workspace.
+     */
+    const limitText = String(requestFlags.limit ?? DEFAULT_LIMIT).trim()
+    const rawLimit = limitText === '' ? Number.NaN : Number(limitText)
+    if (!Number.isInteger(rawLimit) || rawLimit < 0) {
+      throw new SimApiError('--limit must be a whole number of 0 or more (0 for everything)', 0)
     }
 
     const limit = rawLimit === 0 ? Number.POSITIVE_INFINITY : rawLimit
@@ -265,7 +343,7 @@ export async function executeOperation(
               ? { ...(request.body ?? {}), ...pageLimit, ...(cursor ? { cursor } : {}) }
               : request.body,
         })
-        envelope ??= page
+        envelope = foldPageEnvelope(envelope, page)
         rows.push(...page.data)
         cursor = page.nextCursor
         if (cursor && rows.length < limit) progress.advance(rows.length)
@@ -273,11 +351,15 @@ export async function executeOperation(
     } finally {
       progress.finish()
     }
+    // A cursor still in hand means the walk stopped at `--limit`, not at the
+    // end of the list — the one fact that separates a clipped answer from a
+    // complete one, and it was dropped with the loop variable.
     renderPage(
       profile.output,
       Number.isFinite(limit) ? rows.slice(0, limit) : rows,
       commandSpec,
-      envelope
+      envelope,
+      { truncated: Boolean(cursor) }
     )
     return
   }
@@ -289,9 +371,16 @@ export async function executeOperation(
     body: request.body,
   })
   const payload = result?.data ?? result
-  renderResult(operation, profile.output, payload, commandSpec, {
-    expandedTrace: requestFlags.trace === true,
-  })
+  renderResult(
+    operation,
+    profile.output,
+    payload,
+    commandSpec,
+    { expandedTrace: requestFlags.trace === true },
+    // The envelope, not just the payload: a list that does not paginate states
+    // its own truncation there, and unwrapping `data` discarded it.
+    result
+  )
 
   // Printed first, then failed, for the reason `followRun` gives: the envelope
   // carries the block outputs that explain *why* the run failed, and exiting
