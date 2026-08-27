@@ -127,7 +127,8 @@ describe('buildRequest', () => {
     expect(buildRequest('updateWorkflow', ['wf_1'], { description: '' }, WORKSPACE).body).toEqual({
       description: '',
     })
-    // Blank-scoped to the query on both spellings: a body string is the value.
+    // A body string carries a blank on both spellings: it is the value, not a
+    // filter, and it is the one kind the numeric refusal below must not reach.
     expect(buildRequest('updateWorkflow', ['wf_1'], { description: ' ' }, WORKSPACE).body).toEqual({
       description: ' ',
     })
@@ -177,6 +178,27 @@ describe('buildRequest', () => {
     })
 
     /**
+     * The same coercion, in the other slot. `tables rows batch-delete --limit
+     * ""` sent `"limit":0` — a cap on a destructive operation that the caller
+     * never typed — so the refusal follows the field's declared kind rather
+     * than the slot it sits in. The body string above stays sendable.
+     */
+    it('rejects a blank numeric body field, which coercion would read as 0 too', () => {
+      expect(() =>
+        buildRequest('deleteTableRows', ['tbl_1'], { filter: '{"all":[]}', limit: '' }, WORKSPACE)
+      ).toThrow('--limit cannot be empty')
+      expect(() =>
+        buildRequest('deleteTableRows', ['tbl_1'], { filter: '{"all":[]}', limit: ' ' }, WORKSPACE)
+      ).toThrow('--limit cannot be empty')
+      expect(() =>
+        buildRequest('searchKnowledge', [], { kb: ['kb_1'], topK: '' }, WORKSPACE)
+      ).toThrow('--top-k cannot be empty')
+      expect(() =>
+        buildRequest('rollbackWorkflow', ['wf_1'], { toVersion: ' ' }, WORKSPACE)
+      ).toThrow('--to-version cannot be empty')
+    })
+
+    /**
      * A quoted space is invisible in a shell and reached the wire as every
      * blank the empty string did — `--max-cost " "` as a real `0` ceiling,
      * `--deployed-only " "` as an explicit `false`, `--status " "` as the
@@ -208,11 +230,15 @@ describe('buildRequest', () => {
      * A paginating `limit` is the walk size, not a filter, and the pager reads
      * it from the flags itself — refusing a blank one in wording that says what
      * `0` means there. Left to it rather than pre-empted with a generic
-     * refusal, whitespace included: the pager trims before it decides.
+     * refusal, whitespace included: the pager trims before it decides. True in
+     * either slot — `queryRows` carries its cursor in the body, so the numeric
+     * refusal above must step aside there for the same reason.
      */
     it('leaves a blank paginating limit to the pager, which words it better', () => {
       expect(() => buildRequest('listWorkflows', [], { limit: '' }, WORKSPACE)).not.toThrow()
       expect(() => buildRequest('listWorkflows', [], { limit: ' ' }, WORKSPACE)).not.toThrow()
+      expect(() => buildRequest('queryRows', ['tbl_1'], { limit: '' }, WORKSPACE)).not.toThrow()
+      expect(() => buildRequest('queryRows', ['tbl_1'], { limit: ' ' }, WORKSPACE)).not.toThrow()
     })
 
     it('rejects a missing required flag', () => {

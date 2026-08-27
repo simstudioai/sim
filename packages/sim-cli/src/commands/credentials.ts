@@ -8,6 +8,7 @@ import {
   V2_OPERATIONS,
 } from '../generated/v2-api'
 import { SimApiError } from '../http/client'
+import { describeOperation } from '../runtime/build'
 import { coerce } from '../runtime/request'
 import { renderResult } from '../runtime/result'
 
@@ -192,7 +193,12 @@ export function attachCredentialCommands(program: Command): void {
   credentials
     .command('create')
     .argument('<providerId>', 'Service-account provider to create a credential for')
-    .description('Create a service-account credential using its discovered provider schema')
+    .description(
+      describeOperation(
+        V2_OPERATIONS.createServiceAccountCredential,
+        'Create a service-account credential using its discovered provider schema'
+      )
+    )
     // The `(required)` suffix is the marker the generated flags carry, and it
     // is literal text rather than something commander renders — a hand-written
     // mandatory option that omits it is the only kind of required flag whose
@@ -214,7 +220,12 @@ export function attachCredentialCommands(program: Command): void {
   credentials
     .command('connect')
     .argument('<providerId>', 'OAuth provider to connect')
-    .description('Create a short-lived link for connecting an OAuth provider')
+    .description(
+      describeOperation(
+        V2_OPERATIONS.createCredentialConnection,
+        'Create a short-lived link for connecting an OAuth provider'
+      )
+    )
     .requiredOption('--name <displayName>', 'Name shown for the new credential in Sim (required)')
     .action(async (providerId: string, options: { name: string }, command: Command) =>
       createConnectionLink(command, { providerId, displayName: options.name })
@@ -223,7 +234,12 @@ export function attachCredentialCommands(program: Command): void {
   credentials
     .command('reconnect')
     .argument('<credentialId>', 'Existing OAuth credential to re-authorize')
-    .description('Create a short-lived link for reconnecting an OAuth credential')
+    .description(
+      describeOperation(
+        V2_OPERATIONS.createCredentialConnection,
+        'Create a short-lived link for reconnecting an OAuth credential'
+      )
+    )
     .action((credentialId: string, _options: unknown, command: Command) =>
       createConnectionLink(command, { credentialId })
     )

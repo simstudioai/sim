@@ -43,6 +43,36 @@ export { FORBIDDEN_IN_VALUE, ProfileConfigError } from './ini'
 const FORBIDDEN_IN_VALUE_GLOBAL = new RegExp(FORBIDDEN_IN_VALUE.source, 'g')
 
 /**
+ * Makes a rejected value safe to quote inside an error message.
+ *
+ * A message is one terminal line, so a value carrying a line break appends
+ * lines that read as the CLI's own output. Every message that interpolates text
+ * the CLI did not produce — a flag, an environment variable, a hand-edited
+ * setting — goes through this, so the rule does not have to be rediscovered at
+ * each new message.
+ */
+export function redact(value: string): string {
+  return value.replace(FORBIDDEN_IN_VALUE_GLOBAL, ' ')
+}
+
+/**
+ * A root flag typed with a value the CLI cannot use.
+ *
+ * Separate from the rest of {@link ProfileConfigError} so a caller that
+ * deliberately tolerates an unresolvable profile — `profiles` shows a broken
+ * one as a marked row rather than aborting, because that is the command you run
+ * *because* a profile is broken — can still refuse the caller's own argument.
+ * The class is the discriminator on purpose: matching the message text would
+ * stop working the first time the wording changes.
+ */
+export class ProfileOverrideError extends ProfileConfigError {
+  constructor(message: string) {
+    super(message)
+    this.name = 'ProfileOverrideError'
+  }
+}
+
+/**
  * The shape a newly created profile name has to have.
  *
  * Enforced only when a profile is being created. A name reaches the config file
@@ -66,7 +96,7 @@ export function validateProfileName(name: string): void {
     // untrusted text, and echoing its control characters into a terminal is how
     // an error message becomes an escape-sequence delivery vehicle.
     throw new ProfileConfigError(
-      `Invalid profile name "${name.replace(FORBIDDEN_IN_VALUE_GLOBAL, ' ')}". Use letters, numbers, dots, underscores, or hyphens, starting with a letter or number.`
+      `Invalid profile name "${redact(name)}". Use letters, numbers, dots, underscores, or hyphens, starting with a letter or number.`
     )
   }
 }
@@ -149,21 +179,21 @@ export function resolveAuthenticationProfileName(profile: string): string {
 
   const authProfile = config.auth_profile.trim()
   if (!authProfile) {
-    throw new ProfileConfigError(`Profile "${profile}" has an empty auth_profile.`)
+    throw new ProfileConfigError(`Profile "${redact(profile)}" has an empty auth_profile.`)
   }
   if (authProfile === profile) {
     throw new ProfileConfigError(
-      `Profile "${profile}" cannot use itself as auth_profile. Remove the auth_profile setting instead.`
+      `Profile "${redact(profile)}" cannot use itself as auth_profile. Remove the auth_profile setting instead.`
     )
   }
   if (Object.hasOwn(config, 'endpoint')) {
     throw new ProfileConfigError(
-      `Profile "${profile}" cannot set both auth_profile and endpoint. Set the endpoint on authentication profile "${authProfile}".`
+      `Profile "${redact(profile)}" cannot set both auth_profile and endpoint. Set the endpoint on authentication profile "${redact(authProfile)}".`
     )
   }
   if (readCredentialsProfile(profile).api_key) {
     throw new ProfileConfigError(
-      `Profile "${profile}" cannot set both auth_profile and its own API key. Remove one of them.`
+      `Profile "${redact(profile)}" cannot set both auth_profile and its own API key. Remove one of them.`
     )
   }
 
@@ -171,25 +201,37 @@ export function resolveAuthenticationProfileName(profile: string): string {
   const credentials = readCredentialsProfile(authProfile)
   if (Object.keys(authConfig).length === 0 && Object.keys(credentials).length === 0) {
     throw new ProfileConfigError(
-      `Profile "${profile}" references missing auth_profile "${authProfile}".`
+      `Profile "${redact(profile)}" references missing auth_profile "${redact(authProfile)}".`
     )
   }
   if (Object.hasOwn(authConfig, 'auth_profile')) {
     throw new ProfileConfigError(
-      `Profile "${profile}" references auth_profile "${authProfile}", which also has auth_profile set. Authentication profile references cannot be chained.`
+      `Profile "${redact(profile)}" references auth_profile "${redact(authProfile)}", which also has auth_profile set. Authentication profile references cannot be chained.`
     )
   }
 
   return authProfile
 }
 
-/** Every profile named by either file, deduplicated and sorted. */
+/**
+ * Every profile named by either file, deduplicated and sorted.
+ *
+ * The name is taken verbatim from what follows `profile `, without a second
+ * trim. `configSectionName` builds the header back by prefixing `profile `, so
+ * trimming here made the two disagree for a hand-written `[profile   padded]`:
+ * it listed and passed the "does this profile exist?" check as `padded`, while
+ * every read looked for `profile padded` and found nothing — so `-P padded`
+ * silently resolved to the built-in defaults, and the spelling that does name
+ * the section was refused as unknown. Reporting the padded name keeps the one
+ * that selects it the one that is shown, which is also how the credentials
+ * file's sections have always been listed.
+ */
 export function listProfiles(): string[] {
   const names = new Set<string>()
 
   for (const section of listSections(readIni(configPath()))) {
     if (section === DEFAULT_PROFILE) names.add(DEFAULT_PROFILE)
-    else if (section.startsWith('profile ')) names.add(section.slice('profile '.length).trim())
+    else if (section.startsWith('profile ')) names.add(section.slice('profile '.length))
   }
   for (const section of listSections(readIni(credentialsPath()))) {
     names.add(section)
@@ -252,13 +294,13 @@ function requireKnownProfile(name: string): void {
 
   if (known.length === 0) {
     throw new ProfileConfigError(
-      `Unknown profile "${name}". No profiles are configured yet. Run: sim login --profile ${name}`
+      `Unknown profile "${redact(name)}". No profiles are configured yet. Run: sim login --profile ${redact(name)}`
     )
   }
 
   const suggestion = nearestProfile(name, known)
   throw new ProfileConfigError(
-    `Unknown profile "${name}".${suggestion ? ` Did you mean "${suggestion}"?` : ''} Configured profiles: ${known.join(', ')}.`
+    `Unknown profile "${redact(name)}".${suggestion ? ` Did you mean "${redact(suggestion)}"?` : ''} Configured profiles: ${known.map(redact).join(', ')}.`
   )
 }
 
@@ -335,7 +377,7 @@ export function normalizeEndpoint(endpoint: string, source: string): string {
   // by the write that stores it.
   if (FORBIDDEN_IN_VALUE.test(trimmed)) {
     throw new ProfileConfigError(
-      `Invalid endpoint "${endpoint.replace(FORBIDDEN_IN_VALUE_GLOBAL, ' ')}" from ${source}. An endpoint cannot contain line breaks or control characters.`
+      `Invalid endpoint "${redact(endpoint)}" from ${source}. An endpoint cannot contain line breaks or control characters.`
     )
   }
 
@@ -344,7 +386,7 @@ export function normalizeEndpoint(endpoint: string, source: string): string {
     parsed = new URL(trimmed)
   } catch {
     throw new ProfileConfigError(
-      `Invalid endpoint "${endpoint.replace(FORBIDDEN_IN_VALUE_GLOBAL, ' ')}" from ${source}. Use an absolute URL, e.g. ${DEFAULT_ENDPOINT} or http://localhost:3000`
+      `Invalid endpoint "${redact(endpoint)}" from ${source}. Use an absolute URL, e.g. ${DEFAULT_ENDPOINT} or http://localhost:3000`
     )
   }
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
@@ -373,7 +415,7 @@ export function normalizeWorkspaceId(workspaceId: string, source: string): strin
   }
   if (FORBIDDEN_IN_VALUE.test(trimmed)) {
     throw new ProfileConfigError(
-      `Invalid workspace id "${trimmed.replace(FORBIDDEN_IN_VALUE_GLOBAL, ' ')}" from ${source}. A workspace id cannot contain line breaks or control characters.`
+      `Invalid workspace id "${redact(trimmed)}" from ${source}. A workspace id cannot contain line breaks or control characters.`
     )
   }
   return trimmed
@@ -396,7 +438,41 @@ function resolve<T>(
   return { value: fallback, source: fallbackSource }
 }
 
+/** The root flag each override arrives from, for the refusal below to name. */
+const OVERRIDE_FLAGS = {
+  profile: '--profile',
+  endpoint: '--endpoint',
+  workspaceId: '--workspace',
+} as const
+
+/**
+ * Refuses a root flag typed with a blank value.
+ *
+ * {@link resolve} treats the empty string as "not supplied", which is right for
+ * an environment variable — an exported-but-empty `SIM_WORKSPACE` means unset —
+ * but wrong for a flag the user typed: `sim --workspace "" workflows list` fell
+ * through to the profile's stored workspace and ran against it, which is the
+ * opposite of what asking for no workspace means. Whitespace counts as blank
+ * for the same reason the config writer refuses it: nothing downstream would
+ * read it back as a value.
+ *
+ * `--output` is not here because commander's `choices()` already refuses a
+ * blank one before this runs.
+ */
+function refuseBlankOverrides(overrides: ProfileOverrides): void {
+  for (const [key, flag] of Object.entries(OVERRIDE_FLAGS)) {
+    const value = overrides[key as keyof typeof OVERRIDE_FLAGS]
+    if (value !== undefined && value.trim() === '') {
+      throw new ProfileOverrideError(
+        `${flag} requires a value. Omit the flag to fall back to what is configured.`
+      )
+    }
+  }
+}
+
 export function resolveProfile(overrides: ProfileOverrides = {}): ResolvedProfile {
+  refuseBlankOverrides(overrides)
+
   const named = overrides.profile || process.env.SIM_PROFILE
   const name = named || DEFAULT_PROFILE
   if (named && !overrides.allowUnknownProfile) requireKnownProfile(named)
@@ -453,7 +529,7 @@ export function resolveProfile(overrides: ProfileOverrides = {}): ResolvedProfil
   )
   if (!(OUTPUT_FORMATS as readonly string[]).includes(output.value as string)) {
     throw new ProfileConfigError(
-      `Unknown output format "${output.value}" from ${output.source}. Use one of: ${OUTPUT_FORMATS.join(', ')}`
+      `Unknown output format "${redact(String(output.value))}" from ${output.source}. Use one of: ${OUTPUT_FORMATS.join(', ')}`
     )
   }
 

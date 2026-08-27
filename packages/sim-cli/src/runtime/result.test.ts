@@ -343,6 +343,38 @@ describe('a truncation the response states inside its payload', () => {
     expect(read()).toContain('the server clipped the tool names it returned')
   })
 
+  /**
+   * The subject is the words before the suffix, and `is` is not one of them:
+   * `isTruncated` read as a clip of "the is". Latent — no shipped endpoint
+   * spells it that way — so this is what keeps it harmless if one ever does.
+   */
+  it('reads a copula prefix as no subject rather than as one', () => {
+    const read = captureStderr()
+
+    renderResult('readFileText', 'json', {}, {}, {}, { data: { isTruncated: true } })
+
+    expect(read()).toContain('the server clipped this result')
+    expect(read()).not.toContain('the is')
+  })
+
+  /** The strip stops at the copula: a real subject behind it still names itself. */
+  it('keeps the subject behind a copula prefix', () => {
+    const read = captureStderr()
+
+    renderResult('readFileText', 'json', {}, {}, {}, { data: { isToolNamesTruncated: true } })
+
+    expect(read()).toContain('the server clipped the tool names it returned')
+  })
+
+  /** And a subject that merely begins with those two letters is not a copula. */
+  it('does not eat a subject that begins with is', () => {
+    const read = captureStderr()
+
+    renderResult('readFileText', 'json', {}, {}, {}, { data: { issuesTruncated: true } })
+
+    expect(read()).toContain('the server clipped the issues it returned')
+  })
+
   it('says nothing when a negated flag reports the answer was whole', () => {
     const read = captureStderr()
 
