@@ -108,11 +108,13 @@ Packaging needs **macOS with Xcode 26 or newer** — the app icon is an Icon Com
 
 ```bash
 cd apps/desktop
-SIM_DESKTOP_DEFAULT_ORIGIN=https://sim.example.com bun run package:share
+SIM_DESKTOP_DEFAULT_ORIGIN=https://sim.example.com bun run package:mac
 ```
 
-This bakes your origin in as the default for fresh installs, so nobody has to set the server by hand (the picker stays available in the menu). Artifacts land in `apps/desktop/release/sim/`, named `sim-<version>-<arch>.dmg`.
+This bakes your origin in as the default for fresh installs, so nobody has to set the server by hand (the picker stays available in the menu). Artifacts land in `apps/desktop/release/`, named `Sim-<version>-<arch>.dmg`. Add `-c.appId=com.example.sim` if you want your own bundle identifier rather than Sim's.
 
 <Callout type="warn">
   Signing and notarization become your responsibility with this route, and macOS quarantines anything downloaded that is not notarized. Supply your own Developer ID via `CSC_LINK` and `CSC_KEY_PASSWORD`, and App Store Connect notarization credentials via `APPLE_API_KEY`, `APPLE_API_KEY_ID`, `APPLE_API_ISSUER`, and `APPLE_TEAM_ID`.
+
+  Use `package:mac` for this, **not** `package:share`. The share script is the "send someone a build to try" path: it passes `-c.mac.timestamp=none` to skip the per-file round trip to Apple's timestamp authority. Apple's notary service requires a secure timestamp, so a build made that way cannot be notarized however many credentials you supply.
 </Callout>
