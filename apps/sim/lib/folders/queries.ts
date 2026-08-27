@@ -266,8 +266,8 @@ export type FolderPathFilter =
  * event from all the others, told a caller its *collection* was missing when it
  * was not, turned a folder deleted mid-walk into a failed pagination loop, and
  * answered whether a path exists on an endpoint that was not asked. The sibling
- * folder lists already answer a non-matching `parentPath` with an empty page, so
- * this is the family's existing behavior applied to the resource lists too.
+ * folder lists answer a non-matching `parentPath` the same way, so one rule
+ * covers every folder filter the family accepts.
  *
  * A path that could not name a folder at all is still rejected by the contract,
  * as a 400, before any of this runs. Mutations keep their 404: creating into or

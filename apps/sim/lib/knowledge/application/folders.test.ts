@@ -42,6 +42,12 @@ vi.mock('@/lib/knowledge/application/contexts', () => ({
 vi.mock('@/lib/folders/queries', () => ({
   loadActiveFolderPathIndex: mocks.loadIndex,
   listActiveFolderRows: mocks.listRows,
+  resolveFolderPathFilter: (index: { idByPath: Map<string, string> }, path: string | undefined) => {
+    if (path === undefined) return { kind: 'unfiltered' }
+    if (path === '/') return { kind: 'folder', folderId: null }
+    const folderId = index.idByPath.get(path)
+    return folderId === undefined ? { kind: 'noMatch' } : { kind: 'folder', folderId }
+  },
   resolveFolderPathFromIndex: (index: { idByPath: Map<string, string> }, path: string) =>
     path === '/' ? null : index.idByPath.get(path),
 }))
@@ -112,14 +118,19 @@ describe('knowledge folder application use cases', () => {
     expect(result.folders[0]).toMatchObject({ id: 'folder-1', path: '/Docs' })
   })
 
-  it('rejects a missing parent without querying folder rows', async () => {
-    await expect(
-      listKnowledgeFolders.execute({
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-        input: { workspaceId: 'workspace-1', parentPath: '/Missing' },
-      })
-    ).rejects.toMatchObject({ code: 'not_found' })
+  /**
+   * `parentPath` is a filter, so a path naming no active folder narrows the
+   * result to nothing rather than reporting the collection missing. Falling
+   * through to `listActiveFolderRows` with an undefined `parentId` would list
+   * every folder in the workspace, so the miss has to short-circuit.
+   */
+  it('answers a parent path naming no folder with an empty page', async () => {
+    const result = await listKnowledgeFolders.execute({
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      input: { workspaceId: 'workspace-1', parentPath: '/Missing' },
+    })
 
+    expect(result.folders).toEqual([])
     expect(mocks.listRows).not.toHaveBeenCalled()
   })
 
