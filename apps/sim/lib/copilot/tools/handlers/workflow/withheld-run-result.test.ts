@@ -11,6 +11,7 @@
  * on its arguments, a call that threw after dispatch, and a run that completed. All three
  * used to arrive as the same sentence.
  */
+import { getErrorMessage } from '@sim/utils/errors'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { inspectToolResultForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
 import type { ExecutionContext } from '@/lib/copilot/request/types'
@@ -26,7 +27,7 @@ vi.mock('@/lib/copilot/application/execute-workflow-use-case', () => ({
   executeCopilotWorkflowUseCase: mocks.executeWorkflowUseCase,
   /** Passthrough, so a masked message is visible as masking rather than as a fallback. */
   messageForCopilotWorkflowError: (error: unknown, fallback = 'Workflow operation failed') =>
-    error instanceof Error ? error.message : fallback,
+    getErrorMessage(error, fallback),
 }))
 
 vi.mock('@/lib/workflows/sanitization/json-sanitizer', () => ({
@@ -40,7 +41,9 @@ vi.mock('@/lib/core/telemetry', () => ({
 import { executeRunWorkflow } from '@/lib/copilot/tools/handlers/workflow/mutations'
 
 const EXECUTION_ID = '0f4d5a4c-6a1e-4c2f-9b7d-2c8f1a3e5d90'
-const SECRET = 'sk-live-9Qv2XbTn4LmZa8Rd'
+/** Above the 8-char substitution floor, and deliberately not shaped like any real
+ * provider credential — a realistic-looking fixture makes secret scanners flag this file. */
+const SECRET = 'fake-secret-for-test-only'
 
 const context = {
   userId: 'user-1',

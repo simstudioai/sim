@@ -484,7 +484,7 @@ describe('effect disclosure on a withheld result', () => {
         {
           success: false,
           error: 'why',
-          effect: { phase: 'performed', ids: { executionId: 'sk-live-9Qv2XbTn4LmZa8Rd' } },
+          effect: { phase: 'performed', ids: { executionId: 'not-a-server-minted-id' } },
         },
         undefined,
         'run_workflow'
