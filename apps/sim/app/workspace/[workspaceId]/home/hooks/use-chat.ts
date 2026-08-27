@@ -1215,11 +1215,9 @@ export interface ResourceEventOptions {
 export type ResourceEventHandler = (resourceId: string, options?: ResourceEventOptions) => void
 
 /**
- * Whether a streamed resource event should activate its tab. The panel always
- * follows the agent: whatever it is creating, editing, or driving becomes the
- * visible resource, browser sessions included. The parameters are retained so
- * callers stay explicit about the resource in play, and so a future opt-out
- * (an event that deliberately declines focus) has a place to live.
+ * Whether a streamed resource event requests activation of its tab. The view
+ * may still preserve an explicit user collapse or selection and surface the
+ * event through an activity marker instead.
  */
 export function shouldActivateResourceEvent(
   _activeResourceId: string | null,

@@ -275,6 +275,22 @@ describe('workspace file folder operations', () => {
     expect(mockRestore).not.toHaveBeenCalled()
   })
 
+  it('refuses to guess when two archived folders share the same path', async () => {
+    mockList.mockResolvedValueOnce([
+      { id: 'folder-first', name: 'Archive', path: 'Engineering/Archive' },
+      { id: 'folder-second', name: 'Archive', path: 'Engineering/Archive' },
+    ])
+
+    await expect(
+      restoreWorkspaceFileFolderOperation.execute({
+        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        input: { workspaceId: 'ws-1', path: '/Engineering/Archive' },
+      })
+    ).rejects.toMatchObject({ code: 'conflict' })
+
+    expect(mockRestore).not.toHaveBeenCalled()
+  })
+
   it('rejects restoring the workspace root', async () => {
     await expect(
       restoreWorkspaceFileFolderOperation.execute({

@@ -1,6 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { normalizeStringRecord, normalizeWorkflowVariables } from '@/lib/core/utils/records'
+import {
+  isNonRetryableExecutionError,
+  NonRetryableExecutionError,
+} from '@/lib/execution/non-retryable-error'
 import { isElseConditionTitle } from '@/lib/workflows/conditions'
 import type { BlockOutput } from '@/blocks/types'
 import { BlockType, DEFAULTS, EDGE } from '@/executor/constants'
@@ -31,7 +35,7 @@ type ConditionEvaluation =
   | { status: 'matched'; index: number }
   | { status: 'no-match' }
   | { status: 'expression-threw'; index: number; message: string }
-  | { status: 'no-verdict'; message: string; timedOut: boolean }
+  | { status: 'no-verdict'; message: string; retryable: boolean; timedOut: boolean }
 
 /**
  * Wraps one expression as a boolean test, on its own line so a trailing line
@@ -151,7 +155,12 @@ async function evaluateConditionList(
 
   if (!result.success) {
     const message = result.error ?? 'Condition evaluation failed'
-    return { status: 'no-verdict', message, timedOut: isTimeoutFailure(result.error) }
+    return {
+      status: 'no-verdict',
+      message,
+      retryable: result.retryable !== false,
+      timedOut: isTimeoutFailure(result.error),
+    }
   }
 
   const output = result.output?.result
@@ -159,6 +168,7 @@ async function evaluateConditionList(
     return {
       status: 'no-verdict',
       message: 'Condition evaluation returned no verdict',
+      retryable: true,
       timedOut: false,
     }
   }
@@ -174,6 +184,7 @@ async function evaluateConditionList(
       return {
         status: 'no-verdict',
         message: 'Condition evaluation reported an unknown branch',
+        retryable: true,
         timedOut: false,
       }
     }
@@ -191,6 +202,7 @@ async function evaluateConditionList(
     return {
       status: 'no-verdict',
       message: 'Condition evaluation returned an unrecognized verdict',
+      retryable: true,
       timedOut: false,
     }
   }
@@ -201,6 +213,7 @@ async function evaluateConditionList(
     return {
       status: 'no-verdict',
       message: 'Condition evaluation matched an unknown branch',
+      retryable: true,
       timedOut: false,
     }
   }
@@ -224,14 +237,17 @@ async function evaluateSingleCondition(
   const result = await runConditionCode(ctx, code, currentNodeId)
 
   if (!result.success) {
+    if (result.retryable === false) {
+      throw new NonRetryableExecutionError(result.error ?? 'Condition evaluation is indeterminate')
+    }
     throw new Error(result.error ?? 'Condition evaluation failed')
   }
 
   return Boolean(result.output?.result)
 }
 
-function conditionError(condition: ConditionEntry, message: string): Error {
-  return new Error(`Evaluation error in condition "${condition.title}": ${message}`)
+function conditionError(condition: ConditionEntry, message: string, cause?: unknown): Error {
+  return new Error(`Evaluation error in condition "${condition.title}": ${message}`, { cause })
 }
 
 /**
@@ -408,9 +424,11 @@ export class ConditionBlockHandler implements BlockHandler {
     try {
       evaluation = await evaluateConditionList(ctx, expressions, evalContext, currentNodeId)
     } catch (error) {
+      if (isNonRetryableExecutionError(error)) throw error
       evaluation = {
         status: 'no-verdict',
         message: getErrorMessage(error, 'Condition evaluation failed'),
+        retryable: true,
         timedOut: false,
       }
     }
@@ -424,6 +442,11 @@ export class ConditionBlockHandler implements BlockHandler {
         logger.error('Failed to evaluate condition', { conditionCount: conditions.length })
         throw conditionError(conditions[evaluation.index], evaluation.message)
       case 'no-verdict':
+        if (!evaluation.retryable) {
+          throw new NonRetryableExecutionError(
+            `Evaluation error in condition "${conditions[0].title}": ${evaluation.message}`
+          )
+        }
         // Retrying one branch at a time is what recovers a batch the sandbox
         // could not parse. It is the wrong move for a stalled transport, which
         // would re-run every branch against the same stall, or for a cancelled
@@ -458,7 +481,11 @@ export class ConditionBlockHandler implements BlockHandler {
         if (conditionMet) return condition
       } catch (error) {
         logger.error('Failed to evaluate condition', { errorName: toError(error).name })
-        throw conditionError(condition, getErrorMessage(error, 'Condition evaluation failed'))
+        throw conditionError(
+          condition,
+          getErrorMessage(error, 'Condition evaluation failed'),
+          error
+        )
       }
     }
 

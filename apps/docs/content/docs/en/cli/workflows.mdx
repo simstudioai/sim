@@ -12,7 +12,7 @@ Every command below also accepts the [global options](/cli/commands#global-optio
 ## Activate workflow version
 
 ```bash
-sim workflows activate create <workflowId> <version>
+sim workflows activate create <workflowId> <version> [options]
 ```
 
 Activate Workflow Version (personal API key required)
@@ -25,6 +25,16 @@ Activate Workflow Version (personal API key required)
 | --- | --- | --- |
 | `workflowId` | Yes | Unique workflow identifier. |
 | `version` | Yes | Numeric deployment version. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -54,12 +64,12 @@ Apply Workflow Operations (personal API key required)
 | --- | --- | --- |
 | `--dry-run` | No | Validate and lint without persisting. The response is identical to the committed write of the same body, so a caller can inspect `lint` and then re-send the request for real. Nothing is written, no audit entry is recorded, and collaborators are not notified. |
 | `--no-dry-run` | No | Send --dry-run as false. |
-| `--operations <json\|@file>` | Yes | Edits to apply, in a single batch, keyed by operation_type: [&#123;"operation_type":"add","block_id":"my-fn","params":&#123;"type":"function","name":"My Fn","inputs":&#123;"code":"return &#123;ok:true&#125;"&#125;&#125;&#125;,&#123;"operation_type":"edit","block_id":"&lt;uuid&gt;","params":&#123;"name":"Renamed","connections":&#123;"success":"my-fn"&#125;&#125;&#125;,&#123;"operation_type":"delete","block_id":"&lt;uuid&gt;"&#125;]. Also insert_into_subflow and extract_from_subflow, whose params carry &#123;"subflowId":"&lt;loop-id&gt;"&#125; (JSON, or @path / @- to read a file or stdin). |
+| `--operations <json\|@file>` | Yes | Edits to apply, in a single batch, keyed by operation_type: [&#123;"operation_type":"add","block_id":"my-fn","params":&#123;"type":"function","name":"My Fn","inputs":&#123;"code":"return &#123;ok:true&#125;"&#125;&#125;&#125;,&#123;"operation_type":"edit","block_id":"&lt;uuid&gt;","params":&#123;"name":"Renamed","connections":&#123;"success":"my-fn"&#125;&#125;&#125;,&#123;"operation_type":"delete","block_id":"&lt;uuid&gt;"&#125;]. Also extract_from_subflow, whose params carry &#123;"subflowId":"&lt;loop-id&gt;"&#125;, and insert_into_subflow, which creates a block and so takes an add’s params plus that subflowId (JSON, or @path / @- to read a file or stdin). |
 | `--atomic` | No | Fail the whole batch when any operation is declined or any block input would be dropped. The default applies what it can and reports the rest in `skipped` and `inputValidationErrors`; `true` writes nothing and answers `409` instead. |
 | `--no-atomic` | No | Send --atomic as false. |
 | `--layout <value>` | No | Whether to reposition blocks the batch touched. `targeted` (default) nudges only the affected subgraph; `none` leaves every position exactly as supplied. Accepted values: `targeted`, `none`. |
 | `--set-block-enabled <json\|@file>` | No | Blocks to enable or disable, applied after --operations: [&#123;"block_id":"&lt;uuid&gt;","enabled":false&#125;]. Disabling a loop or parallel cascades to its unlocked descendants; enabling a block whose container is disabled is declined (JSON, or @path / @- to read a file or stdin). |
-| `-y, --yes` | No | Confirm this destructive operation (required unless --dry-run). |
+| `-y, --yes` | No | Confirm this operation (required unless --dry-run). |
 
 </CommandTable>
 
@@ -86,7 +96,7 @@ sim workflows variables update <workflowId> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--operations <json\|@file>` | Yes | Variable changes to apply in order, keyed by operation: [&#123;"operation":"add","name":"my_var","type":"string","value":"hello"&#125;,&#123;"operation":"edit","name":"my_var","value":"updated"&#125;,&#123;"operation":"delete","name":"my_var"&#125;] (JSON, or @path / @- to read a file or stdin). |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -285,7 +295,7 @@ sim workflows folders delete <path> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--recursive` | No | Delete the folder and its descendants. |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -351,7 +361,7 @@ sim workflows delete <workflowId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -379,7 +389,7 @@ Take a workflow’s chat deployment offline (personal API key required)
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -437,7 +447,7 @@ Publish or replace a workflow’s chat deployment (personal API key required)
 | `--no-include-thinking` | No | Send --include-thinking as false. |
 | `--include-tool-calls` | No | Allow visitors to receive tool lifecycle events. |
 | `--no-include-tool-calls` | No | Send --include-tool-calls as false. |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -661,7 +671,7 @@ Replace Workflow State (personal API key required)
 | `--loops <json\|@file>` | No | Ignored on write: loop containers are recomputed from `blocks`. (JSON, or @path / @- to read a file or stdin). |
 | `--parallels <json\|@file>` | No | Ignored on write: parallel containers are recomputed from `blocks`. (JSON, or @path / @- to read a file or stdin). |
 | `--variables <json\|@file>` | No | Replacement variable set. Omit to leave the stored variables untouched. (JSON, or @path / @- to read a file or stdin). |
-| `-y, --yes` | No | Confirm this destructive operation (required unless --dry-run). |
+| `-y, --yes` | No | Confirm this operation (required unless --dry-run). |
 
 </CommandTable>
 
@@ -836,7 +846,7 @@ Revert Workflow To Version (personal API key required)
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -865,7 +875,7 @@ Rollback Workflow (personal API key required)
 | Option | Required | Description |
 | --- | --- | --- |
 | `--to-version <value>` | No | Deployment version to reactivate. Omit to select the previous active version. |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -893,7 +903,7 @@ Take a workflow out of deployment (personal API key required)
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 

@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   browserPanelSnapshotStyle,
   browserSelectionContext,
+  claimMediaPermissionResponse,
   clearOmniboxSelection,
   exceededOmniboxDragThreshold,
   hasConfirmedBrowserTabCreation,
@@ -15,6 +16,19 @@ import {
   shouldRemoveBrowserResource,
   shouldReportBrowserBounds,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-session'
+
+describe('claimMediaPermissionResponse', () => {
+  it('allows one response per request id across effect recreation', () => {
+    const handledRequestId = { current: null as string | null }
+
+    expect(claimMediaPermissionResponse(handledRequestId, 'request-1')).toBe(true)
+    expect(claimMediaPermissionResponse(handledRequestId, 'request-1')).toBe(false)
+    expect(claimMediaPermissionResponse(handledRequestId, 'request-2')).toBe(true)
+
+    handledRequestId.current = null
+    expect(claimMediaPermissionResponse(handledRequestId, 'request-1')).toBe(true)
+  })
+})
 
 describe('browserPanelSnapshotStyle', () => {
   const snapshot = {

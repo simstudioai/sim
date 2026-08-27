@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { ChipInput, cn, toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
+import { countPasteRows } from '@sim/utils/paste'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter } from 'next/navigation'
 import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
@@ -38,6 +39,7 @@ const logger = createLogger('SecretsManager')
 
 const GRID_COLS = 'grid grid-cols-[minmax(0,1fr)_8px_minmax(0,1fr)_auto] items-center'
 const COL_SPAN_ALL = 'col-span-4'
+const MAX_ENV_PASTE_ROWS = 10_000
 
 /** Copies a secret's name and confirms with a toast. */
 function copyName(key: string) {
@@ -713,6 +715,14 @@ export function SecretsManager() {
     const text = e.clipboardData.getData('text').trim()
     if (!text) return
 
+    if (countPasteRows(text, MAX_ENV_PASTE_ROWS) > MAX_ENV_PASTE_ROWS) {
+      e.preventDefault()
+      toast.warning('Paste has too many secrets', {
+        description: `Add up to ${MAX_ENV_PASTE_ROWS.toLocaleString()} rows at once.`,
+      })
+      return
+    }
+
     const lines = text.split(/\r?\n/).filter((line) => line.trim())
     if (lines.length === 0) return
 
@@ -748,6 +758,14 @@ export function SecretsManager() {
   const handleWorkspacePaste = (e: React.ClipboardEvent<HTMLInputElement>, _index: number) => {
     const text = e.clipboardData.getData('text').trim()
     if (!text) return
+
+    if (countPasteRows(text, MAX_ENV_PASTE_ROWS) > MAX_ENV_PASTE_ROWS) {
+      e.preventDefault()
+      toast.warning('Paste has too many secrets', {
+        description: `Add up to ${MAX_ENV_PASTE_ROWS.toLocaleString()} rows at once.`,
+      })
+      return
+    }
 
     const lines = text.split(/\r?\n/).filter((line) => line.trim())
     if (lines.length === 0) return

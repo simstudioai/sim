@@ -120,7 +120,7 @@ Delete Tag (personal API key required)
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -150,7 +150,7 @@ Remove tag definitions no document still uses (personal API key required)
 | --- | --- | --- |
 | `--unused` | No | Whether to remove only the tag definitions no document in the knowledge base still carries a value for. Defaults to true. Pass --no-unused to delete every definition on the knowledge base, which also clears its slot on every document and chunk and is not recoverable. |
 | `--no-unused` | No | Send --unused as false. |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -273,7 +273,7 @@ Enable, disable, or delete many chunks at once (personal API key required)
 | --- | --- | --- |
 | `--operation <value>` | Yes | What to do with the selected chunks. Accepted values: `enable`, `disable`, `delete`. |
 | `--chunk <value...>` | Yes | Chunks to operate on, by identifier. An id naming no chunk in the document is reported in errors and does not fail the request. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -334,7 +334,7 @@ Delete Chunk (personal API key required)
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -477,7 +477,7 @@ sim knowledge documents delete <knowledgeBaseId> <documentId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -606,8 +606,8 @@ sim knowledge documents upload <knowledgeBaseId> <path> [options]
 | --- | --- | --- |
 | `--name <name>` | No | Store it under a different name. |
 | `--tag <value...>` | No | Document tags, in tag1 through tag7 order. |
-| `--recipe <name>` | No | Document processing recipe. |
-| `--lang <code>` | No | Document language code. |
+| `--recipe <name>` | No | Document processing recipe. Accepted values: `default`, `plain`, `markdown`, `code`. |
+| `--lang <code>` | No | Document language tag: hyphen-separated letter and digit subtags, for example en or en-US. |
 
 </CommandTable>
 
@@ -689,7 +689,7 @@ Delete Knowledge Connector (personal API key required)
 | --- | --- | --- |
 | `--delete-documents` | No | Also permanently delete documents produced by this connector. |
 | `--no-delete-documents` | No | Send --delete-documents as false. |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -903,11 +903,11 @@ sim knowledge folders delete <path> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--recursive` | No | Delete the folder and its descendants. |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
-## List folders
+## List knowledge folders
 
 ```bash
 sim knowledge folders list [options]
@@ -969,7 +969,7 @@ sim knowledge delete <knowledgeBaseId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 

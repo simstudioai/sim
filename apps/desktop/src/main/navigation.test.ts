@@ -77,13 +77,13 @@ describe('classifyNavigation', () => {
     ).toBe('idp-system-login')
   })
 
-  it('keeps the same IdP in-window when it is an integration connect', () => {
+  it('routes non-handoff integration departures out of the privileged app window', () => {
     expect(
       classifyNavigation('https://github.com/login/oauth/authorize?client_id=x', {
         appOrigin: APP,
         currentUrl: `${APP}/workspace/ws1/integrations/github`,
       })
-    ).toBe('idp-in-window')
+    ).toBe('external')
   })
 
   it('sends unknown hosts from an auth surface to the system browser (SSO safe default)', () => {
@@ -95,22 +95,22 @@ describe('classifyNavigation', () => {
     ).toBe('idp-system-login')
   })
 
-  it('keeps unknown hosts from workspace pages in-window (integration OAuth is a same-window redirect)', () => {
+  it('does not infer OAuth from an unknown cross-origin workspace navigation', () => {
     expect(
       classifyNavigation('https://api.notion.com/v1/oauth/authorize?x=1', {
         appOrigin: APP,
         currentUrl: `${APP}/workspace/ws1/integrations/notion`,
       })
-    ).toBe('idp-in-window')
+    ).toBe('external')
   })
 
-  it('allows continuation navigation while already on an IdP host', () => {
+  it('does not keep arbitrary cross-origin continuation pages in the app window', () => {
     expect(
       classifyNavigation('https://github.com/sessions/two-factor', {
         appOrigin: APP,
         currentUrl: 'https://github.com/login',
       })
-    ).toBe('idp-in-window')
+    ).toBe('external')
   })
 
   it('allows any https navigation inside popups', () => {

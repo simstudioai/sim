@@ -174,6 +174,7 @@ export interface BrowserPanelAction {
     | 'zoom-in'
     | 'zoom-out'
     | 'zoom-reset'
+    | 'respond-media-permission'
     | 'takeover-done'
   /** Absolute URL for `navigate` (typed into the panel's URL bar). */
   url?: string
@@ -181,6 +182,19 @@ export interface BrowserPanelAction {
   tabId?: string
   /** Optional free-text instruction submitted with `takeover-done`. */
   takeoverResponse?: string
+  /** Exact pending media request being answered. */
+  requestId?: string
+  /** User decision for `respond-media-permission`. */
+  allowed?: boolean
+}
+
+export type BrowserMediaDevice = 'microphone' | 'camera'
+
+/** One document-scoped media request awaiting an explicit user decision. */
+export interface BrowserMediaPermissionRequest {
+  requestId: string
+  origin: string
+  devices: BrowserMediaDevice[]
 }
 
 /** Live state of the active page, pushed to the panel header. */
@@ -193,7 +207,33 @@ export interface BrowserPageState {
   loading: boolean
   canGoBack: boolean
   canGoForward: boolean
+  /** Recoverable problem replacing the native page surface. Optional for older shells. */
+  issue?: BrowserPageIssue
+  /** Main-frame media request awaiting a renderer-owned permission prompt. */
+  mediaPermissionRequest?: BrowserMediaPermissionRequest
 }
+
+/** A recoverable top-level page problem rendered by Sim instead of a blank native view. */
+export type BrowserPageIssue =
+  | {
+      kind: 'load-error'
+      /** Chromium network error number, such as -102 for connection refused. */
+      code: number
+      /** Chromium network error name, such as ERR_CONNECTION_REFUSED. */
+      description: string
+      /** The attempted URL, which may never have committed in WebContents. */
+      url: string
+    }
+  | {
+      kind: 'crashed'
+      /** Chromium renderer exit reason, such as crashed or oom. */
+      reason: string
+      url: string
+    }
+  | {
+      kind: 'unresponsive'
+      url: string
+    }
 
 /**
  * One find-in-page request against the active tab. Backed by Chromium's own
@@ -237,6 +277,8 @@ export interface BrowserTabState {
   title: string
   loading: boolean
   active: boolean
+  /** Recoverable problem currently replacing this tab's native page surface. */
+  issue?: BrowserPageIssue
   /** Pinned tabs are ordered before regular tabs and cannot be closed. */
   pinned: boolean
 }
@@ -756,6 +798,8 @@ export type TerminalErrorCode =
    */
   | 'NO_SHELL_INTEGRATION'
   | 'SPAWN_FAILED'
+  /** Opening another local shell would exceed the desktop resource ceiling. */
+  | 'RESOURCE_LIMIT'
   /** No terminal with that id — the ids come from terminal_list. */
   | 'NO_SUCH_TERMINAL'
   /** The operation needs tmux, and this terminal has no tmux attached. */
@@ -796,6 +840,9 @@ export interface ScopedTerminalCommandEvent extends TerminalCommandEvent {
 }
 
 export const PENDING_DESKTOP_SCOPE_PREFIX = 'pending:' as const
+
+/** Boolean results preserve compatibility with older installed desktop shells. */
+export type TerminalPasteResult = boolean | 'too-large'
 
 const DESKTOP_SCOPE_PATTERN = /^[A-Za-z0-9_-]{1,128}$/
 const PENDING_DESKTOP_SCOPE_PATTERN = /^pending:[A-Za-z0-9_-]{1,128}$/
@@ -843,7 +890,7 @@ export interface SimDesktopTerminalApi {
    * only replay what the user already copied instead of choosing the bytes.
    * Resolves false when the clipboard held nothing to paste.
    */
-  paste(terminalId: string, scopeId: string): Promise<boolean>
+  paste(terminalId: string, scopeId: string): Promise<TerminalPasteResult>
   resize(terminalId: string, cols: number, rows: number, scopeId: string): void
   /** Open an additional terminal and make it active. */
   openTerminal(cwd: string | undefined, scopeId: string): Promise<ScopedTerminalTabsState>
@@ -864,8 +911,6 @@ export interface SimDesktopTerminalApi {
   disposeScope(scopeId: string): Promise<boolean>
   /** Stops a soft-deleted chat's shells while retaining its restart descriptor. */
   suspendScope(scopeId: string): Promise<boolean>
-  /** End every shell. A new one starts on the next `start`. */
-  dispose(): void
   /** Subscribe to PTY output batches. Returns an unsubscribe function. */
   onData(callback: (terminalId: string, data: string, scopeId: string) => void): () => void
   /**
@@ -1817,6 +1862,8 @@ export interface SimDesktopApi {
   /** Installed shell version (plain semver, e.g. `0.3.1`). */
   version: string
   openExternal(url: string): Promise<boolean>
+  /** Opens the operating system's microphone privacy settings when supported. */
+  openMicrophoneSettings?(): Promise<boolean>
   /**
    * Start the OAuth connect handoff for a provider: the whole flow runs in
    * the system browser and returns via loopback. Resolves false when the

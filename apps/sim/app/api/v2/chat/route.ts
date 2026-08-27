@@ -177,6 +177,7 @@ export const POST = withRouteHandler(
       // Chat block do, both of which post a single message with a chat id.
       const resolvedChat = await resolveOrCreateChat({
         ...(conversationId ? { chatId: conversationId } : {}),
+        includeTranscript: false,
         userId,
         workspaceId,
         model: MOTHERSHIP_CHAT_DEFAULT_MODEL,

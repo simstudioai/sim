@@ -107,6 +107,22 @@ const TOOL_METADATA: Record<string, Record<string, unknown>> = {
     params: {},
     hostedApiKey: 'always',
   },
+  confluence_read: {
+    id: 'confluence_read',
+    name: 'Confluence Read',
+    description: 'Read a Confluence page.',
+    version: '1.0.0',
+    params: {},
+    hostedApiKey: 'none',
+  },
+  confluence_read_v2: {
+    id: 'confluence_read_v2',
+    name: 'Confluence Read',
+    description: 'Read a Confluence page.',
+    version: '2.0.0',
+    params: {},
+    hostedApiKey: 'none',
+  },
 }
 
 const WORKSPACE_ID = 'workspace-1'
@@ -186,6 +202,7 @@ const confluenceV2 = block({
   type: 'confluence_v2',
   name: 'Confluence',
   description: 'Read Confluence pages.',
+  tools: { access: ['confluence_read_v2'] },
 })
 
 interface Visibility {
@@ -564,6 +581,34 @@ describe('catalog block and tool reads', () => {
 
     const listed = await listCatalogTools.execute({ principal: session, input: listInput })
     expect(listed.entries.map((entry) => entry.hostedApiKey)).toEqual(['none', 'none'])
+  })
+
+  /**
+   * A superseded v1 tool stays registered so execution of a stored id keeps
+   * working, so `resolveToolId('confluence_read')` answers with the v1 id no
+   * visible block exposes — and `GET /v2/tools/confluence_read` 404'd while the
+   * list published `confluence_read_v2`.
+   */
+  it('resolves an unversioned tool name to its newest visible version and echoes the resolved id', async () => {
+    mocks.getAllBlocks.mockReturnValue([confluenceV2])
+
+    const { tool } = await getCatalogTool.execute({
+      principal: session,
+      input: { workspaceId: WORKSPACE_ID, toolId: 'confluence_read' },
+    })
+
+    expect(tool.id).toBe('confluence_read_v2')
+  })
+
+  it('echoes an exact versioned tool id unchanged', async () => {
+    mocks.getAllBlocks.mockReturnValue([confluenceV2])
+
+    const { tool } = await getCatalogTool.execute({
+      principal: session,
+      input: { workspaceId: WORKSPACE_ID, toolId: 'confluence_read_v2' },
+    })
+
+    expect(tool.id).toBe('confluence_read_v2')
   })
 
   it('reads one tool with its params and outputs', async () => {

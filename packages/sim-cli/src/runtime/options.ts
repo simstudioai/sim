@@ -257,11 +257,15 @@ export function addOperationOptions(
     // outright would send a caller reaching for `--yes` to preview a change.
     const exemptedByDryRun =
       operationSpec.query?.dryRun !== undefined || operationSpec.body?.dryRun !== undefined
+    // Not "destructive": the gate also covers operations that only add —
+    // `files unzip` writes the archive's contents into the workspace and
+    // destroys nothing — so the adjective was wrong on the help line while the
+    // refusal itself, which states the operation's own consequence, was right.
     command.option(
       '-y, --yes',
       exemptedByDryRun
-        ? 'Confirm this destructive operation (required unless --dry-run)'
-        : 'Confirm this destructive operation (required)'
+        ? 'Confirm this operation (required unless --dry-run)'
+        : 'Confirm this operation (required)'
     )
   }
 }

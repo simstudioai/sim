@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 
-import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockAcquireFolderMutationLock, mockDeduplicateFolderName } = vi.hoisted(() => ({
@@ -25,6 +25,7 @@ import {
   buildWorkspaceFileFolderPathMap,
   createWorkspaceFileFolder,
   ensureWorkspaceFileFolderPath,
+  listWorkspaceFileFolders,
   normalizeWorkspaceFileItemName,
   WorkspaceFileFolderConflictError,
   WorkspaceFileItemsNotFoundError,
@@ -165,6 +166,52 @@ describe('workspace file folder failure classification', () => {
     })
 
     expect(asOrchestrationError(wrapped)?.code).toBe('conflict')
+  })
+})
+
+describe('listWorkspaceFileFolders', () => {
+  const now = new Date('2026-08-17T12:00:00.000Z')
+  const activeParent = {
+    id: 'parent-1',
+    resourceType: 'file',
+    workspaceId: 'workspace-1',
+    userId: 'user-1',
+    name: 'Engineering',
+    parentId: null,
+    sortOrder: 0,
+    deletedAt: null,
+    createdAt: now,
+    updatedAt: now,
+  }
+  const archivedChild = {
+    ...activeParent,
+    id: 'child-1',
+    name: 'Archive',
+    parentId: 'parent-1',
+    deletedAt: now,
+  }
+
+  beforeEach(() => {
+    resetDbChainMock()
+  })
+
+  it('resolves an archived folder path through its still-active ancestors', async () => {
+    queueTableRows(schemaMock.folder, [archivedChild])
+    queueTableRows(schemaMock.folder, [activeParent, archivedChild])
+
+    const folders = await listWorkspaceFileFolders('workspace-1', { scope: 'archived' })
+
+    expect(folders).toHaveLength(1)
+    expect(folders[0].path).toBe('Engineering/Archive')
+  })
+
+  it('does not take an extra query for the active scope', async () => {
+    queueTableRows(schemaMock.folder, [activeParent])
+
+    const folders = await listWorkspaceFileFolders('workspace-1')
+
+    expect(folders.map((folder) => folder.path)).toEqual(['Engineering'])
+    expect(dbChainMockFns.from).toHaveBeenCalledOnce()
   })
 })
 

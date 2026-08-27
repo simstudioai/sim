@@ -7,7 +7,12 @@ import {
   resolveAuthenticationProfileName,
   writeConfigProfile,
 } from '../config/index'
-import { normalizeEndpoint, normalizeWorkspaceId, redact } from '../config/profile'
+import {
+  normalizeEndpoint,
+  normalizeWorkspaceId,
+  PROFILE_NAME_PATTERN,
+  redact,
+} from '../config/profile'
 import { globalsOf, profileFrom } from '../context'
 import { SimApiError } from '../http/client'
 
@@ -20,6 +25,10 @@ import { SimApiError } from '../http/client'
  * it did not change, which reads exactly like a confirmation. Refusing and
  * naming the twin is the honest answer; making the global write instead would
  * give one command a persistent side effect the same flag has on no other.
+ *
+ * The suggested command has to carry `--profile` whenever one is selected:
+ * without it, a caller who follows the advice verbatim writes the `default`
+ * profile and leaves the one they were targeting untouched.
  */
 const GLOBAL_FLAG_TWINS = [
   { option: 'endpoint', flag: '--endpoint', setFlag: '--set-endpoint' },
@@ -48,6 +57,21 @@ function requireValue(value: string | undefined, flag: string, key: string): voi
  * they arrive through `sim login`, which is the only path that mints a key with
  * a recorded consent behind it.
  */
+/**
+ * Quotes a profile name that a pasted command would otherwise split.
+ *
+ * Profile-name validation is creation-only by design, so a hand-written
+ * `[profile my stack]` keeps resolving — and reaches this suggestion carrying
+ * whitespace, or a `;` that would end the pasted command and start another.
+ * Names that already match the creation rule are left bare, since quoting every
+ * one of them would only add noise to the common case.
+ */
+function quoteProfileArgument(name: string): string {
+  const redacted = redact(name)
+  if (PROFILE_NAME_PATTERN.test(redacted)) return redacted
+  return `'${redacted.replaceAll("'", "'\\''")}'`
+}
+
 export function configureCommand(): Command {
   return new Command('configure')
     .description("Set a profile's endpoint, default workspace, or output format")
@@ -66,11 +90,15 @@ export function configureCommand(): Command {
         command: Command
       ) => {
         const globals = globalsOf(command)
+        const selectedProfile = globals.profile || process.env.SIM_PROFILE
+        const profileArg = selectedProfile
+          ? ` --profile ${quoteProfileArgument(selectedProfile)}`
+          : ''
         for (const { option, flag, setFlag } of GLOBAL_FLAG_TWINS) {
           const value = globals[option]
           if (value === undefined) continue
           throw new SimApiError(
-            `${flag} applies to a single command and is not stored. To save it, run: sim configure ${setFlag} ${value}`,
+            `${flag} applies to a single command and is not stored. To save it, run: sim configure${profileArg} ${setFlag} ${redact(value)}`,
             0
           )
         }

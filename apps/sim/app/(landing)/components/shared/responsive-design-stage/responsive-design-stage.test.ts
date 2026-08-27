@@ -1,5 +1,63 @@
-import { describe, expect, it } from 'vitest'
-import { calculateFitScale } from '@/app/(landing)/components/shared/responsive-design-stage/responsive-design-stage'
+/**
+ * @vitest-environment jsdom
+ */
+import { act, createElement } from 'react'
+import { createRoot, type Root } from 'react-dom/client'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  calculateFitScale,
+  ResponsiveDesignStage,
+} from '@/app/(landing)/components/shared/responsive-design-stage/responsive-design-stage'
+
+let resizeObserver: ResizeObserverMock | null = null
+
+class ResizeObserverMock implements ResizeObserver {
+  private readonly callback: ResizeObserverCallback
+  private target: Element | null = null
+
+  constructor(callback: ResizeObserverCallback) {
+    this.callback = callback
+    resizeObserver = this
+  }
+
+  observe(target: Element) {
+    this.target = target
+  }
+
+  unobserve() {
+    this.target = null
+  }
+
+  disconnect() {
+    this.target = null
+  }
+
+  deliver(width: number, height: number) {
+    if (!this.target) throw new Error('ResizeObserver has no observed target')
+    this.callback(
+      [{ target: this.target, contentRect: { width, height } } as ResizeObserverEntry],
+      this
+    )
+  }
+}
+
+let container: HTMLDivElement
+let root: Root
+
+beforeEach(() => {
+  resizeObserver = null
+  vi.stubGlobal('CSS', { supports: vi.fn(() => true) })
+  vi.stubGlobal('ResizeObserver', ResizeObserverMock)
+  container = document.createElement('div')
+  document.body.appendChild(container)
+  root = createRoot(container)
+})
+
+afterEach(() => {
+  act(() => root.unmount())
+  container.remove()
+  vi.unstubAllGlobals()
+})
 
 describe('calculateFitScale', () => {
   it('fits the design surface to the limiting host dimension', () => {
@@ -52,5 +110,36 @@ describe('calculateFitScale', () => {
         maxScale: 1,
       })
     ).toBe(0)
+  })
+})
+
+describe('ResponsiveDesignStage', () => {
+  it('hides an already visible surface until a measurable size returns', () => {
+    act(() => {
+      root.render(
+        createElement(
+          ResponsiveDesignStage,
+          { width: 1000, height: 500 },
+          createElement('span', null, 'Preview')
+        )
+      )
+    })
+
+    const surface = container.firstElementChild?.firstElementChild
+    if (!(surface instanceof HTMLElement) || !resizeObserver) {
+      throw new Error('responsive stage did not mount')
+    }
+    const observer = resizeObserver
+
+    act(() => observer.deliver(500, 250))
+    expect(surface.style.opacity).toBe('1')
+    expect(surface.style.zoom).toBe('0.5')
+
+    act(() => observer.deliver(0, 250))
+    expect(surface.style.opacity).toBe('0')
+
+    act(() => observer.deliver(500, 250))
+    expect(surface.style.opacity).toBe('1')
+    expect(surface.style.zoom).toBe('0.5')
   })
 })

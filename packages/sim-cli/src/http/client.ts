@@ -359,6 +359,19 @@ function traceRequest(method: string, url: string, status: number | string, star
   )
 }
 
+/**
+ * Drops a label the message already opens with.
+ *
+ * Some routes name the field inside the message as well as in `path`, and the
+ * two are printed one after the other: `sortBy: only \"startedAt\" can order job
+ * runs` under `path: ['sortBy']` came out as `--sort-by: --sort-by: only …`
+ * once the wire name had been retyped as the flag.
+ */
+function withoutLeadingLabel(message: string, label: string): string {
+  const prefix = `${label}: `
+  return message.startsWith(prefix) ? message.slice(prefix.length) : message
+}
+
 /** Formats nested validation issues as readable, path-aware lines. */
 export function formatApiErrorDetails(details: unknown): string[] {
   const issues: DetailIssue[] = []
@@ -402,9 +415,10 @@ export function formatApiErrorDetails(details: unknown): string[] {
   const visible = kept.slice(0, 8)
   const lines = [
     '  details:',
-    ...visible.map(
-      (issue) => `    ${issue.path.length > 0 ? issue.path.join('.') : 'request'}: ${issue.message}`
-    ),
+    ...visible.map((issue) => {
+      const label = issue.path.length > 0 ? issue.path.join('.') : 'request'
+      return `    ${label}: ${withoutLeadingLabel(issue.message, label)}`
+    }),
   ]
   if (kept.length > visible.length) lines.push(`    … ${kept.length - visible.length} more issues`)
   return lines
@@ -644,9 +658,25 @@ export async function requestAllPages<T>(
   path: string,
   options: RequestAllPagesOptions
 ): Promise<T[]> {
+  return (await requestPages<T>(client, path, options)).items
+}
+
+/**
+ * The same walk, also stating whether it stopped short.
+ *
+ * A caller that prints the rows itself has to say so — `files list` announces
+ * "showing the first N" off the surviving cursor and `files ls` did not, so the
+ * same capped answer looked complete on one command and incomplete on its
+ * neighbour.
+ */
+export async function requestPages<T>(
+  client: Pick<SimClient, 'request'>,
+  path: string,
+  options: RequestAllPagesOptions
+): Promise<{ items: T[]; truncated: boolean }> {
   const { query, pageSize, limit: requestedLimit, ...requestOptions } = options
   const limit = requestedLimit ?? Number.POSITIVE_INFINITY
-  if (limit <= 0) return []
+  if (limit <= 0) return { items: [], truncated: false }
 
   const items: T[] = []
   const progress = pageProgress()
@@ -673,7 +703,7 @@ export async function requestAllPages<T>(
     progress.finish()
   }
 
-  return items.slice(0, limit)
+  return { items: items.slice(0, limit), truncated: cursor !== null || items.length > limit }
 }
 
 /**

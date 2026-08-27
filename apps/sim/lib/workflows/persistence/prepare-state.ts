@@ -25,8 +25,9 @@ export interface PrepareWorkflowStateResult {
  *
  * The steps are order-dependent:
  * 1. Strip secrets from inline agent-tool definitions.
- * 2. Drop blocks missing `type`/`name` and backfill the columns the tables
- *    require, so a partial block cannot violate a NOT NULL constraint.
+ * 2. Drop blocks missing `type`/`name` — reporting each one — and backfill the
+ *    columns the tables require, so a partial block cannot violate a NOT NULL
+ *    constraint.
  * 3. Drop edges whose endpoints no longer resolve — `workflow_edges` has
  *    foreign keys onto `workflow_blocks`, so a dangling edge would otherwise
  *    abort the whole transaction with an opaque database error.
@@ -42,8 +43,18 @@ export function prepareWorkflowStateForPersistence(state: {
   )
 
   const blocks: Record<string, BlockState> = {}
+  const droppedBlockWarnings: string[] = []
   for (const [blockId, block] of Object.entries(sanitizedBlocks)) {
-    if (!block.type || !block.name) continue
+    /**
+     * Reported, not just skipped: `workflow_blocks.name` is NOT NULL so the
+     * drop has to happen, but a block with no edges left no trace anywhere and
+     * simply vanished from the saved workflow. The client-side sanitizer warns
+     * on the identical condition; this is its server-side counterpart.
+     */
+    if (!block.type || !block.name) {
+      droppedBlockWarnings.push(`Dropped block "${blockId}": missing type or name`)
+      continue
+    }
     blocks[blockId] = {
       ...block,
       enabled: block.enabled !== undefined ? block.enabled : true,
@@ -65,6 +76,7 @@ export function prepareWorkflowStateForPersistence(state: {
     },
     warnings: [
       ...sanitizationWarnings,
+      ...droppedBlockWarnings,
       ...validatedEdges.dropped.map(({ edge, reason }) => `Dropped edge "${edge.id}": ${reason}`),
     ],
   }

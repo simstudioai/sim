@@ -129,6 +129,19 @@ export const BULK_OUTCOME_CHECKS: Readonly<Partial<Record<V2OperationName, BulkO
       ? safeOneLine(reported)
       : `Updated nothing: none of the ${requested} requested ${requested === 1 ? 'chunk' : 'chunks'} matched.`
   },
+  /**
+   * Only the id-list selection is checked. The filter branch answers with a
+   * deleted count alone — no `requestedCount` — so the guard below self-excludes
+   * on it, which is right: a filter matching nothing deleted nothing because
+   * there was nothing to delete, and failing there would break the second run of
+   * an otherwise idempotent sweep.
+   */
+  deleteTableRows: (payload) => {
+    if (countOf(payload.deletedCount) > 0) return null
+    const requested = countOf(payload.requestedCount)
+    if (requested === 0) return null
+    return `Deleted nothing: none of the ${requested} requested ${requested === 1 ? 'row was' : 'rows were'} deleted.`
+  },
   moveTables: (payload) => {
     if (lengthOf(payload.moved) > 0) return null
     const missed = lengthOf(payload.notFound) + lengthOf(payload.failed)
@@ -181,6 +194,30 @@ const EXCLUSIVE_CAP_FIELDS: Readonly<
   deleteTableRows: { cap: 'limit', ids: 'rowIds' },
 }
 
+/**
+ * The pager's `--limit`, where `0` means "no ceiling".
+ *
+ * Read whole, not up to the first character that stops looking numeric.
+ * `parseInt` truncated before the guard could see what was typed, so
+ * `--limit 3.9` quietly fetched 3, `--limit 1e3` fetched 1, and `--limit -0.5`
+ * parsed as `-0` — which is not less than zero, so it slipped the guard and
+ * then read as the `0` that means everything. `Number` keeps the value intact
+ * so each of those is refused instead of reinterpreted, and it reads `0x10` and
+ * `1e3` as the caller wrote them.
+ *
+ * The empty string is refused explicitly because `Number('')` is `0`: without
+ * this, `--limit ''` would go from today's error to an unbounded walk of a
+ * shared workspace.
+ */
+function readPagedLimit(raw: unknown): number {
+  const text = String(raw ?? DEFAULT_LIMIT).trim()
+  const value = text === '' ? Number.NaN : Number(text)
+  if (!Number.isInteger(value) || value < 0) {
+    throw new SimApiError('--limit must be a whole number of 0 or more (0 for everything)', 0)
+  }
+  return value
+}
+
 /** Refuses a row cap typed alongside the explicit id list that supersedes it. */
 function assertCapIsUsable(operation: V2OperationName, flags: Record<string, unknown>): void {
   const exclusive = EXCLUSIVE_CAP_FIELDS[operation]
@@ -191,6 +228,40 @@ function assertCapIsUsable(operation: V2OperationName, flags: Record<string, unk
   if (flags[camel(cap)] === undefined || flags[camel(ids)] === undefined) return
   throw new SimApiError(
     `--${cap} caps a --filter match and does nothing to an explicit --${ids} list; pass one, not both`,
+    0
+  )
+}
+
+/**
+ * Operations that select their targets through exactly one of two flags.
+ *
+ * `tables rows batch-delete` left the choice to the route, whose refusal —
+ * `Provide either filter or rowIds, but not both` — describes the wrong mistake
+ * when neither was typed, and describes it half in wire names. Its sibling
+ * `tables rows batch-update` already refuses locally, because its `filter` is
+ * `required` in the contract; stating this one here puts the requirement in the
+ * same place for both.
+ */
+const REQUIRED_SELECTORS: Readonly<
+  Partial<
+    Record<V2OperationName, { readonly fields: readonly [string, string]; readonly noun: string }>
+  >
+> = {
+  deleteTableRows: { fields: ['filter', 'rowIds'], noun: 'rows to delete' },
+}
+
+/** Refuses a selection that names neither of the two ways to make it, or both. */
+function assertSelectorIsUsable(operation: V2OperationName, flags: Record<string, unknown>): void {
+  const selector = REQUIRED_SELECTORS[operation]
+  if (!selector) return
+
+  const [first, second] = selector.fields.map((field) => flagNameFor(operation, field))
+  const given = [first, second].filter((name) => flags[camel(name)] !== undefined)
+  if (given.length === 1) return
+  throw new SimApiError(
+    given.length === 0
+      ? `--${first} or --${second} is required to choose the ${selector.noun}`
+      : `--${first} and --${second} choose the ${selector.noun} two different ways; pass one, not both`,
     0
   )
 }
@@ -257,6 +328,7 @@ export async function executeOperation(
 
   foldRenamedFlags(operation, commandSpec, requestFlags)
   assertCapIsUsable(operation, requestFlags)
+  assertSelectorIsUsable(operation, requestFlags)
 
   /**
    * A dry run writes nothing, so it never needs the destructive confirmation.
@@ -292,36 +364,23 @@ export async function executeOperation(
    */
   const needsWorkspace =
     (hasWorkspaceField || commandSpec.profileWorkspacePath === true) && !omitsWorkspace
+  const paging = cursorSlot(operationSpec)
+  /**
+   * Checked before the request is built, because `buildRequest` also validates
+   * `limit` and would otherwise answer a paginated `--limit 1.5` with the
+   * generic integer refusal — losing the `0 for everything` this pager depends
+   * on the caller knowing.
+   */
+  const pagedLimit = paging ? readPagedLimit(requestFlags.limit) : 0
   const request = buildRequest(
     operation,
     positional,
     requestFlags,
     needsWorkspace ? client.requireWorkspace() : profile.workspaceId
   )
-  const paging = cursorSlot(operationSpec)
 
   if (paging) {
-    /**
-     * Read whole, not up to the first character that stops looking numeric.
-     *
-     * `parseInt` truncated before the guard could see what was typed, so
-     * `--limit 3.9` quietly fetched 3, `--limit 1e3` fetched 1, and
-     * `--limit -0.5` parsed as `-0` — which is not less than zero, so it slipped
-     * the guard and then read as the `0` that means everything. `Number` keeps
-     * the value intact so each of those is refused instead of reinterpreted,
-     * and it reads `0x10` and `1e3` as the caller wrote them.
-     *
-     * The empty string is refused explicitly because `Number('')` is `0`, and
-     * `0` here means "no ceiling": without this, `--limit ''` would go from
-     * today's error to an unbounded walk of a shared workspace.
-     */
-    const limitText = String(requestFlags.limit ?? DEFAULT_LIMIT).trim()
-    const rawLimit = limitText === '' ? Number.NaN : Number(limitText)
-    if (!Number.isInteger(rawLimit) || rawLimit < 0) {
-      throw new SimApiError('--limit must be a whole number of 0 or more (0 for everything)', 0)
-    }
-
-    const limit = rawLimit === 0 ? Number.POSITIVE_INFINITY : rawLimit
+    const limit = pagedLimit === 0 ? Number.POSITIVE_INFINITY : pagedLimit
     const pageSize = Math.min(Number.isFinite(limit) ? limit : DEFAULT_LIMIT, DEFAULT_LIMIT)
     const pageLimit = 'limit' in (operationSpec[paging] ?? {}) ? { limit: pageSize } : {}
     const rows: unknown[] = []

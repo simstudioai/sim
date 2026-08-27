@@ -461,6 +461,8 @@ export type TerminalErrorCode =
    */
   | 'NO_SHELL_INTEGRATION'
   | 'SPAWN_FAILED'
+  /** Opening another local shell would exceed the desktop resource ceiling. */
+  | 'RESOURCE_LIMIT'
   /** No terminal with that id — the ids come from terminal_list. */
   | 'NO_SUCH_TERMINAL'
   /** The operation needs tmux, and this terminal has no tmux attached. */

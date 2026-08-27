@@ -319,6 +319,17 @@ export function encodeFolderPath(value: string): string {
 }
 
 /**
+ * A fractional part `Number` cannot keep.
+ *
+ * Above 2^52 a double's spacing is 1, so `Number('4503599627370496.5')` is an
+ * integer — `Number.isInteger` passes and the API receives a value the caller
+ * did not type. Read the text as well as the parsed number so the refusal
+ * covers the range where the parse itself loses the fraction. Digits that are
+ * all zero are not a fraction, so `1.0` stays a whole number.
+ */
+const FRACTIONAL_DIGITS = /\.\d*[1-9]/
+
+/**
  * Points at `@` when a value that failed to parse looks like a filename.
  *
  * `--workflow export.json` is the natural first guess, and "must be valid JSON"
@@ -381,6 +392,27 @@ export function coerce(raw: unknown, field: FieldSpec, flag: FlagSpec, flagName:
   if (NUMERIC_KINDS.has(field.kind)) {
     const value = Number(raw)
     if (Number.isNaN(value)) throw new SimApiError(`--${flagName} must be a number`, 0)
+    /**
+     * An `integer` field said so in the contract, and every other constraint on
+     * one is already refused here by hand. Leaving integrality to the server
+     * answered `--max-bytes 5.5` with `Invalid input: expected int, received
+     * number` and `--max-bytes 999999999999999999999` with `Too big: expected
+     * int to be <=9007199254740991` — library wording naming neither the flag
+     * nor anything the caller typed, on the one flag whose blank, zero and
+     * non-numeric cases all had a sentence written for them.
+     */
+    if (
+      field.kind === 'integer' &&
+      (!Number.isInteger(value) || FRACTIONAL_DIGITS.test(String(raw)))
+    ) {
+      throw new SimApiError(`--${flagName} must be a whole number`, 0)
+    }
+    if (field.kind === 'integer' && !Number.isSafeInteger(value)) {
+      throw new SimApiError(
+        `--${flagName} is outside the whole-number range the API accepts (±${Number.MAX_SAFE_INTEGER})`,
+        0
+      )
+    }
     return value
   }
 
@@ -550,6 +582,23 @@ export function buildRequest(
       }
 
       const value = coerce(raw ?? undefined, descriptor, flag, flagName)
+
+      /**
+       * A non-paginated `limit` is a row cap the route bounds at `1`, which is
+       * what `--help` already tells the caller ("note 0 is not accepted") — so
+       * `--limit 0`, `-1` and `1.5` were shipping a round trip to be told
+       * something the CLI had documented. The ceiling stays with the server:
+       * it is per-route policy, and nothing in the terminal states it.
+       */
+      if (
+        field === 'limit' &&
+        !paginatedLimit &&
+        NUMERIC_KINDS.has(descriptor.kind) &&
+        typeof value === 'number' &&
+        value < 1
+      ) {
+        throw new SimApiError(`--${flagName} must be 1 or more`, 0)
+      }
 
       if (value === undefined) {
         if (descriptor.required) {

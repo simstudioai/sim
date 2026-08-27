@@ -20,6 +20,10 @@ import { RichMarkdownKeymap } from './keymap'
 import { MarkdownPaste } from './markdown-paste'
 import { Mention } from './mention/mention'
 import { MentionChip } from './mention/mention-chip'
+import {
+  createRichMarkdownPasteAdmission,
+  type RichMarkdownPasteAdmissionOptions,
+} from './paste-admission'
 import { FootnoteDefWithView, RawHtmlBlockWithView } from './raw-markdown-snippet'
 import { SlashCommand } from './slash-command/slash-command'
 
@@ -37,6 +41,7 @@ interface MarkdownEditorExtensionOptions {
   embeds?: boolean
   /** When set, wires TipTap Collaboration + CollaborationCaret onto the shared document. */
   collaboration?: EditorCollaboration
+  pasteAdmission?: RichMarkdownPasteAdmissionOptions
 }
 
 /**
@@ -53,6 +58,7 @@ export function createMarkdownEditorExtensions({
   placeholder,
   embeds = false,
   collaboration,
+  pasteAdmission,
 }: MarkdownEditorExtensionOptions): Extensions {
   return [
     ...createMarkdownContentExtensions(
@@ -92,6 +98,7 @@ export function createMarkdownEditorExtensions({
     Mention,
     RichMarkdownKeymap,
     BlockMover,
+    ...(pasteAdmission ? [createRichMarkdownPasteAdmission(pasteAdmission)] : []),
     MarkdownPaste,
     Placeholder.configure({ placeholder }),
     ...(embeds ? [LinkEmbed] : []),

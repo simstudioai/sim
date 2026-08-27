@@ -322,10 +322,11 @@ describe('folder-path fields', () => {
 })
 
 describe('confirm gates say what is actually at stake', () => {
-  it('gates the two workflow writes that change what production serves', () => {
+  it('gates the three workflow writes that change what production serves', () => {
     // `undeploy` takes the workflow offline for every consumer, its published
-    // MCP tools included. `rollback` changes which version is live, while the
-    // gated `revert` only overwrites the draft.
+    // MCP tools included. `rollback` and `activate` are the same application
+    // operation under two transitions and both change which version is live,
+    // while the gated `revert` only overwrites the draft.
     const undeploy = CLI_CONTRACT.undeployWorkflow?.confirm ?? ''
     expect(undeploy).toContain('offline')
     expect(undeploy).toMatch(/MCP/)
@@ -336,6 +337,7 @@ describe('confirm gates say what is actually at stake', () => {
     expect(undeploy).toContain('until it is deployed again')
     expect(undeploy).not.toMatch(/does not restore|not recoverable|cannot be undone/)
     expect(CLI_CONTRACT.rollbackWorkflow?.confirm).toBeTruthy()
+    expect(CLI_CONTRACT.activateWorkflowVersion?.confirm).toBeTruthy()
   })
 
   it('does not promise irreversible loss for a recoverable delete', () => {
@@ -417,6 +419,19 @@ describe('list columns', () => {
     // `--output text` is positional: the new column has to trail the ones a
     // script already cuts.
     expect(columns[columns.length - 1]).toBe(unredacted)
+  })
+
+  /**
+   * A custom tool has both a `title` and a `schema.function.name`, and they are
+   * different fields — a column headed `name` showing the title named the other
+   * one, while `--search` and `--sort-by title` both speak of the title.
+   */
+  it('heads the custom-tool column with the field it actually shows', () => {
+    const columns = CLI_CONTRACT.listCustomTools?.columns ?? []
+    const titled = columns.find((column) => (column.path ?? column.header) === 'title')
+
+    expect(titled?.header).toBe('title')
+    expect(columns.some((column) => column.header === 'name')).toBe(false)
   })
 
   it('keeps the workflow-MCP listings scannable', () => {
@@ -725,9 +740,7 @@ describe('the import cancel refuses through commander, not just in the contract'
   })
 
   it('offers --yes in the help of the one it now gates, and not its sibling', () => {
-    expect(flatHelp('tables', 'imports', 'cancel')).toContain(
-      'Confirm this destructive operation (required)'
-    )
+    expect(flatHelp('tables', 'imports', 'cancel')).toContain('Confirm this operation (required)')
     expect(flatHelp('tables', 'exports', 'cancel')).not.toContain('--yes')
   })
 })

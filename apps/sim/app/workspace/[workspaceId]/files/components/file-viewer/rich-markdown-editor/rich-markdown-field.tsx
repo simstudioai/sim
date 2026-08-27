@@ -1,9 +1,11 @@
 'use client'
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { ChipTextarea, chipFieldSurfaceClass, cn } from '@sim/emcn'
+import { ChipTextarea, chipFieldSurfaceClass, cn, toast } from '@sim/emcn'
+import { formatPasteLimit, PASTE_LIMITS } from '@sim/utils/paste'
 import type { JSONContent } from '@tiptap/core'
 import { EditorContent, useEditor } from '@tiptap/react'
+import { assessRawMarkdownPaste } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/paste-admission'
 import { createMarkdownEditorExtensions } from './editor-extensions'
 import { moveDraggedImageNode } from './image-drag-move'
 import { extractImageFiles, isInlineRouteSrc, shouldSkipFileUpload } from './image-paste'
@@ -32,6 +34,12 @@ import './rich-markdown-editor.css'
  * container is how {@link EditorBubbleMenu} spells "portal to the body".
  */
 const BODY_PORTAL: React.RefObject<HTMLDivElement | null> = { current: null }
+
+function warnRichMarkdownPasteLimit() {
+  toast.warning('Paste is too large for rich-text editing', {
+    description: `Keep this document under ${formatPasteLimit(PASTE_LIMITS.RICH_MARKDOWN_BYTES)}, or import the content as a file.`,
+  })
+}
 
 interface RichMarkdownFieldProps {
   /** Current markdown value. Seeds the editor once on mount; external changes only apply while {@link isStreaming}. */
@@ -203,7 +211,16 @@ function LoadedRichMarkdownField({
   const [canonicalSeed] = useState(() => normalizeMarkdownContent(value))
 
   /** TipTap extensions are stateful — build them once per mount so each field gets its own placeholder. */
-  const [extensions] = useState(() => createMarkdownEditorExtensions({ placeholder }))
+  const [extensions] = useState(() =>
+    createMarkdownEditorExtensions({
+      placeholder,
+      pasteAdmission: {
+        maxResultBytes: PASTE_LIMITS.RICH_MARKDOWN_BYTES,
+        getCurrentText: () => lastSyncedBodyRef.current,
+        onRejected: warnRichMarkdownPasteLimit,
+      },
+    })
+  )
   const [initialContent] = useState<JSONContent>(() => parseMarkdownToDoc(initialSplit.body))
 
   const editor = useEditor({
@@ -231,6 +248,9 @@ function LoadedRichMarkdownField({
         ),
         // Claim ⌘K so the bubble-menu link editor wins over the global search palette.
         'data-owned-shortcuts': 'Mod+K',
+        'data-paste-max-bytes': String(PASTE_LIMITS.RICH_MARKDOWN_BYTES),
+        'data-paste-max-html-bytes': String(PASTE_LIMITS.RICH_MARKDOWN_BYTES),
+        'data-paste-handles-images': uploadImage ? 'true' : 'false',
       },
       handlePaste: (view, event) => {
         const images = uploadImageRef.current ? extractImageFiles(event.clipboardData) : []
@@ -459,7 +479,22 @@ function RawMarkdownField({
 
   const handlePaste = (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const text = event.clipboardData.getData('text/plain')
-    if (text && onPasteText?.(text)) event.preventDefault()
+    if (!text) return
+    if (onPasteText?.(text)) {
+      event.preventDefault()
+      return
+    }
+
+    const admission = assessRawMarkdownPaste({
+      pastedText: text,
+      currentText: value,
+      selectionStart: event.currentTarget.selectionStart,
+      selectionEnd: event.currentTarget.selectionEnd,
+    })
+    if (admission.accepted) return
+
+    event.preventDefault()
+    warnRichMarkdownPasteLimit()
   }
 
   /* A bare host paints its own surface, so the raw fallback is a plain
@@ -472,6 +507,7 @@ function RawMarkdownField({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         onPaste={handlePaste}
+        data-paste-max-bytes={PASTE_LIMITS.RICH_MARKDOWN_BYTES}
         placeholder={placeholder}
         readOnly={isStreaming || lockedView}
         tabIndex={lockedView ? -1 : undefined}
@@ -493,6 +529,7 @@ function RawMarkdownField({
       value={value}
       onChange={(event) => onChange(event.target.value)}
       onPaste={handlePaste}
+      data-paste-max-bytes={PASTE_LIMITS.RICH_MARKDOWN_BYTES}
       placeholder={placeholder}
       error={error}
       viewOnly={lockedView}

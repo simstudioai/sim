@@ -38,6 +38,7 @@ import {
 import { bitbucketGetPipelineStepLogTool } from '@/tools/bitbucket/get_pipeline_step_log'
 import { ErrorExtractorId } from '@/tools/error-extractors'
 import { fileGetContentTool } from '@/tools/file/get'
+import { buildFunctionExecuteBody } from '@/tools/function/execute'
 import { memoryAddTool } from '@/tools/memory/add'
 import { tableBatchInsertRowsTool } from '@/tools/table/batch_insert_rows'
 import { customBlockExecutorTool } from '@/tools/workflow/custom-block-executor'
@@ -58,6 +59,7 @@ const {
   mockGenerateInternalToken,
   mockResolveWorkspaceFileReference,
   mockAssertPermissionsAllowed,
+  mockExecuteFunction,
 } = vi.hoisted(() => ({
   mockGetBYOKKey: vi.fn(),
   mockGetToolAsync: vi.fn(),
@@ -76,6 +78,7 @@ const {
   mockGenerateInternalToken: vi.fn(),
   mockResolveWorkspaceFileReference: vi.fn(),
   mockAssertPermissionsAllowed: vi.fn(),
+  mockExecuteFunction: vi.fn(),
 }))
 
 const mockSecureFetchWithPinnedIP = inputValidationMockFns.mockSecureFetchWithPinnedIP
@@ -120,6 +123,10 @@ vi.mock('@/ee/access-control/utils/permission-check', () => ({
 vi.mock('@/lib/billing/core/usage-log', () => ({}))
 
 vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
+
+vi.mock('@/lib/function-execution/application/execute-function', () => ({
+  executeFunction: { execute: mockExecuteFunction },
+}))
 
 vi.mock('@/lib/core/rate-limiter/hosted-key', () => ({
   getHostedKeyRateLimiter: () => mockRateLimiterFns,
@@ -219,11 +226,7 @@ const mockRegistryTools: Record<string, any> = {
       url: '/api/function/execute',
       method: 'POST',
       headers: () => ({ 'Content-Type': 'application/json' }),
-      body: (p: any) => ({
-        code: Array.isArray(p.code) ? p.code.map((c: any) => c.content).join('\n') : p.code,
-        language: p.language || 'javascript',
-        timeout: p.timeout || 30000,
-      }),
+      body: buildFunctionExecuteBody,
     },
     transformResponse: async (response: any) => {
       const data = await response.json()
@@ -477,6 +480,12 @@ beforeEach(() => {
   mockAssertPermissionsAllowed.mockResolvedValue(undefined)
   mockGenerateInternalDelegationToken.mockResolvedValue('executor-token')
   mockRunWorkflowTool.mockResolvedValue({ success: true, output: {} })
+  mockExecuteFunction.mockResolvedValue(
+    new Response(JSON.stringify({ success: true, output: { result: 'in-process' } }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    })
+  )
   // Suites below call vi.resetAllMocks(), which wipes the shared env/urls mock
   // implementations — restore their defaults and re-pin the base URL each test.
   resetEnvMock()
@@ -705,6 +714,68 @@ describe('executeTool Function', () => {
     expect(result.timing?.duration).toBeGreaterThanOrEqual(0)
 
     tools.function_execute = originalFunctionTool
+  })
+
+  it('executes trusted Function calls in process without dropping resolved execution context', async () => {
+    const fetchSpy = vi.fn()
+    global.fetch = Object.assign(fetchSpy, { preconnect: vi.fn() }) as typeof fetch
+
+    const largeValueRef = {
+      __simLargeValueRef: true,
+      version: 1,
+      id: 'lv_ABCDEFGHIJKL',
+      kind: 'array',
+      size: 1024,
+      executionId: 'execution-1',
+    }
+    const result = await executeTool('function_execute', {
+      code: 'return [{{API_KEY}}, __blockRef_0.field]',
+      isCustomTool: true,
+      inputs: { location: 'San Francisco' },
+      envVars: { API_KEY: 'resolved-secret' },
+      contextVariables: {
+        __blockRef_0: { field: 'resolved-output' },
+        __blockRef_1: largeValueRef,
+      },
+      _context: {
+        userId: 'user-1',
+        workspaceId: 'workspace-456',
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
+        largeValueExecutionIds: ['execution-1'],
+        largeValueKeys: ['lv_ABCDEFGHIJKL'],
+        fileKeys: ['file-1'],
+        allowLargeValueWorkflowScope: true,
+      },
+    })
+
+    expect(result.success).toBe(true)
+    expect(mockExecuteFunction).toHaveBeenCalledOnce()
+    expect(mockExecuteFunction.mock.calls[0]?.[0]).toMatchObject({
+      input: {
+        workspaceId: 'workspace-456',
+        body: {
+          code: 'return [{{API_KEY}}, __blockRef_0.field]',
+          isCustomTool: true,
+          inputs: { location: 'San Francisco' },
+          envVars: { API_KEY: 'resolved-secret' },
+          contextVariables: {
+            __blockRef_0: { field: 'resolved-output' },
+            __blockRef_1: largeValueRef,
+          },
+          workflowId: 'workflow-1',
+          executionId: 'execution-1',
+          workspaceId: 'workspace-456',
+          userId: 'user-1',
+          largeValueExecutionIds: ['execution-1'],
+          largeValueKeys: ['lv_ABCDEFGHIJKL'],
+          fileKeys: ['file-1'],
+          allowLargeValueWorkflowScope: true,
+        },
+      },
+    })
+    expect(mockGenerateInternalToken).not.toHaveBeenCalled()
+    expect(fetchSpy).not.toHaveBeenCalled()
   })
 
   it('bounds ignored Bitbucket pipeline log ranges through the execution path', async () => {
@@ -1526,6 +1597,8 @@ describe('executeTool Function', () => {
     )
 
     await expect(execution).resolves.toMatchObject({ success: true })
+    expect(mockExecuteFunction).not.toHaveBeenCalled()
+    expect(global.fetch).toHaveBeenCalledTimes(1)
     expect(registry.isComplete()).toBe(true)
     expect(
       projectToolResultForCopilot({ success: true, output: { result: secret } }, registry)

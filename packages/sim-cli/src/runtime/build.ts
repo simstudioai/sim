@@ -64,18 +64,55 @@ function commandPath(command: Command): string {
   return names.join(' ')
 }
 
-function addMissingArgumentExample(command: Command): Command {
+const UNKNOWN_OPTION_TOKEN = /^error: unknown option '(.+?)'/
+
+/**
+ * Whether an unknown-option token reads as a resource id rather than a flag.
+ *
+ * `generateShortId` draws from a 64-character alphabet holding exactly one
+ * `-`, so one id in 64 opens with a dash and commander parses it as an option
+ * instead of the positional it was typed as — `audit-logs get` and
+ * `custom-tools get/update/delete` all take such an id. A flag on this surface
+ * is either a single-character short (`-w`) or a lowercase kebab-case long
+ * (`--dry-run`), so a lone dash followed by two or more characters of which at
+ * least one is an uppercase letter or a digit is not a flag any caller meant
+ * to type. `--organisation` and every other misspelt flag keeps the plain
+ * error and commander's own suggestion.
+ */
+function looksLikeAnId(token: string): boolean {
+  return (
+    token.length > 2 &&
+    !token.startsWith('--') &&
+    /^-[A-Za-z0-9_-]*[A-Z0-9][A-Za-z0-9_-]*$/.test(token)
+  )
+}
+
+/**
+ * Appends a worked example to the parse errors a positional argument causes.
+ *
+ * Covers the argument being absent and the argument being swallowed as an
+ * option because its id opens with a dash; the second needs the `--` escape,
+ * which commander never mentions.
+ */
+function addArgumentExamples(command: Command): Command {
   const outputError = command.configureOutput().outputError
   if (!outputError) throw new Error('Commander output formatter is not configured')
 
   command.configureOutput({
     outputError: (message, write) => {
       outputError(message, write)
-      if (!message.startsWith('error: missing required argument ')) return
 
-      const syntax = argumentSyntax(command)
-      const example = syntax ? `${commandPath(command)} ${syntax}` : commandPath(command)
-      write(`Example: ${example}\n`)
+      if (message.startsWith('error: missing required argument ')) {
+        const syntax = argumentSyntax(command)
+        const example = syntax ? `${commandPath(command)} ${syntax}` : commandPath(command)
+        write(`Example: ${example}\n`)
+        return
+      }
+
+      if (command.registeredArguments.length === 0) return
+      const token = UNKNOWN_OPTION_TOKEN.exec(message)?.[1]
+      if (!token || !looksLikeAnId(token)) return
+      write(`Example: ${commandPath(command)} -- ${token}\n`)
     },
   })
   return command
@@ -298,7 +335,7 @@ function configureOperation(
 }
 
 function buildLeaf(operation: V2OperationName, spec: CommandSpec, leafName: string): Command {
-  return addMissingArgumentExample(configureOperation(new Command(leafName), operation, spec))
+  return addArgumentExamples(configureOperation(new Command(leafName), operation, spec))
 }
 
 /**

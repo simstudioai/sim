@@ -11702,7 +11702,8 @@ export const V2_OPERATIONS = {
       },
       parentPath: {
         kind: 'string',
-        describe: 'Restrict results to direct children of this parent path.',
+        describe:
+          'Restrict results to direct children of this parent path. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.',
       },
       search: {
         kind: 'string',
@@ -12058,7 +12059,8 @@ export const V2_OPERATIONS = {
       },
       parentPath: {
         kind: 'string',
-        describe: 'Restrict results to direct children of this parent path.',
+        describe:
+          'Restrict results to direct children of this parent path. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.',
       },
       search: {
         kind: 'string',
@@ -12444,7 +12446,8 @@ export const V2_OPERATIONS = {
       },
       parentPath: {
         kind: 'string',
-        describe: 'Restrict results to direct children of this parent path.',
+        describe:
+          'Restrict results to direct children of this parent path. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.',
       },
       search: {
         kind: 'string',
@@ -12623,7 +12626,8 @@ export const V2_OPERATIONS = {
       },
       parentPath: {
         kind: 'string',
-        describe: 'Restrict results to direct children of this parent path.',
+        describe:
+          'Restrict results to direct children of this parent path. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.',
       },
       search: {
         kind: 'string',

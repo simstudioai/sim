@@ -433,7 +433,7 @@ function writeEnvelopeTruncation(envelope: unknown): void {
  * the answer is incomplete either way, and the caller who capped it is the one
  * most likely to reuse the result as if it were whole.
  */
-function writeCursorTruncation(count: number, truncated: boolean): void {
+export function writeCursorTruncation(count: number, truncated: boolean): void {
   if (!truncated) return
   process.stderr.write(
     chalk.dim(`showing the first ${count}; more results exist — re-run with --limit 0 for all\n`)

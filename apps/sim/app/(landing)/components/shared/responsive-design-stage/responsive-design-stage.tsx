@@ -91,7 +91,12 @@ export function ResponsiveDesignStage({
         inset,
         maxScale,
       })
-      if (scale === 0 || Math.abs(scale - appliedScale) < SCALE_EPSILON) return
+      if (scale === 0) {
+        surface.style.opacity = '0'
+        appliedScale = -1
+        return
+      }
+      if (Math.abs(scale - appliedScale) < SCALE_EPSILON) return
 
       if (supportsZoom) {
         surface.style.zoom = String(scale)

@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-08-26",
+  "updatedAt": "2026-08-27",
   "integrations": [
     {
       "type": "onepassword",
@@ -23497,6 +23497,57 @@
       "category": "tools",
       "integrationType": "analytics",
       "tags": ["data-warehouse", "data-analytics"]
+    },
+    {
+      "type": "tinyfish",
+      "slug": "tinyfish",
+      "name": "TinyFish",
+      "description": "Automate and read the live web",
+      "longDescription": "Integrate TinyFish into the workflow. Give a web agent a natural-language goal and let it drive a real browser on any site, queue and track long-running automations, search the web, and fetch pages as clean markdown.",
+      "bgColor": "#FF6700",
+      "iconName": "TinyFishIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/tinyfish",
+      "operations": [
+        {
+          "name": "Run Agent",
+          "description": "Run a TinyFish web agent against a website and wait for it to finish, returning the structured result it extracted"
+        },
+        {
+          "name": "Start Agent Run",
+          "description": "Queue a TinyFish web agent run and return its run ID immediately, without waiting for the automation to finish"
+        },
+        {
+          "name": "Get Run",
+          "description": "Get the status, extracted result, and step history of a TinyFish automation run by its ID"
+        },
+        {
+          "name": "Cancel Run",
+          "description": "Cancel a queued or in-progress TinyFish automation run by its ID"
+        },
+        {
+          "name": "List Runs",
+          "description": "List TinyFish automation runs, optionally filtered by status, goal text, or creation date"
+        },
+        {
+          "name": "Search",
+          "description": "Search the web with TinyFish and get ranked results with titles, snippets, and URLs"
+        },
+        {
+          "name": "Fetch URLs",
+          "description": "Fetch up to 10 URLs with TinyFish, rendering JavaScript when needed, and return clean extracted content"
+        },
+        {
+          "name": "List Vault Items",
+          "description": "List the credentials available from password managers connected to TinyFish, with the URIs an agent run can be scoped to"
+        }
+      ],
+      "operationCount": 8,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "ai",
+      "tags": ["web-scraping", "automation", "agentic"]
     },
     {
       "type": "trello",

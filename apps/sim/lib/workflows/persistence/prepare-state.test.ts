@@ -36,8 +36,8 @@ describe('prepareWorkflowStateForPersistence', () => {
     expect(warnings.some((w) => w.includes('dangling'))).toBe(true)
   })
 
-  it('drops blocks missing type or name', () => {
-    const { state } = prepareWorkflowStateForPersistence({
+  it('drops blocks missing type or name, and says which', () => {
+    const { state, warnings } = prepareWorkflowStateForPersistence({
       blocks: {
         ok: block({ id: 'ok' }),
         noType: block({ id: 'noType', type: '' }),
@@ -47,6 +47,9 @@ describe('prepareWorkflowStateForPersistence', () => {
     })
 
     expect(Object.keys(state.blocks)).toEqual(['ok'])
+    // A block with no edges left no other trace of having been dropped.
+    expect(warnings).toContain('Dropped block "noType": missing type or name')
+    expect(warnings).toContain('Dropped block "noName": missing type or name')
   })
 
   it('backfills the columns the normalized tables require', () => {

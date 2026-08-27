@@ -25,6 +25,9 @@ import type {
 
 export const PENDING_DESKTOP_SCOPE_PREFIX = 'pending:' as const
 
+/** Boolean results preserve compatibility with older installed desktop shells. */
+export type TerminalPasteResult = boolean | 'too-large'
+
 const DESKTOP_SCOPE_PATTERN = /^[A-Za-z0-9_-]{1,128}$/
 const PENDING_DESKTOP_SCOPE_PATTERN = /^pending:[A-Za-z0-9_-]{1,128}$/
 
@@ -71,7 +74,7 @@ export interface SimDesktopTerminalApi {
    * only replay what the user already copied instead of choosing the bytes.
    * Resolves false when the clipboard held nothing to paste.
    */
-  paste(terminalId: string, scopeId: string): Promise<boolean>
+  paste(terminalId: string, scopeId: string): Promise<TerminalPasteResult>
   resize(terminalId: string, cols: number, rows: number, scopeId: string): void
   /** Open an additional terminal and make it active. */
   openTerminal(cwd: string | undefined, scopeId: string): Promise<ScopedTerminalTabsState>
@@ -92,8 +95,6 @@ export interface SimDesktopTerminalApi {
   disposeScope(scopeId: string): Promise<boolean>
   /** Stops a soft-deleted chat's shells while retaining its restart descriptor. */
   suspendScope(scopeId: string): Promise<boolean>
-  /** End every shell. A new one starts on the next `start`. */
-  dispose(): void
   /** Subscribe to PTY output batches. Returns an unsubscribe function. */
   onData(callback: (terminalId: string, data: string, scopeId: string) => void): () => void
   /**
@@ -1045,6 +1046,8 @@ export interface SimDesktopApi {
   /** Installed shell version (plain semver, e.g. `0.3.1`). */
   version: string
   openExternal(url: string): Promise<boolean>
+  /** Opens the operating system's microphone privacy settings when supported. */
+  openMicrophoneSettings?(): Promise<boolean>
   /**
    * Start the OAuth connect handoff for a provider: the whole flow runs in
    * the system browser and returns via loopback. Resolves false when the
