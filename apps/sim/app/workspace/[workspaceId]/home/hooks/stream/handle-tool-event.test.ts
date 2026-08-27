@@ -118,16 +118,16 @@ describe('tool events (dispatch → model + side effects)', () => {
     {
       scope: 'personal',
       output: { scope: 'personal' },
-      environmentQueryKey: environmentKeys.personal(),
+      environmentQueryKeys: [environmentKeys.personal(), environmentKeys.workspaces()],
     },
     {
       scope: 'workspace',
       output: { scope: 'workspace', workspaceId: 'workspace-from-result' },
-      environmentQueryKey: environmentKeys.workspace('workspace-from-result'),
+      environmentQueryKeys: [environmentKeys.workspace('workspace-from-result')],
     },
   ])(
     'refreshes the $scope environment before selector caches after Copilot saves secrets',
-    async ({ output, environmentQueryKey }) => {
+    async ({ output, environmentQueryKeys }) => {
       const deps = makeStreamLoopDeps()
       const invalidateQueries = vi.mocked(deps.queryClient.invalidateQueries)
       invalidateQueries.mockResolvedValue(undefined)
@@ -139,9 +139,11 @@ describe('tool events (dispatch → model + side effects)', () => {
         toolResult('environment-1', true, SetEnvironmentVariables.id, output)
       )
 
-      await vi.waitFor(() => expect(invalidateQueries).toHaveBeenCalledTimes(5))
+      await vi.waitFor(() =>
+        expect(invalidateQueries).toHaveBeenCalledTimes(environmentQueryKeys.length + 4)
+      )
       expect(invalidateQueries.mock.calls.map(([filters]) => filters?.queryKey)).toEqual([
-        environmentQueryKey,
+        ...environmentQueryKeys,
         environmentDependentSelectorKeys.primary,
         environmentDependentSelectorKeys.dynamicDetails,
         environmentDependentSelectorKeys.workflowDetails,

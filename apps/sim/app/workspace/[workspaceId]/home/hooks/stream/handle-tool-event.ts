@@ -84,7 +84,10 @@ function runToolResultSideEffects(ctx: StreamLoopContext, node: ToolNode): void 
 
     void (async () => {
       if (isPersonal) {
-        await deps.queryClient.invalidateQueries({ queryKey: environmentKeys.personal() })
+        await Promise.all([
+          deps.queryClient.invalidateQueries({ queryKey: environmentKeys.personal() }),
+          deps.queryClient.invalidateQueries({ queryKey: environmentKeys.workspaces() }),
+        ])
       } else {
         await deps.queryClient.invalidateQueries({
           queryKey: environmentKeys.workspace(workspaceId),
