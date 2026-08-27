@@ -1,7 +1,7 @@
 import type { AzureTtsParams, TtsBlockResponse } from '@/tools/tts/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const azureTtsTool: ToolConfig<AzureTtsParams, TtsBlockResponse> = {
+export const azureTtsTool: InternalToolConfig<AzureTtsParams, TtsBlockResponse> = {
   id: 'tts_azure',
   name: 'Azure TTS',
   description: 'Convert text to speech using Azure Cognitive Services',
@@ -71,22 +71,12 @@ export const azureTtsTool: ToolConfig<AzureTtsParams, TtsBlockResponse> = {
     },
   },
 
-  request: {
+  operation: {
     modelInput: {
       mode: 'project',
       select: (params) => ({ text: params.text }),
     },
-    url: '/api/tools/tts/unified',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (
-      params: AzureTtsParams & {
-        _context?: { workspaceId?: string; workflowId?: string; executionId?: string }
-      }
-    ) => ({
-      provider: 'azure',
+    input: (params) => ({
       text: params.text,
       apiKey: params.apiKey,
       voiceId: params.voiceId || 'en-US-JennyNeural',
@@ -97,9 +87,6 @@ export const azureTtsTool: ToolConfig<AzureTtsParams, TtsBlockResponse> = {
       style: params.style,
       styleDegree: params.styleDegree,
       role: params.role,
-      workspaceId: params._context?.workspaceId,
-      workflowId: params._context?.workflowId,
-      executionId: params._context?.executionId,
     }),
   },
 

@@ -1,14 +1,13 @@
-import type { ToolConfig, ToolResponse, WorkflowToolExecutionContext } from '@/tools/types'
+import type { InternalToolConfig, ToolResponse } from '@/tools/types'
 
 interface FileWriteParams {
   fileName: string
   content: string
   contentType?: string
   workspaceId?: string
-  _context?: WorkflowToolExecutionContext
 }
 
-export const fileWriteTool: ToolConfig<FileWriteParams, ToolResponse> = {
+export const fileWriteTool: InternalToolConfig<FileWriteParams, ToolResponse> = {
   id: 'file_write',
   name: 'File Write',
   description:
@@ -38,16 +37,13 @@ export const fileWriteTool: ToolConfig<FileWriteParams, ToolResponse> = {
     },
   },
 
-  request: {
-    url: '/api/tools/file/manage',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       operation: 'write',
       fileName: params.fileName,
       content: params.content,
       contentType: params.contentType,
-      workspaceId: params.workspaceId || params._context?.workspaceId,
+      workspaceId: params.workspaceId,
     }),
     secretProvenance: {
       request: () => [{ key: 'content', inputPaths: [['content']] }],

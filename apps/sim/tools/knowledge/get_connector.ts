@@ -1,7 +1,7 @@
 import type { KnowledgeGetConnectorResponse } from '@/tools/knowledge/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const knowledgeGetConnectorTool: ToolConfig<any, KnowledgeGetConnectorResponse> = {
+export const knowledgeGetConnectorTool: InternalToolConfig<any, KnowledgeGetConnectorResponse> = {
   id: 'knowledge_get_connector',
   name: 'Knowledge Get Connector',
   description:
@@ -23,14 +23,10 @@ export const knowledgeGetConnectorTool: ToolConfig<any, KnowledgeGetConnectorRes
     },
   },
 
-  request: {
-    internal: true,
-    internalAuth: 'executor_delegation',
-    url: (params) =>
-      `/api/knowledge/${encodeURIComponent(params.knowledgeBaseId)}/connectors/${encodeURIComponent(params.connectorId)}`,
-    method: 'GET',
-    headers: () => ({
-      'Content-Type': 'application/json',
+  operation: {
+    input: (params) => ({
+      knowledgeBaseId: params.knowledgeBaseId,
+      connectorId: params.connectorId,
     }),
   },
 

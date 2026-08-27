@@ -1,7 +1,7 @@
 import type { SSHCreateDirectoryParams, SSHResponse } from '@/tools/ssh/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const createDirectoryTool: ToolConfig<SSHCreateDirectoryParams, SSHResponse> = {
+export const createDirectoryTool: InternalToolConfig<SSHCreateDirectoryParams, SSHResponse> = {
   id: 'ssh_create_directory',
   name: 'SSH Create Directory',
   description: 'Create a directory on the remote SSH server',
@@ -64,13 +64,8 @@ export const createDirectoryTool: ToolConfig<SSHCreateDirectoryParams, SSHRespon
     },
   },
 
-  request: {
-    url: '/api/tools/ssh/create-directory',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       host: params.host,
       port: Number(params.port) || 22,
       username: params.username,

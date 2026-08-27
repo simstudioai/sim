@@ -1,8 +1,8 @@
 import { selectModelBoundFileInputPaths } from '@/lib/uploads/utils/model-input'
 import type { QuiverSvgResponse, QuiverTextToSvgParams } from '@/tools/quiver/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const quiverTextToSvgTool: ToolConfig<QuiverTextToSvgParams, QuiverSvgResponse> = {
+export const quiverTextToSvgTool: InternalToolConfig<QuiverTextToSvgParams, QuiverSvgResponse> = {
   id: 'quiver_text_to_svg',
   name: 'Quiver Text to SVG',
   description: 'Generate SVG images from text prompts using QuiverAI',
@@ -71,7 +71,7 @@ export const quiverTextToSvgTool: ToolConfig<QuiverTextToSvgParams, QuiverSvgRes
     },
   },
 
-  request: {
+  operation: {
     modelInput: {
       mode: 'project',
       select: (params) => ({
@@ -83,10 +83,7 @@ export const quiverTextToSvgTool: ToolConfig<QuiverTextToSvgParams, QuiverSvgRes
           parseSerializedFile: true,
         }),
     },
-    url: '/api/tools/quiver/text-to-svg',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+    input: (params) => ({
       apiKey: params.apiKey,
       prompt: params.prompt,
       model: params.model,

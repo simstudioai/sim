@@ -2,9 +2,9 @@ import type {
   IAMListAttachedPoliciesResponse,
   IAMListAttachedUserPoliciesParams,
 } from '@/tools/iam/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const listAttachedUserPoliciesTool: ToolConfig<
+export const listAttachedUserPoliciesTool: InternalToolConfig<
   IAMListAttachedUserPoliciesParams,
   IAMListAttachedPoliciesResponse
 > = {
@@ -58,11 +58,8 @@ export const listAttachedUserPoliciesTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/iam/list-attached-user-policies',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

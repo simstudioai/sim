@@ -2,9 +2,9 @@ import type {
   SESPutSuppressedDestinationParams,
   SESPutSuppressedDestinationResponse,
 } from '@/tools/ses/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const putSuppressedDestinationTool: ToolConfig<
+export const putSuppressedDestinationTool: InternalToolConfig<
   SESPutSuppressedDestinationParams,
   SESPutSuppressedDestinationResponse
 > = {
@@ -46,11 +46,8 @@ export const putSuppressedDestinationTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/ses/put-suppressed-destination',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

@@ -1,18 +1,14 @@
-import type {
-  ListTravelRequestCommentsParams,
-  SapConcurProxyResponse,
-} from '@/tools/sap_concur/types'
+import type { ListTravelRequestCommentsParams, SapConcurResponse } from '@/tools/sap_concur/types'
 import {
-  baseProxyBody,
-  SAP_CONCUR_PROXY_URL,
-  transformSapConcurProxyResponse,
+  baseSapConcurInput,
+  transformSapConcurResponse,
   trimRequired,
 } from '@/tools/sap_concur/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const listTravelRequestCommentsTool: ToolConfig<
+export const listTravelRequestCommentsTool: InternalToolConfig<
   ListTravelRequestCommentsParams,
-  SapConcurProxyResponse
+  SapConcurResponse
 > = {
   id: 'sap_concur_list_travel_request_comments',
   name: 'SAP Concur List Travel Request Comments',
@@ -69,20 +65,17 @@ export const listTravelRequestCommentsTool: ToolConfig<
       description: 'Travel request UUID',
     },
   },
-  request: {
-    url: SAP_CONCUR_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => {
+  operation: {
+    input: (params) => {
       const requestUuid = trimRequired(params.requestUuid, 'requestUuid')
       return {
-        ...baseProxyBody(params),
+        ...baseSapConcurInput(params),
         path: `/travelrequest/v4/requests/${encodeURIComponent(requestUuid)}/comments`,
         method: 'GET',
       }
     },
   },
-  transformResponse: transformSapConcurProxyResponse,
+  transformResponse: transformSapConcurResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by Concur' },
     data: {

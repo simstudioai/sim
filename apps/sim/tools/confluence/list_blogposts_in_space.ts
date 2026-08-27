@@ -3,7 +3,7 @@ import {
   TIMESTAMP_OUTPUT,
   VERSION_OUTPUT_PROPERTIES,
 } from '@/tools/confluence/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
 export interface ConfluenceListBlogPostsInSpaceParams {
   accessToken: string
@@ -41,7 +41,7 @@ export interface ConfluenceListBlogPostsInSpaceResponse {
   }
 }
 
-export const confluenceListBlogPostsInSpaceTool: ToolConfig<
+export const confluenceListBlogPostsInSpaceTool: InternalToolConfig<
   ConfluenceListBlogPostsInSpaceParams,
   ConfluenceListBlogPostsInSpaceResponse
 > = {
@@ -107,16 +107,8 @@ export const confluenceListBlogPostsInSpaceTool: ToolConfig<
     },
   },
 
-  request: {
-    internal: true,
-    url: () => '/api/tools/confluence/space-blogposts',
-    method: 'POST',
-    headers: (params: ConfluenceListBlogPostsInSpaceParams) => ({
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${params.accessToken}`,
-    }),
-    body: (params: ConfluenceListBlogPostsInSpaceParams) => ({
+  operation: {
+    input: (params: ConfluenceListBlogPostsInSpaceParams) => ({
       domain: params.domain,
       accessToken: params.accessToken,
       spaceId: params.spaceId?.trim(),

@@ -1,7 +1,10 @@
 import type { SESDeleteTemplateParams, SESDeleteTemplateResponse } from '@/tools/ses/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const deleteTemplateTool: ToolConfig<SESDeleteTemplateParams, SESDeleteTemplateResponse> = {
+export const deleteTemplateTool: InternalToolConfig<
+  SESDeleteTemplateParams,
+  SESDeleteTemplateResponse
+> = {
   id: 'ses_delete_template',
   name: 'SES Delete Template',
   description: 'Delete an existing SES email template',
@@ -34,11 +37,8 @@ export const deleteTemplateTool: ToolConfig<SESDeleteTemplateParams, SESDeleteTe
     },
   },
 
-  request: {
-    url: '/api/tools/ses/delete-template',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

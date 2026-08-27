@@ -1,12 +1,14 @@
 /**
  * @vitest-environment node
  */
+import type { DelegatedPrincipal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mocks } = vi.hoisted(() => ({
   mocks: {
     loadContext: vi.fn(),
     resolvePermission: vi.fn(),
+    getAvailableTool: vi.fn(),
     getByTitle: vi.fn(),
     getWorkspaceTool: vi.fn(),
     updateWorkspaceTool: vi.fn(),
@@ -35,6 +37,7 @@ vi.mock('@sim/audit', () => ({
 vi.mock('@/lib/workflows/custom-tools/operations', () => ({
   deleteCustomTool: vi.fn(),
   deleteWorkspaceCustomTool: vi.fn(),
+  getAvailableCustomTool: mocks.getAvailableTool,
   getCustomToolById: vi.fn(),
   getWorkspaceCustomTool: mocks.getWorkspaceTool,
   getWorkspaceCustomToolByTitle: mocks.getByTitle,
@@ -46,8 +49,10 @@ vi.mock('@/lib/workflows/custom-tools/operations', () => ({
 }))
 
 import { CUSTOM_TOOL_DELEGATION_AUDIENCE } from '@/lib/custom-tools/application/authorization'
+import { customToolOperations } from '@/lib/custom-tools/application/operations'
 import {
   createWorkspaceCustomToolUseCase,
+  readAvailableCustomToolByIdOrTitleUseCase,
   saveWorkspaceCustomToolUseCase,
   updateWorkspaceCustomToolUseCase,
 } from '@/lib/custom-tools/application/use-cases'
@@ -75,7 +80,114 @@ describe('custom tool application use cases', () => {
     mocks.loadContext.mockResolvedValue(workspace)
     mocks.resolvePermission.mockResolvedValue('write')
     mocks.getByTitle.mockResolvedValue(null)
+    mocks.getAvailableTool.mockResolvedValue(tool)
     mocks.upsert.mockResolvedValue([tool])
+  })
+
+  describe('delegated custom-tool resolution', () => {
+    function executorPrincipal(overrides: Partial<DelegatedPrincipal> = {}): DelegatedPrincipal {
+      return {
+        kind: 'delegated' as const,
+        serviceId: 'executor' as const,
+        subjectUserId: 'user-1',
+        workspaceId: workspace.workspaceId,
+        delegationId: 'execution-1',
+        audience: CUSTOM_TOOL_DELEGATION_AUDIENCE,
+        issuedAt: new Date(Date.now() - 1_000),
+        expiresAt: new Date(Date.now() + 60_000),
+        ...overrides,
+      }
+    }
+
+    it('declares the executor and Copilot read policy explicitly', () => {
+      expect(customToolOperations.readAvailableByIdOrTitle).toMatchObject({
+        id: 'custom_tools.read_available_by_id_or_title',
+        minimumRole: 'read',
+        workspaceApiKey: 'deny',
+        principalKinds: ['delegated'],
+        delegatedServices: ['copilot', 'executor'],
+      })
+    })
+
+    it('authorizes the current subject and preserves workspace-first personal fallback lookup', async () => {
+      mocks.resolvePermission.mockResolvedValueOnce('read')
+
+      const result = await readAvailableCustomToolByIdOrTitleUseCase.execute({
+        principal: executorPrincipal(),
+        input: {
+          workspaceId: workspace.workspaceId,
+          identifier: tool.id,
+          lookup: 'id_or_title',
+        },
+      })
+
+      expect(result).toEqual({ tool })
+      expect(mocks.getAvailableTool).toHaveBeenCalledWith({
+        identifier: tool.id,
+        userId: 'user-1',
+        workspaceId: workspace.workspaceId,
+        lookup: 'id_or_title',
+      })
+      expect(mocks.audit).not.toHaveBeenCalled()
+    })
+
+    it('conceals a workspace assertion outside the delegated workspace before lookup', async () => {
+      mocks.loadContext.mockResolvedValueOnce({ ...workspace, workspaceId: 'workspace-2' })
+
+      await expect(
+        readAvailableCustomToolByIdOrTitleUseCase.execute({
+          principal: executorPrincipal(),
+          input: {
+            workspaceId: 'workspace-2',
+            identifier: tool.id,
+            lookup: 'id',
+          },
+        })
+      ).rejects.toMatchObject({ code: 'forbidden' })
+
+      expect(mocks.resolvePermission).not.toHaveBeenCalled()
+      expect(mocks.getAvailableTool).not.toHaveBeenCalled()
+    })
+
+    it('rejects the wrong delegation audience before lookup', async () => {
+      await expect(
+        readAvailableCustomToolByIdOrTitleUseCase.execute({
+          principal: executorPrincipal({ audience: 'sim:other' }),
+          input: {
+            workspaceId: workspace.workspaceId,
+            identifier: tool.id,
+            lookup: 'id',
+          },
+        })
+      ).rejects.toMatchObject({ code: 'forbidden' })
+
+      expect(mocks.resolvePermission).not.toHaveBeenCalled()
+      expect(mocks.getAvailableTool).not.toHaveBeenCalled()
+    })
+
+    it('re-checks the delegated subject current workspace access before lookup', async () => {
+      mocks.resolvePermission.mockResolvedValueOnce(null)
+
+      await expect(
+        readAvailableCustomToolByIdOrTitleUseCase.execute({
+          principal: executorPrincipal(),
+          input: {
+            workspaceId: workspace.workspaceId,
+            identifier: tool.id,
+            lookup: 'id',
+          },
+        })
+      ).rejects.toMatchObject({ code: 'forbidden' })
+
+      expect(mocks.resolvePermission).toHaveBeenCalledWith(
+        'user-1',
+        workspace.workspaceId,
+        workspace.workspaceOrganizationId,
+        undefined,
+        { forUpdate: undefined }
+      )
+      expect(mocks.getAvailableTool).not.toHaveBeenCalled()
+    })
   })
 
   it('uses compatibility attribution without impersonating a workspace-key audit actor', async () => {

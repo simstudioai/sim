@@ -2,9 +2,9 @@ import type {
   AgiloftAttachmentInfoParams,
   AgiloftAttachmentInfoResponse,
 } from '@/tools/agiloft/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const agiloftAttachmentInfoTool: ToolConfig<
+export const agiloftAttachmentInfoTool: InternalToolConfig<
   AgiloftAttachmentInfoParams,
   AgiloftAttachmentInfoResponse
 > = {
@@ -58,12 +58,8 @@ export const agiloftAttachmentInfoTool: ToolConfig<
     },
   },
 
-  request: {
-    internal: true,
-    url: () => '/api/tools/agiloft/attachment_info',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       instanceUrl: params.instanceUrl,
       knowledgeBase: params.knowledgeBase,
       login: params.login,

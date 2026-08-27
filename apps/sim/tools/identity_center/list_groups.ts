@@ -2,9 +2,9 @@ import type {
   IdentityCenterListGroupsParams,
   IdentityCenterListGroupsResponse,
 } from '@/tools/identity_center/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const listGroupsTool: ToolConfig<
+export const listGroupsTool: InternalToolConfig<
   IdentityCenterListGroupsParams,
   IdentityCenterListGroupsResponse
 > = {
@@ -52,11 +52,8 @@ export const listGroupsTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/identity-center/list-groups',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

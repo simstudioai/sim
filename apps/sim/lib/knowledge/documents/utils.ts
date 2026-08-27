@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { sleep } from '@sim/utils/helpers'
+import { interruptibleSleep } from '@sim/utils/helpers'
 import { randomFloat } from '@sim/utils/random'
 import { parseRetryAfter } from '@sim/utils/retry'
 import { truncate } from '@sim/utils/string'
@@ -39,6 +39,8 @@ type RetryableError =
   | { status?: number; message?: string; headers?: HeaderReader }
 
 export interface RetryOptions {
+  /** Cancels the current retry cycle, including waits between attempts. */
+  signal?: AbortSignal
   maxRetries?: number
   initialDelayMs?: number
   maxDelayMs?: number
@@ -340,6 +342,7 @@ export async function retryWithExponentialBackoff<T>(
     retryBudgetMs,
     backoffMultiplier = 2,
     retryCondition = isRetryableError,
+    signal,
   } = options
   const maxRetryAfterMs = options.maxRetryAfterMs ?? retryBudgetMs ?? maxDelayMs
 
@@ -366,6 +369,7 @@ export async function retryWithExponentialBackoff<T>(
   let delay = initialDelayMs
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    signal?.throwIfAborted()
     try {
       logger.debug(`Executing operation attempt ${attempt + 1}/${maxRetries + 1}`)
       const result = await operation()
@@ -432,7 +436,8 @@ export async function retryWithExponentialBackoff<T>(
         `Retrying in ${Math.round(actualDelay)}ms (attempt ${attempt + 1}/${maxRetries + 1})${retryAfterMs ? ' (server-stated)' : ''}`
       )
 
-      await sleep(actualDelay)
+      await interruptibleSleep(actualDelay, signal)
+      signal?.throwIfAborted()
 
       // Exponential backoff (skip if we used Retry-After)
       if (!retryAfterMs) {

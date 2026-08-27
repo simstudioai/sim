@@ -1,7 +1,7 @@
 import type { GrafanaUpdateFolderParams } from '@/tools/grafana/types'
-import type { ToolConfig, ToolResponse } from '@/tools/types'
+import type { InternalToolConfig, ToolResponse } from '@/tools/types'
 
-export const updateFolderTool: ToolConfig<GrafanaUpdateFolderParams, ToolResponse> = {
+export const updateFolderTool: InternalToolConfig<GrafanaUpdateFolderParams, ToolResponse> = {
   id: 'grafana_update_folder',
   name: 'Grafana Update Folder',
   description: 'Update (rename) a folder. Fetches the current folder and merges your changes.',
@@ -40,12 +40,8 @@ export const updateFolderTool: ToolConfig<GrafanaUpdateFolderParams, ToolRespons
     },
   },
 
-  request: {
-    internal: true,
-    url: () => '/api/tools/grafana/update_folder',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       apiKey: params.apiKey,
       baseUrl: params.baseUrl,
       organizationId: params.organizationId,

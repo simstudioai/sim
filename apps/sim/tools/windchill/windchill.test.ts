@@ -51,7 +51,7 @@ import {
   resolveWindchillContentUrl,
   uploadWindchillContent,
   windchillMutationRequest,
-} from '@/tools/windchill/utils.server'
+} from '@/lib/internal/windchill/client'
 
 const BASE_URL = 'https://windchill.example.com/Windchill/servlet/odata/v6'
 
@@ -116,11 +116,11 @@ describe('Windchill tools', () => {
       expect(tool.params.username.visibility).toBe('user-only')
       expect(tool.params.password.visibility).toBe('user-only')
 
-      if (typeof tool.request.url === 'function') {
-        expect(tool.request.stripAuthOnRedirect).toBe(true)
+      if (tool.operation) {
+        expect(tool.request).toBeUndefined()
+        expect(tool.operation.input).toBeTypeOf('function')
       } else {
-        expect(tool.request.url).toBe('/api/tools/windchill')
-        expect(tool.request.internalAuth).toBe('executor_delegation')
+        expect(tool.request).toBeDefined()
       }
     }
   })

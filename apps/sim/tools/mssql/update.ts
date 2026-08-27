@@ -1,7 +1,7 @@
 import type { MSSQLUpdateParams, MSSQLUpdateResponse } from '@/tools/mssql/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const updateTool: ToolConfig<MSSQLUpdateParams, MSSQLUpdateResponse> = {
+export const updateTool: InternalToolConfig<MSSQLUpdateParams, MSSQLUpdateResponse> = {
   id: 'mssql_update',
   name: 'Microsoft SQL Server Update',
   description: 'Update rows in a Microsoft SQL Server table',
@@ -79,13 +79,8 @@ export const updateTool: ToolConfig<MSSQLUpdateParams, MSSQLUpdateResponse> = {
     },
   },
 
-  request: {
-    url: '/api/tools/mssql/update',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       host: params.host,
       port: Number(params.port) || 1433,
       database: params.database,

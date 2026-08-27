@@ -1,9 +1,9 @@
-import type { EmbeddingProvider } from '@/lib/api/contracts/tools/embeddings'
 import { BYOK_PROVIDER_IDS, DEFAULT_MODEL_BY_PROVIDER } from '@/lib/embeddings/catalog'
 import type { EmbeddingCatalogProvider } from '@/lib/embeddings/types'
+import type { EmbeddingProvider } from '@/lib/internal/embeddings/schema'
 import { getEmbeddingModelPricing } from '@/providers/models'
 import type { EmbeddingsParams, EmbeddingsResponse } from '@/tools/embeddings/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
 /** Throttle applied only when a caller draws on Sim's hosted key pool. */
 const HOSTED_KEY_RATE_LIMIT = {
@@ -34,12 +34,12 @@ type CreateEmbeddingToolOptions = HostedEmbeddingToolOptions | ExplicitKeyEmbedd
 
 /**
  * Builds a provider-specific embeddings tool. Every provider shares the same
- * params, transport, and output shape; only key resolution and the default
+ * params, operation, and output shape; only key resolution and the default
  * model differ, so they are produced from one definition rather than copied.
  */
 export function createEmbeddingTool(
   options: CreateEmbeddingToolOptions
-): ToolConfig<EmbeddingsParams, EmbeddingsResponse> {
+): InternalToolConfig<EmbeddingsParams, EmbeddingsResponse> {
   const { id, name, provider, description } = options
   const defaultModel =
     provider === 'openrouter' ? options.defaultModel : DEFAULT_MODEL_BY_PROVIDER[provider]
@@ -47,7 +47,7 @@ export function createEmbeddingTool(
    * Sim-hosted catalog providers are billed per input token with no markup.
    * OpenRouter requires an explicit user key and therefore has no hosting config.
    */
-  const hostingConfig: ToolConfig<EmbeddingsParams, EmbeddingsResponse>['hosting'] =
+  const hostingConfig: InternalToolConfig<EmbeddingsParams, EmbeddingsResponse>['hosting'] =
     provider === 'openrouter'
       ? undefined
       : {
@@ -118,9 +118,7 @@ export function createEmbeddingTool(
 
     hosting: hostingConfig,
 
-    request: {
-      url: '/api/tools/embeddings',
-      method: 'POST',
+    operation: {
       /**
        * `input` is the only param that leaves as model-visible content, so a
        * secret interpolated into it is rewritten back to its placeholder before
@@ -132,10 +130,7 @@ export function createEmbeddingTool(
         mode: 'project' as const,
         select: (params: EmbeddingsParams) => ({ input: params.input }),
       },
-      headers: () => ({
-        'Content-Type': 'application/json',
-      }),
-      body: (params: EmbeddingsParams) => ({
+      input: (params: EmbeddingsParams) => ({
         provider,
         apiKey: params.apiKey,
         model: params.model || defaultModel,

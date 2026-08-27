@@ -20,6 +20,7 @@ import {
   type CustomToolSortBy,
   deleteCustomTool,
   deleteWorkspaceCustomTool,
+  getAvailableCustomTool,
   getCustomToolById,
   getWorkspaceCustomTool,
   getWorkspaceCustomToolByTitle,
@@ -146,6 +147,28 @@ export const getWorkspaceCustomToolUseCase = defineAuthorizedWorkspaceUseCase({
   authorizationOptions,
   async execute({ context }) {
     return { tool: context.tool }
+  },
+})
+
+export interface ReadAvailableCustomToolByIdOrTitleInput {
+  workspaceId: string
+  identifier: string
+  lookup: 'id' | 'id_or_title'
+}
+
+export const readAvailableCustomToolByIdOrTitleUseCase = defineAuthorizedWorkspaceUseCase({
+  operation: customToolOperations.readAvailableByIdOrTitle,
+  resolveContext: ({ input }: { input: ReadAvailableCustomToolByIdOrTitleInput }) =>
+    resolveWorkspaceContext(input.workspaceId),
+  authorizationOptions,
+  async execute({ principal, input, context }) {
+    const tool = await getAvailableCustomTool({
+      identifier: input.identifier,
+      userId: requirePrincipalSubjectUserId(principal),
+      workspaceId: context.workspaceId,
+      lookup: input.lookup,
+    })
+    return { tool }
   },
 })
 

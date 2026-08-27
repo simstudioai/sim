@@ -7,7 +7,7 @@ const { mockExecuteSSHCommand } = vi.hoisted(() => ({
   mockExecuteSSHCommand: vi.fn(),
 }))
 
-vi.mock('@/app/api/tools/ssh/utils', () => ({
+vi.mock('@/lib/internal/ssh/client', () => ({
   createSSHConnection: vi.fn(),
   executeSSHCommand: mockExecuteSSHCommand,
   escapeShellArg: (value: string) => value.replace(/'/g, "'\\''"),

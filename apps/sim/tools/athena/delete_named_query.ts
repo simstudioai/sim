@@ -2,9 +2,9 @@ import type {
   AthenaDeleteNamedQueryParams,
   AthenaDeleteNamedQueryResponse,
 } from '@/tools/athena/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const deleteNamedQueryTool: ToolConfig<
+export const deleteNamedQueryTool: InternalToolConfig<
   AthenaDeleteNamedQueryParams,
   AthenaDeleteNamedQueryResponse
 > = {
@@ -40,11 +40,8 @@ export const deleteNamedQueryTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/athena/delete-named-query',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.awsRegion,
       accessKeyId: params.awsAccessKeyId,
       secretAccessKey: params.awsSecretAccessKey,

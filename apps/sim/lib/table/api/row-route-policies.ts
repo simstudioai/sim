@@ -5,7 +5,7 @@ import {
 } from '@/lib/api/server/routes'
 import { internalTableErrorPolicies, v2TableErrorPolicies } from '@/lib/table/api/route-policies'
 import { TableRowProvenanceError } from '@/lib/table/application/row-secret-provenance'
-import { TableRowsValidationError } from '@/lib/table/application/rows'
+import { TableRowsValidationError, TableV2FeatureDisabledError } from '@/lib/table/application/rows'
 import { v2Error } from '@/app/api/v2/lib/response'
 
 export const v2TableRowsErrorPolicy = {
@@ -34,4 +34,26 @@ export const internalTableRowsErrorPolicy = extendInternalErrorPolicy(
     error instanceof TableRowsValidationError || error instanceof TableRowProvenanceError
       ? internalErrorResponse(400, { error: error.message })
       : null
+)
+
+export const internalTableV2QueryErrorPolicy = extendInternalErrorPolicy(
+  internalTableRowsErrorPolicy,
+  (error) => {
+    if (error instanceof TableV2FeatureDisabledError) {
+      return internalErrorResponse(403, {
+        error: error.message,
+        code: 'tables_v2_disabled',
+      })
+    }
+    if (
+      error instanceof TableRowsValidationError &&
+      typeof error.details === 'object' &&
+      error.details !== null &&
+      'code' in error.details &&
+      typeof error.details.code === 'string'
+    ) {
+      return internalErrorResponse(400, { error: error.message, code: error.details.code })
+    }
+    return null
+  }
 )

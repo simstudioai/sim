@@ -189,30 +189,49 @@ describe('workflow deployment application use cases', () => {
     expect(mocks.deploy).not.toHaveBeenCalled()
   })
 
-  it('rejects executor deployment transitions before canonical lookup', async () => {
-    await expect(
-      deployWorkflow.execute({
-        principal: {
+  it('admits executor deployment transitions through canonical workflow authorization', async () => {
+    await deployWorkflow.execute({
+      principal: {
+        kind: 'delegated',
+        serviceId: 'executor',
+        subjectUserId: 'user-1',
+        workspaceId: 'workspace-1',
+        delegationId: 'executor-1',
+        audience: 'sim:workflows',
+        issuedAt: new Date('2026-08-08T00:00:00Z'),
+        expiresAt: new Date('2999-08-08T00:00:00Z'),
+        delegationContext: {
+          kind: 'workflow_execution',
+          workflowId: 'origin-workflow',
+          executionId: 'execution-1',
+        },
+      },
+      input: { workflowId: 'workflow-1', requestId: 'request-1' },
+    })
+
+    expect(mocks.resolveContext).toHaveBeenCalledWith({
+      workflowId: 'workflow-1',
+      assertedWorkspaceId: undefined,
+    })
+    expect(mocks.resolvePermission).toHaveBeenCalledWith('user-1', 'workspace-1', null, undefined, {
+      forUpdate: undefined,
+    })
+    expect(mocks.assertMutable).toHaveBeenCalledWith('workflow-1')
+    expect(mocks.deploy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workflowId: 'workflow-1',
+        userId: 'user-1',
+        actorId: 'user-1',
+        actor: {
           kind: 'delegated',
           serviceId: 'executor',
           subjectUserId: 'user-1',
-          workspaceId: 'workspace-1',
           delegationId: 'executor-1',
-          audience: 'sim:workflows',
-          issuedAt: new Date('2026-08-08T00:00:00Z'),
-          expiresAt: new Date('2999-08-08T00:00:00Z'),
-          delegationContext: {
-            kind: 'workflow_execution',
-            workflowId: 'workflow-1',
-            executionId: 'execution-1',
-          },
         },
-        input: { workflowId: 'workflow-1', requestId: 'request-1' },
+        captureAnalytics: false,
+        requestId: 'request-1',
       })
-    ).rejects.toMatchObject({ code: 'forbidden' })
-
-    expect(mocks.resolveContext).not.toHaveBeenCalled()
-    expect(mocks.deploy).not.toHaveBeenCalled()
+    )
   })
 
   it('requires current admin permission before deployment', async () => {

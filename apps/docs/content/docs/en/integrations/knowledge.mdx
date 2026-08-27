@@ -48,7 +48,6 @@ Search for similar content in a knowledge base using vector similarity
 | `rerankerModel` | string | No | Cohere rerank model to use \(one of: rerank-v4.0-pro, rerank-v4.0-fast, rerank-v3.5\) |
 | `rerankerInputCount` | number | No | Number of vector results sent to the Cohere reranker \(1–100\). Defaults to topK × 4 capped at 100. |
 | `apiKey` | string | No | Cohere API key for reranker \(self-hosted deployments only\) |
-| `tagFilters` | string | No | No description |
 
 #### Output
 
@@ -108,7 +107,6 @@ Create a new document in a knowledge base
 | `name` | string | Yes | Name of the document |
 | `content` | string | Yes | Content of the document |
 | `documentTags` | object | No | Document tags |
-| `documentTags` | string | No | No description |
 
 #### Output
 
@@ -137,7 +135,6 @@ Create or update a document in a knowledge base. If a document with the given ID
 | `name` | string | Yes | Name of the document |
 | `content` | string | Yes | Content of the document |
 | `documentTags` | json | No | Document tags |
-| `documentTags` | string | No | No description |
 
 #### Output
 

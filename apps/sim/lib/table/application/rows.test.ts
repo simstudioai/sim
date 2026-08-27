@@ -32,6 +32,8 @@ const {
   mockGetRowSummaryById,
   mockLoadExecutionsForRow,
   mockLoadEnrichmentDetail,
+  mockIsFeatureEnabled,
+  mockGetWorkspaceOrganizationId,
 } = vi.hoisted(() => ({
   mockReplaceRowsPrimitive: vi.fn(),
   mockDeleteRowsByIds: vi.fn(),
@@ -59,6 +61,16 @@ const {
   mockGetRowSummaryById: vi.fn(),
   mockLoadExecutionsForRow: vi.fn(),
   mockLoadEnrichmentDetail: vi.fn(),
+  mockIsFeatureEnabled: vi.fn(),
+  mockGetWorkspaceOrganizationId: vi.fn(),
+}))
+
+vi.mock('@/lib/core/config/feature-flags', () => ({
+  isFeatureEnabled: mockIsFeatureEnabled,
+}))
+
+vi.mock('@/lib/workspaces/utils', () => ({
+  getWorkspaceOrganizationId: mockGetWorkspaceOrganizationId,
 }))
 
 vi.mock('@sim/audit', () => ({
@@ -628,6 +640,65 @@ describe('row query and upsert application semantics', () => {
     vi.clearAllMocks()
     mockResolvePermission.mockResolvedValue('write')
     mockResolveContext.mockResolvedValue(contextFor())
+    mockIsFeatureEnabled.mockResolvedValue(true)
+    mockGetWorkspaceOrganizationId.mockResolvedValue('organization-1')
+  })
+
+  it('preserves storage-keyed predicates and sort specs for the session row route', async () => {
+    const storageTable = {
+      ...TABLE,
+      schema: { columns: [{ id: 'column_name', name: 'name', type: 'string' as const }] },
+    }
+    mockResolveContext.mockResolvedValueOnce(contextFor(storageTable))
+    mockQueryRows.mockResolvedValueOnce({
+      rows: [],
+      rowCount: 0,
+      totalCount: null,
+      limit: 25,
+      offset: 0,
+      nextCursor: null,
+    })
+
+    await queryTableRows.execute({
+      principal: PRINCIPAL,
+      input: {
+        tableId: TABLE.id,
+        predicate: { field: 'column_name', op: 'eq', value: 'Ada' },
+        sort: [{ field: 'column_name', direction: 'asc' }],
+        legacyKeying: 'ids',
+        limit: 25,
+      },
+    })
+
+    expect(mockQueryRows).toHaveBeenCalledWith(
+      storageTable,
+      expect.objectContaining({
+        predicate: { field: 'column_name', op: 'eq', value: 'Ada' },
+        sort: { column_name: 'asc' },
+      }),
+      expect.any(String)
+    )
+  })
+
+  it('checks the v2 feature gate against the canonical authorized workspace', async () => {
+    mockIsFeatureEnabled.mockResolvedValueOnce(false)
+
+    await expect(
+      queryTableRows.execute({
+        principal: PRINCIPAL,
+        input: { tableId: TABLE.id, limit: 25, requireV2Feature: true },
+      })
+    ).rejects.toMatchObject({
+      code: 'forbidden',
+      message: 'The v2 table query API is not enabled for this workspace',
+    })
+
+    expect(mockGetWorkspaceOrganizationId).toHaveBeenCalledWith(TABLE.workspaceId)
+    expect(mockIsFeatureEnabled).toHaveBeenCalledWith('tables-v2-api', {
+      userId: PRINCIPAL.userId,
+      orgId: 'organization-1',
+    })
+    expect(mockQueryRows).not.toHaveBeenCalled()
   })
 
   it('rejects a malformed POST query cursor before querying storage', async () => {

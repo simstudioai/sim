@@ -1,5 +1,5 @@
 import { TIMESTAMP_OUTPUT, VERSION_OUTPUT_PROPERTIES } from '@/tools/confluence/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
 export interface ConfluenceCreatePagePropertyParams {
   accessToken: string
@@ -24,7 +24,7 @@ export interface ConfluenceCreatePagePropertyResponse {
   }
 }
 
-export const confluenceCreatePagePropertyTool: ToolConfig<
+export const confluenceCreatePagePropertyTool: InternalToolConfig<
   ConfluenceCreatePagePropertyParams,
   ConfluenceCreatePagePropertyResponse
 > = {
@@ -78,16 +78,8 @@ export const confluenceCreatePagePropertyTool: ToolConfig<
     },
   },
 
-  request: {
-    internal: true,
-    url: () => '/api/tools/confluence/page-properties',
-    method: 'POST',
-    headers: (params: ConfluenceCreatePagePropertyParams) => ({
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${params.accessToken}`,
-    }),
-    body: (params: ConfluenceCreatePagePropertyParams) => ({
+  operation: {
+    input: (params: ConfluenceCreatePagePropertyParams) => ({
       domain: params.domain,
       accessToken: params.accessToken,
       pageId: params.pageId?.trim(),

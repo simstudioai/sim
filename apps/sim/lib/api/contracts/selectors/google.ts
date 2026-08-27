@@ -17,23 +17,8 @@ import type {
 } from '@/lib/api/contracts/types'
 
 const googleCalendarSchema = z.object({ id: z.string(), summary: z.string() }).passthrough()
-const gmailLabelSchema = z
-  .object({
-    id: z.string(),
-    name: z.string(),
-    type: z.string().optional(),
-    messagesTotal: z.number().optional(),
-    messagesUnread: z.number().optional(),
-  })
-  .passthrough()
-
 export const labelsQuerySchema = credentialIdQuerySchema.extend({
   query: optionalString,
-  impersonateEmail: optionalString,
-})
-
-export const gmailLabelQuerySchema = credentialIdQuerySchema.extend({
-  labelId: z.string().min(1),
   impersonateEmail: optionalString,
 })
 
@@ -69,12 +54,6 @@ export const gmailLabelsSelectorContract = defineGetSelector(
   z.object({ labels: z.array(folderOptionSchema) })
 )
 
-export const gmailLabelSelectorContract = defineGetSelector(
-  '/api/tools/gmail/label',
-  gmailLabelQuerySchema,
-  z.object({ label: gmailLabelSchema })
-)
-
 export const googleCalendarSelectorContract = defineGetSelector(
   '/api/tools/google_calendar/calendars',
   googleCalendarQuerySchema,
@@ -106,7 +85,6 @@ export const googleSheetsSelectorContract = defineGetSelector(
 )
 
 export type GmailLabelsSelectorQuery = ContractQueryInput<typeof gmailLabelsSelectorContract>
-export type GmailLabelSelectorQuery = ContractQueryInput<typeof gmailLabelSelectorContract>
 export type GoogleCalendarSelectorQuery = ContractQueryInput<typeof googleCalendarSelectorContract>
 export type GoogleTasksTaskListsSelectorBody = ContractBodyInput<
   typeof googleTasksTaskListsSelectorContract
@@ -120,7 +98,6 @@ export type GoogleDriveFileSelectorQuery = ContractQueryInput<
 export type GoogleSheetsSelectorQuery = ContractQueryInput<typeof googleSheetsSelectorContract>
 
 export type GmailLabelsSelectorResponse = ContractJsonResponse<typeof gmailLabelsSelectorContract>
-export type GmailLabelSelectorResponse = ContractJsonResponse<typeof gmailLabelSelectorContract>
 export type GoogleCalendarSelectorResponse = ContractJsonResponse<
   typeof googleCalendarSelectorContract
 >

@@ -2,9 +2,9 @@ import type {
   CrowdStrikeQuerySensorsParams,
   CrowdStrikeQuerySensorsResponse,
 } from '@/tools/crowdstrike/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const crowdstrikeQuerySensorsTool: ToolConfig<
+export const crowdstrikeQuerySensorsTool: InternalToolConfig<
   CrowdStrikeQuerySensorsParams,
   CrowdStrikeQuerySensorsResponse
 > = {
@@ -59,13 +59,8 @@ export const crowdstrikeQuerySensorsTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/crowdstrike/query',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       cloud: params.cloud,
       clientId: params.clientId,
       clientSecret: params.clientSecret,

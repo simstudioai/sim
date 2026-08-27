@@ -3,10 +3,13 @@ import { createLogger } from '@sim/logger'
 import { findCause, getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
+import type { Variable, WorkflowState } from '@sim/workflow-types/workflow'
 import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
 import { getExecutionDeadlineAt } from '@/lib/core/execution-limits'
+import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { buildNextCallChain, validateCallChain } from '@/lib/execution/call-chain'
+import { readWorkflowDefinitionAsExecutor } from '@/lib/internal/workflows/read-definition'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { snapshotService } from '@/lib/logs/execution/snapshot/service'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
@@ -20,6 +23,7 @@ import {
 } from '@/lib/workflows/custom-blocks/child-execution'
 import { getCustomBlockAuthority } from '@/lib/workflows/custom-blocks/operations'
 import { extractInputFieldsFromBlocks } from '@/lib/workflows/input-format'
+import { parseWorkflowVariables } from '@/lib/workflows/variables/parse'
 import { type CustomBlockOutput, isCustomBlockType } from '@/blocks/custom/build-config'
 import type { BlockOutput } from '@/blocks/types'
 import { Executor } from '@/executor'
@@ -28,7 +32,6 @@ import {
   CHILD_EXECUTION_ID_OUTPUT_KEY,
   CHILD_TRACE_DISABLED_OUTPUT_KEY,
   DEFAULTS,
-  HTTP,
 } from '@/executor/constants'
 import {
   BoundarySafeError,
@@ -54,7 +57,6 @@ import {
   type StreamingExecution,
 } from '@/executor/types'
 import { hasExecutionResult } from '@/executor/utils/errors'
-import { buildAPIUrl, buildExecutorDelegationHeaders } from '@/executor/utils/http'
 import { getIterationContext } from '@/executor/utils/iteration-context'
 import { parseJSON } from '@/executor/utils/json'
 import { lazyCleanupInputMapping } from '@/executor/utils/lazy-cleanup'
@@ -343,14 +345,12 @@ export class WorkflowBlockHandler implements BlockHandler {
             principal: ctx.principal,
           })
       if (!isCustomBlock) childExecutorDelegationOrigin = workflowReadDelegationOrigin
-      const workflowReadHeaders = await buildExecutorDelegationHeaders(workflowReadDelegationOrigin)
-
       // A custom block runs the source's latest deployment; if the source has been
       // undeployed there's nothing to run. `BoundarySafeError` marks the message as
       // safe to cross the invocation boundary verbatim (it names no source
       // internals), so the catch forwards it instead of the generic failure.
       if (isCustomBlock) {
-        const deployed = await this.checkChildDeployment(workflowId, workflowReadHeaders)
+        const deployed = await this.checkChildDeployment(workflowId, workflowReadDelegationOrigin)
         if (!deployed) {
           throw new BoundarySafeError({
             errorType: 'not_deployed',
@@ -360,7 +360,10 @@ export class WorkflowBlockHandler implements BlockHandler {
       }
 
       if (useDeployed && !isCustomBlock) {
-        const hasActiveDeployment = await this.checkChildDeployment(workflowId, workflowReadHeaders)
+        const hasActiveDeployment = await this.checkChildDeployment(
+          workflowId,
+          workflowReadDelegationOrigin
+        )
         if (!hasActiveDeployment) {
           throw new Error(
             `Child workflow is not deployed. Please deploy the workflow before invoking it.`
@@ -369,8 +372,8 @@ export class WorkflowBlockHandler implements BlockHandler {
       }
 
       const childWorkflow = useDeployed
-        ? await this.loadChildWorkflowDeployed(workflowId, workflowReadHeaders)
-        : await this.loadChildWorkflow(workflowId, workflowReadHeaders)
+        ? await this.loadChildWorkflowDeployed(workflowId, workflowReadDelegationOrigin)
+        : await this.loadChildWorkflow(workflowId, workflowReadDelegationOrigin)
 
       if (!childWorkflow) {
         throw new Error(`Child workflow ${workflowId} not found`)
@@ -1165,28 +1168,51 @@ export class WorkflowBlockHandler implements BlockHandler {
     }
   }
 
-  private async loadChildWorkflow(workflowId: string, headers: Record<string, string>) {
-    const url = buildAPIUrl(`/api/workflows/${workflowId}`)
+  private getWorkflowVariables(
+    workflowId: string,
+    persistedVariables: unknown
+  ): Record<string, Variable & { workflowId: string }> {
+    const persisted = parseWorkflowVariables(persistedVariables)
+    const variables: Record<string, Variable & { workflowId: string }> = {}
+    for (const [variableId, variable] of Object.entries(persisted ?? {})) {
+      variables[variableId] = { ...variable, workflowId }
+    }
+    return variables
+  }
 
-    const response = await fetch(url.toString(), { headers })
+  private getWorkflowStateMetadata(state: unknown): NonNullable<WorkflowState['metadata']> {
+    if (!isRecordLike(state) || !isRecordLike(state.metadata)) return {}
 
-    if (!response.ok) {
-      await response.text().catch(() => {})
-      if (response.status === HTTP.STATUS.NOT_FOUND) {
+    const metadata: NonNullable<WorkflowState['metadata']> = {}
+    if (typeof state.metadata.name === 'string') metadata.name = state.metadata.name
+    if (typeof state.metadata.description === 'string') {
+      metadata.description = state.metadata.description
+    }
+    if (typeof state.metadata.exportedAt === 'string') {
+      metadata.exportedAt = state.metadata.exportedAt
+    }
+    return metadata
+  }
+
+  private async loadChildWorkflow(workflowId: string, origin: ExecutorDelegationOrigin) {
+    let definition
+    try {
+      definition = await readWorkflowDefinitionAsExecutor({
+        origin,
+        workflowId,
+        state: 'draft',
+      })
+    } catch (error) {
+      if (asOrchestrationError(error)?.code === 'not_found') {
         logger.warn(`Child workflow ${workflowId} not found`)
         return null
       }
-      throw new Error(`Failed to fetch workflow: ${response.status} ${response.statusText}`)
+      throw error
     }
 
-    const { data: workflowData } = await response.json()
-
-    if (!workflowData) {
-      throw new Error(`Child workflow ${workflowId} returned empty data`)
-    }
-
+    const workflowData = definition.workflow
+    const workflowState = definition.state
     logger.info(`Loaded child workflow: ${workflowData.name} (${workflowId})`)
-    const workflowState = workflowData.state
 
     if (!workflowState || !workflowState.blocks) {
       throw new Error(`Child workflow ${workflowId} has invalid state`)
@@ -1200,12 +1226,12 @@ export class WorkflowBlockHandler implements BlockHandler {
       true
     )
 
-    const workflowVariables = (workflowData.variables as Record<string, any>) || {}
-    const workflowStateWithVariables = {
+    const workflowVariables = this.getWorkflowVariables(workflowId, workflowData.variables)
+    const workflowStateWithVariables: WorkflowState = {
       ...workflowState,
       variables: workflowVariables,
       metadata: {
-        ...(workflowState.metadata || {}),
+        ...this.getWorkflowStateMetadata(workflowState),
         name: workflowData.name || DEFAULTS.WORKFLOW_NAME,
       },
     }
@@ -1218,7 +1244,7 @@ export class WorkflowBlockHandler implements BlockHandler {
 
     return {
       name: workflowData.name,
-      workspaceId: (workflowData.workspaceId ?? null) as string | null,
+      workspaceId: definition.workspaceId,
       deploymentVersionId: undefined,
       serializedState: serializedWorkflow,
       variables: workflowVariables,
@@ -1229,20 +1255,15 @@ export class WorkflowBlockHandler implements BlockHandler {
 
   private async checkChildDeployment(
     workflowId: string,
-    headers: Record<string, string>
+    origin: ExecutorDelegationOrigin
   ): Promise<boolean> {
     try {
-      const url = buildAPIUrl(`/api/workflows/${workflowId}/deployed`)
-
-      const response = await fetch(url.toString(), {
-        headers,
-        cache: 'no-store',
+      const definition = await readWorkflowDefinitionAsExecutor({
+        origin,
+        workflowId,
+        state: 'deployed',
       })
-
-      if (!response.ok) return false
-
-      const json = await response.json()
-      return !!json?.data?.deployedState || !!json?.deployedState
+      return definition.state !== null
     } catch (error) {
       logger.error('Failed to check child deployment', {
         errorName: toError(error).name,
@@ -1252,39 +1273,30 @@ export class WorkflowBlockHandler implements BlockHandler {
     }
   }
 
-  private async loadChildWorkflowDeployed(workflowId: string, headers: Record<string, string>) {
-    const deployedUrl = buildAPIUrl(`/api/workflows/${workflowId}/deployed`)
-
-    const deployedRes = await fetch(deployedUrl.toString(), {
-      headers,
-      cache: 'no-store',
-    })
-
-    if (!deployedRes.ok) {
-      if (deployedRes.status === HTTP.STATUS.NOT_FOUND) {
+  private async loadChildWorkflowDeployed(workflowId: string, origin: ExecutorDelegationOrigin) {
+    let definition
+    try {
+      definition = await readWorkflowDefinitionAsExecutor({
+        origin,
+        workflowId,
+        state: 'deployed',
+      })
+    } catch (error) {
+      if (asOrchestrationError(error)?.code === 'not_found') {
         return null
       }
-      throw new Error(
-        `Failed to fetch deployed workflow: ${deployedRes.status} ${deployedRes.statusText}`
-      )
+      throw error
     }
-    const deployedJson = await deployedRes.json()
-    const deployedState = deployedJson?.data?.deployedState || deployedJson?.deployedState
-    if (!deployedState || !deployedState.blocks) {
+
+    const deployedState = definition.state
+    if (
+      !deployedState ||
+      !deployedState.blocks ||
+      !('deploymentVersionId' in deployedState) ||
+      typeof deployedState.deploymentVersionId !== 'string'
+    ) {
       throw new Error(`Deployed state missing or invalid for child workflow ${workflowId}`)
     }
-
-    const metaUrl = buildAPIUrl(`/api/workflows/${workflowId}`)
-    const metaRes = await fetch(metaUrl.toString(), {
-      headers,
-      cache: 'no-store',
-    })
-
-    if (!metaRes.ok) {
-      throw new Error(`Failed to fetch workflow metadata: ${metaRes.status} ${metaRes.statusText}`)
-    }
-    const metaJson = await metaRes.json()
-    const wfData = metaJson?.data
 
     const serializedWorkflow = this.serializer.serializeWorkflow(
       deployedState.blocks,
@@ -1294,21 +1306,21 @@ export class WorkflowBlockHandler implements BlockHandler {
       true
     )
 
-    const workflowVariables = (wfData?.variables as Record<string, any>) || {}
-    const childName = wfData?.name || DEFAULTS.WORKFLOW_NAME
-    const workflowStateWithVariables = {
+    const workflowVariables = this.getWorkflowVariables(workflowId, definition.workflow.variables)
+    const childName = definition.workflow.name || DEFAULTS.WORKFLOW_NAME
+    const workflowStateWithVariables: WorkflowState = {
       ...deployedState,
       variables: workflowVariables,
       metadata: {
-        ...(deployedState.metadata || {}),
+        ...this.getWorkflowStateMetadata(deployedState),
         name: childName,
       },
     }
 
     return {
       name: childName,
-      workspaceId: (wfData?.workspaceId ?? null) as string | null,
-      deploymentVersionId: deployedState.deploymentVersionId as string | undefined,
+      workspaceId: definition.workspaceId,
+      deploymentVersionId: deployedState.deploymentVersionId,
       serializedState: serializedWorkflow,
       variables: workflowVariables,
       workflowState: workflowStateWithVariables,

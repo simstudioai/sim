@@ -1,8 +1,11 @@
 import type { JsmGetIssueFormsParams, JsmGetIssueFormsResponse } from '@/tools/jsm/types'
 import { ISSUE_FORM_PROPERTIES } from '@/tools/jsm/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const jsmGetIssueFormsTool: ToolConfig<JsmGetIssueFormsParams, JsmGetIssueFormsResponse> = {
+export const jsmGetIssueFormsTool: InternalToolConfig<
+  JsmGetIssueFormsParams,
+  JsmGetIssueFormsResponse
+> = {
   id: 'jsm_get_issue_forms',
   name: 'JSM Get Issue Forms',
   description:
@@ -41,13 +44,8 @@ export const jsmGetIssueFormsTool: ToolConfig<JsmGetIssueFormsParams, JsmGetIssu
     },
   },
 
-  request: {
-    url: '/api/tools/jsm/forms/issue',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       domain: params.domain,
       accessToken: params.accessToken,
       cloudId: params.cloudId,

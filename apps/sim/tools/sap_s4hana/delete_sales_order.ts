@@ -1,13 +1,8 @@
-import type { DeleteSalesOrderParams, SapProxyResponse } from '@/tools/sap_s4hana/types'
-import {
-  baseProxyBody,
-  quoteOdataKey,
-  SAP_PROXY_URL,
-  transformSapProxyResponse,
-} from '@/tools/sap_s4hana/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { DeleteSalesOrderParams, SapS4HanaResponse } from '@/tools/sap_s4hana/types'
+import { buildSapOperationBaseInput, quoteOdataKey } from '@/tools/sap_s4hana/utils'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const deleteSalesOrderTool: ToolConfig<DeleteSalesOrderParams, SapProxyResponse> = {
+export const deleteSalesOrderTool: InternalToolConfig<DeleteSalesOrderParams, SapS4HanaResponse> = {
   id: 'sap_s4hana_delete_sales_order',
   name: 'SAP S/4HANA Delete Sales Order',
   description:
@@ -88,19 +83,15 @@ export const deleteSalesOrderTool: ToolConfig<DeleteSalesOrderParams, SapProxyRe
       description: 'If-Match ETag for optimistic concurrency. Defaults to "*" (unconditional).',
     },
   },
-  request: {
-    url: SAP_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
-      ...baseProxyBody(params),
+  operation: {
+    input: (params) => ({
+      ...buildSapOperationBaseInput(params),
       service: 'API_SALES_ORDER_SRV',
       path: `/A_SalesOrder(${quoteOdataKey(params.salesOrder)})`,
       method: 'DELETE',
       ifMatch: params.ifMatch || '*',
     }),
   },
-  transformResponse: transformSapProxyResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by SAP (204 on success)' },
     data: {

@@ -1,7 +1,7 @@
 import type { ClickHouseDeleteParams, ClickHouseDeleteResponse } from '@/tools/clickhouse/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const deleteTool: ToolConfig<ClickHouseDeleteParams, ClickHouseDeleteResponse> = {
+export const deleteTool: InternalToolConfig<ClickHouseDeleteParams, ClickHouseDeleteResponse> = {
   id: 'clickhouse_delete',
   name: 'ClickHouse Delete',
   description: 'Delete rows from a ClickHouse table via an ALTER TABLE ... DELETE mutation',
@@ -58,13 +58,8 @@ export const deleteTool: ToolConfig<ClickHouseDeleteParams, ClickHouseDeleteResp
     },
   },
 
-  request: {
-    url: '/api/tools/clickhouse/delete',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       host: params.host,
       port: Number(params.port),
       database: params.database,

@@ -1,316 +1,159 @@
 /**
  * @vitest-environment node
- *
- * v2 query route: predicate parsing, unconditional name→id translation
- * (session auth included — the string grammar is name-keyed for every caller),
- * cursor validation, and the response envelope.
  */
-import { createTableDefinition, hybridAuthMockFns } from '@sim/testing'
+
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCheckAccess, mockQueryRows, mockGate } = vi.hoisted(() => ({
-  mockCheckAccess: vi.fn(),
-  mockQueryRows: vi.fn(),
-  mockGate: vi.fn(),
-}))
-
-vi.mock('@/app/api/table/utils', async () => {
-  const { NextResponse } = await import('next/server')
+const { mocks, MockTableV2FeatureDisabledError } = vi.hoisted(() => {
+  class MockTableV2FeatureDisabledError extends Error {
+    constructor() {
+      super('The v2 table query API is not enabled for this workspace')
+    }
+  }
   return {
-    checkAccess: mockCheckAccess,
-    accessError: (result: { status: number }) =>
-      NextResponse.json({ error: 'Access denied' }, { status: result.status }),
-    tablesV2GateError: mockGate,
+    MockTableV2FeatureDisabledError,
+    mocks: { authenticate: vi.fn(), queryRows: vi.fn() },
   }
 })
 
-vi.mock('@/lib/table', async () => {
-  // row-wire pulls the column-keys helpers through this barrel.
-  const columnKeys = await import('@/lib/table/column-keys')
-  return { ...columnKeys }
-})
-
-vi.mock('@/lib/table/rows/service', () => ({
-  queryRows: mockQueryRows,
+vi.mock('@/lib/table/api', () => ({
+  internalTableSessionOrExecutorAuth: { authenticate: mocks.authenticate },
 }))
 
-import { encodeCursor } from '@/lib/table/rows/cursor'
+vi.mock('@/lib/table/api/row-route-policies', () => ({
+  internalTableV2QueryErrorPolicy: {
+    project: (error: unknown) =>
+      error instanceof MockTableV2FeatureDisabledError
+        ? {
+            status: 403,
+            body: { error: error.message, code: 'tables_v2_disabled' },
+          }
+        : null,
+  },
+}))
+
+vi.mock('@/lib/table/application/rows', () => ({
+  TableV2FeatureDisabledError: MockTableV2FeatureDisabledError,
+  queryTableRows: { operation: { id: 'tables.rows.query' }, execute: mocks.queryRows },
+}))
+
+import { TableV2FeatureDisabledError } from '@/lib/table/application/rows'
 import { POST } from '@/app/api/table/[tableId]/query/route'
 
-function authAs(authType: 'session' | 'internal_jwt') {
-  hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
-    success: true,
+const TABLE = {
+  id: 'table-1',
+  workspaceId: 'workspace-1',
+  schema: {
+    columns: [
+      { id: 'column-name', name: 'Name', type: 'string' as const },
+      { id: 'column-age', name: 'Age', type: 'number' as const },
+    ],
+  },
+}
+
+const ROW = {
+  id: 'row-1',
+  data: { 'column-name': 'Ada', 'column-age': 36 },
+  position: 0,
+  orderKey: 'a0',
+  createdAt: new Date('2026-01-01T00:00:00.000Z'),
+  updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+}
+
+function sessionPrincipal() {
+  mocks.authenticate.mockResolvedValue({
+    kind: 'session',
     userId: 'user-1',
-    authType,
+    sessionId: 'session-1',
+  })
+}
+
+function executorPrincipal() {
+  mocks.authenticate.mockResolvedValue({
+    kind: 'delegated',
+    serviceId: 'executor',
+    subjectUserId: 'user-1',
+    workspaceId: 'workspace-canonical',
+    delegationId: 'delegation-1',
+    audience: 'sim:tables',
+    issuedAt: new Date('2026-01-01'),
+    expiresAt: new Date('2026-01-02'),
   })
 }
 
 function callQuery(body: Record<string, unknown>) {
-  const req = new NextRequest('http://localhost:3000/api/table/tbl_1/query', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  })
-  return POST(req, { params: Promise.resolve({ tableId: 'tbl_1' }) })
+  return POST(
+    new NextRequest('http://localhost/api/table/table-1/query', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    }),
+    { params: Promise.resolve({ tableId: 'table-1' }) }
+  )
 }
 
-const EMPTY_RESULT = {
-  rows: [],
-  rowCount: 0,
-  totalCount: 0,
-  limit: 0,
-  offset: 0,
-  nextCursor: null,
-}
-
-describe('POST /api/table/[tableId]/query', () => {
+describe('POST /api/table/[tableId]/query application adapter', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockCheckAccess.mockResolvedValue({
-      ok: true,
-      table: createTableDefinition({
-        columns: [
-          { id: 'col_aaa', name: 'name', type: 'string' },
-          { id: 'col_bbb', name: 'wins', type: 'number' },
-        ],
-        maxRows: 100,
-        createdAt: new Date('2024-01-01'),
-        updatedAt: new Date('2024-01-01'),
-      }),
-    })
-    mockQueryRows.mockResolvedValue(EMPTY_RESULT)
-    mockGate.mockResolvedValue(null)
-  })
-
-  it('returns 404 when the tables-v2-api flag is off', async () => {
-    const { NextResponse } = await import('next/server')
-    authAs('session')
-    mockGate.mockResolvedValue(NextResponse.json({ error: 'Not found' }, { status: 404 }))
-    const res = await callQuery({ workspaceId: 'workspace-1' })
-    expect(res.status).toBe(404)
-    expect(mockQueryRows).not.toHaveBeenCalled()
-  })
-
-  it('runs the flag gate only after the access check, so it cannot leak a cohort oracle', async () => {
-    authAs('session')
-    mockCheckAccess.mockResolvedValue({ ok: false, status: 403 })
-    const res = await callQuery({ workspaceId: 'workspace-1' })
-    expect(res.status).toBe(403)
-    expect(mockGate).not.toHaveBeenCalled()
-  })
-
-  it('translates predicate/sort column names to storage ids for SESSION auth too', async () => {
-    authAs('session')
-    const res = await callQuery({
-      workspaceId: 'workspace-1',
-      predicate: {
-        all: [
-          { field: 'name', op: 'eq', value: 'John' },
-          { field: 'wins', op: 'gte', value: 10 },
-        ],
-      },
-      sort: [{ field: 'wins', direction: 'desc' }],
-    })
-
-    expect(res.status).toBe(200)
-    const options = mockQueryRows.mock.calls[0][1]
-    expect(options.predicate).toEqual({
-      all: [
-        { field: 'col_aaa', op: 'eq', value: 'John' },
-        { field: 'col_bbb', op: 'gte', value: 10 },
-      ],
-    })
-    expect(options.sort).toEqual({ col_bbb: 'desc' })
-    expect(options.withExecutions).toBe(false)
-  })
-
-  it('selects a stable column id and returns its current name to a workflow', async () => {
-    authAs('internal_jwt')
-    mockCheckAccess.mockResolvedValue({
-      ok: true,
-      table: createTableDefinition({
-        columns: [
-          { id: 'col_aaa', name: 'renamed_name', type: 'string' },
-          { id: 'col_bbb', name: 'wins', type: 'number' },
-        ],
-        maxRows: 100,
-        createdAt: new Date('2024-01-01'),
-        updatedAt: new Date('2024-01-01'),
-      }),
-    })
-    mockQueryRows.mockResolvedValue({
-      ...EMPTY_RESULT,
-      rows: [
-        {
-          id: 'row_1',
-          data: { col_aaa: 'Ana' },
-          executions: {},
-          position: 1,
-          orderKey: 'a0',
-          createdAt: new Date('2026-08-20T10:00:00.000Z'),
-          updatedAt: new Date('2026-08-20T10:00:00.000Z'),
-        },
-      ],
+    sessionPrincipal()
+    mocks.queryRows.mockResolvedValue({
+      table: TABLE,
+      rows: [ROW],
       rowCount: 1,
       totalCount: 1,
-      limit: 100,
+      limit: 10,
+      offset: 0,
+      nextCursor: null,
     })
-
-    const res = await callQuery({ workspaceId: 'workspace-1', columns: ['col_aaa'] })
-
-    expect(res.status).toBe(200)
-    // The service projects (so the byte budget measures the response); the route only resolves ids.
-    expect(mockQueryRows.mock.calls[0][1].columnIds).toEqual(new Set(['col_aaa']))
-    expect((await res.json()).data.rows[0].data).toEqual({ renamed_name: 'Ana' })
   })
 
-  it('accepts an exact column name for direct callers', async () => {
-    authAs('internal_jwt')
-    mockQueryRows.mockResolvedValue({
-      ...EMPTY_RESULT,
-      rows: [
-        {
-          id: 'row_1',
-          data: { col_bbb: 12 },
-          executions: {},
-          position: 1,
-          orderKey: 'a0',
-          createdAt: new Date('2026-08-20T10:00:00.000Z'),
-          updatedAt: new Date('2026-08-20T10:00:00.000Z'),
-        },
-      ],
-      rowCount: 1,
-      totalCount: 1,
-      limit: 100,
-    })
-
-    const res = await callQuery({ workspaceId: 'workspace-1', columns: ['wins'] })
-
-    expect(res.status).toBe(200)
-    expect(mockQueryRows.mock.calls[0][1].columnIds).toEqual(new Set(['col_bbb']))
-    expect((await res.json()).data.rows[0].data).toEqual({ wins: 12 })
-  })
-
-  it('asks for every column when the selection is omitted or empty', async () => {
-    authAs('internal_jwt')
-
-    const omitted = await callQuery({ workspaceId: 'workspace-1' })
-    const empty = await callQuery({ workspaceId: 'workspace-1', columns: [] })
-
-    expect(omitted.status).toBe(200)
-    expect(empty.status).toBe(200)
-    expect(mockQueryRows.mock.calls[0][1].columnIds).toBeUndefined()
-    expect(mockQueryRows.mock.calls[1][1].columnIds).toBeUndefined()
-  })
-
-  it('drops a column reference that no longer exists without exposing diagnostics', async () => {
-    authAs('internal_jwt')
-    const staleId = `col_${'0'.repeat(32)}`
-
-    const res = await callQuery({
+  it('passes typed query semantics and feature admission to the shared use case', async () => {
+    const response = await callQuery({
       workspaceId: 'workspace-1',
-      columns: ['col_aaa', 'missing', staleId],
+      predicate: { field: 'Name', op: 'eq', value: 'Ada' },
+      sort: [{ field: 'Age', direction: 'desc' }],
+      columns: ['Name'],
+      limit: 10,
     })
 
-    expect(res.status).toBe(200)
-    expect(mockQueryRows.mock.calls[0][1].columnIds).toEqual(new Set(['col_aaa']))
-    expect((await res.json()).data).not.toHaveProperty('ignoredColumns')
-  })
-
-  it('returns empty row data, not every column, when no requested column exists', async () => {
-    authAs('internal_jwt')
-
-    const res = await callQuery({ workspaceId: 'workspace-1', columns: ['missing'] })
-
-    expect(res.status).toBe(200)
-    expect(mockQueryRows.mock.calls[0][1].columnIds).toEqual(new Set())
-    expect((await res.json()).data).not.toHaveProperty('ignoredColumns')
-  })
-
-  it('does not expose ignored-column diagnostics for valid or omitted selections', async () => {
-    authAs('internal_jwt')
-
-    const selected = await callQuery({ workspaceId: 'workspace-1', columns: ['col_aaa'] })
-    const all = await callQuery({ workspaceId: 'workspace-1' })
-
-    expect((await selected.json()).data).not.toHaveProperty('ignoredColumns')
-    expect((await all.json()).data).not.toHaveProperty('ignoredColumns')
-  })
-
-  it('accepts a root condition and executes its canonical all group', async () => {
-    authAs('internal_jwt')
-    const res = await callQuery({
-      workspaceId: 'workspace-1',
-      predicate: { field: 'name', op: 'eq', value: 'John' },
+    expect(response.status).toBe(200)
+    expect(mocks.queryRows.mock.calls[0][0].input).toMatchObject({
+      assertedWorkspaceId: 'workspace-1',
+      columns: ['Name'],
+      limit: 10,
+      allowExpandedLimit: true,
+      requireV2Feature: true,
+      includeTotal: true,
     })
-
-    expect(res.status).toBe(200)
-    expect(mockQueryRows.mock.calls[0][1].predicate).toEqual({
-      all: [{ field: 'col_aaa', op: 'eq', value: 'John' }],
+    expect((await response.json()).data.rows[0].data).toEqual({
+      'column-name': 'Ada',
+      'column-age': 36,
     })
   })
 
-  it('rejects a keyset cursor combined with a custom sort', async () => {
-    authAs('internal_jwt')
-    const cursor = encodeCursor({
-      lastRow: { id: 'row_1', orderKey: 'a1' },
-      keysetValid: true,
-      nextOffset: 1,
-    })
-    const res = await callQuery({
-      workspaceId: 'workspace-1',
-      sort: [{ field: 'wins', direction: 'desc' }],
-      cursor,
-    })
+  it('uses canonical delegated workspace and returns name-keyed rows', async () => {
+    executorPrincipal()
+    const response = await callQuery({ workspaceId: 'workspace-forged', limit: 10 })
 
-    expect(res.status).toBe(400)
-    const body = await res.json()
-    expect(body.error).toMatch(/not valid for a sorted query/)
-    expect(body.code).toBe('CURSOR_SORT_CONFLICT')
-    expect(mockQueryRows).not.toHaveBeenCalled()
+    expect(mocks.queryRows.mock.calls[0][0].input.assertedWorkspaceId).toBe('workspace-canonical')
+    expect((await response.json()).data.rows[0].data).toEqual({ Name: 'Ada', Age: 36 })
   })
 
-  it('returns 400 (not 500) for a cursor that decodes to a JSON primitive', async () => {
-    authAs('internal_jwt')
-    const res = await callQuery({
-      workspaceId: 'workspace-1',
-      cursor: Buffer.from('42').toString('base64url'),
-    })
+  it('projects the feature gate error with the compatibility code', async () => {
+    mocks.queryRows.mockRejectedValueOnce(new TableV2FeatureDisabledError())
 
-    expect(res.status).toBe(400)
-    const body = await res.json()
-    expect(body.error).toBe('Invalid cursor')
-    expect(body.code).toBe('INVALID_CURSOR')
+    const response = await callQuery({ workspaceId: 'workspace-1', limit: 10 })
+
+    expect(response.status).toBe(403)
+    expect(await response.json()).toMatchObject({
+      error: 'The v2 table query API is not enabled for this workspace',
+      code: 'tables_v2_disabled',
+    })
   })
 
-  it('returns 400 for a predicate referencing an unknown column', async () => {
-    authAs('internal_jwt')
-    const res = await callQuery({
-      workspaceId: 'workspace-1',
-      predicate: { all: [{ field: 'nope', op: 'eq', value: 1 }] },
-    })
-
-    expect(res.status).toBe(400)
-    expect((await res.json()).error).toMatch(/Unknown filter column/)
-  })
-
-  it('passes nextCursor through the response envelope and skips the count on later pages', async () => {
-    authAs('internal_jwt')
-    mockQueryRows.mockResolvedValue({ ...EMPTY_RESULT, nextCursor: 'tok' })
-    const cursor = encodeCursor({
-      lastRow: { id: 'row_1', orderKey: 'a1' },
-      keysetValid: true,
-      nextOffset: 1,
-    })
-
-    const res = await callQuery({ workspaceId: 'workspace-1', cursor })
-
-    expect(res.status).toBe(200)
-    const body = await res.json()
-    expect(body.data.nextCursor).toBe('tok')
-    const options = mockQueryRows.mock.calls[0][1]
-    expect(options.includeTotal).toBe(false)
-    expect(options.after).toEqual({ orderKey: 'a1', id: 'row_1' })
+  it('does not recompute the total count on cursor pages', async () => {
+    await callQuery({ workspaceId: 'workspace-1', limit: 10, cursor: 'cursor-1' })
+    expect(mocks.queryRows.mock.calls[0][0].input.includeTotal).toBe(false)
   })
 })

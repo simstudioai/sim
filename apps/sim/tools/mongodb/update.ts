@@ -1,7 +1,7 @@
 import type { MongoDBResponse, MongoDBUpdateParams } from '@/tools/mongodb/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const updateTool: ToolConfig<MongoDBUpdateParams, MongoDBResponse> = {
+export const updateTool: InternalToolConfig<MongoDBUpdateParams, MongoDBResponse> = {
   id: 'mongodb_update',
   name: 'MongoDB Update',
   description: 'Update documents in MongoDB collection',
@@ -82,13 +82,8 @@ export const updateTool: ToolConfig<MongoDBUpdateParams, MongoDBResponse> = {
     },
   },
 
-  request: {
-    url: '/api/tools/mongodb/update',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       host: params.host,
       port: Number(params.port),
       database: params.database,

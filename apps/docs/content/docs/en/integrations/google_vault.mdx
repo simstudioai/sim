@@ -173,9 +173,9 @@ Replace the name, query, and scope of an existing hold. This is a full-resource 
 | `corpus` | string | Yes | Data corpus of the hold \(MAIL, DRIVE, GROUPS, HANGOUTS_CHAT, VOICE\) |
 | `accountEmails` | string | No | Comma-separated list of user emails covered by the hold \(e.g., "user1@example.com, user2@example.com"\) |
 | `orgUnitId` | string | No | Organization unit ID covered by the hold \(e.g., "id:03ph8a2z1enx5q0", alternative to accounts\) |
-| `terms` | string | No | Search terms to filter held content \(e.g., "from:sender@example.com subject:invoice", for MAIL and GROUPS corpus\). Resupply the hold\'s current terms to keep them — this replaces the hold, so leaving it blank clears any existing filter. |
-| `startTime` | string | No | Start time for date filtering \(ISO 8601 format, e.g., "2024-01-01T00:00:00Z", for MAIL and GROUPS corpus\). Resupply the hold\'s current value to keep it — leaving it blank clears any existing date filter. |
-| `endTime` | string | No | End time for date filtering \(ISO 8601 format, e.g., "2024-12-31T23:59:59Z", for MAIL and GROUPS corpus\). Resupply the hold\'s current value to keep it — leaving it blank clears any existing date filter. |
+| `terms` | string | No | Search terms to filter held content \(e.g., "from:sender@example.com subject:invoice", for MAIL and GROUPS corpus\). Resupply the hold's current terms to keep them — this replaces the hold, so leaving it blank clears any existing filter. |
+| `startTime` | string | No | Start time for date filtering \(ISO 8601 format, e.g., "2024-01-01T00:00:00Z", for MAIL and GROUPS corpus\). Resupply the hold's current value to keep it — leaving it blank clears any existing date filter. |
+| `endTime` | string | No | End time for date filtering \(ISO 8601 format, e.g., "2024-12-31T23:59:59Z", for MAIL and GROUPS corpus\). Resupply the hold's current value to keep it — leaving it blank clears any existing date filter. |
 | `includeSharedDrives` | boolean | No | Include files in shared drives \(for DRIVE corpus\). Resupply true if the hold currently includes shared drives — leaving it false/blank clears that setting. |
 
 #### Output

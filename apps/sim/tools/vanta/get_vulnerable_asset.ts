@@ -1,12 +1,12 @@
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 import { VANTA_VULNERABLE_ASSET_OUTPUT_PROPERTIES } from '@/tools/vanta/outputs'
 import type {
   VantaGetVulnerableAssetParams,
   VantaGetVulnerableAssetResponse,
 } from '@/tools/vanta/types'
-import { createVantaTransformResponse, VANTA_QUERY_ROUTE } from '@/tools/vanta/utils'
+import { createVantaTransformResponse } from '@/tools/vanta/utils'
 
-export const vantaGetVulnerableAssetTool: ToolConfig<
+export const vantaGetVulnerableAssetTool: InternalToolConfig<
   VantaGetVulnerableAssetParams,
   VantaGetVulnerableAssetResponse
 > = {
@@ -43,11 +43,8 @@ export const vantaGetVulnerableAssetTool: ToolConfig<
     },
   },
 
-  request: {
-    url: VANTA_QUERY_ROUTE,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       operation: 'vanta_get_vulnerable_asset',
       clientId: params.clientId,
       clientSecret: params.clientSecret,

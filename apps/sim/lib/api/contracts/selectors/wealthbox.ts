@@ -51,12 +51,6 @@ export const wealthboxItemsSelectorContract = defineGetSelector(
   wealthboxItemsResponseSchema
 )
 
-export const wealthboxItemContract = defineGetSelector(
-  '/api/tools/wealthbox/item',
-  wealthboxItemQuerySchema,
-  wealthboxItemResponseSchema
-)
-
 export const wealthboxOAuthItemsContract = defineGetSelector(
   '/api/auth/oauth/wealthbox/items',
   wealthboxItemsQuerySchema,
@@ -72,6 +66,5 @@ export const wealthboxOAuthItemContract = defineGetSelector(
 export type WealthboxItemsSelectorResponse = ContractJsonResponse<
   typeof wealthboxItemsSelectorContract
 >
-export type WealthboxItemResponse = ContractJsonResponse<typeof wealthboxItemContract>
 export type WealthboxOAuthItemsResponse = ContractJsonResponse<typeof wealthboxOAuthItemsContract>
 export type WealthboxOAuthItemResponse = ContractJsonResponse<typeof wealthboxOAuthItemContract>

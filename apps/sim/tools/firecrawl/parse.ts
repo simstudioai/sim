@@ -8,9 +8,9 @@ import {
   selectFirecrawlFormatModelInput,
 } from '@/tools/firecrawl/model-input'
 import type { ParseParams, ParseResponse } from '@/tools/firecrawl/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const parseTool: ToolConfig<ParseParams, ParseResponse> = {
+export const parseTool: InternalToolConfig<ParseParams, ParseResponse> = {
   id: 'firecrawl_parse',
   name: 'Firecrawl Document Parser',
   description:
@@ -94,7 +94,7 @@ export const parseTool: ToolConfig<ParseParams, ParseResponse> = {
 
   hosting: firecrawlHosting(),
 
-  request: {
+  operation: {
     modelInput: {
       mode: 'project',
       select: (params) => {
@@ -116,13 +116,7 @@ export const parseTool: ToolConfig<ParseParams, ParseResponse> = {
           : {}),
       }),
     },
-    method: 'POST',
-    url: '/api/tools/firecrawl/parse',
-    headers: () => ({
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-    }),
-    body: (params) => {
+    input: (params) => {
       if (!params.apiKey || typeof params.apiKey !== 'string' || params.apiKey.trim() === '') {
         throw new Error('Missing or invalid API key: A valid Firecrawl API key is required')
       }

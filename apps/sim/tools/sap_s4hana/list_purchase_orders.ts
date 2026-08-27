@@ -1,13 +1,11 @@
-import type { ListPurchaseOrdersParams, SapProxyResponse } from '@/tools/sap_s4hana/types'
-import {
-  baseProxyBody,
-  buildOdataQuery,
-  SAP_PROXY_URL,
-  transformSapProxyResponse,
-} from '@/tools/sap_s4hana/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { ListPurchaseOrdersParams, SapS4HanaResponse } from '@/tools/sap_s4hana/types'
+import { buildOdataQuery, buildSapOperationBaseInput } from '@/tools/sap_s4hana/utils'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const listPurchaseOrdersTool: ToolConfig<ListPurchaseOrdersParams, SapProxyResponse> = {
+export const listPurchaseOrdersTool: InternalToolConfig<
+  ListPurchaseOrdersParams,
+  SapS4HanaResponse
+> = {
   id: 'sap_s4hana_list_purchase_orders',
   name: 'SAP S/4HANA List Purchase Orders',
   description:
@@ -112,19 +110,15 @@ export const listPurchaseOrdersTool: ToolConfig<ListPurchaseOrdersParams, SapPro
       description: 'Comma-separated navigation properties to expand (e.g., "to_PurchaseOrderItem")',
     },
   },
-  request: {
-    url: SAP_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
-      ...baseProxyBody(params),
+  operation: {
+    input: (params) => ({
+      ...buildSapOperationBaseInput(params),
       service: 'API_PURCHASEORDER_PROCESS_SRV',
       path: '/A_PurchaseOrder',
       method: 'GET',
       query: buildOdataQuery(params),
     }),
   },
-  transformResponse: transformSapProxyResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by SAP' },
     data: {

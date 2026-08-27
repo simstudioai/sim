@@ -79,39 +79,20 @@ function isDefaultWorkflowDescription(
   )
 }
 
-/**
- * Fetches workflow metadata (name and description) from the API
- */
+/** Reads workflow metadata through the authorized application operation. */
 async function fetchWorkflowMetadata(
   workflowId: string,
-  executionContext: WorkflowToolExecutionContext | undefined
+  executionContext: WorkflowToolExecutionContext | undefined,
+  readWorkflowMetadata?: (
+    workflowId: string,
+    context: WorkflowToolExecutionContext
+  ) => Promise<{ name: string; description: string | null }>
 ): Promise<{ name: string; description: string | null } | null> {
   try {
-    if (!executionContext?.userId) {
+    if (!executionContext?.userId || !readWorkflowMetadata) {
       throw new Error('Workflow metadata enrichment requires a trusted execution subject')
     }
-    const { buildAPIUrl, buildExecutorDelegationHeaders } = await import('@/executor/utils/http')
-    const { executionScopeForTarget } = await import('@/executor/utils/delegation')
-
-    const headers = await buildExecutorDelegationHeaders({
-      subjectUserId: executionContext.userId,
-      workflowId,
-      ...executionScopeForTarget(executionContext, workflowId),
-    })
-    const url = buildAPIUrl(`/api/workflows/${workflowId}`)
-
-    const response = await fetch(url.toString(), { headers })
-    if (!response.ok) {
-      await response.text().catch(() => {})
-      logger.warn(`Failed to fetch workflow metadata for ${workflowId}`)
-      return null
-    }
-
-    const { data } = await response.json()
-    return {
-      name: data?.name || 'Workflow',
-      description: data?.description || null,
-    }
+    return await readWorkflowMetadata(workflowId, executionContext)
   } catch (error) {
     logger.error('Error fetching workflow metadata:', error)
     return null
@@ -653,6 +634,14 @@ export async function transformBlockTool(
     getToolAsync?: (toolId: string) => Promise<any>
     canonicalModes?: Record<string, 'basic' | 'advanced'>
     enrichmentContext?: WorkflowToolExecutionContext
+    readWorkflowInputFields?: (
+      workflowId: string,
+      context: WorkflowToolExecutionContext
+    ) => Promise<Array<{ name: string; type: string; description?: string }>>
+    readWorkflowMetadata?: (
+      workflowId: string,
+      context: WorkflowToolExecutionContext
+    ) => Promise<{ name: string; description: string | null }>
     /**
      * Server-only resolver for a custom (deploy-as-block) tool's binding (bound
      * workflow + input schema), org-scoped to the consumer. Injected as a dependency
@@ -677,6 +666,8 @@ export async function transformBlockTool(
     getToolAsync,
     canonicalModes,
     enrichmentContext,
+    readWorkflowInputFields,
+    readWorkflowMetadata,
     toolIndex,
   } = options
   const scopedCanonicalModes = scopeCanonicalModesForTool(canonicalModes, toolIndex, block.type)
@@ -800,7 +791,12 @@ export async function transformBlockTool(
     schema: llmSchema,
     enrichedDescription,
     modelBlockedParams,
-  } = await createLLMToolSchema(toolConfig, resolvedResourceParams, enrichmentContext)
+  } = await createLLMToolSchema(
+    toolConfig,
+    resolvedResourceParams,
+    enrichmentContext,
+    readWorkflowInputFields
+  )
 
   let toolDescription = enrichedDescription || toolConfig.description
   let workflowLabel: string | undefined
@@ -808,7 +804,8 @@ export async function transformBlockTool(
   if (toolId === 'workflow_executor' && resolvedResourceParams.workflowId) {
     const workflowMetadata = await fetchWorkflowMetadata(
       resolvedResourceParams.workflowId,
-      enrichmentContext
+      enrichmentContext,
+      readWorkflowMetadata
     )
     if (workflowMetadata) {
       workflowLabel = workflowMetadata.name

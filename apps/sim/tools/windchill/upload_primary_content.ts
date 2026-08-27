@@ -1,4 +1,4 @@
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 import {
   WINDCHILL_UPLOAD_OUTPUTS,
   type WindchillParams,
@@ -9,7 +9,10 @@ import {
   transformWindchillInternalResponse,
 } from '@/tools/windchill/utils'
 
-export const windchillUploadPrimaryContentTool: ToolConfig<WindchillParams, WindchillResponse> = {
+export const windchillUploadPrimaryContentTool: InternalToolConfig<
+  WindchillParams,
+  WindchillResponse
+> = {
   id: 'windchill_upload_primary_content',
   name: 'Windchill Upload Primary Content',
   description: 'Upload a primary-content file to a document that has none',
@@ -47,12 +50,8 @@ export const windchillUploadPrimaryContentTool: ToolConfig<WindchillParams, Wind
       description: 'Primary content file to upload',
     },
   },
-  request: {
-    url: '/api/tools/windchill',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => buildWindchillInternalBody('windchill_upload_primary_content', params),
-    internalAuth: 'executor_delegation',
+  operation: {
+    input: (params) => buildWindchillInternalBody('windchill_upload_primary_content', params),
   },
   transformResponse: (response) =>
     transformWindchillInternalResponse('windchill_upload_primary_content', response),

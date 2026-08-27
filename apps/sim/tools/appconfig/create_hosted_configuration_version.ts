@@ -2,9 +2,9 @@ import type {
   AppConfigCreateHostedConfigurationVersionParams,
   AppConfigCreateHostedConfigurationVersionResponse,
 } from '@/tools/appconfig/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const createHostedConfigurationVersionTool: ToolConfig<
+export const createHostedConfigurationVersionTool: InternalToolConfig<
   AppConfigCreateHostedConfigurationVersionParams,
   AppConfigCreateHostedConfigurationVersionResponse
 > = {
@@ -76,11 +76,8 @@ export const createHostedConfigurationVersionTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/appconfig/create-hosted-configuration-version',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

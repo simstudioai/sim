@@ -1,15 +1,14 @@
-import type { CreateReportCommentParams, SapConcurProxyResponse } from '@/tools/sap_concur/types'
+import type { CreateReportCommentParams, SapConcurResponse } from '@/tools/sap_concur/types'
 import {
-  baseProxyBody,
-  SAP_CONCUR_PROXY_URL,
-  transformSapConcurProxyResponse,
+  baseSapConcurInput,
+  transformSapConcurResponse,
   trimRequired,
 } from '@/tools/sap_concur/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const createReportCommentTool: ToolConfig<
+export const createReportCommentTool: InternalToolConfig<
   CreateReportCommentParams,
-  SapConcurProxyResponse
+  SapConcurResponse
 > = {
   id: 'sap_concur_create_report_comment',
   name: 'SAP Concur Create Report Comment',
@@ -84,24 +83,21 @@ export const createReportCommentTool: ToolConfig<
       description: 'Comment text to add',
     },
   },
-  request: {
-    url: SAP_CONCUR_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => {
+  operation: {
+    input: (params) => {
       const userId = trimRequired(params.userId, 'userId')
       const contextType = trimRequired(params.contextType, 'contextType')
       const reportId = trimRequired(params.reportId, 'reportId')
       const comment = trimRequired(params.comment, 'comment')
       return {
-        ...baseProxyBody(params),
+        ...baseSapConcurInput(params),
         path: `/expensereports/v4/users/${encodeURIComponent(userId)}/context/${encodeURIComponent(contextType)}/reports/${encodeURIComponent(reportId)}/comments`,
         method: 'POST',
         body: { comment },
       }
     },
   },
-  transformResponse: transformSapConcurProxyResponse,
+  transformResponse: transformSapConcurResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by Concur' },
     data: {

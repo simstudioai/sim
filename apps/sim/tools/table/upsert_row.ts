@@ -1,9 +1,9 @@
 import { selectTableRowSecretProvenance } from '@/lib/table/secret-provenance-selection'
 import { enrichTableToolSchema } from '@/tools/schema-enrichers'
 import type { TableRowInsertParams, TableUpsertResponse } from '@/tools/table/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const tableUpsertRowTool: ToolConfig<TableRowInsertParams, TableUpsertResponse> = {
+export const tableUpsertRowTool: InternalToolConfig<TableRowInsertParams, TableUpsertResponse> = {
   id: 'table_upsert_row',
   name: 'Upsert Row',
   description:
@@ -38,26 +38,19 @@ export const tableUpsertRowTool: ToolConfig<TableRowInsertParams, TableUpsertRes
     },
   },
 
-  request: {
-    internal: true,
-    internalAuth: 'executor_delegation',
+  operation: {
     secretProvenance: {
       request: (params) => selectTableRowSecretProvenance([params.data]),
       response: { incomplete: 'propagate' },
     },
-    url: (params: TableRowInsertParams) =>
-      `/api/table/${encodeURIComponent(params.tableId)}/rows/upsert`,
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params: TableRowInsertParams) => {
+    input: (params: TableRowInsertParams) => {
       const workspaceId = params._context?.workspaceId
       if (!workspaceId) {
         throw new Error('Workspace ID is required in execution context')
       }
 
       return {
+        tableId: params.tableId,
         data: params.data,
         workspaceId,
         ...(params.conflictTarget ? { conflictTarget: params.conflictTarget } : {}),

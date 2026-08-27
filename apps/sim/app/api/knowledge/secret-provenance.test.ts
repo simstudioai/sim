@@ -13,7 +13,7 @@ import {
 import {
   resolveKnowledgeDocumentWriteSecretProvenance,
   resolveKnowledgeWriteSecretProvenance,
-} from '@/app/api/knowledge/secret-provenance'
+} from '@/lib/knowledge/api/secret-provenance'
 
 const PRIVATE_PROVENANCE_SCOPE = {
   userId: 'user-1',
@@ -62,7 +62,7 @@ describe('knowledge write secret provenance', () => {
     const payload = { content: 'manual content' }
 
     const result = resolveKnowledgeWriteSecretProvenance({
-      request: createHeaderlessRequest(payload),
+      headers: createHeaderlessRequest(payload).headers,
       payload,
       authType: AuthType.API_KEY,
       userId: 'user-1',
@@ -82,7 +82,7 @@ describe('knowledge write secret provenance', () => {
     }
 
     const result = resolveKnowledgeDocumentWriteSecretProvenance({
-      request: createHeaderlessRequest(payload),
+      headers: createHeaderlessRequest(payload).headers,
       payload,
       authType: AuthType.SESSION,
       userId: 'user-1',
@@ -106,7 +106,7 @@ describe('knowledge write secret provenance', () => {
     const payload = { content: 'legacy workflow content' }
 
     const result = resolveKnowledgeWriteSecretProvenance({
-      request: createHeaderlessRequest(payload),
+      headers: createHeaderlessRequest(payload).headers,
       payload,
       authType: AuthType.INTERNAL_JWT,
       userId: 'user-1',
@@ -121,7 +121,7 @@ describe('knowledge write secret provenance', () => {
     const payload = privateChunkPayload(PRIVATE_PROVENANCE_SCOPE)
 
     const result = resolveKnowledgeWriteSecretProvenance({
-      request: createRequest(payload),
+      headers: createRequest(payload).headers,
       payload,
       authType: AuthType.INTERNAL_JWT,
       userId: 'user-1',
@@ -142,7 +142,7 @@ describe('knowledge write secret provenance', () => {
 
     expect(
       resolveKnowledgeWriteSecretProvenance({
-        request: createRequest(payload),
+        headers: createRequest(payload).headers,
         payload,
         authType: AuthType.INTERNAL_JWT,
         userId: 'billing-actor',
@@ -173,7 +173,7 @@ describe('knowledge write secret provenance', () => {
       workspaceId: 'workspace-2',
     })
     const result = resolveKnowledgeWriteSecretProvenance({
-      request: createRequest(payload),
+      headers: createRequest(payload).headers,
       payload,
       authType: AuthType.INTERNAL_JWT,
       userId: 'billing-actor',
@@ -188,7 +188,7 @@ describe('knowledge write secret provenance', () => {
   it('keeps workspace-less knowledge writes isolated to the authenticated user', () => {
     const payload = privateChunkPayload({ userId: 'workflow-owner' })
     const result = resolveKnowledgeWriteSecretProvenance({
-      request: createRequest(payload),
+      headers: createRequest(payload).headers,
       payload,
       authType: AuthType.INTERNAL_JWT,
       userId: 'billing-actor',
@@ -218,7 +218,7 @@ describe('knowledge write secret provenance', () => {
     const payload = { content: 'external content', [PRIVATE_SECRET_PROVENANCE_FIELD]: bundle }
 
     const result = resolveKnowledgeWriteSecretProvenance({
-      request: createRequest(payload),
+      headers: createRequest(payload).headers,
       payload,
       authType: AuthType.API_KEY,
       userId: 'user-1',
@@ -249,7 +249,7 @@ describe('knowledge write secret provenance', () => {
     const payload = { [PRIVATE_SECRET_PROVENANCE_FIELD]: bundle }
 
     const result = resolveKnowledgeWriteSecretProvenance({
-      request: createRequest(payload),
+      headers: createRequest(payload).headers,
       payload,
       authType: AuthType.INTERNAL_JWT,
       userId: 'user-1',
@@ -270,7 +270,7 @@ describe('knowledge write secret provenance', () => {
     }
 
     const result = resolveKnowledgeDocumentWriteSecretProvenance({
-      request: createRequest(payload),
+      headers: createRequest(payload).headers,
       payload,
       authType: AuthType.INTERNAL_JWT,
       userId: 'user-1',
@@ -330,7 +330,7 @@ describe('knowledge write secret provenance', () => {
     }
 
     const result = resolveKnowledgeDocumentWriteSecretProvenance({
-      request: createRequest(payload),
+      headers: createRequest(payload).headers,
       payload,
       authType: AuthType.INTERNAL_JWT,
       userId: 'user-1',

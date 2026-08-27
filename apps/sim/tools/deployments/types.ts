@@ -1,32 +1,27 @@
-import type { ToolResponse, WorkflowToolExecutionContext } from '@/tools/types'
+import type { ToolResponse } from '@/tools/types'
 
 export interface DeploymentsDeployParams {
   workflowId: string
   name?: string
   description?: string
-  _context?: WorkflowToolExecutionContext
 }
 
 export interface DeploymentsUndeployParams {
   workflowId: string
-  _context?: WorkflowToolExecutionContext
 }
 
 export interface DeploymentsPromoteParams {
   workflowId: string
   version: number
-  _context?: WorkflowToolExecutionContext
 }
 
 export interface DeploymentsListVersionsParams {
   workflowId: string
-  _context?: WorkflowToolExecutionContext
 }
 
 export interface DeploymentsGetVersionParams {
   workflowId: string
   version: number
-  _context?: WorkflowToolExecutionContext
 }
 
 export interface DeploymentVersionSummary {

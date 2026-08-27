@@ -9,6 +9,10 @@
 
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import {
+  readWorkflowInputFieldsForTool,
+  readWorkflowMetadataForTool,
+} from '@/lib/internal/workflows/read-tool-enrichment'
 import { resolveCustomBlockToolBinding } from '@/lib/workflows/custom-blocks/operations'
 import { getAllBlocks } from '@/blocks/registry'
 import type { ToolInput } from '@/executor/handlers/agent/types'
@@ -219,6 +223,8 @@ export async function buildSimToolSpecs(
         },
         resolveCustomBlockBinding: (blockType: string) =>
           resolveCustomBlockToolBinding(blockType, ctx.workspaceId),
+        readWorkflowInputFields: readWorkflowInputFieldsForTool,
+        readWorkflowMetadata: readWorkflowMetadataForTool,
       })
 
       if (!provider?.id) continue

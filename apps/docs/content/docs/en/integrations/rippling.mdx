@@ -110,7 +110,7 @@ Get a specific worker by ID
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Rippling API key |
-| `id` | string | Yes | No description |
+| `id` | string | Yes | Resource ID |
 | `expand` | string | No | Comma-separated fields to expand |
 
 #### Output
@@ -196,7 +196,7 @@ Get a specific user by ID
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Rippling API key |
-| `id` | string | Yes | No description |
+| `id` | string | Yes | Resource ID |
 
 #### Output
 
@@ -336,7 +336,7 @@ Get a specific department by ID
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Rippling API key |
-| `id` | string | Yes | No description |
+| `id` | string | Yes | Resource ID |
 | `expand` | string | No | Comma-separated fields to expand |
 
 #### Output
@@ -390,7 +390,7 @@ Update an existing department
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Rippling API key |
-| `id` | string | Yes | No description |
+| `id` | string | Yes | Department ID |
 | `name` | string | No | Department name |
 | `parentId` | string | No | Parent department ID |
 | `referenceCode` | string | No | Reference code |
@@ -446,7 +446,7 @@ Get a specific team by ID
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Rippling API key |
-| `id` | string | Yes | No description |
+| `id` | string | Yes | Resource ID |
 | `expand` | string | No | Comma-separated fields to expand |
 
 #### Output
@@ -499,7 +499,7 @@ Get a specific employment type by ID
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Rippling API key |
-| `id` | string | Yes | No description |
+| `id` | string | Yes | Resource ID |
 
 #### Output
 
@@ -549,7 +549,7 @@ Get a specific title by ID
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Rippling API key |
-| `id` | string | Yes | No description |
+| `id` | string | Yes | Resource ID |
 
 #### Output
 
@@ -570,7 +570,7 @@ Create a new title
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Rippling API key |
-| `name` | string | Yes | No description |
+| `name` | string | Yes | Title name |
 
 #### Output
 
@@ -590,8 +590,8 @@ Update an existing title
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Rippling API key |
-| `id` | string | Yes | No description |
-| `name` | string | No | No description |
+| `id` | string | Yes | Title ID |
+| `name` | string | No | Title name |
 
 #### Output
 
@@ -681,7 +681,7 @@ Get a specific job function by ID
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Rippling API key |
-| `id` | string | Yes | No description |
+| `id` | string | Yes | Resource ID |
 
 #### Output
 
@@ -728,7 +728,7 @@ Get a specific work location by ID
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Rippling API key |
-| `id` | string | Yes | No description |
+| `id` | string | Yes | Resource ID |
 
 #### Output
 
@@ -752,7 +752,7 @@ Create a new work location
 | `apiKey` | string | Yes | Rippling API key |
 | `name` | string | Yes | Location name |
 | `streetAddress` | string | Yes | Street address |
-| `locality` | string | No | No description |
+| `locality` | string | No | City |
 | `region` | string | No | State/region |
 | `postalCode` | string | No | Postal code |
 | `country` | string | No | Country code |
@@ -777,10 +777,10 @@ Update a work location
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Rippling API key |
-| `id` | string | Yes | No description |
+| `id` | string | Yes | Location ID |
 | `name` | string | No | Location name |
 | `streetAddress` | string | No | Street address |
-| `locality` | string | No | No description |
+| `locality` | string | No | City |
 | `region` | string | No | State/region |
 | `postalCode` | string | No | Postal code |
 | `country` | string | No | Country code |
@@ -852,7 +852,7 @@ Get a specific business partner by ID
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Rippling API key |
-| `id` | string | Yes | No description |
+| `id` | string | Yes | Resource ID |
 | `expand` | string | No | Comma-separated fields to expand |
 
 #### Output
@@ -946,7 +946,7 @@ Get a specific business partner group by ID
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Rippling API key |
-| `id` | string | Yes | No description |
+| `id` | string | Yes | Resource ID |
 | `expand` | string | No | Comma-separated fields to expand |
 
 #### Output
@@ -1051,7 +1051,7 @@ Get a specific supergroup by ID
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Rippling API key |
-| `id` | string | Yes | No description |
+| `id` | string | Yes | Resource ID |
 
 #### Output
 
@@ -1268,7 +1268,7 @@ Create a new custom object
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Rippling API key |
-| `name` | string | Yes | No description |
+| `name` | string | Yes | Object name |
 | `description` | string | No | Description |
 | `category` | string | No | Category |
 
@@ -1299,7 +1299,7 @@ Update a custom object
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Rippling API key |
 | `customObjectApiName` | string | Yes | Custom object API name |
-| `name` | string | No | No description |
+| `name` | string | No | Name |
 | `description` | string | No | Description |
 | `category` | string | No | Category |
 | `pluralLabel` | string | No | Plural label |
@@ -1539,7 +1539,7 @@ Get a specific custom object record
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Rippling API key |
 | `customObjectApiName` | string | Yes | Custom object API name |
-| `codrId` | string | Yes | No description |
+| `codrId` | string | Yes | Record ID |
 
 #### Output
 
@@ -1626,7 +1626,7 @@ Create a custom object record
 | `apiKey` | string | Yes | Rippling API key |
 | `customObjectApiName` | string | Yes | Custom object API name |
 | `externalId` | string | No | External ID for the record |
-| `data` | json | Yes | No description |
+| `data` | json | Yes | Record data |
 
 #### Output
 
@@ -1785,7 +1785,7 @@ Get a specific custom app
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Rippling API key |
-| `id` | string | Yes | No description |
+| `id` | string | Yes | Resource ID |
 
 #### Output
 
@@ -1810,8 +1810,8 @@ Create a new custom app
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Rippling API key |
-| `name` | string | Yes | No description |
-| `apiName` | string | Yes | No description |
+| `name` | string | Yes | App name |
+| `apiName` | string | Yes | API name |
 | `description` | string | No | Description |
 
 #### Output
@@ -1836,8 +1836,8 @@ Update a custom app
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Rippling API key |
-| `id` | string | Yes | No description |
-| `name` | string | No | No description |
+| `id` | string | Yes | App ID |
+| `name` | string | No | App name |
 | `apiName` | string | No | API name |
 | `description` | string | No | Description |
 
@@ -1908,7 +1908,7 @@ Get a specific custom page
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Rippling API key |
-| `id` | string | Yes | No description |
+| `id` | string | Yes | Resource ID |
 
 #### Output
 
@@ -1934,7 +1934,7 @@ Create a new custom page
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Rippling API key |
-| `name` | string | Yes | No description |
+| `name` | string | Yes | Page name |
 
 #### Output
 
@@ -1959,8 +1959,8 @@ Update a custom page
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Rippling API key |
-| `id` | string | Yes | No description |
-| `name` | string | No | No description |
+| `id` | string | Yes | Page ID |
+| `name` | string | No | Page name |
 
 #### Output
 
@@ -2033,7 +2033,7 @@ Get a specific custom setting
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Rippling API key |
-| `id` | string | Yes | No description |
+| `id` | string | Yes | Resource ID |
 
 #### Output
 
@@ -2092,7 +2092,7 @@ Update a custom setting
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Rippling API key |
-| `id` | string | Yes | No description |
+| `id` | string | Yes | Setting ID |
 | `displayName` | string | No | Display name |
 | `apiName` | string | No | Unique API name |
 | `dataType` | string | No | Data type of the setting |
@@ -2165,7 +2165,7 @@ Get a specific object category
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Rippling API key |
-| `id` | string | Yes | No description |
+| `id` | string | Yes | Resource ID |
 
 #### Output
 
@@ -2208,7 +2208,7 @@ Update an object category
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Rippling API key |
-| `id` | string | Yes | No description |
+| `id` | string | Yes | Category ID |
 | `name` | string | No | Category name |
 | `description` | string | No | Description |
 
@@ -2248,7 +2248,7 @@ Get a report run by ID
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Rippling API key |
-| `runId` | string | Yes | No description |
+| `runId` | string | Yes | run id |
 
 #### Output
 

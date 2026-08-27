@@ -440,14 +440,14 @@ Lists SSL/TLS certificate packs for a zone.
 
 ### Cloudflare Get Zone Settings
 
-Reads zone settings such as SSL mode, minimum TLS version, security level, and caching level. Cloudflare retired the endpoint that read every setting in one request, so each setting is read individually — name the ones you need to keep the read small. Defaults to $\{DEFAULT_ZONE_SETTING_IDS.join(', ')\}.
+Reads zone settings such as SSL mode, minimum TLS version, security level, and caching level. Cloudflare retired the endpoint that read every setting in one request, so each setting is read individually — name the ones you need to keep the read small. Defaults to ssl, always_use_https, min_tls_version, tls_1_3, security_level, cache_level, browser_cache_ttl, development_mode, rocket_loader, email_obfuscation, hotlink_protection, ip_geolocation, http2, http3, websockets.
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `zoneId` | string | Yes | The zone ID to get settings for |
-| `settingIds` | string | No | Comma-separated setting IDs to read, e.g. "ssl,min_tls_version,security_level". Leave blank to read the default set \($\{DEFAULT_ZONE_SETTING_IDS.join\(', '\)\}\). At most $\{MAX_ZONE_SETTING_IDS\} settings per call. |
+| `settingIds` | string | No | Comma-separated setting IDs to read, e.g. "ssl,min_tls_version,security_level". Leave blank to read the default set \(ssl, always_use_https, min_tls_version, tls_1_3, security_level, cache_level, browser_cache_ttl, development_mode, rocket_loader, email_obfuscation, hotlink_protection, ip_geolocation, http2, http3, websockets\). At most 40 settings per call. |
 | `apiKey` | string | Yes | Cloudflare API Token |
 
 #### Output
@@ -956,7 +956,7 @@ Updates a rate limiting rule in the http_ratelimit phase entry point ruleset of 
 | `description` | string | No | Human-readable description of the rule |
 | `enabled` | boolean | No | Whether the rule is enabled |
 | `ref` | string | No | Reference tag that stays stable across rule updates. Because the update replaces the rule, omitting it resets the tag to the rule ID and breaks anything matching on the old value |
-| `actionParameters` | string | No | JSON object of action-specific parameters for the mitigation action, e.g. \{"response":\{"status_code":429,"content":"\{\\"error\\":\\"rate limited\\"\}","content_type":"application/json"\}\} for a custom block response. Because the update replaces the rule, omitting it resets action_parameters to \{\} and the rule falls back to Cloudflare\'s default block page |
+| `actionParameters` | string | No | JSON object of action-specific parameters for the mitigation action, e.g. \{"response":\{"status_code":429,"content":"\{\"error\":\"rate limited\"\}","content_type":"application/json"\}\} for a custom block response. Because the update replaces the rule, omitting it resets action_parameters to \{\} and the rule falls back to Cloudflare's default block page |
 | `logging` | string | No | JSON logging configuration to preserve, e.g. \{"enabled":true\}. Omitting it on a rule that had logging configured resets it to the default |
 | `apiKey` | string | Yes | Cloudflare API Token |
 

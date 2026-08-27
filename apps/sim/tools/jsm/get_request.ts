@@ -4,9 +4,9 @@ import {
   REQUEST_STATUS_PROPERTIES,
   USER_OUTPUT_PROPERTIES,
 } from '@/tools/jsm/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const jsmGetRequestTool: ToolConfig<JsmGetRequestParams, JsmGetRequestResponse> = {
+export const jsmGetRequestTool: InternalToolConfig<JsmGetRequestParams, JsmGetRequestResponse> = {
   id: 'jsm_get_request',
   name: 'JSM Get Request',
   description: 'Get a single service request from Jira Service Management',
@@ -51,13 +51,8 @@ export const jsmGetRequestTool: ToolConfig<JsmGetRequestParams, JsmGetRequestRes
     },
   },
 
-  request: {
-    url: '/api/tools/jsm/request',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       domain: params.domain,
       accessToken: params.accessToken,
       cloudId: params.cloudId,
