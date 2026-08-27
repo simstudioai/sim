@@ -233,13 +233,16 @@ export async function buildSimToolSpecs(
   }
 
   const providers = configuredTools.map(({ provider }) => provider)
-  // Pi resolves secret provenance per tool CALL rather than per format, so it cannot say which
-  // individual tool carries one. Withhold literal values for the whole run when any input
+  // Pi resolves secret provenance per tool CALL rather than per format, so at this point it cannot
+  // say which individual tool carries one. Withhold literal values for the whole run when any input
   // resolved a secret — coarse, but it errs toward stating less.
-  const runResolvedSecrets = Boolean(ctx.resolvedSecretTraceRegistry?.hasResolvedInputProjections())
-  await annotateToolPinnedParams(ctx, providers, {
-    hasResolvedSecretInputs: () => runResolvedSecrets,
-  })
+  const withholdLiteralValues = Boolean(
+    ctx.resolvedSecretTraceRegistry?.hasResolvedInputProjections()
+  )
+  if (withholdLiteralValues) {
+    logger.debug('Withholding pinned literal values: an input in this run resolved a secret')
+  }
+  await annotateToolPinnedParams(ctx, providers, () => withholdLiteralValues)
   assignProviderToolIdentities(providers)
   return configuredTools.map(({ provider, toolIndex }) =>
     buildSimToolSpec(ctx, inputTools, provider, toolIndex)

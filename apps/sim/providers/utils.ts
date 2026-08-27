@@ -515,7 +515,7 @@ export function extractAndParseJSON(content: string): any {
  *
  * Selector subblocks persist their value under the subblock id (e.g.
  * `tableSelector`), not the canonical id, so any lookup that keys off the
- * canonical id — like {@link collectToolResourceBindings} below — must resolve it first.
+ * canonical id — like {@link collectToolPinnedFields} below — must resolve it first.
  * Mode selection mirrors {@link transformBlockTool}'s execution-time
  * `paramsTransform` so the resolved id matches the params the tool actually runs
  * with. When the active selector has no value, the original canonical value is
@@ -780,7 +780,9 @@ export async function transformBlockTool(
     return null
   }
 
-  const { createLLMToolSchema, formatParameterLabel } = await import('@/tools/params')
+  const { createLLMToolSchema, formatParameterLabel, isPasswordParameter } = await import(
+    '@/tools/params'
+  )
 
   const userProvidedParams = block.params || {}
 
@@ -911,6 +913,7 @@ export async function transformBlockTool(
       selfDescribedParamId,
       workflowLabel,
       formatParamLabel: formatParameterLabel,
+      isPasswordParam: isPasswordParameter,
     })
   )
 

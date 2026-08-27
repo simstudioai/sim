@@ -83,6 +83,7 @@ import {
   getInlineHydrationMaxBytes,
 } from '@/providers/file-attachments.server'
 import { isAutoModel, SIM_AUTO_MODEL_ID } from '@/providers/models'
+import { collectPinnedFieldsFromParams, registerToolPinnedFields } from '@/providers/tool-binding'
 import {
   type ProviderToolInputProvenance,
   registerProviderToolInputProvenance,
@@ -808,11 +809,9 @@ export class AgentBlockHandler implements BlockHandler {
     const tools = allTools.filter(
       (tool): tool is ProviderToolConfig => tool !== null && tool !== undefined
     )
-    await annotateToolPinnedParams(ctx, tools, {
-      // A tool whose params resolved an environment secret must not have its literal values
-      // stated; the provenance map already identifies exactly those tools.
-      hasResolvedSecretInputs: (tool) => inputProvenance.has(tool),
-    })
+    // A tool whose params resolved an environment secret must not have its literal values stated;
+    // the provenance map already identifies exactly those tools.
+    await annotateToolPinnedParams(ctx, tools, (tool) => inputProvenance.has(tool))
     return { tools, inputProvenance }
   }
 
@@ -1378,13 +1377,26 @@ export class AgentBlockHandler implements BlockHandler {
     const filteredSchema = filterSchemaForLLM(config.schema, config.userProvidedParams)
     const toolId = createMcpToolId(config.serverId, config.toolName)
 
-    return {
+    const mcpTool = {
       id: toolId,
       description: config.description,
       parameters: filteredSchema,
       params: config.userProvidedParams,
       usageControl: config.usageControl || 'auto',
     }
+
+    // An MCP tool has no block subblocks to describe it, so its pinned params are read straight
+    // from the configured values, keyed by the remote schema's own names.
+    const { formatParameterLabel, isPasswordParameter } = await import('@/tools/params')
+    registerToolPinnedFields(
+      mcpTool,
+      collectPinnedFieldsFromParams(config.userProvidedParams, {
+        formatParamLabel: formatParameterLabel,
+        isPasswordParam: isPasswordParameter,
+      })
+    )
+
+    return mcpTool
   }
 
   private async transformBlockTool(

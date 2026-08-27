@@ -6,7 +6,6 @@ import type { ExecutionContext } from '@/executor/types'
 import {
   type BoundResourceKind,
   getToolPinnedFields,
-  groupDuplicateToolsByCanonicalId,
   sanitizeStatedText,
   type ToolPinnedField,
 } from '@/providers/tool-binding'
@@ -14,58 +13,55 @@ import type { ProviderToolConfig } from '@/providers/types'
 
 const logger = createLogger('ToolPinnedParams')
 
-/** Bounds the appended sentence so a heavily configured tool cannot bury its own description. */
-const MAX_STATED_FIELDS = 6
+/**
+ * Bounds the appended sentence. Every stated field costs prompt tokens on every request in the
+ * tool loop, for every tool, whether or not the model ever calls it — so this stays small.
+ */
+const MAX_STATED_FIELDS = 3
 
-type BindingLabelResolver = (
+type ResourceNameResolver = (
   ids: readonly string[],
   workspaceId: string
 ) => Promise<Map<string, string>>
 
 /**
  * Reuses `findWorkspaceCredentialLookup` per id rather than one batched `inArray`: that helper
- * already encodes the workspace scope, the legacy `account.id`-second lookup, and the
- * `managed_oauth` exclusion, none of which a fresh batch query would inherit. Ids are deduped
- * across the whole request and memoized for the run, so a credential reused by several tools
- * costs one read.
+ * encodes the workspace scope, the legacy `account.id`-second lookup and the `managed_oauth`
+ * exclusion, all of which a batch query would have to re-derive. N is bounded by the tools on one
+ * agent block and is resolved once per run, so the fan-out stays small.
  */
-const resolveCredentialLabels: BindingLabelResolver = async (ids, workspaceId) => {
-  const labels = new Map<string, string>()
+const resolveCredentialNames: ResourceNameResolver = async (ids, workspaceId) => {
+  const names = new Map<string, string>()
   const rows = await Promise.all(
     ids.map((credentialId) => findWorkspaceCredentialLookup({ workspaceId, credentialId }))
   )
   ids.forEach((id, index) => {
     const displayName = rows[index]?.displayName
-    if (displayName) labels.set(id, displayName)
+    if (displayName) names.set(id, displayName)
   })
-  return labels
+  return names
 }
 
-const resolveKnowledgeBaseLabels: BindingLabelResolver = (ids, workspaceId) =>
-  getKnowledgeBaseNames(ids, workspaceId)
-
-const RESOLVERS: Record<BoundResourceKind, BindingLabelResolver | undefined> = {
-  credential: resolveCredentialLabels,
-  knowledgeBase: resolveKnowledgeBaseLabels,
-  // Resolved by `transformBlockTool`, which already fetches the workflow's metadata.
-  workflow: undefined,
+const RESOLVERS: Record<BoundResourceKind, ResourceNameResolver> = {
+  credential: resolveCredentialNames,
+  knowledgeBase: (ids, workspaceId) => getKnowledgeBaseNames(ids, workspaceId),
 }
 
-export interface ToolPinnedParamsOptions {
-  /**
-   * True for a tool whose configured params resolved an environment secret. Its literal values are
-   * withheld — only looked-up resource names, which cannot themselves carry the secret, are stated.
-   */
-  hasResolvedSecretInputs?: (tool: ProviderToolConfig) => boolean
-}
-
-function renderField(field: ToolPinnedField, value: string, quoted: boolean): string {
-  return quoted ? `${field.title} "${value}"` : `${field.title} ${value}`
+function renderField(field: ToolPinnedField, resolved: ReadonlyMap<string, string>): string {
+  if ('resource' in field) {
+    const name = sanitizeStatedText(
+      resolved.get(`${field.resource.kind}:${field.resource.id}`) ?? ''
+    )
+    return name ? `${field.title} "${name}"` : ''
+  }
+  return typeof field.value === 'string'
+    ? `${field.title} "${field.value}"`
+    : `${field.title} ${field.value}`
 }
 
 /**
  * Tells the model which values a workflow pinned on a tool, and — when the agent holds several
- * copies of that tool — that the copies differ.
+ * copies of that tool that differ — that it must pick the right one.
  *
  * Every pinned param is stripped from the schema the model sees (`createLLMToolSchema` drops any
  * param the user filled), so without this the model cannot tell that a Gmail tool reads only
@@ -74,40 +70,44 @@ function renderField(field: ToolPinnedField, value: string, quoted: boolean): st
  *
  * Mutates `description` on the exact objects passed in. Provenance elsewhere is keyed on tool
  * identity, so no tool is ever replaced. Never throws: an unresolvable value is simply omitted.
+ *
+ * `withholdLiteralValues` marks a tool whose configured params resolved an environment secret.
+ * Its literal values are suppressed; resolved resource names still state, since a looked-up name
+ * cannot itself carry the secret.
  */
 export async function annotateToolPinnedParams(
   ctx: Pick<ExecutionContext, 'workspaceId' | 'toolBindingLabelCache'>,
   tools: ProviderToolConfig[],
-  options: ToolPinnedParamsOptions = {}
+  withholdLiteralValues?: (tool: ProviderToolConfig) => boolean
 ): Promise<void> {
   const { workspaceId } = ctx
-  if (!workspaceId || tools.length === 0) return
+  if (!workspaceId) return
 
-  const annotatable = tools.filter((tool) => getToolPinnedFields(tool)?.length)
+  const annotatable = tools
+    .map((tool) => ({ tool, fields: getToolPinnedFields(tool) ?? [] }))
+    .filter((entry) => entry.fields.length > 0)
   if (annotatable.length === 0) return
 
   const cache = ctx.toolBindingLabelCache ?? new Map<string, string | null>()
   const cacheKey = (kind: BoundResourceKind, id: string) => `${kind}:${id}`
 
   const pendingByKind = new Map<BoundResourceKind, Set<string>>()
-  for (const tool of annotatable) {
-    for (const field of getToolPinnedFields(tool) ?? []) {
-      const resource = field.resource
-      if (!resource || !RESOLVERS[resource.kind]) continue
-      if (cache.has(cacheKey(resource.kind, resource.id))) continue
-      const pending = pendingByKind.get(resource.kind)
-      if (pending) pending.add(resource.id)
-      else pendingByKind.set(resource.kind, new Set([resource.id]))
+  for (const { fields } of annotatable) {
+    for (const field of fields) {
+      if (!('resource' in field)) continue
+      const { kind, id } = field.resource
+      if (cache.has(cacheKey(kind, id))) continue
+      const pending = pendingByKind.get(kind)
+      if (pending) pending.add(id)
+      else pendingByKind.set(kind, new Set([id]))
     }
   }
 
   await Promise.all(
     [...pendingByKind].map(async ([kind, ids]) => {
       const idList = [...ids]
-      const resolver = RESOLVERS[kind]
-      if (!resolver) return
       try {
-        const resolved = await resolver(idList, workspaceId)
+        const resolved = await RESOLVERS[kind](idList, workspaceId)
         for (const id of idList) cache.set(cacheKey(kind, id), resolved.get(id) ?? null)
       } catch (error) {
         // Degrade to an unnamed resource rather than failing the agent block over a description.
@@ -121,35 +121,41 @@ export async function annotateToolPinnedParams(
     })
   )
 
-  const groupSizeByTool = new Map<ProviderToolConfig, number>()
-  for (const group of groupDuplicateToolsByCanonicalId(tools)) {
-    for (const tool of group) groupSizeByTool.set(tool, group.length)
+  const resolvedNames = new Map<string, string>()
+  for (const [key, name] of cache) if (name) resolvedNames.set(key, name)
+
+  const statements = new Map<ProviderToolConfig, string>()
+  for (const { tool, fields } of annotatable) {
+    const withhold = withholdLiteralValues?.(tool) ?? false
+    const rendered: string[] = []
+    for (const field of fields) {
+      if (rendered.length === MAX_STATED_FIELDS) break
+      if (withhold && !('resource' in field)) continue
+      const text = renderField(field, resolvedNames)
+      if (text) rendered.push(text)
+    }
+    if (rendered.length > 0) statements.set(tool, rendered.join(', '))
   }
 
-  for (const tool of annotatable) {
-    const withholdValues = options.hasResolvedSecretInputs?.(tool) ?? false
-    const rendered: string[] = []
+  // Only claim the copies differ when their stated values actually do. Two tools bound to the same
+  // account and folder render identically, and telling the model to "call the copy the request
+  // refers to" would assert a distinction it cannot act on.
+  const statementsByCanonicalId = new Map<string, Set<string>>()
+  for (const tool of tools) {
+    const statement = statements.get(tool)
+    if (statement === undefined) continue
+    const key = tool.canonicalId ?? tool.id
+    const seen = statementsByCanonicalId.get(key)
+    if (seen) seen.add(statement)
+    else statementsByCanonicalId.set(key, new Set([statement]))
+  }
 
-    for (const field of getToolPinnedFields(tool) ?? []) {
-      if (rendered.length === MAX_STATED_FIELDS) break
-
-      if (field.resource) {
-        const name = cache.get(cacheKey(field.resource.kind, field.resource.id))
-        const label = name ? sanitizeStatedText(name) : ''
-        if (label) rendered.push(renderField(field, label, true))
-        continue
-      }
-
-      if (withholdValues || !field.value) continue
-      rendered.push(renderField(field, field.value, field.quoted ?? true))
-    }
-
-    if (rendered.length === 0) continue
-
-    const groupSize = groupSizeByTool.get(tool)
-    const duplicateHint = groupSize
-      ? ` This agent has ${groupSize} copies of this tool with different pinned values — call the copy the request refers to.`
-      : ''
-    tool.description = `${tool.description}\n\nPinned by the workflow and not changeable per call: ${rendered.join(', ')}.${duplicateHint}`
+  for (const [tool, statement] of statements) {
+    const distinct = statementsByCanonicalId.get(tool.canonicalId ?? tool.id)?.size ?? 1
+    const duplicateHint =
+      distinct > 1
+        ? ' Other copies of this tool on this agent are pinned to different values — call the copy the request refers to.'
+        : ''
+    tool.description = `${tool.description}\n\nPinned by the workflow and not changeable per call: ${statement}.${duplicateHint}`
   }
 }
