@@ -398,6 +398,28 @@ describe('getScopeDescription', () => {
     expect(getScopeDescription('account', 'reddit')).toBe('Update account preferences and settings')
     expect(getScopeDescription('account')).toBe('Update account preferences and settings')
   })
+
+  /**
+   * The consent screen is where a user decides what to grant, so a write scope
+   * has to read as one. `w_member_social` previously said 'Access LinkedIn
+   * profile', describing a posting grant as a profile read.
+   *
+   * The wording tracks LinkedIn's own: "Post, comment, and like posts on behalf
+   * of an authenticated member." It names all three verbs even though Sim only
+   * posts -- the label describes the grant the token carries, not Sim's current
+   * use of it, and LinkedIn's scopes cannot be sub-selected.
+   */
+  it.concurrent('describes w_member_social as the write grant it is', () => {
+    const description = getScopeDescription('w_member_social', 'linkedin')
+
+    expect(description).toBe('Post, comment, and like posts on your behalf')
+    expect(description).not.toMatch(/access .*profile/i)
+  })
+
+  it.concurrent('leaves the read-only LinkedIn scopes read-only', () => {
+    expect(getScopeDescription('profile', 'linkedin')).toBe('Access profile information')
+    expect(getScopeDescription('email', 'linkedin')).toBe('Access email address')
+  })
 })
 
 describe('parseProvider', () => {
