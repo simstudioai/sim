@@ -145,7 +145,7 @@ export const searchTool: ToolConfig<GoogleDriveSearchParams, GoogleDriveSearchRe
     nextPageToken: {
       type: 'string',
       description:
-        'Google Drive pagination cursor returned when more files remain beyond this response; empty when this is the last page',
+        'Page token for the next page of files; absent from the response when the end of the files list has been reached',
     },
   },
 }

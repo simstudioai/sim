@@ -167,11 +167,11 @@ Search for information on the web using Firecrawl
 |   ↳ `title` | string | Search result title from search engine |
 |   ↳ `description` | string | Search result description/snippet from search engine |
 |   ↳ `url` | string | URL of the search result |
-|   ↳ `markdown` | string | Page content in markdown, present only when the search result includes scraped page content |
-|   ↳ `html` | string | Processed HTML content, present only when the search result includes scraped page content |
-|   ↳ `rawHtml` | string | Unprocessed raw HTML, present only when the search result includes scraped page content |
-|   ↳ `links` | array | Links found on the page, present only when the search result includes scraped page content |
-|   ↳ `screenshot` | string | Screenshot URL \(expires after 24 hours\), present only when the search result includes a page screenshot |
+|   ↳ `markdown` | string | Page content in markdown; returned only when scraping was requested, for which the Search operation exposes no input |
+|   ↳ `html` | string | Processed HTML content; returned only when "html" is among the requested scrape formats, for which the Search operation exposes no input |
+|   ↳ `rawHtml` | string | Unprocessed raw HTML; returned only when "rawHtml" is among the requested scrape formats, for which the Search operation exposes no input |
+|   ↳ `links` | array | Links found on the page; returned only when "links" is among the requested scrape formats, for which the Search operation exposes no input |
+|   ↳ `screenshot` | string | Screenshot URL \(expires after 24 hours\); returned only when "screenshot" is among the requested scrape formats, for which the Search operation exposes no input |
 |   ↳ `metadata` | object | Metadata about the search result page |
 |     ↳ `title` | string | Page title |
 |     ↳ `description` | string | Page meta description |

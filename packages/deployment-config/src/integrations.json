@@ -14238,7 +14238,7 @@
         },
         {
           "name": "Upload File",
-          "description": "Upload a file to a file or image column on a Dataverse record. Supports single-request upload for files up to 128 MB. Provide the file through the File input; its bytes are read from storage and sent to Dataverse directly."
+          "description": "Upload a file to a file or image column on a Dataverse record. Supports single-request upload for files up to 128 MB. Provide the file through the File input; its bytes are read from storage and sent as the raw request body."
         },
         {
           "name": "Download File",

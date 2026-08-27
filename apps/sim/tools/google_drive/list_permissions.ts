@@ -135,7 +135,7 @@ export const listPermissionsTool: ToolConfig<
     nextPageToken: {
       type: 'string',
       description:
-        'Google Drive pagination cursor returned when more permissions remain beyond this response; empty when this is the last page',
+        'Page token for the next page of permissions; absent from the response when the end of the permissions list has been reached',
     },
   },
 }
