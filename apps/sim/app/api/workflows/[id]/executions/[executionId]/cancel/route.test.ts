@@ -1094,6 +1094,64 @@ describe('POST /api/workflows/[id]/executions/[executionId]/cancel', () => {
     expect(mockMarkExecutionCancelled).not.toHaveBeenCalled()
   })
 
+  it('rolls back pause staging for an already-cancelled execution when cancellation is aborted', async () => {
+    const controller = new AbortController()
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        executionDeadlineAt: null,
+        executionOrigin: null,
+        status: 'cancelled',
+        workspaceId: 'workspace-1',
+      },
+    ])
+    mockStagePausedCancellation.mockImplementationOnce(async () => {
+      controller.abort()
+      return { kind: 'idle' }
+    })
+
+    const response = await cancelWorkflowExecutionPostAuth({
+      workflowId: 'wf-1',
+      executionId: 'ex-1',
+      userId: 'user-1',
+      abortSignal: controller.signal,
+    })
+
+    expect(response.status).toBe(409)
+    expect(mockClearPausedCancellationIntent).toHaveBeenCalledWith('ex-1', 'wf-1')
+    expect(mockWriteTerminalEvent).not.toHaveBeenCalled()
+    expect(mockCompletePausedCancellation).not.toHaveBeenCalled()
+    expect(mockReleaseExecutionSlot).not.toHaveBeenCalled()
+  })
+
+  it('finishes cancellation when an aborted active-resume stage cannot be rolled back', async () => {
+    const controller = new AbortController()
+    mockStagePausedCancellation.mockImplementationOnce(async () => {
+      controller.abort()
+      return { kind: 'active_resume', target: ACTIVE_RESUME_TARGET }
+    })
+    mockRollbackActiveResumeCancellation.mockResolvedValueOnce(false)
+    mockMarkExecutionCancelled.mockResolvedValue({ durablyRecorded: true, reason: 'recorded' })
+    mockCompletePausedCancellation.mockResolvedValue(true)
+
+    const response = await cancelWorkflowExecutionPostAuth({
+      workflowId: 'wf-1',
+      executionId: 'ex-1',
+      userId: 'user-1',
+      abortSignal: controller.signal,
+    })
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({ success: true, pausedCancelled: true })
+    expect(mockRollbackActiveResumeCancellation).toHaveBeenCalledWith(
+      'ex-1',
+      'wf-1',
+      'resume-entry-1'
+    )
+    expect(mockMarkExecutionCancelled).toHaveBeenCalledWith('resume-ex-1', {
+      executionDeadlineAt: null,
+    })
+  })
+
   it('returns 404 when the execution does not belong to the workflow', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([])
 

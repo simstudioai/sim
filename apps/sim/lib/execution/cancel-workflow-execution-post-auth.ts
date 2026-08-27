@@ -356,11 +356,18 @@ async function rollbackPausedCancellationAfterAbort(args: {
   if (!abortResponse) return null
 
   if (args.stage.kind === 'active_resume') {
-    await PauseResumeManager.rollbackActiveResumeCancellation(
+    const rolledBack = await PauseResumeManager.rollbackActiveResumeCancellation(
       args.executionId,
       args.workflowId,
       args.stage.target.resumeEntryId
     )
+    if (!rolledBack) {
+      logger.warn('Aborted cancellation could not be rolled back; completing cancellation', {
+        executionId: args.executionId,
+        activeResumeEntryId: args.stage.target.resumeEntryId,
+      })
+      return null
+    }
   } else if (args.stage.kind === 'idle') {
     await PauseResumeManager.clearPausedCancellationIntent(args.executionId, args.workflowId)
   }
@@ -516,6 +523,14 @@ export async function cancelWorkflowExecutionPostAuth({
         executionId,
         workflowId
       )
+      const postStageAbort = await rollbackPausedCancellationAfterAbort({
+        stage: pausedCancellationStage,
+        workflowId,
+        executionId,
+        abortSignal,
+      })
+      if (postStageAbort) return postStageAbort
+
       const hasPausedCancellation = isPausedCancellationStage(pausedCancellationStage)
       const requiresCancellationEvent = hasPausedCancellation || isWorkflowGroupExecution
       let cancellationEventPublished = !requiresCancellationEvent
