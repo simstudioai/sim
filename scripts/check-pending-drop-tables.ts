@@ -439,19 +439,15 @@ function checkCall(
     return
   }
 
-  // <db|tx>.query.pendingTable.findFirst/findMany without a `columns` selection.
+  // <query root>.pendingTable.findFirst/findMany without a `columns` selection.
+  // Matched on the table-named property rather than a literal `.query` chain,
+  // since drizzle's relational API is keyed by table name however the root is
+  // reached — `db.query`, `tx.query`, or a binding holding either.
   if (method === 'findFirst' || method === 'findMany') {
     const queryTable = unwrap(callee.object)
-    if (queryTable?.type !== 'MemberExpression') return
+    if (queryTable?.type !== 'MemberExpression' || queryTable.computed) return
     const table = propertyName(queryTable.property)
     if (!table || !pendingTables.has(table)) return
-    const queryNamespace = unwrap(queryTable.object)
-    if (
-      queryNamespace?.type !== 'MemberExpression' ||
-      propertyName(queryNamespace.property) !== 'query'
-    ) {
-      return
-    }
     const keys = objectKeys(args[0])
     if (!keys || !keys.has('columns')) {
       report(call, table, `${method}() without \`columns\` selects all columns`)
