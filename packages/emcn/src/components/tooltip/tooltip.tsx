@@ -230,14 +230,37 @@ export function useFloatingTooltip(
 const overflowMeasureByElement = new WeakMap<Element, () => void>()
 const observedOverflowElements = new Set<Element>()
 let sharedOverflowObserver: ResizeObserver | null = null
+let sharedOverflowFontSet: FontFaceSet | null = null
+
+function measureObservedOverflow() {
+  for (const element of observedOverflowElements) overflowMeasureByElement.get(element)?.()
+}
+
+function observeOverflowFontChanges() {
+  if (typeof document === 'undefined' || !document.fonts || sharedOverflowFontSet) return
+  const fontSet = document.fonts
+  sharedOverflowFontSet = fontSet
+  fontSet.addEventListener('loadingdone', measureObservedOverflow)
+  fontSet.addEventListener('loadingerror', measureObservedOverflow)
+  void fontSet.ready.then(() => {
+    if (sharedOverflowFontSet === fontSet) measureObservedOverflow()
+  })
+}
+
+function unobserveOverflowFontChanges() {
+  sharedOverflowFontSet?.removeEventListener('loadingdone', measureObservedOverflow)
+  sharedOverflowFontSet?.removeEventListener('loadingerror', measureObservedOverflow)
+  sharedOverflowFontSet = null
+}
 
 function observeOverflow(element: Element, measure: () => void): boolean {
+  overflowMeasureByElement.set(element, measure)
+  observedOverflowElements.add(element)
+  observeOverflowFontChanges()
   if (typeof ResizeObserver === 'undefined') return false
   sharedOverflowObserver ??= new ResizeObserver((entries) => {
     for (const entry of entries) overflowMeasureByElement.get(entry.target)?.()
   })
-  overflowMeasureByElement.set(element, measure)
-  observedOverflowElements.add(element)
   sharedOverflowObserver.observe(element)
   return true
 }
@@ -250,13 +273,14 @@ function unobserveOverflow(element: Element | null) {
   if (observedOverflowElements.size === 0) {
     sharedOverflowObserver?.disconnect()
     sharedOverflowObserver = null
+    unobserveOverflowFontChanges()
   }
 }
 
 /**
  * Tracks whether an element's text is horizontally clipped, re-measuring when
- * `measurementKey` changes and via a shared `ResizeObserver` (or window resizes
- * when the API is unavailable).
+ * `measurementKey` or loaded fonts change and via a shared `ResizeObserver` (or
+ * window resizes when the API is unavailable).
  *
  * Returns a callback `ref` to attach to the element — the observer follows the
  * element across mount, unmount, and reassignment, so it is safe to use on
