@@ -12,7 +12,7 @@
 }
 
 .loaderOuter {
-  --landing-loader-outer: var(--text-body);
+  --thinking-loader-outer: var(--text-body);
 }
 
 .inverseBorder45 {
@@ -70,7 +70,7 @@
   }
 
   .loaderOuter {
-    --landing-loader-outer: color-mix(in srgb, var(--text-body) 76%, var(--white));
+    --thinking-loader-outer: color-mix(in srgb, var(--text-body) 76%, var(--white));
   }
 
   .inverseBorder45 {

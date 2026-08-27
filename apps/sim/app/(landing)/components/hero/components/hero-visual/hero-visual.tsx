@@ -300,7 +300,7 @@ const SEND_BUTTON_INK = {
  */
 const LANDING_LOADER_INK = {
   '--tl-grad-inner': 'var(--text-body)',
-  '--tl-grad-outer': 'var(--landing-loader-outer)',
+  '--tl-grad-outer': 'var(--thinking-loader-outer)',
   '--tl-glow': 'transparent',
 } as CSSProperties
 
