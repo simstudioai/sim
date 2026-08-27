@@ -4,6 +4,8 @@
 import { describe, expect, it } from 'vitest'
 import { RunCode, RunFunction } from '@/lib/copilot/generated/tool-catalog-v1'
 import {
+  describeWithholdingCause,
+  inspectToolResultForCopilot,
   projectToolResultForCopilot,
   READ_TOOL_RESULT_UNAVAILABLE_ERROR,
   TOOL_RESULT_UNAVAILABLE_ERROR,
@@ -455,5 +457,90 @@ describe('projectToolResultForCopilot', () => {
       )
     ).toEqual({ success: false, error: TOOL_RESULT_UNAVAILABLE_ERROR })
     expect(toolResultUnavailableError(undefined)).toBe(TOOL_RESULT_UNAVAILABLE_ERROR)
+  })
+})
+
+describe('effect disclosure on a withheld result', () => {
+  const EXECUTION_ID = '0f4d5a4c-6a1e-4c2f-9b7d-2c8f1a3e5d90'
+
+  it('carries nothing extra for a tool that declared no effect', () => {
+    expect(projectToolResultForCopilot({ success: true, output: { a: 1 } }, undefined)).toEqual({
+      success: true,
+    })
+    expect(projectToolResultForCopilot({ success: false, error: 'why' }, undefined)).toEqual({
+      success: false,
+      error: TOOL_RESULT_UNAVAILABLE_ERROR,
+    })
+  })
+
+  /**
+   * The exemption is what makes the disclosure trustworthy, so it has to be all or
+   * nothing: a disclosure that silently dropped the id it could not vouch for would
+   * read exactly like one that never had a run to name.
+   */
+  it('voids the whole disclosure when an id is not a shape this system mints', () => {
+    expect(
+      projectToolResultForCopilot(
+        {
+          success: false,
+          error: 'why',
+          effect: { phase: 'performed', ids: { executionId: 'sk-live-9Qv2XbTn4LmZa8Rd' } },
+        },
+        undefined,
+        'run_workflow'
+      )
+    ).toEqual({ success: false, error: TOOL_RESULT_UNAVAILABLE_ERROR })
+  })
+
+  it('reports the phase and ids when every id is vouchable', () => {
+    expect(
+      projectToolResultForCopilot(
+        {
+          success: false,
+          error: 'why',
+          effect: { phase: 'attempted', ids: { executionId: EXECUTION_ID } },
+        },
+        undefined,
+        'run_workflow'
+      )
+    ).toEqual({
+      success: false,
+      output: { resultWithheld: true, effect: 'attempted', executionId: EXECUTION_ID },
+      error: expect.stringContaining('At most one run exists'),
+    })
+  })
+
+  it('never leaks the disclosure into a result that projected cleanly', () => {
+    const registry = new ResolvedSecretTraceRegistry()
+
+    expect(
+      projectToolResultForCopilot(
+        {
+          success: true,
+          output: { executionId: EXECUTION_ID },
+          effect: { phase: 'performed', ids: { executionId: EXECUTION_ID } },
+        },
+        registry,
+        'run_workflow'
+      )
+    ).toEqual({ success: true, output: { executionId: EXECUTION_ID } })
+  })
+
+  it('names why the content was withheld, for the surface about to log it', () => {
+    const latched = createRegistry()
+    latched.markIncomplete('source-provenance-incomplete', { origin: 'test.origin' })
+
+    const projection = inspectToolResultForCopilot({ success: false }, latched, 'run_workflow')
+    expect(projection.safe).toBe(false)
+    // The per-call fork adds its own propagation reason; the guard that originally
+    // tripped has to survive alongside it, or a refusal names only the messenger.
+    expect(projection.safe === false && describeWithholdingCause(projection.cause)).toEqual({
+      withheldCause: 'registry-incomplete',
+      withheldReasons: expect.arrayContaining(['source-provenance-incomplete']),
+      withheldOrigins: ['test.origin'],
+    })
+
+    const absent = inspectToolResultForCopilot({ success: false }, undefined)
+    expect(absent.safe === false && absent.cause).toEqual({ kind: 'registry-absent' })
   })
 })

@@ -45,11 +45,45 @@ export interface ToolExecutionContext {
   resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
 }
 
+/**
+ * How far a tool call got in performing its side effect.
+ *
+ * This is a property of the call, not of the content it produced, which is why it
+ * can still be reported when the content itself cannot cross the model boundary.
+ * It is the only thing that lets a caller decide about retry: a rejected call and a
+ * completed mutation are otherwise indistinguishable once their payloads are withheld.
+ */
+export const TOOL_EFFECT_PHASE = {
+  /** Rejected before anything could happen. Correcting the call and retrying is safe. */
+  notAttempted: 'not_attempted',
+  /** Dispatched; zero or one effects may exist. Resolve by id before retrying. */
+  attempted: 'attempted',
+  /** The effect ran to completion, whatever its outcome. Never retry blind. */
+  performed: 'performed',
+} as const
+export type ToolEffectPhase = (typeof TOOL_EFFECT_PHASE)[keyof typeof TOOL_EFFECT_PHASE]
+
+export interface ToolCallEffect {
+  phase: ToolEffectPhase
+  /**
+   * Server-minted identifiers naming the effect, so an unreadable result stays
+   * resolvable. Values must be identifiers this system issues; the egress
+   * projection rejects the whole disclosure otherwise.
+   */
+  ids?: Readonly<Record<string, string>>
+}
+
 export interface ToolExecutionResult {
   success: boolean
   output?: unknown
   error?: string
   resources?: MothershipResource[]
+  /**
+   * Declared by tools whose failure a caller cannot otherwise act on. Consumed by
+   * the egress projection and never returned to the model as-is — on a withheld
+   * result it becomes the disclosure record that replaces the dropped content.
+   */
+  effect?: ToolCallEffect
 }
 
 export type ToolHandler = (

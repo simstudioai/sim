@@ -9,6 +9,7 @@ import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { checkInternalApiKey } from '@/lib/copilot/request/http'
 import { withIncomingGoSpan } from '@/lib/copilot/request/otel'
 import {
+  describeWithholdingCause,
   inspectToolResultForCopilot,
   projectToolErrorMessageForCopilot,
 } from '@/lib/copilot/request/tools/resolved-secret-result'
@@ -158,6 +159,7 @@ export const POST = withRouteHandler((request: NextRequest) =>
             error: projected.error,
             runtimeSucceeded: result.success,
             projectionSafe: projection.safe,
+            ...(projection.safe ? {} : describeWithholdingCause(projection.cause)),
           })
         }
         if (result.success && chatId) {

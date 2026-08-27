@@ -68,6 +68,7 @@ import {
   runFromBlockFromCopilot,
   runWorkflowFromCopilot,
 } from '@/lib/workflows/application/run-workflow-from-copilot'
+import { readAttemptedExecutionId } from '@/executor/utils/errors'
 
 const principal = {
   kind: 'delegated' as const,
@@ -304,5 +305,52 @@ describe('Copilot workflow run application commands', () => {
         },
       })
     ).rejects.toThrow('database unavailable')
+  })
+
+  /**
+   * A caller whose result was withheld can only decide about retry from whether a run
+   * exists. Naming it from dispatch onward, and only from there, is what makes the id's
+   * absence the positive statement that nothing was created.
+   */
+  describe('naming the run a failure belongs to', () => {
+    const runInput = {
+      workflowId: 'workflow-1',
+      useDraftState: true,
+      lifecycle,
+      hasWorkflowInput: false,
+      useMockPayload: true,
+    }
+
+    it('names the dispatched run when execution itself fails', async () => {
+      mocks.executeWorkflow.mockRejectedValueOnce(new Error('database unavailable'))
+
+      const error = await runWorkflowFromCopilot
+        .execute({ principal, input: runInput })
+        .catch((thrown) => thrown)
+
+      expect(readAttemptedExecutionId(error)).toBe('child-execution-1')
+    })
+
+    it('names nothing when admission refused the run before it could start', async () => {
+      mocks.admission.mockRejectedValueOnce(new Error('Usage limit exceeded'))
+
+      const error = await runWorkflowFromCopilot
+        .execute({ principal, input: runInput })
+        .catch((thrown) => thrown)
+
+      expect(mocks.executeWorkflow).not.toHaveBeenCalled()
+      expect(readAttemptedExecutionId(error)).toBeUndefined()
+    })
+
+    it('names nothing when authorization refused the run', async () => {
+      mocks.permission.mockResolvedValue('read')
+
+      const error = await runWorkflowFromCopilot
+        .execute({ principal, input: runInput })
+        .catch((thrown) => thrown)
+
+      expect(mocks.admission).not.toHaveBeenCalled()
+      expect(readAttemptedExecutionId(error)).toBeUndefined()
+    })
   })
 })

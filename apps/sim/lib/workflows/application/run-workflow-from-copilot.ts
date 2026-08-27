@@ -28,6 +28,7 @@ import {
 } from '@/lib/workflows/triggers/run-options'
 import type { SerializableExecutionState } from '@/executor/execution/types'
 import type { ExecutionResult } from '@/executor/types'
+import { attachAttemptedExecutionId } from '@/executor/utils/errors'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 export interface CopilotWorkflowRunLifecycle {
@@ -295,6 +296,12 @@ async function executeCopilotRun(params: {
     }
     return result
   } catch (error) {
+    /**
+     * Everything above this `try` — authorization, admission, provenance export — fails
+     * before a run can exist, so only failures from here carry the id. That asymmetry is
+     * what lets a caller read its absence as "nothing was created" instead of guessing.
+     */
+    attachAttemptedExecutionId(error, childExecutionId)
     if (registry) {
       const executionResult =
         typeof error === 'object' &&

@@ -7,6 +7,11 @@ import {
   messageForCopilotWorkflowError,
 } from '@/lib/copilot/application/execute-workflow-use-case'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
+import {
+  TOOL_EFFECT_PHASE,
+  type ToolCallEffect,
+  type ToolEffectPhase,
+} from '@/lib/copilot/tool-executor/types'
 import { requireCopilotWorkspace } from '@/lib/copilot/tools/server/workspace-scope'
 import { decodeVfsPathSegments, encodeVfsPathSegments } from '@/lib/copilot/vfs/path-utils'
 import { PlatformEvents } from '@/lib/core/telemetry'
@@ -24,7 +29,7 @@ import {
   setWorkflowBlockEnabled,
 } from '@/lib/workflows/application/update-workflow-content'
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
-import { hasExecutionResult } from '@/executor/utils/errors'
+import { hasExecutionResult, readAttemptedExecutionId } from '@/executor/utils/errors'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 function stripBinaryFields(value: unknown): unknown {
@@ -37,6 +42,22 @@ function stripBinaryFields(value: unknown): unknown {
     out[k] = stripBinaryFields(v)
   }
   return out
+}
+
+/**
+ * States how far a run got, so the answer survives a result the egress boundary withholds.
+ *
+ * Without it a withheld run reduces to a bare success or an opaque failure and takes the
+ * execution id with it, which is what left a caller unable to tell a rejected call from a
+ * completed run — and with nothing to look either one up by.
+ */
+function executionEffect(phase: ToolEffectPhase, executionId?: string): ToolCallEffect {
+  return { phase, ...(executionId ? { ids: { executionId } } : {}) }
+}
+
+/** A run refused on its own arguments, before anything could be created. */
+function runRejected(error: string): ToolCallResult {
+  return { success: false, error, effect: executionEffect(TOOL_EFFECT_PHASE.notAttempted) }
 }
 
 function buildExecutionOutput(
@@ -59,6 +80,7 @@ function buildExecutionOutput(
       logs: stripBinaryFields(result.logs),
     },
     error: result.success ? undefined : result.error || 'Workflow execution failed',
+    effect: executionEffect(TOOL_EFFECT_PHASE.performed, result.metadata?.executionId),
   }
 }
 
@@ -71,9 +93,18 @@ function buildExecutionError(error: unknown): ToolCallResult {
     })
   }
   logger.error('Copilot workflow execution command failed', { error })
+  /**
+   * Only failures raised after dispatch carry the id, so its absence is the positive
+   * statement that nothing was created rather than an admission of not knowing.
+   */
+  const attemptedExecutionId = readAttemptedExecutionId(error)
   return {
     success: false,
     error: messageForCopilotWorkflowError(error, 'Workflow execution failed'),
+    effect: executionEffect(
+      attemptedExecutionId ? TOOL_EFFECT_PHASE.attempted : TOOL_EFFECT_PHASE.notAttempted,
+      attemptedExecutionId
+    ),
   }
 }
 
@@ -204,7 +235,7 @@ export async function executeRunWorkflow(
   try {
     const workflowId = params.workflowId || context.workflowId
     if (!workflowId) {
-      return { success: false, error: 'workflowId is required' }
+      return runRejected('workflowId is required')
     }
 
     const useDraftState = !params.useDeployedState
@@ -322,10 +353,10 @@ export async function executeRunWorkflowUntilBlock(
   try {
     const workflowId = params.workflowId || context.workflowId
     if (!workflowId) {
-      return { success: false, error: 'workflowId is required' }
+      return runRejected('workflowId is required')
     }
     if (!params.stopAfterBlockId) {
-      return { success: false, error: 'stopAfterBlockId is required' }
+      return runRejected('stopAfterBlockId is required')
     }
 
     const useDraftState = !params.useDeployedState
@@ -401,10 +432,10 @@ export async function executeRunFromBlock(
   try {
     const workflowId = params.workflowId || context.workflowId
     if (!workflowId) {
-      return { success: false, error: 'workflowId is required' }
+      return runRejected('workflowId is required')
     }
     if (!params.startBlockId) {
-      return { success: false, error: 'startBlockId is required' }
+      return runRejected('startBlockId is required')
     }
 
     const useDraftState = !params.useDeployedState
@@ -487,10 +518,10 @@ export async function executeRunBlock(
   try {
     const workflowId = params.workflowId || context.workflowId
     if (!workflowId) {
-      return { success: false, error: 'workflowId is required' }
+      return runRejected('workflowId is required')
     }
     if (!params.blockId) {
-      return { success: false, error: 'blockId is required' }
+      return runRejected('blockId is required')
     }
 
     const useDraftState = !params.useDeployedState

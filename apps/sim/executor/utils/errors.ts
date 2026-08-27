@@ -36,6 +36,33 @@ export function attachExecutionResult(error: Error, executionResult: ExecutionRe
   Object.assign(error, { executionResult })
 }
 
+const ATTEMPTED_EXECUTION_ID = 'attemptedExecutionId'
+
+/**
+ * Names the run a failure belongs to once dispatch has been attempted.
+ *
+ * A caller that only sees the thrown error cannot tell an authorization refusal — which
+ * created nothing — from a crash after the run was already dispatched, and those need
+ * opposite retry decisions. Attaching the id at the point of no return makes its absence
+ * mean "nothing was started" rather than "we do not know", and its presence a key that
+ * resolves to zero or one executions.
+ *
+ * Distinct from {@link attachExecutionResult}: that says the workflow ran and produced a
+ * result, this says only that it was dispatched.
+ */
+export function attachAttemptedExecutionId(error: unknown, executionId: string): void {
+  if (!(error instanceof Error) || !executionId) return
+  if (ATTEMPTED_EXECUTION_ID in error) return
+  Object.assign(error, { [ATTEMPTED_EXECUTION_ID]: executionId })
+}
+
+/** Reads the dispatched-run id an error carries, if dispatch was reached at all. */
+export function readAttemptedExecutionId(error: unknown): string | undefined {
+  if (!(error instanceof Error) || !(ATTEMPTED_EXECUTION_ID in error)) return undefined
+  const value = (error as Error & Record<string, unknown>)[ATTEMPTED_EXECUTION_ID]
+  return typeof value === 'string' && value.length > 0 ? value : undefined
+}
+
 export interface BlockExecutionErrorDetails {
   block: SerializedBlock
   error: Error | string
