@@ -47,6 +47,27 @@ function requireBillingReadPrincipal(
   }
 }
 
+/**
+ * Account scope is reachable only by a personal API key, and that is a property
+ * of what the two kinds of key are rather than a check performed here.
+ *
+ * Omitting `workspaceId` is how a caller asks for account scope, and it is also
+ * the plainest request anyone makes — `GET /api/v2/billing/status` with no query
+ * at all. The two are byte-identical on the wire, so a workspace API key that
+ * omits the id cannot be told apart from one that never had an opinion, and this
+ * function pins it to `principal.workspaceId` in both cases. It deliberately
+ * does not refuse the omission: a workspace key has no account to widen to, so
+ * there is no wider answer being withheld, and refusing would `403` every
+ * unparameterised billing read a workspace key makes.
+ *
+ * The consequence is that a caller cannot *assert* account scope over this
+ * surface, only imply it. A client that means "account-wide" must therefore
+ * establish that it holds a personal key — `GET /api/v2/meta` reports `keyType`
+ * — and refuse locally, rather than relying on a refusal that this layer has no
+ * signal to produce. The answer still says which scope it resolved:
+ * `workspaceId` is `null` only on the account branch, and the ledger reports
+ * `scope`.
+ */
 async function resolveBillingReadScope(
   principal: BillingReadPrincipal,
   operation: BillingReadOperation,

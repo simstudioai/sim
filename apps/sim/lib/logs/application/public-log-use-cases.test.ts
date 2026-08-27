@@ -324,6 +324,60 @@ describe('public log application use cases', () => {
     )
   })
 
+  /**
+   * The run id is the whole of the request — the route takes no workspace — so
+   * the only thing standing between a personal key and any run in the system is
+   * that the permission is resolved against the run's own workspace. Resolving
+   * it against anything the caller supplied, or skipping it once the key
+   * authenticates, turns a globally unique id into a global read.
+   */
+  it('resolves the personal-key permission against the run workspace', async () => {
+    await getPublicLog.execute({
+      principal: { kind: 'personal_api_key', userId: 'user-9', keyId: 'key-9' },
+      input: { runId: 'run-1' },
+    })
+
+    expect(mocks.resolvePermission).toHaveBeenCalledWith(
+      'user-9',
+      'workspace-1',
+      null,
+      undefined,
+      expect.anything()
+    )
+  })
+
+  it('rejects a personal key with no permission on the run workspace', async () => {
+    mocks.resolvePermission.mockResolvedValueOnce(null)
+
+    await expect(
+      getPublicLog.execute({
+        principal: { kind: 'personal_api_key', userId: 'user-9', keyId: 'key-9' },
+        input: { runId: 'run-1' },
+      })
+    ).rejects.toMatchObject({ code: 'forbidden' })
+
+    expect(mocks.getLog).not.toHaveBeenCalled()
+    expect(mocks.materialize).not.toHaveBeenCalled()
+  })
+
+  /**
+   * A workspace that disallows personal keys must refuse them here too: the
+   * detail read is the one log route a personal key can reach without naming a
+   * workspace, so a gap in this branch is not covered by the list route's.
+   */
+  it('rejects a personal key in a workspace that disallows them', async () => {
+    mocks.loadWorkspace.mockResolvedValueOnce({ ...workspaceContext, allowPersonalApiKeys: false })
+
+    await expect(
+      getPublicLog.execute({
+        principal: { kind: 'personal_api_key', userId: 'user-9', keyId: 'key-9' },
+        input: { runId: 'run-1' },
+      })
+    ).rejects.toMatchObject({ code: 'forbidden' })
+
+    expect(mocks.getLog).not.toHaveBeenCalled()
+  })
+
   it('rejects a workspace key outside the run workspace before materialization', async () => {
     await expect(
       getPublicLog.execute({

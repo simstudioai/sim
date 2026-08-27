@@ -66,6 +66,24 @@ function credentialTypes(scope?: SecretScope) {
  * The secret's public `name` is stored as the credential `displayName`, so the
  * caller-facing `name` sort aliases to that column here. The alias must not
  * escape into the cursor's sort stamp — see {@link listSecretsUseCase}.
+ *
+ * KNOWN DIVERGENCE — personal scope is workspace-bound here and nowhere else.
+ * A personal secret's value is user-global (`environment.variables`, keyed by
+ * user alone), so {@link setSecretUseCase} and {@link deleteSecretUseCase} both
+ * act on it without reference to a workspace. This read cannot: `credential`
+ * carries a NOT NULL `workspaceId`, so a personal secret has no canonical
+ * metadata row — only per-workspace mirrors, written for the workspaces
+ * `getUserWorkspaceIds` returns (explicit `permissions` rows plus owned
+ * workspaces). That set is NARROWER than the set of workspaces a caller can
+ * authorize into, which also includes inherited organization access. In such a
+ * workspace there is no mirror, so this returns nothing while `set` and
+ * `delete` still work — the caller can create a secret they cannot list.
+ *
+ * {@link getPersonalSecretMetadata} already works around the same hole for the
+ * write's response projection. Closing it for reads is a storage change, not a
+ * scoping change: personal-secret metadata needs one canonical home (a nullable
+ * `credential.workspaceId`, or a dedicated table) before this query can drop the
+ * workspace predicate without double-counting mirrors or inventing timestamps.
  */
 async function listSecretMetadata(params: {
   workspaceId: string

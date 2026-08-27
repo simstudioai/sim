@@ -42,7 +42,7 @@ export const v2BillingStatusQuerySchema = z
     workspaceId: workspaceIdSchema
       .optional()
       .describe(
-        'Workspace whose payer should be resolved. A workspace API key is pinned to its own workspace: any other id answers `404 Workspace not found`, which is also what an id that does not exist answers.'
+        'Workspace whose payer should be resolved. Omitting it selects account scope — the payer behind the calling *account*, across every workspace — and only a personal API key has an account to select. A workspace API key that omits it still resolves its own workspace, because omission is the same request as sending that key its own id; it is not a way to widen a workspace key. The response `workspaceId` reports which was resolved and is `null` only on account scope. A workspace API key is pinned to its own workspace: any other id answers `404 Workspace not found`, which is also what an id that does not exist answers.'
       ),
   })
   .strict()
@@ -172,7 +172,7 @@ export const v2BillingLogsQuerySchema = z
     workspaceId: workspaceIdSchema
       .optional()
       .describe(
-        "Narrow the ledger to usage events attributed to one workspace. It does not change whose events are reported — a personal API key always reports the usage of the person holding it, and a workspace API key always reports its own workspace's complete ledger across every member. The response `scope` field says which of the two you received. A workspace API key is pinned to its own workspace: any other id answers `404 Workspace not found`, which is also what an id that does not exist answers."
+        "Narrow the ledger to usage events attributed to one workspace. It does not change whose events are reported — a personal API key always reports the usage of the person holding it, and a workspace API key always reports its own workspace's complete ledger across every member. The response `scope` field says which of the two you received. Omitting it does not widen a workspace API key: that key has no account behind it, so an omitted id is the same request as its own id and the page still covers exactly one workspace, reported as `scope: workspace`. A ledger spanning every workspace an account touches requires a personal API key. A workspace API key is pinned to its own workspace: any other id answers `404 Workspace not found`, which is also what an id that does not exist answers."
       ),
     period: usageLogPeriodSchema
       .optional()
@@ -278,7 +278,8 @@ export const v2BillingLogEntrySchema = z
   .meta({
     id: 'V2BillingLogEntry',
     title: 'Billing log entry',
-    description: 'One credit-consuming usage event in the billing ledger.',
+    description:
+      'One credit-consuming usage event in the billing ledger. No field identifies the member who incurred it: on `workspace` scope a page is every member’s usage in aggregate, not a per-member breakdown, so it reconciles a workspace’s spend without publishing who spent it.',
   })
 export type V2BillingLogEntry = z.output<typeof v2BillingLogEntrySchema>
 
@@ -292,7 +293,7 @@ export type V2BillingLogEntry = z.output<typeof v2BillingLogEntrySchema>
 export const v2BillingLogsScopeSchema = z
   .enum(['user', 'workspace'])
   .describe(
-    "Whose usage this page reports. `user` — the events of the person whose personal API key made the request, narrowed by `workspaceId` when one was given; this omits other members' usage. `workspace` — every member's events for the workspace a workspace API key is pinned to."
+    "Whose usage this page reports. `user` — the events of the person whose personal API key made the request, narrowed by `workspaceId` when one was given; this omits other members' usage. `workspace` — every member's events for the workspace a workspace API key is pinned to, in aggregate: no entry names the member it belongs to."
   )
 
 export const v2ListBillingLogsContract = defineRouteContract({

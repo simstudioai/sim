@@ -96,7 +96,11 @@ export type V2SecretSortBy = (typeof v2SecretSortFields)[number]
 export const v2ListSecretsQuerySchema = z
   .object({
     workspaceId: workspaceIdSchema.describe('Workspace whose secret metadata should be listed.'),
-    scope: v2SecretScopeSchema.optional().describe('Restrict results to one ownership scope.'),
+    scope: v2SecretScopeSchema
+      .optional()
+      .describe(
+        "Restrict results to one ownership scope. Personal results are not the caller's full personal set: this list reads the per-workspace credential mirrors of a personal secret, and a mirror exists only for workspaces the caller holds an explicit membership or ownership of. A personal secret is therefore omitted here when the caller reaches this workspace through inherited organization access, even though the same secret can be set and deleted from it. Prefer listing from a workspace the caller is an explicit member of until the mirrors are replaced by canonical personal-secret metadata."
+      ),
     search: v2SearchSchema.describe('Case-insensitive substring match against the secret name.'),
     ...v2SortFields(v2SecretSortFields, { sortBy: 'name', sortOrder: 'asc' }),
     ...v2PaginationFields({ description: 'Maximum secrets to return per page.' }),

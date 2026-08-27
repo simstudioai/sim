@@ -5,6 +5,7 @@ import type { Principal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type {
   DeleteSecretInput,
+  ListSecretsInput,
   ListSecretUsageInput,
   SetSecretInput,
 } from '@/lib/secrets/application/use-cases'
@@ -191,6 +192,64 @@ describe('secret application use cases', () => {
       names: [],
     })
     expect(result.values).toEqual({})
+  })
+
+  /**
+   * The list's cross-user boundary is one SQL predicate — `ownedEnvSecretsOnly` — and nothing
+   * else keeps another user's `env_personal` row out of the page. Dropping it would leave every
+   * other assertion in this file green, because the query is mocked and its canned rows prove
+   * nothing about what was asked for. So the pin is on the composed argument, per scope.
+   */
+  it.each([
+    ['personal' as const, ['env_personal']],
+    ['workspace' as const, ['env_workspace']],
+    [undefined, ['env_workspace', 'env_personal']],
+  ])("restricts the list to the caller's own secrets for scope %s", async (scope, types) => {
+    await listSecretsUseCase.execute({
+      principal: session,
+      input: {
+        workspaceId: workspace.workspaceId,
+        scope,
+        sortBy: 'name',
+        sortOrder: 'asc',
+        limit: 50,
+      },
+    })
+
+    expect(mocks.listCredentials).toHaveBeenCalledTimes(1)
+    const [args] = mocks.listCredentials.mock.calls[0]
+    expect(args.ownedEnvSecretsOnly).toBe(true)
+    expect(args.types).toEqual(types)
+    /** Taken from the principal, never from caller-supplied input. */
+    expect(args.userId).toBe(session.userId)
+    expect(args.workspaceId).toBe(workspace.workspaceId)
+  })
+
+  it('never reads secret metadata for a workspace API key, which has no personal identity', async () => {
+    const execute = listSecretsUseCase.execute as (args: {
+      principal: Principal
+      input: ListSecretsInput
+    }) => Promise<unknown>
+
+    await expect(
+      execute({
+        principal: {
+          kind: 'workspace_api_key',
+          workspaceId: workspace.workspaceId,
+          keyId: 'workspace-key-1',
+        },
+        input: {
+          workspaceId: workspace.workspaceId,
+          scope: 'personal',
+          sortBy: 'name',
+          sortOrder: 'asc',
+          limit: 50,
+        },
+      })
+    ).rejects.toMatchObject({ code: 'forbidden' })
+
+    expect(mocks.loadContext).not.toHaveBeenCalled()
+    expect(mocks.listCredentials).not.toHaveBeenCalled()
   })
 
   it('rejects workspace keys before resolving or reading secret state', async () => {

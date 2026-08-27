@@ -307,7 +307,9 @@ export const v2LogDetailSchema = z
 export type V2LogDetail = z.output<typeof v2LogDetailSchema>
 
 export const v2LogParamsSchema = z.object({
-  runId: runIdSchema.describe('Unique workflow run identifier.'),
+  runId: runIdSchema.describe(
+    'Unique workflow run identifier. A run is addressed globally by this id: unlike the list and statistics routes, this route takes no workspace. The run carries its own workspace and the caller is authorized against that one, so a run the caller cannot reach is concealed as a 404 rather than filtered out.'
+  ),
 })
 
 /**
@@ -679,6 +681,18 @@ export const v2ListLogsContract = defineRouteContract({
   },
 })
 
+/**
+ * Deliberately without a workspace input, unlike {@link v2ListLogsContract} and
+ * `v2GetLogStatsContract`, which both require one.
+ *
+ * A run id is globally unique, so the run names its own workspace and the caller
+ * is authorized against that canonical scope. Accepting a workspace here would
+ * offer a filter that can only ever agree with the scope already derived, or
+ * disagree with it — and a caller who read the asymmetry as "this route ignores
+ * the workspace I asked for" is reading a flag that was never part of the
+ * request. `query: noInputSchema` is what makes that visible: a stray
+ * `workspaceId` is refused as an unrecognized key rather than dropped.
+ */
 export const v2GetLogContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/logs/[runId]',
