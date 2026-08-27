@@ -5,6 +5,7 @@ import { ChipTextarea, chipFieldSurfaceClass, cn, toast } from '@sim/emcn'
 import { formatPasteLimit, PASTE_LIMITS } from '@sim/utils/paste'
 import type { JSONContent } from '@tiptap/core'
 import { EditorContent, useEditor } from '@tiptap/react'
+import { assessRawMarkdownPaste } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/paste-admission'
 import { createMarkdownEditorExtensions } from './editor-extensions'
 import { moveDraggedImageNode } from './image-drag-move'
 import { extractImageFiles, isInlineRouteSrc, shouldSkipFileUpload } from './image-paste'
@@ -248,6 +249,8 @@ function LoadedRichMarkdownField({
         // Claim ⌘K so the bubble-menu link editor wins over the global search palette.
         'data-owned-shortcuts': 'Mod+K',
         'data-paste-max-bytes': String(PASTE_LIMITS.RICH_MARKDOWN_BYTES),
+        'data-paste-max-html-bytes': String(PASTE_LIMITS.RICH_MARKDOWN_BYTES),
+        'data-paste-handles-images': uploadImage ? 'true' : 'false',
       },
       handlePaste: (view, event) => {
         const images = uploadImageRef.current ? extractImageFiles(event.clipboardData) : []
@@ -476,7 +479,22 @@ function RawMarkdownField({
 
   const handlePaste = (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const text = event.clipboardData.getData('text/plain')
-    if (text && onPasteText?.(text)) event.preventDefault()
+    if (!text) return
+    if (onPasteText?.(text)) {
+      event.preventDefault()
+      return
+    }
+
+    const admission = assessRawMarkdownPaste({
+      pastedText: text,
+      currentText: value,
+      selectionStart: event.currentTarget.selectionStart,
+      selectionEnd: event.currentTarget.selectionEnd,
+    })
+    if (admission.accepted) return
+
+    event.preventDefault()
+    warnRichMarkdownPasteLimit()
   }
 
   /* A bare host paints its own surface, so the raw fallback is a plain

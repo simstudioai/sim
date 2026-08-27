@@ -10,7 +10,7 @@ import {
 } from 'react'
 import type { OnMount } from '@monaco-editor/react'
 import { cn, toast } from '@sim/emcn'
-import { assessTextPaste, formatPasteLimit, PASTE_LIMITS } from '@sim/utils/paste'
+import { formatPasteLimit, PASTE_LIMITS } from '@sim/utils/paste'
 import type { editor as MonacoEditorTypes } from 'monaco-editor'
 import dynamic from 'next/dynamic'
 import {
@@ -20,6 +20,7 @@ import {
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
 import { isSimPageSource, SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
+import { assessTextEditorPaste } from '@/app/workspace/[workspaceId]/files/components/file-viewer/text-editor-paste'
 import { useAddToChat } from '@/hooks/use-add-to-chat'
 import type { ChatContext } from '@/stores/panel'
 import { EditorContextMenu } from './editor-context-menu'
@@ -586,7 +587,9 @@ export const TextEditor = memo(function TextEditor({
 
   const handleEditorChange = useCallback(
     (value: string | undefined) => {
-      setDraftContent(value ?? '')
+      const nextValue = value ?? ''
+      contentRef.current = nextValue
+      setDraftContent(nextValue)
     },
     [setDraftContent]
   )
@@ -595,9 +598,29 @@ export const TextEditor = memo(function TextEditor({
     const pastedText = event.clipboardData.getData('text/plain')
     if (!pastedText) return
 
-    const admission = assessTextPaste({
+    const editor = monacoEditorRef.current
+    const model = editor?.getModel()
+    const selections = editor?.getSelections()
+    const currentText = contentRef.current
+    const selectionOffsets =
+      model && selections?.length
+        ? selections.map((selection) => ({
+            start: model.getOffsetAt({
+              lineNumber: selection.startLineNumber,
+              column: selection.startColumn,
+            }),
+            end: model.getOffsetAt({
+              lineNumber: selection.endLineNumber,
+              column: selection.endColumn,
+            }),
+          }))
+        : [{ start: currentText.length, end: currentText.length }]
+
+    const admission = assessTextEditorPaste({
       pastedText,
-      maxPastedBytes: PASTE_LIMITS.TEXT_EDITOR_BYTES,
+      currentText,
+      selections: selectionOffsets,
+      multiCursorPaste: editor?.getRawOptions().multiCursorPaste ?? 'spread',
     })
     if (admission.accepted) return
 
@@ -660,6 +683,7 @@ export const TextEditor = memo(function TextEditor({
       {showEditor && (
         <div
           data-paste-max-bytes={PASTE_LIMITS.TEXT_EDITOR_BYTES}
+          data-paste-projects-text-result='true'
           onPasteCapture={handleEditorPasteCapture}
           style={showPreviewPane ? { width: `${splitPct}%`, flexShrink: 0 } : undefined}
           className={cn(

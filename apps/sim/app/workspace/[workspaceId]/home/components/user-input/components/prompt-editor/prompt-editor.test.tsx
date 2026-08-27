@@ -2,6 +2,7 @@
  * @vitest-environment jsdom
  */
 import { act } from 'react'
+import { PASTE_RENDER_THRESHOLDS } from '@sim/utils/paste'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -21,6 +22,8 @@ vi.mock(
 
 import { PromptEditor } from '@/app/workspace/[workspaceId]/home/components/user-input/components/prompt-editor/prompt-editor'
 import { usePromptEditor } from '@/app/workspace/[workspaceId]/home/components/user-input/components/prompt-editor/use-prompt-editor'
+import { SKILL_CHIP_TRIGGER } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/utils'
+import type { ChatContext } from '@/stores/panel'
 
 /**
  * jsdom performs no layout, so the autosize inputs are stubbed: `editorWidth`
@@ -85,14 +88,22 @@ class FakeResizeObserver implements ResizeObserver {
   }
 }
 
-function mountEditor() {
+interface MountEditorOptions {
+  initialValue?: string
+  initialContexts?: ChatContext[]
+}
+
+function mountEditor({
+  initialValue = 'a long prompt',
+  initialContexts = [],
+}: MountEditorOptions = {}) {
   ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
   const container = document.createElement('div')
   document.body.appendChild(container)
   const root: Root = createRoot(container)
 
   function Probe() {
-    const editor = usePromptEditor({ workspaceId: 'ws-1', initialValue: 'a long prompt' })
+    const editor = usePromptEditor({ workspaceId: 'ws-1', initialValue, initialContexts })
     return <PromptEditor editor={editor} className='max-h-[200px]' />
   }
 
@@ -236,5 +247,20 @@ describe('PromptEditor autosize', () => {
     unmount()
 
     expect(FakeResizeObserver.observerCount()).toBe(0)
+  })
+
+  it('keeps the chip overlay for a large prompt containing a skill trigger', () => {
+    const context = {
+      kind: 'skill',
+      skillId: 'skill-1',
+      label: 'summarize',
+    } satisfies ChatContext
+    const initialValue = `${'x'.repeat(PASTE_RENDER_THRESHOLDS.ENHANCED_TEXT_CHARACTERS)} ${SKILL_CHIP_TRIGGER}summarize`
+    const { textarea, unmount } = mountEditor({ initialValue, initialContexts: [context] })
+
+    expect(textarea.className).not.toContain('!text-[var(--text-primary)]')
+    expect(textarea.parentElement?.querySelector('[aria-hidden="true"]')).not.toBeNull()
+
+    unmount()
   })
 })
