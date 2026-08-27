@@ -40,6 +40,44 @@ describe('the premise these helpers exist for', () => {
     expect(new URL('https://x/v1/a/b/..').pathname).toBe('/v1/a/')
     expect(new URL('https://x/v1/a/b/%2e%2e').pathname).toBe('/v1/a/')
   })
+
+  /**
+   * The removable set is the ELEVEN spellings the URL Standard defines, not
+   * just the two literal ones. The helpers below match only the literal
+   * spellings, which is sufficient solely because `encodeURIComponent` escapes
+   * `%` and so can never emit a `%2e` form. Both halves are asserted here,
+   * because the second is what makes the first safe.
+   */
+  it.concurrent.each([
+    ['.', '/v1/a/'],
+    ['%2e', '/v1/a/'],
+    ['%2E', '/v1/a/'],
+    ['..', '/v1/'],
+    ['.%2e', '/v1/'],
+    ['.%2E', '/v1/'],
+    ['%2e.', '/v1/'],
+    ['%2E.', '/v1/'],
+    ['%2e%2e', '/v1/'],
+    ['%2E%2E', '/v1/'],
+    ['%2e%2E', '/v1/'],
+  ] as const)(
+    'the parser also removes the encoded dot-segment spelling %j (=> %j)',
+    (spelling, expected) => {
+      expect(new URL(`https://x/v1/a/${spelling}`).pathname).toBe(expected)
+    }
+  )
+
+  it.concurrent.each(['...', '%2e%2e%2e', '%252e', 'a%2e'])(
+    'the parser does NOT remove %j',
+    (spelling) => {
+      expect(new URL(`https://x/v1/a/${spelling}`).pathname.startsWith('/v1/a/')).toBe(true)
+    }
+  )
+
+  it.concurrent('encodeURIComponent escapes % so no helper can emit a %2e spelling', () => {
+    expect(encodeURIComponent('%2e%2e')).toBe('%252e%252e')
+    expect(new URL('https://x/v1/a/%252e%252e').pathname).toBe('/v1/a/%252e%252e')
+  })
 })
 
 describe('safeUrlPathSegment', () => {
@@ -212,8 +250,10 @@ describe('safeUrlPath', () => {
 
   /**
    * Dropping the per-segment trim must not re-open traversal. The WHATWG
-   * parser only removes a segment that is *exactly* `.` or `..`; a padded one
-   * encodes to inert text and stays put.
+   * parser removes a segment only when the whole segment spells a dot segment
+   * — literally or percent-encoded — and a padded one spells neither, so it
+   * encodes to inert text and stays put. The percent-encoded spellings are
+   * unreachable from here because `encodeURIComponent` escapes `%` itself.
    */
   it.concurrent.each(['a/ .. /b', 'a/ ../b', 'a/.. /b', 'a/ . /b'] as const)(
     'keeps the padded dot segment %j inert instead of popping a segment',
@@ -346,8 +386,10 @@ describe('safeUrlPath options', () => {
   })
 
   /**
-   * Neither option touches the dot-segment check, which is an EXACT match on
-   * the segment — the only spelling the WHATWG parser actually removes.
+   * Neither option touches the dot-segment check. An exact match on the raw
+   * segment suffices because every segment then goes through
+   * `encodeURIComponent`, which escapes `%` and so cannot emit the
+   * percent-encoded dot-segment spellings the parser also removes.
    */
   it.concurrent.each(['a//../b', '/..', '../', '..', '.', 'a/../b', '/a/./b', '..//..'] as const)(
     'still rejects the dot segment in %j under storage options',
@@ -438,5 +480,146 @@ describe('safeOpaqueUrlSegment', () => {
     expect(() => safeUrlPathSegment('foo/bar', 'objectID')).toThrow(/separator/)
     expect(safeUrlPath('foo/bar', 'objectID')).toBe('foo/bar')
     expect(safeOpaqueUrlSegment('foo/bar', 'objectID')).toBe('foo%2Fbar')
+  })
+})
+
+/**
+ * The coercion is deliberately narrow. It exists so an id the caller genuinely
+ * supplied as a JSON number is not reported as missing, and it must not be a
+ * general `String(value)` — that turns a wrong-shaped value into a plausible
+ * but wrong path segment instead of a clean, named error.
+ */
+describe('coercion boundary', () => {
+  const HELPERS = [
+    ['safeUrlPathSegment', safeUrlPathSegment],
+    ['safeUrlPath', safeUrlPath],
+    ['safeOpaqueUrlSegment', safeOpaqueUrlSegment],
+  ] as const
+
+  it.concurrent.each([
+    ['string', 'abc', 'abc'],
+    ['zero', 0, '0'],
+    ['negative', -7, '-7'],
+    ['decimal', 1.5, '1.5'],
+    ['bigint', 42n, '42'],
+    ['large safe integer', 9007199254740991, '9007199254740991'],
+  ] as const)('accepts the %s as the expected string', (_label, value, expected) => {
+    for (const [name, helper] of HELPERS) {
+      expect(`${name}:${helper(value as never, 'id')}`).toBe(`${name}:${expected}`)
+    }
+  })
+
+  it.concurrent.each([
+    ['plain object', {}],
+    ['populated object', { a: 1 }],
+    ['Map', new Map()],
+    ['null-prototype object', Object.create(null)],
+    ['true', true],
+    ['false', false],
+    ['NaN', Number.NaN],
+    ['Infinity', Number.POSITIVE_INFINITY],
+    ['-Infinity', Number.NEGATIVE_INFINITY],
+    ['array', [1, 2]],
+    ['Date', new Date(0)],
+    ['symbol', Symbol('s')],
+    ['exponential number', 1e21],
+    ['unsafe integer', Number.MAX_SAFE_INTEGER + 2],
+    ['snowflake-sized id parsed as a number', Number('1234567890123456789')],
+    ['function', () => 'x'],
+  ] as const)('rejects the %s with an error naming the param', (_label, value) => {
+    for (const [name, helper] of HELPERS) {
+      let thrown: unknown = null
+      try {
+        helper(value as never, 'objectId')
+      } catch (error) {
+        thrown = error
+      }
+      expect(`${name}:${thrown instanceof Error}`).toBe(`${name}:true`)
+      expect(`${name}:${(thrown as Error).message}`).toContain('objectId')
+      expect((thrown as Error).message).not.toContain('[object')
+      expect((thrown as Error).message).not.toMatch(/No default value/)
+    }
+  })
+
+  /**
+   * `null` and `undefined` keep reporting *"is required"* — the distinction
+   * between "you sent nothing" and "you sent the wrong kind of thing" is what
+   * makes the error actionable.
+   */
+  it.concurrent.each([
+    ['null', null],
+    ['undefined', undefined],
+  ] as const)('keeps the required error for %s rather than the invalid-value one', (_l, value) => {
+    for (const [name, helper] of HELPERS) {
+      expect(() => helper(value as never, 'objectId')).toThrow(/objectId is required/)
+      expect(`${name}`).toBe(name)
+    }
+  })
+
+  it.concurrent('never lets a rejected value reach the built path', () => {
+    for (const value of [{}, true, Number.NaN, [1, 2], 1e21, new Date(0)]) {
+      let built: string | null = null
+      try {
+        built = `${ORIGIN}/v1/${safeUrlPathSegment(value as never, 'id')}`
+      } catch {
+        continue
+      }
+      expect(built).toBeNull()
+    }
+  })
+})
+
+/**
+ * The 44 live call sites (Vercel x43, Daytona x1) pass provider ids and
+ * hostnames as strings, occasionally a numeric id. Their output must be
+ * byte-identical across this change.
+ */
+describe('live call-site values', () => {
+  it.concurrent.each([
+    'prj_2rXy9Qh0lE8vJmKpZ4aB1cD',
+    'dpl_9fJk2LmN4pQr7sT1uV3wX5yZ',
+    'team_abcDEF123',
+    'my-app.vercel.app',
+    'example.com',
+    'sub.domain.example.co.uk',
+    'rec_1a2b3c',
+    'ecfg_xyz',
+    '3f1c9a1e-6f27-4b2e-9b0f-2a1d4e5c6b7a',
+  ])('passes %j through unchanged', (value) => {
+    expect(safeUrlPathSegment(value, 'id')).toBe(value)
+  })
+
+  it.concurrent('still stringifies a numeric id', () => {
+    expect(safeUrlPathSegment(2487956, 'woeid')).toBe('2487956')
+    expect(safeUrlPathSegment(0, 'folderId')).toBe('0')
+  })
+})
+
+/**
+ * The rejection set is NOT option-invariant: `' .. '` trims to the exact dot
+ * segment under the default and is therefore rejected, while
+ * `preserveOuterWhitespace` keeps it as inert `%20..%20` text that the WHATWG
+ * parser leaves in place.
+ */
+describe('preserveOuterWhitespace changes the rejection set', () => {
+  it.concurrent('rejects " .. " by default but accepts it as inert text with the option', () => {
+    expect(() => safeUrlPath(' .. ', 'path')).toThrow(/path/)
+    expect(safeUrlPath(' .. ', 'path', { preserveOuterWhitespace: true })).toBe('%20..%20')
+
+    const url = new URL(
+      `${ORIGIN}/storage/v1/object/bkt/${safeUrlPath(' .. ', 'path', { preserveOuterWhitespace: true })}`
+    )
+    expect(url.pathname).toBe('/storage/v1/object/bkt/%20..%20')
+    expect(url.pathname).not.toContain('/../')
+  })
+
+  it.concurrent('rejects " . " by default but keeps it inert with the option', () => {
+    expect(() => safeUrlPath(' . ', 'path')).toThrow(/path/)
+    expect(safeUrlPath(' . ', 'path', { preserveOuterWhitespace: true })).toBe('%20.%20')
+  })
+
+  it.concurrent('still rejects an untrimmed exact dot segment under the option', () => {
+    expect(() => safeUrlPath('..', 'path', { preserveOuterWhitespace: true })).toThrow(/path/)
+    expect(() => safeUrlPath('a/../b', 'path', { preserveOuterWhitespace: true })).toThrow(/path/)
   })
 })
